@@ -1,7 +1,4 @@
-//! Prepare borrowed call referents from incoming pointers or exact local storage.
-//! Shared record projections retain the original root and semantic path alongside
-//! the derived displacement. Receiving validation reconstructs that displacement;
-//! neither record size nor a matching callee shape authorizes a copied referent.
+//! Borrow primitive referents from incoming pointers or established local storage.
 use super::LiveDefinitions;
 use crate::lowering::function_signature::{PreparedFunctionSignature, prepare_function_signature};
 use crate::lowering::shared::*;
@@ -70,16 +67,6 @@ pub(super) fn lower(
         || !crashes.is_empty()
         || !callee_function.entry_claims.is_empty()
         || !callee_function.published_service_ceiling.is_empty()
-        || callee_function.attachment.is_some_and(|attachment| {
-            !callee_function
-                .structural_parameters
-                .iter()
-                .any(|parameter| {
-                    parameter.is_self
-                        && parameter.structural_type == attachment
-                        && is_shared_record(parameter, types)
-                })
-        })
         || values.len() != callee_function.parameters.len()
         || arguments.len() != callee_function.structural_parameters.len()
         || result.map(|result| result.scalar_type)
@@ -113,6 +100,16 @@ pub(super) fn lower(
         .zip(&callee_function.structural_parameters)
         .zip(&signature.parameters)
         .map(|((argument, declaration), destination)| {
+            if super::records::is_reference(declaration, types) {
+                return super::records::argument(
+                    argument,
+                    declaration,
+                    destination,
+                    prepared,
+                    live,
+                    types,
+                );
+            }
             if super::scalar_arrays::is_owned_parameter(declaration, types) {
                 return super::scalar_arrays::argument(
                     argument,
@@ -163,7 +160,7 @@ pub(super) fn lower(
     Ok(())
 }
 
-/// Retain the original referent independently of the call's scalar or Unit result.
+/// Retain the same primitive referent custody independently of the call result.
 pub(super) fn argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
@@ -174,44 +171,25 @@ pub(super) fn argument(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
     let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
-    if (!argument.path.is_empty() && !is_shared_record(declaration, types))
+    if !argument.path.is_empty()
         || argument.access != declaration.access
-        || !(super::primitive_storage::is_primitive_reference(declaration, types)
-            || is_shared_record(declaration, types))
+        || !super::primitive_storage::is_primitive_reference(declaration, types)
     {
         return Err(invalid());
     }
     let (identity, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
         let (defining_operation, home_result) = home.operation_result().ok_or_else(invalid)?;
-        let primitive = function.operations.iter().any(|operation| {
+        if !function.operations.iter().any(|operation| {
             matches!(operation,
             AbstractOperation::EstablishPrimitiveLocal { psi_operation, result, .. }
             if *psi_operation == defining_operation && result == home_result)
-        });
-        let record = is_shared_record(declaration, types)
-            && home_result.claims.is_empty()
-            && home_result.qualifications.is_empty()
-            && home_result.projected_qualifications.is_empty()
-            && home_result.multiplicity != StructuralMultiplicity::Linear
-            && function.operations.iter().any(|operation| {
-                matches!(operation,
-                AbstractOperation::EstablishScalarRecord { psi_operation, result, .. }
-                | AbstractOperation::CallStructural { psi_operation, result, .. }
-                    if *psi_operation == defining_operation && result == home_result)
-            });
-        if !primitive && !record {
+        }) {
             return Err(invalid());
         }
         (
             home.structural_type(),
-            if record {
-                TargetStructuralArgumentSource::StructuralHome {
-                    psi_operation: defining_operation,
-                }
-            } else {
-                TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
-                    psi_operation: defining_operation,
-                }
+            TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                psi_operation: defining_operation,
             },
         )
     } else {
@@ -228,87 +206,25 @@ pub(super) fn argument(
             }
             StructuralAccess::Owned => false,
         };
-        if !allowed
-            || (is_shared_record(declaration, types)
-                && source.access != StructuralAccess::SharedBorrow)
-        {
+        if !allowed {
             return Err(invalid());
         }
         (source.structural_type, source.placement.clone().into())
     };
-    let (referent, source_byte_offset) = if argument.path.is_empty() {
-        (identity, 0)
-    } else {
-        if !plain_record(identity, types, &mut Vec::new()) {
-            return Err(invalid());
-        }
-        let (referent, _, offset) =
-            crate::lowering::structural_layout::resolve_structural_projection_path(
-                identity,
-                &argument.path,
-                types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )?;
-        (referent, offset)
-    };
-    if referent != declaration.structural_type {
+    if identity != declaration.structural_type {
         return Err(invalid());
     }
     Ok(TargetStructuralArgument {
         place: argument.place,
         access: argument.access,
-        path: argument.path.clone(),
+        path: Vec::new(),
         root_structural_type: identity,
-        structural_type: referent,
+        structural_type: identity,
         shape: destination.shape,
-        source_byte_offset,
+        source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
         source,
         destination: destination.placement.clone(),
     })
-}
-
-fn is_shared_record(
-    parameter: &terminal_psi::StructuralParameterDeclaration,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> bool {
-    parameter.access == StructuralAccess::SharedBorrow
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
-        && plain_record(parameter.structural_type, types, &mut Vec::new())
-}
-
-fn plain_record(
-    identity: StructuralTypeId,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    active: &mut Vec<StructuralTypeId>,
-) -> bool {
-    if active.contains(&identity) {
-        return false;
-    }
-    let Some(declaration) = types.get(&identity) else {
-        return false;
-    };
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return false;
-    };
-    active.push(identity);
-    let supported = fields.iter().all(|field| {
-        !field.relevance.is_erased()
-            && match field.field_type {
-                StructuralFieldType::Structural(nested) => plain_record(nested, types, active),
-                StructuralFieldType::Scalar(scalar) => {
-                    super::primitive_storage::native_shape(scalar).is_some()
-                }
-                StructuralFieldType::IeeeFloat(format) => {
-                    super::primitive_storage::native_shape(ScalarType::IeeeFloat(format)).is_some()
-                }
-                _ => false,
-            }
-    });
-    active.pop();
-    supported
 }

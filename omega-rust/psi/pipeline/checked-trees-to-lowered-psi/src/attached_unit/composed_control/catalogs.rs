@@ -49,7 +49,11 @@ fn lower_composed_services(
         service_reach,
         &mut selected,
     )?;
-    for operation in states.iter().flat_map(|state| &state.operations) {
+    for operation in states
+        .iter()
+        .flat_map(|state| &state.operations)
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+    {
         let service_reach = match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }

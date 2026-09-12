@@ -365,3 +365,49 @@ fn mutable_state_self_field_write_checks() {
     )
     .expect("the current state's explicit mutable self permits a field store");
 }
+
+#[test]
+fn local_record_receiver_cannot_acquire_unauthorized_mutation() {
+    for body in [
+        "let cell: Cell = Cell { value: 17 }; cell.replace();",
+        "let mut cell: Cell = Cell { value: 17 }; let view: &Cell = &cell; view.replace();",
+    ] {
+        let source = format!(
+            "data Cell {{ value: u64; }}
+             machine Cell::replace(&mut self) {{ self.value = 29; }}
+             machine observe() {{ {body} }}"
+        );
+        reject_source(&source);
+    }
+}
+
+#[test]
+fn local_record_receiver_cannot_be_reused_after_owned_self_transfer() {
+    let diagnostics = reject_source(
+        "data Cell { value: u64; }
+         machine Cell::consume(self) {}
+         machine observe() {
+             let cell: Cell = Cell { value: 17 };
+             cell.consume();
+             cell.consume();
+         }",
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("already transferred or consumed")),
+        "owned receiver transfer must retire the original local: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn owned_record_child_cannot_be_transferred_twice() {
+    let diagnostics = reject_source("data Inner { value: u64; } data Outer { first: Inner; second: Inner; }
+        machine wrap() -> Outer { let child: Inner = Inner { value: 7 }; Outer { first: child, second: child } }");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("already transferred or consumed")),
+        "{diagnostics:#?}"
+    );
+}

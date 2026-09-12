@@ -227,15 +227,17 @@ fn shared_record_call_replays_original_home_and_consumed_scalar_result() {
         else {
             panic!("local");
         };
-        source.blocks[0].instructions[1].kind =
-            LegalizedScalarInstructionKind::EstablishScalarRecord {
-                result,
-                shape,
-                fields: vec![terminal_psi::ScalarRecordFieldValue {
-                    field,
+        source.blocks[0].instructions[1].kind = LegalizedScalarInstructionKind::EstablishRecord {
+            result,
+            shape,
+            fields: vec![terminal_psi::RecordFieldInitializer {
+                field,
+                value: terminal_psi::RecordFieldValue::Scalar {
                     value: value.value,
-                }],
-            };
+                    range_obligation: None,
+                },
+            }],
+        };
         let LegalizedScalarInstructionKind::Call(call) = &mut source.blocks[0].instructions[2].kind
         else {
             panic!("call");
@@ -281,7 +283,22 @@ fn shared_record_call_replays_original_home_and_consumed_scalar_result() {
         };
         validate(&source, &selected).unwrap();
         assert_eq!(selected.local_storage_slots.len(), 1);
-        for mutation in 0..4 {
+        let mut mutable_source = source.clone();
+        let LegalizedScalarInstructionKind::Call(call) =
+            &mut mutable_source.blocks[0].instructions[2].kind
+        else {
+            panic!("call");
+        };
+        let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+        else {
+            panic!("argument");
+        };
+        semantic.access = StructuralAccess::MutableBorrow;
+        target.access = semantic.access;
+        let mutable_selected = construct(&mutable_source).unwrap();
+        validate(&mutable_source, &mutable_selected).unwrap();
+        assert!(validate(&source, &mutable_selected).is_err());
+        for mutation in 0..5 {
             let mut changed = source.clone();
             let LegalizedScalarInstructionKind::Call(call) =
                 &mut changed.blocks[0].instructions[2].kind
@@ -302,8 +319,8 @@ fn shared_record_call_replays_original_home_and_consumed_scalar_result() {
                 1 => target.source_byte_offset = 1,
                 2 => {
                     semantic.access = StructuralAccess::MutableBorrow;
-                    target.access = semantic.access;
                 }
+                3 => target.access = StructuralAccess::MutableBorrow,
                 _ => {
                     semantic.place = PlaceId::new(99).unwrap();
                     target.place = semantic.place;

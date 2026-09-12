@@ -107,14 +107,14 @@ pub(super) fn lower(
                 structural_type: declaration,
             }
         }
-        OperationKind::EstablishScalarRecord { fields } => {
+        OperationKind::EstablishRecord { fields } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedStructuralReturn {
                     machine: machine.id,
                     edge: block.terminator.edge(),
                 });
             };
-            AbstractOperation::EstablishScalarRecord {
+            AbstractOperation::EstablishRecord {
                 psi_operation: operation.id,
                 result,
                 fields,

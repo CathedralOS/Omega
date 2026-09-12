@@ -203,6 +203,9 @@ fn selected_keys(
         .chain(crate::aarch64_mixed_aggregate_call_keys(
             target.object_format == ObjectFormat::MachO,
         ))
+        .chain(crate::aarch64_indirect_aggregate_call_keys(
+            target.object_format == ObjectFormat::MachO,
+        ))
         .collect(),
         return_aggregate: crate::aarch64_register_aggregate_return_keys(
             target.object_format == ObjectFormat::MachO,

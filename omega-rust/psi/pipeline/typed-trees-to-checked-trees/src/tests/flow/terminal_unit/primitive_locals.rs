@@ -41,10 +41,10 @@ fn primitive_local_borrow_and_later_read_keep_the_authored_storage() {
             statement_index: 2,
             destination: CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             value:
-                CheckedScalarExpression::StorageRead {
+                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::StorageRead {
                     symbol: read_symbol,
                     primitive_type: PrimitiveType::U64,
-                },
+                }),
         },
         CheckedUnitEffectOperationPlan::Complete {
             statement_index: 3, ..
@@ -187,36 +187,36 @@ fn primitive_local_mutations_preserve_input_snapshot_and_returned_binding_namesp
                     symbol: written_symbol,
                 },
             value:
-                CheckedScalarExpression::Local {
+                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 2,
                     primitive_type: PrimitiveType::U64,
-                },
+                }),
         },
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index: 4,
             value:
-                CheckedScalarExpression::StorageRead {
+                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::StorageRead {
                     symbol: read_symbol,
                     primitive_type: PrimitiveType::U64,
-                },
+                }),
             ..
         },
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index: 5,
             value:
-                CheckedScalarExpression::Local {
+                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 1,
                     primitive_type: PrimitiveType::U64,
-                },
+                }),
             ..
         },
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index: 6,
             value:
-                CheckedScalarExpression::Local {
+                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 2,
                     primitive_type: PrimitiveType::U64,
-                },
+                }),
             ..
         },
         CheckedUnitEffectOperationPlan::Complete { .. },
@@ -272,7 +272,8 @@ fn primitive_local_boolean_storage_reads_and_writes_use_the_same_symbol() {
         panic!("local store");
     };
     let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-        value: CheckedScalarExpression::Boolean(expression),
+        value:
+            checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(expression)),
         ..
     } = &plan.operations[2]
     else {
@@ -413,10 +414,10 @@ fn primitive_local_store_sequence_without_calls_retains_parameter_store() {
             statement_index: 2,
             destination: CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             value:
-                CheckedScalarExpression::StorageRead {
+                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::StorageRead {
                     symbol: read,
                     primitive_type: PrimitiveType::U64,
-                },
+                }),
         },
         CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
@@ -542,4 +543,148 @@ fn primitive_local_returned_binding_rejects_input_or_storage_namespace_substitut
             "returned binding replaced with {substituted:?}"
         );
     }
+}
+
+#[test]
+fn computed_primitive_assignment_keeps_exact_rhs_and_destination() {
+    let original = checked(
+        "machine write(output: &mut u64, choose: bool) {
+        output = 7;
+        output = match choose { true -> 42, false -> 9 };
+    }",
+    );
+    let owner = machine_named(&original, "write");
+    let plan = original
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(owner)
+        .unwrap_or_else(|| {
+            panic!(
+                "pure and computed stores; roots={:?}; pure={:?}",
+                original
+                    .facts
+                    .values
+                    .scalar_computations
+                    .roots
+                    .iter()
+                    .collect::<Vec<_>>(),
+                original.facts.values.scalar_expressions.expressions
+            )
+        });
+    assert!(matches!(
+        &plan.operations[0],
+        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            value: checked_trees::CheckedCallScalarArgument::Pure(_),
+            ..
+        }
+    ));
+    let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+        statement_index: 1,
+        destination: CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+        value: checked_trees::CheckedCallScalarArgument::Computation(value),
+    } = &plan.operations[1]
+    else {
+        panic!("exact computed store");
+    };
+    let (root_handle, _) = original
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .find(|(_, root)| root.root == *value && root.state == plan.state)
+        .unwrap();
+    for mutation in 0..4 {
+        let mut changed = original.facts.clone();
+        match mutation {
+            0 => {
+                changed
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get_mut(*value)
+                    .authored_root = arena::Handle::invalid()
+            }
+            1 => {
+                changed
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get_mut(*value)
+                    .primitive_type = PrimitiveType::Bool
+            }
+            2 => {
+                changed
+                    .values
+                    .scalar_computations
+                    .roots
+                    .get_mut(root_handle)
+                    .machine = plan.state
+            }
+            _ => {
+                let root = changed
+                    .values
+                    .scalar_computations
+                    .roots
+                    .get(root_handle)
+                    .clone();
+                changed.values.scalar_computations.roots.append(root);
+            }
+        }
+        let rebuilt =
+            crate::flow::build_checked_unit_effect_plans(&original.typed, &changed, &[], &[]);
+        assert!(
+            rebuilt.for_machine(owner).is_none(),
+            "computed assignment mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn actual_nested_record_observer_retains_final_computed_assignment() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/omega/pass/structural/local_record_receivers/main.omg"
+    ));
+    let checked = checked(source);
+    let owner = machine_named(&checked, "observe");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(owner)
+        .expect("complete original observer");
+    assert!(plan.operations.iter().any(|operation| matches!(
+        operation,
+        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index: 11,
+            value: checked_trees::CheckedCallScalarArgument::Computation(_),
+            ..
+        }
+    )));
+}
+
+#[test]
+fn computed_primitive_assignment_retains_rhs_calls() {
+    let checked = checked(
+        "machine next() -> u64 { 42 }
+        machine write(output: &mut u64, choose: bool) {
+            output = match choose { true -> next(), false -> 9 };
+        }",
+    );
+    let owner = machine_named(&checked, "write");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(owner)
+        .expect("assignment computation owns its selected RHS calls");
+    assert!(matches!(
+        &plan.operations[0],
+        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            value: checked_trees::CheckedCallScalarArgument::Computation(_),
+            ..
+        }
+    ));
 }

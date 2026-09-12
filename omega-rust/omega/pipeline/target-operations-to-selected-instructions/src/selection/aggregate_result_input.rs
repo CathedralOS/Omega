@@ -109,9 +109,11 @@ pub(super) fn has_local_aggregates(source: &LegalizedScalarFunction) -> bool {
         .iter()
         .flat_map(|block| &block.instructions)
         .any(|row| match &row.kind {
-            LegalizedScalarInstructionKind::EstablishScalarRecord { .. }
-            | LegalizedScalarInstructionKind::EstablishScalarArray { .. } => {
-                super::scalar_array_input::storage(source, row).is_some()
+            LegalizedScalarInstructionKind::EstablishRecord { .. } => {
+                super::record_input::fields(source, row).is_some()
+            }
+            LegalizedScalarInstructionKind::EstablishScalarArray { .. } => {
+                super::scalar_array_input::elements(source, row).is_some()
             }
             LegalizedScalarInstructionKind::EstablishScalarCase { .. } => {
                 fields(source, row).is_some()
@@ -143,16 +145,7 @@ pub(super) fn call_result<'a>(
         .iter()
         .find(|declaration| declaration.id == result.structural_type)?;
     let shape = match &declaration.shape {
-        terminal_psi::StructuralTypeShape::Record { fields }
-            if fields.iter().all(|field| {
-                !field.relevance.is_erased()
-                    && matches!(
-                        field.field_type,
-                        terminal_psi::StructuralFieldType::Scalar(_)
-                            | terminal_psi::StructuralFieldType::IeeeFloat(_)
-                    )
-            }) =>
-        {
+        terminal_psi::StructuralTypeShape::Record { .. } => {
             crate::structural_reference_input::shape(
                 result.structural_type,
                 &source.structural.as_ref()?.structural_types,
@@ -188,7 +181,8 @@ pub(super) fn call_result<'a>(
     let placement = call.result_placement.as_ref()?;
     if call.call_plan.result.as_ref() != Some(placement)
         || placement.shape != shape
-        || !direct_fragments(placement)
+        || !(direct_fragments(placement)
+            || indirect_result(placement, call.call_plan.policy).is_some())
     {
         return None;
     }
@@ -344,9 +338,12 @@ pub(super) fn returned<'a>(
                 .flat_map(|block| &block.instructions)
                 .find(|row| row.operation == *operation)?;
             let (result, shape) = match &row.kind {
-                LegalizedScalarInstructionKind::EstablishScalarRecord { result, shape, .. }
-                | LegalizedScalarInstructionKind::EstablishScalarArray { result, shape, .. } => {
-                    super::scalar_array_input::storage(source, row)?;
+                LegalizedScalarInstructionKind::EstablishRecord { result, shape, .. } => {
+                    super::record_input::fields(source, row)?;
+                    (result, *shape)
+                }
+                LegalizedScalarInstructionKind::EstablishScalarArray { result, shape, .. } => {
+                    super::scalar_array_input::elements(source, row)?;
                     (result, *shape)
                 }
                 LegalizedScalarInstructionKind::EstablishScalarCase { result, layout, .. } => {
@@ -409,7 +406,10 @@ pub(super) fn returned<'a>(
         return None;
     }
     let placement = source.call_plan.result.as_ref()?;
-    if placement.shape != shape || !direct_fragments(placement) {
+    if placement.shape != shape
+        || !(direct_fragments(placement)
+            || indirect_result(placement, source.call_plan.policy).is_some())
+    {
         return None;
     }
     Some((slot, placement))
@@ -534,4 +534,43 @@ pub(super) fn block_parameter_shape(
             .ok()?
             .shape,
     )
+}
+
+/// The ABI planner, rather than an arbitrary pointer register, owns the hidden destination.
+pub(super) fn indirect_result(
+    placement: &calling_conventions::ValuePlacement,
+    policy: calling_conventions::CallingPolicy,
+) -> Option<calling_conventions::MachineRegister> {
+    use calling_conventions::{
+        CallSignature, IndirectPointerLocation, ValueLocation, evaluate_call_plan,
+    };
+    if placement.shape.class != calling_conventions::ValueClass::Integer
+        || placement.shape.byte_size == 0
+        || !placement.shape.alignment.is_power_of_two()
+    {
+        return None;
+    }
+    let [
+        ValueLocation::Indirect {
+            pointer: IndirectPointerLocation::Register(register),
+            copy_stack_byte_offset: None,
+            byte_size,
+            alignment,
+        },
+    ] = placement.locations.as_slice()
+    else {
+        return None;
+    };
+    if *byte_size != placement.shape.byte_size || *alignment != placement.shape.alignment {
+        return None;
+    }
+    let canonical = evaluate_call_plan(
+        policy,
+        &CallSignature {
+            parameters: Vec::new(),
+            result: Some(placement.shape),
+        },
+    )
+    .ok()?;
+    (canonical.result.as_ref() == Some(placement)).then_some(*register)
 }

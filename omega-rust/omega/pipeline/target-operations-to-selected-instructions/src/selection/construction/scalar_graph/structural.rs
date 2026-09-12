@@ -19,6 +19,8 @@ pub(super) use local_storage::fixed_array_argument;
 mod case_membership;
 mod primitive_locals;
 pub(super) use case_membership::observe;
+pub(super) mod indirect_results;
+mod record;
 mod scalar_array;
 mod scalar_case;
 pub(super) use primitive_locals::read;
@@ -29,6 +31,7 @@ pub(super) use byte_views::byte_observation;
 
 #[derive(Default)]
 pub(super) struct Transport {
+    pub(super) result_pointer: Option<VirtualRegisterId>,
     pub pointers: Vec<(PlaceId, VirtualRegisterId)>,
     views: Vec<ByteViewHomes>,
     pub fragments: Vec<(PlaceId, u32, VirtualRegisterId)>,
@@ -157,6 +160,13 @@ pub(super) fn operation(
     }
     if matches!(
         row.kind,
+        LegalizedScalarInstructionKind::EstablishRecord { .. }
+    ) {
+        record::establish(source, row, builder)?;
+        return Ok(true);
+    }
+    if matches!(
+        row.kind,
         LegalizedScalarInstructionKind::EstablishScalarCase { .. }
     ) {
         scalar_case::establish(source, row, builder)?;
@@ -164,8 +174,7 @@ pub(super) fn operation(
     }
     if matches!(
         row.kind,
-        LegalizedScalarInstructionKind::EstablishScalarRecord { .. }
-            | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
+        LegalizedScalarInstructionKind::EstablishScalarArray { .. }
     ) {
         scalar_array::establish(source, row, builder)?;
         return Ok(true);

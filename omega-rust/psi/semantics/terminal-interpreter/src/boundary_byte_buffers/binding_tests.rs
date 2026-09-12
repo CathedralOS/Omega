@@ -141,8 +141,8 @@ fn execution() -> TerminalExecution {
         )]),
         structural_primitive_storage: BTreeMap::new(),
         structural_primitive_entry_places: BTreeMap::new(),
-        primitive_local_identities:
-            primitive_storage::PrimitiveLocalIdentities::with_reserved_identities([101]),
+        local_structural_identities:
+            primitive_storage::LocalStructuralIdentities::with_reserved_identities([101]),
         structural_scalar_fields: BTreeMap::new(),
         structural_byte_arrays: BTreeMap::new(),
         structural_byte_sequence_fields: BTreeMap::from([

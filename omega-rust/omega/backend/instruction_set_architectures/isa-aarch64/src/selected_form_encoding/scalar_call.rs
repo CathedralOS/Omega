@@ -182,6 +182,9 @@ pub fn validate_aarch64_selected_scalar_call_template(
                 .chain(crate::aarch64_mixed_aggregate_call_keys(
                     target == NativeTarget::macos_arm64(),
                 ))
+                .chain(crate::aarch64_indirect_aggregate_call_keys(
+                    target == NativeTarget::macos_arm64(),
+                ))
                 .collect::<Vec<_>>()
         } else if floating_scalar {
             crate::aarch64_float_scalar_call_keys(target == NativeTarget::macos_arm64())

@@ -58,7 +58,7 @@ pub(super) fn validate(
             call_plan,
             &parameters,
             &plan.structural_types,
-        ) && !crate::structural_unit_input::accepts_write_borrow(
+        ) && !crate::structural_unit_input::accepts_borrowed_parameters(
             call_plan,
             &parameters,
             &plan.structural_types,
@@ -107,7 +107,7 @@ pub(super) fn validate(
             call_plan,
             &parameters,
             &plan.structural_types,
-        ) || crate::structural_unit_input::accepts_write_borrow(
+        ) || crate::structural_unit_input::accepts_borrowed_parameters(
             call_plan,
             &parameters,
             &plan.structural_types,

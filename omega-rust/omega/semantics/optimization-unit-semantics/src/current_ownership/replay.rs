@@ -82,7 +82,23 @@ pub(super) fn validate_current_ownership_cfg(
                 }
             }
 
+            // Construction joins the same whole-value transfer frontier as calls.
+            // Heterogeneous field operands need a temporary structural-only roster;
+            // ordinary call operands continue borrowing their retained slice.
+            let record_arguments = match &node.operation {
+                O::EstablishRecord { fields, .. } => fields
+                    .iter()
+                    .filter_map(|initializer| match &initializer.value {
+                        terminal_psi::RecordFieldValue::Structural(argument) => {
+                            Some(argument.clone())
+                        }
+                        terminal_psi::RecordFieldValue::Scalar { .. } => None,
+                    })
+                    .collect::<Vec<_>>(),
+                _ => Vec::new(),
+            };
             let structural_arguments = match &node.operation {
+                O::EstablishRecord { .. } => record_arguments.as_slice(),
                 O::CallUnit {
                     structural_arguments,
                     ..
@@ -109,6 +125,24 @@ pub(super) fn validate_current_ownership_cfg(
                 _ => &[],
             };
             let parameter_multiplicities = match &node.operation {
+                O::EstablishRecord { .. } => record_arguments
+                    .iter()
+                    .map(|argument| {
+                        crate::unit_validation::structural_source_contract(
+                            function,
+                            argument.place,
+                            false,
+                        )
+                        .map(|source| source.multiplicity)
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or(
+                        OptimizationUnitValidationError::StructuralCallContractMismatch {
+                            machine: function.machine,
+                            block: block_id,
+                            node: node_index,
+                        },
+                    )?,
                 O::CallUnit { callee, .. }
                 | O::CallStructuralScalar { callee, .. }
                 | O::CallStructuralScalarWithDynamicArguments { callee, .. }
@@ -193,8 +227,15 @@ pub(super) fn validate_current_ownership_cfg(
                 .iter()
                 .zip(&parameter_multiplicities)
                 .filter(|(argument, multiplicity)| {
-                    argument.access == StructuralAccess::Owned
-                        && **multiplicity != StructuralMultiplicity::Unrestricted
+                    (argument.access == StructuralAccess::Owned
+                        && **multiplicity != StructuralMultiplicity::Unrestricted)
+                        // A loan does not consume its owner, but entry parameters
+                        // and produced values both require current whole/path custody.
+                        || (argument.access != StructuralAccess::Owned
+                            && crate::unit_validation::structural_source_contract(
+                                function, argument.place, false,
+                            ).is_some_and(|source| source.access == StructuralAccess::Owned
+                                && source.multiplicity == StructuralMultiplicity::Affine))
                 })
             {
                 if !frontier.owned_places.contains_key(&argument.place) {
@@ -294,7 +335,7 @@ pub(super) fn validate_current_ownership_cfg(
                 O::ByteSequenceSubslice { .. } => None,
                 O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
-                | O::EstablishScalarRecord { result, .. }
+                | O::EstablishRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),

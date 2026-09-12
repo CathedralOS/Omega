@@ -66,9 +66,9 @@ pub(super) fn operation(
                             | selected_instructions::SelectedInstructionKind::ZeroExtendU32)
                 ).count() == 1
         }
-        AbstractOperation::EstablishScalarRecord { psi_operation, result, fields } => {
+        AbstractOperation::EstablishRecord { psi_operation, result, fields } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
-                TargetUnitOperation::EstablishScalarRecord { psi_operation: retained, result_home, fields: retained_fields }
+                TargetUnitOperation::EstablishRecord { psi_operation: retained, result_home, fields: retained_fields }
                 if psi_operation == retained && result_home.operation_result() == Some((*psi_operation, result)) && fields == retained_fields)).count() == 1
         }
         AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
@@ -103,8 +103,22 @@ pub(super) fn operation(
                                 && instruction.operands.is_empty()
                                 && selected.structural.as_ref().is_some_and(|contract| contract.result.is_some())
                                 && graph.call_plan.result.as_ref().is_some_and(|placement|
-                                    placement.shape == calling_conventions::ValueShape::integer(0, 1)
-                                        && placement.locations.is_empty()))))).count() == 1
+                                    (placement.shape == calling_conventions::ValueShape::integer(0, 1)
+                                        && placement.locations.is_empty())
+                                    // AAPCS returns an indirect aggregate through the
+                                    // retained destination, with no result register.
+                                    // Mandatory source replay validates the CallPlan
+                                    // and every destination write before this join.
+                                    || (graph.call_plan.policy == calling_conventions::CallingPolicy::Aapcs64
+                                        && placement.shape.class == calling_conventions::ValueClass::Integer
+                                        && matches!(placement.locations.as_slice(),
+                                            [calling_conventions::ValueLocation::Indirect {
+                                                pointer: calling_conventions::IndirectPointerLocation::Register(calling_conventions::MachineRegister::Aarch64X(8)),
+                                                copy_stack_byte_offset: None,
+                                                byte_size,
+                                                alignment,
+                                            }] if *byte_size == placement.shape.byte_size
+                                                && *alignment == placement.shape.alignment))))))).count() == 1
         }
         _ => false,
     }

@@ -13,20 +13,6 @@ pub(super) fn validate(
     let invalid = Error::NonCanonicalLegalizedPlan;
     match (&actual.kind, &node.operation) {
         (
-            LegalizedScalarInstructionKind::EstablishScalarRecord {
-                result,
-                fields,
-                shape,
-            },
-            AbstractOperation::EstablishScalarRecord {
-                result: expected,
-                fields: expected_fields,
-                ..
-            },
-        ) if result == expected
-            && fields == expected_fields
-            && *shape == scalar_graph_input::scalar_arrays::record_shape(result, plan)? => {}
-        (
             LegalizedScalarInstructionKind::StructuralCaseMembership {
                 source,
                 case,
@@ -125,6 +111,21 @@ pub(super) fn validate(
                 }
             }
         }
+        (
+            LegalizedScalarInstructionKind::EstablishRecord {
+                result,
+                fields,
+                shape,
+            },
+            AbstractOperation::EstablishRecord {
+                result: expected,
+                fields: expected_fields,
+                ..
+            },
+        ) if result == expected
+            && fields == expected_fields
+            && *shape
+                == scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape() => {}
         (
             LegalizedScalarInstructionKind::EstablishScalarCase {
                 result,

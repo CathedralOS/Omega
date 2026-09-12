@@ -1894,12 +1894,12 @@ fn affine_i64_record_literal_crosses_source_codec_and_verification() {
     let establishments = operations
         .iter()
         .copied()
-        .filter(|operation| matches!(operation.kind, OperationKind::EstablishScalarRecord { .. }))
+        .filter(|operation| matches!(operation.kind, OperationKind::EstablishRecord { .. }))
         .collect::<Vec<_>>();
     let [establish] = establishments.as_slice() else {
         panic!("one record establishment: {operations:#?}");
     };
-    let OperationKind::EstablishScalarRecord { fields } = &establish.kind else {
+    let OperationKind::EstablishRecord { fields } = &establish.kind else {
         unreachable!();
     };
     let [field] = fields.as_slice() else {
@@ -1907,7 +1907,10 @@ fn affine_i64_record_literal_crosses_source_codec_and_verification() {
     };
     // Scalar evaluation may forward its result through private block parameters.
     // Follow every incoming binding to the actual field-value definition.
-    let mut pending = vec![field.value];
+    let terminal_psi::RecordFieldValue::Scalar { value, .. } = field.value else {
+        panic!("scalar field")
+    };
+    let mut pending = vec![value];
     let mut visited = Vec::new();
     let mut constants = Vec::new();
     while let Some(value) = pending.pop() {

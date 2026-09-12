@@ -135,7 +135,6 @@ pub(crate) fn validate_structural(
     if machine.symbol != caller_machine
         || result.statement_index != coordinate.statement_index
         || coordinate.call_ordinal != 0
-        || local.is_mutable
         || !local.symbol.is_valid()
         || checked
             .normalized_type_identity(local.type_reference)

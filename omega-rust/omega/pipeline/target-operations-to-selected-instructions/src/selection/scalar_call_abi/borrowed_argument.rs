@@ -46,16 +46,48 @@ pub(super) fn validate_borrowed_argument(
         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
     );
     let local = crate::selection::primitive_local_input::local(source, semantic.place);
-    // Exclusive record projections retain the ordinary projection geometry
-    // below; a scalar-bearing leaf alone does not select whole-record sharing.
-    let shared_record = (semantic.access == StructuralAccess::SharedBorrow)
-        .then(|| {
-            crate::structural_reference_input::plain_record_shape(
-                target.structural_type,
-                &signature.structural_types,
-            )
+    let record_home = crate::selection::record_input::home(source, semantic.place);
+    let record_root = record_home
+        .map(|(_, result)| result.structural_type)
+        .or_else(|| {
+            signature
+                .parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == semantic.place)
+                .filter(|parameter| {
+                    matches!(
+                        parameter.semantic.access,
+                        StructuralAccess::Owned | StructuralAccess::MutableBorrow
+                    ) || parameter.semantic.access == semantic.access
+                })
+                .map(|parameter| parameter.semantic.structural_type)
+        });
+    let record = record_root
+        .filter(|root| {
+            signature.structural_types.iter().any(|declaration| {
+                declaration.id == *root
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Record { .. }
+                    )
+            })
         })
-        .flatten();
+        .and_then(|root| {
+            let (selected, offset) = crate::structural_reference_input::project(
+                root,
+                &semantic.path,
+                &signature.structural_types,
+            )?;
+            let shape =
+                crate::structural_reference_input::shape(selected, &signature.structural_types)?;
+            (target.root_structural_type == root
+                && target.structural_type == selected
+                && target.source_byte_offset == offset)
+                .then_some(ValueShape::borrowed_reference(
+                    shape.byte_size,
+                    shape.alignment,
+                ))
+        });
     let byte_view = signature
         .parameters
         .iter()
@@ -68,23 +100,8 @@ pub(super) fn validate_borrowed_argument(
                 &signature.structural_types,
             )
         });
-    let shape = if let Some(referent) = shared_record {
-        crate::structural_reference_input::plain_record_shape(
-            target.root_structural_type,
-            &signature.structural_types,
-        )?;
-        let (projected_type, offset) = crate::structural_reference_input::project(
-            target.root_structural_type,
-            &semantic.path,
-            &signature.structural_types,
-        )?;
-        if semantic.access != StructuralAccess::SharedBorrow
-            || projected_type != target.structural_type
-            || target.source_byte_offset != offset
-        {
-            return None;
-        }
-        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+    let shape = if let Some(shape) = record {
+        shape
     } else if let Some((offset, _)) = byte_view {
         if offset != target.source_byte_offset
             || call.result_placement.is_some()
@@ -153,20 +170,12 @@ pub(super) fn validate_borrowed_argument(
         },
     )
     .ok()?;
-    // Attachments remain bound to the actual shared receiver declaration;
-    // metadata never supplies an additional ABI argument or storage pointer.
-    if (source.attachment.is_some_and(|attachment| {
-        !signature.parameters.iter().any(|parameter| {
-            parameter.semantic.is_self
-                && parameter.semantic.structural_type == attachment
-                && parameter.semantic.access == StructuralAccess::SharedBorrow
-                && crate::structural_reference_input::plain_record_shape(
-                    attachment,
-                    &signature.structural_types,
-                )
-                .is_some()
-        })
-    }) && !exclusive
+    // Unit entry attachments and service ceilings are retained declaration
+    // metadata; they do not add ABI arguments. The scalar-result attachment
+    // family remains outside this transport contract.
+    if (source.attachment.is_some()
+        && !exclusive
+        && record.is_none()
         && source.call_plan.result.is_some())
         || !signature.entry_claims.is_empty()
         || (source.call_plan.result.is_some() && !signature.published_service_ceiling.is_empty())
@@ -183,16 +192,14 @@ pub(super) fn validate_borrowed_argument(
         || !call.crash_continuations.is_empty()
         || call.call_plan != expected
         || (!exclusive
-            && (semantic.access != StructuralAccess::SharedBorrow
-                || (shared_record.is_none() && !semantic.path.is_empty())))
+            && record.is_none()
+            && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
         || target.place != semantic.place
         || target.access != semantic.access
         || target.path != semantic.path
-        || (!exclusive
-            && shared_record.is_none()
-            && target.root_structural_type != target.structural_type)
+        || (!exclusive && record.is_none() && target.root_structural_type != target.structural_type)
         || target.shape != shape
-        || (!exclusive && shared_record.is_none() && target.source_byte_offset != 0)
+        || (!exclusive && record.is_none() && target.source_byte_offset != 0)
         || target.fixed_array_length != byte_view.map(|(_, length)| length)
         || target.element_stride != byte_view.map(|_| 1)
         || Some(&target.destination) != expected.parameters.get(argument_index)
@@ -201,35 +208,8 @@ pub(super) fn validate_borrowed_argument(
     }
     match &target.source {
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
-            shared_record?;
-            if *psi_operation == operation {
-                return None;
-            }
-            let row = source
-                .blocks
-                .iter()
-                .flat_map(|block| &block.instructions)
-                .find(|row| row.operation == *psi_operation)?;
-            let result = match &row.kind {
-                legalized_operations::LegalizedScalarInstructionKind::EstablishScalarRecord {
-                    result,
-                    ..
-                } => {
-                    crate::selection::scalar_array_input::storage(source, row)?;
-                    result
-                }
-                legalized_operations::LegalizedScalarInstructionKind::Call(call) => {
-                    crate::selection::aggregate_result_input::call_result(source, call)?.0
-                }
-                _ => return None,
-            };
-            if result.place != semantic.place
-                || result.structural_type != target.root_structural_type
-                || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-                || !result.claims.is_empty()
-                || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
-            {
+            let (producer, _) = record_home?;
+            if record.is_none() || *psi_operation != producer || producer == operation {
                 return None;
             }
         }
@@ -248,10 +228,6 @@ pub(super) fn validate_borrowed_argument(
                 .find(|parameter| parameter.semantic.place == semantic.place)?;
             if target.root_structural_type != parameter.semantic.structural_type
                 || *placement != parameter.target.placement
-                || (shared_record.is_some()
-                    && (parameter.semantic.access != StructuralAccess::SharedBorrow
-                        || parameter.semantic.multiplicity
-                            != terminal_psi::StructuralMultiplicity::Unrestricted))
             {
                 return None;
             }

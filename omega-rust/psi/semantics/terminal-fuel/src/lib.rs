@@ -44,7 +44,7 @@ impl TerminalFuelSchedule {
             | OperationKind::ByteSequenceWrite { .. }
             | OperationKind::ByteSequenceSubslice { .. }
             | OperationKind::EstablishTrivialAffineLocal { .. }
-            | OperationKind::EstablishScalarRecord { .. }
+            | OperationKind::EstablishRecord { .. }
             | OperationKind::StoreDynamicDescriptor { .. }
             | OperationKind::Call { .. }
             | OperationKind::CallUnit { .. }

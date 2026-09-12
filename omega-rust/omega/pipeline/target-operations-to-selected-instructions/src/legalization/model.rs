@@ -107,10 +107,6 @@ impl LegalizationValidationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizationError {
-    AttachedUnitStructuralScalarNotYetSelectable {
-        machine: semantic_vocabulary::MachineId,
-        operation: semantic_vocabulary::OperationId,
-    },
     SourceCustodyMismatch,
     UnsupportedSourceShape {
         function: usize,

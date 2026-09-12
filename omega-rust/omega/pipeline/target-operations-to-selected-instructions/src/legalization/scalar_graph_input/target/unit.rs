@@ -71,8 +71,8 @@ pub(super) fn validate_operation(
         }
         (
             _,
-            AbstractOperation::EstablishScalarRecord { .. }
-            | AbstractOperation::EstablishScalarArray { .. }
+            AbstractOperation::EstablishScalarArray { .. }
+            | AbstractOperation::EstablishRecord { .. }
             | AbstractOperation::EstablishScalarCase { .. }
             | AbstractOperation::CallStructural { .. },
         ) => {

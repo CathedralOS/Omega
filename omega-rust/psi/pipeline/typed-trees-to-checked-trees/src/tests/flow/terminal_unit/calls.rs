@@ -74,8 +74,11 @@ fn retains_owned_affine_i64_record_literal_for_direct_unit_call() {
     else {
         panic!("one field");
     };
+    let checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) = field.value else {
+        panic!("exact scalar field operand");
+    };
     assert!(
-        matches!(&checked.facts.values.scalar_computations.nodes.get(field.value).kind,
+        matches!(&checked.facts.values.scalar_computations.nodes.get(value).kind,
         checked_trees::CheckedScalarComputationKind::Value(CheckedScalarExpression::IntegerLiteral { literal }) if literal.value_i64() == Some(7))
     );
 }
@@ -918,7 +921,7 @@ fn retains_one_direct_write_only_primitive_literal_store() {
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 0,
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
-                value: CheckedScalarExpression::IntegerLiteral { literal },
+                value: checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal }),
             },
             CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 1,
@@ -986,7 +989,7 @@ fn retains_one_direct_mutable_primitive_literal_store() {
         [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
-                value: CheckedScalarExpression::IntegerLiteral { literal },
+                value: checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal }),
                 ..
             },
             CheckedUnitEffectOperationPlan::Complete { .. },
@@ -1306,7 +1309,7 @@ fn retains_one_direct_write_only_boolean_literal_store() {
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 0,
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
-                value: CheckedScalarExpression::Boolean(expression),
+                value: checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(expression)),
             },
             CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 1,
@@ -1356,9 +1359,11 @@ fn retains_one_direct_write_only_ieee_float_literal_store() {
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                     parameter_index: 0
                 },
-                value: CheckedScalarExpression::IeeeFloatLiteral {
-                    value: semantic_vocabulary::IeeeFloatValue::Binary32(0x3fa0_0000),
-                },
+                value: checked_trees::CheckedCallScalarArgument::Pure(
+                    CheckedScalarExpression::IeeeFloatLiteral {
+                        value: semantic_vocabulary::IeeeFloatValue::Binary32(0x3fa0_0000),
+                    }
+                ),
             },
             CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 1,
@@ -1397,10 +1402,12 @@ fn retains_a_later_direct_write_only_fixed_integer_parameter_store() {
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                     parameter_index: 0
                 },
-                value: CheckedScalarExpression::Parameter {
-                    position: 1,
-                    primitive_type: PrimitiveType::I32,
-                },
+                value: checked_trees::CheckedCallScalarArgument::Pure(
+                    CheckedScalarExpression::Parameter {
+                        position: 1,
+                        primitive_type: PrimitiveType::I32,
+                    }
+                ),
             },
             CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 1,
@@ -1468,6 +1475,9 @@ fn scalar_store_planning_retains_computed_sources_and_multiple_stores_in_order()
                 panic!("exact parameter store: {case}");
             };
             assert_eq!(*statement_index as usize, ordinal);
+            let checked_trees::CheckedCallScalarArgument::Pure(value) = value else {
+                panic!("retained pure store operand");
+            };
             match case_index {
                 0 => {
                     let CheckedScalarExpression::IntegerBinary {
@@ -1508,7 +1518,7 @@ fn scalar_store_planning_retains_computed_sources_and_multiple_stores_in_order()
 }
 
 #[test]
-fn scalar_store_planning_still_rejects_short_circuit_replacement() {
+fn scalar_store_planning_retains_short_circuit_replacement() {
     let checked = checked(
         r#"
         data Sink {}
@@ -1517,14 +1527,50 @@ fn scalar_store_planning_still_rejects_short_circuit_replacement() {
         }
     "#,
     );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(machine_named(&checked, "Sink::fill"))
-            .is_none()
-    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Sink::fill"))
+        .expect("short-circuit replacement uses ordinary scalar evaluation");
+    let [
+        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index: 0,
+            destination:
+                checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+            value,
+        },
+        CheckedUnitEffectOperationPlan::Complete {
+            statement_index: 1, ..
+        },
+    ] = plan.operations.as_slice()
+    else {
+        panic!("{:#?}", plan.operations);
+    };
+    match value {
+        checked_trees::CheckedCallScalarArgument::Pure(value) => assert_eq!(
+            Some(value),
+            checked.facts.values.scalar_expressions.expression_at(
+                plan.state,
+                0,
+                CheckedScalarExpressionRole::AssignmentValue
+            )
+        ),
+        checked_trees::CheckedCallScalarArgument::Computation(value) => {
+            let roots = &checked.facts.values.scalar_computations;
+            assert!(
+                roots
+                    .roots
+                    .iter()
+                    .any(|(_, root)| root.machine == plan.machine
+                        && root.state == plan.state
+                        && root.statement_ordinal == 0
+                        && root.role == CheckedScalarExpressionRole::AssignmentValue
+                        && root.root == *value)
+            );
+            assert_eq!(roots.nodes.get(*value).primitive_type, PrimitiveType::Bool);
+        }
+    }
 }
 
 #[test]

@@ -25,7 +25,7 @@ pub(crate) fn validate_structural_place_availability(
                 | O::ByteSequenceSubslice { result, .. }
                 | O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
-                | O::EstablishScalarRecord { result, .. }
+                | O::EstablishRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -80,6 +80,13 @@ pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
     operation: &O,
 ) -> Vec<PlaceId> {
     let mut inputs = match operation {
+        O::EstablishRecord { fields, .. } => fields
+            .iter()
+            .filter_map(|initializer| match &initializer.value {
+                terminal_psi::RecordFieldValue::Structural(argument) => Some(argument.place),
+                terminal_psi::RecordFieldValue::Scalar { .. } => None,
+            })
+            .collect(),
         O::Jump {
             structural_bindings,
             ..

@@ -146,11 +146,11 @@ pub enum TargetUnitOperation {
         place: StructuralPlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
     },
-    /// One complete scalar record in its ordinary structural result home.
-    EstablishScalarRecord {
+    /// A complete record established in its exact operation-result home.
+    EstablishRecord {
         psi_operation: OperationId,
-        result_home: TargetStructuralHomeRequirement,
-        fields: Vec<terminal_psi::ScalarRecordFieldValue>,
+        result_home: crate::TargetStructuralHomeRequirement,
+        fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     /// One direct Unit-result call. Scalar arguments occupy the prefix of the
     /// complete ABI plan; structural arguments retain the remaining placements.

@@ -256,12 +256,17 @@ fn retained_scalar_record_field_plans_deliver_exact_seven_to_an_owned_call() {
                     else {
                         return None;
                     };
+                    let checked_trees::CheckedStructuralRecordFieldValue::Scalar(operand) =
+                        field.value
+                    else {
+                        return None;
+                    };
                     let checked_trees::CheckedScalarComputationKind::Value(value) = &checked
                         .facts
                         .values
                         .scalar_computations
                         .nodes
-                        .get(field.value)
+                        .get(operand)
                         .kind
                     else {
                         return None;

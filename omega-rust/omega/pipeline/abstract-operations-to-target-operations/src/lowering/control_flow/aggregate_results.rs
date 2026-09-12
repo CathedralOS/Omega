@@ -86,8 +86,12 @@ pub(in crate::lowering) fn result_home_layout(
             result.structural_type,
         ));
     }
-    if matches!(types.get(&result.structural_type).map(|declaration| &declaration.shape), Some(StructuralTypeShape::Record { fields }) if fields.iter().all(|field| !field.relevance.is_erased() && !matches!(field.field_type, StructuralFieldType::BoundedInteger(_)) && field.field_type.scalar_type().is_some_and(|scalar| super::primitive_storage::native_shape(scalar).is_some())))
-    {
+    if matches!(
+        types
+            .get(&result.structural_type)
+            .map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::Record { .. })
+    ) {
         return Ok(TargetStructuralHomeLayout::Aggregate(
             crate::lowering::structural_layout::structural_shape(
                 result.structural_type,
@@ -191,65 +195,6 @@ pub(super) fn establish_scalar_case(
     Ok(())
 }
 
-pub(super) fn establish_scalar_record(
-    operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
-) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
-    let AbstractOperation::EstablishScalarRecord {
-        psi_operation,
-        result,
-        fields,
-    } = operation
-    else {
-        return Err(invalid());
-    };
-    let result_home = home(*psi_operation, result, types)?;
-    let StructuralTypeShape::Record {
-        fields: declarations,
-    } = &types
-        .get(&result.structural_type)
-        .ok_or_else(invalid)?
-        .shape
-    else {
-        return Err(invalid());
-    };
-    if fields.len() != declarations.len() {
-        return Err(invalid());
-    }
-    for (field, declaration) in fields.iter().zip(declarations) {
-        let source = super::scalar_sources::source(field.value, function, live)?;
-        if field.field != declaration.id
-            || declaration.relevance.is_erased()
-            || matches!(
-                declaration.field_type,
-                StructuralFieldType::BoundedInteger(_)
-            )
-            || declaration.field_type.scalar_type() != Some(source.scalar_type())
-        {
-            return Err(invalid());
-        }
-    }
-    if live
-        .structural_homes
-        .insert(result.place, result_home.clone())
-        .is_some()
-    {
-        return Err(invalid());
-    }
-    operations.push(TargetUnitOperation::EstablishScalarRecord {
-        psi_operation: *psi_operation,
-        result_home,
-        fields: fields.clone(),
-    });
-    provenance.operations.push(*psi_operation);
-    Ok(())
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn call(
     operation: &AbstractOperation,
@@ -322,6 +267,16 @@ pub(super) fn call(
         .zip(&callee_function.structural_parameters)
         .zip(&signature.parameters)
         .map(|((argument, declaration), destination)| {
+            if super::records::is_reference(declaration, types) {
+                return super::records::argument(
+                    argument,
+                    declaration,
+                    destination,
+                    prepared,
+                    live,
+                    types,
+                );
+            }
             if super::scalar_arrays::is_owned_parameter(declaration, types) {
                 return super::scalar_arrays::argument(
                     argument,

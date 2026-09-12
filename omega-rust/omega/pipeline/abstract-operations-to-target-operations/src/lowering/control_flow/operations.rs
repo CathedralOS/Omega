@@ -165,16 +165,14 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::EstablishScalarRecord { .. } => {
-            super::aggregate_results::establish_scalar_record(
-                operation,
-                function,
-                structural_types,
-                live,
-                operations,
-                provenance,
-            )
-        }
+        AbstractOperation::EstablishRecord { .. } => super::records::establish(
+            operation,
+            function,
+            structural_types,
+            live,
+            operations,
+            provenance,
+        ),
         AbstractOperation::EstablishScalarCase { .. } => {
             super::aggregate_results::establish_scalar_case(
                 operation,
@@ -277,7 +275,7 @@ pub(super) fn lower_operation(
                 provenance,
             )
         }
-        AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
+        AbstractOperation::WriteOnlyPrimitiveStore { value, .. } => {
             crate::lowering::unit::write_only_primitive_store::lower_write_only_primitive_store(
                 operation,
                 function,
@@ -287,6 +285,7 @@ pub(super) fn lower_operation(
                 &live.booleans,
                 &live.ieee_float_constants,
                 &live.scalar_homes,
+                live.scalar_block_parameters.get(&value.value).copied(),
                 operations,
                 provenance,
             )

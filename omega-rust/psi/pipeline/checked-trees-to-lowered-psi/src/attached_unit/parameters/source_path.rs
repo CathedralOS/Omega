@@ -149,6 +149,18 @@ pub(crate) fn source_place_path(
                     TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
                     _ => return unsupported("scalar wrapper field has no declared record owner"),
                 };
+                // Attached Self retains its machine symbol in the source type.
+                // Only an exact self-field observation rejoins that placeholder
+                // to this machine's attached data declaration.
+                let self_field = validation::exact_self_field(&checked.typed, machine, expression);
+                let owner = if owner == machine.symbol
+                    && root == facts::PlaceRoot::Symbol(machine.symbol)
+                    && self_field.is_some()
+                {
+                    machine.attached_data_symbol
+                } else {
+                    owner
+                };
                 let data = checked
                     .data_definitions()
                     .iter()
@@ -156,8 +168,7 @@ pub(crate) fn source_place_path(
                     .ok_or(LoweringError::Unsupported(
                         "scalar wrapper field owner is absent",
                     ))?;
-                let symbol = validation::exact_self_field(&checked.typed, machine, expression)
-                    .map_or(symbol, |field| field.symbol);
+                let symbol = self_field.map_or(symbol, |field| field.symbol);
                 let ExpressionNode::Member(authored) =
                     checked.expression_table.expression(expression)
                 else {

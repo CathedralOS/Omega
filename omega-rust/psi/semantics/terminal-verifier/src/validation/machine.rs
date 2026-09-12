@@ -207,9 +207,25 @@ pub(super) fn validate_machine(
                 }
                 continue;
             }
+            if let OperationKind::EstablishRecord { fields } = &operation.kind {
+                super::record::fields(module, machine, operation)?;
+                for obligation in fields.iter().filter_map(|field| match field.value {
+                    terminal_psi::RecordFieldValue::Scalar {
+                        range_obligation, ..
+                    } => range_obligation,
+                    terminal_psi::RecordFieldValue::Structural(_) => None,
+                }) {
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
             if matches!(
                 operation.kind,
-                OperationKind::EstablishScalarRecord { .. }
+                OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishScalarArray { .. }
                     | OperationKind::EstablishPrimitiveLocal { .. }
             ) {
@@ -378,7 +394,7 @@ pub(super) fn validate_machine(
                 | OperationKind::EstablishScalarCase { .. }
                 | OperationKind::EstablishScalarArray { .. }
                 | OperationKind::ByteSequenceSubslice { .. }
-                | OperationKind::EstablishScalarRecord { .. }
+                | OperationKind::EstablishRecord { .. }
                 | OperationKind::EstablishPrimitiveLocal { .. }
                 | OperationKind::StoreDynamicDescriptor { .. }
                 | OperationKind::PortWrite { .. }
@@ -445,7 +461,7 @@ pub(super) fn validate_machine(
                     )?;
                     if callee.structural_places.iter().any(|place| {
                         !super::scalar_array::plain_return_source(module, callee, place.id)
-                            && !super::scalar_record::plain_return_source(module, callee, place.id)
+                            && !super::record::plain_return_source(module, callee, place.id)
                     }) || !callee.content_entry_claims.is_empty()
                         || !callee.content_identity_reshuffles.is_empty()
                         || !callee.content_partition_compositions.is_empty()

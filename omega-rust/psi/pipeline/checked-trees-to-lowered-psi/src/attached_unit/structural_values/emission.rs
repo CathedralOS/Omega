@@ -1,6 +1,15 @@
 use super::*;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 
+pub(super) type StructuralCallEmitter<'a> = dyn FnMut(
+        &CheckedUnitEffectOperationPlan,
+        Option<&[ValueDeclaration]>,
+        &mut CallEmissionContext<'_>,
+        &mut OperationBuffer,
+        &mut u64,
+    ) -> Result<StructuralPlaceDeclaration, LoweringError>
+    + 'a;
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
     checked: &CheckedTrees,
@@ -11,6 +20,7 @@ pub(crate) fn emit(
     type_ids: &[(String, StructuralTypeId)],
     next_place: &mut u64,
     temporary_places: &mut Vec<StructuralPlaceDeclaration>,
+    call_emitter: &mut StructuralCallEmitter<'_>,
     calls: &mut CallEmissionContext<'_>,
     evaluation: &mut argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
@@ -20,7 +30,12 @@ pub(crate) fn emit(
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     source_custody::validate(checked, machine, state, operation)?;
-    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } = operation
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+        result,
+        value,
+        calls: operand_calls,
+        ..
+    } = operation
     else {
         return unsupported("structural value producer missing");
     };
@@ -109,9 +124,12 @@ pub(crate) fn emit(
         structural_type,
         multiplicity,
         structural_types,
+        type_ids,
         next_place,
         temporary_places,
         calls,
+        operand_calls,
+        call_emitter,
         evaluation,
         values,
         next_value,
@@ -351,28 +369,31 @@ fn prepare_owners(
     Ok(owners)
 }
 
-struct Emission<'a, 'b, 'calls> {
-    checked: &'a CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    statement: u32,
-    structural_type: StructuralTypeId,
-    multiplicity: StructuralMultiplicity,
-    structural_types: &'a [StructuralTypeDeclaration],
-    next_place: &'b mut u64,
-    temporary_places: &'b mut Vec<StructuralPlaceDeclaration>,
-    calls: &'b mut CallEmissionContext<'calls>,
-    evaluation: &'b mut argument_evaluation::Evaluation,
-    values: &'b mut Vec<ValueDeclaration>,
-    next_value: &'b mut u64,
-    next_block: &'b mut u64,
-    next_edge: &'b mut u64,
-    operations: &'b mut OperationBuffer,
+pub(super) struct Emission<'a, 'b, 'calls> {
+    pub(super) checked: &'a CheckedTrees,
+    pub(super) machine: symbols::SymbolHandle,
+    pub(super) state: symbols::SymbolHandle,
+    pub(super) statement: u32,
+    pub(super) structural_type: StructuralTypeId,
+    pub(super) multiplicity: StructuralMultiplicity,
+    pub(super) structural_types: &'a [StructuralTypeDeclaration],
+    pub(super) type_ids: &'a [(String, StructuralTypeId)],
+    pub(super) next_place: &'b mut u64,
+    pub(super) temporary_places: &'b mut Vec<StructuralPlaceDeclaration>,
+    pub(super) calls: &'b mut CallEmissionContext<'calls>,
+    pub(super) operand_calls: &'a [checked_trees::CheckedStructuralValueCall],
+    pub(super) call_emitter: &'b mut StructuralCallEmitter<'a>,
+    pub(super) evaluation: &'b mut argument_evaluation::Evaluation,
+    pub(super) values: &'b mut Vec<ValueDeclaration>,
+    pub(super) next_value: &'b mut u64,
+    pub(super) next_block: &'b mut u64,
+    pub(super) next_edge: &'b mut u64,
+    pub(super) operations: &'b mut OperationBuffer,
     sources: Vec<StructuralArgument>,
     owners: Vec<argument_evaluation::StructuralValueOwner>,
 }
 
-struct ValueContinuation {
+pub(super) struct ValueContinuation {
     block: BlockId,
     parameters: Vec<ValueDeclaration>,
     structural_parameters: Vec<StructuralParameterDeclaration>,
@@ -383,7 +404,7 @@ struct ValueContinuation {
 }
 
 impl Emission<'_, '_, '_> {
-    fn value(
+    pub(super) fn value(
         &mut self,
         value: CheckedStructuralValueHandle,
         continuation: Option<&ValueContinuation>,
@@ -401,34 +422,69 @@ impl Emission<'_, '_, '_> {
                 if !self.sources.is_empty() {
                     return unsupported("selected ownership mixes fresh and existing obligations");
                 }
-                let source_count = self.values.len();
-                let declaration = super::emit_record(
-                    self.checked,
-                    self.machine,
-                    self.state,
-                    self.statement,
-                    value,
-                    self.structural_type,
-                    self.multiplicity,
-                    self.structural_types,
-                    self.evaluation,
-                    self.values,
-                    source_count,
-                    self.next_value,
-                    self.next_block,
-                    self.next_edge,
-                    self.next_place,
-                    self.operations,
-                    self.calls,
-                )?;
-                let place = declaration.id;
-                self.temporary_places.push(declaration);
+                let place = self.record(value)?;
                 if let Some(continuation) = continuation {
                     self.complete_value(place, continuation)?;
                 }
                 Ok(place)
             }
+            CheckedStructuralValueKind::Call { .. } => {
+                let mut matching = self.operand_calls.iter().filter(|call| call.value == value);
+                let call = matching.next().ok_or(LoweringError::Unsupported(
+                    "structural operand call missing",
+                ))?;
+                if matching.next().is_some() {
+                    return unsupported("structural operand call is duplicated");
+                }
+                let evaluated = self.evaluation.arguments(
+                    self.checked,
+                    self.machine,
+                    self.state,
+                    call.operation(),
+                    self.values,
+                    self.next_value,
+                    self.next_block,
+                    self.next_edge,
+                    self.operations,
+                    self.calls,
+                )?;
+                let declaration = (self.call_emitter)(
+                    call.operation(),
+                    evaluated.as_deref(),
+                    self.calls,
+                    self.operations,
+                    self.next_place,
+                )?;
+                let StructuralPlaceKind::OperationResult {
+                    structural_type, ..
+                } = declaration.kind
+                else {
+                    return unsupported("structural operand call has no result place");
+                };
+                if structural_type != self.structural_type {
+                    return unsupported("structural operand call changed its returned type");
+                }
+                if let Some(continuation) = continuation {
+                    self.complete_value(declaration.id, continuation)?;
+                }
+                Ok(declaration.id)
+            }
             CheckedStructuralValueKind::Place(argument) => {
+                if self.sources.is_empty()
+                    && continuation.is_none()
+                    && self.structural_types.iter().any(|declaration| {
+                        declaration.id == self.structural_type
+                            && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                    })
+                {
+                    // Source replay distinguishes a whole record child from a
+                    // selected sum leaf, whose receipt and continuation remain mandatory.
+                    return crate::scalar_bindings::ScalarBindings::new(self.values.len())
+                        .with_structural_parameters(&self.evaluation.structural_parameters)
+                        .with_structural_locals(&self.evaluation.structural_locals)
+                        .owned_argument(&argument)
+                        .map(|binding| binding.place);
+                }
                 let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
                 } = argument.source
@@ -819,7 +875,7 @@ impl Emission<'_, '_, '_> {
         Ok(())
     }
 
-    fn scalar(
+    pub(super) fn scalar(
         &mut self,
         role: CheckedScalarExpressionRole,
         value: checked_trees::CheckedScalarComputationHandle,

@@ -122,7 +122,12 @@ pub(crate) fn parameter_shape(
             declarations
                 .iter()
                 .find(|declaration| declaration.id == parameter.structural_type)
-                .filter(|declaration| matches!(declaration.shape, StructuralTypeShape::Sum { .. }))
+                .filter(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Sum { .. } | StructuralTypeShape::Record { .. }
+                    )
+                })
                 .and_then(|_| shape(parameter.structural_type, declarations))
         });
     }

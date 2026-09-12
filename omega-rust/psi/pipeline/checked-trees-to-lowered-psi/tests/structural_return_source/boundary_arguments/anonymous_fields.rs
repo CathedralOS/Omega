@@ -28,9 +28,7 @@ fn constructed_anonymous_fields_publish_exact_integer_values() {
         let fields = operations
             .iter()
             .filter_map(|operation| match &operation.kind {
-                terminal_psi::OperationKind::EstablishScalarRecord { fields } => {
-                    Some(fields.as_slice())
-                }
+                terminal_psi::OperationKind::EstablishRecord { fields } => Some(fields.as_slice()),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -42,7 +40,15 @@ fn constructed_anonymous_fields_publish_exact_integer_values() {
         };
         // Private evaluation blocks transport values through parameters. Follow
         // the constructor operand, excluding unrelated boundary call constants.
-        let mut pending = vec![field.value];
+        let terminal_psi::RecordFieldValue::Scalar {
+            value,
+            range_obligation,
+        } = field.value
+        else {
+            panic!("exact integer field retains a scalar operand");
+        };
+        assert!(range_obligation.is_none(), "unrestricted i64 field");
+        let mut pending = vec![value];
         let mut visited = Vec::new();
         let mut constants = 0;
         while let Some(value) = pending.pop() {

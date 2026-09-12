@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) fn plain_scalar_aggregate_call(
+pub(crate) fn plain_scalar_sum_call(
     operation: &O,
     callee: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
@@ -61,68 +61,8 @@ pub(crate) fn plain_scalar_aggregate_call(
                         !field.relevance.is_erased() && field.field_type.scalar_type().is_some()
                     })
                 }),
-                terminal_psi::StructuralTypeShape::Record { fields } => {
-                    fields.iter().all(|field| {
-                        !field.relevance.is_erased()
-                            && matches!(
-                                field.field_type,
-                                terminal_psi::StructuralFieldType::Scalar(_)
-                                    | terminal_psi::StructuralFieldType::IeeeFloat(_)
-                            )
-                    })
-                }
                 _ => false,
             })
-}
-
-pub(crate) fn scalar_record_establishment_matches(
-    function: &PsiOptimizationFunction,
-    operation: &O,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-) -> bool {
-    let O::EstablishScalarRecord {
-        psi_operation,
-        result,
-        fields,
-    } = operation
-    else {
-        return false;
-    };
-    let place_matches = function.structural_places.iter().any(|place| {
-        place.id == result.place
-            && matches!(
-                place.kind,
-                StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type,
-                } if producer == *psi_operation && structural_type == result.structural_type
-            )
-    });
-    let exact_fields = types.get(&result.structural_type).is_some_and(|declaration| {
-        matches!(
-            &declaration.shape,
-            terminal_psi::StructuralTypeShape::Record { fields: declarations }
-                if declarations.len() == fields.len()
-                    && declarations.iter().zip(fields).all(|(declaration, field)| {
-                        declaration.id == field.field
-                            && declaration.relevance == terminal_psi::BindingRelevance::Relevant
-                            && !matches!(declaration.field_type, terminal_psi::StructuralFieldType::BoundedInteger(_))
-                            && declaration.field_type.scalar_type().is_some_and(|scalar_type|
-                                function.parameters.iter().chain(function.blocks.iter().flat_map(|block| block.parameters.iter().chain(block.nodes.iter().flat_map(|node| &node.definitions))))
-                                    .any(|definition| definition.value == field.value && definition.scalar_type == scalar_type))
-                    })
-        )
-    });
-    place_matches
-        && matches!(
-            result.multiplicity,
-            terminal_psi::StructuralMultiplicity::Affine
-                | terminal_psi::StructuralMultiplicity::Unrestricted
-        )
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty()
-        && exact_fields
 }
 
 pub(crate) fn scalar_case_establishment_matches(

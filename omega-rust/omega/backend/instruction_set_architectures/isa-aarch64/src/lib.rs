@@ -413,6 +413,9 @@ fn checked_instruction_distance(
     Ok(distance)
 }
 
+pub use register_model::aarch64_indirect_aggregate_call_keys;
+pub use register_model::{aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys};
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -479,4 +482,3 @@ mod tests {
         assert!(encode_linux_read_byte_to_stack(2, 6).is_err());
     }
 }
-pub use register_model::{aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys};

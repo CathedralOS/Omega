@@ -42,6 +42,19 @@ pub(super) fn validate(
     }) {
         return Err(invalid());
     }
+    if crate::selection::aggregate_result_input::indirect_result(placement, source.call_plan.policy)
+        .is_some()
+    {
+        super::structural::indirect_results::returned(
+            source,
+            block,
+            returned,
+            slot.ok_or_else(invalid)?,
+            placement,
+            replay,
+        )?;
+        return Ok(());
+    }
     let scalar_return = replay.constraints.keys.return_aggregate.is_empty()
         && matches!(
             placement.locations.as_slice(),

@@ -1358,7 +1358,7 @@ fn validate_operation_foundation(
                 .filter(|producer| {
                     matches!(
                         producer.kind,
-                        OperationKind::EstablishScalarRecord { .. }
+                        OperationKind::EstablishRecord { .. }
                             | OperationKind::CallStructural { .. }
                             | OperationKind::CallStructuralWithScalarArguments { .. }
                     )
@@ -2006,55 +2006,57 @@ fn validate_operation_foundation(
                 return malformed("trivial affine local must have an empty record type");
             }
         }
-        OperationKind::EstablishScalarRecord { fields } => {
+        OperationKind::EstablishRecord { fields } => {
             let Some(result) = operation.result.structural() else {
-                return malformed("scalar record has no structural result");
+                return malformed("record has no structural result");
             };
-            let Some(StructuralPlaceDeclaration {
-                kind:
-                    StructuralPlaceKind::OperationResult {
-                        producer,
-                        structural_type,
-                    },
-                ..
-            }) = machine
-                .structural_places
-                .iter()
-                .find(|place| place.id == result.place)
-            else {
-                return malformed("scalar record has no operation-result declaration");
-            };
-            if *producer != operation.id
-                || *structural_type != result.structural_type
-                || !matches!(
-                    result.multiplicity,
-                    StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-                )
-                || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
-                || !result.claims.is_empty()
-            {
-                return malformed("scalar record result custody is noncanonical");
+            if !matches!(result.multiplicity, StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted)
+                || !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() || !result.claims.is_empty()
+                || !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
+                return malformed("record result custody is noncanonical");
             }
             let Some(declaration) = module
                 .structural_types
                 .iter()
                 .find(|declaration| declaration.id == result.structural_type)
             else {
-                return malformed("scalar record has an unknown structural type");
+                return malformed("record type is absent");
             };
-            if !matches!(
-                &declaration.shape,
-                StructuralTypeShape::Record { fields: declarations }
-                    if declarations.len() == fields.len()
-                        && declarations.iter().zip(fields).all(|(declaration, binding)|
-                            declaration.id == binding.field
-                                && declaration.relevance == terminal_psi::BindingRelevance::Relevant
-                                && matches!(declaration.field_type, StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_)))
-            ) {
-                return malformed(
-                    "scalar record fields do not match the complete scalar declaration",
-                );
+            let StructuralTypeShape::Record {
+                fields: declarations,
+            } = &declaration.shape
+            else {
+                return malformed("record result is not a record");
+            };
+            if fields.len() != declarations.len() {
+                return malformed("record field roster differs");
+            }
+            for (field, declaration) in fields.iter().zip(declarations) {
+                if field.field != declaration.id
+                    || declaration.relevance != terminal_psi::BindingRelevance::Relevant
+                {
+                    return malformed("record field identity differs");
+                }
+                match (&field.value, &declaration.field_type) {
+                    (
+                        terminal_psi::RecordFieldValue::Scalar {
+                            range_obligation, ..
+                        },
+                        field_type,
+                    ) if field_type.scalar_type().is_some() => {
+                        if range_obligation.is_some()
+                            != matches!(field_type, StructuralFieldType::BoundedInteger(_))
+                        {
+                            return malformed("record range obligation differs");
+                        }
+                    }
+                    (
+                        terminal_psi::RecordFieldValue::Structural(argument),
+                        StructuralFieldType::Structural(_),
+                    ) if argument.access == terminal_psi::StructuralAccess::Owned
+                        && argument.path.is_empty() => {}
+                    _ => return malformed("record field operand differs"),
+                }
             }
         }
         OperationKind::EstablishPrimitiveLocal { .. } => {

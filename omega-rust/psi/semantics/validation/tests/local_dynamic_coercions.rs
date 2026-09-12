@@ -117,16 +117,16 @@ fn resolves_dynamic_member_call_through_lifetime_applied_local_record() {
 }
 
 #[test]
-fn rejects_ordinary_let_bound_receiver() {
-    let diagnostics = validate(
+fn accepts_ordinary_let_bound_receiver() {
+    validate(
         r#"
         data Pair [copy] {
-            left: u64;
-            right: u64;
+            left: u8;
+            right: u8;
         }
 
         machine Pair::total(&self) -> u64 {
-            self.left + self.right
+            (self.left as u64) + (self.right as u64)
         }
 
         data Reader {}
@@ -138,11 +138,7 @@ fn rejects_ordinary_let_bound_receiver() {
         }
         "#,
     )
-    .expect_err("an ordinary LET-bound receiver must remain fail-closed");
-
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.message.contains("uses a LET-bound") && diagnostic.message.contains("pair.total")
-    }));
+    .expect("an ordinary local record receiver retains its original storage");
 }
 
 #[test]

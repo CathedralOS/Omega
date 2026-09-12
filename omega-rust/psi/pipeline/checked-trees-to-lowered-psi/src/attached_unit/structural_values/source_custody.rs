@@ -10,6 +10,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
+mod owned_places;
 mod owned_selection;
 #[cfg(test)]
 mod tests;
@@ -23,6 +24,7 @@ pub(crate) fn validate(
     let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
         result,
         value,
+        calls,
         discard_result_on_return,
     } = operation
     else {
@@ -34,9 +36,7 @@ pub(crate) fn validate(
         .statements(source.statement_nodes)
         .get(result.statement_index as usize)
     {
-        Some(StatementNode::LocalData(local))
-            if !local.is_mutable && local.initial_value.is_valid() =>
-        {
+        Some(StatementNode::LocalData(local)) if local.initial_value.is_valid() => {
             (local.initial_value, local.type_reference)
         }
         Some(StatementNode::Expression(expression)) => (*expression, source.return_type),
@@ -106,11 +106,18 @@ pub(crate) fn validate(
             *discard_result_on_return,
         )?;
     }
-    let mut pending = vec![(*value, expression, arena::Handle::invalid())];
+    let mut pending = vec![(
+        *value,
+        expression,
+        reference,
+        arena::Handle::invalid(),
+        false,
+    )];
+    let mut consumed_calls = Vec::new();
     let mut visited = Vec::new();
     let mut operand_roles = Vec::new();
     let mut selected_leaves = Vec::new();
-    while let Some((handle, expression, source_arm)) = pending.pop() {
+    while let Some((handle, expression, reference, source_arm, record_child)) = pending.pop() {
         if !plans.nodes.is_valid(handle) || visited.contains(&handle) {
             return unsupported("structural construction has stale or reused value nodes");
         }
@@ -120,6 +127,87 @@ pub(crate) fn validate(
             return unsupported("structural construction exchanged authored value occurrences");
         }
         match node.kind.clone() {
+            CheckedStructuralValueKind::Place(argument) => {
+                if let Some(receipt) = selection {
+                    owned_selection::validate_leaf(
+                        checked, receipt, expression, source_arm, &argument,
+                    )?;
+                    selected_leaves.push(expression);
+                } else {
+                    if !record_child
+                        || !super::super::structural_values::plain_record(checked, reference)
+                    {
+                        return unsupported(
+                            "existing structural value has no selected ownership receipt or record field owner",
+                        );
+                    }
+                    owned_places::validate(
+                        checked,
+                        machine,
+                        state,
+                        result.statement_index,
+                        expression,
+                        reference,
+                        &argument,
+                    )?;
+                }
+            }
+            CheckedStructuralValueKind::Call { source_call } => {
+                if selection.is_some() {
+                    return unsupported("selected ownership mixes fresh and existing obligations");
+                }
+                if !checked.facts.flow.control.calls.is_valid(source_call) {
+                    return unsupported("record operand call coordinate is stale");
+                }
+                let captured = checked.facts.flow.control.calls.get(source_call);
+                let ExpressionNode::Call(authored) =
+                    checked.expression_table.expression(expression)
+                else {
+                    return unsupported("structural call operand has no authored invocation");
+                };
+                let mut matching = calls.iter().filter(|call| call.value == handle);
+                let retained = matching.next().ok_or(LoweringError::Unsupported(
+                    "structural operand call plan missing",
+                ))?;
+                if matching.next().is_some() || consumed_calls.contains(&handle) {
+                    return unsupported("structural operand call was retained more than once");
+                }
+                let CheckedUnitEffectOperationPlan::StructuralCall {
+                    coordinate,
+                    target_state,
+                    result: returned,
+                    discard_result_on_return: false,
+                    ..
+                } = retained.operation()
+                else {
+                    return unsupported("structural operand is not an ordinary owned result call");
+                };
+                let exact = crate::attached_unit::retain_exact_flow_call(
+                    checked,
+                    machine,
+                    state,
+                    *coordinate,
+                    *target_state,
+                )?;
+                if !std::ptr::eq(exact, captured) {
+                    return unsupported("structural operand call is outside its source state");
+                }
+                if captured.authored_expression != expression
+                    || captured.target_symbol != authored.target_symbol
+                    || *target_state != authored.target_symbol
+                    || coordinate.statement_index != result.statement_index
+                    || captured.statement_index != result.statement_index as usize
+                    || coordinate.call_ordinal as usize != captured.call_ordinal
+                    || returned.type_identity
+                        != checked.normalized_type_identity(reference).as_str()
+                    || returned.multiplicity != checked.type_multiplicity(reference)
+                {
+                    return unsupported(
+                        "structural operand substituted its call or returned carrier",
+                    );
+                }
+                consumed_calls.push(handle);
+            }
             CheckedStructuralValueKind::Record {
                 data_symbol,
                 fields,
@@ -130,81 +218,101 @@ pub(crate) fn validate(
                 let ExpressionNode::StructLiteral(literal) =
                     checked.expression_table.expression(expression)
                 else {
-                    return unsupported("record construction lost its literal");
+                    return unsupported("record establishment lost its authored constructor");
                 };
-                let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
-                    checked.type_reference_table.type_reference(reference)
-                else {
-                    return unsupported("record construction lost its nominal type");
-                };
-                let record = checked
+                let expected = validation::unwrapped_type_reference(&checked.typed, reference)
+                    .ok_or(LoweringError::Unsupported("record carrier missing"))?;
+                if literal.case_name.is_some()
+                    || literal.type_symbol != data_symbol
+                    || !matches!(checked.type_reference_table.type_reference(expected), checked_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == data_symbol)
+                {
+                    return unsupported("record establishment substituted its nominal carrier");
+                }
+                let data = checked
                     .data_definitions()
                     .iter()
                     .find(|data| data.symbol == data_symbol)
                     .ok_or(LoweringError::Unsupported("record declaration missing"))?;
+                let members = checked.data_members(data);
+                if members
+                    .iter()
+                    .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
+                {
+                    return unsupported("record establishment selected a sum");
+                }
+                let declared = members
+                    .iter()
+                    .filter_map(|member| match member {
+                        checked_trees::data::DataMember::Field(field)
+                            if !field.relevance.is_erased() =>
+                        {
+                            Some(field)
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
                 let authored = checked.expression_table.struct_fields(literal.fields);
                 let retained = plans
                     .record_fields
                     .span(fields)
                     .ok_or(LoweringError::Unsupported("record field span is stale"))?;
-                let declarations = checked.data_members(record);
-                if *symbol != data_symbol
-                    || literal.type_symbol != data_symbol
-                    || literal.case_symbol.is_some()
-                    || authored.len() != retained.len()
-                    || declarations.len() != retained.len()
-                {
-                    return unsupported("record construction changed its exact field roster");
+                if authored.len() != declared.len() || retained.len() != authored.len() {
+                    return unsupported("record establishment changed its complete field roster");
                 }
-                let mut seen = Vec::new();
-                for (ordinal, (source, field)) in authored.iter().zip(retained).enumerate() {
-                    let declaration = declarations
+                let mut selected = Vec::new();
+                for (ordinal, (field, initializer)) in retained.iter().zip(authored).enumerate() {
+                    let declaration = declared
                         .iter()
-                        .find_map(|member| match member {
-                            checked_trees::data::DataMember::Field(declaration)
-                                if declaration.symbol == field.field
-                                    && !declaration.relevance.is_erased() =>
-                            {
-                                Some(declaration)
-                            }
-                            _ => None,
-                        })
-                        .ok_or(LoweringError::Unsupported(
-                            "record field is not an exact scalar declaration",
-                        ))?;
-                    if source.field_symbol != field.field || seen.contains(&field.field) {
-                        return unsupported("record fields were duplicated or reordered");
-                    }
-                    seen.push(field.field);
-                    let role = CheckedScalarExpressionRole::RecordField {
-                        expression,
-                        field_ordinal: u32::try_from(ordinal).map_err(|_| {
-                            LoweringError::Unsupported("record field ordinal overflow")
-                        })?,
-                    };
-                    operand_roles.push(role);
-                    let primitive = validate_operand(
-                        checked,
-                        machine,
-                        state,
-                        result.statement_index,
-                        role,
-                        field.value,
-                        source.value,
-                    )?;
-                    if checked.primitive_type_reference(declaration.type_reference)
-                        != Some(primitive)
+                        .find(|item| item.symbol == field.field)
+                        .ok_or(LoweringError::Unsupported("record field has another owner"))?;
+                    if selected.contains(&field.field)
+                        || field.field != initializer.field_symbol
+                        || field.expression != initializer.value
+                        || field.type_reference != declaration.type_reference
                     {
-                        return unsupported("record field changed its scalar carrier");
+                        return unsupported(
+                            "record establishment reordered or substituted a field",
+                        );
+                    }
+                    selected.push(field.field);
+                    match field.value {
+                        checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
+                            let role = CheckedScalarExpressionRole::RecordField {
+                                expression,
+                                field_ordinal: u32::try_from(ordinal).map_err(|_| {
+                                    LoweringError::Unsupported("record field ordinal overflow")
+                                })?,
+                            };
+                            let primitive = validate_operand(
+                                checked,
+                                machine,
+                                state,
+                                result.statement_index,
+                                role,
+                                value,
+                                initializer.value,
+                            )?;
+                            let expected = validation::unwrapped_type_reference(
+                                &checked.typed,
+                                declaration.type_reference,
+                            )
+                            .and_then(|reference| checked.primitive_type_reference(reference));
+                            if expected != Some(primitive) {
+                                return unsupported("record scalar field changed its carrier");
+                            }
+                            operand_roles.push(role);
+                        }
+                        checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
+                            pending.push((
+                                value,
+                                initializer.value,
+                                declaration.type_reference,
+                                source_arm,
+                                true,
+                            ));
+                        }
                     }
                 }
-            }
-            CheckedStructuralValueKind::Place(place) => {
-                let receipt = selection.ok_or(LoweringError::Unsupported(
-                    "existing structural value has no selected ownership receipt",
-                ))?;
-                owned_selection::validate_leaf(checked, receipt, expression, source_arm, &place)?;
-                selected_leaves.push(expression);
             }
             CheckedStructuralValueKind::Case(construction) => {
                 if selection.is_some() {
@@ -380,7 +488,13 @@ pub(crate) fn validate(
                             );
                         }
                     }
-                    pending.push((arm.value, authored_arm.value, arm.source_arm));
+                    pending.push((
+                        arm.value,
+                        authored_arm.value,
+                        reference,
+                        arm.source_arm,
+                        record_child,
+                    ));
                 }
                 if !covered || retained_ordinal != retained.len() {
                     return unsupported("structural selection omitted required coverage");
@@ -407,6 +521,9 @@ pub(crate) fn validate(
                 "selected ownership differs from the executable value alternatives",
             );
         }
+    }
+    if consumed_calls.len() != calls.len() {
+        return unsupported("structural value has unaccounted call plans");
     }
     if checked
         .facts

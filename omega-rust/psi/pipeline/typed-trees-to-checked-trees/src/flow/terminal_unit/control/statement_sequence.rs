@@ -39,7 +39,7 @@ pub(super) fn has_structural_result(
                 && root.type_reference == local.type_reference
         })
     {
-        return !local.is_mutable;
+        return true;
     }
     if validation::is_scalar_case_value(program, local.initial_value, local.type_reference) {
         return !local.is_mutable;
@@ -252,11 +252,19 @@ pub(in crate::flow::terminal_unit) fn build(
                 }
                 local_count = local_count.checked_add(1)?;
                 if let Some(root) = facts.values.structural_values.root_at(state.symbol, statement_index) {
-                    if local.is_mutable || root.machine != machine.symbol
+                    if root.machine != machine.symbol
                         || root.expression != local.initial_value || root.type_reference != local.type_reference {
                         return None;
                     }
+                    let calls = structural_operands::value_calls(program, facts, shapes, machine,
+                        state, structural_parameters, trivial_affine_locals, entry_claims, &structural_results,
+                        &mut structural_count, root.root)?;
+                    if facts.flow.ownership.owned_selection_at(state.symbol, statement_index).is_some() {
                     retain_selected_sources(facts, state.symbol, statement_index, &structural_results, &mut operations)?;
+                    } else {
+                    consume_value_places(facts, root.root, &structural_results, &mut operations)?;
+                    }
+                    for call in &calls { consume_results(&mut operations, call.operation())?; }
                     let result = CheckedUnitStructuralResultBindingPlan {
                         statement_index,
                         binding_ordinal: u32::try_from(structural_count).ok()?,
@@ -270,7 +278,7 @@ pub(in crate::flow::terminal_unit) fn build(
                     // retain their result identity without a cleanup action.
                     let discard_result_on_return = result.multiplicity == Multiplicity::Affine;
                     operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        result, value: root.root, discard_result_on_return,
+                        result, value: root.root, calls, discard_result_on_return,
                     });
                     continue;
                 }
@@ -378,9 +386,6 @@ pub(in crate::flow::terminal_unit) fn build(
                         primitive_type,
                     })
                 } else {
-                    if local.is_mutable {
-                        return None;
-                    }
                     let (mut result, symbol) = checked_unit_structural_result_local(
                         program,
                         shapes,
@@ -618,8 +623,7 @@ pub(in crate::flow::terminal_unit) fn build(
                     operation,
                     CheckedUnitEffectOperationPlan::StructuralCall { .. }
                         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                ) && (result.multiplicity == Multiplicity::Affine
-                    || array_bindings.iter().any(|(binding, _)| *binding == symbol))
+                ) && matches!(result.multiplicity, Multiplicity::Affine | Multiplicity::Unrestricted)
                 {
                     structural_results.push((result, facts::PlaceRoot::Symbol(symbol)));
                 }
@@ -732,13 +736,38 @@ pub(in crate::flow::terminal_unit) fn build(
         if root.machine != machine.symbol || root.type_reference != state.return_type {
             return None;
         }
-        retain_selected_sources(
+        let calls = structural_operands::value_calls(
+            program,
             facts,
-            state.symbol,
-            root.statement_ordinal,
+            shapes,
+            machine,
+            state,
+            structural_parameters,
+            trivial_affine_locals,
+            entry_claims,
             &structural_results,
-            &mut operations,
+            &mut structural_count,
+            root.root,
         )?;
+        if facts
+            .flow
+            .ownership
+            .owned_selection_at(state.symbol, root.statement_ordinal)
+            .is_some()
+        {
+            retain_selected_sources(
+                facts,
+                state.symbol,
+                root.statement_ordinal,
+                &structural_results,
+                &mut operations,
+            )?;
+        } else {
+            consume_value_places(facts, root.root, &structural_results, &mut operations)?;
+        }
+        for call in &calls {
+            consume_results(&mut operations, call.operation())?;
+        }
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index: root.statement_ordinal,
             binding_ordinal: u32::try_from(structural_count).ok()?,
@@ -748,6 +777,7 @@ pub(in crate::flow::terminal_unit) fn build(
         operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             result: result.clone(),
             value: root.root,
+            calls,
             discard_result_on_return: false,
         });
         Some(result.into())
@@ -1177,61 +1207,125 @@ fn consume_results(
                     .map(|ordinal| (ordinal, argument.access, !argument.path.is_empty()))
             })
         {
-            let mut producers = operations.iter_mut().filter(|operation| {
-                matches!(operation,
+            consume_result(operations, binding_ordinal, access, projected)?;
+        }
+    }
+    Some(())
+}
+
+fn consume_result(
+    operations: &mut [CheckedUnitEffectOperationPlan],
+    binding_ordinal: u32,
+    access: CheckedStructuralAccess,
+    projected: bool,
+) -> Option<()> {
+    let mut producers = operations.iter_mut().filter(|operation| {
+        matches!(operation,
                 CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
                     if result.binding_ordinal == binding_ordinal)
-            });
-            let producer = producers.next()?;
-            if producers.next().is_some() {
-                return None;
-            }
-            // Unrestricted whole-value arguments copy their payload. They retain
-            // a live producer without acquiring an affine disposal obligation.
-            if matches!(producer,
+    });
+    let producer = producers.next()?;
+    if producers.next().is_some() {
+        return None;
+    }
+    // Unrestricted whole-value arguments copy their payload. They retain
+    // a live producer without acquiring an affine disposal obligation.
+    if matches!(producer,
                 CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
                     if result.multiplicity == Multiplicity::Unrestricted)
-            {
-                if access != CheckedStructuralAccess::Owned || projected {
-                    return None;
+    {
+        if access == CheckedStructuralAccess::Owned && projected {
+            return None;
+        }
+        return Some(());
+    }
+    let (CheckedUnitEffectOperationPlan::StructuralCall {
+        discard_result_on_return,
+        result,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+        discard_result_on_return,
+        result,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+        discard_result_on_return,
+        result,
+        ..
+    }) = producer
+    else {
+        return None;
+    };
+    if result.multiplicity != Multiplicity::Affine || !*discard_result_on_return {
+        return None;
+    }
+    match access {
+        // A projected transfer leaves its root owner alive until the
+        // exact complement is committed on the consumer continuation.
+        CheckedStructuralAccess::Owned if projected => {}
+        CheckedStructuralAccess::Owned => *discard_result_on_return = false,
+        CheckedStructuralAccess::SharedBorrow
+        | CheckedStructuralAccess::MutableBorrow
+        | CheckedStructuralAccess::WriteOnlyBorrow => {}
+    }
+    Some(())
+}
+
+fn consume_value_places(
+    facts: &CheckFacts,
+    root: checked_trees::CheckedStructuralValueHandle,
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    operations: &mut [CheckedUnitEffectOperationPlan],
+) -> Option<()> {
+    let plans = &facts.values.structural_values;
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(value) = pending.pop() {
+        if !plans.nodes.is_valid(value) || visited.contains(&value) {
+            return None;
+        }
+        visited.push(value);
+        match &plans.nodes.get(value).kind {
+            checked_trees::CheckedStructuralValueKind::Place(argument) => {
+                if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol,
+                } = argument.source
+                {
+                    let mut matching = results
+                        .iter()
+                        .filter(|(_, source)| *source == facts::PlaceRoot::Symbol(symbol));
+                    let (result, _) = matching.next()?;
+                    if matching.next().is_some() || result.type_identity != argument.type_identity {
+                        return None;
+                    }
+                    consume_result(
+                        operations,
+                        result.binding_ordinal,
+                        argument.access,
+                        !argument.path.is_empty(),
+                    )?;
                 }
-                continue;
             }
-            let (CheckedUnitEffectOperationPlan::StructuralCall {
-                discard_result_on_return,
-                result,
-                ..
+            checked_trees::CheckedStructuralValueKind::Record { fields, .. } => {
+                for field in plans.record_fields.span(*fields)? {
+                    if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
+                        field.value
+                    {
+                        pending.push(value);
+                    }
+                }
             }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                discard_result_on_return,
-                result,
-                ..
+            checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+                pending.extend(plans.dispatch_arms.span(*arms)?.iter().map(|arm| arm.value));
             }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                discard_result_on_return,
-                result,
-                ..
-            }) = producer
-            else {
-                return None;
-            };
-            if result.multiplicity != Multiplicity::Affine || !*discard_result_on_return {
-                return None;
-            }
-            match access {
-                // A projected transfer leaves its root owner alive until the
-                // exact complement is committed on the consumer continuation.
-                CheckedStructuralAccess::Owned if projected => {}
-                CheckedStructuralAccess::Owned => *discard_result_on_return = false,
-                CheckedStructuralAccess::SharedBorrow => {}
-                CheckedStructuralAccess::MutableBorrow
-                | CheckedStructuralAccess::WriteOnlyBorrow => return None,
-            }
+            checked_trees::CheckedStructuralValueKind::Call { .. }
+            | checked_trees::CheckedStructuralValueKind::Case(_) => {}
         }
     }
     Some(())

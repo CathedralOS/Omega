@@ -8,6 +8,26 @@ pub(super) fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<Optimi
         });
     }
     match operation {
+        AbstractOperation::EstablishRecord {
+            psi_operation,
+            fields,
+            ..
+        } => {
+            facts.extend(fields.iter().filter_map(|initializer| {
+                let terminal_psi::RecordFieldValue::Scalar {
+                    range_obligation, ..
+                } = &initializer.value
+                else {
+                    return None;
+                };
+                range_obligation.map(
+                    |obligation| OptimizationFact::OperationObligationReference {
+                        obligation,
+                        support: *psi_operation,
+                    },
+                )
+            }));
+        }
         AbstractOperation::EstablishScalarCase {
             psi_operation,
             fields,

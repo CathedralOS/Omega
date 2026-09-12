@@ -964,7 +964,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                     && !(result.qualifications.is_empty()
                         && result.projected_qualifications.is_empty()
                         && (super::scalar_case::plain_type(module, result.structural_type)
-                            || super::scalar_record::plain_type(module, result.structural_type))
+                            || super::record::plain_type(module, result.structural_type))
                         && machine.blocks.iter().all(|block| match &block.terminator {
                             Terminator::ReturnStructural {
                                 source,
@@ -974,7 +974,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                                 returned_claims.is_empty()
                                     && (super::scalar_case::plain_return_source(
                                         module, machine, *source,
-                                    ) || super::scalar_record::plain_return_source(
+                                    ) || super::record::plain_return_source(
                                         module, machine, *source,
                                     ) || super::block_views::plain_owned_return_source(
                                         module, machine, *source,

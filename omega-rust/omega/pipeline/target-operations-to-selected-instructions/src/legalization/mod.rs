@@ -3,7 +3,6 @@
 //! `source` projects ordinary instruction graphs; `replay` independently checks
 //! them, including structural signatures and instruction-keyed ownership.
 
-mod admission;
 mod model;
 mod replay;
 mod scalar_graph_input;
@@ -23,7 +22,6 @@ use abstract_operations::AbstractOperationPlan;
 use legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
 use target_operations::TargetOperationPlan;
 
-use admission::reject_attached_unit_structural_scalar;
 use replay::replay_terminal_legalized_plan;
 use source::derive_source_function_rosters;
 
@@ -34,7 +32,6 @@ pub fn legalize_target_operations<'source>(
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
     let source = source.into();
     let unit = source.unit;
-    reject_attached_unit_structural_scalar(target)?;
     let rosters =
         derive_source_function_rosters(target, abstract_plan, unit, source.verified_input)?;
     let plan = LegalizedOperationPlan {
@@ -59,7 +56,6 @@ pub fn validate_legalized_operations<'source>(
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
     let source = source.into();
     let unit = source.unit;
-    reject_attached_unit_structural_scalar(target)?;
     replay_terminal_legalized_plan(target, abstract_plan, unit, &plan, source.verified_input)?;
     let receipt = LegalizationValidationReceipt {
         identity: legalized_operation_plan_identity(&plan),

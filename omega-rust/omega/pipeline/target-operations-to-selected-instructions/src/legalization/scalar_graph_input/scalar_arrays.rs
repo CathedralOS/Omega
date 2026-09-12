@@ -3,54 +3,6 @@
 //! substitution or replace an array with an equally sized record or sum.
 use super::*;
 
-pub(in crate::legalization) fn record_shape(
-    result: &terminal_psi::StructuralOperationResult,
-    plan: &AbstractOperationPlan,
-) -> Result<ValueShape, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
-    if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-    {
-        return Err(invalid);
-    }
-    let mut declarations = plan
-        .structural_types
-        .iter()
-        .filter(|declaration| declaration.id == result.structural_type);
-    let declaration = declarations.next().ok_or(invalid.clone())?;
-    let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return Err(invalid);
-    };
-    if declarations.next().is_some() {
-        return Err(invalid);
-    }
-    let mut size = 0_u16;
-    let mut alignment = 1_u16;
-    for field in fields {
-        let scalar = field.field_type.scalar_type().ok_or(invalid.clone())?;
-        if field.relevance.is_erased()
-            || matches!(
-                field.field_type,
-                terminal_psi::StructuralFieldType::BoundedInteger(_)
-            )
-        {
-            return Err(invalid);
-        }
-        let shape = scalar_shape(scalar).ok_or(invalid.clone())?;
-        alignment = alignment.max(shape.alignment);
-        size = size
-            .checked_next_multiple_of(shape.alignment)
-            .and_then(|size| size.checked_add(shape.byte_size))
-            .ok_or(invalid.clone())?;
-    }
-    Ok(ValueShape::integer(
-        size.checked_next_multiple_of(alignment).ok_or(invalid)?,
-        alignment,
-    ))
-}
-
 pub(in crate::legalization) fn shape(
     result: &terminal_psi::StructuralOperationResult,
     plan: &AbstractOperationPlan,

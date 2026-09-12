@@ -543,7 +543,7 @@ fn byte_read_requires_exact_selected_guard_and_certificate() {
 fn byte_read_wire_rejects_tampered_operands_and_stale_vocabulary() {
     let module = guarded_module(vec![0xff], 0);
     let semantic = encode_module(&module).unwrap();
-    assert_eq!(&semantic[10..12], &101_u16.to_le_bytes());
+    assert_eq!(&semantic[10..12], &102_u16.to_le_bytes());
     let current = terminal_psi::VocabularyMarker::CURRENT.get();
     for generation in (90_u16..current).chain(std::iter::once(current + 1)) {
         let mut stale = semantic.clone();

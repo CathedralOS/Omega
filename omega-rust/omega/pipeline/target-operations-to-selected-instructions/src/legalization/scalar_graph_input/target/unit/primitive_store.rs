@@ -147,6 +147,9 @@ fn source_is_exact(source: &PrimitiveSource, expected: &Source) -> bool {
                 && value == expected_literal
         }
         (PrimitiveSource::Home(home), Source::Home(expected)) => home == expected,
+        (PrimitiveSource::BlockParameter(value), Source::BlockParameter(expected)) => {
+            value == expected
+        }
         _ => false,
     }
 }

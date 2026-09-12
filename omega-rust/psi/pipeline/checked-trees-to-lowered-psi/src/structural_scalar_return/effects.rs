@@ -311,6 +311,11 @@ pub(super) fn emit(
         else {
             return unsupported("scalar return acquired an unsupported prefix effect");
         };
+        let checked_trees::CheckedCallScalarArgument::Pure(value) = value else {
+            return unsupported(
+                "scalar return prefix computation requires ordinary operation emission",
+            );
+        };
         let kind = crate::primitive_store::emit(
             *parameter_index,
             value,

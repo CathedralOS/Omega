@@ -301,10 +301,13 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             }),
-            kind: OperationKind::EstablishScalarRecord {
-                fields: vec![terminal_psi::ScalarRecordFieldValue {
+            kind: OperationKind::EstablishRecord {
+                fields: vec![terminal_psi::RecordFieldInitializer {
                     field: id::<StructuralFieldId>(1),
-                    value: initializer,
+                    value: terminal_psi::RecordFieldValue::Scalar {
+                        value: initializer,
+                        range_obligation: None,
+                    },
                 }],
             },
         },

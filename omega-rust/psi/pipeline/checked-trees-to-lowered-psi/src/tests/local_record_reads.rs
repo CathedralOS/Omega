@@ -138,7 +138,7 @@ fn shared_record_getter_keeps_receiver_custody_separate_from_arguments() {
         .iter()
         .flat_map(|block| &block.operations)
         .find_map(|operation| {
-            matches!(operation.kind, OperationKind::EstablishScalarRecord { .. })
+            matches!(operation.kind, OperationKind::EstablishRecord { .. })
                 .then(|| operation.result.structural().unwrap().place)
         })
         .unwrap();

@@ -106,6 +106,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             call_aggregate: isa_x86_64::x86_64_system_v_aggregate_call_keys()
                 .into_iter()
                 .chain(isa_x86_64::x86_64_system_v_mixed_aggregate_call_keys())
+                .chain(isa_x86_64::x86_64_indirect_aggregate_call_keys(false))
                 .collect(),
             return_aggregate: isa_x86_64::x86_64_system_v_aggregate_return_keys(),
             hosted_read_byte: (target == NativeTarget::linux_x64())
@@ -153,6 +154,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             call_aggregate: isa_x86_64::x86_64_microsoft_aggregate_call_keys()
                 .into_iter()
                 .chain(isa_x86_64::x86_64_microsoft_mixed_aggregate_call_keys())
+                .chain(isa_x86_64::x86_64_indirect_aggregate_call_keys(true))
                 .collect(),
             return_aggregate: isa_x86_64::x86_64_microsoft_aggregate_return_keys(),
             hosted_read_byte: None,
@@ -198,6 +200,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             call_aggregate: isa_aarch64::aarch64_register_aggregate_call_keys(false)
                 .into_iter()
                 .chain(isa_aarch64::aarch64_mixed_aggregate_call_keys(false))
+                .chain(isa_aarch64::aarch64_indirect_aggregate_call_keys(false))
                 .collect(),
             return_aggregate: isa_aarch64::aarch64_register_aggregate_return_keys(false),
             hosted_read_byte: (target == NativeTarget::linux_arm64())
@@ -246,6 +249,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             call_aggregate: isa_aarch64::aarch64_register_aggregate_call_keys(true)
                 .into_iter()
                 .chain(isa_aarch64::aarch64_mixed_aggregate_call_keys(true))
+                .chain(isa_aarch64::aarch64_indirect_aggregate_call_keys(true))
                 .collect(),
             return_aggregate: isa_aarch64::aarch64_register_aggregate_return_keys(true),
             hosted_read_byte: (target == NativeTarget::macos_arm64())

@@ -44,7 +44,7 @@ pub enum StructuralEffectCustody {
     ExactLiveIntegerField,
     ExactPublishedService,
     ExactEmptyAffineLocal,
-    ExactScalarRecord,
+    ExactRecord,
     ExactScalarCase,
     ExactScalarArray,
 }
@@ -68,7 +68,7 @@ pub enum StructuralEffectAction {
     ReadIntegerField,
     EmitPortWrite,
     EstablishAffinePlace,
-    EstablishScalarRecord,
+    EstablishRecord,
     EstablishScalarCase,
     EstablishScalarArray,
 }
@@ -95,6 +95,8 @@ pub enum StructuralEffectGoalShape {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectFrontierPolicy {
+    /// Consume exact whole owned children before publishing the complete parent.
+    TransfersOwnedChildrenAndAddsOwnedPlace,
     RequiresAndKeepsWriteOnlyPrimitivePlace,
     RequiresAndKeepsStructuralPlace,
     RequiresViewAndEstablishesBorrowedView,
@@ -379,13 +381,13 @@ impl StructuralEffectSemanticRow {
             ),
         },
         Self {
-            tag: OperationSemanticTag::EstablishScalarRecord,
+            tag: OperationSemanticTag::EstablishRecord,
             schema: structural_effect_leaf(
                 StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactScalarRecord,
-                StructuralEffectAction::EstablishScalarRecord,
+                StructuralEffectCustody::ExactRecord,
+                StructuralEffectAction::EstablishRecord,
                 StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::AddsOwnedPlace,
+                StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace,
             ),
         },
     ];
@@ -421,7 +423,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::IntegerStructuralField
             | OperationSemanticTag::PortWrite
             | OperationSemanticTag::EstablishTrivialAffineLocal
-            | OperationSemanticTag::EstablishScalarRecord
+            | OperationSemanticTag::EstablishRecord
     )
 }
 
@@ -482,7 +484,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::IntegerStructuralField,
         OperationSemanticTag::PortWrite,
         OperationSemanticTag::EstablishTrivialAffineLocal,
-        OperationSemanticTag::EstablishScalarRecord,
+        OperationSemanticTag::EstablishRecord,
     ] {
         let row = exact_structural_effect_semantic_row_in(tag, rows)?
             .expect("the requested tag belongs to the structural/effect cohort");
@@ -590,9 +592,9 @@ pub enum StructuralEffectObservation {
     AffinePlaceEstablished {
         destination: PlaceId,
     },
-    ScalarRecordEstablished {
+    RecordEstablished {
         destination: PlaceId,
-        fields: Vec<terminal_psi::ScalarRecordFieldValue>,
+        fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     ScalarCaseEstablished {
         membership: Proposition,
@@ -656,7 +658,7 @@ impl StructuralEffectObservation {
                 membership: proposition,
                 ..
             } => Some(proposition),
-            Self::ScalarRecordEstablished { .. }
+            Self::RecordEstablished { .. }
             | Self::PrimitiveLocalEstablished { .. }
             | Self::ScalarArrayEstablished { .. }
             | Self::PrimitiveRead { .. }
@@ -718,9 +720,7 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EstablishAffinePlace => {
             OperationSemanticTag::EstablishTrivialAffineLocal
         }
-        StructuralEffectAction::EstablishScalarRecord => {
-            OperationSemanticTag::EstablishScalarRecord
-        }
+        StructuralEffectAction::EstablishRecord => OperationSemanticTag::EstablishRecord,
         StructuralEffectAction::EstablishScalarCase => OperationSemanticTag::EstablishScalarCase,
         StructuralEffectAction::EstablishScalarArray => OperationSemanticTag::EstablishScalarArray,
     };
@@ -855,11 +855,12 @@ fn validate_structural_effect_schema(
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
             }
-            StructuralEffectAction::EstablishScalarRecord => {
+            StructuralEffectAction::EstablishRecord => {
                 schema.result == StructuralEffectResultShape::Structural
-                    && schema.custody == StructuralEffectCustody::ExactScalarRecord
+                    && schema.custody == StructuralEffectCustody::ExactRecord
                     && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::AddsOwnedPlace
+                    && schema.frontier
+                        == StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace
             }
             StructuralEffectAction::EstablishScalarCase => {
                 schema.result == StructuralEffectResultShape::Structural
@@ -1170,15 +1171,12 @@ pub fn structural_effect_leaf_observation_in(
         ) => StructuralEffectObservation::AffinePlaceEstablished {
             destination: *destination,
         },
-        (
-            StructuralEffectAction::EstablishScalarRecord,
-            OperationKind::EstablishScalarRecord { fields },
-        ) => {
+        (StructuralEffectAction::EstablishRecord, OperationKind::EstablishRecord { fields }) => {
             let result = operation
                 .result
                 .structural()
                 .expect("validated scalar-record structural result");
-            StructuralEffectObservation::ScalarRecordEstablished {
+            StructuralEffectObservation::RecordEstablished {
                 destination: result.place,
                 fields: fields.clone(),
             }
@@ -1436,7 +1434,7 @@ mod tests {
                 OperationSemanticTag::IntegerStructuralField,
                 OperationSemanticTag::PortWrite,
                 OperationSemanticTag::EstablishTrivialAffineLocal,
-                OperationSemanticTag::EstablishScalarRecord,
+                OperationSemanticTag::EstablishRecord,
             ]),
         );
         let boolean = structural_effect_semantic_row(&OperationKind::BooleanStructuralField {

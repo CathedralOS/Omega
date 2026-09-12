@@ -210,14 +210,30 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 writer.u8(37);
                 writer.id(destination);
             }
-            OperationKind::EstablishScalarRecord { fields } => {
-                // Tag 51 described the retired literal-only record operation.
-                // Do not reinterpret its payload as an SSA field roster.
-                writer.u8(67);
-                writer.len("scalar record fields", fields.len())?;
+            OperationKind::EstablishRecord { fields } => {
+                writer.u8(68);
+                writer.len("record fields", fields.len())?;
                 for field in fields {
                     writer.id(field.field);
-                    writer.id(field.value);
+                    match field.value {
+                        terminal_psi::RecordFieldValue::Scalar {
+                            value,
+                            range_obligation,
+                        } => {
+                            writer.u8(1);
+                            writer.id(value);
+                            encode_optional_id(writer, range_obligation);
+                        }
+                        terminal_psi::RecordFieldValue::Structural(argument) => {
+                            writer.u8(2);
+                            writer.id(argument.place);
+                            super::structural_signature_wire::encode_structural_access(
+                                writer,
+                                argument.access,
+                            );
+                            encode_structural_path(writer, "record child path", &argument.path)?;
+                        }
+                    }
                 }
             }
             OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
@@ -1236,12 +1252,26 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             37 => OperationKind::EstablishTrivialAffineLocal {
                 destination: reader.id("PlaceId")?,
             },
-            67 => OperationKind::EstablishScalarRecord {
+            68 => OperationKind::EstablishRecord {
                 fields: decode_counted(reader, |reader| {
-                    Ok(terminal_psi::ScalarRecordFieldValue {
-                        field: reader.id("StructuralFieldId")?,
-                        value: reader.id("ValueId")?,
-                    })
+                    let field = reader.id("StructuralFieldId")?;
+                    let value = match reader.u8()? {
+                        1 => terminal_psi::RecordFieldValue::Scalar {
+                            value: reader.id("ValueId")?,
+                            range_obligation: decode_optional_id(reader, "ObligationId")?,
+                        },
+                        2 => terminal_psi::RecordFieldValue::Structural(
+                            terminal_psi::StructuralArgument {
+                                place: reader.id("PlaceId")?,
+                                access: super::structural_signature_wire::decode_structural_access(
+                                    reader,
+                                )?,
+                                path: decode_structural_path(reader)?,
+                            },
+                        ),
+                        tag => return Err(CodecError::InvalidTag("RecordFieldValue", tag)),
+                    };
+                    Ok(terminal_psi::RecordFieldInitializer { field, value })
                 })?,
             },
             39 => OperationKind::CallStructuralScalar {
@@ -2267,5 +2297,58 @@ mod tests {
         let mut truncated = bytes;
         truncated.pop();
         assert!(decode_block(&mut Reader::new(&truncated)).is_err());
+    }
+    #[test]
+    fn record_wire_retains_operand_kinds_and_rejects_retired_constructor_tags() {
+        let mut block = structural_call_block();
+        let OperationResult::Structural(result) = &mut block.operations[0].result else {
+            unreachable!()
+        };
+        result.multiplicity = StructuralMultiplicity::Affine;
+        result.claims.clear();
+        block.operations[0].kind = OperationKind::EstablishRecord {
+            fields: vec![
+                terminal_psi::RecordFieldInitializer {
+                    field: id::<StructuralFieldId>(1),
+                    value: terminal_psi::RecordFieldValue::Scalar {
+                        value: id::<ValueId>(2),
+                        range_obligation: Some(id::<ObligationId>(3)),
+                    },
+                },
+                terminal_psi::RecordFieldInitializer {
+                    field: id::<StructuralFieldId>(2),
+                    value: terminal_psi::RecordFieldValue::Structural(
+                        terminal_psi::StructuralArgument {
+                            place: id::<PlaceId>(4),
+                            path: Vec::new(),
+                            access: terminal_psi::StructuralAccess::Owned,
+                        },
+                    ),
+                },
+            ],
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).unwrap();
+        let bytes = writer.finish();
+        // Claim-free structural result metadata ends after its three empty rosters.
+        assert_eq!(bytes[58], 68);
+        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
+        for retired in [51, 67] {
+            let mut changed = bytes.clone();
+            changed[58] = retired;
+            assert_eq!(
+                decode_block(&mut Reader::new(&changed)),
+                Err(CodecError::InvalidTag("OperationKind", retired))
+            );
+        }
+        let mut changed = bytes.clone();
+        changed[71] = 255;
+        assert_eq!(
+            decode_block(&mut Reader::new(&changed)),
+            Err(CodecError::InvalidTag("RecordFieldValue", 255))
+        );
+        for length in 0..bytes.len() {
+            assert!(decode_block(&mut Reader::new(&bytes[..length])).is_err());
+        }
     }
 }

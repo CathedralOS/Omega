@@ -6,7 +6,6 @@
 //! transfer validation live in separate subordinate modules.
 
 use super::*;
-use crate::runtime_requirements::substitute_runtime_requirement_scalar_values;
 use crate::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
@@ -19,6 +18,7 @@ mod call_closure;
 pub(crate) mod catalog;
 mod claims;
 mod composed_control;
+mod ordinary_calls;
 mod parameters;
 pub(crate) mod primitive_locals;
 mod provider_attachments;
@@ -1701,9 +1701,85 @@ fn assemble_unit_closure(
                     discard_result_on_return,
                     ..
                 } => {
-                    if result.binding_ordinal as usize != structural_result_places.len() {
-                        return unsupported("structural value result binding is not dense");
-                    }
+                    let mut emit_operand_call =
+                        |operand: &CheckedUnitEffectOperationPlan,
+                         evaluated: Option<&[ValueDeclaration]>,
+                         call_context: &mut CallEmissionContext<'_>,
+                         output: &mut OperationBuffer,
+                         place_counter: &mut u64| {
+                            let CheckedUnitEffectOperationPlan::StructuralCall {
+                                target_machine,
+                                result,
+                                ..
+                            } = operand
+                            else {
+                                return unsupported("record operand is not a structural call");
+                            };
+                            if result.binding_ordinal as usize != structural_result_places.len() {
+                                return unsupported(
+                                    "structural operand result binding is not dense",
+                                );
+                            }
+                            let prepared = ordinary_calls::prepare(
+                                checked,
+                                plans,
+                                operand,
+                                ordinary_calls::Target {
+                                    parameters: lowered_machine_parameters
+                                        .iter()
+                                        .find(|(symbol, _)| symbol == target_machine)
+                                        .ok_or(LoweringError::Unsupported(
+                                            "operand target parameters missing",
+                                        ))?
+                                        .1
+                                        .as_slice(),
+                                    scalar_parameters: lowered_machine_scalar_parameters
+                                        .iter()
+                                        .find(|(symbol, _)| symbol == target_machine)
+                                        .ok_or(LoweringError::Unsupported(
+                                            "operand target scalar parameters missing",
+                                        ))?
+                                        .1
+                                        .as_slice(),
+                                    predicate_parameters: predicate_parameters
+                                        .iter()
+                                        .find(|(symbol, _)| symbol == target_machine)
+                                        .ok_or(LoweringError::Unsupported(
+                                            "operand target predicate parameters missing",
+                                        ))?
+                                        .1
+                                        .as_slice(),
+                                    runtime_requirements: lowered_machine_runtime_requirements
+                                        .iter()
+                                        .find(|(symbol, _)| symbol == target_machine)
+                                        .ok_or(LoweringError::Unsupported(
+                                            "operand target requirements missing",
+                                        ))?
+                                        .1
+                                        .as_slice(),
+                                },
+                                evaluated,
+                                parameters,
+                                &local_places,
+                                &structural_result_places,
+                                &primitive_local_places,
+                                &type_ids,
+                                &structural_types,
+                                &[],
+                                call_context,
+                            )?;
+                            let declaration = ordinary_calls::emit_structural(
+                                plan.state,
+                                operand,
+                                prepared,
+                                lookup_machine_id(&machine_ids, *target_machine)?,
+                                &type_ids,
+                                place_counter,
+                                output,
+                            )?;
+                            structural_result_places.push((declaration, false));
+                            Ok(declaration)
+                        };
                     let declaration = structural_values::emit(
                         checked,
                         plan.machine,
@@ -1713,6 +1789,7 @@ fn assemble_unit_closure(
                         &type_ids,
                         &mut next_place,
                         &mut structural_value_temporaries,
+                        &mut emit_operand_call,
                         &mut scalar_calls,
                         &mut evaluation,
                         &mut scalar_result_values,
@@ -1722,6 +1799,9 @@ fn assemble_unit_closure(
                         &mut operations,
                     )?;
                     next_call_obligation = scalar_calls.next_obligation_identity;
+                    if result.binding_ordinal as usize != structural_result_places.len() {
+                        return unsupported("structural value result binding is not dense");
+                    }
                     structural_result_places.push((declaration, *discard_result_on_return));
                     continue;
                 }
@@ -1892,7 +1972,6 @@ fn assemble_unit_closure(
                     coordinate,
                     target_machine,
                     target_state,
-                    scalar_arguments,
                     structural_arguments,
                     ..
                 }
@@ -1900,7 +1979,6 @@ fn assemble_unit_closure(
                     coordinate,
                     target_machine,
                     target_state,
-                    scalar_arguments,
                     structural_arguments,
                     ..
                 } => {
@@ -1910,222 +1988,89 @@ fn assemble_unit_closure(
                         } => claim_transfers.as_slice(),
                         _ => &[],
                     };
-                    let target = UnitBody::find(plans, *target_machine)?.entry()?;
-                    if scalar_arguments.len() != target.scalar_parameters.len() {
-                        return unsupported(
-                            "Unit call scalar argument count disagrees with its target",
-                        );
-                    }
-                    let terminal_scalar_values = argument_evaluation::validated_values(
-                        evaluated_scalar_arguments.as_deref(),
-                        &target
-                            .scalar_parameters
-                            .iter()
-                            .map(|parameter| terminal_scalar_type(parameter.primitive_type))
-                            .collect::<Result<Vec<_>, _>>()?,
-                    )?;
-                    let terminal_scalar_arguments = terminal_scalar_values
-                        .iter()
-                        .map(|value| value.id)
-                        .collect();
-                    validate_transfer_shape(
-                        structural_arguments,
-                        claim_transfers,
-                        parameters,
-                        &local_places,
-                        &structural_result_places,
-                        target.structural_parameters,
-                        &type_ids,
-                        &structural_types,
-                        &target
-                            .entry_claims
-                            .iter()
-                            .map(|claim| claim.parameter_index)
-                            .collect::<Vec<_>>(),
-                        &primitive_local_places,
-                    )?;
                     let call_byte_places = byte_subslices::argument_places(
                         structural_arguments,
                         &literal_places,
                         &mut next_literal_argument,
                         &staged_subslices[operation_index],
                     )?;
-                    let terminal_arguments = lower_structural_arguments(
-                        structural_arguments,
+                    scalar_calls.next_obligation_identity = next_call_obligation;
+                    let ordinary_calls::PreparedCall {
+                        arguments: terminal_scalar_arguments,
+                        structural_arguments: terminal_arguments,
+                        requirement_obligations,
+                        crash_continuations,
+                    } = ordinary_calls::prepare(
+                        checked,
+                        plans,
+                        operation,
+                        ordinary_calls::Target {
+                            parameters: lowered_machine_parameters
+                                .iter()
+                                .find(|(symbol, _)| symbol == target_machine)
+                                .ok_or(LoweringError::Unsupported(
+                                    "call target parameters missing",
+                                ))?
+                                .1
+                                .as_slice(),
+                            scalar_parameters: lowered_machine_scalar_parameters
+                                .iter()
+                                .find(|(symbol, _)| symbol == target_machine)
+                                .ok_or(LoweringError::Unsupported(
+                                    "call target scalar parameters missing",
+                                ))?
+                                .1
+                                .as_slice(),
+                            predicate_parameters: predicate_parameters
+                                .iter()
+                                .find(|(symbol, _)| symbol == target_machine)
+                                .ok_or(LoweringError::Unsupported(
+                                    "call target predicate parameters missing",
+                                ))?
+                                .1
+                                .as_slice(),
+                            runtime_requirements: lowered_machine_runtime_requirements
+                                .iter()
+                                .find(|(symbol, _)| symbol == target_machine)
+                                .ok_or(LoweringError::Unsupported(
+                                    "call target requirements missing",
+                                ))?
+                                .1
+                                .as_slice(),
+                        },
+                        evaluated_scalar_arguments.as_deref(),
                         parameters,
                         &local_places,
                         &structural_result_places,
-                        &call_byte_places,
                         &primitive_local_places,
+                        &type_ids,
+                        &structural_types,
+                        &call_byte_places,
+                        &mut scalar_calls,
                     )?;
-                    let target_parameters = lowered_machine_parameters
-                        .iter()
-                        .find_map(|(symbol, parameters)| {
-                            (*symbol == *target_machine).then_some(parameters)
-                        })
-                        .expect("every closure target has lowered parameters");
-                    let target_scalar_parameters = lowered_machine_scalar_parameters
-                        .iter()
-                        .find_map(|(symbol, parameters)| {
-                            (*symbol == *target_machine).then_some(parameters)
-                        })
-                        .expect("every closure target has lowered scalar parameters");
-                    if target_scalar_parameters.len() != terminal_scalar_values.len() {
-                        return unsupported("Unit call scalar requirement arity is inconsistent");
-                    }
-                    let scalar_substitutions = target_scalar_parameters
-                        .iter()
-                        .zip(&terminal_scalar_values)
-                        .map(|(formal, actual)| {
-                            if formal.scalar_type != actual.scalar_type {
-                                return unsupported(
-                                    "Unit call scalar requirement parameter type is inconsistent",
-                                );
-                            }
-                            Ok((formal.id, *actual))
-                        })
-                        .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
-                    // Preserve callee requirement slots after substitution, even
-                    // if reordered or equal arguments change canonical term order.
-                    let target_runtime_requirements = lowered_machine_runtime_requirements
-                        .iter()
-                        .find_map(|(symbol, requirements)| {
-                            (*symbol == *target_machine).then_some(requirements)
-                        })
-                        .expect("every closure target has lowered runtime requirements")
-                        .iter()
-                        .map(|requirement| {
-                            let mut requirement = requirement.clone();
-                            substitute_runtime_requirement_scalar_values(
-                                &mut requirement,
-                                &scalar_substitutions,
-                            )?;
-                            Ok(requirement)
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()?;
-                    let mut crash_continuations = if let Some(target_contract) =
-                        checked.facts.contract_plans.for_machine(*target_machine)
-                    {
-                        if target_parameters.is_empty() {
-                            lower_checked_crash_route_buckets(
-                                target_contract.crash.published(),
-                                &terminal_scalar_values,
-                            )?
-                        } else {
-                            lower_structural_crash_route_buckets(
-                                target_contract.crash.published(),
-                                &terminal_scalar_values,
-                                &predicate_parameters
-                                    .iter()
-                                    .find(|(symbol, _)| *symbol == *target_machine)
-                                    .expect("every closure target has predicate parameter bindings")
-                                    .1,
-                                &structural_types,
-                                &target_runtime_requirements,
-                            )?
-                        }
-                    } else {
-                        Vec::new()
-                    };
-                    let substitutions = target_parameters
-                        .iter()
-                        .zip(&terminal_arguments)
-                        .map(|(parameter, argument)| {
-                            Ok((
-                                parameter.place,
-                                (
-                                    argument.place,
-                                    if call_byte_places.contains(&argument.place) {
-                                        // Transfer validation already required the exact whole
-                                        // immutable byte view. Its canonical path has no segments.
-                                        Vec::new()
-                                    } else {
-                                        structural_crash_route_argument_prefix(
-                                            argument,
-                                            parameters,
-                                            &local_places,
-                                            &structural_result_places,
-                                            &structural_types,
-                                            &primitive_local_places,
-                                        )?
-                                    },
-                                ),
-                            ))
-                        })
-                        .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
-                    substitute_structural_crash_route_roots(
-                        &mut crash_continuations,
-                        &substitutions,
-                    )?;
+                    next_call_obligation = scalar_calls.next_obligation_identity;
                     source_call = Some((*coordinate, None, *target_state));
-                    let requirement_obligations = target_runtime_requirements
-                        .iter()
-                        .map(|_| {
-                            // Proof finalization reconstructs this exact callee
-                            // slot against the completed caller's pre-call facts.
-                            let obligation = obligation_id(next_call_obligation);
-                            next_call_obligation = next_call_obligation
-                                .checked_add(1)
-                                .ok_or(LoweringError::Unsupported(
-                                    "runtime structural call obligation identity space is exhausted",
-                                ))?;
-                            Ok(obligation)
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()?;
                     if let CheckedUnitEffectOperationPlan::StructuralCall {
-                        source_site,
-                        result,
                         discard_result_on_return,
                         ..
                     } = operation
                     {
-                        let id = operations.allocate();
-                        let place = place_id(allocate_dense(&mut next_place)?);
-                        let structural_type = lookup_type_id(&type_ids, &result.type_identity)?;
-                        operations.record_source_call(
-                            SourceCallCoordinate {
-                                state: plan.state,
-                                statement_index: coordinate.statement_index as usize,
-                                call_ordinal: coordinate.call_ordinal as usize,
-                            },
-                            *source_site,
-                            id,
-                            *target_state,
-                        )?;
-                        operations.push(Operation {
-                            id,
-                            result: OperationResult::Structural(StructuralOperationResult {
-                                place,
-                                structural_type,
-                                multiplicity: match result.multiplicity {
-                                    Multiplicity::Affine => StructuralMultiplicity::Affine,
-                                    Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                                    Multiplicity::Linear => return unsupported("ordinary structural result has unsupported linear custody"),
-                                },
-                                qualifications: Vec::new(),
-                                projected_qualifications: Vec::new(),
-                                claims: Vec::new(),
-                            }),
-                            kind: OperationKind::CallStructuralWithScalarArguments {
-                                callee: lookup_machine_id(&machine_ids, *target_machine)?,
+                        let declaration = ordinary_calls::emit_structural(
+                            plan.state,
+                            operation,
+                            ordinary_calls::PreparedCall {
                                 arguments: terminal_scalar_arguments,
                                 structural_arguments: terminal_arguments,
-                                claim_transfers: Vec::new(),
-                                returned_claim_transfers: Vec::new(),
                                 requirement_obligations,
                                 crash_continuations,
                             },
-                        });
-                        structural_result_places.push((
-                            StructuralPlaceDeclaration {
-                                id: place,
-                                kind: StructuralPlaceKind::OperationResult {
-                                    producer: id,
-                                    structural_type,
-                                },
-                            },
-                            *discard_result_on_return,
-                        ));
+                            lookup_machine_id(&machine_ids, *target_machine)?,
+                            &type_ids,
+                            &mut next_place,
+                            &mut operations,
+                        )?;
+                        let place = declaration.id;
+                        structural_result_places.push((declaration, *discard_result_on_return));
                         structural_values::bind_local(
                             checked,
                             plan,
@@ -3293,7 +3238,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index,
                     destination,
-                    ..
+                    value,
                 } => {
                     let (destination, destination_type) = match destination {
                         checked_trees::CheckedPrimitiveStoreDestination::Parameter {
@@ -3330,22 +3275,31 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                             (local.declaration.id, local.scalar_type)
                         }
                     };
-                    let value = crate::scalar_bindings::ScalarBindings::new(source_value_count)
-                        .with_primitive_storage(&evaluation.primitive_storage)
-                        .expression_at(
-                            checked,
-                            plan.state,
-                            *statement_index,
-                            CheckedScalarExpressionRole::AssignmentValue,
-                        )?;
-                    crate::primitive_store::emit_value(
-                        destination,
-                        destination_type,
-                        &value,
-                        &scalar_result_values,
+                    let value = evaluation.source_value(
+                        checked,
+                        plan.machine,
+                        plan.state,
+                        *statement_index,
+                        CheckedScalarExpressionRole::AssignmentValue,
+                        value,
+                        source_value_count,
+                        &mut scalar_result_values,
                         &mut next_value_identity,
+                        &mut next_block,
+                        &mut next_edge,
                         &mut operations,
-                    )?
+                        &mut scalar_calls,
+                    )?;
+                    if value.scalar_type != destination_type || !value.qualifications.is_empty() {
+                        return unsupported(
+                            "primitive store RHS differs from its destination carrier",
+                        );
+                    }
+                    next_call_obligation = scalar_calls.next_obligation_identity;
+                    OperationKind::WriteOnlyPrimitiveStore {
+                        destination,
+                        value: value.id,
+                    }
                 }
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
                     crate::structural_byte_sequence_store::emit(

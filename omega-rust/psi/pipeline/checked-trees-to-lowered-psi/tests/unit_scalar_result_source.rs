@@ -352,10 +352,10 @@ fn attached_unit_ordinary_scalar_result_reaches_a_direct_write_only_store() {
             CheckedUnitEffectOperationPlan::ScalarCall { result, .. },
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 1,
-                value: CheckedScalarExpression::Local {
+                value: CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 0,
                     primitive_type: typed_trees::types::PrimitiveType::I32,
-                },
+                }),
                 ..
             },
             CheckedUnitEffectOperationPlan::Complete { statement_index: 2, .. },

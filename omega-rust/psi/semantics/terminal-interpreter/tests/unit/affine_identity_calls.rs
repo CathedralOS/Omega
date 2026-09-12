@@ -360,9 +360,18 @@ fn affine_identity_calls_reject_wrong_scalar_counts_and_types() {
     let mut module = base;
     module.machines[0].parameters[0].scalar_type = ScalarType::Boolean;
     module.machines[1].parameters[0].scalar_type = ScalarType::Boolean;
-    assert!(
-        verify(&module).is_err(),
-        "matching Boolean side parameters are outside the slice"
+    verify(&module).expect("matching Boolean side parameters preserve the scalar contract");
+    module.machines[1].parameters[0].scalar_type = scalar_types[0];
+    assert_eq!(
+        verify(&module),
+        Err(VerificationError::Module(
+            ModuleError::CallArgumentTypeMismatch {
+                operation: operation_id(1),
+                argument: value_id(1),
+                expected: scalar_types[0],
+                actual: ScalarType::Boolean,
+            }
+        ))
     );
 }
 
@@ -450,7 +459,7 @@ fn affine_identity_calls_reject_unproduced_and_reused_results() {
 }
 
 #[test]
-fn affine_identity_calls_reject_substituted_types_borrowed_fields_and_local_sources() {
+fn affine_identity_calls_preserve_exact_types_and_established_local_custody() {
     let base = identity_call_module(&[]);
     verify(&base).unwrap();
     let mut module = base.clone();
@@ -494,14 +503,16 @@ fn affine_identity_calls_reject_substituted_types_borrowed_fields_and_local_sour
             },
         },
     );
+    verify(&module).expect("an established plain local can transfer through the ordinary call");
+    module.machines[0].blocks[0].operations.remove(0);
     assert!(
         verify(&module).is_err(),
-        "even an established local needs its own source slice"
+        "a declared but unestablished local cannot transfer"
     );
 }
 
 #[test]
-fn affine_identity_calls_require_an_exact_claim_free_identity_callee() {
+fn affine_identity_calls_preserve_claim_custody_with_ordinary_callee_operations() {
     let base = identity_call_module(&[]);
     verify(&base).unwrap();
     for mutation in 0..5 {
@@ -538,9 +549,14 @@ fn affine_identity_calls_require_an_exact_claim_free_identity_callee() {
                 .push(structural_domain_id(1)),
             _ => unreachable!(),
         }
-        assert!(
-            verify(&module).is_err(),
-            "callee mutation {mutation} must reject"
-        );
+        if mutation == 2 {
+            verify(&module)
+                .expect("an unrelated scalar operation does not invalidate owned forwarding");
+        } else {
+            assert!(
+                verify(&module).is_err(),
+                "callee mutation {mutation} must reject"
+            );
+        }
     }
 }

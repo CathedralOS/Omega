@@ -148,6 +148,8 @@ impl TargetStructuralHomeRequirement {
 /// widen any call ABI or foreign-boundary vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetUnitWriteOnlyPrimitiveStoreSource {
+    /// Exact SSA value captured by the receiving control-flow block.
+    BlockParameter(crate::TargetScalarBlockValue),
     Parameter {
         parameter_index: u32,
         source_value: ValueId,
@@ -182,6 +184,7 @@ impl TargetUnitWriteOnlyPrimitiveStoreSource {
             | Self::BooleanImmediate { source_value, .. }
             | Self::IeeeFloatImmediate { source_value, .. } => source_value,
             Self::Home(home) => home.source_value,
+            Self::BlockParameter(value) => value.value,
         }
     }
 
@@ -192,6 +195,7 @@ impl TargetUnitWriteOnlyPrimitiveStoreSource {
             Self::BooleanImmediate { .. } => ScalarType::Boolean,
             Self::IeeeFloatImmediate { value, .. } => ScalarType::IeeeFloat(value.format()),
             Self::Home(home) => home.scalar_type,
+            Self::BlockParameter(value) => value.scalar_type,
         }
     }
 }

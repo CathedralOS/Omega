@@ -44,9 +44,8 @@ pub(super) fn folded_zero<'a>(
                 LegalizedScalarInstructionKind::EstablishScalarArray { elements, .. } => {
                     elements.contains(&definition.value)
                 }
-                LegalizedScalarInstructionKind::EstablishScalarRecord { fields, .. } => {
-                    fields.iter().any(|field| field.value == definition.value)
-                }
+                LegalizedScalarInstructionKind::EstablishRecord { fields, .. } => fields.iter().any(|field|
+                    matches!(&field.value, terminal_psi::RecordFieldValue::Scalar { value, .. } if *value == definition.value)),
                 LegalizedScalarInstructionKind::EstablishScalarCase { fields, .. } => {
                     fields.iter().any(|field| field.value == definition.value)
                 }

@@ -8,6 +8,7 @@ mod dominance;
 mod observations;
 mod operations;
 mod primitive_storage;
+mod records;
 pub(super) mod scalar_arrays;
 mod scalar_sources;
 mod structural_case;
@@ -180,7 +181,7 @@ pub(super) fn lower(
         let established = match operation {
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
             | AbstractOperation::EstablishScalarArray { result, .. }
-            | AbstractOperation::EstablishScalarRecord { result, .. }
+            | AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishScalarCase { result, .. }
             | AbstractOperation::CallStructural { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. }

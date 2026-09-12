@@ -110,6 +110,57 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
         .iter()
         .enumerate()
     {
+        if let Some(root) = u32::try_from(statement_index).ok().and_then(|ordinal| {
+            facts
+                .values
+                .structural_values
+                .root_at(state.symbol, ordinal)
+        }) {
+            if root.machine != machine {
+                return None;
+            }
+            let mut pending = vec![root.root];
+            let mut visited = Vec::new();
+            while let Some(value) = pending.pop() {
+                let plans = &facts.values.structural_values;
+                if !plans.nodes.is_valid(value) || visited.contains(&value) {
+                    return None;
+                }
+                visited.push(value);
+                let node = plans.nodes.get(value);
+                match node.kind {
+                    checked_trees::CheckedStructuralValueKind::Call { source_call } => {
+                        if !facts.flow.control.calls.is_valid(source_call) {
+                            return None;
+                        }
+                        let call = facts.flow.control.calls.get(source_call);
+                        if call.authored_expression != node.expression
+                            || call.statement_index != statement_index
+                            || consumed.contains(&source_call)
+                        {
+                            return None;
+                        }
+                        consumed.push(source_call);
+                        structural.push(call);
+                    }
+                    checked_trees::CheckedStructuralValueKind::Record { fields, .. } => {
+                        for field in plans.record_fields.span(fields)? {
+                            if let checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                                child,
+                            ) = field.value
+                            {
+                                pending.push(child);
+                            }
+                        }
+                    }
+                    checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+                        pending.extend(plans.dispatch_arms.span(arms)?.iter().map(|arm| arm.value));
+                    }
+                    checked_trees::CheckedStructuralValueKind::Case(_)
+                    | checked_trees::CheckedStructuralValueKind::Place(_) => {}
+                }
+            }
+        }
         if control_prefix.is_some_and(|prefix| statement_index >= prefix) {
             for (_, root) in facts
                 .values
@@ -299,10 +350,20 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
         let StatementNode::Assignment(assignment) = statement else {
             continue;
         };
-        if !matches!(
-            program.expression_table.expression(assignment.target),
-            ExpressionNode::Member(_)
-        ) {
+        let supported_destination = match program.expression_table.expression(assignment.target) {
+            ExpressionNode::Member(_) => true,
+            ExpressionNode::Name(name) => {
+                name.symbol.is_valid()
+                    && name.head_symbol == name.symbol
+                    && program
+                        .expression_table
+                        .name_path_members(name.members)
+                        .len()
+                        == 1
+            }
+            _ => false,
+        };
+        if !supported_destination {
             continue;
         }
         let plans = &facts.values.scalar_computations;
@@ -313,9 +374,13 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
         ) else {
             continue;
         };
-        let primitive =
-            validation::declared_place_type_raw(program, owner, Some(state), assignment.target)
-                .and_then(|reference| program.primitive_type_reference(reference))?;
+        let reference =
+            validation::declared_place_type_raw(program, owner, Some(state), assignment.target)?;
+        let reference = match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => *referee,
+            _ => reference,
+        };
+        let primitive = program.primitive_type_reference(reference)?;
         if root.machine != machine
             || !plans.nodes.is_valid(root.root)
             || plans.nodes.get(root.root).authored_root != assignment.value

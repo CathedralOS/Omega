@@ -110,7 +110,17 @@ pub(crate) fn validate_usage(
     let mut consumed = false;
     let mut disposed = false;
     let mut projected_paths = Vec::<&[checked_trees::CheckedUnitStructuralPathSegment]>::new();
-    for (operation_index, operation) in caller.operations.iter().enumerate() {
+    for (operation_index, operation) in
+        caller
+            .operations
+            .iter()
+            .enumerate()
+            .flat_map(|(index, operation)| {
+                operation
+                    .with_value_calls()
+                    .map(move |operation| (index, operation))
+            })
+    {
         if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             result: selected, ..
         } = operation
@@ -153,6 +163,59 @@ pub(crate) fn validate_usage(
                     return unsupported("selected result reuses an unavailable structural source");
                 }
                 consumed = true;
+            }
+        }
+        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            value,
+            result: destination,
+            ..
+        } = operation
+            && checked
+                .facts
+                .flow
+                .ownership
+                .owned_selection_at(caller.state, destination.statement_index)
+                .is_none()
+        {
+            let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
+            if let Some(StatementNode::LocalData(local)) = checked
+                .statement_table
+                .statements(state.statement_nodes)
+                .get(result.statement_index as usize)
+            {
+                let values = &checked.facts.values.structural_values;
+                let mut pending = vec![*value];
+                let mut visited = Vec::new();
+                while let Some(value) = pending.pop() {
+                    if !values.nodes.is_valid(value) || visited.contains(&value) {
+                        return unsupported(
+                            "record consumption has stale or repeated value custody",
+                        );
+                    }
+                    visited.push(value);
+                    let node = values.nodes.get(value);
+                    match &node.kind {
+                        checked_trees::CheckedStructuralValueKind::Place(argument)
+                            if argument.source == (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: local.symbol }) => {
+                            if !matches!(checked.expression_table.expression(node.expression), ExpressionNode::Name(name) if name.symbol == local.symbol && name.head_symbol == local.symbol && name.members.count() == 1)
+                                || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                                || !argument.path.is_empty() || argument.type_identity != result.type_identity
+                                || consumed || disposed || !projected_paths.is_empty()
+                                || operation_index <= producer.operation_index
+                                || destination.statement_index <= result.statement_index {
+                                return unsupported("record child lost its exact prior owned local");
+                            }
+                            consumed = result.multiplicity != Multiplicity::Unrestricted;
+                        }
+                        checked_trees::CheckedStructuralValueKind::Record { fields, .. } => {
+                            for field in values.record_fields.span(*fields).ok_or(LoweringError::Unsupported("record consumption field roster missing"))? {
+                                if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) = field.value { pending.push(value); }
+                            }
+                        }
+                        checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => pending.extend(values.dispatch_arms.span(*arms).ok_or(LoweringError::Unsupported("record consumption arm roster missing"))?.iter().map(|arm| arm.value)),
+                        _ => {}
+                    }
+                }
             }
         }
         if let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
@@ -267,6 +330,27 @@ pub(crate) fn validate_usage(
                 return unsupported(
                     "Unit structural result is consumed before production or twice",
                 );
+            }
+            if matches!(
+                argument.access,
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+                    | checked_trees::CheckedStructuralAccess::MutableBorrow
+            ) && matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::CallUnit { .. }
+                    | CheckedUnitEffectOperationPlan::ScalarCall { .. }
+                    | CheckedUnitEffectOperationPlan::StructuralCall { .. }
+            ) && producer.coordinate.call_ordinal == 0
+            {
+                if projected_paths.iter().any(|earlier| {
+                    earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
+                }) {
+                    return unsupported("local receiver borrows an already moved field");
+                }
+                // Exact declaration/path/access and the captured loan are
+                // independently rejoined by validate_consumer. A loan keeps
+                // this whole result's original ownership and cleanup debt.
+                continue;
             }
             if result.multiplicity == Multiplicity::Unrestricted {
                 if !matches!(
@@ -432,7 +516,11 @@ pub(crate) fn validate_consumer(
     let operation_index = caller
         .operations
         .iter()
-        .position(|candidate| candidate == operation)
+        .position(|candidate| {
+            candidate
+                .with_value_calls()
+                .any(|candidate| candidate == operation)
+        })
         .ok_or(LoweringError::Unsupported(
             "structural result consumer has no operation position",
         ))?;
@@ -458,6 +546,31 @@ pub(crate) fn validate_consumer(
                 (*position == parameter.position).then_some(*expression)
             });
         let binding_ordinal = argument.source_structural_result_binding_ordinal();
+        if parameter.is_self
+            && binding_ordinal.is_some()
+            && matches!(
+                argument.access,
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+                    | checked_trees::CheckedStructuralAccess::MutableBorrow
+            )
+        {
+            crate::call_source_custody::projected_receivers::validate(
+                checked,
+                caller,
+                operation,
+                target_parameters,
+            )?;
+            if target_entry_claims
+                .iter()
+                .any(|claim| claim.parameter_index as usize == index)
+                || claim_transfers
+                    .iter()
+                    .any(|transfer| transfer.argument_index as usize == index)
+            {
+                return unsupported("plain local receiver acquired transferred claims");
+            }
+            continue;
+        }
         if let Some(source_index) = argument.source_parameter_index() {
             let source = caller
                 .structural_parameters
@@ -618,13 +731,15 @@ pub(crate) fn validate_consumer(
                 else {
                     return unsupported("Unit structural result producer has no authored local");
                 };
-                if local.is_mutable
-                    || !local.symbol.is_valid()
+                if !local.symbol.is_valid()
                     || (result.multiplicity == Multiplicity::Unrestricted
-                        && !validation::is_closed_primitive_array_type(
+                        && !(validation::is_closed_primitive_array_type(
                             &checked.typed,
                             local.type_reference,
-                        ))
+                        ) || super::super::structural_values::plain_record(
+                            checked,
+                            local.type_reference,
+                        )))
                     || checked
                         .typed
                         .normalized_type_identity(local.type_reference)
@@ -632,7 +747,7 @@ pub(crate) fn validate_consumer(
                         != result.type_identity
                 {
                     return unsupported(
-                        "Unit structural result producer disagrees with its immutable authored local",
+                        "Unit structural result producer disagrees with its authored local",
                     );
                 }
                 match expression.map(|expression| {

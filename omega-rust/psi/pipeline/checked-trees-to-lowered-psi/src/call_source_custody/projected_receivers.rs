@@ -9,6 +9,7 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 mod aliases;
+mod locals;
 
 pub(crate) struct ReceiverSource {
     pub(crate) root: SymbolHandle,
@@ -219,12 +220,21 @@ fn resolve_source(
                     return unsupported("projected receiver root identity changed");
                 }
                 owner = name.symbol;
+                if cursor == expression {
+                    stamp = name.symbol;
+                }
                 if let Some(parameter) = checked.state_parameters(state).iter().find(|parameter| {
                     parameter.symbol == name.symbol
                         || (parameter.is_self && name.symbol == machine.symbol)
                 }) {
                     captured_root = name.symbol;
                     break parameter.symbol;
+                }
+                if let Some((statement_index, _)) = statement_index
+                    && locals::declaration(checked, state, statement_index, name.symbol).is_some()
+                {
+                    captured_root = name.symbol;
+                    break name.symbol;
                 }
                 if let Some((statement_index, formation)) = statement_index
                     && let Some(alias) = aliases::parameter_source(
@@ -384,7 +394,7 @@ fn statement_alias_source(
         stamp: endpoint,
         owner: local.symbol,
         captured_place,
-        erased_alias: true,
+        erased_alias: alias.erased_alias,
     })
 }
 
@@ -400,6 +410,11 @@ pub(crate) fn validate(
         ..
     }
     | CheckedUnitEffectOperationPlan::StructuralCall {
+        coordinate,
+        structural_arguments,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::ScalarCall {
         coordinate,
         structural_arguments,
         ..
@@ -445,15 +460,36 @@ pub(crate) fn validate(
             else {
                 return unsupported("receiver alias lost its authored statement call");
             };
-            let Some(alias) = aliases::parameter_source(
+            let local = locals::declaration(
                 checked,
-                caller.machine,
-                caller.state,
+                state,
                 coordinate.statement_index as usize,
                 call.receiver_root_symbol,
-                false,
-            )?
-            else {
+            )
+            .map(|_| ReceiverSource {
+                root: call.receiver_root_symbol,
+                path: Vec::new(),
+                stamp: call.receiver_root_symbol,
+                owner: call.receiver_root_symbol,
+                captured_place: checked_trees::CapturedPlace {
+                    root_symbol: call.receiver_root_symbol,
+                    segments: Vec::new(),
+                },
+                erased_alias: false,
+            });
+            let alias = if local.is_some() {
+                local
+            } else {
+                aliases::parameter_source(
+                    checked,
+                    caller.machine,
+                    caller.state,
+                    coordinate.statement_index as usize,
+                    call.receiver_root_symbol,
+                    false,
+                )?
+            };
+            let Some(alias) = alias else {
                 return Ok(());
             };
             statement_alias_source(checked, state, call, alias)?
@@ -461,6 +497,32 @@ pub(crate) fn validate(
         None => return Ok(()),
     };
     let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
+    if locals::declaration(
+        checked,
+        state,
+        coordinate.statement_index as usize,
+        source.root,
+    )
+    .is_some()
+    {
+        if targets.next().is_some() {
+            return unsupported("local receiver selected multiple self parameters");
+        }
+        let argument = structural_arguments
+            .get(index)
+            .ok_or(LoweringError::Unsupported(
+                "local receiver argument missing",
+            ))?;
+        return locals::validate(
+            checked,
+            caller,
+            *coordinate,
+            authored.source_target,
+            target,
+            argument,
+            &source,
+        );
+    }
     let position = checked
         .state_parameters(state)
         .iter()

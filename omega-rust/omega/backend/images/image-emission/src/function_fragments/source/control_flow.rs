@@ -1,6 +1,6 @@
 //! Plain aggregate disposal is no-code work, not absent source work.
 //! Mandatory graph/physical replay checks the live frontier. Publication also
-//! retains the exact selected edge and its ordered disposal, just as for returns.
+//! retains the exact target edge and its ordered disposal on branches and returns.
 
 use abstract_operations::{AbstractOperation, AbstractSuccessor};
 use target_operations::{TargetControlSuccessor, TargetControlTerminator, TargetFunction};
@@ -13,6 +13,12 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
             .blocks
             .iter()
             .filter(|block| match (source, &block.terminator) {
+                (
+                    AbstractOperation::Return { psi_edge, .. }
+                    | AbstractOperation::ReturnUnit { psi_edge, .. },
+                    TargetControlTerminator::ReturnScalar { psi_edge: edge, .. }
+                    | TargetControlTerminator::Return { psi_edge: edge, .. },
+                ) => edge == psi_edge,
                 (
                     AbstractOperation::Jump { psi_edge, .. },
                     TargetControlTerminator::Jump { successor },
@@ -40,6 +46,38 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
         return false;
     }
     match (source, &candidate.terminator) {
+        (
+            AbstractOperation::Return {
+                value,
+                cleanup_actions,
+                ..
+            },
+            TargetControlTerminator::ReturnScalar {
+                source_value,
+                cleanup_actions: actual,
+                ..
+            },
+        ) => {
+            value == source_value
+                && cleanup_actions == actual
+                && cleanup_actions
+                    .iter()
+                    .all(|action| matches!(action, TerminalAffineCleanupAction::DiscardRoot(_)))
+        }
+        (
+            AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            },
+            TargetControlTerminator::Return {
+                cleanup_actions: actual,
+                ..
+            },
+        ) => {
+            cleanup_actions == actual
+                && cleanup_actions
+                    .iter()
+                    .all(|action| matches!(action, TerminalAffineCleanupAction::DiscardRoot(_)))
+        }
         (
             AbstractOperation::Jump {
                 psi_edge,

@@ -181,7 +181,24 @@ pub(super) fn validate_unit_operation_sequence(
         .enumerate()
     {
         let coordinate = match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, calls, .. } => {
+                // Operand calls publish their own results before the enclosing
+                // constructor. Source replay separately rejoins each occurrence.
+                for call in calls {
+                    let CheckedUnitEffectOperationPlan::StructuralCall { result, .. } =
+                        call.operation()
+                    else {
+                        return unsupported("structural operand lost its call operation");
+                    };
+                    if result.binding_ordinal != next_structural_binding {
+                        return unsupported(
+                            "structural operand result is not the next dense source binding",
+                        );
+                    }
+                    next_structural_binding = next_structural_binding.checked_add(1).ok_or(
+                        LoweringError::Unsupported("structural operand binding space is exhausted"),
+                    )?;
+                }
                 structural_calls::validate_usage(checked, machine, result)?;
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,

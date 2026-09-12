@@ -371,10 +371,13 @@ fn bounded_integer_record_constructor_remains_fail_closed() {
             projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
-        kind: OperationKind::EstablishScalarRecord {
-            fields: vec![terminal_psi::ScalarRecordFieldValue {
+        kind: OperationKind::EstablishRecord {
+            fields: vec![terminal_psi::RecordFieldInitializer {
                 field,
-                value: ValueId::new(1).unwrap(),
+                value: terminal_psi::RecordFieldValue::Scalar {
+                    value: ValueId::new(1).unwrap(),
+                    range_obligation: None,
+                },
             }],
         },
     });
@@ -400,7 +403,7 @@ fn bounded_integer_record_constructor_remains_fail_closed() {
     );
     assert!(matches!(
         validate_module(&module),
-        Err(ModuleError::ScalarRecordResultMismatch(_))
+        Err(ModuleError::RecordResultMismatch(_))
     ));
 }
 

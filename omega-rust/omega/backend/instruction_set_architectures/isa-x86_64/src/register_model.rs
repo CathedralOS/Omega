@@ -12,6 +12,8 @@ use register_model::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
+mod indirect_results;
+pub use indirect_results::*;
 mod float_scalar_calls;
 #[cfg(test)]
 mod float_transport_tests;
@@ -1333,6 +1335,7 @@ pub fn x86_64_register_constraint_catalog(
     }
     mixed_calls::append_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);
+    indirect_results::append_constraints(&mut constraints, model);
     packed_memory::append_constraints(&mut constraints, model);
     mixed_aggregate_calls::append_constraints(&mut constraints, model);
     constraints.sort_by_key(|constraint| constraint.key);
@@ -1349,6 +1352,7 @@ pub fn x86_64_register_constraint_catalog(
             for microsoft in [false, true] {
                 required.extend(x86_64_float_scalar_call_keys(microsoft));
                 required.extend(x86_64_float_scalar_return_keys(microsoft));
+                required.extend(x86_64_indirect_aggregate_call_keys(microsoft));
             }
             required.extend(x86_64_microsoft_mixed_unit_call_keys());
             required.extend(x86_64_system_v_mixed_aggregate_call_keys());
@@ -1666,6 +1670,8 @@ mod tests {
         assert_eq!(
             catalog.required.len(),
             X86_64_REQUIRED_REGISTER_CONSTRAINTS.len()
+                + x86_64_indirect_aggregate_call_keys(false).len()
+                + x86_64_indirect_aggregate_call_keys(true).len()
                 + x86_64_float_scalar_call_keys(false).len()
                 + x86_64_float_scalar_call_keys(true).len()
                 + x86_64_float_scalar_return_keys(false).len()

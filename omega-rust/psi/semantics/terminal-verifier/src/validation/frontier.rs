@@ -278,6 +278,24 @@ pub(super) fn validate_structural_frontier(
                 });
             }
             let consumed_places = match &operation.kind {
+                OperationKind::EstablishRecord { fields } => fields
+                    .iter()
+                    .filter_map(|field| {
+                        let terminal_psi::RecordFieldValue::Structural(argument) = &field.value
+                        else {
+                            return None;
+                        };
+                        super::structural_result_contracts::source_signature(
+                            machine,
+                            argument.place,
+                        )
+                        .filter(|source| {
+                            source.multiplicity != StructuralMultiplicity::Unrestricted
+                        })
+                        .map(|_| argument.place)
+                    })
+                    .collect(),
+
                 OperationKind::CallUnit {
                     callee,
                     structural_arguments,
@@ -440,11 +458,7 @@ pub(super) fn validate_structural_frontier(
                 && !super::scalar_array::plain_return_source(module, machine, result.place)
                 && !(result.multiplicity == StructuralMultiplicity::Unrestricted
                     && (super::scalar_case::plain_return_source(module, machine, result.place)
-                        || super::scalar_record::plain_return_source(
-                            module,
-                            machine,
-                            result.place,
-                        )))
+                        || super::record::plain_return_source(module, machine, result.place)))
             {
                 if frontier
                     .owned_places
@@ -820,7 +834,7 @@ pub(super) fn validate_structural_frontier(
                     && !super::scalar_array::plain_return_source(module, machine, *source)
                     && !(source_signature.multiplicity == StructuralMultiplicity::Unrestricted
                         && (super::scalar_case::plain_return_source(module, machine, *source)
-                            || super::scalar_record::plain_return_source(module, machine, *source)))
+                            || super::record::plain_return_source(module, machine, *source)))
                     && !(plain_owned_block_return
                         && source_signature.multiplicity == StructuralMultiplicity::Unrestricted)
                 {
@@ -906,7 +920,7 @@ pub(super) fn validate_structural_frontier(
                     && !plain_owned_block_return
                     && !super::scalar_array::plain_return_source(module, machine, *source)
                     && !super::scalar_case::plain_return_source(module, machine, *source)
-                    && !super::scalar_record::plain_return_source(module, machine, *source))
+                    && !super::record::plain_return_source(module, machine, *source))
                     || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
                 {
                     return Err(ModuleError::NonCanonicalStructuralReturnClaims {
@@ -1000,6 +1014,63 @@ fn validate_owned_reads(
     operation: &terminal_psi::Operation,
     frontier: &StructuralOwnershipFrontier,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::EstablishRecord { fields } = &operation.kind {
+        for field in fields {
+            let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
+                continue;
+            };
+            let source =
+                super::structural_result_contracts::source_signature(machine, argument.place)
+                    .ok_or(ModuleError::RecordResultMismatch(operation.id))?;
+            let unrestricted_parameter = source.multiplicity
+                == StructuralMultiplicity::Unrestricted
+                && (super::record::completed_source(module, machine, argument.place).is_some()
+                    || machine.structural_parameters.iter().any(|parameter| {
+                        parameter.place == argument.place
+                            && parameter.access == StructuralAccess::Owned
+                    })
+                    || machine
+                        .blocks
+                        .iter()
+                        .find(|block| {
+                            block
+                                .operations
+                                .iter()
+                                .any(|candidate| candidate.id == operation.id)
+                        })
+                        .is_some_and(|current| {
+                            let dominators = crate::control_graph::dominators(machine);
+                            machine.blocks.iter().any(|definition| {
+                                definition.structural_parameters.iter().any(|parameter| {
+                                    parameter.place == argument.place
+                                        && parameter.access == StructuralAccess::Owned
+                                }) && dominators
+                                    .get(&current.id)
+                                    .is_some_and(|blocks| blocks.contains(&definition.id))
+                            })
+                        }));
+            if (!unrestricted_parameter
+                && frontier.owned_places.get(&argument.place) != Some(&source.multiplicity))
+                || frontier
+                    .claims
+                    .values()
+                    .any(|claim| claim.input == Some(argument.place))
+            {
+                return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                    operation: operation.id,
+                    place: argument.place,
+                });
+            }
+            if frontier.partial_custody_paths.contains_key(&argument.place) {
+                return Err(
+                    ModuleError::PartiallyMovedStructuralPlaceUsedWholeAtOperation {
+                        operation: operation.id,
+                        place: argument.place,
+                    },
+                );
+            }
+        }
+    }
     if let OperationKind::StructuralCaseMembership { source, .. } = operation.kind {
         let borrowed = machine
             .structural_parameters
@@ -1064,15 +1135,22 @@ fn validate_owned_reads(
     };
     let reads = arguments
         .iter()
-        .filter(|argument| argument.access == StructuralAccess::SharedBorrow)
+        .filter(|argument| {
+            matches!(
+                argument.access,
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            )
+        })
         .map(|argument| argument.place)
         .chain(observation);
     for place in reads.filter(|place| {
         super::byte_sequence_subslice::borrowed_result(machine, *place).is_none()
             && super::primitive_storage::local_result(machine, *place).is_none()
-            && !super::scalar_record::result(machine, *place).is_some_and(|result| {
+            && !super::record::result(machine, *place).is_some_and(|result| {
                 result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && super::scalar_record::plain_return_source(module, machine, *place)
+                    && super::record::plain_return_source(module, machine, *place)
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
@@ -1212,7 +1290,7 @@ fn validate_scalar_cleanup_actions(
     // ordinary edge and Unit-return disposal, before older named roots.
     for place in expected_trivial_affine_discards(machine, parameter_order, &frontier) {
         if !super::scalar_case::plain_return_source(module, machine, place)
-            && !super::scalar_record::plain_return_source(module, machine, place)
+            && !super::record::plain_return_source(module, machine, place)
         {
             continue;
         }

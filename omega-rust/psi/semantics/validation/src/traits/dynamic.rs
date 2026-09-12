@@ -1341,7 +1341,7 @@ fn nominal_data_type(
 /// borrow wrapper introduced by `&place as &dyn Carrier::Conformance`.
 /// Consumers must share this normalization so validation cannot admit a
 /// selection while independently fencing the same receiver shape.
-pub(crate) fn normalized_dynamic_coercion(
+fn normalized_dynamic_coercion(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, &TableCastExpression, &TypeReferenceNode)> {

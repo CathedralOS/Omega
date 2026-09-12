@@ -35,7 +35,11 @@ fn selected_roots(
 ) -> Result<Vec<checked_trees::CheckedScalarComputationHandle>, LoweringError> {
     let mut pending = Vec::new();
     for state in states {
-        for operation in &state.operations {
+        for operation in state
+            .operations
+            .iter()
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        {
             if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } =
                 operation
             {

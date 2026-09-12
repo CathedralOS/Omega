@@ -351,7 +351,8 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
         };
         let initializer = initializer.clone();
         let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-            value, ..
+            value: checked_trees::CheckedCallScalarArgument::Pure(value),
+            ..
         } = &mut operations[3]
         else {
             panic!("caller read and store");

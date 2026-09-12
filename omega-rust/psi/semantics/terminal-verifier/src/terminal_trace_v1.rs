@@ -226,7 +226,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
-        | OperationKind::EstablishScalarRecord { .. }
+        | OperationKind::EstablishRecord { .. }
         | OperationKind::StoreDynamicDescriptor { .. }
         | OperationKind::Call { .. }
         | OperationKind::CallUnit { .. }

@@ -109,7 +109,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
             &structural_domains,
             cycle_policy,
         )?;
-        validate_scalar_case_range_authority(unit, function, &structural_types)?;
+        validate_structural_field_range_authority(unit, function, &structural_types)?;
     }
     Ok(UnitIndexes {
         machines,
@@ -119,70 +119,121 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
     })
 }
 
-fn validate_scalar_case_range_authority(
+fn validate_structural_field_range_authority(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    use semantic_vocabulary::{Proposition, ScalarTerm};
+    use abstract_operations::AbstractOperation as O;
+    use terminal_psi::{RecordFieldValue, StructuralTypeShape};
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
-        let abstract_operations::AbstractOperation::EstablishScalarCase {
-            psi_operation,
-            result,
-            result_case,
-            fields,
-        } = &node.operation
-        else {
-            continue;
-        };
-        let Some(terminal_psi::StructuralTypeDeclaration {
-            shape: terminal_psi::StructuralTypeShape::Sum { cases },
-            ..
-        }) = types.get(&result.structural_type).copied()
-        else {
-            continue;
-        };
-        let Some(case) = cases.iter().find(|case| case.id == *result_case) else {
-            continue;
-        };
-        for (declaration, binding) in case.fields.iter().zip(fields) {
-            let terminal_psi::StructuralFieldType::BoundedInteger(bounds) = declaration.field_type
-            else {
-                continue;
-            };
-            let integer_type = bounds.integer_type();
-            let value = ScalarTerm::value(binding.value, ScalarType::Integer(integer_type));
-            let endpoint = |value| ScalarTerm::Integer {
-                scalar_type: integer_type,
-                value,
-            };
-            let mut clauses = vec![
-                Proposition::LessOrEqual(endpoint(bounds.minimum()), value.clone()),
-                Proposition::LessOrEqual(value, endpoint(bounds.maximum())),
-            ];
-            clauses.sort();
-            let proposition =
-                terminal_codec::canonical_proposition_order_key(&Proposition::Conjunction(clauses))
-                    .map_err(|_| {
-                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch
-                    })?;
-            if unit
-                .accepted_obligation_facts
-                .iter()
-                .filter(|fact| {
-                    fact.machine == function.machine
-                        && fact.operation == *psi_operation
-                        && Some(fact.obligation) == binding.range_obligation
-                        && fact.proposition == proposition
-                        && fact.psi == unit.psi
-                        && fact.has_canonical_identity()
-                })
-                .count()
-                != 1
-            {
-                return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
+        match &node.operation {
+            O::EstablishScalarCase {
+                psi_operation,
+                result,
+                result_case,
+                fields,
+            } => {
+                let Some(terminal_psi::StructuralTypeDeclaration {
+                    shape: StructuralTypeShape::Sum { cases },
+                    ..
+                }) = types.get(&result.structural_type).copied()
+                else {
+                    continue;
+                };
+                let Some(case) = cases.iter().find(|case| case.id == *result_case) else {
+                    continue;
+                };
+                for (declaration, binding) in case.fields.iter().zip(fields) {
+                    validate_field_range_authority(
+                        unit,
+                        function.machine,
+                        *psi_operation,
+                        declaration,
+                        binding.value,
+                        binding.range_obligation,
+                    )?;
+                }
             }
+            O::EstablishRecord {
+                psi_operation,
+                result,
+                fields,
+            } => {
+                let Some(terminal_psi::StructuralTypeDeclaration {
+                    shape:
+                        StructuralTypeShape::Record {
+                            fields: declarations,
+                        },
+                    ..
+                }) = types.get(&result.structural_type).copied()
+                else {
+                    continue;
+                };
+                for (declaration, initializer) in declarations.iter().zip(fields) {
+                    if let RecordFieldValue::Scalar {
+                        value,
+                        range_obligation,
+                    } = &initializer.value
+                    {
+                        validate_field_range_authority(
+                            unit,
+                            function.machine,
+                            *psi_operation,
+                            declaration,
+                            *value,
+                            *range_obligation,
+                        )?;
+                    }
+                }
+            }
+            _ => {}
         }
+    }
+    Ok(())
+}
+
+fn validate_field_range_authority(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    operation: OperationId,
+    declaration: &terminal_psi::StructuralFieldDeclaration,
+    value: ValueId,
+    obligation: Option<semantic_vocabulary::ObligationId>,
+) -> Result<(), OptimizationUnitValidationError> {
+    use semantic_vocabulary::{Proposition, ScalarTerm};
+    let terminal_psi::StructuralFieldType::BoundedInteger(bounds) = declaration.field_type else {
+        return Ok(());
+    };
+    let integer_type = bounds.integer_type();
+    let value = ScalarTerm::value(value, ScalarType::Integer(integer_type));
+    let endpoint = |value| ScalarTerm::Integer {
+        scalar_type: integer_type,
+        value,
+    };
+    let mut clauses = vec![
+        Proposition::LessOrEqual(endpoint(bounds.minimum()), value.clone()),
+        Proposition::LessOrEqual(value, endpoint(bounds.maximum())),
+    ];
+    clauses.sort();
+    let proposition =
+        terminal_codec::canonical_proposition_order_key(&Proposition::Conjunction(clauses))
+            .map_err(|_| OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+    if unit
+        .accepted_obligation_facts
+        .iter()
+        .filter(|fact| {
+            fact.machine == machine
+                && fact.operation == operation
+                && Some(fact.obligation) == obligation
+                && fact.proposition == proposition
+                && fact.psi == unit.psi
+                && fact.has_canonical_identity()
+        })
+        .count()
+        != 1
+    {
+        return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
     }
     Ok(())
 }

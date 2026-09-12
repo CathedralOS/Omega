@@ -7,7 +7,7 @@ pub(super) fn validate_assignment(
     state_symbol: symbols::SymbolHandle,
     statement_index: u32,
     destination: &CheckedUnitStructuralParameterPlan,
-    value: &CheckedScalarExpression,
+    value: &checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
     let (_, state) = crate::scalar_source_custody::authored_state(checked, state_symbol)?;
     let parameter = checked
@@ -30,10 +30,10 @@ pub(super) fn validate_symbol_assignment(
     state_symbol: symbols::SymbolHandle,
     statement_index: u32,
     destination: symbols::SymbolHandle,
-    value: &CheckedScalarExpression,
+    value: &checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
     use checked_trees::{expression::ExpressionNode, statement::StatementNode};
-    let (_, state) = crate::scalar_source_custody::authored_state(checked, state_symbol)?;
+    let (machine, state) = crate::scalar_source_custody::authored_state(checked, state_symbol)?;
     let Some(StatementNode::Assignment(assignment)) = checked
         .statement_table
         .statements(state.statement_nodes)
@@ -56,6 +56,91 @@ pub(super) fn validate_symbol_assignment(
     {
         return unsupported("primitive store destination differs from its authored parameter");
     }
+    let role = CheckedScalarExpressionRole::AssignmentValue;
+    let computations = &checked.facts.values.scalar_computations;
+    let mut roots = computations
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .filter(|root| {
+            root.state == state_symbol
+                && root.statement_ordinal == statement_index
+                && root.role == role
+        });
+    let root = roots.next();
+    if roots.next().is_some() {
+        return unsupported("primitive store has duplicate RHS computation roots");
+    }
+    let value = match value {
+        checked_trees::CheckedCallScalarArgument::Computation(handle) => {
+            let root = root.ok_or(LoweringError::Unsupported(
+                "primitive store lost its RHS computation root",
+            ))?;
+            if root.machine != machine.symbol
+                || root.root != *handle
+                || !computations.nodes.is_valid(*handle)
+            {
+                return unsupported("primitive store RHS computation has different custody");
+            }
+            let source =
+                crate::scalar_source_custody::locate(checked, state_symbol, statement_index, role)?;
+            let node = computations.nodes.get(*handle);
+            if source.machine != machine.symbol
+                || source.destination != destination
+                || source.expression != assignment.value
+                || node.authored_root != assignment.value
+                || node.primitive_type != source.primitive_type
+                || checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .expressions
+                    .iter()
+                    .any(|expression| {
+                        expression.state == state_symbol
+                            && expression.statement_ordinal == statement_index
+                            && expression.role == role
+                    })
+                || checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .source_bindings
+                    .iter()
+                    .any(|(_, binding)| {
+                        binding.state == state_symbol
+                            && binding.statement_ordinal == statement_index
+                            && binding.role == role
+                    })
+            {
+                return unsupported("primitive store computation differs from its authored RHS");
+            }
+            crate::scalar_source_custody::validate_computation_calls(
+                checked,
+                machine.symbol,
+                state_symbol,
+                statement_index,
+                *handle,
+                assignment.value,
+            )?;
+            return crate::scalar_source_custody::value_correspondence::validate(
+                checked,
+                state_symbol,
+                statement_index,
+                assignment.value,
+                source.primitive_type,
+                value,
+            );
+        }
+        checked_trees::CheckedCallScalarArgument::Pure(value) => {
+            if root.is_some() {
+                return unsupported(
+                    "primitive store replaced its RHS computation with a pure value",
+                );
+            }
+            value
+        }
+    };
     let (binding, expression) = checked
         .facts
         .values

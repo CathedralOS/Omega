@@ -178,26 +178,27 @@ pub(crate) fn structural_arguments_match(
                     .flat_map(|block| &block.nodes)
                     .any(|node| {
                         matches!(&node.operation,
-                    O::CallStructural { result, .. } | O::EstablishScalarRecord { result, .. }
+                    O::CallStructural { result, .. } | O::EstablishRecord { result, .. }
                         if result.place == argument.place)
                     }));
-        let actual_multiplicity = if shared_affine_loan {
-            terminal_psi::StructuralMultiplicity::Unrestricted
-        } else if argument.path.is_empty() {
-            source.multiplicity
-        } else if unrestricted_write_only_subloan
-            || unrestricted_mutable_field
-            || unrestricted_shared_field
-        {
-            terminal_psi::StructuralMultiplicity::Unrestricted
-        } else if parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            && is_partial_affine_path(types, source.structural_type, &argument.path)
-        {
-            terminal_psi::StructuralMultiplicity::Affine
-        } else {
-            terminal_psi::StructuralMultiplicity::Linear
-        };
+        let actual_multiplicity =
+            if shared_affine_loan || completed_record_loan(caller, argument, parameter, types) {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else if argument.path.is_empty() {
+                source.multiplicity
+            } else if unrestricted_write_only_subloan
+                || unrestricted_mutable_field
+                || unrestricted_shared_field
+            {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else if parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                && is_partial_affine_path(types, source.structural_type, &argument.path)
+            {
+                terminal_psi::StructuralMultiplicity::Affine
+            } else {
+                terminal_psi::StructuralMultiplicity::Linear
+            };
         if actual_multiplicity != parameter.multiplicity
             || parameter
                 .qualifications
@@ -346,7 +347,7 @@ fn structural_operation_result_contract(
                 }
                 O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
-                | O::EstablishScalarRecord { result, .. }
+                | O::EstablishRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),

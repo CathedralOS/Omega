@@ -96,6 +96,28 @@ mutable storage and no payload-access refinement after intervening mutation.
 Write-only access cannot read the discriminator, even with a known-case premise.
 Each observation costs one logical operation unit, charged before execution.
 
+## Complete record construction
+
+`EstablishRecord` produces one exact `OperationResult` record from a complete
+roster of declaration-identified field operands. Scalar operands are dominating
+SSA values of the exact field carrier. Bounded integer fields require an
+independently reconstructed inclusive-range obligation. Nested fields consume
+already completed whole owned records of the exact nominal type; affine children
+transfer once, while unrestricted children remain available. An unrestricted
+parent cannot absorb an affine child.
+
+The admitted records contain only relevant scalar or recursively plain record
+fields and have no claim or qualification rosters. Projected owned child
+construction remains unsupported: its residual custody cannot be inferred from
+a whole-value operand. Ordinary borrowed projections retain their access rules.
+
+Each operand is evaluated in authored order before this operation. Establishment
+is atomic after all operands are available, with one logical fuel charge before
+any child transfer or parent publication. A paused or failing operand computation
+therefore retains the previously completed temporaries under their ordinary
+cleanup rules, rather than exposing a partially initialized destination. Every
+execution creates an independent referent, including nested machine activations.
+
 ## Store vocabulary
 
 An initialized primitive local uses an unrestricted, unqualified, claim-free
