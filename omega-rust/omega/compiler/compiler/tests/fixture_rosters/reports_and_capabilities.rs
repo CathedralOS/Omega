@@ -11,6 +11,8 @@ pub const LINEAR_TRANSFER_AND_CONSUME: &str = "ownership/linear_transfer_and_con
 pub const BOUNDARY_TRAIT_EFFECTS_HOST_CALL: &str = "traits/boundary_trait_effects_host_call";
 pub const BOUNDARY_DATA_OPAQUE_CONTRACT: &str = "proofs/boundary_data_opaque_contract";
 pub const WIRE_COMPATIBILITY_DEMAND_REPORT: &str = "wire/wire_compatibility_demand_report";
+pub const WIRE_COMPATIBILITY_MIGRATION_ACROSS_SHAPES: &str =
+    "wire/wire_compatibility_migration_across_shapes";
 pub const LINEAR_TRANSPARENT_RECORD_FRONTIER: &str = "ownership/linear_transparent_record_frontier";
 pub const LINEAR_STATE_CALL_HANDOFF: &str = "ownership/linear_state_call_handoff";
 pub const LINEAR_TRANSITION_NESTED_CALL_HANDOFF: &str =
@@ -37,6 +39,7 @@ pub const PASS_CANARIES: &[&str] = &[
     BOUNDARY_TRAIT_EFFECTS_HOST_CALL,
     BOUNDARY_DATA_OPAQUE_CONTRACT,
     WIRE_COMPATIBILITY_DEMAND_REPORT,
+    WIRE_COMPATIBILITY_MIGRATION_ACROSS_SHAPES,
     LINEAR_TRANSPARENT_RECORD_FRONTIER,
     LINEAR_STATE_CALL_HANDOFF,
     LINEAR_TRANSITION_NESTED_CALL_HANDOFF,

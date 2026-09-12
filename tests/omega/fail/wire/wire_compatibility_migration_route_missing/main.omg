@@ -1,0 +1,26 @@
+// A store policy that demands CompleteMigration needs an explicitly bound
+// FormatMigration<Lineage, Old, New> route. The peer and local shapes share
+// field #1 and differ only by an added field, but neither declaration order
+// nor overlapping field numbers imply a migration; without a bound machine
+// the demand is unsatisfied.
+
+data ArchiveStore {
+}
+
+data CounterLineage {
+}
+
+data CounterV1 {
+    #1 counter: i32;
+}
+
+data Counter {
+    #1 counter: i32;
+    #2 timestamp: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

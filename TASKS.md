@@ -1070,6 +1070,13 @@ Owners include
   declared-property, lifetime, or sum obligations; keep those codec applications
   rejected while the ordinary declarations remain usable.
 
+  Landed: `tests/omega/pass/wire/wire_compatibility_migration_across_shapes`
+  and `fail/wire/wire_compatibility_migration_route_missing` witness that a
+  `CompleteMigration` demand across differing eras is satisfied only by the
+  bound `FormatMigration` machine (`canary_suite
+  reports_and_capabilities::wire_compatibility_complete_migration_demand_needs_bound_lineage_route`,
+  Linux). Open: retired-identity reuse rejection and policy-chosen era dispatch.
+
   Acceptance: an old/new ordinary declaration pair and explicitly selected
   checked migration satisfy the requesting channel/store policy; missing routes
   and retired-identity reuse reject where that policy requires them. Check era
