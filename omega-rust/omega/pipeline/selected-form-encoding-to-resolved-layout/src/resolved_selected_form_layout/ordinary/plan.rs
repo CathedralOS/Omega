@@ -47,7 +47,9 @@ pub(super) fn derive(
     })
 }
 
-pub(in super::super) fn instructions(block: &SelectedBlock) -> Vec<&SelectedInstruction> {
+pub(in super::super) fn instructions(
+    block: &SelectedBlock,
+) -> impl Iterator<Item = &SelectedInstruction> {
     block
         .instructions
         .iter()
@@ -59,7 +61,6 @@ pub(in super::super) fn instructions(block: &SelectedBlock) -> Vec<&SelectedInst
             | SelectedTerminator::Return { instruction, .. }
             | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
         }))
-        .collect()
 }
 
 fn instruction_size(
