@@ -1,9 +1,10 @@
 # Mathematical proof contracts
 
 Omega's proof system uses ordinary machines, contracts, data, traits, and named
-conformances. This specifies the required model, not complete implementation
-support. General source binders and foundational rules still need specification
-as listed under [undetermined foundations](#undetermined-foundations).
+conformances. The [mathematical foundation](foundation.md) selects a dependent
+core with proof-relevant identity and strict logical proofs. This specifies the
+required model, not complete implementation support. Remaining profile, source
+and publication decisions are listed under [open joins](#open-joins).
 
 ## Machines and bundles
 
@@ -13,9 +14,10 @@ conclusions, a caller establishes the assumptions under the exact argument
 substitution. Naming a condition does not prove it; failed proof search does
 not prove its negation.
 
-A theorem-only machine has no Type result. A result belongs to a machine that
-computes an observed value as well as establishing its contract. Resultless law
-slots do not need dummy returned witnesses. The same checked contract may serve
+A theorem-only machine has no Type result. Resultless law slots do not need dummy
+returned witnesses. A Type-valued mathematical operation may instead denote a
+value without an executable algorithm; it is not a resultless theorem or an
+automatically executable call. The same checked contract may serve
 runtime, compile-time, or proof use when its types and reach permit it. A fact-only
 invocation emits no runtime call or work.
 
@@ -40,6 +42,12 @@ nonconstructive existence need not produce a runtime witness. Choice and other
 axiomatic reasoning retain their exact assumptions. Recursive mathematical data
 without a finite runtime representation remain proof-only; this follows from
 structure, not an extra proof-only type property.
+
+Mathematical noncomputability is independent of carrier layout: a chosen member
+of a nonempty subset of `u32` is a valid mathematical subject, but cannot be
+materialized without a checked computation or realization. The
+[foundation's separate judgments](foundation.md#separate-judgments) govern this
+distinction; no new domain atom or runtime provider search stands in for it.
 
 Runtime integer/address values enter mathematical integer arithmetic through the
 total `embed` projection, retaining exact carrier range. Policy erasure with
@@ -124,13 +132,21 @@ indefinitely. A guarded unsigned predecessor can connect arithmetic descent
 with structural induction, but each checker must establish its own part of
 that bridge rather than invent facts in the other domain.
 
+Measure decrease, accessibility evidence, a mathematical denotation and loop
+lowering answer different questions. Check termination, denotation correctness
+and generated-loop correspondence independently. Runtime iteration does not
+decide the logical relevance or elimination rules of accessibility evidence.
+
 ## Identity, availability, and erasure
 
 Keep statements, witness values, and derivation provenance distinct. Logical
 expressions retain exact binders, subjects, substitutions, and dependencies;
-display names are not truth or reusable proof identity. Different witnesses of
-the same statement do not become one value. Forwarding and repeated projection
-preserve the selected witness identity.
+display names are not truth or reusable proof identity. Distinct Type witnesses
+do not become one value merely by proving the same statement. Strict logical
+proofs of the same complete application are definitionally irrelevant under
+the [foundation](foundation.md#logical-proofs-and-mathematical-witnesses), without
+identifying their provenance. Forwarding and repeated projection preserve the
+selected Type witness identity.
 
 Guarantees are path- and result-sensitive. Every ordinary exit establishes its
 applicable conclusions; caller import requires the matching result case and
@@ -213,6 +229,14 @@ its assumptions on behalf of a consumer. An inconsistent assumption set can
 prove false statements; derivation checking does not certify consistency.
 Mathematical admission does not silently grant runtime-safety or artifact
 acceptance authority.
+
+Compute assumption closure over the complete reachable checked declaration
+graph, including statements, types, bodies/evidence and referenced declarations.
+It is independent of whether conversion unfolds a definition. Normalization,
+irrelevance and erasure cannot silently shrink this record. Unused declarations
+and discarded search attempts are not dependencies merely by sharing a package.
+Mathematical axioms are explicitly classified in checked evidence; result-bearing
+axioms are not ordinary missing executable-provider slots.
 
 Unproved facts enter through admission-bearing boundary contracts and root
 grants, not scattered unchecked assumptions. A bodyless boundary machine's
@@ -302,16 +326,16 @@ certificate and its checked question remain authoritative.
 [Quotients](quotients.md) owns representative independence, selected theorem
 roles, constructor relations, executable observers, and published correspondence.
 
-## Undetermined foundations
+## Open joins
 
-The following remain undetermined pending explicit owner decisions, not implicit
-choices made by current syntax or the Rust checker. The linked questions contain
-proposals, not additional ratified rules.
+The [foundation](foundation.md) is the owner of the selected mathematical model,
+not the current Rust vocabulary or a collection of proof-assistant defaults.
+The following narrower decisions remain open; their proposals are not ratified.
 
 | Design gap | Decision owner |
 | --- | --- |
-| Dependent functions, universes, equality/conversion, induction, quotient foundations and proof irrelevance | [Canonical mathematical calculus](../../../OWNER_QUESTIONS.md#proof-foundation-calculus) |
-| General logical binders, predicate abstraction/passing, noncomputable values and their source elaboration | [Mathematical binders](../../../OWNER_QUESTIONS.md#mathematical-binders) |
+| Exact general declaration extension and quotient realization for the selected reference core | [Foundation profile completion](../../../OWNER_QUESTIONS.md#foundation-profile-completion) |
+| General logical binders, predicate abstraction/passing, universe annotations and mathematical-result source elaboration | [Mathematical binders](../../../OWNER_QUESTIONS.md#mathematical-binders) |
 | General derivation checking, foundation identity, checked cross-foundation interpretation and the PCC authority bridge | [General proof authority](../../../OWNER_QUESTIONS.md#general-proof-pcc-authority) |
 
 Changing axioms within one calculus does not establish compatibility between
@@ -322,8 +346,8 @@ an arbitrary checker-plugin mechanism nor retired formula-naming syntax.
 
 Certificate byte layouts, a tactic-machine API, and the remaining
 Real/approximation library are separate engineering or deferred surface work;
-they are not substitutes for choosing the foundation. Promote any new semantic
-or trust choice they expose to the owner queue before relying on it.
+they are not substitutes for implementing the selected foundation. Promote any
+new semantic or trust choice they expose to the owner queue before relying on it.
 
 `PROOF-CONTRACT-MIGRATION` on the [execution board](../../../TASKS.md) owns worked
 proofs and migration through source, serialization, and replay. Neither a

@@ -11,6 +11,12 @@ conformances. General predicate and quantifier source forms remain undetermined.
 Schematic relation notation below is mathematics, not an extra declaration form.
 These rules imply no arbitrary runtime value-to-type computation or layout.
 
+This is the required quotient interface, not a completed kernel encoding. The
+[selected foundation](foundation.md) does not silently supply Lean-style
+primitive quotients or higher inductive types. Exact identity, elimination and
+computation rules remain in the [profile completion question](../../../OWNER_QUESTIONS.md#foundation-profile-completion).
+Do not certify the general interface until that realization is checked.
+
 ## Families, relations, and evidence
 
 For carrier family `C` with complete typed index pack `I`, a heterogeneous relation
@@ -182,8 +188,10 @@ lifting. Opaque constructors publish that bridge explicitly, with all assumption
 visible to the receiving policy.
 
 Dependent fields lift in dependency order. Relate earlier witnesses first, then
-normalize dependent applications under those facts. Equal applications may use
-proof irrelevance; a coarser witness relation needs an authored transport theorem.
+normalize dependent applications under those facts. Strict logical proofs of
+the same application may use proof irrelevance. Type witnesses and relevant
+identity proofs instead need their appropriate equality/transport; erasure
+alone supplies neither. A coarser witness relation needs an authored transport theorem.
 The quotient owner owes it because it chose that relation. An opaque interface
 without sufficient transport makes the lift unavailable.
 

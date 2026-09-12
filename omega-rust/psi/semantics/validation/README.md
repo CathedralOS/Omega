@@ -42,7 +42,12 @@ well-foundedness, per-edge descent, exact normalization licenses, transitive
 assumptions, and certificate-derived review. The [proof admission kernel](../proof-admission/README.md)
 already has bounded recursion and normalization certificate checkers; that
 does not establish that source automation emits them or that general
-mathematical foundations are complete.
+mathematical foundations are implemented. The
+[selected foundation](../../../../wiki/spec/proofs/foundation.md) owns the
+general core and its remaining profile joins. `PROOF-KERNEL-CORE` and
+`PROOF-CERTIFICATION-BRIDGE` replace parallel general truth routes with one
+checked term/declaration model; the bounded automation remains useful as a
+producer, not an implementation precedent that changes the foundation.
 
 ## Arithmetic and arrival analysis
 

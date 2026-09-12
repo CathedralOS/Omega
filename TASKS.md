@@ -579,16 +579,39 @@ Owners include
   guards, captures, substitutions, sites and stale writes reject. Preserve
   examined/discharged routes and caller coverage, not only the final cause set.
 
+- **PROOF-KERNEL-CORE.** Build the common mathematical term/declaration model
+  and independent checker in Psi, under the
+  [selected foundation](wiki/spec/proofs/foundation.md). Customer: library
+  theorems about arbitrary types/predicates and dependent witnesses, not another
+  extension to the bounded `Proposition` enum. Represent the reference core's
+  universes, dependent terms and strict/relevant distinction once; source
+  elaboration and certificate consumers must use it rather than invent parallel
+  truths. Keep search outside the checker and preserve useful arithmetic rules
+  as certificate producers or explicitly justified checked rules.
+
+  Implement the pinned reference core first. General inductive/quotient extension
+  and complete profile publication are **OWNER-BLOCKED** only on
+  [profile completion](OWNER_QUESTIONS.md#foundation-profile-completion).
+  Do not leave the entire kernel waiting for source punctuation or artifact bytes.
+  Acceptance: independently checked universe-polymorphic dependent functions
+  and pairs, strict same-statement conversion and relevant witness separation;
+  malformed universes, capture-changing substitution and illegal elimination
+  reject. Include exact assumption closure through declaration types/statements
+  without relying on unfolding. Measure conversion/storage on these terms; do
+  not claim feasibility from empty receipts or compiler-authored success flags.
+  The next milestone must connect this model to source or a real theorem
+  certificate, not expand a disconnected proof framework.
+
 - **PROOF-CONTRACT-MIGRATION.** Migrate the proof surface to
   [ordinary machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles).
   Owners: Psi syntax/resolution/typing, contract proof semantics, Terminal
-  evidence/codec/replay, and core mathematical traits. General foundations and
-  elaboration are **OWNER-BLOCKED** on the [calculus](OWNER_QUESTIONS.md#proof-foundation-calculus)
-  and [mathematical-binder](OWNER_QUESTIONS.md#mathematical-binders) decisions;
+  evidence/codec/replay, and core mathematical traits. Use `PROOF-KERNEL-CORE`,
+  not a second general logical representation. General source elaboration is
+  **OWNER-BLOCKED** on [mathematical binders](OWNER_QUESTIONS.md#mathematical-binders);
   their general certificate integration depends on the
   [PCC authority bridge](OWNER_QUESTIONS.md#general-proof-pcc-authority).
-  Existing specified contract/bundle migration can proceed where independent
-  of those decisions; do not substitute executable declaration enumeration or
+  Existing specified contract/bundle migration can proceed independently;
+  do not substitute executable declaration enumeration or
   an optional-returning decider for general mathematical quantification.
 
   Replace the dedicated formula-declaration and hidden-witness call machinery
@@ -597,6 +620,13 @@ Owners include
   assumptions across trait calls and artifacts. This incorporates the former
   selected-witness and trait-named-witness work; do not widen those old surfaces
   independently. Retain useful checking rules, not mandatory wrapper syntax.
+  Include value/computation elaboration here: a total admitted invocation may
+  denote mathematically; effectful calls expose outcome contracts, never effects
+  executed by conversion. Mathematical result-bearing axioms are explicit in
+  checked declarations, not missing-provider slots or a new domain qualifier.
+  Enforce executable demand across data, calls and control flow, consistently
+  at source use, evaluation and lowering; proof-only references retain trust
+  without creating runtime demand.
 
   Acceptance: actual proof scripts and false twins pass through source,
   Terminal serialization, and independent replay for all five cases:
@@ -606,18 +636,23 @@ Owners include
   2. A higher-order theorem quantifies over arbitrary mathematical predicates or
      functions, not an enumeration of executable declarations.
   3. Nonconstructive existence uses an explicit axiom and cannot supply an
-     executable witness without constructive implementation.
+     executable witness without checked realization. Cover a chosen `u32`, a
+     choice-dependent branch, and an erased theorem that mentions that value.
   4. Accepting and denying policies distinguish the same theorem, with exact
      transitive assumptions surviving import, erasure, serialization, and replay.
   5. A Cauchy/quotient proof preserves representative independence and explicit
-     law selection.
+     law selection, once [profile completion](OWNER_QUESTIONS.md#foundation-profile-completion)
+     settles its foundational realization; do not block the other cases on it.
 
   Migrate core relations, quotients, samples, and tests, remove obsolete parser/carrier/codec
   routes, and reject retired spellings. Candidate naming syntax is not a
   prerequisite. Do not claim full mathematical coverage from these controls.
 
-- **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from
-  source automation. Recursive certificates own one SCC and cite ranking and
+- **PROOF-CERTIFICATION-BRIDGE.** Turn source automation into an untrusted
+  producer for the common `PROOF-KERNEL-CORE` checker, not a second authority.
+  Retire superseded trusted success-only paths as their certificate route lands;
+  do not keep legacy and general proof routes selected by source shape.
+  Recursive certificates own one SCC and cite ranking and
   well-foundedness evidence once; normalization names exact laws and preserves
   transitive trust. Acceptance: changing an edge decrease, premise, law, or
   component identity rejects or changes the trust closure. For separately
@@ -628,8 +663,11 @@ Owners include
 
   Bounded current-rule production remains actionable. The general-calculus
   extension is **OWNER-BLOCKED** on the [PCC authority bridge](OWNER_QUESTIONS.md#general-proof-pcc-authority),
-  including its foundation dependency; do not invent a kernel while wiring
-  source evidence into the existing certificate format.
+  including the exact completed profile. The kernel core itself is separately
+  actionable. Retain closure over complete checked declaration dependencies,
+  including statement/type references surviving neither erasure nor final normal
+  forms. Acceptance also checks a well-founded denotation against a generated
+  loop: measure decrease must not certify an incorrect accumulator update.
 
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Bind every proof to an exact semantic
   subject and observation profile through ledgers, artifact seals, deployment,
@@ -648,7 +686,11 @@ Owners include
   General calculus/operational interpretation is **OWNER-BLOCKED** on the
   [PCC authority bridge](OWNER_QUESTIONS.md#general-proof-pcc-authority).
   Current fixed-rule reconstruction and the existing Beta proof customer remain
-  actionable; completing either does not close the general foundation gap.
+  actionable; completing either does not close the general interpretation gap.
+  End-to-end acceptance uses a theorem-dependent program obligation after
+  deleting producer/source state, under accepting and rejecting assumption
+  policies. Wrong goals, profile identities and omitted transitive assumptions
+  reject. A mathematical theorem alone does not establish native refinement.
 
 - **IRFUEL.** Keep fuel as analysis/evaluator evidence, never inserted runtime
   semantics. Complete installed-code correspondence for ordinary admitted loops
@@ -661,17 +703,6 @@ Owners include
   erased-stripped layout across remaining carriers. Erased terms remain in
   semantic/proof identity but contribute no runtime storage, tags, ABI
   transfer, or execution. Runtime use and any layout-dependent erasure reject.
-
-- **EFFECTFUL-TYPED-COMPUTATION.** Implement value/computation elaboration into
-  the selected proof calculus. Its judgments are **OWNER-BLOCKED** on the
-  [calculus](OWNER_QUESTIONS.md#proof-foundation-calculus) and
-  [mathematical-binder](OWNER_QUESTIONS.md#mathematical-binders) decisions.
-  Preserve the existing distinction between admitted total logical terms and
-  effectful calls described by outcome contracts; runtime effects in logical
-  conversion are not an open option. Acceptance: a pure total invocation is
-  usable denotationally, an effectful invocation exposes only its authorized
-  outcome facts, and evidence replay preserves the distinction. This does not
-  block extending unrelated Terminal operations.
 
 ## P4 - ABI, borrowing, and callbacks
 

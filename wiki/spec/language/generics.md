@@ -486,7 +486,9 @@ Relations choose whether left/right representatives have independent packs or
 one shared pack; carrier parameters have no global relational role.
 [Quotients](../proofs/quotients.md) owns family matching, laws, and lifting.
 Machine-symbol binders do not replace the still-required general mathematical
-function/predicate binders or settle their [foundations](../proofs/contracts.md#undetermined-foundations).
+function/predicate [source binders](../../../OWNER_QUESTIONS.md#mathematical-binders).
+Those elaborate to the [selected foundation](../proofs/foundation.md), whose
+mathematical universes and conversion are not defined by machine-symbol lookup.
 
 ## Publication and assumptions
 

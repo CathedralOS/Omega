@@ -11,9 +11,10 @@ those assumptions for the actual arguments before using its conclusions. An
 unproved conclusion rejects unless it is an explicitly accepted boundary claim.
 Failure to prove a statement is not proof of its negation.
 
-This chapter teaches the intended model. General mathematical source forms and
-foundations remain [undetermined](../spec/proofs/contracts.md#undetermined-foundations);
-the current [source automation](../../omega-rust/psi/semantics/validation/README.md#source-proof-automation)
+This chapter teaches the intended model. The [foundation](../spec/proofs/foundation.md)
+selects dependent mathematics, proof-relevant identity and strict logical proofs;
+its [remaining source/profile joins](../spec/proofs/contracts.md#open-joins) are explicit.
+The current [source automation](../../omega-rust/psi/semantics/validation/README.md#source-proof-automation)
 implements a bounded fragment. Schematic examples below do not claim complete
 compiler support or supply omitted proofs.
 
@@ -39,6 +40,38 @@ unproven ergonomic proposal, not accepted source syntax.
 The [proof contract](../spec/proofs/contracts.md#machines-and-bundles) owns these
 rules and their foundational requirements.
 
+## Mathematical existence is not an algorithm
+
+You can reason about arbitrary types, functions and predicates, not only
+functions with executable machine bodies. This is necessary for mathematics:
+"every predicate over this type" cannot mean "every function we compiled."
+General source binder syntax is still being settled; it does not require a new
+`proposition` declaration or anonymous machine.
+
+Two kinds of mathematical evidence matter:
+
+| Evidence | What you get |
+| --- | --- |
+| A strict proof that some member exists | The fact of existence, not a member you can extract by ordinary computation. |
+| A witness bundle containing a member and its law | That particular member, with the law about it. Different bundles may choose different members. |
+
+An accepted choice axiom can select a mathematical member without supplying an
+algorithm. For example, you may reason about a chosen member of a nonempty subset
+of `u32`. You cannot automatically print it, embed its bits in an executable, or
+branch at runtime on it. A checked computation or realization must supply those
+bits. An erased proof mentioning it needs no runtime value, but still records
+the choice assumption.
+
+Strict proofs of the same statement are interchangeable for logical checking.
+That does not make different witness values equal, erase resource identity, or
+make every mathematical identity proof interchangeable. `[erased]` is a separate
+decision about runtime storage and use, not a synonym for logical irrelevance.
+
+These distinctions live beneath ordinary machines, contracts and named bundles.
+The goal is that an LLM can supply an ambitious proof and an independent checker
+can reject a wrong derivation without trusting the LLM. You still review that
+the statement says what you intended and that its assumptions are acceptable.
+
 ## Evidence identity and validity
 
 Keep the statement, selected witnesses, and derivation provenance distinct.
@@ -57,7 +90,7 @@ defines the exact substitution, scope, publication, and replay obligations.
 
 ## Explicit relevance
 
-Relevance belongs to a binding occurrence, independently of its type's
+Runtime relevance belongs to a binding occurrence, independently of its type's
 multiplicity and its validity scope. An erased field uses a binding property:
 
 ```omega
@@ -463,6 +496,9 @@ the word `boundary` does not encode inbound versus outbound traffic. See
 
 Classical principles are selectable assumptions, not compulsory truths imported
 with a library. Consumers need the complete transitive assumption closure.
+This includes dependencies in theorem statements and referenced types, not just
+axiom names left in the final proof. Unfolding, simplification and erasure cannot
+silently remove them.
 Absence of one named axiom alone does not certify constructivity: the calculus
 and all other assumptions matter too. A checked quotient theorem can depend on
 admitted premises without becoming an assumption-free guarantee.

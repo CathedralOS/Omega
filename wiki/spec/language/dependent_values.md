@@ -3,8 +3,9 @@
 Runtime ranges, contracts, and layout/view conditions may name in-scope program
 values. These are flow-sensitive facts about exact values and places, not
 arbitrary runtime computation of nominal types. This systems contract does not
-restrict the general mathematical quantification and foundations required by
-[proof contracts](../proofs/contracts.md#undetermined-foundations).
+restrict the general mathematical quantification of the
+[selected foundation](../proofs/foundation.md). Its source binders and exact
+extended profile remain [open joins](../proofs/contracts.md#open-joins).
 
 ## Static indices and runtime witnesses
 
