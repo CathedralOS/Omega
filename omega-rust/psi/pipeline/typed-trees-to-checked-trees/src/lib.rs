@@ -379,6 +379,9 @@ pub(crate) fn specialize_static_machine_calls_with_nominal_uses(
         program,
         &mut nominal_uses,
     )?;
+    let operational = ::validation::infer_operational_may(program);
+    ::validation::validate_static_machine_call_contracts(program, &operational)
+        .map_err(|diagnostic| vec![diagnostic])?;
     Ok(nominal_uses)
 }
 

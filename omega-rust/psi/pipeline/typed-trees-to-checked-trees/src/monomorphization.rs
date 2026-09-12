@@ -8,6 +8,12 @@
 //! tuple records a deterministic cache identity. Incomplete tuples remain
 //! generic and are fenced by validation; no runtime const/callable value or
 //! dictionary is introduced.
+//!
+//! Executable rewrites retain the original binder separately: structural reach
+//! and both kinds' operational envelopes remain requirement-owned, while nominal
+//! reach uses the selected public contract. The parameter arena survives closing
+//! the live generic span. Template commitments protect its stable contract axes;
+//! application commitments also protect each exact retained-call binding.
 
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
@@ -29,6 +35,8 @@ mod membership_tests;
 mod range_arguments;
 mod result_locals;
 mod saved_calls;
+#[cfg(test)]
+mod static_call_contract_tests;
 #[cfg(test)]
 mod storage_tests;
 
@@ -2594,6 +2602,7 @@ fn clone_specialized_machine(
         .push(typed_trees::typed_trees::MachineSpecialization {
             template: candidate.template_symbol,
             instance: instance_symbol,
+            template_parameters: source_machine.type_parameters,
             type_arguments,
             const_arguments,
             type_argument_identities: type_identities,
@@ -3768,6 +3777,12 @@ fn rewrite_cloned_calls(
         forwarded_static_argument_rewrites(source.unwrap_or(program), candidate);
     for state in program.machine_states.span_or_empty(states).to_vec() {
         for statement_handle in statement_span_handles(state.statement_nodes) {
+            rewrite_static_machine_transition_targets(
+                program,
+                statement_handle,
+                candidate,
+                &target_rewrites,
+            );
             let StatementNode::Call(snapshot) =
                 program.statement_table.statement(statement_handle).clone()
             else {
@@ -3800,6 +3815,13 @@ fn rewrite_cloned_calls(
             else {
                 unreachable!();
             };
+            if candidate
+                .machine_parameters
+                .iter()
+                .any(|(parameter, _, _)| *parameter == call.target_symbol)
+            {
+                call.static_machine_parameter = call.target_symbol;
+            }
             if let Some((_, target, name)) = target_rewrites
                 .iter()
                 .find(|(parameter, _, _)| *parameter == call.target_symbol)
@@ -3860,6 +3882,13 @@ fn rewrite_cloned_calls(
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             continue;
         };
+        if candidate
+            .machine_parameters
+            .iter()
+            .any(|(parameter, _, _)| *parameter == call.target_symbol)
+        {
+            call.static_machine_parameter = call.target_symbol;
+        }
         if let Some((_, target, name)) = target_rewrites
             .iter()
             .find(|(parameter, _, _)| *parameter == call.target_symbol)
@@ -3889,6 +3918,51 @@ fn rewrite_cloned_calls(
             .any(|(_, concrete)| *concrete == call.target_symbol)
         {
             call.machine_arguments = Box::default();
+        }
+    }
+}
+
+fn rewrite_static_machine_transition_targets(
+    program: &mut TypedTrees,
+    statement: typed_trees::statement::StatementHandle,
+    candidate: &Candidate,
+    rewrites: &[(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)],
+) {
+    let StatementNode::Transition(transition) = program.statement_table.statement(statement) else {
+        return;
+    };
+    let targets = [transition.target, transition.continuation];
+    for target in targets {
+        if !target.is_valid() {
+            continue;
+        }
+        let typed_trees::statement::TransitionTargetNode::Named {
+            path,
+            static_machine_parameter,
+            ..
+        } = program.statement_table.transition_target_mut(target)
+        else {
+            continue;
+        };
+        if !candidate
+            .machine_parameters
+            .iter()
+            .any(|(parameter, _, _)| *parameter == path.symbol)
+        {
+            continue;
+        }
+        if let Some((parameter, selected, _)) = rewrites
+            .iter()
+            .find(|(parameter, _, _)| *parameter == path.symbol)
+        {
+            // Retain the authored binder separately from executable selection,
+            // just as expression and statement calls do. Internal state
+            // transfers never enter this exact machine-parameter rewrite.
+            *static_machine_parameter = *parameter;
+            path.symbol = *selected;
+            if path.head_symbol == *parameter {
+                path.head_symbol = *selected;
+            }
         }
     }
 }
@@ -4122,6 +4196,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Resu
         .push(typed_trees::typed_trees::MachineSpecialization {
             template: candidate.template_symbol,
             instance: candidate.template_symbol,
+            template_parameters: program.machines()[candidate.machine_index].type_parameters,
             type_arguments: type_arguments.clone(),
             const_arguments,
             type_argument_identities: type_identities,
@@ -4252,6 +4327,12 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Resu
         .collect();
     for span in state_spans {
         for statement_handle in statement_span_handles(span) {
+            rewrite_static_machine_transition_targets(
+                program,
+                statement_handle,
+                candidate,
+                &target_rewrites,
+            );
             let StatementNode::Call(snapshot) =
                 program.statement_table.statement(statement_handle).clone()
             else {
@@ -4284,6 +4365,13 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Resu
             else {
                 unreachable!();
             };
+            if candidate
+                .machine_parameters
+                .iter()
+                .any(|(parameter, _, _)| *parameter == call.target_symbol)
+            {
+                call.static_machine_parameter = call.target_symbol;
+            }
             if let Some((_, symbol, name)) = target_rewrites
                 .iter()
                 .find(|(parameter, _, _)| *parameter == call.target_symbol)
@@ -4341,6 +4429,13 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Resu
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             continue;
         };
+        if candidate
+            .machine_parameters
+            .iter()
+            .any(|(parameter, _, _)| *parameter == call.target_symbol)
+        {
+            call.static_machine_parameter = call.target_symbol;
+        }
         if let Some((_, symbol, name)) = target_rewrites
             .iter()
             .find(|(parameter, _, _)| *parameter == call.target_symbol)
@@ -4830,6 +4925,9 @@ fn canonical_template_contract_bytes(program: &TypedTrees, machine_index: usize)
             encode_progress_premises(premises, &parameter_symbols, &mut bytes);
         }
     }
+    bytes.extend(validation::static_machine_parameter_contract_bytes(
+        program, parameters,
+    ));
     bytes
 }
 
@@ -4900,11 +4998,14 @@ pub(crate) fn bind_specialization_contract_identities(
     program: &mut TypedTrees,
     contracts: &checked_trees::MachineContractPlans,
 ) -> Result<(), Vec<Diagnostic>> {
+    let operational = validation::infer_operational_may(program);
+    validation::validate_static_machine_call_contracts(program, &operational)
+        .map_err(|diagnostic| vec![diagnostic])?;
     let updates: Result<Vec<_>, _> = program
         .machine_specializations
         .iter()
         .map(|specialization| {
-            replay_machine_specialization_identity(program, contracts, specialization)
+            replay_machine_specialization_identity(program, contracts, specialization, &operational)
         })
         .collect();
     let updates = updates.map_err(|diagnostic| vec![diagnostic])?;
@@ -4977,7 +5078,9 @@ pub fn recompute_machine_specialization_commitment(
     contracts: &checked_trees::MachineContractPlans,
     specialization: &typed_trees::typed_trees::MachineSpecialization,
 ) -> Result<typed_trees::typed_trees::MachineSpecializationCommitment, Diagnostic> {
-    replay_machine_specialization_identity(program, contracts, specialization)
+    let operational = validation::infer_operational_may(program);
+    validation::validate_static_machine_call_contracts(program, &operational)?;
+    replay_machine_specialization_identity(program, contracts, specialization, &operational)
         .map(|replay| replay.commitment)
 }
 
@@ -4985,6 +5088,7 @@ fn replay_machine_specialization_identity(
     program: &TypedTrees,
     contracts: &checked_trees::MachineContractPlans,
     specialization: &typed_trees::typed_trees::MachineSpecialization,
+    operational: &flow_effects::OperationalPlan,
 ) -> Result<ReplayedMachineSpecializationIdentity, Diagnostic> {
     let template = program
         .machines()
@@ -5149,6 +5253,9 @@ fn replay_machine_specialization_identity(
     )
     .map_err(Diagnostic::error)?;
     encode_identity_bytes(&operator_realization_bytes, &mut bytes);
+    let static_call_bindings =
+        validation::static_machine_call_binding_bytes(program, operational, specialization)?;
+    encode_identity_bytes(&static_call_bindings, &mut bytes);
     match &specialization.accepted_template_commitment {
         Some(commitment) => {
             bytes.push(1);

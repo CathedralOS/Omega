@@ -1462,6 +1462,7 @@ mod tests {
                 receiver: ExpressionHandle::invalid(),
                 target_symbol: SymbolHandle::invalid(),
                 target: Identifier::generated_static("lift"),
+                static_machine_parameter: symbols::SymbolHandle::invalid(),
                 static_requirement_dispatch: None,
                 machine_arguments: Box::default(),
                 quotient_operation: Some(QuotientOperationRequest {

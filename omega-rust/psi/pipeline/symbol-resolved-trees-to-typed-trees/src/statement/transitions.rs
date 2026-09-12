@@ -88,6 +88,7 @@ fn lower_transition_target(
             let lowered_arguments = lower_statement_argument_span(lowerer, *arguments)?;
 
             typed::statement::TransitionTargetNode::Named {
+                static_machine_parameter: symbols::SymbolHandle::invalid(),
                 path: typed::statement::TableNamePath {
                     members: lower_statement_path_members(lowerer, path.members),
                     head_symbol: path.head_symbol,

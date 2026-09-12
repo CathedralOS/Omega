@@ -233,7 +233,10 @@ Complete [static callback reach dependencies](wiki/spec/language/effects.md#stat
 in Psi call-component normalization, specialization, exported contract identity,
 and Terminal evidence/replay. Nominal callback calls must retain bounded union
 dependencies and specialize from selected public contracts instead of always
-publishing the fixed requirement upper bound. Compose these dependencies through
+publishing the fixed requirement upper bound on open generic interfaces. Derive
+these summaries before specialization consumes the live binder spans; reuse the
+retained static-call contracts and exact specialization commitments rather than
+introducing another selection identity. Compose these dependencies through
 ordinary checked wrappers and recursive call components. Preserve direct boundary
 declarations, pinned requirement bounds, and independent suspension/blocking
 checks. No forwarding syntax, closure machinery, reach-prohibition syntax, or
@@ -249,6 +252,9 @@ in a private helper or selected contract changes interface identity and invalida
 stale evidence; a no-reach requirement/evaluation context rejects it. Transitive
 reach cannot be hidden by omission or a memberless clause. Fixed operational
 markers and suspending-call positions remain enforced for every selection.
+Keep `tests/omega/pass/effects/nominal_callback_const_reach/main.omg` checking
+through the CLI and its structural/Console negative controls rejecting; constant
+evaluation must not consume the source program's generic declarations.
 
 ## Semantic reflection
 

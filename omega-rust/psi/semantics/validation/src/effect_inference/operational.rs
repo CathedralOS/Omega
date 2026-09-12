@@ -51,6 +51,7 @@ struct CallWork {
     call_ordinal: usize,
     target_name: String,
     target_state_symbol: SymbolHandle,
+    static_machine_parameter: SymbolHandle,
     target_machine_symbol: SymbolHandle,
     target_operator_symbol: SymbolHandle,
     direct_may_suspend: bool,
@@ -219,7 +220,10 @@ fn collect_transition_target_expression_calls(
     }
     match program.statement_table.transition_target(target) {
         typed_trees::statement::TransitionTargetNode::Named {
-            path, arguments, ..
+            path,
+            arguments,
+            static_machine_parameter,
+            ..
         } => {
             let target =
                 crate::transitions::named_transition_call_symbol(program, machine, path.symbol);
@@ -235,6 +239,7 @@ fn collect_transition_target_expression_calls(
                     program,
                     &target_name,
                     target,
+                    *static_machine_parameter,
                     SymbolHandle::invalid(),
                     Default::default(),
                     statement_index,
@@ -276,6 +281,7 @@ fn push_statement_call(
         program,
         call.target.as_str(),
         call.target_symbol,
+        call.static_machine_parameter,
         target_operator_symbol,
         call.operational_acknowledgement,
         statement_index,
@@ -393,6 +399,7 @@ fn push_expression_call(
         program,
         call.target.as_str(),
         call.target_symbol,
+        call.static_machine_parameter,
         target_operator_symbol,
         call.operational_acknowledgement,
         statement_index,
@@ -405,6 +412,7 @@ fn push_call(
     program: &TypedTrees,
     target_name: &str,
     target_state_symbol: SymbolHandle,
+    static_machine_parameter: SymbolHandle,
     target_operator_symbol: SymbolHandle,
     acknowledgement: language_semantics::CallOperationalAcknowledgement,
     statement_index: usize,
@@ -412,12 +420,18 @@ fn push_call(
     calls: &mut Vec<CallWork>,
 ) {
     let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
-    let direct = direct_operational_for_signature_symbol(program, target_state_symbol);
+    // Static selection changes execution, not the requirement's independent
+    // acknowledgement envelope. Both nominal and structural binders retain it.
+    let direct = program
+        .retained_static_machine_contract(static_machine_parameter)
+        .map(|contract| signature_operational(program, contract.signature()))
+        .unwrap_or_else(|| direct_operational_for_signature_symbol(program, target_state_symbol));
     calls.push(CallWork {
         statement_index,
         call_ordinal: *call_ordinal,
         target_name: target_name.to_owned(),
         target_state_symbol,
+        static_machine_parameter,
         target_machine_symbol,
         target_operator_symbol,
         direct_may_suspend: direct.may_suspend,
@@ -644,6 +658,7 @@ fn build_plan(machines: Vec<MachineWork>) -> OperationalPlan {
                         call_ordinal: call.call_ordinal,
                         target_name: call.target_name,
                         target_state_symbol: call.target_state_symbol,
+                        static_machine_parameter: call.static_machine_parameter,
                         target_machine_symbol: call.target_machine_symbol,
                         target_operator_symbol: call.target_operator_symbol,
                         direct_may_suspend: call.direct_may_suspend,

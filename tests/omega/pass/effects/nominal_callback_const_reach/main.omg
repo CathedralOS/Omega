@@ -1,0 +1,24 @@
+pub boundary trait Console {}
+
+pub trait StepContract {
+    machine step(value: u64) -> u64 reaches Console terminates;
+}
+
+machine quiet(value: u64) -> u64 satisfies StepContract::step terminates {
+    value
+}
+
+pub machine traverse<machine Step>(value: u64) -> u64
+where machine Step satisfies StepContract::step;
+terminates;
+{
+    Step(value)
+}
+
+machine length() -> u64 {
+    traverse<quiet>(7)
+}
+
+data Buffer {
+    bytes: [u8; length()];
+}

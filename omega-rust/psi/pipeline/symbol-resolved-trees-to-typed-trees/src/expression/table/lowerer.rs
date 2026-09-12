@@ -355,6 +355,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             receiver,
                             target_symbol,
                             target: lower_name(&call.target),
+                            static_machine_parameter: symbols::SymbolHandle::invalid(),
                             static_requirement_dispatch: None,
                             machine_arguments,
                             quotient_operation,

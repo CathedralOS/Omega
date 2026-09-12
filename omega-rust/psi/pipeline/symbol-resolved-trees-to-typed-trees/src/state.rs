@@ -302,6 +302,7 @@ fn proof_output_runtime_call(
         target_symbol: call.target_symbol,
         receiver,
         target: call.target,
+        static_machine_parameter: call.static_machine_parameter,
         static_requirement_dispatch: None,
         machine_arguments: call.machine_arguments,
         arguments,

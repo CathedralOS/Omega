@@ -50,6 +50,9 @@ pub fn recompute_checked_machine_specialization_commitment(
     checked: &CheckedTrees,
     instance: SymbolHandle,
 ) -> Result<[u8; 32], &'static str> {
+    let operational = crate::infer_operational_may(&checked.typed);
+    crate::validate_static_machine_call_contracts(&checked.typed, &operational)
+        .map_err(|_| "checked specialization lost its exact static machine call contracts")?;
     let mut matches = checked
         .typed
         .machine_specializations
@@ -189,6 +192,10 @@ pub fn recompute_checked_machine_specialization_commitment(
         &specialization.operator_realizations,
     )?;
     encode_bytes(&operator_realization_bytes, &mut bytes);
+    let static_call_bindings =
+        crate::static_machine_call_binding_bytes(&checked.typed, &operational, specialization)
+            .map_err(|_| "checked specialization lost its static call binding footprint")?;
+    encode_bytes(&static_call_bindings, &mut bytes);
     match &specialization.accepted_template_commitment {
         Some(commitment) => {
             bytes.push(1);

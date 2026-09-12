@@ -536,6 +536,7 @@ fn call_with_arguments(
         receiver: ExpressionHandle::invalid(),
         target_symbol: SymbolHandle::invalid(),
         target: Identifier::generated_static("lift"),
+        static_machine_parameter: symbols::SymbolHandle::invalid(),
         static_requirement_dispatch: None,
         machine_arguments: Box::default(),
         quotient_operation: None,
@@ -1356,6 +1357,7 @@ fn selected_theorem_schema_fixture(
                     representative.state_symbol
                 },
                 target: Identifier::generated_static("representative"),
+                static_machine_parameter: symbols::SymbolHandle::invalid(),
                 static_requirement_dispatch: None,
                 machine_arguments: vec![selected_carrier.clone()].into_boxed_slice(),
                 quotient_operation: None,
@@ -9039,6 +9041,7 @@ fn complete_result_flow_accepts_exact_finite_state_forwarding() {
 
     let target = program.statement_table.insert_transition_target(
         typed_trees::statement::TransitionTargetNode::Named {
+            static_machine_parameter: SymbolHandle::invalid(),
             path: typed_trees::statement::TableNamePath {
                 members: HandleSpan::empty(),
                 head_symbol: symbol(52),
@@ -9088,6 +9091,7 @@ fn complete_result_flow_accepts_exact_finite_state_forwarding() {
 
     let intermediate_target = program.statement_table.insert_transition_target(
         typed_trees::statement::TransitionTargetNode::Named {
+            static_machine_parameter: SymbolHandle::invalid(),
             path: typed_trees::statement::TableNamePath {
                 members: HandleSpan::empty(),
                 head_symbol: symbol(53),
@@ -9164,6 +9168,7 @@ fn complete_result_flow_accepts_exact_finite_state_forwarding() {
 
     let cycle_target = program.statement_table.insert_transition_target(
         typed_trees::statement::TransitionTargetNode::Named {
+            static_machine_parameter: SymbolHandle::invalid(),
             path: typed_trees::statement::TableNamePath {
                 members: HandleSpan::empty(),
                 head_symbol: symbol(51),

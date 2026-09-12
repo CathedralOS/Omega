@@ -332,6 +332,7 @@ mod tests {
                 receiver: Default::default(),
                 target_symbol: Default::default(),
                 target: Default::default(),
+                static_machine_parameter: symbols::SymbolHandle::invalid(),
                 static_requirement_dispatch: None,
                 machine_arguments: Default::default(),
                 quotient_operation: None,

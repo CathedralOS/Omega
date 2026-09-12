@@ -283,6 +283,10 @@ fn named_type_reference_through_shells(
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineSpecialization {
     pub template: symbols::SymbolHandle,
+    /// Original binder arena range, retained after the live template is closed.
+    /// Rewritten calls use its exact machine-binder identities and declaration
+    /// order to rejoin the selected entries in this specialization.
+    pub template_parameters: HandleSpan<data::TypeParameter>,
     /// Concrete machine instance produced for this substitution. The first
     /// specialization may reuse `template`; later specializations clone it
     /// under a fresh symbol. Consumers must key executable/elaborated work by
@@ -1688,6 +1692,26 @@ impl TypedTrees {
                     .map(data::MachineParameterContractView::signature),
                 _ => None,
             })
+    }
+
+    /// Rejoin the original binder contract after specialization removed its
+    /// live generic parameter span. This is a contract lookup, not authority:
+    /// callers must also validate the specialization's binder/selection join.
+    pub fn retained_static_machine_contract(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<data::MachineParameterContractView<'_>> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        self.data_type_parameters.iter().find_map(|(_, parameter)| {
+            let data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+                return None;
+            };
+            (parameter.symbol == symbol)
+                .then(|| self.machine_parameter_contract_view(contract))
+                .flatten()
+        })
     }
 
     /// Find a machine-parameter contract and its declaring machine by its

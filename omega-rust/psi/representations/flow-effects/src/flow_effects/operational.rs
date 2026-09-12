@@ -47,6 +47,9 @@ pub struct CallOperational {
     pub call_ordinal: usize,
     pub target_name: String,
     pub target_state_symbol: SymbolHandle,
+    /// Original static binder; its requirement remains independent of the
+    /// executable target after specialization.
+    pub static_machine_parameter: SymbolHandle,
     pub target_machine_symbol: SymbolHandle,
     /// Exact named-operator declaration selected from typed path and arity
     /// when this call is not a machine/state invocation.
