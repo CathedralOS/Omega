@@ -55,7 +55,7 @@ pub use normalization::{
 };
 pub use predicate_denotation::{
     CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,
-    check_predicate_denotations_with_value_equalities,
+    check_predicate_denotations_with_value_equalities, check_value_equality_denotation,
 };
 pub use proof::{
     AcceptedPremise, AcceptedProofRule, CertificateAcceptance, ProofError, ProofNode, ProofRule,

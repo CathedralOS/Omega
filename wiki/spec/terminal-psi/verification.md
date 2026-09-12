@@ -197,6 +197,17 @@ citation. This rule neither substitutes contextual SSA definitions nor grants
 an unproved proposition merely because it has a normal form. Resource exhaustion
 rejects the conversion.
 
+`ValueEqualityTransport` additionally carries a nonempty ordered list of proved
+scalar equations, each oriented from an exact scalar value identity to its
+term. Every equation and the proposition being transported is checked under
+the unchanged original premises. The bounded equality-transport owner applies
+only those carried equations to that proposition and the desired conclusion;
+their Boolean-denotation normal forms must match. Constructor tags, types and
+operand order are preserved. Cycles and resource exhaustion reject. This is
+explicit equality reasoning, not permission for the artifact generator to
+collapse SSA definitions or for proof search to rewrite ambient premise slots.
+All cited equations remain dependencies of the resulting proof.
+
 ## Acceptance and trust
 
 Every accepted fact must be re-decided by a specified total kernel judgment,

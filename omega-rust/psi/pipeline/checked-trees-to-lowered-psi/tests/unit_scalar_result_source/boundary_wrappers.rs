@@ -419,6 +419,125 @@ fn ordered_computed_boolean_result_proves_its_normal_guarantee() {
 }
 
 #[test]
+fn ordered_nested_boolean_result_proves_its_normal_guarantee() {
+    for bits in 0..16 {
+        let inputs = [bits & 1 != 0, bits & 2 != 0, bits & 4 != 0, bits & 8 != 0];
+        let expected = (inputs[0] == inputs[1]) == (inputs[2] == inputs[3]);
+        for (expression, before, expected) in [
+            (
+                "(value == spare) == (other == last)",
+                "Host::finish(false);",
+                expected,
+            ),
+            (
+                "!((value == spare) == (other == last))",
+                "let observed: bool = Host::measure(false);",
+                !expected,
+            ),
+        ] {
+            let source = nested_boolean_guarantee_source(expression, before, inputs);
+            let published = artifact(&checked_from_source(&source));
+            let (status, observed) = execute(&published);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [
+                    vec![TerminalScalarValue::Boolean(false)],
+                    vec![TerminalScalarValue::Boolean(expected)]
+                ]
+            );
+        }
+    }
+}
+
+fn nested_boolean_guarantee_source(expression: &str, before: &str, inputs: [bool; 4]) -> String {
+    let [value, spare, other, last] = inputs;
+    boolean_guarantee_source(&format!("{before} {expression}"), value)
+        .replace(
+            "Scalar::measure(value: bool)",
+            "Scalar::measure(marker: u16, spare: bool, value: bool, other: bool, last: bool)",
+        )
+        .replace(
+            &format!("Scalar::measure({value})"),
+            &format!("Scalar::measure(9u16, {spare}, {value}, {other}, {last})"),
+        )
+        .replace(
+            "ensures result == value\nreaches Host",
+            &format!("ensures result == ({expression})\nreaches Host"),
+        )
+}
+
+#[test]
+fn nested_boolean_return_requires_exact_operations_and_carried_equations() {
+    let source = nested_boolean_guarantee_source(
+        "(value == spare) == (other == last)",
+        "Host::finish(false);",
+        [true, false, false, true],
+    );
+    let published = artifact(&checked_from_source(&source));
+    let module = decode_module(&published.0).unwrap();
+    let proof = decode_proof_bundle(&published.1).unwrap();
+    let mut changed_proof = proof.clone();
+    let equalities = changed_proof
+        .evidence
+        .iter_mut()
+        .find_map(|evidence| {
+            let proof_admission::EvidenceRoute::CertificateDerived(certificate) =
+                &mut evidence.route
+            else {
+                return None;
+            };
+            match &mut certificate.proof.rule {
+                proof_admission::ProofRule::ValueEqualityTransport { equalities, .. } => {
+                    Some(equalities)
+                }
+                _ => None,
+            }
+        })
+        .expect("nested return carries explicit equation transport");
+    assert!(!equalities.is_empty());
+    assert!(equalities.iter().all(|equality| matches!(
+        equality.rule,
+        proof_admission::ProofRule::SemanticAxiom { .. }
+    )));
+    equalities.clear();
+    assert!(
+        terminal_verifier::verify_module(&module, &changed_proof, &AdmissionProfile::default())
+            .is_err()
+    );
+
+    let mut changed_module = module.clone();
+    let wrapper = changed_module
+        .machines
+        .iter_mut()
+        .find(|machine| !machine.contract.ensures.is_empty())
+        .unwrap();
+    let changed_operation = wrapper
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BooleanEqual { .. }
+            )
+        })
+        .unwrap();
+    let terminal_psi::OperationKind::BooleanEqual { left, right } = &mut changed_operation.kind
+    else {
+        unreachable!()
+    };
+    *right = *left;
+    assert!(
+        terminal_verifier::verify_module(&changed_module, &proof, &AdmissionProfile::default())
+            .is_err()
+    );
+}
+
+#[test]
 fn boolean_result_equation_preserves_closed_entry_fact_proofs() {
     let source = boolean_guarantee_source("Host::finish(false); true", false)
         .replace("requires value == value", "requires !value")

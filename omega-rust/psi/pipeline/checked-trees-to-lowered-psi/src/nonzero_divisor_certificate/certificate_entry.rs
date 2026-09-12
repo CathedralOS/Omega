@@ -17,8 +17,17 @@ pub(super) fn prove(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
-    let proof =
-        integer_selection::build(context, goal, assumptions, semantic_axioms).or_else(|| {
+    let proof = integer_selection::build(context, goal, assumptions, semantic_axioms)
+        .or_else(|| {
+            super::value_transport::prove(
+                context,
+                goal,
+                assumptions,
+                semantic_axioms,
+                &BTreeSet::new(),
+            )
+        })
+        .or_else(|| {
             super::predicate_conversion::prove(
                 context,
                 goal,
@@ -46,6 +55,15 @@ pub(super) fn prove_with_machine_parameters(
         semantic_axioms,
         machine_parameter_values,
     )
+    .or_else(|| {
+        super::value_transport::prove(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            machine_parameter_values,
+        )
+    })
     .or_else(|| {
         super::predicate_conversion::prove(
             context,

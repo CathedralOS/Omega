@@ -44,8 +44,8 @@ fn nested_predicate_denotation_preserves_exact_child_and_current_markers() {
     // The codec retains evidence structure; semantic equivalence and premise
     // availability are checked by the proof owner, not invented by decoding.
     let bytes = encode_proof_bundle(&original).unwrap();
-    assert_eq!(&bytes[8..10], &32_u16.to_le_bytes());
-    assert_eq!(&bytes[31..33], &4_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[31..33], &5_u16.to_le_bytes());
     assert_eq!(bytes[34], 22);
     let decoded = decode_proof_bundle(&bytes).unwrap();
     assert_eq!(decoded, original);
@@ -63,10 +63,10 @@ fn nested_predicate_denotation_preserves_exact_child_and_current_markers() {
         Err(ProofCodecError::UnsupportedProofSystemMarker(3))
     );
     let mut unknown = bytes.clone();
-    unknown[36] = 23;
+    unknown[36] = 24;
     assert_eq!(
         decode_proof_bundle(&unknown),
-        Err(ProofCodecError::InvalidTag("ProofRule", 23))
+        Err(ProofCodecError::InvalidTag("ProofRule", 24))
     );
     for length in 0..bytes.len() {
         assert!(decode_proof_bundle(&bytes[..length]).is_err());

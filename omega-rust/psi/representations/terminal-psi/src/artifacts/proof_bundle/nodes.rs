@@ -17,6 +17,12 @@ pub struct ProofNode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofRule {
+    /// Transport one proved conclusion using only the explicitly proved,
+    /// ordered value equations, under unchanged ambient premises.
+    ValueEqualityTransport {
+        premise: Box<ProofNode>,
+        equalities: Vec<ProofNode>,
+    },
     /// Convert an independently proved conclusion through the bounded predicate
     /// denotation owner without changing the original premise roster.
     PredicateDenotation {

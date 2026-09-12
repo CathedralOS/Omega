@@ -140,6 +140,13 @@ fn schedule_children<'proof>(
         ProofRule::PredicateDenotation { premise } => {
             pending.push(Action::Enter(premise));
         }
+        ProofRule::ValueEqualityTransport {
+            premise,
+            equalities,
+        } => {
+            pending.push(Action::Children(equalities));
+            pending.push(Action::Enter(premise));
+        }
         ProofRule::IntegerSubtractOrder {
             difference,
             positive,
