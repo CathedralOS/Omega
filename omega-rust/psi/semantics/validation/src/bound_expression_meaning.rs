@@ -15,8 +15,12 @@ use typed_trees::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, TypedTrees,
 };
 
+mod definition_membership;
 #[cfg(test)]
 mod tests;
+pub use definition_membership::{
+    has_exact_data_case_membership_meaning, has_exact_domain_case_membership_meaning,
+};
 
 /// Preserve selected operator meaning before interpreting an expression as a
 /// primitive bound. This grants no value, effect, or lifetime proof: callers

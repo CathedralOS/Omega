@@ -1,5 +1,7 @@
 //! Full inert baseline assembled from real checked package declarations.
 
+#[path = "package_policy/case_membership.rs"]
+mod case_membership;
 #[path = "package_policy/components.rs"]
 mod components;
 #[path = "package_policy/contracts.rs"]

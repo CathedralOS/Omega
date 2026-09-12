@@ -631,10 +631,9 @@ Owners include
   Extend the ordinary scalar-call sequencing path for direct boundary returns;
   the existing result-bearing producer still requires a local-result binding.
 
-  Package contract review still needs declaration-owned subject contexts for
-  nominal case membership in domain/data invariants. Result projections through
-  indexes, case payloads and generic field substitution still need their exact
-  carrier/value custody beyond ordinary declaration-owned field paths.
+  Package contract review still needs exact carrier/value custody for declaration
+  and result projections through indexes, case payloads and generic field
+  substitution beyond ordinary declaration-owned field paths.
   Reuse Psi's exact carrier/case relation; do not manufacture a machine owner
   from the classifier. The retired `proposition` declaration surface belongs to
   **PROOF-CONTRACT-MIGRATION**, not an independent membership-extension task.
