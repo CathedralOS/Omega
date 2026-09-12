@@ -635,13 +635,13 @@ Owners include
   the existing result-bearing producer still requires a local-result binding.
 
   Package contract review still needs declaration-owned subject contexts for
-  nominal case membership in domain/data invariants and result guarantees.
-  Proposition source `pub proposition has_data(value: Message) = value in Message::Data;`
-  currently fails typing with `unknown domain Message::Data in executable membership expression`
-  (macOS probe on `b43980139c`, before review). Repair classifier resolution in
-  `symbol-resolved-trees-to-typed-trees/src/expression/table/lowerer.rs`, then
-  carry the same source through review and canonical recovery. Reuse Psi's exact
-  carrier/case relation; do not manufacture a machine owner from the classifier.
+  nominal case membership in domain/data invariants and projected result subjects.
+  Reuse Psi's exact carrier/case relation; do not manufacture a machine owner
+  from the classifier. The retired `proposition` declaration surface belongs to
+  **PROOF-CONTRACT-MIGRATION**, not an independent membership-extension task.
+  Saved or call-produced result tags without a live predicate need ordinary
+  value/effect custody; do not replay initializers or callee bodies to recover
+  a tag after its evaluation point.
   `cargo nextest run -p package-evidence --test callable_policy case_membership --no-fail-fast`
   is the existing source-to-recovery control. Selected operator crash invocations
   remain explicitly fenced in package projection.

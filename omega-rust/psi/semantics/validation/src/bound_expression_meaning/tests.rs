@@ -46,6 +46,57 @@ fn is_exact_membership(program: &TypedTrees, expression: ExpressionHandle) -> bo
 }
 
 #[test]
+fn result_membership_requires_its_exact_postcondition_owner() {
+    let tokens = Lexer::new(
+        "data Choice { case Ready(value: u64); case Empty; }
+         machine first() -> Choice ensures result in Choice::Ready { Choice::Ready { value: 1 } }
+         machine second() -> Choice ensures result in Choice::Ready { Choice::Ready { value: 2 } }",
+    )
+    .tokenize()
+    .unwrap();
+    let syntax = parse_syntax_trees(&tokens).unwrap();
+    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let program = lower_symbol_resolved_trees(&resolved).unwrap();
+    for machine in program.machines() {
+        let contract = &program.machine_contracts(machine)[0];
+        let typed_trees::domain::ProofFact::Expression(expression) =
+            program.proof_facts.get(contract.facts.start())
+        else {
+            panic!("membership fact")
+        };
+        let ExpressionNode::Binary(comparison) = program.expression_table.expression(*expression)
+        else {
+            panic!("membership")
+        };
+        assert!(has_exact_case_membership_meaning(
+            &program,
+            machine,
+            None,
+            *expression,
+            comparison
+        ));
+        let foreign = program
+            .machines()
+            .iter()
+            .find(|other| other.symbol != machine.symbol)
+            .unwrap();
+        assert!(!has_exact_case_membership_meaning(
+            &program,
+            foreign,
+            None,
+            *expression,
+            comparison
+        ));
+        assert!(!has_exact_parameter_case_membership_meaning(
+            &program,
+            &[],
+            *expression,
+            comparison
+        ));
+    }
+}
+
+#[test]
 fn parameter_membership_requires_the_exact_declared_parameter_scope() {
     let (program, member, foreign) = membership_program();
     let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);

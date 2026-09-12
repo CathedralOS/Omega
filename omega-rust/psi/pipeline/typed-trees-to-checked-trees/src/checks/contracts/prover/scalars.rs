@@ -76,22 +76,49 @@ pub(super) fn evaluate_with_comparisons(
     resolve_leaf: &mut impl FnMut(ExpressionHandle) -> Option<ScalarValue>,
     comparison_is_admitted: &impl Fn(&ScalarValue, &ScalarValue) -> bool,
 ) -> Option<ScalarValue> {
+    evaluate_with_atoms(
+        program,
+        expression,
+        resolve_leaf,
+        comparison_is_admitted,
+        &mut |_| None,
+    )
+}
+
+/// Exact semantic observations can supply Boolean atoms before their retained
+/// syntax is decomposed. The observation owns its meaning and subject custody;
+/// ordinary scalar comparisons keep their independent admission check.
+pub(in crate::checks::contracts) fn evaluate_with_atoms(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    resolve_leaf: &mut impl FnMut(ExpressionHandle) -> Option<ScalarValue>,
+    comparison_is_admitted: &impl Fn(&ScalarValue, &ScalarValue) -> bool,
+    observe_boolean: &mut impl FnMut(ExpressionHandle) -> Option<bool>,
+) -> Option<ScalarValue> {
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
     if let Some(value) = literal(program, expression) {
         return Some(value);
     }
+    if let Some(value) = observe_boolean(expression) {
+        return Some(ScalarValue::Boolean(value));
+    }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(borrow) => {
-            evaluate_with_comparisons(program, borrow.target, resolve_leaf, comparison_is_admitted)
-        }
+        ExpressionNode::Borrow(borrow) => evaluate_with_atoms(
+            program,
+            borrow.target,
+            resolve_leaf,
+            comparison_is_admitted,
+            observe_boolean,
+        ),
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            let ScalarValue::Boolean(value) = evaluate_with_comparisons(
+            let ScalarValue::Boolean(value) = evaluate_with_atoms(
                 program,
                 unary.operand,
                 resolve_leaf,
                 comparison_is_admitted,
+                observe_boolean,
             )?
             else {
                 return None;
@@ -111,11 +138,12 @@ pub(super) fn evaluate_with_comparisons(
                     | BinaryOperator::GreaterOrEqual
             ) =>
         {
-            let left = evaluate_with_comparisons(
+            let left = evaluate_with_atoms(
                 program,
                 binary.left,
                 resolve_leaf,
                 comparison_is_admitted,
+                observe_boolean,
             )?;
             // An unevaluated Boolean operand supplies neither a value premise
             // nor a comparison obligation. Leaf lookup must follow the same
@@ -129,11 +157,12 @@ pub(super) fn evaluate_with_comparisons(
                 }
                 _ => {}
             }
-            let right = evaluate_with_comparisons(
+            let right = evaluate_with_atoms(
                 program,
                 binary.right,
                 resolve_leaf,
                 comparison_is_admitted,
+                observe_boolean,
             )?;
             if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
                 && !comparison_is_admitted(&left, &right)

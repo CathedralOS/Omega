@@ -4,6 +4,7 @@ use diagnostics::Diagnostic;
 use super::prover::semantic_contexts_prove_contract_fact;
 use crate::labels::{machine_name, semantic_fact_requirement_label};
 
+mod cases;
 mod scalars;
 
 fn direct_result_float_meaning_reflexivity_proves_exit(

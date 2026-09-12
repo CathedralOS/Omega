@@ -17,6 +17,47 @@ crashes Abort left in Message::Data;
 "#;
 
 #[test]
+fn result_case_membership_retains_the_declared_result_carrier() {
+    let fixture = Fixture::local(
+        r#"
+pub data Message { case Empty; case Data(value: u8); }
+pub machine make() -> Message
+ensures result in Message::Data;
+{ Message::Data { value: 1 } }
+"#,
+    );
+    let policy = project(&fixture);
+    let [contract] = callable(&policy, "make").contracts() else {
+        panic!("one guarantee")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::CaseMembership {
+        subject,
+        case,
+    }) = contract.fact()
+    else {
+        panic!("result tag guarantee")
+    };
+    assert_eq!(subject.as_ref(), &PackageReviewContractExpression::Result);
+    assert_eq!(case.path(), "Message::Data");
+    assert_eq!(
+        case.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    let baseline = package_evidence::project_checked_package_policy(
+        &fixture.checked,
+        fixture.target,
+        package_identity(),
+    )
+    .expect("result membership composes into package policy");
+    let bytes = baseline.canonical_bytes().unwrap();
+    assert_eq!(
+        baseline,
+        PackagePolicyBaseline::recover_canonical(&bytes, PackagePolicyRecoveryLimits::default())
+            .unwrap()
+    );
+}
+
+#[test]
 fn nested_signature_case_membership_retains_its_parameter_scope() {
     for (parameter_type, subject) in [
         ("Message", "value"),

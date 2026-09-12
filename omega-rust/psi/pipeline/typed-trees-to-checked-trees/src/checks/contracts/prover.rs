@@ -6,7 +6,8 @@ pub(super) use assigned_values::{prove_domain_at_place, scalar_value_at_place};
 mod scalars;
 pub(super) use crate::values::evaluate_checked_scalar;
 pub(super) use scalars::{
-    ScalarValue, closed_boolean_value, evaluate as evaluate_scalar, has_builtin_operators,
+    ScalarValue, closed_boolean_value, evaluate as evaluate_scalar, evaluate_with_atoms,
+    has_builtin_operators,
 };
 mod booleans;
 mod field_actuals;

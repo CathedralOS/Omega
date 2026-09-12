@@ -24,6 +24,7 @@ mod nominal_parameter_fields;
 mod proof_obligations;
 mod propositions;
 mod qualification_evidence;
+mod result_case_membership;
 mod resultless_laws;
 mod scalar_exits;
 mod scalar_storage_results;
