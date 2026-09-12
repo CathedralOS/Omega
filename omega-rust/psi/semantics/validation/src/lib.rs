@@ -4,8 +4,9 @@ mod call_cycles;
 mod callable_overloads;
 mod calls;
 pub use calls::{
-    result_initializer_call_is_supported, unit_result_initializer_call_is_supported,
-    unit_return_call_is_supported, unit_statement_call_is_supported,
+    named_conformance_target_requirement, result_initializer_call_is_supported,
+    unit_result_initializer_call_is_supported, unit_return_call_is_supported,
+    unit_statement_call_is_supported,
 };
 mod cleanup;
 mod constants;
@@ -215,11 +216,11 @@ pub use recasts::{
 pub use result_overloads::resolve_named_result_overloads;
 pub use traits::{
     DynamicConformanceSelection, DynamicDescriptorStorage, collect_dynamic_conformance_selections,
-    collect_dynamic_descriptor_storages, resolve_dynamic_call_targets,
-    revalidate_top_level_requirement_realization,
+    collect_dynamic_descriptor_storages, generic_bound_operator_requirement,
+    resolve_dynamic_call_targets, revalidate_top_level_requirement_realization,
 };
-pub use type_references::closed_integer_range_bound;
 pub use type_references::normalize_open_index_expressions;
+pub use type_references::{closed_integer_range_bound, declared_integer_range};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
@@ -1248,6 +1249,17 @@ fn validate_state_statement_node(
                 // Containment for non-literal stores into ranged places (see
                 // the local arm's twin note; literal stores refuse through
                 // the proof plan).
+                if let Some(handle) = assignment_target_type_raw {
+                    arithmetic_domains::enforce_symbolic_range(
+                        program,
+                        machine,
+                        current_state,
+                        handle,
+                        assignment.value,
+                        &owner,
+                        diagnostics,
+                    );
+                }
                 if let Some(handle) = assignment_target_type {
                     arithmetic_domains::check_range_containment(
                         program,
@@ -1508,6 +1520,15 @@ fn validate_state_statement_node(
             }
             // S4: enforce a declared return `[a..=b]` so call-site narrowing
             // that trusts it stays sound (the interval is already computed above).
+            arithmetic_domains::enforce_symbolic_range(
+                program,
+                machine,
+                Some(state),
+                state.return_type,
+                *expression,
+                &owner,
+                diagnostics,
+            );
             arithmetic_domains::enforce_declared_return_range(
                 program,
                 state.return_type,
@@ -1733,6 +1754,15 @@ fn validate_state_statement_node(
                         .type_reference(local_data.type_reference),
                     typed_trees::types::TypeReferenceNode::Reference { .. }
                 ) {
+                    arithmetic_domains::enforce_symbolic_range(
+                        program,
+                        machine,
+                        current_state,
+                        local_data.type_reference,
+                        local_data.initial_value,
+                        &owner,
+                        diagnostics,
+                    );
                     arithmetic_domains::check_range_containment(
                         program,
                         local_data.type_reference,

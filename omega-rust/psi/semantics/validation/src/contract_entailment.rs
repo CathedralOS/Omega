@@ -71,6 +71,11 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use typed_trees::trait_definition::TraitDefinition;
 
 mod arithmetic_judgment;
+mod const_ranges;
+pub(crate) use const_ranges::{
+    const_range_bound_is_supported, selected_const_call_result_bounds, symbolic_range_contains,
+    validate_const_range_call,
+};
 mod exit_coverage;
 mod inductive_judgment;
 mod ranking_range;

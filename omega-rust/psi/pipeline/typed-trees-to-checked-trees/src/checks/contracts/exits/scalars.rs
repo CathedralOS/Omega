@@ -187,6 +187,40 @@ impl ExitScalars<'_, '_> {
         let Some(entry) = self.program.machine_states(self.machine).first() else {
             return false;
         };
+        if let Some(parameter) = self
+            .program
+            .machine_type_parameters(self.machine)
+            .iter()
+            .find(|parameter| parameter.symbol == path.symbol)
+            && let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+        {
+            let primitive = self.program.primitive_type_reference(type_reference);
+            if !primitive.is_some_and(|primitive| {
+                primitive.accepts_integer_literal()
+                    || (primitive == typed_trees::types::PrimitiveType::Bool
+                        && binary.operator == BinaryOperator::Equal)
+            }) || primitive != self.program.primitive_type_reference(entry.return_type)
+            {
+                return false;
+            }
+            let types = if argument == binary.right {
+                [Some(entry.return_type), Some(type_reference)]
+            } else {
+                [Some(type_reference), Some(entry.return_type)]
+            };
+            // A static binder keeps one immutable identity across every state;
+            // unlike runtime parameters it needs no edge-origin substitution.
+            return typed_trees::operator::has_builtin_spelled_expression_meaning(
+                self.program,
+                self.machine.symbol,
+                expression,
+                spelling,
+                &types,
+            ) && matches!(self.program.expression_table.expression(exit_return_expression(self.program, self.exit)),
+                ExpressionNode::Name(returned) if returned.symbol == parameter.symbol
+                    && returned.head_symbol == parameter.symbol
+                    && self.program.expression_table.name_path_members(returned.members).len() == 1);
+        }
         let Some(parameter) = self
             .program
             .state_parameters(entry)

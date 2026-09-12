@@ -65,7 +65,7 @@ pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Ma
     }
 }
 
-fn selected_instance<'program>(
+pub(super) fn selected_instance<'program>(
     source: &TypedTrees,
     program: &'program TypedTrees,
     candidate: &Candidate,

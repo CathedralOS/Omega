@@ -301,6 +301,14 @@ pub(crate) fn contract_target_from_state_symbol(
         return Some((target_state_symbol, target_state_symbol));
     }
 
+    for machine in program.machines() {
+        if let Ok(Some((owner, requirement))) =
+            validation::named_conformance_target_requirement(program, machine, target_state_symbol)
+        {
+            return Some((owner, requirement.symbol));
+        }
+    }
+
     // A call through a trait-typed receiver targets a trait machine signature
     // rather than a machine state; the owning trait stands in for the machine
     // so the signature's requires/ensures contracts attach to the call.

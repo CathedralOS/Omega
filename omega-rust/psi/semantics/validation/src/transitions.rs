@@ -82,6 +82,15 @@ pub(crate) fn validate_transition_target_node(
     };
 
     let arguments = program.statement_table.expression_handles(*arguments);
+    crate::contract_entailment::validate_const_range_call(
+        program,
+        current_machine,
+        current_state,
+        path.symbol,
+        &[],
+        arguments,
+        diagnostics,
+    );
 
     // Entry transitions name the machine declaration, whereas named states
     // name their state declaration. Resolve both exact identities before the

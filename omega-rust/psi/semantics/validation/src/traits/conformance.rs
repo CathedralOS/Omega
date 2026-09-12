@@ -13,6 +13,9 @@ use typed_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
+mod generic_operator;
+pub use generic_operator::generic_bound_operator_requirement;
+
 pub(crate) struct GenericBoundRequirement<'program> {
     pub(crate) signature: &'program StateSignature,
     pub(crate) trait_definition: &'program TraitDefinition,
@@ -26,10 +29,41 @@ pub(crate) fn generic_bound_argument_matches(
     receiver: TypeReferenceHandle,
     requirement: &GenericBoundRequirement<'_>,
 ) -> bool {
+    bound_argument_matches(
+        program,
+        actual,
+        required,
+        TraitTypeBindingTarget::Type(receiver),
+        requirement,
+    )
+}
+
+pub(crate) fn named_conformance_argument_matches(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    requirement: &GenericBoundRequirement<'_>,
+) -> bool {
+    bound_argument_matches(
+        program,
+        actual,
+        required,
+        TraitTypeBindingTarget::Parameter(requirement.bound.subject),
+        requirement,
+    )
+}
+
+fn bound_argument_matches(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    subject: TraitTypeBindingTarget,
+    requirement: &GenericBoundRequirement<'_>,
+) -> bool {
     let mut bindings = vec![TraitTypeBinding {
         parameter_symbol: SymbolHandle::invalid(),
         parameter_name: "Self".to_owned(),
-        target: TraitTypeBindingTarget::Type(receiver),
+        target: subject,
     }];
     bindings.extend(
         program

@@ -1202,6 +1202,23 @@ pub(super) fn analyze(
             if let Some(result) = resolved_free_integer_call(program, call) {
                 return result;
             }
+            if let Some((return_type, minimum, maximum)) =
+                crate::contract_entailment::selected_const_call_result_bounds(
+                    program, machine, state, expression,
+                )
+                && let Some(primitive) = program.primitive_type_reference(return_type)
+                && let Some(carrier) = primitive_range(primitive)
+            {
+                return Analysis {
+                    domain: Some(program.arithmetic_domain_for_type_reference(return_type)),
+                    interval: Interval {
+                        low: Some(minimum),
+                        high: Some(maximum),
+                    }
+                    .intersect(carrier),
+                    primitive: Some(primitive),
+                };
+            }
 
             // S4: the `min`/`max` builtins bound their result by their operands'
             // intervals (`max(0, x)` is >= 0, `min(x, 100)` is <= 100), so a

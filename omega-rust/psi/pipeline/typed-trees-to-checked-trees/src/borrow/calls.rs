@@ -62,7 +62,9 @@ pub(crate) fn collect_statement_borrow_calls(
                     } else {
                         call.target_symbol
                     },
-                    receiver_path.is_some(),
+                    receiver_path.is_some()
+                        && program.symbols.get(call.receiver_symbol).kind
+                            != symbols::SymbolKind::ConformanceParameter,
                     accesses,
                 );
             }

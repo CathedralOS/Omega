@@ -42,7 +42,7 @@ fn validate(program: &TypedTrees) -> Result<(), diagnostics::Diagnostic> {
 fn retained_static_calls_reject_missing_duplicate_and_wrong_selection_joins() {
     let program = specialized();
     assert_eq!(program.machine_specializations.len(), 2);
-    validate(&program).expect("both in-place and cloned binder calls retain exact custody");
+    validate(&program).expect("both selected instances retain exact binder custody");
 
     let mut missing = program.clone();
     missing.machine_specializations.remove(0);

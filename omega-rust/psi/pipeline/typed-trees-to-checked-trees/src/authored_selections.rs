@@ -313,13 +313,14 @@ fn finalize_checked_authored_selections_with_policy(
                             | ExpressionNode::Unary(_)
                     ) =>
                 {
-                    checked_operator_target_for_occurrence(
+                    checked_generic_operator_target(program, facts, expression)?
+                    .or_else(|| checked_operator_target_for_occurrence(
                         program,
                         facts,
                         expression,
                         node,
                         occurrence,
-                    )
+                    ))
                     .or_else(|| {
                         typed_operator_has_no_authored_selection(program, expression).then_some(
                             CheckedResolutionTarget::Intrinsic(
@@ -1213,7 +1214,7 @@ fn checked_name_path_segment_target(
     target_index: usize,
 ) -> SymbolHandle {
     let direct = crate::lookup::resolve_name_path_member_symbol(program, path, target_index);
-    if direct.is_valid() {
+    if direct.is_valid() && target_index != 0 {
         return direct;
     }
 
@@ -1235,17 +1236,22 @@ fn checked_name_path_segment_target(
                 if !expressions.contains(&expression) {
                     continue;
                 }
-                let Some(crate::flow::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(root),
-                    ..
-                }) = crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    expression,
-                )
-                else {
-                    continue;
+                let root = if direct.is_valid() {
+                    direct
+                } else {
+                    let Some(crate::flow::CanonicalPlace {
+                        root: facts::PlaceRoot::Symbol(root),
+                        ..
+                    }) = crate::flow::canonical_place_from_expression_in_state(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        expression,
+                    )
+                    else {
+                        continue;
+                    };
+                    root
                 };
                 let root = authored_contextual_root(program, machine, state, statement_index, root);
                 if contextual_root.is_some_and(|candidate| candidate != root) {
@@ -1257,7 +1263,7 @@ fn checked_name_path_segment_target(
     }
 
     let Some(mut selected) = contextual_root else {
-        return SymbolHandle::invalid();
+        return direct;
     };
     if target_index == 0 {
         return selected;
@@ -1370,6 +1376,86 @@ fn intrinsic_operator_operand_is_primitive(
         .and_then(|type_reference| program.primitive_type_reference(type_reference))
         .is_some()
         || expression_is_intrinsic_primitive_without_origin(program, operand)
+}
+
+fn checked_generic_operator_target(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Result<Option<CheckedResolutionTarget>, Diagnostic> {
+    let mut selected = None;
+    let mut uses = facts
+        .operators
+        .uses
+        .iter()
+        .filter_map(|(_, operator_use)| {
+            (operator_use.expression == expression)
+                .then_some((operator_use.spelling, operator_use.origin))
+        })
+        .collect::<Vec<_>>();
+    // An open generic requirement has no selected concrete provider, so the
+    // executable operator fact producer may not emit a row for this expression.
+    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+        && let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator)
+    {
+        for (_, value) in facts.values.values.iter() {
+            if expression_contains(program, value.expression, expression, &mut Vec::new()) {
+                let selected_use = (spelling, value.origin);
+                if !uses.contains(&selected_use) {
+                    uses.push(selected_use);
+                }
+            }
+        }
+    }
+    for (spelling, origin) in uses {
+        let machine_symbol = match origin {
+            checked_trees::CheckedValueOrigin::MachineDecrease { machine_symbol, .. }
+            | checked_trees::CheckedValueOrigin::MachineOwnedDataInitializer {
+                machine_symbol,
+                ..
+            }
+            | checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. } => {
+                machine_symbol
+            }
+            checked_trees::CheckedValueOrigin::NestedExpression { .. } => continue,
+        };
+        let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+            continue;
+        };
+        if machine.conformance_bounds.is_empty() {
+            continue;
+        }
+        let operands = match program.expression_table.expression(expression) {
+            ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
+            ExpressionNode::Unary(unary) => vec![unary.operand],
+            ExpressionNode::Indexed(indexed) => vec![indexed.collection, indexed.index],
+            _ => continue,
+        };
+        let operand_types = operands
+            .into_iter()
+            .map(|operand| {
+                crate::operators::expression_type_reference_for_origin(program, operand, origin)
+            })
+            .collect::<Vec<_>>();
+        let requirement = validation::generic_bound_operator_requirement(
+            program,
+            machine,
+            spelling,
+            &operand_types,
+        )
+        .map_err(Diagnostic::error)?;
+        let Some(requirement) = requirement else {
+            continue;
+        };
+        let target = CheckedResolutionTarget::Declaration(requirement.symbol);
+        if selected.is_some_and(|previous| previous != target) {
+            return Err(Diagnostic::error(
+                "one authored operator occurrence has conflicting declared generic owners",
+            ));
+        }
+        selected = Some(target);
+    }
+    Ok(selected)
 }
 
 fn checked_operator_target(
@@ -2536,8 +2622,11 @@ fn push_consistent_resolution(
     {
         if *existing != candidate {
             return Err(Diagnostic::error(format!(
-                "authored declaration selection occurrence {} resolved inconsistently across compiler-derived copies",
-                candidate.occurrence.ordinal()
+                "authored declaration selection occurrence {} resolved inconsistently across compiler-derived copies: {:?} selected {:?} and {:?}",
+                candidate.occurrence.ordinal(),
+                candidate.binding,
+                existing.target,
+                candidate.target
             )));
         }
         return Ok(());

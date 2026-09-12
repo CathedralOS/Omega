@@ -1,13 +1,19 @@
 //! Compile-time specialization of generic machines.
 //!
 //! Type parameters, canonical const parameters, and static machine parameters
-//! are one specialization tuple. The first concrete tuple reuses the authored
-//! declaration; every additional tuple receives a deep-copied body with fresh
-//! lexical symbols. Calls are rewritten to their selected concrete state,
+//! are one specialization tuple. Every concrete tuple receives a private
+//! deep-copied body with fresh lexical symbols. Calls are rewritten to their
+//! selected concrete state,
 //! calls through `F(...)` become direct calls to the selected entry, and each
-//! tuple records a deterministic cache identity. Incomplete tuples remain
-//! generic and are fenced by validation; no runtime const/callable value or
-//! dictionary is introduced.
+//! tuple records a deterministic cache identity. The authored declaration stays
+//! generic: its exported contract must not depend on the current callers. This
+//! also keeps symbolic calls in generic wrappers available for later selection,
+//! without a second template snapshot or a separate row-inference authority.
+//! The retained body is checked against its declared requirements as well as
+//! checking each selected instance. Checking only observed tuples could hide
+//! an undeclared range or conformance requirement in the generic interface.
+//! Incomplete tuples remain generic and are fenced by validation; no runtime
+//! const/callable value or dictionary is introduced.
 //!
 //! Executable rewrites retain the original binder separately: structural reach
 //! and both kinds' operational envelopes remain requirement-owned, while nominal
@@ -81,8 +87,8 @@ struct CallSelection {
     callee_symbol: SymbolHandle,
     candidate_index: usize,
     caller_is_generic: bool,
-    self_forwarded_machine_parameters: bool,
-    self_forwarded_evidence_parameters: bool,
+    unresolved_machine_parameters: bool,
+    unresolved_evidence_parameters: bool,
     unresolved_const_parameters: bool,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     const_bindings: Vec<Option<TypeReferenceHandle>>,
@@ -94,8 +100,8 @@ struct CallSelection {
 impl CallSelection {
     fn is_complete(&self) -> bool {
         !self.conflicted
-            && !self.self_forwarded_machine_parameters
-            && !self.self_forwarded_evidence_parameters
+            && !self.unresolved_machine_parameters
+            && !self.unresolved_evidence_parameters
             && !self.unresolved_const_parameters
             && self.type_bindings.iter().all(Option::is_some)
             && self.const_bindings.iter().all(Option::is_some)
@@ -120,213 +126,59 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
     // discovers no further ordinary specialization.
     result_locals::refresh(program);
     materialize_static_argument_types(program);
-    let mut candidates = candidate::collect(program);
+    let candidates = candidate::collect(program);
     let callee_states = candidate::callees(program, &candidates);
-    let all_type_parameter_symbols = candidates
-        .iter()
-        .flat_map(|candidate| candidate.type_parameters.iter().cloned())
-        .collect::<Vec<_>>();
-
     const_arguments::validate_authored(program, &candidates, &callee_states)?;
     if candidates.is_empty() {
         return Ok(());
     }
-
-    let mut type_proposals = Vec::new();
-    let mut const_proposals = Vec::new();
-    let mut machine_proposals = Vec::new();
-    let mut evidence_proposals = Vec::new();
     let contract_expressions = contract_expression_handles(program);
-
-    // Both the single-tuple and cloning paths consume the same call-site
-    // evidence. A second discovery pass must not omit nested argument types.
-    // Contract expressions remain proof schemas, never runtime selections.
     let selections =
         collect_call_selections(program, &candidates, &callee_states, &contract_expressions);
-    for selection in &selections {
-        let candidate_index = selection.candidate_index;
-        candidates[candidate_index].conflicted |= selection.conflicted;
-        for (parameter, binding) in selection.type_bindings.iter().enumerate() {
-            if let Some(binding) = binding {
-                type_proposals.push((candidate_index, parameter, *binding));
-            }
+    // A retained generic body still checks each known application argument,
+    // including a discarded call with no inferred destination to refresh.
+    // The tuple's bounds do not depend on whether we emit a private instance.
+    for selection in selections
+        .iter()
+        .filter(|selection| selection.caller_is_generic)
+    {
+        let mut candidate =
+            candidate_for_selection(&candidates[selection.candidate_index], selection);
+        if approved_type_bounds(program, std::slice::from_ref(&candidate)) != [true] {
+            return Err(vec![Diagnostic::error(format!(
+                "generic machine `{}` has a call tuple that does not satisfy its authored type bounds",
+                candidate.template_name,
+            ))]);
         }
-        for (parameter, binding) in selection.const_bindings.iter().enumerate() {
-            if let Some(binding) = binding {
-                const_proposals.push((candidate_index, parameter, *binding));
-            }
+        if selection.is_complete() {
+            validate_candidate_conformance_bounds(program, &mut candidate)?;
         }
-        for (parameter, binding) in selection.machine_bindings.iter().enumerate() {
-            if let Some(binding) = binding {
-                machine_proposals.push((candidate_index, parameter, binding.clone()));
-            }
-        }
-        for (parameter, binding) in selection.evidence_bindings.iter().enumerate() {
-            if let Some(binding) = binding {
-                evidence_proposals.push((candidate_index, parameter, binding.clone()));
-            }
-        }
+        const_arguments::validate_bindings(program, &candidate).map_err(|error| vec![error])?;
     }
-
-    for (candidate_index, parameter_index, binding) in type_proposals {
-        if type_reference_is_still_generic(program, binding, &all_type_parameter_symbols) {
-            continue;
-        }
-        let candidate = &mut candidates[candidate_index];
-        match candidate.type_bindings[parameter_index] {
-            None => candidate.type_bindings[parameter_index] = Some(binding),
-            Some(existing) if !same_type_identity(program, existing, binding) => {
-                candidate.conflicted = true;
-            }
-            Some(_) => {}
-        }
-    }
-
-    for (candidate_index, parameter_index, binding) in const_proposals {
-        if type_reference_is_any_generic_parameter(program, binding) {
-            continue;
-        }
-        let candidate = &mut candidates[candidate_index];
-        match candidate.const_bindings[parameter_index] {
-            None => candidate.const_bindings[parameter_index] = Some(binding),
-            Some(existing) if !same_type_identity(program, existing, binding) => {
-                candidate.conflicted = true;
-            }
-            Some(_) => {}
-        }
-    }
-
-    for (candidate_index, parameter_index, binding) in machine_proposals {
-        // A generic body may forward its own machine parameter recursively.
-        // That symbol is a lexical placeholder, not specialization evidence;
-        // only a concrete entry selected by an outer call binds the tuple.
-        if machine_parameter_by_symbol(program, binding.symbol).is_some() {
-            continue;
-        }
-        let candidate = &mut candidates[candidate_index];
-        match &candidate.machine_bindings[parameter_index] {
-            None => candidate.machine_bindings[parameter_index] = Some(binding),
-            Some(existing) if existing.symbol != binding.symbol => candidate.conflicted = true,
-            Some(_) => {}
-        }
-    }
-
-    for (candidate_index, parameter_index, binding) in evidence_proposals {
-        if matches!(
-            program.symbols.get(binding.symbol).kind,
-            SymbolKind::ConformanceParameter
-        ) {
-            continue;
-        }
-        let candidate = &mut candidates[candidate_index];
-        match &candidate.evidence_bindings[parameter_index] {
-            None => candidate.evidence_bindings[parameter_index] = Some(binding),
-            Some(existing)
-                if existing.symbol != binding.symbol
-                    || existing.display_name() != binding.display_name() =>
-            {
-                candidate.conflicted = true
-            }
-            Some(_) => {}
-        }
-    }
-
-    let multi_tuple_candidates: Vec<usize> = (0..candidates.len())
-        .filter(|candidate_index| {
-            !has_forwarded_generic_call(&selections, *candidate_index)
-                && unique_complete_selections(program, &selections, *candidate_index).len() > 1
-        })
-        .collect();
-
+    result_locals::refresh_generic_call_results(program, &candidates, &selections)?;
     let mut diagnostics = Vec::new();
-    let approved = approved_type_bounds(program, &candidates);
-    let conformance_approved = candidates
-        .iter_mut()
-        .map(
-            |candidate| match validate_candidate_conformance_bounds(program, candidate) {
-                Ok(()) => true,
-                Err(mut errors) => {
-                    diagnostics.append(&mut errors);
-                    false
-                }
-            },
-        )
-        .collect::<Vec<_>>();
     let mut applied_any = false;
-    for (candidate_index, approved) in approved.into_iter().enumerate() {
-        if multi_tuple_candidates.contains(&candidate_index) {
-            continue;
-        }
-        if has_forwarded_generic_call(&selections, candidate_index) {
-            // A generic caller is forwarding one of its own parameters into
-            // this template. Specialize the caller first; the next fixed-point
-            // round will then see the concrete argument in its rewritten body.
-            continue;
-        }
-        let candidate = candidates[candidate_index].clone();
-        let has_static_selection = candidate.const_bindings.iter().any(Option::is_some)
-            || candidate.machine_bindings.iter().any(Option::is_some)
-            || candidate.evidence_bindings.iter().any(Option::is_some);
-        let has_incomplete_call = selections.iter().any(|selection| {
+    for (candidate_index, candidate) in candidates.iter().enumerate() {
+        // Open callers keep their symbolic applications. Concrete applications
+        // of the same template are independent tuples, never evidence with
+        // which to consume the declaration or specialize another caller.
+        if selections.iter().any(|selection| {
             selection.candidate_index == candidate_index
-                && !selection.self_forwarded_machine_parameters
+                && !selection.caller_is_generic
                 && !selection.is_complete()
-        });
-        if has_incomplete_call {
-            if has_static_selection {
-                diagnostics.push(Diagnostic::error(format!(
-                    "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
-                    candidate.template_name
-                )));
-            }
-            continue;
-        }
-        if candidate.conflicted {
-            diagnostics.push(Diagnostic::error(format!(
-                "generic machine `{}` has conflicting specialization evidence that cannot be assigned to complete concrete call-site tuples; make each call's type/result evidence explicit",
-                candidate.template_name
-            )));
-            continue;
-        }
-        if has_static_selection
-            && (candidate.type_bindings.iter().any(Option::is_none)
-                || candidate.const_bindings.iter().any(Option::is_none)
-                || candidate.machine_bindings.iter().any(Option::is_none)
-                || candidate.evidence_bindings.iter().any(Option::is_none))
-        {
+                && (selection.const_bindings.iter().any(Option::is_some)
+                    || selection.machine_bindings.iter().any(Option::is_some)
+                    || selection.evidence_bindings.iter().any(Option::is_some))
+        }) {
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
                 candidate.template_name
             )));
             continue;
         }
-        if !approved
-            || !conformance_approved[candidate_index]
-            || candidate.type_bindings.iter().any(Option::is_none)
-            || candidate.const_bindings.iter().any(Option::is_none)
-            || candidate.machine_bindings.iter().any(Option::is_none)
-            || candidate.evidence_bindings.iter().any(Option::is_none)
-        {
-            continue;
-        }
-        match apply_specialization(program, &candidate) {
-            Ok(()) => applied_any = true,
-            Err(diagnostic) => diagnostics.push(diagnostic),
-        }
-    }
-
-    if diagnostics.is_empty() {
-        for candidate_index in multi_tuple_candidates {
-            if let Err(mut errors) = apply_multiple_specializations(
-                program,
-                &candidates[candidate_index],
-                &selections,
-                candidate_index,
-            ) {
-                diagnostics.append(&mut errors);
-            } else {
-                applied_any = true;
-            }
+        match apply_call_specializations(program, candidate, &selections, candidate_index) {
+            Ok(changed) => applied_any |= changed,
+            Err(mut errors) => diagnostics.append(&mut errors),
         }
     }
     if diagnostics.is_empty() && applied_any {
@@ -439,21 +291,6 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 /// is cloned from that stable template.
 mod selected_operator_providers;
 pub(crate) use selected_operator_providers::specialize_selected_generic_operator_providers;
-
-fn machine_parameter_by_symbol(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::data::TypeParameter> {
-    program.machines().iter().find_map(|machine| {
-        program
-            .machine_type_parameters(machine)
-            .iter()
-            .find(|parameter| {
-                parameter.symbol == symbol
-                    && matches!(parameter.kind, TypeParameterKind::Machine { .. })
-            })
-    })
-}
 
 #[allow(clippy::too_many_arguments)]
 fn collect_call_proposals(
@@ -806,6 +643,13 @@ fn collect_call_selections(
                     collect_statement_expression_trees(program, statement, &mut expressions);
                 }
             }
+            // Erased proof-output calls retain the same lexical owner as
+            // ordinary calls. The arena fallback cannot recover its binders.
+            for call in &program.proof_output_calls {
+                if call.machine_symbol == machine.symbol && call.state_symbol == state.symbol {
+                    collect_expression_tree(program, call.call, &mut expressions);
+                }
+            }
             for expression in expressions {
                 if covered_expressions.contains(&expression)
                     || contract_expressions.contains(&expression)
@@ -888,6 +732,38 @@ fn collect_call_selections(
     }
 
     selections
+}
+
+#[test]
+fn discarded_call_inference_retains_fixed_array_const_proposal() {
+    let source = "machine endpoint<const N: u64[0..=3]>(witness: &[u8; N]) -> u64 { N }
+        machine forward<Value>(unused: Value, witness: &[u8; 5]) { _ = endpoint(witness); }";
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokens");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolution");
+    let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("typing");
+    materialize_static_argument_types(&mut program);
+    let candidates = candidate::collect(&program);
+    let callees = candidate::callees(&program, &candidates);
+    let contracts = contract_expression_handles(&program);
+    let selections = collect_call_selections(&program, &candidates, &callees, &contracts);
+    let endpoint = candidates
+        .iter()
+        .position(|candidate| candidate.template_name == "endpoint")
+        .expect("endpoint candidate");
+    let selected = selections
+        .iter()
+        .filter(|selection| selection.candidate_index == endpoint)
+        .collect::<Vec<_>>();
+    assert_eq!(selected.len(), 1, "one discarded application");
+    assert!(selected[0].caller_is_generic);
+    let binding = selected[0].const_bindings[0]
+        .expect("array witness must select const argument before discarded-result validation");
+    assert_eq!(program.display_type_reference(binding), "5");
 }
 
 /// Every expression node reachable from an ordinary machine/state contract.
@@ -1053,8 +929,8 @@ fn selection_from_proposals(
         callee_symbol: callee.symbol,
         candidate_index: callee.candidate_index,
         caller_is_generic,
-        self_forwarded_machine_parameters: false,
-        self_forwarded_evidence_parameters: false,
+        unresolved_machine_parameters: false,
+        unresolved_evidence_parameters: false,
         unresolved_const_parameters: false,
         type_bindings: vec![None; candidate.type_parameters.len()],
         const_bindings: vec![None; candidate.const_parameters.len()],
@@ -1090,8 +966,10 @@ fn selection_from_proposals(
         }
     }
     for (_, parameter, binding) in machine_proposals {
-        if candidate.machine_parameters[parameter].0 == binding.symbol {
-            selection.self_forwarded_machine_parameters = true;
+        if program.symbols.get(binding.symbol).kind == SymbolKind::MachineParameter {
+            // A forwarded binder from another generic caller is no more
+            // concrete than a recursive self-binding.
+            selection.unresolved_machine_parameters = true;
         }
         match &selection.machine_bindings[parameter] {
             None => selection.machine_bindings[parameter] = Some(binding),
@@ -1100,8 +978,8 @@ fn selection_from_proposals(
         }
     }
     for (_, parameter, binding) in evidence_proposals {
-        if candidate.evidence_parameters[parameter].binder == Some(binding.symbol) {
-            selection.self_forwarded_evidence_parameters = true;
+        if program.symbols.get(binding.symbol).kind == SymbolKind::ConformanceParameter {
+            selection.unresolved_evidence_parameters = true;
         }
         match &selection.evidence_bindings[parameter] {
             None => selection.evidence_bindings[parameter] = Some(binding),
@@ -1205,7 +1083,10 @@ fn unique_complete_selections(
 ) -> Vec<(SpecializationKey, Vec<usize>)> {
     let mut groups: Vec<(SpecializationKey, Vec<usize>)> = Vec::new();
     for (selection_index, selection) in selections.iter().enumerate() {
-        if selection.candidate_index != candidate_index || !selection.is_complete() {
+        if selection.candidate_index != candidate_index
+            || selection.caller_is_generic
+            || !selection.is_complete()
+        {
             continue;
         }
         let key = SpecializationKey {
@@ -1252,16 +1133,6 @@ fn unique_complete_selections(
         }
     }
     groups
-}
-
-fn has_forwarded_generic_call(selections: &[CallSelection], candidate_index: usize) -> bool {
-    selections.iter().any(|selection| {
-        selection.candidate_index == candidate_index
-            && selection.caller_is_generic
-            && !selection.self_forwarded_machine_parameters
-            && !selection.self_forwarded_evidence_parameters
-            && !selection.is_complete()
-    })
 }
 
 fn infer_static_bindings(
@@ -1636,27 +1507,6 @@ fn same_domain_family(
         || left.name.as_str().rsplit("::").next() == right.name.as_str().rsplit("::").next()
 }
 
-fn type_reference_is_still_generic(
-    program: &TypedTrees,
-    binding: TypeReferenceHandle,
-    all_parameters: &[(SymbolHandle, String)],
-) -> bool {
-    let TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_table.type_reference(binding)
-    else {
-        return false;
-    };
-    (symbol.is_valid() && program.symbols.get(*symbol).kind == SymbolKind::TypeParameter)
-        || all_parameters
-            .iter()
-            .any(|(parameter_symbol, parameter_name)| {
-                parameter_symbol == symbol
-                    || (!parameter_symbol.is_valid()
-                        && !symbol.is_valid()
-                        && parameter_name == name.as_str())
-            })
-}
-
 fn same_type_identity(
     program: &TypedTrees,
     left: TypeReferenceHandle,
@@ -1992,17 +1842,16 @@ fn conformance_arguments_match_candidate(
             })
 }
 
-fn apply_multiple_specializations(
+fn apply_call_specializations(
     program: &mut TypedTrees,
     template: &Candidate,
     selections: &[CallSelection],
     candidate_index: usize,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<bool, Vec<Diagnostic>> {
     let groups = unique_complete_selections(program, selections, candidate_index);
-    if groups.len() < 2 {
-        return Ok(());
+    if groups.is_empty() {
+        return Ok(false);
     }
-
     let mut concrete_candidates: Vec<Candidate> = groups
         .iter()
         .map(|(_, members)| candidate_for_selection(template, &selections[members[0]]))
@@ -2026,20 +1875,6 @@ fn apply_multiple_specializations(
         return Err(conformance_diagnostics);
     }
 
-    if selections
-        .iter()
-        .any(|selection| selection.candidate_index == candidate_index && !selection.is_complete())
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
-            template.template_name
-        ))]);
-    }
-
-    // Build the additional tuples before rewriting the authored declaration.
-    // Only their owned graphs enter staging storage; unrelated declarations and
-    // already-produced specializations stay in the program.
-    let specialization_start = program.machine_specializations.len();
     let canonical_template_contract_bytes =
         canonical_template_contract_bytes(program, template.machine_index);
     let template_contract_report_fingerprint =
@@ -2053,53 +1888,72 @@ fn apply_multiple_specializations(
         accepted_template_commitment(program, template.machine_index);
 
     let mut selected_call_rewrites = Vec::new();
-    for (group_index, ((_, members), candidate)) in groups
-        .iter()
-        .zip(concrete_candidates.iter())
-        .enumerate()
-        .skip(1)
-    {
-        let state_symbols = clone_specialized_machine(
-            None,
-            program,
-            candidate,
-            group_index,
-            template_contract_report_fingerprint,
-            template_contract_commitment,
-            canonical_template_contract_bytes.clone(),
-            normalized_template_identity.clone(),
-            accepted_template_commitment.clone(),
-        )
-        .map_err(|error| vec![error])?;
+    for ((_, members), candidate) in groups.iter().zip(&concrete_candidates) {
+        let selection = &selections[members[0]];
+        // A later closed caller can select a tuple already materialized by an
+        // earlier fixed-point round. Rejoin its complete retained arguments,
+        // including conformance records, rather than allocating another body.
+        let existing = saved_calls::selected_instance(program, program, template, selection)
+            .map(|instance| instance.instance);
+        let state_symbols = if let Some(existing) = existing {
+            let Some(machine) = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == existing)
+            else {
+                return Err(vec![Diagnostic::error(
+                    "specialization receipt has no live instance",
+                )]);
+            };
+            let states = program.machine_states(machine);
+            if states.len() != template.state_symbols.len() {
+                return Err(vec![Diagnostic::error(
+                    "specialization instance lost its template state correspondence",
+                )]);
+            }
+            template
+                .state_symbols
+                .iter()
+                .copied()
+                .zip(states.iter().map(|state| state.symbol))
+                .collect()
+        } else {
+            let ordinal = program
+                .machine_specializations
+                .iter()
+                .filter(|instance| instance.template == template.template_symbol)
+                .count();
+            clone_specialized_machine(
+                None,
+                program,
+                candidate,
+                ordinal,
+                template_contract_report_fingerprint,
+                template_contract_commitment,
+                canonical_template_contract_bytes.clone(),
+                normalized_template_identity.clone(),
+                accepted_template_commitment.clone(),
+            )
+            .map_err(|error| vec![error])?
+        };
         for selection_index in members {
             let selection = &selections[*selection_index];
             let Some((_, concrete_state)) = state_symbols
                 .iter()
                 .find(|(template_state, _)| *template_state == selection.callee_symbol)
             else {
-                continue;
+                return Err(vec![Diagnostic::error(
+                    "selected call has no exact specialization state",
+                )]);
             };
             selected_call_rewrites.push((selection.site, *concrete_state));
         }
     }
-
-    apply_specialization(program, &concrete_candidates[0]).map_err(|error| vec![error])?;
-    if let Some(first) = program.machine_specializations.last_mut() {
-        first.template_contract_report_fingerprint = template_contract_report_fingerprint;
-        first.template_contract_commitment = template_contract_commitment;
-        first.canonical_template_contract_bytes = canonical_template_contract_bytes.clone();
-        first.normalized_template_identity = normalized_template_identity.clone();
-        first.accepted_template_commitment = accepted_template_commitment.clone();
-    }
-    // Receipt order remains first tuple followed by its additional instances.
-    program.machine_specializations[specialization_start..].rotate_right(1);
-    // Selected sites can belong to the template itself. Do not change them
-    // while a later tuple still needs to copy the authored graph.
+    // Delay call rewrites until every tuple has copied its authored body.
     for (site, concrete_state) in selected_call_rewrites {
         rewrite_selected_call(program, site, concrete_state);
     }
-
-    Ok(())
+    Ok(true)
 }
 
 fn candidate_for_selection(template: &Candidate, selection: &CallSelection) -> Candidate {
@@ -2418,6 +2272,7 @@ fn clone_specialized_machine(
     }
 
     let mut cloned = source_machine.clone();
+    cloned.is_public = false;
     cloned.symbol = machine_symbol;
     cloned.name = typed_trees::name::Identifier::generated(generated_name);
     if let Some((attached_data, attached_data_symbol)) = specialized_attached_data {
@@ -2560,6 +2415,19 @@ fn clone_specialized_machine(
         program.push_machine_state(&mut cloned, state);
     }
 
+    let proof_output_calls = source
+        .unwrap_or(program)
+        .proof_output_calls
+        .iter()
+        .filter(|call| call.machine_symbol == source_machine.symbol)
+        .cloned()
+        .collect::<Vec<_>>();
+    for mut call in proof_output_calls {
+        call.machine_symbol = cloned.symbol;
+        call.state_symbol = remapped_symbol(call.state_symbol, &symbol_map);
+        call.call = copy_expression(source, program, call.call, &symbol_map);
+        program.proof_output_calls.push(call);
+    }
     copy_cloned_expression_type_payloads(source, program, expression_start, &symbol_map);
     const_values::substitute(program, candidate, Some(expression_start))?;
     substitute_cloned_type_parameters(source, program, candidate, type_start);
@@ -2595,6 +2463,25 @@ fn clone_specialized_machine(
     program
         .authored_service_reach_rows
         .extend(authored_service_reach_rows);
+    // Evidence forwarding is erased from executable statements before this
+    // phase. Its lexical owner must follow the clone just like the body;
+    // retaining only the template row leaves named outputs unassigned.
+    let evidence_forwardings = source
+        .unwrap_or(program)
+        .evidence_forwardings
+        .iter()
+        .filter(|forwarding| forwarding.machine_symbol == source_machine.symbol)
+        .map(|forwarding| {
+            let mut forwarding = forwarding.clone();
+            forwarding.machine_symbol = instance_symbol;
+            forwarding.state_symbol = remapped_symbol(forwarding.state_symbol, &symbol_map);
+            forwarding.source_conformance = forwarding
+                .source_conformance
+                .map(|symbol| remapped_symbol(symbol, &symbol_map));
+            forwarding
+        })
+        .collect::<Vec<_>>();
+    program.evidence_forwardings.extend(evidence_forwardings);
     program.push_machine(cloned);
     let operator_realizations = closed_operator_realizations_for_machine(program, instance_symbol)?;
     program
@@ -2710,7 +2597,7 @@ fn copy_expression(
 /// cannot clone handles from the separate type-reference table. A specialized
 /// machine is a new semantic graph, so copy cast/zero-value type payloads here
 /// before binder substitution; otherwise a cloned cast would still point into
-/// the first in-place specialization's argument span.
+/// the authored template's type nodes, and substitution would mutate both.
 fn copy_cloned_expression_type_payloads(
     source: Option<&TypedTrees>,
     program: &mut TypedTrees,
@@ -3753,9 +3640,14 @@ fn rewrite_cloned_calls(
         .zip(candidate.machine_bindings.iter())
         .map(|((parameter, _, _), binding)| {
             let binding = binding.as_ref().expect("complete specialization");
-            let name = state_by_symbol(source.unwrap_or(program), binding.symbol)
-                .map(|state| state.name.clone())
-                .or_else(|| binding.path.last().cloned())
+            let name = binding
+                .path
+                .last()
+                .cloned()
+                .or_else(|| {
+                    state_by_symbol(source.unwrap_or(program), binding.symbol)
+                        .map(|state| state.name.clone())
+                })
                 .expect("static machine entry name");
             (*parameter, binding.symbol, name)
         })
@@ -4124,376 +4016,6 @@ fn remapped_symbol(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)
         .unwrap_or(symbol)
 }
 
-fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Result<(), Diagnostic> {
-    const_arguments::validate_bindings(program, candidate)?;
-    let canonical_template_contract_bytes =
-        canonical_template_contract_bytes(program, candidate.machine_index);
-    let template_contract_report_fingerprint =
-        fnv1a_report_fingerprint(&canonical_template_contract_bytes);
-    let template_contract_commitment =
-        machine_template_commitment(&canonical_template_contract_bytes);
-    let normalized_template_identity =
-        normalized_machine_identity(program, &program.machines()[candidate.machine_index])
-            .expect("generic template must retain a normalized callable identity");
-    let accepted_template_commitment =
-        accepted_template_commitment(program, candidate.machine_index);
-    let type_arguments: Vec<String> = candidate
-        .type_bindings
-        .iter()
-        .map(|binding| {
-            program.display_type_reference(binding.expect("complete type specialization"))
-        })
-        .collect();
-    let type_identities: Vec<String> = candidate
-        .type_bindings
-        .iter()
-        .map(|binding| {
-            program
-                .normalized_type_identity(binding.expect("complete type specialization"))
-                .into_string()
-        })
-        .collect();
-    let const_arguments: Vec<String> = candidate
-        .const_bindings
-        .iter()
-        .map(|binding| {
-            program.display_type_reference(binding.expect("complete const specialization"))
-        })
-        .collect();
-    let const_identities: Vec<String> = candidate
-        .const_bindings
-        .iter()
-        .map(|binding| {
-            program
-                .normalized_type_identity(binding.expect("complete const specialization"))
-                .into_string()
-        })
-        .collect();
-    let machine_arguments: Vec<SymbolHandle> = candidate
-        .machine_bindings
-        .iter()
-        .map(|binding| {
-            binding
-                .as_ref()
-                .expect("complete machine specialization")
-                .symbol
-        })
-        .collect();
-    let conformance_applications = candidate
-        .evidence_bindings
-        .iter()
-        .map(|binding| {
-            crate::conformance_applications::close_conformance_application(
-                program,
-                binding.as_ref().expect("complete specialization"),
-            )
-            .expect("validated closed conformance application")
-        })
-        .chain(candidate.selected_bound_applications.iter().cloned())
-        .collect();
-    program
-        .machine_specializations
-        .push(typed_trees::typed_trees::MachineSpecialization {
-            template: candidate.template_symbol,
-            instance: candidate.template_symbol,
-            template_parameters: program.machines()[candidate.machine_index].type_parameters,
-            type_arguments: type_arguments.clone(),
-            const_arguments,
-            type_argument_identities: type_identities,
-            const_argument_identities: const_identities,
-            machine_arguments,
-            conformance_arguments: candidate
-                .evidence_bindings
-                .iter()
-                .map(|binding| binding.as_ref().expect("complete specialization").symbol)
-                .collect(),
-            inferred_conformance_arguments: candidate.inferred_conformance_arguments.clone(),
-            conformance_applications,
-            operator_realizations: Vec::new(),
-            template_contract_report_fingerprint,
-            template_contract_commitment,
-            canonical_template_contract_bytes,
-            normalized_template_identity,
-            accepted_template_commitment,
-            machine_argument_contract_report_fingerprints: Vec::new(),
-            machine_argument_contract_commitments: Vec::new(),
-            conformance_argument_report_fingerprints: Vec::new(),
-            report_fingerprint: 0,
-            commitment: typed_trees::typed_trees::MachineSpecializationCommitment::default(),
-        });
-
-    const_values::substitute(program, candidate, None)?;
-
-    for ((parameter_symbol, parameter_name), binding) in candidate
-        .type_parameters
-        .iter()
-        .zip(candidate.type_bindings.iter())
-    {
-        let replacement = program
-            .type_reference_table
-            .type_reference(binding.expect("complete type specialization"))
-            .clone();
-        let occurrences: Vec<TypeReferenceHandle> = program
-            .type_reference_table
-            .named_references()
-            .filter(|(_, symbol, name)| {
-                symbol == parameter_symbol
-                    || (!symbol.is_valid()
-                        && !parameter_symbol.is_valid()
-                        && *name == parameter_name.as_str())
-            })
-            .map(|(handle, _, _)| handle)
-            .collect();
-        for occurrence in occurrences {
-            program
-                .type_reference_table
-                .substitute_node(occurrence, replacement.clone());
-        }
-    }
-
-    for ((parameter_symbol, parameter_name, _), binding) in candidate
-        .const_parameters
-        .iter()
-        .zip(candidate.const_bindings.iter())
-    {
-        let replacement = program
-            .type_reference_table
-            .type_reference(binding.expect("complete const specialization"))
-            .clone();
-        let occurrences: Vec<TypeReferenceHandle> = program
-            .type_reference_table
-            .named_references()
-            .filter(|(_, symbol, name)| {
-                symbol == parameter_symbol
-                    || (!symbol.is_valid()
-                        && !parameter_symbol.is_valid()
-                        && *name == parameter_name.as_str())
-            })
-            .map(|(handle, _, _)| handle)
-            .collect();
-        for occurrence in occurrences {
-            program
-                .type_reference_table
-                .substitute_node(occurrence, replacement.clone());
-        }
-    }
-    let fixed_array_replacements = fixed_array_const_replacements(program, candidate);
-    substitute_fixed_array_const_parameters(program, &fixed_array_replacements, None);
-    substitute_const_index_expression_parameters(program, candidate, None);
-
-    let machine_rewrites: Vec<(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)> =
-        candidate
-            .machine_parameters
-            .iter()
-            .zip(candidate.machine_bindings.iter())
-            .map(|((parameter_symbol, _, _), binding)| {
-                let binding = binding.as_ref().expect("complete machine specialization");
-                // Preserve the authored symbol leaf for interpreter dispatch.
-                // Free machines expose an internal body state named `entry`; using
-                // that implementation detail here makes `F(value)` look like a
-                // sibling-state call and recursively re-enters the generic helper.
-                // The selected path is exact for both free (`chosen`) and attached
-                // (`Card::power`) machines; the state name is only a recovery path
-                // for synthetic arguments without authored path members.
-                let target = binding
-                    .path
-                    .last()
-                    .cloned()
-                    .or_else(|| {
-                        state_by_symbol(program, binding.symbol).map(|state| state.name.clone())
-                    })
-                    .expect("admitted static machine argument has an entry name");
-                (*parameter_symbol, binding.symbol, target)
-            })
-            .collect();
-    let evidence_target_rewrites = evidence_requirement_rewrites(program, candidate);
-    let mut target_rewrites = machine_rewrites.clone();
-    target_rewrites.extend(
-        evidence_target_rewrites
-            .iter()
-            .map(|rewrite| (rewrite.placeholder, rewrite.target, rewrite.name.clone())),
-    );
-    let mut argument_rewrites = machine_rewrites;
-    argument_rewrites.extend(evidence_argument_rewrites(program, candidate));
-    let static_argument_rewrites = forwarded_static_argument_rewrites(program, candidate);
-
-    substitute_machine_parameter_type_references(program, candidate, None);
-
-    let state_spans: Vec<HandleSpan<StatementNode>> = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .map(|state| state.statement_nodes)
-        .collect();
-    for span in state_spans {
-        for statement_handle in statement_span_handles(span) {
-            rewrite_static_machine_transition_targets(
-                program,
-                statement_handle,
-                candidate,
-                &target_rewrites,
-            );
-            let StatementNode::Call(snapshot) =
-                program.statement_table.statement(statement_handle).clone()
-            else {
-                continue;
-            };
-            let evidence_dispatch = evidence_target_rewrites
-                .iter()
-                .find(|rewrite| rewrite.placeholder == snapshot.target_symbol);
-            let evidence_receiver = evidence_dispatch
-                .is_some()
-                .then(|| {
-                    program
-                        .statement_table
-                        .expression_handles(snapshot.arguments)
-                        .first()
-                        .copied()
-                })
-                .flatten()
-                .and_then(|receiver| statement_receiver_path(program, receiver));
-            let receiver = evidence_receiver.as_ref().map(|(_, _, members)| {
-                let mut receiver = HandleSpan::empty();
-                for member in members {
-                    program
-                        .statement_table
-                        .push_name_path_member(&mut receiver, member.clone());
-                }
-                receiver
-            });
-            let StatementNode::Call(call) = program.statement_table.statement_mut(statement_handle)
-            else {
-                unreachable!();
-            };
-            if candidate
-                .machine_parameters
-                .iter()
-                .any(|(parameter, _, _)| *parameter == call.target_symbol)
-            {
-                call.static_machine_parameter = call.target_symbol;
-            }
-            if let Some((_, symbol, name)) = target_rewrites
-                .iter()
-                .find(|(parameter, _, _)| *parameter == call.target_symbol)
-            {
-                call.target_symbol = *symbol;
-                call.target = name.clone();
-            }
-            if let (Some((root, receiver_symbol, _)), Some(receiver)) =
-                (evidence_receiver, receiver)
-            {
-                call.receiver_root_symbol = root;
-                call.receiver_symbol = receiver_symbol;
-                call.receiver = receiver;
-                call.arguments = span_without_first(call.arguments);
-            } else if evidence_dispatch.is_some() {
-                call.receiver_root_symbol = SymbolHandle::invalid();
-                call.receiver_symbol = SymbolHandle::invalid();
-                call.receiver = HandleSpan::empty();
-            }
-            if let Some(rewrite) = evidence_dispatch {
-                call.static_requirement_dispatch = Some(rewrite.dispatch.clone());
-                call.machine_arguments = rewrite.application_arguments.clone();
-            }
-            substitute_forwarded_machine_arguments(
-                &mut call.machine_arguments,
-                &static_argument_rewrites,
-                &argument_rewrites,
-            );
-            if candidate.state_symbols.contains(&call.target_symbol) {
-                call.machine_arguments = Box::default();
-            }
-        }
-    }
-
-    let expression_handles: Vec<ExpressionHandle> = program
-        .expression_table
-        .iter_expressions()
-        .map(|(handle, _)| handle)
-        .collect();
-    for handle in expression_handles {
-        let evidence_dispatch = match program.expression_table.expression(handle) {
-            ExpressionNode::Call(call) => evidence_target_rewrites
-                .iter()
-                .find(|rewrite| rewrite.placeholder == call.target_symbol),
-            _ => None,
-        };
-        let evidence_receiver = match program.expression_table.expression(handle) {
-            ExpressionNode::Call(call) if evidence_dispatch.is_some() => program
-                .expression_table
-                .expression_handles(call.arguments)
-                .first()
-                .copied(),
-            _ => None,
-        };
-        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
-            continue;
-        };
-        if candidate
-            .machine_parameters
-            .iter()
-            .any(|(parameter, _, _)| *parameter == call.target_symbol)
-        {
-            call.static_machine_parameter = call.target_symbol;
-        }
-        if let Some((_, symbol, name)) = target_rewrites
-            .iter()
-            .find(|(parameter, _, _)| *parameter == call.target_symbol)
-        {
-            call.target_symbol = *symbol;
-            call.target = name.clone();
-        }
-        if evidence_dispatch.is_some()
-            && let Some(receiver) = evidence_receiver
-        {
-            call.receiver = receiver;
-            call.arguments = span_without_first(call.arguments);
-        } else if evidence_dispatch.is_some() {
-            call.receiver = ExpressionHandle::invalid();
-        }
-        if let Some(rewrite) = evidence_dispatch {
-            call.static_requirement_dispatch = Some(rewrite.dispatch.clone());
-            call.machine_arguments = rewrite.application_arguments.clone();
-        }
-        substitute_forwarded_machine_arguments(
-            &mut call.machine_arguments,
-            &static_argument_rewrites,
-            &argument_rewrites,
-        );
-        if candidate.state_symbols.contains(&call.target_symbol) {
-            call.machine_arguments = Box::default();
-        }
-    }
-
-    let attached_data = {
-        let template = &program.machines()[candidate.machine_index];
-        specialized_attached_data(program, candidate, template)
-    };
-    let specialized = &mut program.machines_mut()[candidate.machine_index];
-    if let Some((attached_data, attached_data_symbol)) = attached_data {
-        specialized.attached_data = Some(attached_data);
-        specialized.attached_data_symbol = attached_data_symbol;
-    } else {
-        specialized.attached_data = None;
-        specialized.attached_data_symbol = SymbolHandle::invalid();
-    }
-    let specialized = program.machines()[candidate.machine_index].clone();
-    resolve_specialized_receiver_calls(program, &specialized);
-
-    let specialized = &mut program.machines_mut()[candidate.machine_index];
-    specialized.type_parameters = HandleSpan::empty();
-    specialized.conformance_bounds.clear();
-
-    let operator_realizations =
-        closed_operator_realizations_for_machine(program, candidate.template_symbol)?;
-    program
-        .machine_specializations
-        .last_mut()
-        .expect("specialization row was just retained")
-        .operator_realizations = operator_realizations;
-    Ok(())
-}
-
 fn closed_operator_realizations_for_machine(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
@@ -4680,9 +4202,9 @@ fn encode_bound_static_argument(
     }
 }
 
-/// MP5's pre-specialization template identity. The in-place specialization
-/// pass necessarily consumes generic declarations, so the universal contract
-/// must be captured before substitution. This encoding is binder-positional:
+/// The universal template contract shared by every concrete application.
+/// Capture it from the retained authored declaration, not a selected clone.
+/// This encoding is binder-positional:
 /// renaming a type, machine, or value parameter does not change the identity.
 fn canonical_template_contract_bytes(program: &TypedTrees, machine_index: usize) -> Vec<u8> {
     let machine = &program.machines()[machine_index];

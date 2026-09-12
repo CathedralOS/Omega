@@ -679,6 +679,72 @@ fn closed_generic_proof_output_retains_its_concrete_application() {
 }
 
 #[test]
+fn cloned_generic_proof_output_call_retains_its_lexical_evidence() {
+    let source = r#"
+        trait Evidence {}
+        trait Marker {}
+        proposition ready() evidence Evidence;
+        data Card {}
+        data Root { card: Card; }
+        CardMarker: Card satisfies Marker {}
+        machine produce<Element, Selection: Element satisfies Marker>(value: &Element)
+        requires incoming: ready()
+        ensures copied: ready()
+        { copied = incoming; }
+        machine relay<Element, Selection: Element satisfies Marker>(value: &Element)
+        requires source: ready()
+        ensures relayed: ready()
+        {
+            let (; copied: local) = produce<Element, Selection>(value; source);
+            relayed = local;
+        }
+        machine Root::run(&self)
+        requires source: ready()
+        ensures relayed: ready()
+        {
+            let (; relayed: local) = relay<Card, CardMarker>(&self.card; source);
+            relayed = local;
+        }
+    "#;
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("cloned proof-output calls retain exact lexical evidence");
+    for specialization in &checked.machine_specializations {
+        assert!(
+            checked
+                .typed
+                .evidence_forwardings
+                .iter()
+                .any(|forwarding| forwarding.machine_symbol == specialization.instance)
+        );
+    }
+    let relay = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "relay")
+        .expect("authored generic relay");
+    let instance = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.template == relay.symbol)
+        .expect("closed relay receipt")
+        .instance;
+    assert!(
+        checked
+            .typed
+            .proof_output_calls
+            .iter()
+            .any(|call| call.machine_symbol == relay.symbol)
+    );
+    assert!(
+        checked
+            .typed
+            .proof_output_calls
+            .iter()
+            .any(|call| call.machine_symbol == instance)
+    );
+}
+
+#[test]
 fn argumented_proof_output_rejects_wrong_erased_input_after_substitution() {
     let source = r#"
         trait Evidence {}

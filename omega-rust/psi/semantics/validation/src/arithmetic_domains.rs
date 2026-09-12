@@ -1465,6 +1465,15 @@ pub(crate) fn validate_return_value_range(
 ) {
     let return_primitive = program.primitive_type_reference(state.return_type);
     let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);
+    enforce_symbolic_range(
+        program,
+        machine,
+        Some(state),
+        state.return_type,
+        return_expression,
+        owner,
+        diagnostics,
+    );
     if let Some((interval, _)) = validate_anonymous_integer_range(
         program,
         state.return_type,
@@ -1519,6 +1528,29 @@ pub(crate) fn validate_return_value_range(
     );
     if diagnostics.len() == before {
         check_narrowing_assignment(return_primitive, interval, source, owner, diagnostics);
+    }
+}
+
+pub(crate) fn enforce_symbolic_range(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    return_type: TypeReferenceHandle,
+    return_expression: ExpressionHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if crate::contract_entailment::symbolic_range_contains(
+        program,
+        machine,
+        state,
+        return_type,
+        return_expression,
+    ) == Some(false)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} has a value not provably within its declared symbolic const range"
+        )));
     }
 }
 

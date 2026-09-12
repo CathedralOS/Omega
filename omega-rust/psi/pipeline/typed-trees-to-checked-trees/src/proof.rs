@@ -353,63 +353,144 @@ pub(crate) fn bind_proof_output_call_facts(
             ));
             continue;
         };
-        let Some((target_machine, target_state)) = program.machines().iter().find_map(|machine| {
+        let machine_target = program.machines().iter().find_map(|machine| {
             program
                 .machine_states(machine)
                 .iter()
                 .find(|state| state.symbol == call.target_symbol)
                 .map(|state| (machine, state))
-        }) else {
-            diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "proof-output call `{}` must target a concrete machine state",
-                call.target
-            )));
-            continue;
-        };
-        let static_requirement = match checked_static_requirement_dispatch(
-            program,
-            package.machine_symbol,
-            call,
-            target_machine,
-            target_state,
-        ) {
-            Ok(dispatch) => dispatch,
-            Err(diagnostic) => {
-                diagnostics.push(diagnostic);
+        });
+        let open_requirement = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == package.machine_symbol)
+            .map(|machine| {
+                validation::named_conformance_target_requirement(
+                    program,
+                    machine,
+                    call.target_symbol,
+                )
+            })
+            .transpose();
+        let open_requirement = match open_requirement {
+            Ok(requirement) => requirement.flatten(),
+            Err(error) => {
+                diagnostics.push(diagnostics::Diagnostic::error(error));
                 continue;
             }
         };
-
-        let concrete = target_machine.lifetime_parameters.is_empty()
-            && target_machine.type_parameters.is_empty()
-            && target_machine.conformance_bounds.is_empty()
-            && call.machine_arguments.is_empty();
-        let immediate = program.machine_states(target_machine).len() == 1
-            && target_machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody;
-        let runtime_value_type = target_state
-            .return_type
-            .is_valid()
-            .then(|| program.primitive_type_reference(target_state.return_type))
-            .flatten();
-        let proof_only = !target_state.return_type.is_valid();
-        if !concrete || !immediate || (!proof_only && runtime_value_type.is_none()) {
+        let static_requirement = if let Some((machine, state)) = machine_target {
+            match checked_static_requirement_dispatch(
+                program,
+                package.machine_symbol,
+                call,
+                machine,
+                state,
+            ) {
+                Ok(dispatch) => dispatch,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            }
+        } else if open_requirement.is_some() && call.static_requirement_dispatch.is_none() {
+            None
+        } else {
+            diagnostics.push(diagnostics::Diagnostic::error(format!("proof-output call `{}` must target a checked machine state or exact generic requirement", call.target)));
+            continue;
+        };
+        if let Some((owner, requirement)) = open_requirement
+            && let Err(diagnostic) = check_open_proof_output_requirement(
+                program,
+                package.machine_symbol,
+                call,
+                owner,
+                requirement,
+            )
+        {
+            diagnostics.push(diagnostic);
+            continue;
+        }
+        // Generic templates use the same checked contract lanes as their
+        // closed instances. An evidence call names its public signature;
+        // only a closed call carries a concrete realization dispatch row.
+        let caller_is_generic = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == package.machine_symbol)
+            .is_some_and(|machine| {
+                !machine.lifetime_parameters.is_empty()
+                    || !machine.type_parameters.is_empty()
+                    || !machine.conformance_bounds.is_empty()
+            });
+        if !caller_is_generic
+            && machine_target.is_some_and(|(machine, _)| {
+                !machine.lifetime_parameters.is_empty()
+                    || !machine.type_parameters.is_empty()
+                    || !machine.conformance_bounds.is_empty()
+                    || !call.machine_arguments.is_empty()
+            })
+        {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "proof-output call `{}` is currently limited to a concrete one-state Unit- or scalar-result machine",
+                "proof-output call `{}` from a concrete caller requires one complete concrete application", call.target,
+            )));
+            continue;
+        }
+        let (target_machine_symbol, target_state_symbol, return_type, immediate) =
+            if let Some((machine, state)) = machine_target {
+                (
+                    machine.symbol,
+                    state.symbol,
+                    state.return_type,
+                    program.machine_states(machine).len() == 1
+                        && machine.supply_mode
+                            == language_semantics::MachineSupplyMode::CheckedBody,
+                )
+            } else if let Some((owner, requirement)) = open_requirement {
+                (owner, requirement.symbol, requirement.return_type, true)
+            } else {
+                continue;
+            };
+        let runtime_value_type = return_type
+            .is_valid()
+            .then(|| program.primitive_type_reference(return_type))
+            .flatten();
+        let proof_only = !return_type.is_valid();
+        if !immediate || (!proof_only && runtime_value_type.is_none()) {
+            diagnostics.push(diagnostics::Diagnostic::error(format!(
+                "proof-output call `{}` is currently limited to a one-state Unit- or scalar-result checked machine or exact generic requirement",
                 call.target
             )));
             continue;
         }
 
-        let public_owner = static_requirement.as_ref().map(|(_, requirement)| {
-            ContractProofFactOwner::StateSignature {
+        let public_owner = static_requirement
+            .as_ref()
+            .map(|(_, requirement)| ContractProofFactOwner::StateSignature {
                 owner_symbol: call
                     .static_requirement_dispatch
                     .as_ref()
                     .expect("checked static requirement dispatch")
                     .declaring_trait,
                 state_symbol: requirement.symbol,
-            }
-        });
+            })
+            .or_else(|| {
+                open_requirement.map(|(owner_symbol, requirement)| {
+                    ContractProofFactOwner::StateSignature {
+                        owner_symbol,
+                        state_symbol: requirement.symbol,
+                    }
+                })
+            });
+        let target_parameters = static_requirement
+            .as_ref()
+            .map(|(_, requirement)| program.state_signature_parameters(requirement))
+            .or_else(|| {
+                open_requirement
+                    .map(|(_, requirement)| program.state_signature_parameters(requirement))
+            })
+            .or_else(|| machine_target.map(|(_, state)| program.state_parameters(state)))
+            .unwrap_or_default();
         let mut callee_inputs = proof
             .evidence_terms
             .iter()
@@ -418,12 +499,12 @@ pub(crate) fn bind_proof_output_call_facts(
                     || {
                         term.owner
                             == ContractProofFactOwner::Machine {
-                                machine_symbol: target_machine.symbol,
+                                machine_symbol: target_machine_symbol,
                             }
                             || term.owner
                                 == (ContractProofFactOwner::MachineState {
-                                    machine_symbol: target_machine.symbol,
-                                    state_symbol: target_state.symbol,
+                                    machine_symbol: target_machine_symbol,
+                                    state_symbol: target_state_symbol,
                                 })
                     },
                     |owner| term.owner == owner,
@@ -439,7 +520,7 @@ pub(crate) fn bind_proof_output_call_facts(
                 let owner_matches = public_owner.map_or(
                     term.owner
                         == (ContractProofFactOwner::Machine {
-                            machine_symbol: target_machine.symbol,
+                            machine_symbol: target_machine_symbol,
                         }),
                     |owner| term.owner == owner,
                 );
@@ -591,8 +672,8 @@ pub(crate) fn bind_proof_output_call_facts(
                 continue;
             };
             if matching_calls.next().is_some()
-                || contract_call.target_machine_symbol != target_machine.symbol
-                || contract_call.target_state_symbol != target_state.symbol
+                || contract_call.target_machine_symbol != target_machine_symbol
+                || contract_call.target_state_symbol != target_state_symbol
             {
                 diagnostics.push(diagnostics::Diagnostic::error(
                     "proof-output call disagrees with its checked contract-call row",
@@ -674,10 +755,7 @@ pub(crate) fn bind_proof_output_call_facts(
                     proof,
                     package,
                     call,
-                    static_requirement.as_ref().map_or_else(
-                        || program.state_parameters(target_state),
-                        |(_, requirement)| program.state_signature_parameters(requirement),
-                    ),
+                    target_parameters,
                     callee_input,
                 )
             else {
@@ -718,10 +796,7 @@ pub(crate) fn bind_proof_output_call_facts(
                     proof,
                     package,
                     call,
-                    static_requirement.as_ref().map_or_else(
-                        || program.state_parameters(target_state),
-                        |(_, requirement)| program.state_signature_parameters(requirement),
-                    ),
+                    target_parameters,
                     callee_output,
                 )
             else {
@@ -767,8 +842,8 @@ pub(crate) fn bind_proof_output_call_facts(
             statement_index: package.statement_index,
             source_statement_index: package.source_statement_index,
             runtime_call,
-            target_machine_symbol: target_machine.symbol,
-            target_state_symbol: target_state.symbol,
+            target_machine_symbol,
+            target_state_symbol,
             static_requirement_dispatch: static_requirement.map(|(fact, _)| fact),
             evidence_arguments,
             outputs,
@@ -781,6 +856,59 @@ pub(crate) fn bind_proof_output_call_facts(
     } else {
         Err(diagnostics)
     }
+}
+
+fn check_open_proof_output_requirement(
+    program: &typed_trees::TypedTrees,
+    caller: SymbolHandle,
+    call: &typed_trees::expression::TableCallExpression,
+    owner: SymbolHandle,
+    requirement: &typed_trees::signature::StateSignature,
+) -> Result<(), diagnostics::Diagnostic> {
+    let rejected = |reason: &str| {
+        diagnostics::Diagnostic::error(format!(
+            "static named-witness requirement call `{}` cannot use its generic public contract: {reason}",
+            call.target,
+        ))
+    };
+    let Some(definition) = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == owner)
+    else {
+        return Err(rejected("its declaring trait is absent"));
+    };
+    if !definition.lifetime_parameters.is_empty()
+        || !program.trait_type_parameters(definition).is_empty()
+        || !requirement.lifetime_parameters.is_empty()
+        || !program
+            .state_signature_type_parameters(requirement)
+            .is_empty()
+    {
+        return Err(rejected(
+            "the public trait and requirement must be concrete and non-generic",
+        ));
+    }
+    let unit = !requirement.return_type.is_valid();
+    let scalar = matches!(
+        program.primitive_type_reference(requirement.return_type),
+        Some(typed_trees::types::PrimitiveType::I32 | typed_trees::types::PrimitiveType::Bool)
+    ) && program.state_signature_parameters(requirement).is_empty()
+        && program
+            .expression_table
+            .expression_handles(call.arguments)
+            .is_empty()
+        && program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == caller)
+            .is_some_and(|machine| machine.attached_data.is_none());
+    if !unit && !scalar {
+        return Err(rejected(
+            "the public requirement must be Unit, or exact i32 or bool with a free caller and zero ordinary arguments",
+        ));
+    }
+    check_public_named_witness_lanes(program, requirement).map_err(rejected)
 }
 
 fn checked_static_requirement_dispatch<'program>(
@@ -796,9 +924,6 @@ fn checked_static_requirement_dispatch<'program>(
     )>,
     diagnostics::Diagnostic,
 > {
-    use typed_trees::domain::ProofFact;
-    use typed_trees::signature::SignatureContractKind;
-
     let Some(dispatch) = call.static_requirement_dispatch.as_ref() else {
         return Ok(None);
     };
@@ -947,6 +1072,27 @@ fn checked_static_requirement_dispatch<'program>(
         ));
     }
 
+    check_public_named_witness_lanes(program, requirement).map_err(rejected)?;
+
+    Ok(Some((
+        checked_trees::StaticRequirementDispatchFact {
+            application_report_fingerprint: dispatch.application_report_fingerprint,
+            application_commitment: dispatch.application_commitment,
+            declaring_trait: dispatch.declaring_trait,
+            requirement: dispatch.requirement,
+            realization_machine: dispatch.realization_machine,
+            realization_state: dispatch.realization_state,
+        },
+        requirement,
+    )))
+}
+
+fn check_public_named_witness_lanes(
+    program: &typed_trees::TypedTrees,
+    requirement: &typed_trees::signature::StateSignature,
+) -> Result<(), &'static str> {
+    use typed_trees::domain::ProofFact;
+    use typed_trees::signature::SignatureContractKind;
     let contracts = program.state_signature_contracts(requirement);
     if contracts.iter().any(|contract| {
         !matches!(
@@ -954,9 +1100,7 @@ fn checked_static_requirement_dispatch<'program>(
             SignatureContractKind::Requires | SignatureContractKind::Ensures
         )
     }) {
-        return Err(rejected(
-            "outcome-guarded and crash contract rows remain unsupported",
-        ));
+        return Err("outcome-guarded and crash contract rows remain unsupported");
     }
     let named_requires = contracts
         .iter()
@@ -971,22 +1115,18 @@ fn checked_static_requirement_dispatch<'program>(
         })
         .collect::<Vec<_>>();
     if named_ensures.is_empty() {
-        return Err(rejected(
+        return Err(
             "the public requirement must own at least one unconditional named ensures output",
-        ));
+        );
     }
     if contracts.len() != named_requires.len() + named_ensures.len() {
-        return Err(rejected(
-            "every public requires and ensures row must be named",
-        ));
+        return Err("every public requires and ensures row must be named");
     }
     for contract in named_requires.into_iter().chain(named_ensures) {
         let [ProofFact::Proposition(proposition)] =
             program.proof_facts.span_or_empty(contract.facts)
         else {
-            return Err(rejected(
-                "each public named lane must contain one witness-bearing proposition",
-            ));
+            return Err("each public named lane must contain one witness-bearing proposition");
         };
         if !proposition.binder_arguments.is_empty()
             || !program
@@ -994,23 +1134,11 @@ fn checked_static_requirement_dispatch<'program>(
                 .expression_handles(proposition.arguments)
                 .is_empty()
         {
-            return Err(rejected(
-                "the public witness proposition must be subjectless and non-generic",
-            ));
+            return Err("the public witness proposition must be subjectless and non-generic");
         }
     }
 
-    Ok(Some((
-        checked_trees::StaticRequirementDispatchFact {
-            application_report_fingerprint: dispatch.application_report_fingerprint,
-            application_commitment: dispatch.application_commitment,
-            declaring_trait: dispatch.declaring_trait,
-            requirement: dispatch.requirement,
-            realization_machine: dispatch.realization_machine,
-            realization_state: dispatch.realization_state,
-        },
-        requirement,
-    )))
+    Ok(())
 }
 
 /// Bind outcome-specific producer guarantees to the one transition arm that

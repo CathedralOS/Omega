@@ -65,15 +65,15 @@ fn saved_provider_call_keeps_its_unresolved_tuple_after_live_specialization() {
         .machines()
         .iter()
         .find(|machine| machine.symbol == provider.symbol)
-        .expect("the ordinary provider reuses its declaration");
-    assert!(program.machine_type_parameters(live_provider).is_empty());
+        .expect("the ordinary provider retains its declaration");
+    assert_eq!(program.machine_type_parameters(live_provider).len(), 1);
     assert!(
         program
             .machine_specializations
             .iter()
             .any(|specialization| {
                 specialization.template == provider.symbol
-                    && specialization.instance == provider.symbol
+                    && specialization.instance != provider.symbol
                     && specialization.type_arguments == ["i32"]
             })
     );
@@ -84,7 +84,7 @@ fn saved_provider_call_keeps_its_unresolved_tuple_after_live_specialization() {
             specialization.template == helper_symbol && specialization.type_arguments == ["u64"]
         })
         .expect("the warmup selects the first helper tuple");
-    assert_eq!(warmup.instance, helper_symbol);
+    assert_ne!(warmup.instance, helper_symbol);
     let selected = program
         .machine_specializations
         .iter()
@@ -104,9 +104,36 @@ fn saved_provider_call_keeps_its_unresolved_tuple_after_live_specialization() {
         let ExpressionNode::Call(live) = program.expression_table.expression(*handle) else {
             panic!("the live provider retains its call occurrence");
         };
-        assert_eq!(live.target_symbol, selected_state);
-        assert_ne!(live.target_symbol, original.target_symbol);
+        assert_eq!(live, original, "the authored generic body stays unchanged");
     }
+    let provider_instance = program
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.template == provider.symbol)
+        .expect("closed provider receipt");
+    let provider_instance = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == provider_instance.instance)
+        .expect("closed provider");
+    assert!(
+        program
+            .machine_type_parameters(provider_instance)
+            .is_empty()
+    );
+    assert!(
+        program
+            .machine_states(provider_instance)
+            .iter()
+            .flat_map(|state| program.statement_table.statements(state.statement_nodes))
+            .any(|statement| {
+                let StatementNode::LocalData(local) = statement else {
+                    return false;
+                };
+                matches!(program.expression_table.expression(local.initial_value),
+                ExpressionNode::Call(call) if call.target_symbol == selected_state)
+            })
+    );
 
     // The live call is concrete only because its provider bound Value to i32.
     // That binding supplies no evidence for the immutable saved occurrence.

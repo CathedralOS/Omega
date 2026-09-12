@@ -80,8 +80,8 @@ fn indexed_cast_specializations_keep_result_and_expression_domain_ids_in_sync() 
     }
     assert_eq!(
         cast_domains.len(),
-        2,
-        "both concrete cast occurrences survive"
+        3,
+        "the authored cast and both concrete occurrences survive"
     );
     assert_ne!(
         cast_domains[0], cast_domains[1],

@@ -94,9 +94,7 @@ fn check_selected_provider_result_local(additional_endpoint: bool, direct_provid
             specialization.template == endpoint_machine && specialization.const_arguments == ["2"]
         })
         .expect("the tail endpoint specializes exactly once");
-    if !additional_endpoint {
-        assert_eq!(endpoint_specialization.instance, endpoint_machine);
-    }
+    assert_ne!(endpoint_specialization.instance, endpoint_machine);
     assert_eq!(endpoint_specialization.const_arguments, ["2"]);
     let provider_specialization = checked
         .machine_specializations

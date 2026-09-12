@@ -241,9 +241,8 @@ Optimizer revision/analysis reuse is tracked only in `TASKS_OPTIMIZER.md`.
 ## Automatic service reach
 
 Carry [static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies)
-through specialization and Terminal evidence/replay. Preserve the original
-generic dependency and exported binder telescope before specialization consumes
-live binder spans, including closed in-place reuse. Use the finite union in
+through Terminal evidence/replay. Preserve the original generic dependency and
+exported binder telescope across the portable boundary. Use the finite union in
 `flow-effects::ServiceReachInferencePlan` and checked service-reach facts; reuse
 retained static-call contracts and exact specialization commitments rather than
 introducing another selection identity. Closed applications must independently
@@ -269,8 +268,8 @@ evaluation must not consume the source program's generic declarations.
 Keep the source-to-canonical-policy regression in
 `tests/omega/pass/effects/nominal_callback_dependency/README.md` passing when a
 public generic also has closed applications; original interface identity must
-not depend on which applications are present. Its current open-only controls
-do not establish template preservation or Terminal custody.
+not depend on which applications are present. Its private closed-application and
+unused-generic controls establish template preservation, not Terminal custody.
 
 ## Semantic reflection
 
