@@ -497,6 +497,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("ordinary NativeArtifact compilation shares component realization");
     let direct = direct_report
         .retained_native_artifact()
@@ -846,6 +847,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect_err("a bare native artifact cannot discard build-bound progress");
     assert!(direct_native.iter().any(|diagnostic| {
         diagnostic

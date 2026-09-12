@@ -506,6 +506,7 @@ machine Main::emit(&mut self) {
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
         .with_package_inputs(package_inputs),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| panic!("mixed selected execution failed: {diagnostics:#?}"));
     let retained = report.into_retained_terminal_artifact().unwrap();
     retained
@@ -571,6 +572,7 @@ machine Main::main(&mut self) {
         .with_requested_product(RequestedCompileProduct::TerminalArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| panic!("FMA Terminal custody failed: {diagnostics:#?}"));
     let retained = report
         .into_retained_terminal_artifact()
@@ -808,6 +810,7 @@ machine Main::main(&mut self) {
         .with_requested_product(RequestedCompileProduct::TerminalArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| {
         panic!("FMA followed by an internal Unit call should lower: {diagnostics:#?}")
     });

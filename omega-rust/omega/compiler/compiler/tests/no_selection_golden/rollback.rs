@@ -55,6 +55,7 @@ fn rollback_to_empty_selection_rejoins_exact_ordinary_path_on_every_target() {
     for target in HOSTED_NATIVE_TARGETS {
         let output_dir = build_dir(target);
         let report = compiler::compile(request(target, output_dir.clone()))
+            .and_then(compiler::CompileOutcomes::into_single_report)
             .unwrap_or_else(|diagnostics| panic!("rollback compilation failed: {diagnostics:#?}"));
         let receipt = report
             .optimization_rollback_receipt()
@@ -131,6 +132,7 @@ fn native_rollback_rejects_products_that_do_not_enter_native_realization() {
                     .unwrap(),
             ),
         )
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .expect_err("rollback cannot appear honored without native realization");
         assert_eq!(diagnostics.len(), 1);
         assert!(
@@ -160,6 +162,7 @@ fn empty_rollback_request_leaves_no_release_receipt() {
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("ordinary native compilation must succeed");
     assert!(report.optimization_rollback_receipt().is_none());
     let _ = std::fs::remove_dir_all(output_dir);

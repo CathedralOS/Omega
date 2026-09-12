@@ -3,8 +3,8 @@ mod selected_const_evaluation;
 use compiler::CheckedCompileRequest;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, ExplicitTargetSet,
-    MultiTargetCompileRequest, RequestedCompileProduct, RetainedNativeRealizationRequest, compile,
-    compile_targets, compile_to_checked, realize_retained_native_artifact,
+    RequestedCompileProduct, RetainedNativeRealizationRequest, TargetCompileConfiguration, compile,
+    compile_to_checked, realize_retained_native_artifact,
     retained_terminal_report_from_checked_package,
 };
 use package_compilation::{
@@ -321,21 +321,31 @@ fn multi_target_generated_source_failure_is_child_local() {
     };
     let targets = ExplicitTargetSet::from_caller_names(["windows_x64", "linux_x64"])
         .expect("explicit generated-source targets");
-    let request = MultiTargetCompileRequest::from_target_set(targets, |profile| {
-        CompileRequest::new(CompileOptions {
-            root_path: root.join("main.omg"),
-            build_dir: Some(tree.0.join("build").join(profile.target_name())),
-            target_name: None,
-        })
-        .with_package_inputs(child_inputs(profile))
+    let (sources, _) = base_inputs.clone().into_parts();
+    let request = CompileRequest::new(CompileOptions {
+        root_path: root.join("main.omg"),
+        build_dir: None,
+        target_name: None,
     })
-    .expect("target set remains the only target identity input");
-    let outcomes = compile_targets(request).expect("multi-target request should admit");
+    .with_package_sources(sources)
+    .with_target_configurations(
+        targets
+            .profiles()
+            .iter()
+            .map(|&profile| {
+                let (_, target_inputs) = child_inputs(profile).into_parts();
+                TargetCompileConfiguration::new(profile)
+                    .with_build_dir(tree.0.join("build").join(profile.target_name()))
+                    .with_package_target_inputs(target_inputs)
+            })
+            .collect(),
+    );
+    let outcomes = compile(request).expect("multi-target request should admit");
     assert_eq!(outcomes.outcomes().len(), 2);
     assert!(outcomes.outcomes()[0].succeeded());
     assert_eq!(
         outcomes.outcomes()[0].target_profile(),
-        target::TargetProfile::LinuxX64,
+        Some(target::TargetProfile::LinuxX64),
     );
     assert!(!outcomes.outcomes()[1].succeeded());
     assert!(
@@ -1784,6 +1794,7 @@ machine misuse(resource: &mut Resource) {
             })
             .with_package_inputs(inputs),
         )
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .expect_err("native package compilation must apply the same cleanup gate");
         assert!(
             native_diagnostics.iter().any(|diagnostic| diagnostic
@@ -4047,6 +4058,7 @@ machine build(builder: &mut Build) {
             })
             .with_package_inputs(inputs),
         )
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .expect_err("native package compilation must reject the transitive selection");
         assert!(
             native_diagnostics
@@ -4540,6 +4552,7 @@ machine Main::main(&mut self) {
         })
         .with_package_inputs(inputs),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("native package compilation should use reconciled imports only");
     assert!(report.production_manifest().is_none());
 }
@@ -4576,6 +4589,7 @@ fn native_package_product_retains_one_canonical_production_manifest() {
         .with_package_inputs(inputs)
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("package native fixture should compile");
     let manifest = report
         .production_manifest()
@@ -4602,6 +4616,7 @@ fn native_package_product_retains_one_canonical_production_manifest() {
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("standalone native fixture should compile without package evidence");
     assert_eq!(
         standalone
@@ -4631,23 +4646,27 @@ fn failing_sibling_does_not_change_successful_package_artifact_identity() {
         Vec::new(),
     )
     .expect("single-package artifact graph");
-    let mut request_for_target = |profile: target::TargetProfile| {
-        CompileRequest::new(CompileOptions {
-            root_path: root.join("main.omg"),
-            build_dir: Some(output.0.join(profile.target_name())),
-            target_name: None,
-        })
-        .with_package_inputs(inputs.clone())
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
+    let (sources, target_inputs) = inputs.into_parts();
+    let request = CompileRequest::new(CompileOptions {
+        root_path: root.join("main.omg"),
+        build_dir: None,
+        target_name: None,
+    })
+    .with_package_sources(sources)
+    .with_requested_product(RequestedCompileProduct::NativeArtifact)
+    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    let configuration_for_target = |profile: target::TargetProfile| {
+        TargetCompileConfiguration::new(profile)
+            .with_build_dir(output.0.join(profile.target_name()))
+            .with_package_target_inputs(target_inputs.clone())
     };
 
-    let linux_only = MultiTargetCompileRequest::from_target_set(
-        ExplicitTargetSet::from_caller_names(["linux_x64"]).expect("one exact artifact target"),
-        &mut request_for_target,
-    )
-    .expect("one-target request should materialize");
-    let linux_only = compile_targets(linux_only).expect("one-target batch should admit");
+    let linux_only = request
+        .clone()
+        .with_target_configurations(vec![configuration_for_target(
+            target::TargetProfile::LinuxX64,
+        )]);
+    let linux_only = compile(linux_only).expect("one-target batch should admit");
     let linux_only = linux_only.outcomes()[0]
         .report()
         .expect("Linux artifact should compile without siblings");
@@ -4655,14 +4674,12 @@ fn failing_sibling_does_not_change_successful_package_artifact_identity() {
         .production_manifest()
         .expect("package artifact should retain its exact manifest");
 
-    let with_failing_sibling = MultiTargetCompileRequest::from_target_set(
-        ExplicitTargetSet::from_caller_names(["uefi_x64", "linux_x64"])
-            .expect("explicit Linux and UEFI targets"),
-        &mut request_for_target,
-    )
-    .expect("two-target request should materialize");
+    let with_failing_sibling = request.with_target_configurations(vec![
+        configuration_for_target(target::TargetProfile::UefiX64),
+        configuration_for_target(target::TargetProfile::LinuxX64),
+    ]);
     let with_failing_sibling =
-        compile_targets(with_failing_sibling).expect("two-target batch should admit");
+        compile(with_failing_sibling).expect("two-target batch should admit");
     assert_eq!(with_failing_sibling.outcomes().len(), 2);
     let linux_with_sibling = with_failing_sibling.outcomes()[0]
         .report()
@@ -4686,7 +4703,7 @@ fn failing_sibling_does_not_change_successful_package_artifact_identity() {
     );
     assert_eq!(
         with_failing_sibling.outcomes()[1].target_profile(),
-        target::TargetProfile::UefiX64,
+        Some(target::TargetProfile::UefiX64),
     );
     assert!(
         with_failing_sibling.outcomes()[1]
@@ -5051,6 +5068,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             .with_package_inputs(accepted_inputs.clone())
             .with_requested_product(RequestedCompileProduct::TerminalArtifact),
         )
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .unwrap_or_else(|diagnostics| {
             panic!(
                 "exact accepted Console binding should reach retained Terminal: {diagnostics:#?}"
@@ -5402,6 +5420,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         ))
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("exact accepted Console binding should close Linux native realization");
     assert_eq!(
         report
@@ -5862,6 +5881,7 @@ machine Main::main(&mut self) {
             .with_package_inputs(inputs)
             .with_requested_product(RequestedCompileProduct::NativeArtifact),
         )
+        .and_then(compiler::CompileOutcomes::into_single_report)
     };
 
     let exit_package = identity(45);
@@ -5949,6 +5969,7 @@ machine Main::main(&mut self) {
         .with_terminal_authority_permission_policy(console_permission_policy)
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("package-aware ordinary process-exit fixture should compile");
     let evidence = exit
         .require_package_native_physical_evidence()

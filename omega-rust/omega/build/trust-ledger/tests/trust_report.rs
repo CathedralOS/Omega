@@ -40,6 +40,7 @@ fn modern_package_lock_does_not_settle_fresh_compiler_obligations() {
             })
             .with_accepted_trust_admissions(admissions),
         )
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .unwrap()
     };
     // Ordinary coordinator checks must still reject this non-exact settlement.
@@ -68,7 +69,8 @@ fn compile(
     let root_path = options.root_path.clone();
     let report = compiler::compile(
         compiler::CompileRequest::new(options).with_accepted_trust_admissions(admissions),
-    )?;
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)?;
     let settlement = report.trust_admission_settlement();
     if settlement.is_exactly_admitted() {
         assert!(!report.wrote_output());

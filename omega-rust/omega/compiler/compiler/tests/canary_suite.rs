@@ -68,7 +68,8 @@ fn production_compile(
         request = request.with_terminal_authority_permission_policy(permission_policy);
         request = request.with_package_inputs(package_inputs);
     }
-    let report = compiler::compile(request)?;
+    let report =
+        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
     match product {
         CanaryCompileProduct::Check => Ok(report),
         CanaryCompileProduct::NativeArtifactAndPublish => report
@@ -110,7 +111,8 @@ fn compile_with_artifact_policy(
         request = request.with_terminal_authority_permission_policy(permission_policy);
         request = request.with_package_inputs(package_inputs);
     }
-    let report = compiler::compile(request)?;
+    let report =
+        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
     match product {
         CanaryCompileProduct::Check => Ok(report),
         CanaryCompileProduct::NativeArtifactAndPublish => report
@@ -1709,7 +1711,8 @@ fn compile_native_canary_without_output(
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
-    );
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report);
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
@@ -1754,7 +1757,7 @@ fn compile_rooted_backend_canary_without_output_for_target(
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
-    let result = compiler::compile(request);
+    let result = compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report);
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
@@ -1778,7 +1781,7 @@ fn compile_rooted_backend_canary_without_output_for_target_and_permission_policy
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
-    let result = compiler::compile(request);
+    let result = compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report);
     let _ = fs::remove_dir_all(&build_dir);
     result
 }

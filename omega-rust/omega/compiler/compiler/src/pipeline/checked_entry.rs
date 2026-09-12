@@ -717,16 +717,6 @@ pub fn compile_to_checked(
     })
 }
 
-/// Run the ordinary checked frontend for the typed terminal-component handoff
-/// without consuming its caller-owned request or deployment authority.
-pub(crate) fn compile_to_checked_for_terminal(
-    options: &super::CompileOptions,
-    package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let prepared = PreparedCheckedSource::prepare(&options.root_path, package_inputs)?;
-    prepared.compile_for_terminal(options, package_inputs)
-}
-
 struct CheckedFrontend {
     typing: CheckedFrontendTyping,
     selected_target_machine_declarations:

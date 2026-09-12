@@ -106,17 +106,19 @@ machine build(builder: &mut Build) {
         target_name: Some("windows_x86_64".to_owned()),
     })
     .with_requested_product(RequestedCompileProduct::TerminalArtifact);
-    let report = compile(request).unwrap_or_else(|diagnostics| {
-        panic!(
-            "cyclic receiver publication failed; artifacts at {}:\n{}",
-            fixture.0.display(),
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n"),
-        )
-    });
+    let report = compile(request)
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "cyclic receiver publication failed; artifacts at {}:\n{}",
+                fixture.0.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            )
+        });
     let retained = report
         .into_retained_terminal_artifact()
         .expect("Terminal product");

@@ -5,7 +5,7 @@
 //! remain with their named owners.
 
 use diagnostics::Diagnostic;
-use request::ValidatedCompileRequest;
+use request::ValidatedTargetCompilation;
 use std::path::PathBuf;
 
 mod admission;
@@ -16,7 +16,6 @@ mod native_checked;
 mod optimization;
 mod options;
 mod package;
-mod targets;
 pub(crate) use compilation_report as report;
 mod request;
 mod terminal_authority_permissions;
@@ -34,8 +33,8 @@ pub use report::{
     ProductionCompilationManifestIdentity, ProductionCompilationSubject, RetainedNativeArtifact,
 };
 pub use request::{
-    CompileRequest, ExactTargetCompileOutcome, ExplicitTargetSet, MultiTargetCompileOutcomes,
-    MultiTargetCompileRequest, RequestedCompileProduct,
+    CompileOutcomes, CompileRequest, CompileTargetOutcome, ExplicitTargetSet,
+    RequestedCompileProduct, TargetCompileConfiguration,
 };
 pub use terminal_native_realization::{
     RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
@@ -52,62 +51,79 @@ impl Compiler {
         Self
     }
 
-    pub fn compile(self, request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
+    pub fn compile(self, request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnostic>> {
         execution::run_on_compile_thread(move || compile_request(request))
-    }
-
-    /// Compile one caller-supplied canonical target set while retaining every
-    /// exact child's ordinary result, including failures.
-    pub fn compile_targets(
-        self,
-        request: MultiTargetCompileRequest,
-    ) -> Result<MultiTargetCompileOutcomes, Vec<Diagnostic>> {
-        execution::run_on_compile_thread(move || targets::compile_targets(request))
     }
 }
 
 /// Execute one typed production compiler request.
-pub fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
+pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnostic>> {
     Compiler::new().compile(request)
-}
-
-/// Execute one explicit multi-target compiler request.
-pub fn compile_targets(
-    request: MultiTargetCompileRequest,
-) -> Result<MultiTargetCompileOutcomes, Vec<Diagnostic>> {
-    Compiler::new().compile_targets(request)
 }
 
 /// Drive the one production route and stop at the requested product.
 ///
 /// Check, Terminal Psi, and retained native artifacts share one checked-Psi
 /// frontend and differ only in how far the result proceeds.
-fn compile_request(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
-    let request = request.validate_for_execution()?;
-    compile_validated(request, None)
-}
-
-fn compile_validated(
-    request: ValidatedCompileRequest,
-    prepared: Option<&crate::pipeline::checked_entry::PreparedCheckedSource>,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    let (checked, trust_settlement) = check_request(&request, prepared)?;
-    let finalize_report =
-        |report: CompileReport| report.with_trust_admission_settlement(trust_settlement);
-    match request.requested_product() {
-        RequestedCompileProduct::Check => checked_report(request, &checked).map(finalize_report),
-        RequestedCompileProduct::TerminalArtifact => {
-            terminal_report(request, checked).map(finalize_report)
+fn compile_request(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnostic>> {
+    let mut request = request.validate_for_execution()?;
+    let prepared = crate::pipeline::checked_entry::PreparedCheckedSource::prepare(
+        &request.shared.root_path,
+        request
+            .targets
+            .first()
+            .and_then(ValidatedTargetCompilation::package_inputs),
+    );
+    let prepared = match prepared {
+        Ok(prepared) => prepared,
+        Err(diagnostics) => {
+            return Ok(CompileOutcomes::new(
+                request
+                    .targets
+                    .into_iter()
+                    .map(|target| {
+                        CompileTargetOutcome::new(target.profile, Err(diagnostics.clone()))
+                    })
+                    .collect(),
+            ));
         }
+    };
+    let finish: fn(
+        ValidatedTargetCompilation,
+        crate::pipeline::CheckedCompilation,
+    ) -> Result<CompileReport, Vec<Diagnostic>> = match request.shared.requested_product {
+        RequestedCompileProduct::Check => checked_report,
+        RequestedCompileProduct::TerminalArtifact => terminal_report,
         RequestedCompileProduct::NativeArtifact => {
-            native::compile(request, checked).map(finalize_report)
+            return native::compile_targets(request.targets, prepared);
         }
-    }
+    };
+    let last = request
+        .targets
+        .pop()
+        .ok_or_else(|| vec![Diagnostic::error("validated compilation lost every target")])?;
+    let compile_target = |target: ValidatedTargetCompilation, prepared| {
+        let profile = target.profile;
+        let result = check_request(&target, prepared).and_then(|(checked, trust_settlement)| {
+            finish(target, checked)
+                .map(|report| report.with_trust_admission_settlement(trust_settlement))
+        });
+        CompileTargetOutcome::new(profile, result)
+    };
+    let mut outcomes = request
+        .targets
+        .into_iter()
+        .map(|target| compile_target(target, prepared.clone()))
+        .collect::<Vec<_>>();
+    // The last (including only) child owns the frontier, allowing its underlying
+    // arenas to move rather than copying because of a retained coordinator owner.
+    outcomes.push(compile_target(last, prepared));
+    Ok(CompileOutcomes::new(outcomes))
 }
 
 fn check_request(
-    request: &ValidatedCompileRequest,
-    prepared: Option<&crate::pipeline::checked_entry::PreparedCheckedSource>,
+    request: &ValidatedTargetCompilation,
+    prepared: crate::pipeline::checked_entry::PreparedCheckedSource,
 ) -> Result<
     (
         crate::pipeline::CheckedCompilation,
@@ -115,15 +131,7 @@ fn check_request(
     ),
     Vec<Diagnostic>,
 > {
-    let checked = match prepared {
-        Some(prepared) => prepared
-            .clone()
-            .compile_for_terminal(request.options(), request.package_inputs())?,
-        None => crate::pipeline::checked_entry::compile_to_checked_for_terminal(
-            request.options(),
-            request.package_inputs(),
-        )?,
-    };
+    let checked = prepared.compile_for_terminal(request.options(), request.package_inputs())?;
     let admission = admit_checked_compilation(&checked, request.accepted_trust_admissions())?;
     admission.write_observations(request.options(), request.artifact_policy())?;
     let trust_settlement = admission.into_settlement();
@@ -131,10 +139,9 @@ fn check_request(
 }
 
 fn checked_report(
-    request: ValidatedCompileRequest,
-    checked: &crate::pipeline::CheckedCompilation,
+    request: ValidatedTargetCompilation,
+    checked: crate::pipeline::CheckedCompilation,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    let request = request.into_inner();
     CompileReport::checked(
         request.options.root_path,
         checked.source_file_count(),
@@ -146,17 +153,16 @@ fn checked_report(
 }
 
 fn terminal_report(
-    request: ValidatedCompileRequest,
+    request: ValidatedTargetCompilation,
     checked: crate::pipeline::CheckedCompilation,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    let request = request.into_inner();
-    let profile = request.terminal_admission_profile;
+    let profile = request.configuration.terminal_admission_profile;
     retained_terminal_report(
         request.options.root_path,
         checked,
         &profile,
         false,
-        &request.optimization_rollback,
+        &request.configuration.optimization_rollback,
     )
 }
 

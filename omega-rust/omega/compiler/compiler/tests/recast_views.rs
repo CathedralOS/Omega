@@ -54,6 +54,7 @@ fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
         })
         .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| panic!("{canary_rel} should compile:\n{diagnostics:#?}"));
     report
         .publish_retained_native_artifact(&build_dir)
@@ -104,6 +105,7 @@ fn compile_for_cross_targets(canary_rel: &str, tag: &str) {
             })
             .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
         )
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .unwrap_or_else(|diagnostics| {
             panic!(
                 "{canary_rel} should compile for {target}:\n{}",

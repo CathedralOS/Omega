@@ -391,7 +391,7 @@ machine Main::main(&mut self) {
         })
         .with_requested_product(RequestedCompileProduct::TerminalArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
-        compile(request)
+        compile(request).and_then(compiler::CompileOutcomes::into_single_report)
             .unwrap_or_else(|diagnostics| {
                 panic!(
                     "structured source-evaluated import should reach retained Terminal custody:\n{}",

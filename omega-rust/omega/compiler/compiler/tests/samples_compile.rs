@@ -158,6 +158,7 @@ fn compile_check(
 ) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
     let package_inputs = sample_package_inputs(&options.root_path);
     compiler::compile(compiler::CompileRequest::new(options).with_package_inputs(package_inputs))
+        .and_then(compiler::CompileOutcomes::into_single_report)
 }
 
 fn compile_native_and_publish(
@@ -183,7 +184,8 @@ fn compile_native_and_publish(
             .with_package_inputs(package_inputs)
             .with_terminal_authority_permission_policy(permission_policy)
             .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
-    )?;
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)?;
     report
         .publish_retained_native_artifact(&build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])

@@ -47,9 +47,11 @@ fn assert_selected_operator_terminal_call(canary: &Path, label: &str, through_sc
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
-    let report = compiler::compile(request).unwrap_or_else(|diagnostics| {
-        panic!("{label} should produce a canonical Terminal artifact: {diagnostics:#?}")
-    });
+    let report = compiler::compile(request)
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| {
+            panic!("{label} should produce a canonical Terminal artifact: {diagnostics:#?}")
+        });
     let retained = report
         .into_retained_terminal_artifact()
         .unwrap_or_else(|| panic!("{label} should retain its Terminal artifact"));
@@ -1325,6 +1327,7 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
         })
         .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("selected Fused root should produce a retained Terminal proposal");
     let artifact = report
         .artifact()
@@ -2288,6 +2291,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
         .with_requested_product(RequestedCompileProduct::TerminalArtifact)
         .with_package_inputs(package_inputs),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("Terminal product should retain its target-constrained native proposal");
     let retained = report
         .into_retained_terminal_artifact()
@@ -2540,6 +2544,7 @@ fn runtime_console_byte_sources_retain_checked_unit_plans_and_terminal_artifacts
             request = request.with_package_inputs(package_inputs);
         }
         compiler::compile(request)
+            .and_then(compiler::CompileOutcomes::into_single_report)
             .unwrap_or_else(|diagnostics| {
                 panic!("{fixture}: Terminal production failed: {diagnostics:#?}")
             })

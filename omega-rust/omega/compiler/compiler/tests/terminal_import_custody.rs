@@ -79,16 +79,18 @@ impl Drop for Fixture {
 #[test]
 fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
     let fixture = Fixture::new();
-    let report = compile(fixture.request()).unwrap_or_else(|diagnostics| {
-        panic!(
-            "ordinary evaluated import should reach Terminal custody:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    let report = compile(fixture.request())
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "ordinary evaluated import should reach Terminal custody:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     let retained = report
         .into_retained_terminal_artifact()
         .expect("Terminal report retains the native proposal");

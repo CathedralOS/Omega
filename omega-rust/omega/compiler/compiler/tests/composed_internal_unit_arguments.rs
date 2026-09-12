@@ -116,16 +116,18 @@ machine build(builder: &mut Build) {
     })
     .with_requested_product(RequestedCompileProduct::TerminalArtifact)
     .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
-    let report = compile(request).unwrap_or_else(|diagnostics| {
-        panic!(
-            "Unit call arguments must survive complete compiler publication:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n"),
-        )
-    });
+    let report = compile(request)
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "Unit call arguments must survive complete compiler publication:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            )
+        });
     let retained = report
         .into_retained_terminal_artifact()
         .expect("Terminal product");

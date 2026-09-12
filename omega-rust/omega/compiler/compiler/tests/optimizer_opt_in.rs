@@ -17,7 +17,8 @@ fn compile_native_and_publish(
     let report = compiler::compile(
         compiler::CompileRequest::new(options)
             .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
-    )?;
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)?;
     report
         .publish_retained_native_artifact(&build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])
@@ -27,6 +28,7 @@ fn compile_check(
     options: CompileOptions,
 ) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
     compiler::compile(compiler::CompileRequest::new(options))
+        .and_then(compiler::CompileOutcomes::into_single_report)
 }
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -279,6 +281,7 @@ fn return_only_identity_build_preserves_complete_native_evidence() {
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("identity fragment publication preserves complete native evidence");
     let artifact = report
         .retained_native_artifact()
@@ -320,6 +323,7 @@ fn return_only_selected_lowering_build_rejoins_native_artifact_production() {
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("the exact return-only selected-lowering cohort should reach native custody");
     let artifact = report
         .retained_native_artifact()
@@ -368,6 +372,7 @@ fn partial_rollback_routes_the_remaining_psi_selection_to_preterminal() {
                 .expect("the partial rollback request must be unique"),
         ),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect_err("an unported Psi pass must fail at its pre-Terminal owner");
     assert_eq!(diagnostics.len(), 1);
     assert!(
@@ -402,6 +407,7 @@ fn return_only_exact_subtract_rejoins_native_artifact_production() {
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("the exact return-only subtract selection should reach native custody");
     let artifact = report
         .retained_native_artifact()
@@ -822,6 +828,7 @@ fn terminal_product_routes_selected_psi_pass_to_preterminal_stage() {
         })
         .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect_err("an unported Psi pass must fail before Terminal publication");
     assert_eq!(diagnostics.len(), 1);
     assert!(
@@ -858,8 +865,11 @@ machine build(builder: &mut Build) {
     let identity = compiler::compile(request().with_optimization_rollback(
         OptimizationRollback::new([Optimization::DeadPureScalarElimination]).unwrap(),
     ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("rollback executes the identity stage");
-    let selected = compiler::compile(request()).expect("selected pre-Terminal pass executes");
+    let selected = compiler::compile(request())
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .expect("selected pre-Terminal pass executes");
     assert_eq!(
         identity.artifact().unwrap().semantic_bytes(),
         selected.artifact().unwrap().semantic_bytes(),
@@ -908,6 +918,7 @@ fn terminal_product_retains_the_exact_pending_physical_selection() {
         })
         .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("a physical selection remains pending after Terminal publication");
     let proposal = report
         .terminal_native_realization_proposal()

@@ -736,7 +736,7 @@ fn standalone_source_profile_analysis_stays_retired() {
 
 fn compiler_product_coordinator_source(root: &std::path::Path) -> String {
     let source = root.join("omega-rust/omega/compiler/compiler/src");
-    ["compiler.rs", "compiler/targets.rs"]
+    ["compiler.rs", "compiler/native/targets.rs"]
         .map(|path| std::fs::read_to_string(source.join(path)).expect("read product coordinator"))
         .join("\n")
 }
@@ -1411,8 +1411,8 @@ fn compile_request_owns_product_admission_before_source_acquisition() {
         .find("request.validate_for_execution()")
         .expect("driver must consume one validated request");
     let frontend = driver
-        .find("compile_to_checked_for_terminal(")
-        .expect("driver must retain one checked frontend call");
+        .find("PreparedCheckedSource::prepare(")
+        .expect("driver must prepare its shared source frontier");
     assert!(
         admission < frontend,
         "cross-field request admission must precede all source acquisition"
@@ -2554,15 +2554,15 @@ fn retained_native_product_enters_only_terminal_realization() {
     let request = std::fs::read_to_string(&request_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
     assert!(
-        driver.contains("check_request(&request, prepared)?;")
+        driver.contains("check_request(&request, source)")
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
-            && driver.contains("native::compile(request, checked).map(finalize_report)")
-            && driver.contains("super::native::prepare(request, checked)?")
+            && driver.contains("native::compile_targets(request.targets, prepared)")
+            && driver.contains("super::prepare(request, checked)")
             && native.contains("NativeCompilationWithCheckedReceipt::new(checked, report)"),
         "NativeArtifact must stop the canonical driver at native realization while retaining its exact checked/native invocation join"
     );
     assert_eq!(
-        driver.matches("compile_to_checked_for_terminal(").count(),
+        driver.matches("prepared.compile_for_terminal(").count(),
         1,
         "production products must share one checked-Psi frontend"
     );
