@@ -112,8 +112,15 @@ fn exercise_boundary_outcomes(
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
+    let normal = match root.result {
+        terminal_psi::TerminalMachineResult::Unit => TerminalEffectResult::Unit,
+        terminal_psi::TerminalMachineResult::Scalar(_) => {
+            TerminalEffectResult::Scalar(terminal_interpreter::TerminalScalarValue::Boolean(true))
+        }
+        _ => panic!("test expects Unit or Boolean result"),
+    };
     for returned in [
-        TerminalEffectResult::Unit,
+        normal,
         TerminalEffectResult::Crash(CrashCause::Abort),
         TerminalEffectResult::Crash(CrashCause::Trap),
     ] {
@@ -142,10 +149,14 @@ fn exercise_boundary_outcomes(
         let outcome = execution.resume_with_effect_handler(&mut meter, &mut handler);
         assert_eq!(handler.calls, 1);
         match returned {
-            TerminalEffectResult::Unit => {
+            TerminalEffectResult::Unit | TerminalEffectResult::Scalar(_) => {
+                let expected = match returned {
+                    TerminalEffectResult::Scalar(value) => TerminalExecutionResult::Scalar(value),
+                    _ => TerminalExecutionResult::Unit,
+                };
                 assert_eq!(
                     outcome.unwrap(),
-                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+                    TerminalExecutionStatus::Complete(expected)
                 );
                 assert_eq!(execution.live_claim_frontier().count(), 0);
             }
@@ -320,6 +331,13 @@ fn guarded_boundary_contracts_survive_attached_and_scalar_result_producers() {
             }
         "#,
         r#"
+            boundary trait Sink { machine record(value: u16) -> bool crashes Abort value == 0u16; }
+            data Root {}
+            machine Root::enter(value: u16) -> bool reaches Sink crashes Abort value == 0u16 {
+                Sink::record(value)
+            }
+        "#,
+        r#"
             boundary trait Sink { machine record(first: u16, second: u16) crashes Abort first == 0u16 && second == 7u16; }
             data Root {}
             machine Root::enter(left: u16, right: u16) reaches Sink crashes Abort right == 0u16 && left == 7u16 {
@@ -341,6 +359,13 @@ fn guarded_boundary_contracts_survive_attached_and_scalar_result_producers() {
             1
         );
         verify_roundtrip(&lowered);
+        if matches!(
+            lowered.semantic_module.machines[0].result,
+            terminal_psi::TerminalMachineResult::Scalar(_)
+        ) {
+            exercise_boundary_outcomes(&lowered, &[unsigned16(0)], true);
+            exercise_boundary_outcomes(&lowered, &[unsigned16(1)], false);
+        }
     }
 }
 

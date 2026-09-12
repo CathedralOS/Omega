@@ -326,6 +326,31 @@ fn build_machine_graph(
                 .count();
             let terminator =
                 checked_terminator(program, machine, state, expressions, binding_count)?;
+            // Call syntax at a return is not a scalar-graph value producer.
+            // Calls owned by the operation sequence (including boundaries)
+            // must not acquire a competing graph with an unbound return.
+            if let CheckedScalarStateTerminator::Return { statement_ordinal } = &terminator
+                && matches!(statements.get(*statement_ordinal as usize),
+                    Some(StatementNode::Expression(expression)) if matches!(
+                        program.expression_table.expression(*expression),
+                        typed_trees::expression::ExpressionNode::Call(_)))
+                && expressions
+                    .expression_at(
+                        state.symbol,
+                        *statement_ordinal,
+                        checked_trees::CheckedScalarExpressionRole::Return,
+                    )
+                    .is_none()
+                && computations
+                    .root_at(
+                        state.symbol,
+                        *statement_ordinal,
+                        checked_trees::CheckedScalarExpressionRole::Return,
+                    )
+                    .is_none()
+            {
+                return None;
+            }
             Some((
                 CheckedScalarStateGraph {
                     state: state.symbol,
