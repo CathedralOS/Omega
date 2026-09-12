@@ -13,7 +13,10 @@ use syntax_trees::item::{Item, ItemHandle};
 use tokens::{Token, TokenStream, TokenText};
 
 mod import_bindings;
-pub(super) use import_bindings::retain_module_import_bindings;
+use import_bindings::{ImportOccurrence, direct_source_import};
+pub(super) use import_bindings::{
+    PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LoadedSource {
@@ -210,10 +213,11 @@ pub fn parse_sources(
 
 /// Discover standalone imports without interpreting dependency declarations.
 /// Package aliases are meaningful only on the reconciled package-aware path.
-pub fn discover_imports(
+pub(super) fn discover_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     root_path: &Path,
+    retained: &mut Vec<ResolvedSourceImport>,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
     let root_dir = root_path
         .parent()
@@ -224,36 +228,31 @@ pub fn discover_imports(
 
     for parsed_source in parsed_sources {
         let source_root = standalone_source_root(&root_dir, &parsed_source.path);
-        for root_item in &parsed_source.root_items {
+        for (ordinal, root_item) in parsed_source.root_items.iter().enumerate() {
             if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
                 let members = syntax_trees.items.identifier_path_members(use_item.path);
-                imports.push(normalize_path(&resolve_source_path(&source_root, members))?);
+                let resolved = normalize_path(&resolve_source_path(&source_root, members))?;
+                let prefix = if is_bundled_omega_path(members) { 2 } else { 0 };
+                let owner = if prefix == 2 {
+                    bundled_omega_root()
+                } else {
+                    source_root.clone()
+                };
+                retained.push(ResolvedSourceImport {
+                    occurrence: ImportOccurrence::new(
+                        parsed_source.source_id,
+                        ordinal,
+                        members,
+                        prefix,
+                    ),
+                    requires_module: !direct_source_import(&owner, &members[prefix..], &resolved),
+                    path: resolved.clone(),
+                });
+                imports.push(resolved);
             }
         }
     }
 
-    Ok(imports)
-}
-
-pub(super) fn discover_unconditional_imports(
-    parsed: &ParsedSources,
-    syntax_trees: &SyntaxTrees,
-    root_path: &Path,
-) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-    let root_dir = root_path
-        .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
-    let mut imports = Vec::new();
-    for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
-        let source_root = standalone_source_root(&root_dir, &parsed_source.path);
-        for root_item in &parsed_source.root_items {
-            if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
-                let members = syntax_trees.items.identifier_path_members(use_item.path);
-                imports.push(normalize_path(&resolve_source_path(&source_root, members))?);
-            }
-        }
-    }
     Ok(imports)
 }
 
@@ -430,72 +429,99 @@ pub(super) fn reconciled_package_import(
 
 /// Resolve imports exclusively through a reconciled, requester-local package
 /// graph. This path never reads or combines dependency rows from `build.omg`.
-pub fn discover_imports_with_packages(
+pub(super) fn discover_imports_with_packages(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     packages: &PackageCompilationInputs,
+    generated_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
+    retained: &mut Vec<ResolvedSourceImport>,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-    let parsed_sources = parsed.sources.span_or_empty(parsed.batch);
-    let mut imports = Vec::with_capacity(parsed_sources.len());
-
-    for parsed_source in parsed_sources {
-        let canonical_source = parsed_source.path.canonicalize().ok();
-        let requester = canonical_source
-            .as_deref()
-            .and_then(|source| packages.package_for_source(source))
-            .or_else(|| {
-                packages
-                    .is_generated_source_logical_path(&parsed_source.path)
-                    .then(|| packages.package_for_source(&parsed_source.path))
-                    .flatten()
-            });
-
-        for root_item in &parsed_source.root_items {
-            if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
-                let members = syntax_trees.items.identifier_path_members(use_item.path);
-                match reconciled_package_import(&parsed_source.path, members, requester, packages)?
-                {
-                    ReconciledPackageImport::Toolchain(imported) => imports.push(imported),
-                    ReconciledPackageImport::Package(request) => {
-                        imports.push(request.resolve_for_exact_target(packages)?)
-                    }
-                }
-            }
-        }
-    }
-
+    let (imports, _) = discover_package_imports(
+        parsed,
+        syntax_trees,
+        packages,
+        PackageImportPhase::ExactTarget(generated_owner),
+        retained,
+    )?;
     Ok(imports)
 }
 
-pub(super) fn discover_unconditional_imports_with_packages(
+pub(super) enum PackageImportPhase {
+    TargetIndependent,
+    ExactTarget(Option<semantic_vocabulary::PackageKeyIdentity>),
+}
+
+/// Retain package requests until the exact child checks generated-source collisions.
+pub(super) fn discover_package_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     packages: &PackageCompilationInputs,
-) -> Result<(Vec<PathBuf>, Vec<ReconciledPackageImportRequest>), Vec<Diagnostic>> {
+    phase: PackageImportPhase,
+    retained: &mut Vec<ResolvedSourceImport>,
+) -> Result<(Vec<PathBuf>, Vec<PendingPackageImport>), Vec<Diagnostic>> {
+    let generated_owner = match phase {
+        PackageImportPhase::TargetIndependent => None,
+        PackageImportPhase::ExactTarget(owner) => owner,
+    };
     let mut imports = Vec::new();
-    let mut retained_requests = Vec::new();
+    let mut requests = Vec::new();
     for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
-        let canonical_source = parsed_source.path.canonicalize().ok();
-        let requester = canonical_source
-            .as_deref()
-            .and_then(|source| packages.package_for_source(source));
-        for root_item in &parsed_source.root_items {
+        // Physical loaders normalize paths. Generated producers already own the
+        // package association; their virtual paths need no filesystem lookup.
+        let requester =
+            generated_owner.or_else(|| packages.package_for_source(&parsed_source.path));
+        for (ordinal, root_item) in parsed_source.root_items.iter().enumerate() {
             let Item::Use(use_item) = syntax_trees.root_item(*root_item) else {
                 continue;
             };
             let members = syntax_trees.items.identifier_path_members(use_item.path);
             match reconciled_package_import(&parsed_source.path, members, requester, packages)? {
-                ReconciledPackageImport::Toolchain(imported) => imports.push(imported),
+                ReconciledPackageImport::Toolchain(path) => {
+                    retained.push(ResolvedSourceImport {
+                        occurrence: ImportOccurrence::new(
+                            parsed_source.source_id,
+                            ordinal,
+                            members,
+                            2,
+                        ),
+                        requires_module: !direct_source_import(
+                            &bundled_omega_root(),
+                            &members[2..],
+                            &path,
+                        ),
+                        path: path.clone(),
+                    });
+                    imports.push(path);
+                }
                 ReconciledPackageImport::Package(request) => {
-                    if let Some(physical) = request.physical_source()? {
-                        imports.push(physical);
+                    let prefix = members.len() - request.relative_path.components().count();
+                    let pending = PendingPackageImport {
+                        occurrence: ImportOccurrence::new(
+                            parsed_source.source_id,
+                            ordinal,
+                            members,
+                            prefix,
+                        ),
+                        request,
+                    };
+                    match phase {
+                        PackageImportPhase::TargetIndependent => {
+                            if let Some(physical) = pending.physical_source()? {
+                                imports.push(physical);
+                            }
+                            requests.push(pending);
+                        }
+                        PackageImportPhase::ExactTarget(_) => {
+                            let resolved = pending.resolve_for_exact_target(packages)?;
+                            imports.push(resolved.path.clone());
+                            retained.push(resolved);
+                        }
                     }
-                    retained_requests.push(request);
                 }
             }
         }
     }
-    Ok((imports, retained_requests))
+    Ok((imports, requests))
 }
 
 pub fn extend_source_storage(
@@ -528,100 +554,6 @@ fn own_token_stream(tokens: TokenStream<'_>, source: &Arc<str>) -> TokenStream<'
             })
             .collect(),
     )
-}
-
-#[cfg(test)]
-mod token_retention_tests {
-    use super::own_token_stream;
-    use crate::lexer;
-    use source::Span;
-    use std::sync::Arc;
-    use tokens::{Token, TokenKind, TokenStream, TokenText};
-
-    #[test]
-    fn retention_moves_decoded_literal_allocations_and_preserves_tokens() {
-        let source: Arc<str> = Arc::from(r#"name "line\ntext" "\xFF\0""#);
-        let tokens = lexer::Lexer::new(&source)
-            .tokenize()
-            .expect("lex literal fixture");
-        let expected = tokens
-            .iter()
-            .map(|token| (token.kind, token.span, token.lexeme.as_bytes().to_vec()))
-            .collect::<Vec<_>>();
-        let decoded_allocations = tokens
-            .iter()
-            .filter(|token| token.is_string_literal())
-            .map(|token| token.lexeme.as_bytes().as_ptr())
-            .collect::<Vec<_>>();
-        assert_eq!(decoded_allocations.len(), 2);
-        let owned = own_token_stream(tokens, &source);
-        let actual = owned
-            .iter()
-            .map(|token| (token.kind, token.span, token.lexeme.as_bytes().to_vec()))
-            .collect::<Vec<_>>();
-        assert_eq!(actual, expected);
-        let literals = owned
-            .iter()
-            .filter(|token| token.is_string_literal())
-            .collect::<Vec<_>>();
-        assert!(matches!(literals[0].lexeme, TokenText::Owned(_)));
-        assert!(matches!(literals[1].lexeme, TokenText::OwnedBytes(_)));
-        assert_eq!(literals[0].lexeme.as_bytes(), b"line\ntext");
-        assert_eq!(literals[1].lexeme.as_bytes(), &[255, 0]);
-        for (literal, allocation) in literals.iter().zip(decoded_allocations) {
-            assert_eq!(literal.lexeme.as_bytes().as_ptr(), allocation);
-        }
-    }
-
-    #[test]
-    fn retained_token_keeps_source_alive_after_stream_and_owner_drop() {
-        let source: Arc<str> = Arc::from("name");
-        let weak_source = Arc::downgrade(&source);
-        let tokens = lexer::Lexer::new(&source)
-            .tokenize()
-            .expect("lex identifier");
-        let owned = own_token_stream(tokens, &source);
-        let retained = owned[0].clone();
-        assert_eq!(retained.lexeme.as_bytes().as_ptr(), source.as_ptr());
-        drop(owned);
-        drop(source);
-        assert!(weak_source.upgrade().is_some());
-        assert_eq!(retained.lexeme, "name");
-        drop(retained);
-        assert!(weak_source.upgrade().is_none());
-    }
-
-    #[test]
-    fn retention_preserves_existing_shared_owner_and_owned_byte_storage() {
-        let source: Arc<str> = Arc::from("different source");
-        let existing: Arc<str> = Arc::from("shared text");
-        let shared_pointer = existing.as_ptr();
-        let weak_existing = Arc::downgrade(&existing);
-        let bytes = b"valid utf8 bytes".to_vec();
-        let bytes_pointer = bytes.as_ptr();
-        let tokens = TokenStream::new(vec![
-            Token {
-                kind: TokenKind::Identifier,
-                lexeme: TokenText::Shared {
-                    source: existing,
-                    span: Span::new(0, 6),
-                },
-                span: Span::new(0, 6),
-            },
-            Token {
-                kind: TokenKind::StringLiteral,
-                lexeme: TokenText::OwnedBytes(bytes),
-                span: Span::new(7, 10),
-            },
-        ]);
-        let owned = own_token_stream(tokens, &source);
-        assert_eq!(owned[0].lexeme.as_bytes().as_ptr(), shared_pointer);
-        assert_eq!(weak_existing.strong_count(), 1);
-        assert_eq!(owned[1].lexeme.as_bytes().as_ptr(), bytes_pointer);
-        assert!(matches!(owned[1].lexeme, TokenText::OwnedBytes(_)));
-        drop(owned);
-        assert!(weak_existing.upgrade().is_none());
-    }
 }
 
 fn resolve_source_path(root_dir: &Path, source_path: &[Identifier]) -> PathBuf {
@@ -761,4 +693,98 @@ fn source_import_candidates(relative_path: &Path) -> Vec<PathBuf> {
         prefix = path.parent();
     }
     candidates
+}
+
+#[cfg(test)]
+mod token_retention_tests {
+    use super::own_token_stream;
+    use crate::lexer;
+    use source::Span;
+    use std::sync::Arc;
+    use tokens::{Token, TokenKind, TokenStream, TokenText};
+
+    #[test]
+    fn retention_moves_decoded_literal_allocations_and_preserves_tokens() {
+        let source: Arc<str> = Arc::from(r#"name "line\ntext" "\xFF\0""#);
+        let tokens = lexer::Lexer::new(&source)
+            .tokenize()
+            .expect("lex literal fixture");
+        let expected = tokens
+            .iter()
+            .map(|token| (token.kind, token.span, token.lexeme.as_bytes().to_vec()))
+            .collect::<Vec<_>>();
+        let decoded_allocations = tokens
+            .iter()
+            .filter(|token| token.is_string_literal())
+            .map(|token| token.lexeme.as_bytes().as_ptr())
+            .collect::<Vec<_>>();
+        assert_eq!(decoded_allocations.len(), 2);
+        let owned = own_token_stream(tokens, &source);
+        let actual = owned
+            .iter()
+            .map(|token| (token.kind, token.span, token.lexeme.as_bytes().to_vec()))
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected);
+        let literals = owned
+            .iter()
+            .filter(|token| token.is_string_literal())
+            .collect::<Vec<_>>();
+        assert!(matches!(literals[0].lexeme, TokenText::Owned(_)));
+        assert!(matches!(literals[1].lexeme, TokenText::OwnedBytes(_)));
+        assert_eq!(literals[0].lexeme.as_bytes(), b"line\ntext");
+        assert_eq!(literals[1].lexeme.as_bytes(), &[255, 0]);
+        for (literal, allocation) in literals.iter().zip(decoded_allocations) {
+            assert_eq!(literal.lexeme.as_bytes().as_ptr(), allocation);
+        }
+    }
+
+    #[test]
+    fn retained_token_keeps_source_alive_after_stream_and_owner_drop() {
+        let source: Arc<str> = Arc::from("name");
+        let weak_source = Arc::downgrade(&source);
+        let tokens = lexer::Lexer::new(&source)
+            .tokenize()
+            .expect("lex identifier");
+        let owned = own_token_stream(tokens, &source);
+        let retained = owned[0].clone();
+        assert_eq!(retained.lexeme.as_bytes().as_ptr(), source.as_ptr());
+        drop(owned);
+        drop(source);
+        assert!(weak_source.upgrade().is_some());
+        assert_eq!(retained.lexeme, "name");
+        drop(retained);
+        assert!(weak_source.upgrade().is_none());
+    }
+
+    #[test]
+    fn retention_preserves_existing_shared_owner_and_owned_byte_storage() {
+        let source: Arc<str> = Arc::from("different source");
+        let existing: Arc<str> = Arc::from("shared text");
+        let shared_pointer = existing.as_ptr();
+        let weak_existing = Arc::downgrade(&existing);
+        let bytes = b"valid utf8 bytes".to_vec();
+        let bytes_pointer = bytes.as_ptr();
+        let tokens = TokenStream::new(vec![
+            Token {
+                kind: TokenKind::Identifier,
+                lexeme: TokenText::Shared {
+                    source: existing,
+                    span: Span::new(0, 6),
+                },
+                span: Span::new(0, 6),
+            },
+            Token {
+                kind: TokenKind::StringLiteral,
+                lexeme: TokenText::OwnedBytes(bytes),
+                span: Span::new(7, 10),
+            },
+        ]);
+        let owned = own_token_stream(tokens, &source);
+        assert_eq!(owned[0].lexeme.as_bytes().as_ptr(), shared_pointer);
+        assert_eq!(weak_existing.strong_count(), 1);
+        assert_eq!(owned[1].lexeme.as_bytes().as_ptr(), bytes_pointer);
+        assert!(matches!(owned[1].lexeme, TokenText::OwnedBytes(_)));
+        drop(owned);
+        assert!(weak_existing.upgrade().is_none());
+    }
 }

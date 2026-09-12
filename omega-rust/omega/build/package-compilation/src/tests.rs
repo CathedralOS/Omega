@@ -740,6 +740,171 @@ fn duplicate_aliases_and_unreachable_rows_reject() {
 }
 
 #[test]
+fn package_records_retain_complete_custody_and_requester_local_edges() {
+    let tree = TempTree::new();
+    let root_path = tree.package("root");
+    let leaf_path = tree.package("leaf");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&root_path, fs::Permissions::from_mode(0o555))
+            .expect("seal canonical metadata root");
+    }
+    let root = PackageSourceBinding::new(identity(1), "root", root_path.clone())
+        .with_canonical_source_metadata()
+        .expect("capture root custody");
+    let metadata = root.canonical_source_metadata().cloned();
+    let packages = vec![
+        PackageSourceBinding::new(identity(2), "leaf", leaf_path.clone()),
+        root,
+    ];
+    let dependencies = vec![PackageDependencyBinding::new(
+        identity(1),
+        "leaf",
+        identity(2),
+    )];
+    let inputs =
+        PackageCompilationInputs::new_package(identity(1), packages.clone(), dependencies.clone())
+            .expect("complete records form a closed graph");
+    let mut reordered = packages;
+    reordered.reverse();
+    let independent = PackageCompilationInputs::new_package(identity(1), reordered, dependencies)
+        .expect("source record construction is input-order independent");
+    assert_eq!(inputs.source_inputs(), independent.source_inputs());
+    assert!(!Arc::ptr_eq(
+        &inputs.source_inputs(),
+        &independent.source_inputs()
+    ));
+    assert_eq!(inputs.source.packages.len(), 2);
+    let root_record = &inputs.source.packages[&identity(1)];
+    assert_eq!(root_record.source_root, root_path.canonicalize().unwrap());
+    assert_eq!(root_record.canonical_name, "root");
+    assert_eq!(root_record.canonical_source_metadata, metadata);
+    assert_eq!(root_record.dependencies.get("leaf"), Some(&identity(2)));
+    let leaf_record = &inputs.source.packages[&identity(2)];
+    assert_eq!(leaf_record.source_root, leaf_path.canonicalize().unwrap());
+    assert_eq!(leaf_record.canonical_name, "leaf");
+    assert!(leaf_record.canonical_source_metadata.is_none());
+    assert!(leaf_record.dependencies.is_empty());
+    assert_eq!(
+        inputs.dependency_closure_for(identity(2)).packages(),
+        &[identity(2)]
+    );
+    assert!(
+        inputs
+            .dependency_closure_for(identity(2))
+            .dependencies()
+            .is_empty()
+    );
+    assert_eq!(inputs.dependency_target(identity(2), "leaf"), None);
+}
+
+#[test]
+fn ancestor_root_validation_preserves_every_overlap_in_pairwise_order() {
+    let tree = TempTree::new();
+    let paths = [
+        "a",
+        "a/deep",
+        "a/deep/leaf",
+        "a/sibling",
+        "a-sibling",
+        "ab",
+        "z",
+    ];
+    let mut roots = BTreeMap::new();
+    let mut packages = Vec::new();
+    let mut dependencies = Vec::new();
+    for (position, relative) in paths.iter().enumerate() {
+        let package = identity(u8::try_from(position + 1).unwrap());
+        let path = tree.0.join(relative);
+        fs::create_dir_all(&path).expect("create nested and disjoint package roots");
+        roots.insert(path.canonicalize().unwrap(), package);
+        packages.push(PackageSourceBinding::new(
+            package,
+            format!("package-{position}"),
+            path,
+        ));
+        if position > 0 {
+            dependencies.push(PackageDependencyBinding::new(
+                identity(1),
+                format!("child_{position}"),
+                package,
+            ));
+        }
+    }
+    let rows = roots.iter().collect::<Vec<_>>();
+    let mut expected = Vec::new();
+    for (position, (first_root, first)) in rows.iter().enumerate() {
+        for (second_root, second) in rows.iter().skip(position + 1) {
+            if first_root.starts_with(second_root) || second_root.starts_with(first_root) {
+                expected.push(PackageCompilationInputError::OverlappingSourceRoots {
+                    first: **first,
+                    first_root: (*first_root).clone(),
+                    second: **second,
+                    second_root: (*second_root).clone(),
+                });
+            }
+        }
+    }
+    assert_eq!(
+        expected.len(),
+        4,
+        "all nested ancestors, no textual-prefix siblings"
+    );
+    packages.reverse();
+    let errors = PackageCompilationInputs::new_package(identity(1), packages, dependencies)
+        .expect_err("nested source custody rejects");
+    assert_eq!(errors, expected);
+}
+
+#[test]
+fn ancestor_root_validation_accepts_many_component_disjoint_siblings() {
+    let roots = (1..=200u8)
+        .map(|marker| {
+            (
+                std::env::temp_dir().join(format!("package-{marker}")),
+                identity(marker),
+            )
+        })
+        .collect();
+    let mut errors = Vec::new();
+    append_overlapping_source_roots(&roots, &mut errors);
+    assert!(errors.is_empty());
+}
+
+#[cfg(windows)]
+#[test]
+fn ancestor_root_validation_respects_windows_volume_and_share_prefixes() {
+    let roots = [
+        (r"\\?\C:\packages", identity(1)),
+        (r"\\?\C:\packages\child", identity(2)),
+        (r"\\?\D:\packages\child", identity(3)),
+        (r"\\?\UNC\server\share\packages", identity(4)),
+        (r"\\?\UNC\server\share\packages\child", identity(5)),
+        (r"\\?\UNC\server\other\packages\child", identity(6)),
+    ]
+    .into_iter()
+    .map(|(path, package)| (PathBuf::from(path), package))
+    .collect();
+    let mut errors = Vec::new();
+    append_overlapping_source_roots(&roots, &mut errors);
+    let mut pairs = errors
+        .iter()
+        .map(|error| match error {
+            PackageCompilationInputError::OverlappingSourceRoots { first, second, .. } => {
+                (*first, *second)
+            }
+            other => panic!("unexpected root validation error: {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    pairs.sort_unstable();
+    assert_eq!(
+        pairs,
+        vec![(identity(1), identity(2)), (identity(4), identity(5))]
+    );
+}
+
+#[test]
 fn overlapping_roots_and_cycles_reject() {
     let tree = TempTree::new();
     let root = tree.package("root");
@@ -849,8 +1014,10 @@ fn complete_generated_source_bundles_bind_owner_closure_target_and_bytes() {
             .join(".omega/generated/generated_api.omg")
     );
     let retained = inputs
-        .generated_source_at_logical_path(&logical)
-        .expect("logical generated path should recover retained bytes");
+        .dependency_generated_source_bundles()
+        .find(|bundle| bundle.package() == identity(2))
+        .and_then(|bundle| bundle.sources().first())
+        .expect("exact package bundle retains its generated bytes");
     assert_eq!(retained.relative_path(), b"generated_api.omg");
     assert_eq!(
         retained.bytes(),

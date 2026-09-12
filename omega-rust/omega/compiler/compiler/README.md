@@ -99,8 +99,12 @@ trusted catalog, and rejects wildcards, empty or unknown selections. It neither
 infers targets nor certifies platform support.
 
 [Source preparation](src/pipeline/source_assembly/checkpoint.rs) retains immutable
-physical sources, unconditional imports and parse results once. Its package
-source-input projection includes root roles, exact package identities/names,
+physical sources, unconditional imports and parse results once. Import discovery
+retains each authored occurrence's resolved destination and module requirement;
+symbol binding joins those destinations to parsed source IDs without reopening
+the filesystem. Package destinations settle in the exact child, retaining
+physical/generated collision checks. Generated-source producers carry their
+package owner directly into discovery. Its package source-input projection includes root roles, exact package identities/names,
 physical roots, build-visible metadata and requester-local dependencies. It is
 a private checkpoint equality guard, not durable package identity or a receipt.
 The invocation owns this source graph once; target configurations retain only

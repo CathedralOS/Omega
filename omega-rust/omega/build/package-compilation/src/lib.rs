@@ -249,7 +249,7 @@ impl PackageDependencyClosure {
                 .insert(dependency.alias.clone(), dependency.target);
         }
 
-        if reachable_packages(root, &adjacency) != package_set {
+        if reachable_packages(root, |package| adjacency.get(&package)) != package_set {
             return Err("package dependency closure contains an unreachable package");
         }
         if dependency_cycle_in_set(&package_set, &adjacency) {
@@ -296,10 +296,16 @@ pub struct PackageCompilationTargetInputs {
 pub struct PackageCompilationSourceInputs {
     root: PackageKeyIdentity,
     root_role: BuildDeclarationKind,
-    packages: BTreeMap<PackageKeyIdentity, PathBuf>,
-    package_names: BTreeMap<PackageKeyIdentity, String>,
-    canonical_source_metadata: BTreeMap<PackageKeyIdentity, CanonicalFilesystemMetadataIndex>,
-    dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
+    packages: BTreeMap<PackageKeyIdentity, PackageCompilationSourceRecord>,
+}
+
+/// Source custody and requester-local routing owned by one package identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PackageCompilationSourceRecord {
+    source_root: PathBuf,
+    canonical_name: String,
+    canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
+    dependencies: BTreeMap<String, PackageKeyIdentity>,
 }
 
 impl PackageCompilationInputs {
@@ -314,8 +320,6 @@ impl PackageCompilationInputs {
             errors.push(PackageCompilationInputError::InvalidRootRole { role: root_role });
         }
         let mut canonical_packages = BTreeMap::new();
-        let mut canonical_names = BTreeMap::new();
-        let mut canonical_source_metadata = BTreeMap::new();
         let mut roots = BTreeMap::<PathBuf, PackageKeyIdentity>::new();
 
         for package in packages {
@@ -359,16 +363,20 @@ impl PackageCompilationInputs {
             }
 
             if canonical_packages
-                .insert(package.identity, canonical_root.clone())
+                .insert(
+                    package.identity,
+                    PackageCompilationSourceRecord {
+                        source_root: canonical_root.clone(),
+                        canonical_name: package.canonical_name,
+                        canonical_source_metadata: package.canonical_source_metadata,
+                        dependencies: BTreeMap::new(),
+                    },
+                )
                 .is_some()
             {
                 errors.push(PackageCompilationInputError::DuplicatePackageIdentity {
                     identity: package.identity,
                 });
-            }
-            canonical_names.insert(package.identity, package.canonical_name);
-            if let Some(metadata) = package.canonical_source_metadata {
-                canonical_source_metadata.insert(package.identity, metadata);
             }
             if let Some(first) = roots.insert(canonical_root.clone(), package.identity) {
                 errors.push(PackageCompilationInputError::DuplicateSourceRoot {
@@ -379,26 +387,12 @@ impl PackageCompilationInputs {
             }
         }
 
-        let root_rows = roots.iter().collect::<Vec<_>>();
-        for (index, (left_root, left_identity)) in root_rows.iter().enumerate() {
-            for (right_root, right_identity) in root_rows.iter().skip(index + 1) {
-                if left_root.starts_with(right_root) || right_root.starts_with(left_root) {
-                    errors.push(PackageCompilationInputError::OverlappingSourceRoots {
-                        first: **left_identity,
-                        first_root: (*left_root).clone(),
-                        second: **right_identity,
-                        second_root: (*right_root).clone(),
-                    });
-                }
-            }
-        }
+        append_overlapping_source_roots(&roots, &mut errors);
 
         if !canonical_packages.contains_key(&root) {
             errors.push(PackageCompilationInputError::MissingRootPackage { root });
         }
 
-        let mut canonical_dependencies =
-            BTreeMap::<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>::new();
         for dependency in dependencies {
             if !is_snake_case(&dependency.alias) {
                 errors.push(PackageCompilationInputError::InvalidAlias {
@@ -422,9 +416,10 @@ impl PackageCompilationInputs {
                 continue;
             }
 
-            let aliases = canonical_dependencies
-                .entry(dependency.requester)
-                .or_default();
+            let Some(requester) = canonical_packages.get_mut(&dependency.requester) else {
+                continue;
+            };
+            let aliases = &mut requester.dependencies;
             if aliases
                 .insert(dependency.alias.clone(), dependency.target)
                 .is_some()
@@ -437,7 +432,11 @@ impl PackageCompilationInputs {
         }
 
         if canonical_packages.contains_key(&root) {
-            let reachable = reachable_packages(root, &canonical_dependencies);
+            let reachable = reachable_packages(root, |package| {
+                canonical_packages
+                    .get(&package)
+                    .map(|record| &record.dependencies)
+            });
             for identity in canonical_packages.keys() {
                 if !reachable.contains(identity) {
                     errors.push(PackageCompilationInputError::UnreachablePackage {
@@ -447,7 +446,7 @@ impl PackageCompilationInputs {
             }
         }
 
-        if let Some(cycle) = dependency_cycle(&canonical_packages, &canonical_dependencies) {
+        if let Some(cycle) = dependency_cycle(&canonical_packages) {
             errors.push(PackageCompilationInputError::DependencyCycle { cycle });
         }
 
@@ -457,9 +456,6 @@ impl PackageCompilationInputs {
                     root,
                     root_role,
                     packages: canonical_packages,
-                    package_names: canonical_names,
-                    canonical_source_metadata,
-                    dependencies: canonical_dependencies,
                 }),
                 target: PackageCompilationTargetInputs::default(),
             })
@@ -487,25 +483,35 @@ impl PackageCompilationInputs {
     }
 
     pub fn package_root(&self, identity: PackageKeyIdentity) -> Option<&Path> {
-        self.source.packages.get(&identity).map(PathBuf::as_path)
+        self.source
+            .packages
+            .get(&identity)
+            .map(|record| record.source_root.as_path())
     }
 
     pub fn package_name(&self, identity: PackageKeyIdentity) -> Option<&str> {
-        self.source.package_names.get(&identity).map(String::as_str)
+        self.source
+            .packages
+            .get(&identity)
+            .map(|record| record.canonical_name.as_str())
     }
 
     pub fn canonical_source_metadata(
         &self,
         identity: PackageKeyIdentity,
     ) -> Option<&CanonicalFilesystemMetadataIndex> {
-        self.source.canonical_source_metadata.get(&identity)
+        self.source
+            .packages
+            .get(&identity)?
+            .canonical_source_metadata
+            .as_ref()
     }
 
     pub fn packages(&self) -> impl Iterator<Item = (PackageKeyIdentity, &Path)> {
         self.source
             .packages
             .iter()
-            .map(|(identity, root)| (*identity, root.as_path()))
+            .map(|(identity, record)| (*identity, record.source_root.as_path()))
     }
 
     /// Share the exact target-independent source-routing inputs. Equality remains
@@ -553,14 +559,12 @@ impl PackageCompilationInputs {
     pub fn dependencies(
         &self,
     ) -> impl Iterator<Item = (PackageKeyIdentity, &str, PackageKeyIdentity)> {
-        self.source
-            .dependencies
-            .iter()
-            .flat_map(|(requester, aliases)| {
-                aliases
-                    .iter()
-                    .map(|(alias, target)| (*requester, alias.as_str(), *target))
-            })
+        self.source.packages.iter().flat_map(|(requester, record)| {
+            record
+                .dependencies
+                .iter()
+                .map(|(alias, target)| (*requester, alias.as_str(), *target))
+        })
     }
 
     /// Attach the complete consumer-policy semantic bindings admitted for this
@@ -723,9 +727,7 @@ impl PackageCompilationInputs {
                     return Err("generated-source import resolves to more than one handoff");
                 }
                 matched = Some(generated_source_logical_path(
-                    self.source
-                        .packages
-                        .get(&package)
+                    self.package_root(package)
                         .expect("validated bundle package retains its source root"),
                     &relative,
                 ));
@@ -734,31 +736,14 @@ impl PackageCompilationInputs {
         Ok(matched)
     }
 
-    pub(crate) fn generated_source_at_logical_path(
-        &self,
-        path: &Path,
-    ) -> Option<&PackageGeneratedSource> {
-        self.target
-            .dependency_generated_sources
-            .iter()
-            .find_map(|(package, bundle)| {
-                let root = self.source.packages.get(package)?;
-                bundle.sources().iter().find(|source| {
-                    generated_source_relative_path(source).is_ok_and(|relative| {
-                        generated_source_logical_path(root, &relative) == path
-                    })
-                })
-            })
-    }
-
-    #[doc(hidden)]
-    pub fn is_generated_source_logical_path(&self, path: &Path) -> bool {
-        self.generated_source_at_logical_path(path).is_some()
-    }
-
     #[doc(hidden)]
     pub fn dependency_closure_for(&self, root: PackageKeyIdentity) -> PackageDependencyClosure {
-        let reachable = reachable_packages(root, &self.source.dependencies);
+        let reachable = reachable_packages(root, |package| {
+            self.source
+                .packages
+                .get(&package)
+                .map(|record| &record.dependencies)
+        });
         PackageDependencyClosure {
             root,
             root_role: if root == self.source.root {
@@ -792,9 +777,9 @@ impl PackageCompilationInputs {
         alias: &str,
     ) -> Option<PackageKeyIdentity> {
         self.source
-            .dependencies
+            .packages
             .get(&requester)
-            .and_then(|aliases| aliases.get(alias))
+            .and_then(|record| record.dependencies.get(alias))
             .copied()
     }
 
@@ -807,9 +792,9 @@ impl PackageCompilationInputs {
         requester == owner
             || self
                 .source
-                .dependencies
+                .packages
                 .get(&requester)
-                .is_some_and(|aliases| aliases.values().any(|target| *target == owner))
+                .is_some_and(|record| record.dependencies.values().any(|target| *target == owner))
     }
 
     #[doc(hidden)]
@@ -822,10 +807,9 @@ impl PackageCompilationInputs {
 
     #[doc(hidden)]
     pub fn package_for_source(&self, source: &Path) -> Option<PackageKeyIdentity> {
-        self.source
-            .packages
-            .iter()
-            .find_map(|(identity, root)| source.starts_with(root).then_some(*identity))
+        self.source.packages.iter().find_map(|(identity, record)| {
+            source.starts_with(&record.source_root).then_some(*identity)
+        })
     }
 
     #[doc(hidden)]
@@ -836,7 +820,8 @@ impl PackageCompilationInputs {
     ) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
 
-        for (identity, expected_root) in &self.source.packages {
+        for (identity, record) in &self.source.packages {
+            let expected_root = &record.source_root;
             match canonical_source_root(expected_root) {
                 Ok(actual_root) if actual_root == *expected_root => {}
                 Ok(actual_root) => diagnostics.push(Diagnostic::error(format!(
@@ -858,9 +843,7 @@ impl PackageCompilationInputs {
         match root_path.canonicalize() {
             Ok(root_file) => {
                 let expected_root = self
-                    .source
-                    .packages
-                    .get(&self.source.root)
+                    .package_root(self.source.root)
                     .expect("validated package graph retains its root");
                 if !root_file.starts_with(expected_root) {
                     diagnostics.push(Diagnostic::error(format!(
@@ -879,7 +862,8 @@ impl PackageCompilationInputs {
         let canonical_toolchain = toolchain_root
             .canonicalize()
             .unwrap_or_else(|_| toolchain_root.to_path_buf());
-        for (identity, root) in &self.source.packages {
+        for (identity, record) in &self.source.packages {
+            let root = &record.source_root;
             if root.starts_with(&canonical_toolchain) || canonical_toolchain.starts_with(root) {
                 diagnostics.push(Diagnostic::error(format!(
                     "package identity {} source root {} overlaps toolchain root {}",
@@ -899,25 +883,19 @@ impl PackageCompilationInputs {
 
     #[doc(hidden)]
     pub fn validate_canonical_source_metadata(&self) -> Result<(), Vec<Diagnostic>> {
-        let mut diagnostics = Vec::new();
-        for (identity, metadata) in &self.source.canonical_source_metadata {
-            let root = self
-                .source
-                .packages
-                .get(identity)
-                .expect("canonical Source metadata retains a validated package root");
-            if let Err(reason) = validate_canonical_source_metadata_root(root, metadata) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "canonical Source metadata for package {} changed before compiler evidence was issued: {reason}",
-                    display_identity(*identity)
-                )));
-            }
-        }
-        if diagnostics.is_empty() {
-            Ok(())
-        } else {
-            Err(diagnostics)
-        }
+        // Construction permits build-visible metadata only on the current root.
+        let Some(record) = self.source.packages.get(&self.source.root) else {
+            return Ok(());
+        };
+        let Some(metadata) = &record.canonical_source_metadata else {
+            return Ok(());
+        };
+        validate_canonical_source_metadata_root(&record.source_root, metadata).map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "canonical Source metadata for package {} changed before compiler evidence was issued: {reason}",
+                display_identity(self.source.root)
+            ))]
+        })
     }
 }
 
@@ -1500,6 +1478,37 @@ impl fmt::Display for PackageCompilationInputError {
 
 impl std::error::Error for PackageCompilationInputError {}
 
+fn append_overlapping_source_roots(
+    roots: &BTreeMap<PathBuf, PackageKeyIdentity>,
+    errors: &mut Vec<PackageCompilationInputError>,
+) {
+    let mut overlaps = Vec::new();
+    for (root, identity) in roots {
+        // Canonical roots are absolute. Path ancestors preserve component and
+        // platform-prefix semantics without confusing `a` with sibling `a-b`.
+        // Only actual ancestor roots can overlap; disjoint pairs are not visited.
+        for ancestor in root.ancestors().skip(1) {
+            if let Some((ancestor_root, ancestor_identity)) = roots.get_key_value(ancestor) {
+                overlaps.push((ancestor_root, root, ancestor_identity, identity));
+            }
+        }
+    }
+    // Keep the prior pairwise diagnostic order, independent of discovery order.
+    overlaps.sort_unstable_by_key(|(first, second, _, _)| (*first, *second));
+    errors.extend(
+        overlaps
+            .into_iter()
+            .map(|(first_root, second_root, first, second)| {
+                PackageCompilationInputError::OverlappingSourceRoots {
+                    first: *first,
+                    first_root: first_root.clone(),
+                    second: *second,
+                    second_root: second_root.clone(),
+                }
+            }),
+    );
+}
+
 fn canonical_source_root(path: &Path) -> Result<PathBuf, String> {
     let metadata = std::fs::symlink_metadata(path)
         .map_err(|error| format!("cannot inspect source root: {error}"))?;
@@ -1560,9 +1569,9 @@ fn is_kebab_case(value: &str) -> bool {
     true
 }
 
-fn reachable_packages(
+fn reachable_packages<'inputs>(
     root: PackageKeyIdentity,
-    dependencies: &BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
+    dependencies: impl Fn(PackageKeyIdentity) -> Option<&'inputs BTreeMap<String, PackageKeyIdentity>>,
 ) -> BTreeSet<PackageKeyIdentity> {
     let mut reachable = BTreeSet::new();
     let mut pending = vec![root];
@@ -1570,7 +1579,7 @@ fn reachable_packages(
         if !reachable.insert(identity) {
             continue;
         }
-        if let Some(targets) = dependencies.get(&identity) {
+        if let Some(targets) = dependencies(identity) {
             pending.extend(targets.values().copied());
         }
     }
@@ -1578,8 +1587,7 @@ fn reachable_packages(
 }
 
 fn dependency_cycle(
-    packages: &BTreeMap<PackageKeyIdentity, PathBuf>,
-    dependencies: &BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
+    packages: &BTreeMap<PackageKeyIdentity, PackageCompilationSourceRecord>,
 ) -> Option<Vec<PackageKeyIdentity>> {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum Visit {
@@ -1589,7 +1597,7 @@ fn dependency_cycle(
 
     fn visit(
         identity: PackageKeyIdentity,
-        dependencies: &BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
+        packages: &BTreeMap<PackageKeyIdentity, PackageCompilationSourceRecord>,
         states: &mut BTreeMap<PackageKeyIdentity, Visit>,
         stack: &mut Vec<PackageKeyIdentity>,
     ) -> Option<Vec<PackageKeyIdentity>> {
@@ -1605,9 +1613,9 @@ fn dependency_cycle(
 
         states.insert(identity, Visit::Active);
         stack.push(identity);
-        if let Some(targets) = dependencies.get(&identity) {
-            for target in targets.values().copied() {
-                if let Some(cycle) = visit(target, dependencies, states, stack) {
+        if let Some(record) = packages.get(&identity) {
+            for target in record.dependencies.values().copied() {
+                if let Some(cycle) = visit(target, packages, states, stack) {
                     return Some(cycle);
                 }
             }
@@ -1620,7 +1628,7 @@ fn dependency_cycle(
     let mut states = BTreeMap::new();
     let mut stack = Vec::new();
     for identity in packages.keys().copied() {
-        if let Some(cycle) = visit(identity, dependencies, &mut states, &mut stack) {
+        if let Some(cycle) = visit(identity, packages, &mut states, &mut stack) {
             return Some(cycle);
         }
     }

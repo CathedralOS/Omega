@@ -5,9 +5,8 @@ use super::{
 };
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::frontend::{
-    ReconciledPackageImportRequest, discover_unconditional_imports,
-    discover_unconditional_imports_with_packages, extend_source_storage, lex_sources, load_sources,
-    parse_sources,
+    PackageImportPhase, PendingPackageImport, discover_imports, discover_package_imports,
+    extend_source_storage, lex_sources, load_sources, parse_sources,
 };
 use crate::pipeline::project::project_roots;
 use crate::pipeline::source::{ImportQueue, SourceStorage};
@@ -24,7 +23,7 @@ pub(in crate::pipeline) struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
     build_source_id: Option<source::SourceId>,
-    package_imports: Arc<[ReconciledPackageImportRequest]>,
+    package_imports: Arc<[PendingPackageImport]>,
     package_source_inputs: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
 }
 
@@ -165,7 +164,9 @@ impl ImmutableSourceParseCheckpoint {
         };
         if let Some(package_inputs) = package_inputs {
             for request in self.package_imports.iter() {
-                imports.enqueue(vec![request.resolve_for_exact_target(package_inputs)?])?;
+                let resolved = request.resolve_for_exact_target(package_inputs)?;
+                imports.enqueue(vec![resolved.path.clone()])?;
+                source_storage.resolved_imports.push(resolved);
             }
         }
         load_pending_imports(
@@ -182,11 +183,7 @@ impl ImmutableSourceParseCheckpoint {
             timings,
         )?;
         source_scoped_top_level_bindings.extend(
-            crate::pipeline::frontend::retain_module_import_bindings(
-                &source_storage,
-                &self.root_path,
-                package_inputs,
-            )?,
+            crate::pipeline::frontend::retain_module_import_bindings(&source_storage)?,
         );
         let source_file_count = source_storage.file_count();
         let syntax = assemble_syntax(
@@ -252,7 +249,7 @@ fn load_target_independent_imports(
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
-) -> Result<Vec<ReconciledPackageImportRequest>, Vec<Diagnostic>> {
+) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     let mut retained_requests = Vec::new();
     while imports.has_pending() {
         let frontier = imports.take_frontier();
@@ -270,17 +267,22 @@ fn load_target_independent_imports(
         })?;
         let discovered = match package_inputs {
             Some(package_inputs) => {
-                let (imports, mut requests) = discover_unconditional_imports_with_packages(
+                let (discovered, mut requests) = discover_package_imports(
                     &parsed,
                     &source_storage.syntax_trees,
                     package_inputs,
+                    PackageImportPhase::TargetIndependent,
+                    &mut source_storage.resolved_imports,
                 )?;
                 retained_requests.append(&mut requests);
-                imports
+                discovered
             }
-            None => {
-                discover_unconditional_imports(&parsed, &source_storage.syntax_trees, root_path)?
-            }
+            None => discover_imports(
+                &parsed,
+                &source_storage.syntax_trees,
+                root_path,
+                &mut source_storage.resolved_imports,
+            )?,
         };
         imports.enqueue(discovered)?;
         extend_source_storage(source_storage, parsed)?;
