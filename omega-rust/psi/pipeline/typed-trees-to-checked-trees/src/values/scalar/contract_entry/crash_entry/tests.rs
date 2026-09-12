@@ -393,6 +393,8 @@ fn integer_entry_comparisons_reuse_total_landing_and_boolean_composition() {
             "flag && input < other",
             "!(input >= other) || flag",
             "(input == other) == true",
+            "1u8 < 2u8",
+            "1u8 < 2",
         ] {
             let program = numeric(
                 &format!("input: {primitive}, other: {primitive}, flag: bool"),
@@ -466,6 +468,8 @@ fn integer_entry_comparisons_reject_unsupported_terms_and_bad_landings() {
         ("input: u8", "input > 256"),
         ("input: i32, other: u32", "input > other"),
         ("input: f64", "input > 0"),
+        ("input: u8", "1u8 < 2u16"),
+        ("input: u8", "1u8 < 256"),
     ] {
         assert!(
             read(&numeric(signature, predicate)).is_none(),

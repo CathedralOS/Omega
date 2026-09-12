@@ -78,6 +78,56 @@ fn closed_literal_contracts_require_builtin_equality_meaning() {
 }
 
 #[test]
+fn nested_literal_comparisons_retain_exact_carriers_and_operator_meaning() {
+    for comparison in ["1u8 < 2u8", "1u8 < 2u16"] {
+        for declaration in [
+            "",
+            "boundary operator < Meaning::compare(left: u8, right: u8) -> bool;",
+        ] {
+            let program = typed(&format!(
+                "{declaration} machine value() -> bool ensures result == ({comparison}) {{ true }}"
+            ));
+            let plan = build_closed_scalar_value_contract_plan(
+                &program,
+                program.machines().first().unwrap(),
+                &CheckedOperatorFacts::default(),
+            );
+            let expected = declaration.is_empty() && comparison == "1u8 < 2u8";
+            assert_eq!(
+                plan.ensures()[0].is_some(),
+                expected,
+                "{declaration} {comparison}"
+            );
+            if expected {
+                let Some(ClosedScalarContractValue::Predicate(
+                    checked_trees::CheckedBooleanExpression::Equal { right, .. },
+                )) = &plan.ensures()[0]
+                else {
+                    panic!("retained Boolean equality");
+                };
+                let checked_trees::CheckedBooleanExpression::IntegerComparison {
+                    left, right, ..
+                } = right.as_ref()
+                else {
+                    panic!("literal comparison must not be folded out of source custody");
+                };
+                for operand in [left, right] {
+                    let checked_trees::CheckedScalarExpression::IntegerLiteral { literal } =
+                        operand.as_ref()
+                    else {
+                        panic!("literal operand");
+                    };
+                    assert_eq!(
+                        literal.landing().unwrap().landed_type,
+                        numerics::literals::LandedIntegerType::U8
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn integer_comparison_declarations_do_not_replace_boolean_tautologies() {
     let program = typed(
         r#"
@@ -133,23 +183,27 @@ fn result_predicates_and_literal_requirements_gate_their_own_meanings() {
 }
 
 #[test]
-fn unknown_literal_carriers_do_not_hide_heterogeneous_comparators() {
-    let program = typed(
-        r#"
+fn literal_carrier_identity_decides_heterogeneous_comparator_overlap() {
+    for (literal, admitted) in [("7u16", true), ("7", false)] {
+        let program = typed(&format!(
+            r#"
         boundary operator == Meaning::compare(left: u16, right: bool) -> bool;
         machine value() -> u16
-        requires 7u16 == 7u16
-        ensures result == 7u16
-        { 7u16 }
+        requires {literal} == {literal}
+        ensures result == {literal}
+        {{ 7u16 }}
     "#,
-    );
-    let plan = build_closed_scalar_value_contract_plan(
-        &program,
-        program.machines().first().unwrap(),
-        &CheckedOperatorFacts::default(),
-    );
-    assert_eq!(plan.requires(), &[None]);
-    assert_eq!(plan.ensures(), &[None]);
+        ));
+        let plan = build_closed_scalar_value_contract_plan(
+            &program,
+            program.machines().first().unwrap(),
+            &CheckedOperatorFacts::default(),
+        );
+        // A source-owned u16 landing excludes a bool operand, but contextual
+        // landing cannot choose builtin meaning before operator selection.
+        assert_eq!(plan.requires()[0].is_some(), admitted, "{literal}");
+        assert_eq!(plan.ensures()[0].is_some(), admitted, "{literal}");
+    }
 }
 
 #[test]

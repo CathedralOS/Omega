@@ -690,10 +690,10 @@ Owners include
   normal-guarantee path (`unit_scalar_result_source`'s `ordered_boundary`,
   `ordered_scalar`, `ordered_boolean`, `ordered_computed_boolean`,
   `ordered_nested_boolean`, `ordered_saved_boolean`,
-  `ordered_call_produced_boolean`, `ordered_boolean_call_computations`, and
-  `ordered_boolean_guarantees_compose_through_dependent_joins` tests).
-  Folded-source correspondence, saved mutable snapshots,
-  state/control contracts, and field/arithmetic
+  `ordered_call_produced_boolean`, `ordered_boolean_call_computations`,
+  `ordered_boolean_guarantees_compose_through_dependent_joins`, and
+  `ordered_boolean_completion_preserves_folded_source_meaning` tests).
+  Saved mutable snapshots, state/control contracts, and field/arithmetic
   predicates still need their evidence joins. Preserve
   authored callee contracts regardless of whether a helper is a direct closure
   root or a transitive dependency; a checked call identity is not contract proof.
