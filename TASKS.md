@@ -81,14 +81,6 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   native receiver coverage do not establish the application's remaining sum,
   refined-result, state-transition, and provider execution paths. This is
   engineering work, with `Squalr geometry: PASS` as the native acceptance marker.
-  Windows runtime controls in `omega-rust/omega/tests/package_commands/probe.rs`
-  require a Windows normal-completion adapter for Unit entries: the native
-  entry currently returns the last scalar call's register value (7), while the
-  interpreter reports normal completion (0). The entry adapter in
-  `image-emission/src/hosted_unit_entry.rs` currently handles Darwin only.
-  Preserve the source Unit contract and independently validate the Windows
-  physical completion mapping; do not change all machine returns or mask the
-  divergence in the CLI. Both runtime controls must pass with exit 0.
 
 - **MACOS-APPLICATION-PUBLICATION.** Implement the
   [settled publication contract](wiki/spec/build/macos_application.md)
