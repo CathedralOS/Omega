@@ -1,4 +1,4 @@
-//! Complete retained policy changes use real, independently compiled candidates.
+//! Compact acceptance changes use real, independently compiled candidate audits.
 
 use package_evidence::record::PackagePolicyRowKind;
 use package_manager::lock::{

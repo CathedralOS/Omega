@@ -6,6 +6,7 @@ pub(super) struct Builder<'policy> {
     usage: PackagePolicyRowUsage,
     rows: Vec<PackagePolicyRow>,
     expected_count: usize,
+    acceptance_only: bool,
 }
 
 impl<'policy> Builder<'policy> {
@@ -13,6 +14,7 @@ impl<'policy> Builder<'policy> {
         policy: &'policy PackagePolicyBaseline,
         count: usize,
         limits: PackagePolicyRowLimits,
+        acceptance_only: bool,
     ) -> Result<Self, PackageReviewEncodingError> {
         if count > limits.maximum_rows {
             return Err(rejected("package policy exceeds its row count ceiling"));
@@ -26,6 +28,7 @@ impl<'policy> Builder<'policy> {
             usage: PackagePolicyRowUsage::default(),
             rows: Vec::new(),
             expected_count: count,
+            acceptance_only,
         };
         builder.charge_bytes(bytes)?;
         builder
@@ -61,6 +64,9 @@ impl<'policy> Builder<'policy> {
         key: impl Fn(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
         value: impl Fn(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
     ) -> Result<(), PackageReviewEncodingError> {
+        if self.acceptance_only && !initial {
+            return Ok(());
+        }
         self.usage.rows = self
             .usage
             .rows
@@ -169,7 +175,7 @@ impl<'policy> Builder<'policy> {
             Ok(())
         })?;
         encoder.field("update_requires_decision", |encoder| {
-            encoder.boolean(kind.update_requires_decision());
+            encoder.boolean(initial);
             Ok(())
         })?;
         encoder.field("audit_recommended_when_present", |encoder| {

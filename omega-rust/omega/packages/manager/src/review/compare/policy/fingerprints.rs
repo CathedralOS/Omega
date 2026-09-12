@@ -4,13 +4,14 @@ use super::{
     PackagePolicyPackageChange, PackagePolicyReplacementSite,
 };
 use crate::declarations::PackageKey;
+use crate::lock::PackageAcceptanceRow;
 use crate::lock::PackageLockTarget;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::{
     CompilerIssuedPackageReview,
     candidate::{build_observation_commitment, whole_review_commitment},
 };
-use package_evidence::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRow};
+use package_evidence::record::PACKAGE_POLICY_ROW_VERSION;
 use sha2::{Digest, Sha256};
 
 pub(super) fn context(
@@ -33,9 +34,9 @@ pub(super) fn package_context(
     hash: &mut Sha256,
     key: &PackageKey,
     baseline_present: bool,
-    baseline: &[PackagePolicyRow],
+    baseline: &[PackageAcceptanceRow],
     candidate: Option<&CompilerIssuedPackageReview>,
-    rows: &[PackagePolicyRow],
+    rows: &[PackageAcceptanceRow],
 ) {
     field(hash, &key.identity().digest());
     hash.update([u8::from(baseline_present)]);
@@ -99,7 +100,7 @@ pub(super) fn finish_package(
     }
 }
 
-fn row_set(hash: &mut Sha256, rows: &[PackagePolicyRow]) {
+fn row_set(hash: &mut Sha256, rows: &[PackageAcceptanceRow]) {
     hash.update((rows.len() as u64).to_le_bytes());
     for value in rows {
         row(hash, value);
@@ -128,7 +129,7 @@ pub(super) fn source_replacement(
     field(&mut hash, &candidate.identity().digest());
     PackagePolicyChangeFingerprint(hash.finalize().into())
 }
-fn row(hash: &mut Sha256, value: &PackagePolicyRow) {
+fn row(hash: &mut Sha256, value: &PackageAcceptanceRow) {
     hash.update([value.kind().canonical_tag()]);
     field(hash, value.key_bytes());
     field(hash, value.canonical_bytes());

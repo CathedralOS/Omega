@@ -15,9 +15,6 @@ pub enum PackagePolicyChangeError {
         package: Box<PackageKey>,
         error: PackageReviewEncodingError,
     },
-    IncompleteRowProjection {
-        package: Box<PackageKey>,
-    },
     InvalidSourcePath {
         package: Box<PackageKey>,
     },
@@ -43,10 +40,6 @@ impl fmt::Display for PackagePolicyChangeError {
             Self::Projection { package, error } => write!(
                 formatter,
                 "cannot project normalized policy rows for {package:?}: {error}"
-            ),
-            Self::IncompleteRowProjection { package } => write!(
-                formatter,
-                "normalized rows do not cover the complete policy for {package:?}"
             ),
             Self::InvalidSourcePath { package } => write!(
                 formatter,

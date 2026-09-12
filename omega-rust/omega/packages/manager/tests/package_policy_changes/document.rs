@@ -154,7 +154,16 @@ fn pure_initial_policy_has_readable_findings_and_no_choices() {
     let text = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
     assert!(text.lines().any(|line| line == "baseline none"));
     assert!(text.contains("policy-fixture"));
-    assert!(text.contains("VALUE"));
+    assert!(!text.contains("VALUE"));
+    assert!(
+        reviews
+            .review(closure.graph().root())
+            .unwrap()
+            .policy()
+            .canonical_text()
+            .unwrap()
+            .contains("VALUE")
+    );
     assert!(!text.lines().any(|line| line.starts_with("decision ")));
     assert_choices_round_trip(&changes);
 }
@@ -182,20 +191,23 @@ fn advisory_representation_findings_never_receive_choices() {
     );
     let (closure, reviews) = candidate(&tree, "document-advisory");
     let changes = compare(None, &closure, &reviews);
-    let row = changes.packages()[0]
-        .rows()
-        .iter()
-        .find(|row| row.kind() == PackagePolicyRowKind::RepresentationSelection)
-        .unwrap();
-    assert!(row.audit_recommended());
-    assert!(!row.requires_decision());
+    assert!(changes.packages()[0].rows().is_empty());
+    assert!(
+        reviews
+            .review(closure.graph().root())
+            .unwrap()
+            .policy()
+            .canonical_text()
+            .unwrap()
+            .contains("TokenRepresentation")
+    );
     let template = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
-    assert!(template.contains("TokenRepresentation"));
+    assert!(!template.contains("TokenRepresentation"));
     assert_choices_round_trip(&changes);
     let extra = format!(
         "{}{}",
         accept_document(&changes, &template),
-        choice_line(Subject::Row(row.fingerprint().digest()), "accept")
+        choice_line(Subject::Row([0xff; 32]), "accept")
     );
     assert!(recover_package_policy_review(&changes, &extra, MAXIMUM_BYTES).is_err());
 }
@@ -236,11 +248,6 @@ fn edited_missing_duplicate_foreign_and_advisory_choice_lines_reject() {
     let decisions = accepting(&changes);
     let first = choice_line(decisions[0].subject, "accept");
     let second = choice_line(decisions[1].subject, "accept");
-    let advisory = changes.packages()[0]
-        .rows()
-        .iter()
-        .find(|row| row.kind() == PackagePolicyRowKind::PublicConst && !row.requires_decision())
-        .unwrap();
     let foreign_tree = Tree::new();
     let foreign = initial_assumptions(&foreign_tree);
     let foreign_subject = accepting(&foreign)[0].subject;
@@ -262,10 +269,7 @@ fn edited_missing_duplicate_foreign_and_advisory_choice_lines_reject() {
         ),
         (
             "advisory",
-            accepted.replace(
-                &first,
-                &choice_line(Subject::Row(advisory.fingerprint().digest()), "accept"),
-            ),
+            accepted.replace(&first, &choice_line(Subject::Row([0xff; 32]), "accept")),
         ),
         (
             "subject kind",
@@ -406,14 +410,14 @@ fn added_changed_and_removed_rows_render_exact_readable_canonical_lines() {
     let tree = Tree::new();
     source(
         &tree,
-        "pub const CHANGED: u64 = 1;\npub const REMOVED: u64 = 1;\n",
+        "boundary machine CHANGED() -> u64 ensures result == 1;\nboundary machine REMOVED() -> u64 ensures result == 1;\n",
         "",
     );
     let (baseline_sources, baseline_reviews) = candidate(&tree, "document-old-rows");
     let lock = lock_from_reviews(&baseline_sources, &baseline_reviews);
     source(
         &tree,
-        "pub const CHANGED: u64 = 2;\npub const ADDED: u64 = 1;\n",
+        "boundary machine CHANGED() -> u64 ensures result == 2;\nboundary machine ADDED() -> u64 ensures result == 1;\n",
         "",
     );
     let (closure, reviews) = candidate(&tree, "document-new-rows");
@@ -449,12 +453,16 @@ fn added_changed_and_removed_rows_render_exact_readable_canonical_lines() {
 fn root_role_choices_round_trip_in_both_directions_alongside_rows() {
     let tree = Tree::new();
     let main = "data Main { }\nmachine Main::main(&mut self) { }\n";
-    source(&tree, &format!("{main}pub const VALUE: u64 = 7;\n"), "");
+    source(
+        &tree,
+        &format!("{main}boundary machine trusted() -> u64 ensures result == 7;\n"),
+        "",
+    );
     let (package_sources, package_reviews) = candidate(&tree, "document-package");
     let package_lock = lock_from_reviews(&package_sources, &package_reviews);
     fs::write(
         tree.path("sources/root/main.omg"),
-        format!("{main}pub const VALUE: u64 = 8;\n"),
+        format!("{main}boundary machine trusted() -> u64 ensures result == 8;\n"),
     )
     .unwrap();
     fs::write(

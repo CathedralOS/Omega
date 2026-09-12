@@ -66,13 +66,14 @@ fn initial_pure_policy_resolves_without_decisions_and_rejects_extra_choices() {
     assert_eq!(resolution.comparison(), changes.fingerprint());
     assert!(resolution.decisions().is_empty());
     assert!(resolution.all_required_changes_accepted());
-    let row = changes.packages()[0]
-        .rows()
-        .iter()
-        .find(|row| row.kind() == PackagePolicyRowKind::PublicConst && !row.requires_decision())
-        .unwrap();
+    assert!(
+        changes.packages()[0]
+            .rows()
+            .iter()
+            .all(|row| row.requires_decision())
+    );
     let extra = PackagePolicyDecision {
-        subject: Subject::Row(row.fingerprint().digest()),
+        subject: Subject::Row([0xff; 32]),
         disposition: AcceptCandidateChange,
     };
     assert_eq!(
@@ -82,7 +83,7 @@ fn initial_pure_policy_resolves_without_decisions_and_rejects_extra_choices() {
 }
 
 #[test]
-fn initial_assumptions_require_every_choice_and_nonblocking_rows_reject() {
+fn initial_assumptions_require_every_choice_and_unknown_rows_reject() {
     let tree = Tree::new();
     let changes = initial_assumptions(&tree);
     let comparison = changes.fingerprint().digest();
@@ -103,19 +104,20 @@ fn initial_assumptions_require_every_choice_and_nonblocking_rows_reject() {
             Err(Error::MissingDecision(missing.subject))
         );
     }
-    let row = changes.packages()[0]
-        .rows()
-        .iter()
-        .find(|row| row.kind() == PackagePolicyRowKind::PublicConst && !row.requires_decision())
-        .unwrap();
+    assert!(
+        changes.packages()[0]
+            .rows()
+            .iter()
+            .all(|row| row.requires_decision())
+    );
     for disposition in [AcceptCandidateChange, RejectCandidateChange] {
         let nonblocking = PackagePolicyDecision {
-            subject: Subject::Row(row.fingerprint().digest()),
+            subject: Subject::Row([0xff; 32]),
             disposition,
         };
         assert_eq!(
             resolve_package_policy_decisions(&changes, comparison, &[nonblocking]),
-            Err(Error::NonBlockingChange(nonblocking.subject))
+            Err(Error::UnknownSubject(nonblocking.subject))
         );
     }
 }

@@ -33,8 +33,10 @@ rejects before acquisition; `omega update --target <name>` owns fresh target
 review.
 
 Default output summarizes callable reach, authority, and assumptions. `--details`
-includes the complete compiler-owned normalized policy. Equal accepted/fresh
-policy is displayed once, with equality explicitly labeled. Accepted policy
+includes the complete fresh compiler-owned normalized policy. Accepted state
+contains only compact risk-bearing acceptance rows, not a historical API or
+representation snapshot. Equality compares those complete rows with the fresh
+risk projection; it does not assert equality of the full fresh report. Accepted policy
 remains historical meaning even when source cannot be reacquired or checked;
 such a target reports `fresh-analysis unavailable`, not empty capabilities.
 Different same-named packages retain their source-qualified identities, graph

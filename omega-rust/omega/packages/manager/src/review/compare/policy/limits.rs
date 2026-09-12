@@ -2,8 +2,9 @@ use super::{
     PackagePolicyChangeError as Error, PackagePolicyPackageChange, PackagePolicyRowChange,
 };
 use crate::declarations::PackageKey;
+use crate::lock::PackageAcceptanceRow;
 use crate::resolution::graph::CanonicalSourceClosureSubjectLimits;
-use package_evidence::record::{PackagePolicyRow, PackagePolicyRowLimits, PackagePolicyRowUsage};
+use package_evidence::record::{PackagePolicyRowLimits, PackagePolicyRowUsage};
 use package_source::SourceLineage;
 
 /// Aggregate ceilings across both complete inputs, not a reset per package.
@@ -196,7 +197,7 @@ impl Budget {
         )
     }
 }
-pub(super) fn row_bytes(row: &PackagePolicyRow) -> Result<usize, Error> {
+pub(super) fn row_bytes(row: &PackageAcceptanceRow) -> Result<usize, Error> {
     row.key_bytes()
         .len()
         .checked_add(row.canonical_bytes().len())

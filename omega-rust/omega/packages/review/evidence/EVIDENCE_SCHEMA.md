@@ -10,7 +10,7 @@ rejection controls belong to `PROOF-CONTRACT-MIGRATION`.
 
 This describes the current encoding and support limits, not a
 requirement to certify installation. The ratified lock records pins, the graph,
-accepted compiler-derived review baselines, and decisions, trusting whoever
+compact compiler-derived risk acceptance, and decisions, trusting whoever
 lands it. Existing root-admission tags and ledger replay remain documented
 implementation while redundant promotion machinery is simplified; no sealed
 `PackageInstance` or certificate proving lock acceptance is required. Proof
@@ -37,8 +37,8 @@ limit aggregate list elements plus recursive entries to 65,536 and nesting to
 vector/string/box storage, including canonical comparison scratch, to 64 MiB;
 callers may lower but cannot raise these
 ceilings. Allocator overhead is outside that storage accounting. The complete
-policy baseline below includes this component; the manager joins that baseline
-to source pins and accepted decisions. This component does not change the
+policy baseline below includes this component; the manager retains only exact
+risk-bearing rows beside source pins and accepted decisions. This component does not change the
 full-review schema or any compiler validator.
 
 `OMEGA-PACKAGE-POLICY` version 3 composes the full inert package baseline under
@@ -98,13 +98,15 @@ remain. Reconstructed binary capacity is charged before typed recovery and its
 canonical scratch; verification does not allocate another expanded text buffer.
 This adds no proof, acceptance, or replay fields and changes no binary schema.
 
-Complete normalized comparison rows have their own version 1, independent of
+Complete normalized audit rows have their own version 2, independent of
 legacy review row version 89. Binary rows start with
 `OMEGA-PACKAGE-POLICY-ROW` and a zero byte; named text starts with
 `omega_package_policy_row_text 1` and LF. Each row binds its row and baseline
 schemas, package, exact target, kind, initial/update decision classification,
 audit classifications, and full policy value. The separate semantic key selects
 the declaration or application being compared; it is not a report index.
+Only explicit risk obligations require acceptance, both initially and on update;
+ordinary public API rows do not become approval obligations merely by changing.
 
 The closed kinds are header; the seven public declaration families; callable;
 selected-provider association; terminal service and permission; representation

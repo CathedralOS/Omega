@@ -4,7 +4,7 @@ use super::super::{
     PackageLockRecoveryLimits,
 };
 use super::{HEADER, budget::Budget, framing::Writer};
-use package_evidence::record::PackagePolicyBaseline;
+use crate::lock::PackagePolicyAcceptance;
 
 impl PackageLock {
     /// Diffable child texts remain verbatim, with explicit byte lengths to
@@ -27,7 +27,6 @@ impl PackageLock {
         let mut writer = Writer::new(limits.maximum_bytes);
         writer.append(HEADER)?;
         writer.row("targets", self.targets.len())?;
-        let mut remaining_elements = limits.maximum_policy_elements;
         for target in &self.targets {
             writer.row("target", target.target().identity().as_str())?;
             let source = target
@@ -37,24 +36,18 @@ impl PackageLock {
             drop(budget.source(&source)?);
             writer.section("source", &source)?;
             drop(source);
-            writer.row("baselines", target.baselines.len())?;
-            budget.entries::<PackagePolicyBaseline>(target.baselines.len())?;
+            writer.row("acceptances", target.baselines.len())?;
+            budget.entries::<PackagePolicyAcceptance>(target.baselines.len())?;
             for policy in &target.baselines {
-                let (text, elements) = policy
-                    .canonical_text_with_element_count()
-                    .map_err(Error::Encoding)?;
-                remaining_elements = remaining_elements
-                    .checked_sub(elements)
-                    .ok_or(Error::CountLimitExceeded)?;
-                drop(budget.baseline(&text)?);
-                writer.section("baseline", &text)?;
+                let text = policy.canonical_text()?;
+                drop(budget.baseline(&text, policy.package(), policy.target())?);
+                writer.section("acceptance", &text)?;
             }
             let decisions = target
                 .decisions
                 .canonical_text(&target.source, HistoricalPackagePolicyLimits::default())
                 .map_err(Error::Decisions)?;
             drop(budget.decisions(&decisions, &target.source)?);
-            budget.target_membership(target)?;
             writer.section("decisions", &decisions)?;
             writer.append("end_target\n")?;
         }

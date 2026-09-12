@@ -1,8 +1,9 @@
 use super::PackagePolicySourceReplacement;
 use crate::declarations::PackageKey;
+use crate::lock::PackageAcceptanceRow;
 use crate::resolution::graph::CanonicalSourceClosureSubjectFingerprint;
 use crate::review::compare::model::ReviewOnlyRootRoleChange;
-use package_evidence::record::{PackagePolicyRow, PackagePolicyRowKind};
+use package_evidence::record::PackagePolicyRowKind;
 use package_source::ImmutableSourceResolution;
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -24,15 +25,15 @@ impl PackagePolicyChangeFingerprint {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyRowChange {
-    pub(super) baseline: Option<PackagePolicyRow>,
-    pub(super) candidate: Option<PackagePolicyRow>,
+    pub(super) baseline: Option<PackageAcceptanceRow>,
+    pub(super) candidate: Option<PackageAcceptanceRow>,
     pub(super) change: PackagePolicyChangeKind,
     pub(super) requires_decision: bool,
     pub(super) audit_recommended: bool,
     pub(super) fingerprint: PackagePolicyChangeFingerprint,
 }
 impl PackagePolicyRowChange {
-    fn row(&self) -> &PackagePolicyRow {
+    fn row(&self) -> &PackageAcceptanceRow {
         self.candidate
             .as_ref()
             .or(self.baseline.as_ref())
@@ -47,10 +48,10 @@ impl PackagePolicyRowChange {
     pub const fn change(&self) -> PackagePolicyChangeKind {
         self.change
     }
-    pub const fn baseline(&self) -> Option<&PackagePolicyRow> {
+    pub const fn baseline(&self) -> Option<&PackageAcceptanceRow> {
         self.baseline.as_ref()
     }
-    pub const fn candidate(&self) -> Option<&PackagePolicyRow> {
+    pub const fn candidate(&self) -> Option<&PackageAcceptanceRow> {
         self.candidate.as_ref()
     }
     pub const fn requires_decision(&self) -> bool {

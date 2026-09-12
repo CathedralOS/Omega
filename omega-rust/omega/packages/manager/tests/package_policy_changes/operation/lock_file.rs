@@ -19,9 +19,9 @@ fn publish(tree: &Tree, target: PackageLockTarget) -> PackageLock {
 }
 
 #[test]
-fn published_proposal_preserves_source_and_complete_policy_for_review_and_locked_checks() {
+fn published_proposal_preserves_source_and_acceptance_for_review_and_locked_checks() {
     let tree = Tree::new();
-    source(&tree, PURE, "");
+    source(&tree, ASSUMPTION, "");
     fs::create_dir(tree.path("sources/root/src")).unwrap();
     fs::write(
         tree.path("sources/root/src/omega.lock"),
@@ -86,7 +86,7 @@ fn published_proposal_preserves_source_and_complete_policy_for_review_and_locked
     assert!(checked.changed_policies().is_empty());
     assert_eq!(
         checked.reviews().review(root).unwrap().policy(),
-        &accepted.baselines()[0]
+        initial.reviews().review(root).unwrap().policy()
     );
 
     fs::write(tree.path("sources/root/src/omega.lock"), "edited source\n").unwrap();
@@ -104,7 +104,7 @@ fn published_proposal_preserves_source_and_complete_policy_for_review_and_locked
 #[test]
 fn published_inert_baseline_edits_preserve_source_but_remain_policy_changes() {
     let tree = Tree::new();
-    source(&tree, PURE, "");
+    source(&tree, ASSUMPTION, "");
     let initial = review(&tree, "initial", None);
     let request = initial
         .source_closure()
@@ -115,13 +115,13 @@ fn published_inert_baseline_edits_preserve_source_but_remain_policy_changes() {
     let lock = publish(&tree, propose(&initial));
     let accepted = lock.target(TARGET).unwrap();
     let root = initial.source_closure().graph().root();
-    let mut baselines = accepted.baselines().to_vec();
+    let mut baselines = vec![initial.reviews().review(root).unwrap().policy().clone()];
     assert_eq!(baselines.len(), 1);
     let text = baselines[0].canonical_text().unwrap();
-    assert_eq!(text.matches("string \"VALUE\"\n").count(), 1);
+    assert!(text.contains("trusted_zero"));
     // Edit retained policy through its codec; the published lock stays valid.
     baselines[0] = PackagePolicyBaseline::recover_text(
-        &text.replace("string \"VALUE\"\n", "string \"RENAMED_VALUE\"\n"),
+        &text.replace("trusted_zero", "trusted_else"),
         PackagePolicyTextRecoveryLimits::default(),
     )
     .unwrap();
@@ -142,7 +142,7 @@ fn published_inert_baseline_edits_preserve_source_but_remain_policy_changes() {
     assert_fresh_matches(&lock, reviewed.source_closure());
     assert_eq!(
         reviewed.reviews().review(root).unwrap().policy(),
-        &accepted.baselines()[0]
+        initial.reviews().review(root).unwrap().policy()
     );
     let [package] = reviewed.changes().packages() else {
         panic!("one root package")
@@ -150,11 +150,11 @@ fn published_inert_baseline_edits_preserve_source_but_remain_policy_changes() {
     assert!(!package.source_changed());
     assert_eq!(package.rows().len(), 2);
     for (change, name) in [
-        (PackagePolicyChangeKind::Removed, "RENAMED_VALUE"),
-        (PackagePolicyChangeKind::Added, "VALUE"),
+        (PackagePolicyChangeKind::Removed, "trusted_else"),
+        (PackagePolicyChangeKind::Added, "trusted_zero"),
     ] {
         assert!(package.rows().iter().any(|row| {
-            row.kind() == PackagePolicyRowKind::PublicConst
+            row.kind() == PackagePolicyRowKind::Callable
                 && row.change() == change
                 && row
                     .baseline()
@@ -178,7 +178,7 @@ fn published_inert_baseline_edits_preserve_source_but_remain_policy_changes() {
     assert_eq!(checked.changed_policies(), std::slice::from_ref(root));
     assert_eq!(
         checked.reviews().review(root).unwrap().policy(),
-        &accepted.baselines()[0]
+        initial.reviews().review(root).unwrap().policy()
     );
     assert_eq!(
         fs::read_to_string(tree.path("sources/root/omega.lock")).unwrap(),

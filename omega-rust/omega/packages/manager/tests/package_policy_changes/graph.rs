@@ -7,15 +7,28 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
     let tree = Tree::new();
     source(
         &tree,
-        "pub const CHANGED: u64 = 1;\npub const REMOVED: u64 = 1;\n",
+        "boundary machine CHANGED() -> u64 ensures result == 1;\nboundary machine REMOVED() -> u64 ensures result == 1;\n",
         " builder.depend_as(\"dependency\", Source::Path { location: \"../old\" });\n",
     );
     package(&tree.path("sources/old"), "same-name", "");
-    let lock = {
-        let closure = resolve(&tree, "accepted");
+    fs::write(
+        tree.path("sources/old/main.omg"),
+        "boundary machine old_claim() -> u64 ensures result == 0;\n",
+    )
+    .unwrap();
+    let (lock, original_baselines) = {
+        let (closure, reviews) = candidate(&tree, "accepted");
         let (lock, _) = capture_lock(&closure, &tree.path("accepted-build"));
         assert_fresh_matches(&lock, &closure);
-        lock
+        let baselines: Vec<_> = lock
+            .target(TARGET)
+            .unwrap()
+            .source()
+            .packages()
+            .iter()
+            .map(|package| reviews.review(package.key()).unwrap().policy().clone())
+            .collect();
+        (lock, baselines)
     };
     let accepted = lock.target(TARGET).unwrap();
     let old_key = accepted
@@ -32,7 +45,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
     fs::rename(tree.path("accepted-cache"), tree.path("unavailable-cache")).unwrap();
     source(
         &tree,
-        "pub const CHANGED: u64 = 2;\npub const ADDED: u64 = 1;\n",
+        "boundary machine CHANGED() -> u64 ensures result == 2;\nboundary machine ADDED() -> u64 ensures result == 1;\n",
         " builder.depend_as(\"dependency\", Source::Path { location: \"../new\" });\n",
     );
     package(&tree.path("sources/new"), "same-name", "");
@@ -78,7 +91,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
         let row = root
             .rows()
             .iter()
-            .find(|row| row.kind() == PackagePolicyRowKind::PublicConst && row.change() == change)
+            .find(|row| row.kind() == PackagePolicyRowKind::Callable && row.change() == change)
             .unwrap();
         assert!(row.requires_decision());
         assert_eq!(
@@ -94,7 +107,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
                 .or(row.candidate())
                 .unwrap()
                 .canonical_text()
-                .contains(&format!("string \"{name}\"\n"))
+                .contains(name)
         );
     }
     let removed = changes
@@ -132,7 +145,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
     let first_fingerprint = changes.fingerprint().digest();
     fs::write(
         tree.path("sources/root/main.omg"),
-        "// implementation source changed\npub const CHANGED: u64 = 2;\npub const ADDED: u64 = 1;\n",
+        "// implementation source changed\nboundary machine CHANGED() -> u64 ensures result == 2;\nboundary machine ADDED() -> u64 ensures result == 1;\n",
     )
     .unwrap();
     let (next_sources, next_reviews) = candidate(&tree, "next");
@@ -159,7 +172,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
         changes.baseline_source_subject(),
         next.baseline_source_subject()
     );
-    let mut altered_baselines = accepted.baselines().to_vec();
+    let mut altered_baselines = original_baselines;
     let root_index = accepted
         .source()
         .packages()
@@ -167,10 +180,10 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
         .position(|package| package.key() == closure.graph().root())
         .unwrap();
     let text = altered_baselines[root_index].canonical_text().unwrap();
-    let original = "string \"REMOVED\"\n";
-    assert_eq!(text.matches(original).count(), 1);
+    let original = "REMOVED";
+    assert!(text.contains(original));
     altered_baselines[root_index] = PackagePolicyBaseline::recover_text(
-        &text.replace(original, "string \"OTHER_REMOVED\"\n"),
+        &text.replace(original, "OMITTED"),
         PackagePolicyTextRecoveryLimits::default(),
     )
     .unwrap();
@@ -200,7 +213,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
     let alias_baseline = lock_from_reviews(&next_sources, &next_reviews);
     source(
         &tree,
-        "// implementation source changed\npub const CHANGED: u64 = 2;\npub const ADDED: u64 = 1;\n",
+        "// implementation source changed\nboundary machine CHANGED() -> u64 ensures result == 2;\nboundary machine ADDED() -> u64 ensures result == 1;\n",
         " builder.depend_as(\"renamed\", Source::Path { location: \"../new\" });\n",
     );
     let (alias_sources, alias_reviews) = candidate(&tree, "alias");

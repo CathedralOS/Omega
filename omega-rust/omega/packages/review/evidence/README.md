@@ -260,6 +260,13 @@ requirements. Claim-free representation policy and ceiling slack recommend
 audit without becoming blanket approval requirements. These classifications
 are inert findings, not decisions or proof that a review occurred.
 
+The manager's compact lock acceptance projects only those risk-bearing rows,
+including their complete readable meaning. Full compatibility rows remain fresh
+audit material, not stored historical API or representation snapshots; their
+changes alone do not require project approval. Source replacements and root-role
+changes remain separate manager-owned decisions. Neither compact acceptance
+recovery nor comparison requires compiling old source.
+
 Projection bounds the complete row table, retained key/binary/text buffers,
 aggregate structural traversal, and nesting. It measures output before reserving
 storage and reports usage so a manager can share ceilings across both complete

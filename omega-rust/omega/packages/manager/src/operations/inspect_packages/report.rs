@@ -116,23 +116,29 @@ fn contents(
                 };
                 path(output, "accepted dependency-path", change.baseline_path())?;
             }
-            if fresh.is_some_and(|(_, reviews, _)| {
-                reviews
-                    .review(package.key())
-                    .is_some_and(|review| review.policy() == baseline)
+            if fresh.is_some_and(|(_, _, changes)| {
+                changes
+                    .packages()
+                    .iter()
+                    .find(|change| change.key() == package.key())
+                    .is_some_and(|change| change.rows().is_empty())
             }) {
                 writeln!(
                     output,
                     "accepted-policy equal-to-fresh (shown with fresh findings)"
                 )?;
             } else {
-                policy::render(
+                writeln!(
                     output,
-                    "accepted-policy (historical meaning)",
-                    baseline,
-                    accepted.source(),
-                    verbose,
+                    "accepted-policy: {} explicit acceptance rows; no historical API snapshot",
+                    baseline.rows().len()
                 )?;
+                for row in baseline.rows() {
+                    writeln!(output, "  {} (historical meaning)", row.kind().as_str())?;
+                    for line in row.canonical_text().lines() {
+                        writeln!(output, "    {line}")?;
+                    }
+                }
             }
         }
     } else {

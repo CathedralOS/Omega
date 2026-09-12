@@ -13,6 +13,13 @@ supplies, accepted assumptions, and relevant build/generated-source facts.
 An unused dangerous public API remains reviewable independently of actual
 selected-program reach.
 
+This full fresh report is distinct from retained project acceptance. The lock
+keeps only exact admission-claim/external-realization callable rows, external
+supplies, dangerous capabilities, and terminal permissions. Complete-row meaning
+is retained for those risks; other API, provider, representation, dependency,
+and symbolic-demand findings remain fresh audit material. Comparing acceptance
+does not reconstruct an old compiler report or compile historical source.
+
 Unknown authority, unresolved boundary ownership, omitted transitive effects,
 and unsupported proof forms reject rather than becoming empty rows. Generic
 obligations remain explicit until their substitutions can be checked. Only

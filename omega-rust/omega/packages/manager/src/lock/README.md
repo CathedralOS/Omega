@@ -4,14 +4,14 @@ The [lock specification](../../../../../../wiki/spec/packages/locks.md) owns
 user-visible meaning; this note owns the current codec and recovery API.
 
 `PackageLock` is inert retained project state. It joins immutable source pins,
-complete compiler-normalized policy, and historical project decisions without
+compact compiler-normalized acceptance, and historical project decisions without
 retaining an old checkout, compiler session, proof certificate, evaluator
 receipt, or native replay. It does not write files, resolve selectors, acquire
 sources, certify an audit, or authorize a changed candidate.
 
 Each `PackageLockTarget` contains a canonical source subject, exactly one
-`PackagePolicyBaseline` per source package in source order, and historical
-decisions against that source subject's fingerprint. Baseline package identities
+`PackagePolicyAcceptance` per source package in source order, and historical
+decisions against that source subject's fingerprint. Acceptance package identities
 and targets must match exactly. Sections are strictly sorted by the target's
 canonical semantic identity. Every section has the same root request and role,
 package identities and immutable resolutions, navigations, authored dependency
@@ -26,49 +26,72 @@ participate in their source identities. The manager reads the accepted lock
 separately, so edits to its retained policy still affect comparison with fresh
 compiler findings even when the source identity is unchanged.
 
-Every concrete package owner retained anywhere in the complete policy must
-belong to that target's exact transitive source graph. Evidence owns this
-enumeration, including compiler canonical type and callable identities; the
-manager supplies package-key membership, not a second semantic parser. A
-transitively carried type does not need a direct dependency edge. Toolchain
-owners, absent optional owners, and symbolic binders do not assert package
-membership. Foreign symbolic boundary demands additionally join the owning
-baseline's exact boundary operator and Type-only telescope. These are inert
-cross-record consistency checks, not source replay, public availability checks
-for arbitrary carried declarations, or fresh audit certification.
+Each `PackageAcceptanceRow` retains the complete canonical readable meaning of
+one admission-claim or external-realization callable, external supply, dangerous
+capability, or terminal permission. The coordinate key identifies a row; exact
+meaning comparison, not digest-only consent, identifies a policy change.
+The manager owns these inert retained records separately from the compiler's
+fresh `PackagePolicyBaseline`. Recovery does not fabricate compiler evidence.
 
-## Version 1 text
+The lock excludes full public API, ordinary checked callables, selected-provider
+tables, representation snapshots, source-semantic dependency graphs, and symbolic
+demands. Fresh whole-candidate checking and audit still produce those findings.
+Acceptance comparison uses the fresh risk projection and needs no old-source
+analysis pass. Source pins, graph edges, root roles, and historical decisions
+remain exact.
+
+## Version 2 text
 
 The outer grammar is line-oriented ASCII. Counts and byte lengths are unsigned
 decimal with no signs or leading zeroes. Target identities come from the trusted
 toolchain catalog. All rows end in LF, and there is no trailing material.
 
 ```text
-omega_lock 1
+omega_lock 2
 targets <count>
 target <canonical target identity>
 source <byte length>
 <verbatim canonical source text>
-baselines <source package count>
-baseline <byte length>
-<verbatim complete named policy text>
+acceptances <source package count>
+acceptance <byte length>
+<verbatim canonical acceptance text>
 decisions <byte length>
 <verbatim historical decision text>
 end_target
 end
 ```
 
-Repeat `baseline` sections in source-package order and target sections in
+Repeat `acceptance` sections in source-package order and target sections in
 canonical target order. Child text already includes its final LF; the envelope
 does not insert another separator. Byte lengths delimit children without
 escaping an entire source graph or policy into an opaque string. Each child
-owner validates its own canonical format and typed meaning. The manager checks
-the joins and outer framing. Unknown versions fail with recovery guidance;
-loading never upgrades pins or treats unknown policy as empty.
+owner validates its own format. The manager checks the joins and outer framing.
+Acceptance children use:
+
+```text
+acceptance_schema 2
+rows <count>
+row <callable|external_supply|dangerous_capability|terminal_permission>
+key <SHA-256 of canonical row coordinate bytes>
+meaning <byte length>
+<complete canonical readable risk-row text>
+end_acceptance
+```
+
+Repeat row/key/meaning groups in strict kind/key order. The meaning includes its
+final LF. Keys are lowercase hexadecimal, and duplicate coordinates reject.
+Source-package order supplies package identity; the enclosing target supplies
+target identity. Historical text is not promoted into fresh typed analysis.
+
+Known version 1 locks remain readable through the existing full-baseline decoder,
+then project only risk-bearing rows into compact acceptance. This migration
+requires no filesystem access, source analysis, or compiler invocation. Writers
+emit version 2 only. Unknown versions fail with recovery guidance; loading never
+upgrades pins or treats unknown policy as empty.
 
 ## Decision history
 
-New complete-policy choices use this versioned child section:
+Historical comparison choices use this versioned child section:
 
 ```text
 omega-policy-decisions 2
@@ -117,8 +140,8 @@ retain the existing unsupported-format recovery guidance.
 | Semantic identity traversal nodes | 1,048,576 |
 | Historical decisions | 65,536 |
 
-Child format ceilings also apply: source text is at most 64 MiB, each complete
-policy text at most 32 MiB with its existing 4 MiB binary and semantic limits,
+Child format ceilings also apply: source text is at most 64 MiB, each acceptance
+text at most 32 MiB,
 and each decision section at most 8 MiB. Source identity/request fields have
 the source owner's 1 MiB hard ceiling. Counts do not reset at target boundaries.
 Version 2 historical decisions require only the retained decision vector;
@@ -130,9 +153,11 @@ Input text and previously owned values remain borrowed and are not charged;
 allocator overhead is excluded. Each child reports its consumed allowance, which
 the lock subtracts before recovering the next child. Outer target and baseline
 vectors are charged before reservation.
-The sorted package-owner index and any exact unescape buffers also consume
-the same owned-storage allowance. Semantic identity work is cumulative across
-baselines and targets, with an additional per-identity nesting ceiling of 128.
+Legacy full-baseline recovery additionally charges typed policy recovery and
+exact unescape buffers to the same owned-storage allowance. It checks referenced
+package owners against the retained source graph before projection. Its semantic identity
+work is cumulative across baselines and targets, with an additional per-identity
+nesting ceiling of 128; its existing binary and semantic child limits also apply.
 
 `canonical_text_with_limits` uses the same child recovery accounting so it does
 not emit a record that exceeds the chosen recovery ceilings. It drops each

@@ -3,6 +3,62 @@ use package_manager::declarations::BuildDeclarationKind;
 use package_manager::review::{PackagePolicyChangeError, ReviewOnlyRootRoleContract};
 
 #[test]
+fn benign_api_growth_does_not_grow_retained_consent_or_require_approval() {
+    use std::fmt::Write;
+    let tree = Tree::new();
+    source(&tree, "pub const VALUE: u64 = 7;\n", "");
+    let (original_sources, original_reviews) = candidate(&tree, "compact-original");
+    let original_lock = lock_from_reviews(&original_sources, &original_reviews);
+    let mut expanded = String::from("pub data Pair { first: u64; second: u64; }\n");
+    expanded.push_str("pub machine identity(value: Pair) -> Pair { value }\n");
+    for ordinal in 0..128 {
+        writeln!(&mut expanded, "pub const VALUE_{ordinal}: u64 = {ordinal};").unwrap();
+    }
+    source(&tree, &expanded, "");
+    let (current_sources, current_reviews) = candidate(&tree, "compact-expanded");
+    let current_policy = current_reviews
+        .review(current_sources.graph().root())
+        .unwrap()
+        .policy();
+    assert_eq!(current_policy.public_consts().len(), 128);
+    assert!(
+        current_policy
+            .canonical_text()
+            .unwrap()
+            .contains("VALUE_127")
+    );
+    let changes = compare_package_policy_changes(
+        original_lock.target(TARGET),
+        &current_reviews,
+        &current_sources.for_exact_target(TARGET),
+        PackagePolicyChangeLimits::default(),
+    )
+    .unwrap();
+    assert!(!changes.requires_decision());
+    assert!(changes.source_subject_changed());
+    let [package] = changes.packages() else {
+        panic!("one package");
+    };
+    assert!(package.source_changed());
+    assert!(package.audit_recommended());
+    assert!(package.rows().is_empty());
+    let current_lock = lock_from_reviews(&current_sources, &current_reviews);
+    assert_eq!(
+        original_lock.targets()[0].baselines(),
+        current_lock.targets()[0].baselines()
+    );
+    assert!(current_lock.targets()[0].baselines()[0].rows().is_empty());
+    let lock_text = current_lock.canonical_text().unwrap();
+    assert!(!lock_text.contains("VALUE_127"));
+    assert!(!lock_text.contains("identity"));
+    assert_eq!(
+        lock_text.len(),
+        original_lock.canonical_text().unwrap().len()
+    );
+    assert!(current_policy.canonical_text().unwrap().len() > lock_text.len());
+}
+
+#[test]
 fn the_same_root_key_retains_directional_package_application_role_changes() {
     let tree = Tree::new();
     source(
@@ -144,11 +200,14 @@ fn initial_public_api_is_nonblocking_but_private_assumptions_and_external_code_a
                     .any(|row| row.kind() == kind && row.requires_decision())
             );
         } else {
+            assert!(package.rows().is_empty());
             assert!(
-                package
-                    .rows()
-                    .iter()
-                    .any(|row| row.kind() == PackagePolicyRowKind::PublicConst)
+                !reviews
+                    .review(closure.graph().root())
+                    .unwrap()
+                    .policy()
+                    .public_consts()
+                    .is_empty()
             );
             assert!(package.rows().iter().all(|row| !row.requires_decision()));
         }
@@ -182,18 +241,12 @@ fn unused_representation_selection_is_retained_as_nonblocking_audit_meaning() {
     let [package] = changes.packages() else {
         panic!("one representation package")
     };
-    let row = package
-        .rows()
-        .iter()
-        .find(|row| row.kind() == PackagePolicyRowKind::RepresentationSelection)
-        .unwrap();
-    assert!(!row.requires_decision());
-    assert!(row.audit_recommended());
-    assert!(package.audit_recommended());
+    assert!(package.rows().is_empty());
+    assert!(!package.requires_decision());
     assert!(
-        row.candidate()
-            .unwrap()
+        policy
             .canonical_text()
+            .unwrap()
             .contains("TokenRepresentation")
     );
 }

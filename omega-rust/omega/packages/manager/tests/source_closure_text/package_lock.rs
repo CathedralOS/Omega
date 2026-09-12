@@ -72,6 +72,20 @@ fn complete_diamond_lock_recovers_without_any_old_source_or_compiler_state() {
         assert_eq!(baseline.package(), source.key().identity());
         assert_eq!(baseline.target(), TargetProfile::WindowsX64);
     }
+    let empty_policy_limits = PackageLockRecoveryLimits {
+        maximum_policy_elements: 0,
+        ..Default::default()
+    };
+    assert_eq!(
+        PackageLock::recover_text(&text, empty_policy_limits).unwrap(),
+        recovered
+    );
+    assert_eq!(
+        recovered
+            .canonical_text_with_limits(empty_policy_limits)
+            .unwrap(),
+        text
+    );
     for limits in [
         PackageLockRecoveryLimits {
             maximum_bytes: text.len() - 1,
@@ -87,10 +101,6 @@ fn complete_diamond_lock_recovers_without_any_old_source_or_compiler_state() {
         },
         PackageLockRecoveryLimits {
             maximum_dependency_requests: 0,
-            ..PackageLockRecoveryLimits::default()
-        },
-        PackageLockRecoveryLimits {
-            maximum_policy_elements: 0,
             ..PackageLockRecoveryLimits::default()
         },
     ] {

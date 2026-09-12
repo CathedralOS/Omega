@@ -259,7 +259,7 @@ fn equal_policy_is_shown_once_and_unavailable_keeps_accepted_meaning() {
         MAXIMUM_BYTES,
     )
     .unwrap();
-    let policy = indented_policy(&baseline.baselines()[0]);
+    let policy = indented_policy(reviews.reviews()[0].policy());
     assert_eq!(text.matches(&policy).count(), 1);
     assert!(text.contains("accepted-policy equal-to-fresh"));
     assert!(text.contains("requires-review false\n"));
@@ -286,8 +286,11 @@ fn equal_policy_is_shown_once_and_unavailable_keeps_accepted_meaning() {
     )
     .unwrap();
     assert!(unavailable.contains("accepted graph (1 packages)"));
-    assert!(unavailable.contains("accepted-policy (historical meaning)"));
-    assert!(unavailable.contains(&policy));
+    assert!(
+        unavailable
+            .contains("accepted-policy: 0 explicit acceptance rows; no historical API snapshot")
+    );
+    assert!(!unavailable.contains(&policy));
     assert!(unavailable.contains("fresh-analysis unavailable: \"checkout missing\\nerror\""));
     assert!(!unavailable.contains("equal-to-fresh"));
     assert!(
@@ -314,7 +317,7 @@ fn equal_policy_is_shown_once_and_unavailable_keeps_accepted_meaning() {
 }
 
 #[test]
-fn changed_policy_preserves_both_meanings_and_same_named_graph_occurrences() {
+fn changed_api_is_freshly_reported_without_retaining_old_meaning_or_requiring_approval() {
     let project = Project::new();
     let dependencies = concat!(
         "builder.depend_as(\"left\", Source::Path { location: \"../left\" });",
@@ -357,11 +360,16 @@ fn changed_policy_preserves_both_meanings_and_same_named_graph_occurrences() {
         .iter()
         .find(|policy| policy.package() == root.identity())
         .unwrap();
-    assert_ne!(old, reviews.review(root).unwrap().policy());
-    assert!(text.contains("requires-review true\n"));
-    assert!(text.contains(&indented_policy(old)));
+    assert_eq!(
+        old,
+        &crate::lock::PackagePolicyAcceptance::from_policy(reviews.review(root).unwrap().policy())
+            .unwrap()
+    );
+    assert!(text.contains("requires-review false\n"));
+    assert!(text.contains("source-changed true\n"));
+    assert!(text.contains("audit-recommended true\n"));
     assert!(text.contains(&indented_policy(reviews.review(root).unwrap().policy())));
-    assert_eq!(text.matches("accepted-policy equal-to-fresh").count(), 2);
+    assert_eq!(text.matches("accepted-policy equal-to-fresh").count(), 3);
     assert_eq!(
         text.lines()
             .filter(|line| line.starts_with("edge "))

@@ -69,7 +69,7 @@ fn assert_contract_reach(policy: &PackagePolicyBaseline, expected: &[&str]) {
 }
 
 #[test]
-fn invoked_generic_contract_reach_survives_policy_and_changed_review() {
+fn invoked_generic_contract_reach_changes_fresh_audit_without_new_consent() {
     let tree = Tree::new();
     source(&tree, GENERIC, "");
     let initial = review(&tree, "generic-initial", None);
@@ -103,37 +103,24 @@ fn invoked_generic_contract_reach_survives_policy_and_changed_review() {
         .iter()
         .find(|package| package.key() == root)
         .unwrap();
-    let [row] = changes.rows() else {
-        panic!(
-            "only the generic callable contract changes: {:?}",
-            changes.rows()
-        );
-    };
-    assert_eq!(row.kind(), PackagePolicyRowKind::Callable);
-    assert_eq!(row.change(), PackagePolicyChangeKind::Changed);
-    assert!(row.requires_decision());
-    let baseline = row.baseline().unwrap();
-    let proposed = row.candidate().unwrap();
-    assert_ne!(baseline.canonical_bytes(), proposed.canonical_bytes());
+    assert!(changes.rows().is_empty());
+    assert!(changes.source_changed());
+    assert!(changes.audit_recommended());
+    assert!(!changes.requires_decision());
     let report = render_package_policy_review(updated.changes(), MAXIMUM_DOCUMENT_BYTES).unwrap();
-    assert!(report.contains("change callable changed\n"));
-    for (prefix, retained) in [("-", baseline), ("+", proposed)] {
-        assert!(retained.canonical_text().contains("invoke"));
-        assert!(retained.canonical_text().contains("First"));
-        for line in retained.canonical_text().lines() {
-            assert!(report.contains(&format!("{prefix} {line}\n")));
-        }
-    }
-    assert!(matches!(
-        recover_package_policy_review(updated.changes(), &report, MAXIMUM_DOCUMENT_BYTES),
-        Err(PackagePolicyReviewError::UnresolvedDecision(_))
-    ));
+    assert!(!report.contains("decision row "));
+    assert!(
+        recover_package_policy_review(updated.changes(), &report, MAXIMUM_DOCUMENT_BYTES)
+            .unwrap()
+            .all_required_changes_accepted()
+    );
+    assert_eq!(propose(&updated).baselines(), accepted.baselines());
     assert_round_trip(&updated, propose(&updated));
     assert!(!tree.path("sources/root/omega.lock").exists());
 }
 
 #[test]
-fn private_helper_reach_dependency_changes_require_review_with_equal_conservative_rows() {
+fn private_helper_reach_dependency_changes_fresh_audit_with_equal_conservative_rows() {
     const NOMINAL: &str = r#"
 pub boundary trait Console {}
 pub trait StepContract { machine step(value: u64) -> u64 reaches Console; }
@@ -219,26 +206,18 @@ where machine Step satisfies StepContract::step;
         .iter()
         .find(|package| package.key() == root)
         .unwrap();
-    let [row] = changes.rows() else {
-        panic!(
-            "only the public callable dependency changes: {:?}",
-            changes.rows()
-        );
-    };
-    assert_eq!(row.kind(), PackagePolicyRowKind::Callable);
-    assert_eq!(row.change(), PackagePolicyChangeKind::Changed);
-    assert!(row.requires_decision());
-    assert_ne!(
-        row.baseline().unwrap().canonical_bytes(),
-        row.candidate().unwrap().canonical_bytes()
-    );
+    assert!(changes.rows().is_empty());
+    assert!(changes.source_changed());
+    assert!(changes.audit_recommended());
+    assert!(!changes.requires_decision());
     let report = render_package_policy_review(updated.changes(), MAXIMUM_DOCUMENT_BYTES).unwrap();
-    assert!(report.contains("change callable changed\n"));
-    assert!(report.contains("service_reach_dependency"));
-    assert!(matches!(
-        recover_package_policy_review(updated.changes(), &report, MAXIMUM_DOCUMENT_BYTES),
-        Err(PackagePolicyReviewError::UnresolvedDecision(_))
-    ));
+    assert!(!report.contains("decision row "));
+    assert!(
+        recover_package_policy_review(updated.changes(), &report, MAXIMUM_DOCUMENT_BYTES)
+            .unwrap()
+            .all_required_changes_accepted()
+    );
+    assert_eq!(propose(&updated).baselines(), accepted.baselines());
     assert_round_trip(&updated, propose(&updated));
     assert!(!tree.path("sources/root/omega.lock").exists());
 }

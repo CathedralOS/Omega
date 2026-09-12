@@ -110,10 +110,12 @@ fn locked_checking_rebuilds_generated_bundles_and_preserves_full_current_reviews
             .iter()
             .find(|policy| policy.package() == review.key().identity())
             .unwrap();
-        assert_eq!(review.policy(), accepted);
+        let projected =
+            package_manager::lock::PackagePolicyAcceptance::from_policy(review.policy()).unwrap();
+        assert_eq!(&projected, accepted);
         assert_eq!(
-            review.policy().canonical_bytes().unwrap(),
-            accepted.canonical_bytes().unwrap()
+            projected.canonical_text().unwrap(),
+            accepted.canonical_text().unwrap()
         );
     }
     let fresh_cache = fs::canonicalize(tree.path("new-cache")).unwrap();
