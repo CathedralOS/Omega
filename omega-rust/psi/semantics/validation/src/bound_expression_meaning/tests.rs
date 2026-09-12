@@ -317,7 +317,9 @@ fn attached_self_membership_requires_its_owner_and_receiver() {
     let tokens = Lexer::new(
         "data Choice { case Ready(value: u64); case Empty; }
          data Foreign { case Ready(value: u64); case Empty; }
-         machine Choice::member(&self) -> bool { self in Choice::Ready }",
+         machine Choice::member(&self) -> bool { self in Choice::Ready }
+         machine Foreign::member(&self) -> bool { self in Foreign::Ready }
+         machine Choice::other(&self) -> bool { self in Choice::Ready }",
     )
     .tokenize()
     .unwrap();
@@ -367,4 +369,17 @@ fn attached_self_membership_requires_its_owner_and_receiver() {
         expression,
         comparison
     ));
+    for foreign in &program.machines()[1..] {
+        let foreign_state = &program.machine_states(foreign)[0];
+        assert!(
+            !has_exact_case_membership_meaning(
+                &program,
+                machine,
+                Some(foreign_state),
+                expression,
+                comparison
+            ),
+            "a foreign receiver state cannot establish this machine's self"
+        );
+    }
 }

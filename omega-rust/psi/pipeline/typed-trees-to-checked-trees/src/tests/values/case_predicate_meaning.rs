@@ -2,6 +2,25 @@ use super::*;
 use checked_trees::CheckedOperatorFacts;
 
 #[test]
+fn generated_case_equality_checks_single_tag_and_payload_expansions() {
+    for value in [
+        "choice == Choice::Empty {}",
+        "choice.equals(Choice::Empty {})",
+        "choice != Choice::Empty {}",
+        "choice == Choice::Ready { value: 37 }",
+    ] {
+        let program = typed_trees(&format!(
+            "trait Equatable {{ machine equals(&self, rhs: &Self) -> bool; }}
+             data Choice {{ case Empty; case Ready(value: u64); }}
+             ChoiceEquatable: Choice satisfies Equatable;
+             machine equal(choice: Choice) -> bool {{ {value} }}"
+        ));
+        crate::lower_typed_trees(program)
+            .unwrap_or_else(|diagnostics| panic!("{value}: {diagnostics:?}"));
+    }
+}
+
+#[test]
 fn case_tag_predicates_preserve_value_equality_and_membership_meaning() {
     for (members, operator, value, accepted, compared_field) in [
         (
