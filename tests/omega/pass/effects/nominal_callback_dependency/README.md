@@ -38,3 +38,12 @@ ordinary helpers. Reload and interpretation retain nominal service parents and
 fixed synchronous-invocation reach separately from the exact installation bound,
 including overlapping rows. This validates the preselection artifact, not final
 provider installation or admission of an unresolved row at a package boundary.
+
+For explicit top-level requirements, the focused command also checks fixed
+invocation reach in the checked contract envelope and Terminal root-reach
+projection, including parent closure and overlap with the normalized bound.
+Ordinary helper calls publish, reload, and interpret against newly supplied
+host handlers. Boundary calls and installation dependencies retain the same
+canonical requirement overload identity; replacing it with a display name
+rejects. This preselection interpretation does not establish final provider
+installation or permit unresolved rows across ordinary package boundaries.

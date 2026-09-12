@@ -185,6 +185,163 @@ fn service_names<'module>(module: &'module TerminalModule, row: &[ServiceId]) ->
 }
 
 #[test]
+fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
+    for bound in ["Console", "Storage"] {
+        let source = format!(
+            r#"
+        pub boundary trait Audit {{}}
+        pub boundary trait Console: Audit {{}}
+        pub boundary trait Storage {{}}
+        pub data Endpoint {{}}
+        pub boundary requirement Endpoint::step() invokes Console; reaches <= {bound};
+    "#
+        );
+        let checked = checked_source(&source);
+        let requirement = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Endpoint::step")
+            .expect("top-level requirement");
+        let service_ids = ["Audit", "Console", "Storage"]
+            .iter()
+            .enumerate()
+            .map(|(position, name)| {
+                (
+                    checked
+                        .facts
+                        .service_reaches
+                        .services
+                        .id_for_name(name)
+                        .expect("service"),
+                    service_id(u64::try_from(position).expect("service position") + 1),
+                )
+            })
+            .collect::<Vec<_>>();
+        let root = lower_root_service_reach(&checked, requirement.symbol, &service_ids)
+            .expect("lower exact top-level requirement closure");
+        assert_eq!(
+            root.concrete,
+            service_ids[..2]
+                .iter()
+                .map(|(_, terminal)| *terminal)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(root.installation_dependencies.len(), 1);
+        let expected_bound = if bound == "Console" {
+            &service_ids[..2]
+        } else {
+            &service_ids[..]
+        };
+        assert_eq!(
+            root.installation_dependencies[0].upper_bound,
+            expected_bound
+                .iter()
+                .map(|(_, terminal)| *terminal)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            root.installation_dependencies[0].requirement_identity,
+            checked
+                .typed
+                .normalized_machine_overload_identity(requirement)
+                .expect("normalized requirement")
+                .identity()
+        );
+        let envelope = checked
+            .facts
+            .contract_plans
+            .realized_envelope(requirement.symbol)
+            .expect("checked requirement envelope");
+        assert_eq!(envelope.concrete_service_reach, ["Audit", "Console"]);
+        assert_eq!(envelope.unresolved_installation_reaches.len(), 1);
+        assert_eq!(
+            envelope.unresolved_installation_reaches[0].requirement,
+            requirement.symbol
+        );
+        assert_eq!(
+            envelope.unresolved_installation_reaches[0].upper_bound,
+            requirement.service_reach_row
+        );
+        let call_source = format!(
+            "{source}\n pub data Root {{}}\n machine helper() reaches Console + Storage invokes Console; {{ Endpoint::step(); }}\n pub machine Root::enter() invokes Console; {{ helper(); helper(); }}"
+        );
+        let caller = checked_source(&call_source);
+        let artifact = produce_terminal_artifact(&caller, "Root::enter")
+            .expect("publish explicit top-level boundary calls");
+        let module =
+            terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload calls");
+        assert_eq!(
+            service_names(&module, &module.boundary_machines[0].fixed_service_reach),
+            ["Audit", "Console"]
+        );
+        assert_eq!(
+            module.boundary_machines[0].identity,
+            root.installation_dependencies[0].requirement_identity
+        );
+        assert_eq!(
+            module.root_service_reach.installation_dependencies,
+            root.installation_dependencies
+        );
+        assert_eq!(
+            service_names(&module, &module.root_service_reach.concrete),
+            ["Audit", "Console", "Storage"]
+        );
+        let mut stale = module.clone();
+        stale.boundary_machines[0].identity = "Endpoint::step".into();
+        assert!(
+            terminal_verifier::validate_module(&stale).is_err(),
+            "display name cannot replace normalized requirement identity"
+        );
+        drop(caller);
+        drop(checked);
+        struct Host;
+        impl terminal_interpreter::TerminalEffectHandler for Host {
+            fn handle_effect(
+                &mut self,
+                effect: &terminal_interpreter::TerminalEffect,
+            ) -> Result<(), terminal_interpreter::TerminalEffectRejection> {
+                assert!(matches!(
+                    effect,
+                    terminal_interpreter::TerminalEffect::BoundaryCall { .. }
+                ));
+                Ok(())
+            }
+        }
+        let execution =
+            terminal_interpreter::interpret_terminal_artifact_with_effect_handler_measured(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[],
+                &[],
+                &mut Host,
+            )
+            .expect("interpret source-free top-level boundary helpers");
+        assert_eq!(
+            execution.value(),
+            terminal_interpreter::TerminalExecutionResult::Unit
+        );
+        assert_eq!(execution.effects().len(), 2);
+        if bound == "Storage" {
+            let invalid = call_source.replace("reaches Console + Storage invokes", "invokes");
+            let tokens = Lexer::new(&invalid).tokenize().expect("tokens");
+            let syntax = parse_syntax_trees(&tokens).expect("parse");
+            let resolved = lower_syntax_trees(&syntax).expect("resolve");
+            let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+            let diagnostics =
+                lower_typed_trees(typed).expect_err("bound does not waive direct declaration");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("undeclared service `Storage`")),
+                "{diagnostics:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn bounded_boundary_helpers_replay_fixed_parent_and_invocation_reach() {
     for (bound, invocations, expected_fixed, expected_bound) in [
         ("Console", "", vec!["Audit", "Installer"], vec!["Console"]),

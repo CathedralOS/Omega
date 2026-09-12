@@ -136,6 +136,27 @@ pub(crate) fn checked_unit_boundary_identity(
             return Ok(identity);
         }
     }
+    // Top-level installation dependencies are keyed by the normalized machine
+    // overload, not its display name. Boundary calls must use that same exact
+    // requirement identity or independent root replay sees an unused bound.
+    let mut requirements = checked.typed.machines().iter().filter(|machine| {
+        machine.symbol == symbol
+            && (machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+                || (machine.supply_mode == language_semantics::MachineSupplyMode::Boundary
+                    && machine.service_reach_is_installation_bound))
+    });
+    if let Some(requirement) = requirements.next() {
+        if requirements.next().is_some() {
+            return unsupported("top-level boundary requirement identity is ambiguous");
+        }
+        return checked
+            .typed
+            .normalized_machine_overload_identity(requirement)
+            .map(|identity| identity.identity())
+            .ok_or(LoweringError::Unsupported(
+                "top-level boundary has no normalized machine overload identity",
+            ));
+    }
     checked_terminal_machine_name(checked, symbol).map(str::to_owned)
 }
 
