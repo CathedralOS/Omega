@@ -605,10 +605,17 @@ Owners include
   truths. Keep search outside the checker and preserve useful arithmetic rules
   as certificate producers or explicitly justified checked rules.
 
-  Implement the pinned reference core first. General inductive/quotient extension
-  and complete profile publication are **OWNER-BLOCKED** only on
-  [profile completion](OWNER_QUESTIONS.md#foundation-profile-completion).
-  Do not leave the entire kernel waiting for source punctuation or artifact bytes.
+  Implement the pinned reference core and selected
+  [W-based profile](wiki/spec/proofs/inductive_profile.md): relevant identity,
+  two-element type, W-induction and checked derived indexed families. No second
+  primitive indexed/strict-inductive checker. Prove the encoding scheme's
+  formation, constructor, dependent-induction and computation correspondence,
+  then independently check its declaration applications. Structural round trips
+  do not establish meaning. General source punctuation is not a kernel blocker.
+  **OWNER-BLOCKED, indexed conversion only:** resolve the
+  [function-eta dependency](OWNER_QUESTIONS.md#indexed-encoding-function-eta)
+  before admitting the cited indexed eliminator's definitional computation.
+  Reference-core, identity/W checking and assumption closure can proceed.
   Acceptance: independently checked universe-polymorphic dependent functions
   and pairs, strict same-statement conversion and relevant witness separation;
   malformed universes, capture-changing substitution and illegal elimination
@@ -617,6 +624,15 @@ Owners include
   not claim feasibility from empty receipts or compiler-authored success flags.
   The next milestone must connect this model to source or a real theorem
   certificate, not expand a disconnected proof framework.
+
+  Demonstrate Vector length indices, derivation context/conclusion indices,
+  mutual and nested strictly-positive families with definitional constructor
+  computation. Reject malformed encodings, negative recursion, bad universes
+  and illegal strict elimination; separate source invalidity, unsupported valid
+  encoding and producer defects. Measure term size, retained storage and checking
+  cost in the application checker, not an assumed nested bootstrap environment.
+  Complete rule/encoding metatheory and implementation evidence before claiming
+  a verified profile. Reopen W only on demonstrated requirements/cost/audit failure.
 
 - **PROOF-CONTRACT-MIGRATION.** Migrate the proof surface to
   [ordinary machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles).
@@ -656,9 +672,16 @@ Owners include
      choice-dependent branch, and an erased theorem that mentions that value.
   4. Accepting and denying policies distinguish the same theorem, with exact
      transitive assumptions surviving import, erasure, serialization, and replay.
-  5. A Cauchy/quotient proof preserves representative independence and explicit
-     law selection, once [profile completion](OWNER_QUESTIONS.md#foundation-profile-completion)
-     settles its foundational realization; do not block the other cases on it.
+  5. A Cauchy/quotient proof uses the selected
+     [set-quotient interface](wiki/spec/proofs/quotients.md#set-quotient-foundation),
+     with exact universes, set-valued dependent elimination, point computation
+     as a law and explicitly admitted effectivity. Check derived lift, coverage,
+     proposition induction and pointwise uniqueness; no hidden extensionality
+     or kernel reduction. Squashed relations yield only squashed evidence.
+     Preserve representative operations/congruence independently: a quotient-refusing
+     policy accepts their quotient-free closure and rejects the assumption-bearing
+     quotient proof. This control depends on transitive closure through helper
+     statements/types; existing Rat comments do not establish that closure.
 
   Migrate core relations, quotients, samples, and tests, remove obsolete parser/carrier/codec
   routes, and reject retired spellings. Candidate naming syntax is not a
@@ -677,10 +700,10 @@ Owners include
   owner. Missing or stale evidence cannot silently discharge an obligation or
   inherit a producer's admission decision.
 
-  Bounded current-rule production and the selected kernel core remain actionable.
-  Only rules requiring [profile completion](OWNER_QUESTIONS.md#foundation-profile-completion)
-  remain **OWNER-BLOCKED**; the common checking authority is settled in the
-  [publication contract](wiki/spec/proofs/publication.md).
+  Bounded current-rule production and the selected kernel profile are actionable.
+  General certificates depend on `PROOF-KERNEL-CORE`'s rule and encoding evidence,
+  including its narrow indexed-conversion decision where needed. Common checking
+  authority is settled in the [publication contract](wiki/spec/proofs/publication.md).
   Retain closure over complete checked declaration dependencies,
   including statement/type references surviving neither erasure nor final normal
   forms. Acceptance also checks a well-founded denotation against a generated
@@ -704,8 +727,9 @@ Owners include
   (`Proved`, `ExplicitlyTrusted`, `Unfinished`). Mechanically fail uncovered
   accepted dispatch/fact kinds; revalidate changes to existing arms too. Coverage
   is not soundness, and unfinished rows cannot establish independent claims.
-  Application interpretation uses the common kernel; only rules depending on
-  [profile completion](OWNER_QUESTIONS.md#foundation-profile-completion) are blocked.
+  Application interpretation uses the common kernel and the selected
+  [inductive profile](wiki/spec/proofs/inductive_profile.md). Its unfinished
+  soundness/encoding proofs are dependencies, not permission to trust success.
   Bootstrap discharge belongs to `BETA-DERIVATION-CHECKER` in `TASKS_BOOTSTRAP.md`,
   not a prerequisite that forces general mathematics into the Gamma checker.
   End-to-end acceptance uses a theorem-dependent program obligation after

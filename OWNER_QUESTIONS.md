@@ -50,9 +50,12 @@ reference core, strict/relevant distinction, noncomputability and assumption
 rules. The remaining questions below do not reopen those decisions.
 
 The [PCC publication and authority contract](wiki/spec/proofs/publication.md) is
-settled. Complete source elaboration and the exact extended foundation profile;
-PCC interpretation proofs, checker implementation and sidecar delivery are
-execution work unless they expose a new semantic choice.
+settled. The [W-based inductive profile](wiki/spec/proofs/inductive_profile.md)
+and [set-quotient interface](wiki/spec/proofs/quotients.md#set-quotient-foundation)
+are also selected. Their metatheory, encoding correctness, checker implementation,
+measurements and PCC delivery are execution work unless they expose a new semantic
+choice. General mathematical source elaboration and the newly identified indexed
+encoding conversion dependency remain below.
 No question restores anonymous machines, dedicated formula declarations, or
 authored `-> Prop` syntax. Those ergonomic proposals remain separate.
 
@@ -129,61 +132,43 @@ The existing [evaluation admission](wiki/spec/language/evaluation.md#invocation-
 and total-term rules stay fixed: this question does not reopen whether arbitrary
 runtime effects may execute in proofs.
 
-<a id="foundation-profile-completion"></a>
+<a id="indexed-encoding-function-eta"></a>
 
-## Q2. Exact inductive and quotient extension of the reference core
+## Q2. Function eta for checked indexed induction
 
-### Context
+### Context and problem
 
-The [foundation](wiki/spec/proofs/foundation.md#decision-and-scope) selects the
-predicative sMLTT reference core, proof-relevant identity and strict logical
-proofs. It deliberately does not splice Lean's irrelevant equality or singleton
-elimination into that theory. The reference paper is not a complete declaration
-manual for Omega's general inductives and existing
-[quotient interface](wiki/spec/proofs/quotients.md).
+The [selected W profile](wiki/spec/proofs/inductive_profile.md#derived-indexed-families)
+requires dependent indexed induction with definitional constructor computation,
+for vectors, derivation trees and general recursive data. Its cited
+[IW construction](https://hott.github.io/Coq-HoTT/coqdoc-html/HoTT.Types.IWType.html)
+reconstructs a supplied child function `g` as
+`b ↦ (fst(g(b)),snd(g(b)))`. Pair eta yields `b ↦ g(b)`; identifying this
+with the original `g` requires function eta. Figure 1 of the
+[pinned reference core](https://jesper.sikanda.be/files/definitional-proof-irrelevance-without-K.pdf)
+lists function beta and pair eta, but not function eta. Consequently the cited
+definitional computation proof does not transfer under the rules currently pinned.
 
-The concrete customers are dependent mathematical data and induction, and
-representative-independent Cauchy/Real analysis. General quotient equality and
-elimination need a foundational realization; a checked congruence row alone
-does not supply one.
+### Proposed solution
 
-### Required decision and proposed route
+Explicitly extend conversion with typed dependent-function eta:
+`(x ↦ f(x)) ≡ f : Π(x : A). B(x)`, where `x` is fresh for `f`.
+Specify its interaction with all admitted sort combinations, substitution and
+conversion checking; justify the combined theory before claiming a verified
+profile. This is not function extensionality, equality reflection or K, and
+does not introduce a source feature. It is a kernel-rule amendment requiring
+an explicit decision, not an implementation shortcut authorized by the W choice.
 
-Pin one complete extension profile: accepted inductive declarations, positivity,
-universe levels, generated eliminators, identity elimination, computation and
-conversion rules. Use a documented intensional MLTT extension compatible with
-the selected strict layer; do not infer legality from current source syntax.
-Keep ordinary mathematical identity relevant and exclude unconditional UIP/K.
+### Alternate and acceptance
 
-For quotients, first evaluate an explicitly assumption-bearing abstract
-mathematical interface, with no new reduction rules. State exactly its projection,
-relation-to-identity law, elimination restrictions and correspondence laws, and
-which carrier/target truncation conditions it requires. A checked executable
-adapter remains separate. This is the recommended initial route because it
-does not expand trusted conversion merely to support the library; it is not yet
-ratified, and ordinary set-quotient laws cannot be assumed valid for arbitrary
-higher types.
+An eta-free indexed construction is viable if its dependent eliminator and
+constructor computation check under the exact existing conversion rules.
+Merely obtaining a propositional computation law does not satisfy the selected
+definitional requirement. Neither a structural round trip nor the original
+Coq check proves compatibility with Omega's narrower conversion.
 
-Before closing, give the exact declaration/rule table and a checked interpretation
-or applicable metatheoretic justification. Work through identity transport,
-indexed induction, squashed existence versus a relevant pair, and a quotient
-operation independent of representative. Show rejection of unjustified strict
-elimination, negative recursion and representative-sensitive observation.
-
-### Alternatives and boundary
-
-- **Viable:** a precisely specified primitive quotient extension with its own
-  metatheory and computation rules. Price the trusted surface and demonstrate
-  compatibility with proof-relevant identity rather than copying another kernel.
-- **Viable narrower implementation:** explicit setoid reasoning until the
-  quotient extension is settled. It may support library progress, but cannot
-  be reported as implementing the ratified quotient interface.
-- **Wrong:** silently import `Quot.sound`, singleton elimination or general
-  higher inductive types, treat all identity proofs as irrelevant, or publish a
-  canonical calculus identity before its rules are fixed.
-
-**Blocked work:** generalized inductive/quotient extensions in `PROOF-KERNEL-CORE`
-and the quotient leg of `PROOF-CONTRACT-MIGRATION`; complete profile publication
-used by the PCC bridge. The selected reference-core implementation, source
-design, existing bounded checks and explicit assumption tracking can proceed.
-This is completion of a chosen foundation, not another vote among proof languages.
+Acceptance: check constructor computation with a neutral child function `g`,
+not only an already-expanded lambda, then the Vector and derivation-family
+cases; retain the rule/metatheory obligations for the chosen route. This blocks
+only the indexed-computation portion of `PROOF-KERNEL-CORE`. Ordinary W/identity
+checking, assumption closure and quotient-interface work remain actionable.

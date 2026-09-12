@@ -12,9 +12,9 @@ Runtime cycles and grouped recursive certificates follow
 The responsibilities below and the [mathematical foundation](../proofs/foundation.md)
 are specified. [Application PCC](../proofs/publication.md) uses the common
 mathematical checking foundation with separate operational obligation
-reconstruction. Its implementation and soundness proofs remain required;
-the exact [extended profile](../../../OWNER_QUESTIONS.md#foundation-profile-completion)
-is still open. Selecting a reference core does not implement these components.
+reconstruction. Its implementation and soundness proofs remain required under
+the selected [W-based profile](../proofs/inductive_profile.md) and quotient laws.
+Selecting those rules does not implement or justify these components.
 The current product checker implements bounded rules, while the Gamma bootstrap
 checker implements finite ground equality. Neither establishes the general
 kernel or the universal schema-soundness proofs required below.

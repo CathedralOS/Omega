@@ -19,12 +19,17 @@ singleton elimination. The optional UIP extension in section 4.4 is excluded.
 The impredicative variant and implementation-specific extensions are not silently
 part of this selection.
 
-This selects the architecture and its reference core. It does **not** claim that
-the paper supplies Omega's complete inductive-declaration, quotient or artifact
-profile. The [remaining profile question](../../../OWNER_QUESTIONS.md#foundation-profile-completion)
-must close those exact joins before a complete canonical calculus identity is
-published. Source elaboration and PCC integration have separately named owners.
-The existing Rust and bootstrap checkers do not implement this general core yet.
+The [W-based inductive profile](inductive_profile.md) supplies the selected
+relevant identity, two-element type, W rules and derived indexed encoding.
+[Set quotients](quotients.md#set-quotient-foundation) use an explicit assumption-bearing
+interface, without new kernel reduction rules. These choices are settled;
+their combined metatheory, checked encodings and implementation remain required
+before claiming a complete verified profile. The reference paper does not supply
+those results automatically. The indexed construction's
+[function-eta dependency](../../../OWNER_QUESTIONS.md#indexed-encoding-function-eta)
+is undetermined; no extra conversion rule is implicitly admitted. Source
+elaboration and PCC integration have separately named owners. The existing Rust
+and bootstrap checkers do not implement this general core yet.
 
 ## Separate judgments
 
@@ -63,8 +68,8 @@ declarations, resource occurrences, or assumption records.
 General identity is selected to be intensional and proof-relevant, with
 reflexivity and dependent identity elimination. This is the relevant extension
 discussed in the paper's section 4.3, not a rule already supplied by sections
-3.1–3.6. Its precise rule presentation belongs to
-[profile completion](../../../OWNER_QUESTIONS.md#foundation-profile-completion).
+3.1–3.6. Its rule presentation is in the
+[inductive profile](inductive_profile.md#primitive-rules).
 There is no equality reflection, automatic UIP/K, or rule
 making every proof-relevant equality proof irrelevant. Systems type identity,
 IEEE comparisons, and mathematical identity retain their separate meanings.
@@ -94,9 +99,11 @@ does not trust its guesses. There is no self-typing universal type.
 
 Dependent function application, capture-avoiding substitution, mathematical
 conversion and dependent pairs belong to this core. General data declarations
-must lower to checked inductive definitions and eliminators, not a trusted
-assertion that the source recursion looked reasonable. Exact extension rules
-are part of the remaining profile work, not discretion for the implementation.
+must lower through the [W/indexed encoding](inductive_profile.md), not a trusted
+assertion that the source recursion looked reasonable. The encoding scheme needs
+semantic justification and each application needs independent checking; a
+round-trip structure comparison alone supplies neither induction nor computation
+correctness. This mathematical encoding does not prescribe runtime storage.
 
 For termination, distinguish the measure value, a proof of decrease,
 accessibility evidence used in a mathematical definition, and executable control
@@ -158,6 +165,15 @@ as that evidence, not used to rewrite the provenance of existing evidence.
 Receivers apply policy to the exact closure and claim role. Acceptance for
 mathematical exploration does not automatically accept a safety/refinement claim.
 
+Axiom count is not a trust ordering. A checked derivation replacing an assumed
+law retains its actual closure; acceptance depends on the receiver and claim role.
+That closure need not be a literal subset of the replaced law's dependencies.
+Conversely, fewer named assumptions do not establish a weaker commitment.
+Closure computation makes dependencies and policy acceptance checkable, not
+arbitrary logical strength or consistency. A derivation of quotient effectivity
+using extensionality or univalence retains those dependencies; a direct assumed
+effectivity law retains its own. Neither route silently replaces the other.
+
 Unknown calculus identities reject. A checked interpretation between concrete
 profiles may establish a bridge; similar syntax, shared digests or successful
 tests cannot. No general checker-plugin interface is implied.
@@ -203,12 +219,13 @@ ledger. Each example needs a valid derivation and an invalid control:
   measure fails correctness, rather than inheriting success from termination.
 - A source-free consumer checks a theorem-dependent program obligation under
   the exact profile and assumptions. Goal substitution and missing dependencies
-  reject. Quotient-based analysis additionally requires the open quotient join.
+  reject. Quotient-based analysis additionally exercises the selected quotient
+  interface and its exact admitted or proved laws.
 
 These are discriminating controls, not a proof of consistency or mathematical
 completeness. [Source punctuation](../../../OWNER_QUESTIONS.md#mathematical-binders)
-and [profile completion](../../../OWNER_QUESTIONS.md#foundation-profile-completion)
-remain open. The [application PCC contract](publication.md) fixes the common
+and the indexed encoding's function-eta dependency remain open. The
+[application PCC contract](publication.md) fixes the common
 checking authority and separate receiver-owned obligation interpretation;
 implementation must supply their exact rules and soundness evidence.
 No anonymous machine or optional
