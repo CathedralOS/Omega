@@ -1,11 +1,13 @@
-//! Every sample app under `samples/` must reach checked semantics.
+//! Maintained examples in `samples/{cli,gui,uefi}` must reach checked semantics.
+//! Independently owned application submodules in `samples/apps` run their own
+//! explicit, package-aware acceptance commands, whether initialized or absent.
 //!
 //! Samples otherwise have almost no compile coverage — only `cli_mvp` is built
 //! by the canary suite and only the dungeon is parse-tested — so they silently
 //! bit-rot against language changes. That is exactly what happened when
 //! exact-arithmetic (decision 17) became a proof obligation: 22 of the 48
 //! samples stopped compiling and nothing noticed. This harness is the guard:
-//! one iterating test that checks every sample `main.omg` under `samples/` for
+//! one iterating test that checks every maintained example `main.omg` for
 //! the default target and reports *all* broken samples at once, so a language
 //! change that breaks a demo fails the suite the same day. This broad source-
 //! compatibility sweep is entry-agnostic. Authored entry migration is checked
@@ -14,8 +16,8 @@
 //! the harness never manufactures a machine or root binding for them.
 //!
 //! Four guards:
-//!  * `all_samples_reach_checked_trees` — every sample `main.omg` under
-//!    `samples/` must reach checked semantics (catches staleness like the
+//!  * `all_samples_reach_checked_trees` — every maintained example `main.omg`
+//!    must reach checked semantics (catches staleness like the
 //!    decision-17 break without inventing deployment entry policy).
 //!  * `basics_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated basics cohort selects `Main::main` for every hosted target and
@@ -455,7 +457,7 @@ fn documented_expected_output(source: &str) -> Option<String> {
 fn sample_mains() -> Vec<PathBuf> {
     let samples_dir = repo_root().join("samples");
     let mut mains = Vec::new();
-    collect_sample_mains(&samples_dir, &mut mains);
+    collect_standard_sample_mains(&samples_dir, &mut mains);
     mains.sort();
     assert!(
         !mains.is_empty(),
@@ -463,6 +465,39 @@ fn sample_mains() -> Vec<PathBuf> {
         samples_dir.display()
     );
     mains
+}
+
+fn collect_standard_sample_mains(samples_directory: &Path, mains: &mut Vec<PathBuf>) {
+    for collection in ["cli", "gui", "uefi"] {
+        collect_sample_mains(&samples_directory.join(collection), mains);
+    }
+}
+
+#[test]
+fn standard_sample_discovery_excludes_application_submodules() {
+    let root = std::env::temp_dir().join(format!("omega-sample-ownership-{}", std::process::id()));
+    let paths = [
+        "cli/hello",
+        "gui/window",
+        "uefi/boot",
+        "apps/external/tests",
+    ];
+    for path in paths {
+        let directory = root.join(path);
+        fs::create_dir_all(&directory).expect("fixture directory");
+        fs::write(directory.join("main.omg"), "// discovery fixture\n").expect("fixture source");
+    }
+    let mut mains = Vec::new();
+    collect_standard_sample_mains(&root, &mut mains);
+    mains.sort();
+    let mut expected: Vec<_> = paths[..3]
+        .iter()
+        .map(|path| root.join(path).join("main.omg"))
+        .collect();
+    expected.sort();
+    // Clean up before asserting so the witnessed failing implementation leaves no fixture.
+    fs::remove_dir_all(&root).expect("fixture cleanup");
+    assert_eq!(mains, expected);
 }
 
 fn collect_sample_mains(directory: &Path, mains: &mut Vec<PathBuf>) {
