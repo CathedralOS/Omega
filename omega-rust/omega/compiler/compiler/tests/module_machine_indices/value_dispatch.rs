@@ -11,6 +11,111 @@ fn keep(name: &str, carrier: &str, index: &str) -> String {
 }
 
 #[test]
+fn anonymous_match_integer_quotients_preserve_canonical_indices() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (index, expected) in [
+        (
+            "((match true { true -> 14, false -> 28 }) / (match false { true -> -2, false -> 2 }))",
+            "7",
+        ),
+        (
+            "((match false { true -> 14, false -> 28 }) / (match true { true -> -2, false -> 2 }))",
+            "-14",
+        ),
+        (
+            "((match true { true -> 12, false -> 24 }) / ((match true { true -> 1, false -> 3 }) - 2))",
+            "-12",
+        ),
+        (
+            "((match true { true -> 12, false -> 24 }) / ((match true { true -> -2, false -> 2 }) * (match false { true -> -3, false -> 3 })))",
+            "-2",
+        ),
+        (
+            "((match true { true -> 12, false -> 24 }) / (match true { true -> -2, false -> 3 }))",
+            "-6",
+        ),
+        (
+            "(match true { true -> 7, false -> ((match (1u8 / 0 == 0) { true -> 14, false -> 28 }) / (match (1u8 / 0 == 0) { true -> -2, false -> 2 })) })",
+            "7",
+        ),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "pub data Indexed<const Value: i32> {{ value: u8; }} {} {}",
+                keep("keep", "Indexed", index),
+                keep("oracle", "Indexed", expected),
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_same_machine_types(&checked, "keep", "oracle");
+    }
+}
+
+#[test]
+fn anonymous_match_integer_quotients_retain_all_arm_obligations() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (carrier, index, expected) in [
+        (
+            "i32",
+            "((match true { true -> 14, false -> 15 }) / (match false { true -> -2, false -> 2 }))",
+            "all-arm integral result proof",
+        ),
+        (
+            "i32",
+            "(12 / (match 0 { 0 -> -2, 1 -> -5, _ -> 3 }))",
+            "all-arm integral result proof",
+        ),
+        (
+            "i32",
+            "(12 / (match 0 { 0 -> -3, 1 -> 2, _ -> 5 }))",
+            "all-arm integral result proof",
+        ),
+        (
+            "i32",
+            "(12 / (match 0 { 0 -> -2, 1 -> 0, _ -> 2 }))",
+            "nonzero divisor proof",
+        ),
+        (
+            "u8",
+            "(14 / (match false { true -> -2, false -> 2 }))",
+            "every arm to fit",
+        ),
+        (
+            "i8",
+            "(256 / (match true { true -> -2, false -> 2 }))",
+            "every arm to fit",
+        ),
+        (
+            "i32",
+            "(((match true { true -> 7 / 2, false -> 0 }) * 4) / (match true { true -> -2, false -> 2 }))",
+            "exact warning evidence",
+        ),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "pub data Indexed<const Value: {carrier}> {{ value: u8; }} {}",
+                keep("keep", "Indexed", index),
+            ),
+        );
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("selected integral quotient cannot erase all-arm obligations");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{index}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn match_indices_select_one_arm_and_retain_canonical_type_identity() {
     let tree = Sources::new();
     let root = tree.package("root");

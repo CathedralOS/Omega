@@ -1181,7 +1181,8 @@ Owners include
   declaration evaluation, including unused initializers. Calls need full
   invocation admission and floating identities need determined bits.
   `const_generic_expressions/value/match_dispatch.rs` still needs nonconstant
-  divisor integrality/nonzero proofs and exact fractional-warning evidence for
+  divisor integrality beyond singleton sign intervals, nonzero proofs beyond
+  retained lattice gaps, and exact fractional-warning evidence for
   independent dispatch operands; extend rational bounds and correlations, not
   Cartesian arm enumeration or evaluation of skipped subjects. Preserve exact
   selected operators (**OPERATOR-MACHINE-SUPPLY**) and proof arguments.

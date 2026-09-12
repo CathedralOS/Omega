@@ -1,5 +1,10 @@
 pub data Buffer<const Size: u64> { value: [u8; Size]; }
 pub data Flag<const Enabled: bool> { value: u8; }
+pub data SignedIndex<const Value: i32> { value: u8; }
+
+machine integral_quotient(value: SignedIndex<((match true { true -> 14, false -> 28 }) / (match false { true -> -2, false -> 2 }))>) -> SignedIndex<7> {
+    value
+}
 
 const ENABLED: bool = true;
 

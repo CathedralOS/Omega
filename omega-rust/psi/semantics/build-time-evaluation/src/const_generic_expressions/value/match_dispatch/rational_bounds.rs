@@ -21,8 +21,9 @@
 //! It also gives division zero-free intervals on which corner bounds are valid;
 //! a nonzero Boolean alone would not justify dividing across a continuous pole.
 //! An integral pair of interval endpoints alone proves neither: joining 1, 1.5,
-//! and 2 must not erase the fractional interior. Nonconstant division generally
-//! loses lattice evidence, even when its rational bounds remain useful.
+//! and 2 must not erase the fractional interior. Division retains lattice
+//! evidence for singleton divisor intervals, including opposite-sign alternatives;
+//! wider nonconstant intervals still lose it even when their bounds remain useful.
 //! Integer interval analysis has different division and width semantics, so only
 //! its interval laws apply here; all arithmetic uses the shared exact rationals.
 //!
@@ -254,12 +255,16 @@ impl RationalBounds {
     }
 
     fn apply(&self, operator: BinaryOperator, right: &Self) -> Result<Self, String> {
+        let mut lattice = self
+            .lattice
+            .as_ref()
+            .zip(right.lattice.as_ref())
+            .and_then(|(left, right)| left.apply(operator, right));
+        if operator == BinaryOperator::Divide && lattice.is_none() {
+            lattice = self.divide_by_singleton_intervals(right);
+        }
         let mut result = Self {
-            lattice: self
-                .lattice
-                .as_ref()
-                .zip(right.lattice.as_ref())
-                .and_then(|(left, right)| left.apply(operator, right)),
+            lattice,
             ..Self::default()
         };
         result.fractional_history = self.fractional_history
@@ -278,6 +283,30 @@ impl RationalBounds {
             return Err("anonymous rational arithmetic requires nonempty bounds".into());
         }
         Ok(result)
+    }
+
+    fn divide_by_singleton_intervals(&self, right: &Self) -> Option<RationalLattice> {
+        // For x in a+sZ and an exact nonzero d, x/d is in a/d+(s/d)Z.
+        // The sign hulls may prove each d exact even when their joined lattice
+        // has nonzero stride. Join every quotient lattice; one wider interval
+        // invalidates this proof, even if both of its endpoints divide evenly.
+        // This inspects at most three summary intervals, never authored arms.
+        let left = self.lattice.as_ref()?;
+        let mut joined: Option<RationalLattice> = None;
+        for interval in right.intervals() {
+            if interval.low != interval.high {
+                return None;
+            }
+            let quotient = RationalLattice {
+                offset: left.offset.div(&interval.low)?,
+                stride: left.stride.div(&interval.low)?,
+            };
+            joined = Some(match joined {
+                Some(previous) => previous.join(&quotient)?,
+                None => quotient,
+            });
+        }
+        joined
     }
 }
 
@@ -628,6 +657,67 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn singleton_divisor_partitions_preserve_exact_quotient_lattices() {
+        for numerator_denominator in [1, 2] {
+            let mut numerators = RationalBounds::constant(fraction(12, numerator_denominator));
+            numerators.include(RationalBounds::constant(fraction(
+                25,
+                numerator_denominator,
+            )));
+            for negative_divisor in [-3, -2, -1] {
+                for positive_divisor in [1, 2, 3] {
+                    for divisor_denominator in [1, 2] {
+                        let mut divisors = RationalBounds::constant(fraction(
+                            negative_divisor,
+                            divisor_denominator,
+                        ));
+                        divisors.include(RationalBounds::constant(fraction(
+                            positive_divisor,
+                            divisor_denominator,
+                        )));
+                        let quotients = numerators
+                            .apply(BinaryOperator::Divide, &divisors)
+                            .expect("nonzero singleton divisors");
+                        let lattice = quotients.lattice.as_ref().expect("joined quotient lattice");
+                        for numerator in [12, 25] {
+                            for divisor in [negative_divisor, positive_divisor] {
+                                let quotient = fraction(numerator, numerator_denominator)
+                                    .div(&fraction(divisor, divisor_denominator))
+                                    .expect("nonzero divisor");
+                                assert!(lattice_contains(lattice, &quotient));
+                            }
+                        }
+                        assert_eq!(
+                            quotients.fractional_history,
+                            numerators.fractional_history
+                                || divisors.fractional_history
+                                || !lattice.is_integral()
+                        );
+                    }
+                }
+            }
+        }
+        let mut divisors = RationalBounds::constant(fraction(-2, 1));
+        divisors.include(RationalBounds::constant(fraction(2, 1)));
+        let mut numerator = RationalBounds::constant(fraction(14, 1));
+        numerator.fractional_history = true;
+        let quotient = numerator
+            .apply(BinaryOperator::Divide, &divisors)
+            .expect("integral quotient");
+        assert!(
+            quotient
+                .lattice
+                .as_ref()
+                .expect("quotient lattice")
+                .is_integral()
+        );
+        assert!(
+            quotient.fractional_history,
+            "integrality cannot erase inherited warning evidence"
+        );
     }
 
     #[test]
