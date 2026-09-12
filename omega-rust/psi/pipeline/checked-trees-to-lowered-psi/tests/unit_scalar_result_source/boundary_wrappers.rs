@@ -450,6 +450,116 @@ fn ordered_call_produced_boolean_result_preserves_its_normal_guarantee() {
 }
 
 #[test]
+fn ordered_boolean_call_computations_preserve_normal_guarantees() {
+    for input in [false, true] {
+        for body in [
+            "Host::finish(false); identity(!identity(value))",
+            "let saved: bool = identity(!identity(value)); Host::finish(false); saved",
+            "Host::finish(false); !identity(value)",
+            "Host::finish(false); identity(value) == false",
+        ] {
+            let source = boolean_guarantee_source(body, input).replace(
+                "ensures result == value\nreaches Host",
+                "ensures result == !value\nreaches Host",
+            );
+            let published = artifact(&checked_from_source(&source));
+            let (status, observed) = execute(&published);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                observed.arguments,
+                [
+                    vec![TerminalScalarValue::Boolean(false)],
+                    vec![TerminalScalarValue::Boolean(!input)],
+                ],
+                "{body}"
+            );
+        }
+    }
+}
+
+#[test]
+fn ordered_boolean_call_computations_preserve_nested_effect_order() {
+    for input in [false, true] {
+        let source = boolean_guarantee_source("Host::finish(false); echo(!echo(value))", input)
+            .replace(
+                "ensures result == value\nreaches Host",
+                "ensures result == !value\nreaches Host",
+            );
+        let source = format!(
+            "machine echo(value: bool) -> bool ensures result == value\nreaches Host {{ Host::finish(value); value }}\n{source}"
+        );
+        let published = artifact(&checked_from_source(&source));
+        let (status, observed) = execute(&published);
+        assert_eq!(
+            status,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        );
+        assert_eq!(
+            observed.arguments,
+            [false, input, !input, !input].map(|value| vec![TerminalScalarValue::Boolean(value)])
+        );
+    }
+}
+
+#[test]
+fn ordered_boolean_call_computations_reject_an_altered_operation() {
+    let source = boolean_guarantee_source("Host::finish(false); !identity(value)", false).replace(
+        "ensures result == value\nreaches Host",
+        "ensures result == !value\nreaches Host",
+    );
+    let published = artifact(&checked_from_source(&source));
+    let mut module = decode_module(&published.0).unwrap();
+    let proof = decode_proof_bundle(&published.1).unwrap();
+    let operation = module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BooleanNot { .. }
+            )
+        })
+        .expect("selected negation survives publication");
+    operation.kind = terminal_psi::OperationKind::BooleanConstant { value: false };
+    assert!(
+        terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).is_err()
+    );
+}
+
+#[test]
+fn ordered_boolean_call_computations_retain_unfinished_branch_guarantees() {
+    // Retain the original source customer while the all-arrival proof join is
+    // unfinished. Source congruence is not authority to publish an unproved
+    // guarantee at a Terminal convergence. Replace this fence with the same
+    // artifact/roundtrip/execution acceptance when that evidence is available.
+    for input in [false, true] {
+        for body in [
+            "Host::finish(false); identity(false) || !identity(value)",
+            "Host::finish(false); identity(!value) && identity(true)",
+        ] {
+            let source = boolean_guarantee_source(body, input).replace(
+                "ensures result == value\nreaches Host",
+                "ensures result == !value\nreaches Host",
+            );
+            let checked = checked_from_source(&source);
+            let result = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main");
+            assert!(
+                matches!(
+                    result,
+                    Err(checked_trees_to_lowered_psi::LoweringError::OperationProofUnavailable(_))
+                ),
+                "{body}: {result:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn ordered_call_produced_boolean_equations_compose_across_calls() {
     for bits in 0..16 {
         let inputs = [bits & 1 != 0, bits & 2 != 0, bits & 4 != 0, bits & 8 != 0];

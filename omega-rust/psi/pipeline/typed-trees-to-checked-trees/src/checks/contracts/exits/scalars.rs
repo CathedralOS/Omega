@@ -403,27 +403,35 @@ impl ExitScalars<'_, '_> {
         &checked_trees::CheckedScalarExpression,
         &[symbols::SymbolHandle],
     )> {
-        let statement_ordinal = u32::try_from(self.exit.statement_index).ok()?;
+        self.selected_scalar_expression(
+            u32::try_from(self.exit.statement_index).ok()?,
+            self.return_expression_role()?,
+            expression,
+        )
+    }
+
+    fn return_expression_role(&self) -> Option<CheckedScalarExpressionRole> {
         let state = crate::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
         )?;
-        let role = match self
-            .program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(self.exit.statement_index)?
-        {
-            typed_trees::statement::StatementNode::Transition(transition)
-                if self.exit.transition_target.is_valid()
-                    && self.exit.transition_target == transition.continuation =>
+        Some(
+            match self
+                .program
+                .statement_table
+                .statements(state.statement_nodes)
+                .get(self.exit.statement_index)?
             {
-                CheckedScalarExpressionRole::ContinuationReturn
-            }
-            _ => CheckedScalarExpressionRole::Return,
-        };
-        self.selected_scalar_expression(statement_ordinal, role, expression)
+                typed_trees::statement::StatementNode::Transition(transition)
+                    if self.exit.transition_target.is_valid()
+                        && self.exit.transition_target == transition.continuation =>
+                {
+                    CheckedScalarExpressionRole::ContinuationReturn
+                }
+                _ => CheckedScalarExpressionRole::Return,
+            },
+        )
     }
 
     fn selected_scalar_expression(
