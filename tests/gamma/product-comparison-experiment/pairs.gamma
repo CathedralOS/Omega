@@ -1,0 +1,20 @@
+; Candidate A: the selected nested-pair continuation payload, copied from the
+; Delta argument-checking frame (calls.gamma). Producer and consumer agree on
+; the right-nested layout only by convention; nothing checks that agreement.
+(def build_frame
+  ((node Int) (actual_count Int) (arguments Int) (expected_count Int)
+   (expected_types Int) (result_type Int) (locals Int)) Int
+  (pair node (pair actual_count (pair arguments
+    (pair expected_count (pair expected_types (pair result_type locals)))))))
+
+(def consume_frame ((payload Int)) Int
+  (let ((actual Int (second payload))
+        (arguments_and_expected Int (second actual))
+        (expected Int (second arguments_and_expected))
+        (types_and_result Int (second expected))
+        (result_and_locals Int (second types_and_result)))
+    (+ (first payload) (+ (first actual) (+ (first arguments_and_expected)
+      (+ (first expected) (+ (first types_and_result)
+        (+ (first result_and_locals) (second result_and_locals)))))))))
+
+(def main () Int (consume_frame (build_frame 1 2 3 4 5 6 7)))

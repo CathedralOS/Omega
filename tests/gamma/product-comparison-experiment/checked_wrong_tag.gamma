@@ -1,0 +1,17 @@
+; Candidate B failure witness: a payload with another constructor's identity
+; is rejected before decoding with status 201.
+(def argument_frame_tag () Int 1095910214)
+(def argument_frame_arity () Int 7)
+
+(def consume_fields ((payload Int)) Int
+  (+ (first payload) (first (second payload))))
+
+(def consume_frame ((product Int)) Int
+  (if (eq (first product) (argument_frame_tag))
+    (if (eq (first (second product)) (argument_frame_arity))
+      (consume_fields (second (second product)))
+      202)
+    201))
+
+(def main () Int
+  (consume_frame (pair 1095910215 (pair 7 (pair 1 (pair 2 3))))))
