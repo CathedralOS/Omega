@@ -55,9 +55,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   is retained under the application's ignored `build/verification/`; record the
   owning diagnostic before expanding compiler work. Initialization is explicit
   and requires private repository access during in-house development.
-  On macOS ARM64 with Python 3.13, the unchanged native invocation at
-  `f2df6230df` (base `90a03052fc`) exits 200 on 18 local-receiver realization
-  diagnostics in the actual `Main::main`, after checking std and the dependency
+  On macOS ARM64 with Python 3.13 and `RUST_MIN_STACK=33554432`, the unchanged
+  native invocation at `0adf79ac7f` (base `023f97382f`) exits 200 on 18
+  local-receiver realization diagnostics in the actual `Main::main`, after checking std and the dependency
   graph. The application pins the published standard-package declaration repair
   at `a91d878cb9252647d977c45787969b16e6ef937a`. Calls such as
   `aligned.get_element_count(..)` need their local receiver's value/storage
