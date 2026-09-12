@@ -110,6 +110,16 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
             }
             Ok(())
         }
+        ProofRule::ValueEqualityTransport {
+            premise,
+            equalities,
+        } => {
+            validate_proof_node(premise, depth + 1)?;
+            for equality in equalities {
+                validate_proof_node(equality, depth + 1)?;
+            }
+            Ok(())
+        }
         ProofRule::PredicateDenotation {
             premise: conjunction,
         }

@@ -42,7 +42,7 @@ fn order_weakening_roundtrips_and_rejects_missing_or_changed_child_evidence() {
             }],
         };
         let bytes = encode_proof_bundle(&bundle).unwrap();
-        assert_eq!(&bytes[8..10], &32_u16.to_le_bytes());
+        assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
         // Header/envelope use 33 bytes; the u16 Value relation uses 27.
         assert_eq!(bytes[60], 18);
         let decoded = decode_proof_bundle(&bytes).unwrap();
@@ -79,10 +79,10 @@ fn order_weakening_roundtrips_and_rejects_missing_or_changed_child_evidence() {
             .is_err()
         );
         let mut unknown = bytes.clone();
-        unknown[60] = 23;
+        unknown[60] = 24;
         assert_eq!(
             decode_proof_bundle(&unknown),
-            Err(ProofCodecError::InvalidTag("ProofRule", 23))
+            Err(ProofCodecError::InvalidTag("ProofRule", 24))
         );
         for length in 0..bytes.len() {
             assert!(

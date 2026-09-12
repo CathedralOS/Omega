@@ -74,6 +74,13 @@ fn retain_original_citations(
             | ProofRule::SemanticAxiom { .. }
             | ProofRule::Primitive(_)
             | ProofRule::IntegerCorrelatedForbiddenRoots { .. } => {}
+            ProofRule::ValueEqualityTransport {
+                premise,
+                equalities,
+            } => {
+                pending.push(premise);
+                pending.extend(equalities);
+            }
             ProofRule::ConjunctionIntroduction(children) => pending.extend(children),
             ProofRule::ConjunctionElimination {
                 conjunction: child, ..

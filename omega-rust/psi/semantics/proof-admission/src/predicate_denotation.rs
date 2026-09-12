@@ -123,16 +123,7 @@ pub fn check_predicate_denotations_with_value_equalities<'input>(
     }
     let equalities = value_equalities::ValueEqualities::from_semantic_axioms(semantic_axioms);
     let mut convert = |proposition: &Proposition| {
-        let transported = equalities.proposition(proposition, &mut budget, 0)?;
-        context
-            .validate(&transported)
-            .map_err(PredicateDenotationError::Malformed)?;
-        let normalized = normalize(&transported, &mut budget, 0)?;
-        budget.proposition(&normalized, 0)?;
-        context
-            .validate(&normalized)
-            .map_err(PredicateDenotationError::Malformed)?;
-        Ok(normalized)
+        transport_denotation(context, proposition, &equalities, &mut budget)
     };
     let normalized_goal = convert(goal)?;
     let normalized_requirements = requirements
@@ -151,6 +142,57 @@ pub fn check_predicate_denotations_with_value_equalities<'input>(
         requirements: normalized_requirements,
         semantic_axioms: normalized_axioms,
     })
+}
+
+/// Compute an equivalent denotation under explicitly supplied value equations.
+/// The caller must independently prove every equation; this operation grants
+/// no evidence authority and does not rewrite any ambient premise roster.
+/// Input traversal is charged before validation, retaining references, or
+/// cloning terms. One shared budget bounds all equations and transported output.
+pub fn check_value_equality_denotation<'input>(
+    context: &PropositionContext,
+    goal: &Proposition,
+    equations: impl IntoIterator<Item = &'input Proposition>,
+) -> Result<Proposition, PredicateDenotationError> {
+    let mut budget = Budget::new();
+    budget.proposition(goal, 0)?;
+    context
+        .validate(goal)
+        .map_err(PredicateDenotationError::Malformed)?;
+    let mut checked_equations = Vec::new();
+    for equation in equations {
+        budget.proposition(equation, 0)?;
+        context
+            .validate(equation)
+            .map_err(PredicateDenotationError::Malformed)?;
+        if !matches!(equation, Proposition::Equal(ScalarTerm::Value { .. }, _)) {
+            return Err(PredicateDenotationError::InvalidValueEquality);
+        }
+        checked_equations.push(equation);
+    }
+    if checked_equations.is_empty() {
+        return Err(PredicateDenotationError::InvalidValueEquality);
+    }
+    let equalities = value_equalities::ValueEqualities::from_semantic_axioms(checked_equations);
+    transport_denotation(context, goal, &equalities, &mut budget)
+}
+
+fn transport_denotation(
+    context: &PropositionContext,
+    proposition: &Proposition,
+    equalities: &value_equalities::ValueEqualities<'_>,
+    budget: &mut Budget,
+) -> Result<Proposition, PredicateDenotationError> {
+    let transported = equalities.proposition(proposition, budget, 0)?;
+    context
+        .validate(&transported)
+        .map_err(PredicateDenotationError::Malformed)?;
+    let normalized = normalize(&transported, budget, 0)?;
+    budget.proposition(&normalized, 0)?;
+    context
+        .validate(&normalized)
+        .map_err(PredicateDenotationError::Malformed)?;
+    Ok(normalized)
 }
 
 fn normalize(
@@ -328,6 +370,7 @@ fn connective(children: Vec<Proposition>, conjunction: bool) -> Proposition {
 pub enum PredicateDenotationError {
     ResourceLimitExceeded,
     CyclicValueEquality,
+    InvalidValueEquality,
     Malformed(PropositionError),
     Proof(ProofError),
 }

@@ -32,6 +32,7 @@ pub enum AcceptedProofRule {
     EqualityTransitivity,
     EqualitySymmetry,
     PredicateDenotation,
+    ValueEqualityTransport,
     IntegerOrderWeakening,
     IntegerOrderDiscreteness,
     IntegerSubtractOrder,
@@ -366,6 +367,30 @@ fn check_node_locally(
             acceptance
                 .rules
                 .insert(AcceptedProofRule::PredicateDenotation);
+            Ok(())
+        }
+        ProofRule::ValueEqualityTransport {
+            premise,
+            equalities,
+        } => {
+            // Ordinary scoped traversal has checked every child. Only those
+            // proved equations license transport; the ambient premise roster
+            // and its citation identities remain completely unchanged.
+            let equations = || equalities.iter().map(|equality| &equality.conclusion);
+            let original =
+                crate::check_value_equality_denotation(context, &premise.conclusion, equations())
+                    .map_err(|error| ProofError::PredicateDenotation(Box::new(error)))?;
+            let transported =
+                crate::check_value_equality_denotation(context, &proof.conclusion, equations())
+                    .map_err(|error| ProofError::PredicateDenotation(Box::new(error)))?;
+            if original != transported {
+                return Err(ProofError::RuleConclusionMismatch(
+                    "value equality transport",
+                ));
+            }
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::ValueEqualityTransport);
             Ok(())
         }
         ProofRule::EqualityTransitivity {

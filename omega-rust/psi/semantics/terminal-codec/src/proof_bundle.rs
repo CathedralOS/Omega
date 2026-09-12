@@ -30,7 +30,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 32;
+pub(crate) const FORMAT_MARKER: u16 = 33;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -315,6 +315,10 @@ fn encode_proof_node(
                 writer.len("disjunction branches", branches.len())?;
                 pending.push(ProofEncodingAction::Children(branches, depth));
             }
+            ProofEncodingAction::Equalities(equalities, depth) => {
+                writer.len("value equality proofs", equalities.len())?;
+                pending.push(ProofEncodingAction::Children(equalities, depth));
+            }
             ProofEncodingAction::Children(children, depth) => {
                 if let Some((first, remaining)) = children.split_first() {
                     pending.push(ProofEncodingAction::Children(remaining, depth));
@@ -399,6 +403,14 @@ fn encode_proof_node(
                             child_depth,
                         ));
                     }
+                    ProofRule::ValueEqualityTransport {
+                        premise,
+                        equalities,
+                    } => {
+                        writer.u8(23);
+                        pending.push(ProofEncodingAction::Equalities(equalities, child_depth));
+                        pending.push(ProofEncodingAction::Node(premise, child_depth));
+                    }
                     ProofRule::PredicateDenotation { premise } => {
                         writer.u8(22);
                         pending.push(ProofEncodingAction::Node(premise, child_depth));
@@ -455,6 +467,7 @@ enum ProofEncodingAction<'proof> {
     Node(&'proof ProofNode, usize),
     Children(&'proof [ProofNode], usize),
     Branches(&'proof [ProofNode], usize),
+    Equalities(&'proof [ProofNode], usize),
     Suffix(&'proof ProofRule),
 }
 
@@ -479,7 +492,8 @@ fn encode_proof_rule_suffix(
         ProofRule::DisjunctionIntroduction { index, .. } => {
             writer.index("disjunct index", *index)?;
         }
-        ProofRule::PredicateDenotation { .. }
+        ProofRule::ValueEqualityTransport { .. }
+        | ProofRule::PredicateDenotation { .. }
         | ProofRule::ConjunctionIntroduction(_)
         | ProofRule::DisjunctionElimination { .. }
         | ProofRule::ImplicationIntroduction { .. }
@@ -1377,7 +1391,7 @@ fn decode_proof_node(
         let remaining = match tag {
             1..=3 | 14 => 0,
             4 => reader.count()?,
-            5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 | 19 | 22 => 1,
+            5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 | 19 | 22 | 23 => 1,
             7 | 8 | 10 | 11 | 15 | 20 | 21 => 2,
             tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
         };
@@ -1398,9 +1412,8 @@ fn decode_proof_node(
             };
             parent.children.push(completed);
             parent.remaining -= 1;
-            // Case analysis carries its branch count after the disjunction
-            // proof, not in the node header.
-            if parent.tag == 16 && parent.children.len() == 1 {
+            // Counted children follow the leading proof, not the node header.
+            if matches!(parent.tag, 16 | 23) && parent.children.len() == 1 {
                 parent.remaining = reader.count()?;
             }
             if parent.remaining != 0 {
@@ -1491,6 +1504,10 @@ fn decode_proof_rule(
         10 => ProofRule::IntegerLessOrEqualTransitivity {
             left_less_or_equal_middle: Box::new(children.next().expect("decoded first order")),
             middle_less_or_equal_right: Box::new(children.next().expect("decoded second order")),
+        },
+        23 => ProofRule::ValueEqualityTransport {
+            premise: Box::new(children.next().ok_or(ProofCodecError::UnexpectedEnd)?),
+            equalities: children.collect(),
         },
         22 => ProofRule::PredicateDenotation {
             premise: Box::new(children.next().ok_or(ProofCodecError::UnexpectedEnd)?),

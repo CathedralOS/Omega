@@ -673,8 +673,9 @@ Owners include
   Carry qualified scalar results and the remaining normal-contract vocabulary
   through ordered boundary completion. Reuse the machine-entry and scalar
   normal-guarantee path (`unit_scalar_result_source`'s `ordered_boundary`,
-  `ordered_scalar`, `ordered_boolean` and `ordered_computed_boolean` tests).
-  Nested computed-value substitution in Boolean guarantees, state/control
+  `ordered_scalar`, `ordered_boolean`, `ordered_computed_boolean` and
+  `ordered_nested_boolean` tests).
+  Boolean guarantees over saved/call-produced values, state/control
   contracts, and field/arithmetic predicates still need their evidence joins. Preserve
   authored callee contracts regardless of whether a helper is a direct closure
   root or a transitive dependency; a checked call identity is not contract proof.

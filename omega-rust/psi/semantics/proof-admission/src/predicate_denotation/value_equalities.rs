@@ -14,7 +14,9 @@ pub(super) struct ValueEqualities<'input> {
 }
 
 impl<'input> ValueEqualities<'input> {
-    pub(super) fn from_semantic_axioms(axioms: &'input [Proposition]) -> Self {
+    pub(super) fn from_semantic_axioms(
+        axioms: impl IntoIterator<Item = &'input Proposition>,
+    ) -> Self {
         let mut definitions = Vec::new();
         for axiom in axioms {
             let Proposition::Equal(left @ ScalarTerm::Value { id, .. }, right) = axiom else {
