@@ -654,9 +654,14 @@ Owners include
   already refine a may-crash requirement. Extend the source-to-execution controls above
   while preserving exact call sites, guard actuals, abandoned claims, staged
   writeback and no-result/no-cleanup behavior.
-  Carry normal predicate contracts and qualified scalar results through ordered
-  boundary completion; the shared sequence still excludes those contracts,
-  while the older result-binding route retains its separate contract support.
+  Carry normal guarantees and qualified scalar results through ordered boundary
+  completion. The shared sequence carries scalar machine-entry predicates and
+  parameter ranges through source replay, canonical publication, call proofs and
+  execution (`unit_scalar_result_source`'s `ordered_boundary` tests); state/control
+  predicates and field/arithmetic preconditions still need their evidence joins.
+  Mutable scalar inputs still need the shared signature/storage path beyond the
+  invocation-entry read checker. Do not infer normal guarantees from crash ceilings
+  or use current storage as an entry snapshot.
 
   Package contract review still needs exact carrier/value custody for declaration
   and result projections through indexes, case payloads and generic field

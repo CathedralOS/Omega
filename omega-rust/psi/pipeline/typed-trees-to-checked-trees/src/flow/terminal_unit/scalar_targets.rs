@@ -287,7 +287,12 @@ pub(super) fn is_available(
                 .machine_contracts(machine)
                 .iter()
                 .chain(program.state_contracts(state))
-                .any(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
+                .any(|contract| {
+                    !matches!(
+                        contract.kind,
+                        SignatureContractKind::Crashes { .. } | SignatureContractKind::Requires
+                    ) || contract.binding.is_some()
+                })
             || matches!(
                 program
                     .type_reference_table

@@ -47,11 +47,9 @@ pub(super) fn validate(
     ) {
         return unsupported("scalar operation completion requires result refinement evidence");
     }
-    // Ordered scalar completion has no normal predicate-contract lowering yet. Keep
-    // those bodies with their existing scalar-graph owner rather than dropping
-    // requirements or guarantees when selecting an operation-body result.
-    // Crash routes already belong to the shared call closure and are replayed
-    // against exact actuals independently of how the normal result is returned.
+    // Entry predicates are replayed in the immutable invocation namespace and
+    // emitted by the shared closure. They do not justify dropping guarantees:
+    // postconditions still require a normal-result contract lowering owner.
     if checked
         .machine_contracts(source)
         .iter()
@@ -60,11 +58,13 @@ pub(super) fn validate(
             !matches!(
                 contract.kind,
                 checked_trees::signature::SignatureContractKind::Crashes { .. }
-            )
+                    | checked_trees::signature::SignatureContractKind::Requires
+            ) || contract.binding.is_some()
         })
     {
         return unsupported("scalar operation completion cannot erase authored scalar contracts");
     }
+    crate::runtime_requirements::validate_scalar_source(checked, source, state)?;
     if result.statement_index as usize + 1 == statements.len()
         && !matches!(
             checked.expression_table.expression(*expression),

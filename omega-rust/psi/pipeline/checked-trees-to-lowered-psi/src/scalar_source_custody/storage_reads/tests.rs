@@ -11,7 +11,11 @@ fn fixture_with_declarations(body: &str, result: &str, declarations: &str) -> Ch
          {declarations}
          machine read(marker: u64, limits: Limits, alternate: Limits) -> {result} {{ {body} }}"
     );
-    let tokens = source_files_to_tokens::Lexer::new(&source)
+    checked_source(&source)
+}
+
+fn checked_source(source: &str) -> CheckedTrees {
+    let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .expect("tokens");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
@@ -20,6 +24,76 @@ fn fixture_with_declarations(body: &str, result: &str, declarations: &str) -> Ch
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
     typed_trees_to_checked_trees::lower_typed_trees(typed).expect("checked")
+}
+
+#[test]
+fn entry_mutable_formals_keep_parameter_identity_while_body_reads_keep_storage() {
+    for (spelling, primitive) in [("i32", PrimitiveType::I32), ("bool", PrimitiveType::Bool)] {
+        let checked = checked_source(&format!(
+            "machine read(mut input: {spelling}) -> {spelling} {{ input }}"
+        ));
+        let (state, expression) = source(&checked);
+        let source_state = &checked.machine_states(&checked.machines()[0])[0];
+        let symbol = checked.state_parameters(source_state)[0].symbol;
+        let (parameter, storage) = if primitive == PrimitiveType::Bool {
+            (
+                CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Parameter {
+                    position: 0,
+                })),
+                CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::StorageRead {
+                    symbol,
+                })),
+            )
+        } else {
+            (
+                CheckedScalarExpression::Parameter {
+                    position: 0,
+                    primitive_type: primitive,
+                },
+                CheckedScalarExpression::StorageRead {
+                    symbol,
+                    primitive_type: primitive,
+                },
+            )
+        };
+        assert!(validate_entry_read_expression(&checked, state, expression, &parameter).is_ok());
+        assert!(validate_entry_read_expression(&checked, state, expression, &storage).is_err());
+        assert!(validate_expression(&checked, state, 0, expression, &storage).is_ok());
+        assert!(validate_expression(&checked, state, 0, expression, &parameter).is_err());
+    }
+}
+
+#[test]
+fn entry_widest_integer_formals_reject_same_typed_substitution() {
+    for (spelling, primitive) in [("i64", PrimitiveType::I64), ("u64", PrimitiveType::U64)] {
+        let checked = checked_source(&format!(
+            "machine read(first: {spelling}, second: {spelling}) -> {spelling} {{ first }}"
+        ));
+        let (state, expression) = source(&checked);
+        let parameter = |position| CheckedScalarExpression::Parameter {
+            position,
+            primitive_type: primitive,
+        };
+        assert!(validate_entry_read_expression(&checked, state, expression, &parameter(0)).is_ok());
+        assert!(
+            validate_entry_read_expression(&checked, state, expression, &parameter(1)).is_err()
+        );
+        assert!(
+            validate_entry_read_expression(&checked, state, expression, &parameter(2)).is_err()
+        );
+        assert!(
+            validate_entry_read_expression(
+                &checked,
+                state,
+                expression,
+                &CheckedScalarExpression::Local {
+                    position: 0,
+                    primitive_type: primitive,
+                },
+            )
+            .is_err()
+        );
+    }
 }
 
 fn source(checked: &CheckedTrees) -> (symbols::SymbolHandle, ExpressionHandle) {
@@ -256,7 +330,7 @@ fn whole_record_equality_expansion_preserves_normalized_field_correspondence() {
     collect_authored_storage_reads(
         &checked,
         state,
-        0,
+        ReadScope::Body(0),
         expression,
         &mut Vec::new(),
         &mut Vec::new(),

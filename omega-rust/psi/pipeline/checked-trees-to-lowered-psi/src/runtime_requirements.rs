@@ -6,6 +6,9 @@ use crate::crash_routes::{
     checked_boolean_scalar_term, checked_scalar_term, lower_structural_member_term,
 };
 
+mod source;
+pub(crate) use source::validate_scalar_source;
+
 #[cfg(test)]
 mod tests;
 
