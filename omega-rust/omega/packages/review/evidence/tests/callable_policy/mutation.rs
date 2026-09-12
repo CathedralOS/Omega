@@ -92,7 +92,10 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
         project_checked_callable_policy(&altered, fixture.target, package_identity()).is_err(),
         "independent policy replay rejects a changed source target"
     );
-    for root in [symbols::SymbolHandle::invalid(), original_call.target_symbol] {
+    for root in [
+        symbols::SymbolHandle::invalid(),
+        original_call.target_symbol,
+    ] {
         let mut altered = fixture.checked.clone();
         let typed_trees::expression::ExpressionNode::Member(member) =
             altered.expression_table.expression(original_call.receiver)
