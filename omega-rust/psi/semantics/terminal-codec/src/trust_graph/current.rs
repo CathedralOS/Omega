@@ -6,9 +6,10 @@ use super::{
     BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE,
     BYTE_VIEW_FRONTIER_SOURCE, BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE,
     DISCRETE_PATH_FACTS_SOURCE, LITERAL_FOUNDATION_SOURCE, MACHINE_WIRE_SOURCE, PATH_FACTS_SOURCE,
-    PREDICATE_VALUE_EQUALITIES_SOURCE, PROOF_ADMISSION_RECURSION_SOURCE,
-    PROOF_ADMISSION_STRICT_ORDER_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
-    PROOF_CODEC_VALIDATION_SOURCE, REACH_APPLICATION_WIRE_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
+    PREDICATE_VALUE_EQUALITIES_SOURCE, PRIMITIVE_SNAPSHOT_RECONSTRUCTION_SOURCE,
+    PROOF_ADMISSION_RECURSION_SOURCE, PROOF_ADMISSION_STRICT_ORDER_SOURCE,
+    PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE, PROOF_CODEC_VALIDATION_SOURCE,
+    REACH_APPLICATION_WIRE_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
 };
 
 use super::{
@@ -521,6 +522,15 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     "terminal-semantics/structural_effect.rs",
                     TERMINAL_STRUCTURAL_EFFECT_SOURCE,
                 ));
+            }
+            if row.tag() == terminal_semantics::OperationSemanticTag::PrimitiveScalarRead {
+                // The row's read denotation alone does not establish which
+                // prior store remains available at this capture coordinate.
+                // Keep that unproved composition dependency in its identity.
+                exact_sources.extend([
+                    ("terminal-verifier/verification/reconstruction/primitive_snapshots.rs", PRIMITIVE_SNAPSHOT_RECONSTRUCTION_SOURCE),
+                    ("terminal-verifier/control_graph.rs", CONTROL_GRAPH_SOURCE),
+                ]);
             }
             if row.tag() == terminal_semantics::OperationSemanticTag::EstablishScalarArray {
                 exact_sources.push(("terminal-semantics/scalar_array.rs", TERMINAL_SCALAR_ARRAY_SOURCE));

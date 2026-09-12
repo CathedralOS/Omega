@@ -80,6 +80,8 @@ pub(super) fn reconstruct(
 ) -> Result<Vec<ReconstructedCrashSiteFacts>, ModuleError> {
     debug_assert!(machine.ranked_scc.is_none());
     let context = MachineReconstructionContext::new(module, machine, true);
+    let mut primitive_snapshots =
+        super::primitive_snapshots::PrimitiveSnapshots::new(machine, &context.blocks);
     let mut pending = vec![(machine.entry, Vec::<Proposition>::new())];
     let mut sites = Vec::new();
     let mut budget = Budget::default();
@@ -109,8 +111,15 @@ pub(super) fn reconstruct(
         // These obligations are not accepted or exported here. Final ordinary
         // proof reconstruction independently checks every operation and call.
         let mut operation_obligations = Vec::new();
-        for operation in &block.operations {
+        for (position, operation) in block.operations.iter().enumerate() {
             let prior_facts = axioms.len();
+            primitive_snapshots.append_read_equation(
+                current,
+                position,
+                operation,
+                &context.value_types,
+                &mut axioms,
+            )?;
             operation_facts::append_operation(
                 module,
                 machine,

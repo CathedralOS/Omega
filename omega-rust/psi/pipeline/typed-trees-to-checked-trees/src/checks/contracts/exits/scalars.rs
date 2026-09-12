@@ -16,6 +16,7 @@ use crate::flow::{canonical_place_from_expression_in_state, canonical_place_from
 
 mod boolean_results;
 mod calls;
+mod static_calls;
 
 pub(super) fn proves<'program>(
     program: &'program TypedTrees,
@@ -219,10 +220,14 @@ impl ExitScalars<'_, '_> {
                 expression,
                 spelling,
                 &types,
-            ) && matches!(self.program.expression_table.expression(exit_return_expression(self.program, self.exit)),
+            ) && (matches!(self.program.expression_table.expression(exit_return_expression(self.program, self.exit)),
                 ExpressionNode::Name(returned) if returned.symbol == parameter.symbol
                     && returned.head_symbol == parameter.symbol
-                    && self.program.expression_table.name_path_members(returned.members).len() == 1);
+                    && self.program.expression_table.name_path_members(returned.members).len() == 1)
+                || self.static_call_returns_symbol(
+                    exit_return_expression(self.program, self.exit),
+                    parameter.symbol,
+                ));
         }
         let Some(parameter) = self
             .program
@@ -303,6 +308,10 @@ impl ExitScalars<'_, '_> {
         // retained state-edge origin. No initializer or storage read is replayed.
         matches!(self.program.expression_table.expression(exit_return_expression(self.program, self.exit)), ExpressionNode::Name(returned)
             if origin.state_parameter.is_valid() && returned.symbol == origin.state_parameter && returned.head_symbol == origin.state_parameter)
+            || self.call_returns_immutable_symbol(
+                exit_return_expression(self.program, self.exit),
+                origin.state_parameter,
+            )
     }
 
     fn contract_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
@@ -351,6 +360,7 @@ impl ExitScalars<'_, '_> {
         }
         self.selected_return_value(expression)
             .or_else(|| self.closed_call_value(expression))
+            .or_else(|| self.closed_static_call_value(expression))
             .or_else(|| {
                 evaluate_scalar(self.program, expression, &mut |leaf| {
                     let place = canonical_place_from_expression_in_state(

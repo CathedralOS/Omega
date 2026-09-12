@@ -179,6 +179,16 @@ This conservatively forgets the entire affected root until checked write frames
 can preserve individual paths. Captured SSA values remain values, but an earlier
 field equality cannot describe a later observation.
 
+[Primitive snapshot reconstruction](src/verification/reconstruction/primitive_snapshots.rs)
+checks exact reaching stores before introducing a read-result SSA equality.
+Every predecessor must reach the same stored value without a potentially
+aliasing write; an encountered feedback cut is unknown, not an omitted arrival.
+Fresh local roots may be disjoint from other fresh locals or original parameters;
+different forwarded/reborrowed identities alone do not prove separation. The
+bounded query never evaluates source expressions or infers floating equality.
+Its availability rule remains part of the explicitly trusted Rust reconstruction
+closure below, not a separately proved low-rung storage theorem.
+
 [Proof scheduling](src/control_graph.rs) cuts DFS ancestor edges in its working
 graph. Cut targets discard incoming semantic axioms. A declared scalar range
 may enter as an induction hypothesis only with checked establishment and

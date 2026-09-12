@@ -723,9 +723,10 @@ Owners include
   `ordered_nested_boolean`, `ordered_saved_boolean`,
   `ordered_call_produced_boolean`, `ordered_boolean_call_computations`,
   `ordered_boolean_guarantees_compose_through_dependent_joins`, and
-  `ordered_boolean_completion_preserves_folded_source_meaning` tests).
-  Saved mutable snapshots, state/control contracts, and field/arithmetic
-  predicates still need their evidence joins. Preserve
+  `ordered_boolean_completion_preserves_folded_source_meaning`, and
+  `ordered_mutable_boolean_snapshot` tests).
+  State/control contracts, mutable snapshots crossing state joins, and
+  field/arithmetic predicates still need their evidence joins. Preserve
   authored callee contracts regardless of whether a helper is a direct closure
   root or a transitive dependency; a checked call identity is not contract proof.
   Mutable scalar inputs still need the shared signature/storage path beyond the

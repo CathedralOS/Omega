@@ -1,5 +1,7 @@
 mod payload;
 mod places;
+#[cfg(test)]
+mod tests;
 
 use super::*;
 pub(crate) use places::contract_fact_place;
@@ -285,21 +287,20 @@ pub(super) fn append_contract_semantic_facts(
     }
 }
 
-fn instantiate_call_proposition_payload(
+fn instantiate_call_contract_payload(
     program: &typed_trees::TypedTrees,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     contract: &ContractProofFact,
     payload: &mut FactPayload,
 ) {
-    let FactPayload::ContractPropositionApplication { instantiated, .. } = payload else {
+    if !matches!(
+        payload,
+        FactPayload::ContractPropositionApplication { .. }
+            | FactPayload::ContractBooleanExpression { .. }
+    ) {
         return;
-    };
-    let typed_trees::domain::ProofFact::Proposition(application) =
-        program.proof_facts.get(contract.fact)
-    else {
-        return;
-    };
+    }
     let Some(call_site) = crate::find_call_site(
         program,
         call.caller_machine_symbol,
@@ -330,6 +331,34 @@ fn instantiate_call_proposition_payload(
             return;
         };
         parameters
+    };
+    if let FactPayload::ContractBooleanExpression {
+        expression,
+        instantiated,
+        ..
+    } = payload
+    {
+        // A call promise belongs to its captured actuals and result occurrence.
+        // Publishing the callee's uninstantiated spelling could identify its
+        // formal `value` or reserved `result` with unrelated caller binders.
+        let label = crate::checks::contracts::labels::instantiate_call_contract_expression_label(
+            program,
+            call.caller_state_symbol,
+            call.statement_index,
+            &call_site,
+            target_parameters,
+            *expression,
+        );
+        *instantiated = facts.append_instantiated_expression(label);
+        return;
+    }
+    let FactPayload::ContractPropositionApplication { instantiated, .. } = payload else {
+        return;
+    };
+    let typed_trees::domain::ProofFact::Proposition(application) =
+        program.proof_facts.get(contract.fact)
+    else {
+        return;
     };
     let binder_labels = application
         .binder_arguments
@@ -374,7 +403,13 @@ fn append_call_semantic_contract_refs(
         let contract = proof.contract_facts.get(source_ref.fact);
         let place = instantiate_call_contract_place(program, facts, call, contract);
         let mut payload = semantic_contract_payload(program, contract);
-        instantiate_call_proposition_payload(program, facts, call, contract, &mut payload);
+        instantiate_call_contract_payload(program, facts, call, contract, &mut payload);
+        if matches!(payload, FactPayload::ContractBooleanExpression { instantiated, .. } if !instantiated.is_valid())
+        {
+            // Missing call/parameter custody cannot publish a callee-local
+            // Boolean expression into the caller's semantic context.
+            continue;
+        }
         let evidence = crate::qualification_evidence::call_contract_evidence(
             program,
             call.target_machine_symbol,

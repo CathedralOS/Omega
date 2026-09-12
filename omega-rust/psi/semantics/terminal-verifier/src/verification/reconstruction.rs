@@ -15,6 +15,7 @@ mod machine_context;
 mod machine_flow;
 mod operation_facts;
 mod path_facts;
+mod primitive_snapshots;
 mod scalar_block_invariants;
 mod terminator_facts;
 
@@ -364,6 +365,8 @@ fn reconstruct_machine_semantics_with_crash_facts(
     crash_facts: bool,
 ) -> Result<ReconstructedMachineSemantics, ModuleError> {
     let context = machine_context::MachineReconstructionContext::new(module, machine, crash_facts);
+    let mut primitive_snapshots =
+        primitive_snapshots::PrimitiveSnapshots::new(machine, &context.blocks);
     let outcome_exit_guards =
         if let Some(clause) = machine.contract.outcome_specific_ensures.first() {
             exact_payloadless_case_return_exits(machine).ok_or(
@@ -476,7 +479,14 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 crash_field_origins::retains_entry_meaning(proposition, machine)
             });
         }
-        for operation in &block.operations {
+        for (position, operation) in block.operations.iter().enumerate() {
+            primitive_snapshots.append_read_equation(
+                current,
+                position,
+                operation,
+                &context.value_types,
+                &mut axioms,
+            )?;
             operation_facts::append_operation(
                 module,
                 machine,

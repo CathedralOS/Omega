@@ -378,7 +378,24 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 argument_index = argument_index.saturating_add(1);
                 if parameter_matches {
                     return argument
-                        .map(|argument| program.render_proof_expression_with_symbols(argument, &[]))
+                        .map(|argument| {
+                            // A reference formal used as a predicate value reads
+                            // its referent. The borrow at the call site supplies
+                            // access, not an extra operator in that predicate.
+                            let argument = match (
+                                program
+                                    .type_reference_table
+                                    .type_reference(parameter.type_reference),
+                                program.expression_table.expression(argument),
+                            ) {
+                                (
+                                    typed_trees::types::TypeReferenceNode::Reference { .. },
+                                    typed_trees::expression::ExpressionNode::Borrow(borrow),
+                                ) => borrow.target,
+                                _ => argument,
+                            };
+                            program.render_proof_expression_with_symbols(argument, &[])
+                        })
                         .unwrap_or_else(|| parameter.name.to_string());
                 }
             }

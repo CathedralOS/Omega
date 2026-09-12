@@ -42,6 +42,10 @@ fn call_produced_boolean_guarantees_compose_with_captured_locals() {
             "result == (other == value)",
         ),
         ("let saved: bool = constant(); saved", "result == true"),
+        (
+            "let mut current: bool = value; let saved: bool = identity(!current); saved",
+            "result == !value",
+        ),
     ] {
         lower_typed_trees(parse_typed_trees(&source(body, guarantee)))
             .unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics:#?}"));
@@ -73,7 +77,7 @@ fn call_produced_boolean_results_need_real_guarantees_and_independent_requires()
         ),
         (
             "",
-            "let mut current: bool = value; let saved: bool = identity(!current); saved",
+            "let mut current: bool = value; current = other; let saved: bool = identity(!current); saved",
             "ensures contract for exit from compute",
         ),
         (
@@ -419,17 +423,23 @@ fn boolean_computation_graphs_reject_altered_short_circuit_custody() {
 }
 
 #[test]
-fn boolean_computation_graphs_do_not_invent_mutable_capture_relations() {
-    let program = parse_typed_trees(&source(
-        "let mut current: bool = value; let saved: bool = identity(!identity(current)); Host::finish(false); saved",
-        "result == !value",
-    ));
-    let diagnostics =
-        lower_typed_trees(program).expect_err("mutable capture is not an entry alias");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("ensures contract for exit from compute")),
-        "{diagnostics:#?}"
-    );
+fn boolean_computation_graphs_capture_mutable_values_at_the_selected_read() {
+    for (before_capture, admitted) in [("", true), ("current = other;", false)] {
+        let program = parse_typed_trees(&source(
+            &format!(
+                "let mut current: bool = value; {before_capture} let saved: bool = identity(!identity(current)); current = other; Host::finish(false); saved"
+            ),
+            "result == !value",
+        ));
+        let result = lower_typed_trees(program);
+        assert_eq!(result.is_ok(), admitted, "{before_capture}");
+        if let Err(diagnostics) = result {
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("ensures contract for exit from compute")),
+                "{diagnostics:#?}"
+            );
+        }
+    }
 }

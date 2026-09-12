@@ -16,6 +16,103 @@ pub(super) struct NormalReturnCall<'a> {
 }
 
 impl ExitScalars<'_, '_> {
+    // Callee predicate spelling is not transport: the returned occurrence,
+    // declared result/formal equation, and actual immutable origin supply it.
+    pub(super) fn call_returns_immutable_symbol(
+        &self,
+        expression: ExpressionHandle,
+        symbol: symbols::SymbolHandle,
+    ) -> bool {
+        let call_expression = if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Call(_)
+        ) {
+            Some(expression)
+        } else {
+            canonical_place_from_expression_in_state(
+                self.program,
+                self.exit.state_symbol,
+                self.exit.statement_index,
+                expression,
+            )
+            .and_then(|place| self.assigned_call_at_place(&place))
+        };
+        let Some(call) = call_expression.and_then(|expression| self.normal_return_call(expression))
+        else {
+            return false;
+        };
+        if call.state != self.exit.state_symbol
+            || call.fact.statement_index > self.exit.statement_index
+        {
+            return false;
+        }
+        self.normal_call_guarantees(call).any(|guarantee| {
+            let Some(position) = self.normal_call_result_parameter(call, guarantee) else {
+                return false;
+            };
+            matches!(self.program.expression_table.expression(call.arguments[position]),
+                ExpressionNode::Name(path) if path.symbol == symbol && path.head_symbol == symbol
+                    && self.program.expression_table.name_path_members(path.members).len() == 1)
+        })
+    }
+
+    fn normal_call_result_parameter(
+        &self,
+        call: NormalReturnCall<'_>,
+        guarantee: ExpressionHandle,
+    ) -> Option<usize> {
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(guarantee)
+        else {
+            return None;
+        };
+        if binary.operator != BinaryOperator::Equal {
+            return None;
+        }
+        let formal = if is_result_reference(self.program, call.callee, binary.left) {
+            binary.right
+        } else if is_result_reference(self.program, call.callee, binary.right) {
+            binary.left
+        } else {
+            return None;
+        };
+        let ExpressionNode::Name(path) = self.program.expression_table.expression(formal) else {
+            return None;
+        };
+        let (position, parameter) = self
+            .program
+            .state_parameters(call.entry)
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| {
+                parameter.symbol.is_valid()
+                    && path.symbol == parameter.symbol
+                    && path.head_symbol == parameter.symbol
+            })?;
+        let result_type = self
+            .program
+            .primitive_type_reference(call.entry.return_type)?;
+        (!parameter.is_mutable
+            && self
+                .program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                == 1
+            && self
+                .program
+                .primitive_type_reference(parameter.type_reference)
+                == Some(result_type)
+            && result_type.accepts_integer_literal()
+            && typed_trees::operator::has_builtin_spelled_expression_meaning(
+                self.program,
+                call.callee.symbol,
+                guarantee,
+                language_core::OperatorSpelling::Equal,
+                &[Some(call.entry.return_type), Some(parameter.type_reference)],
+            ))
+        .then_some(position)
+    }
+
     pub(super) fn value_at_place(
         &self,
         subject: &crate::flow::CanonicalPlace,
@@ -30,6 +127,13 @@ impl ExitScalars<'_, '_> {
         ) {
             return Some(value);
         }
+        self.closed_call_value(self.assigned_call_at_place(subject)?)
+    }
+
+    pub(super) fn assigned_call_at_place(
+        &self,
+        subject: &crate::flow::CanonicalPlace,
+    ) -> Option<ExpressionHandle> {
         let mut source = None;
         for context in self.contexts {
             for fact in self
@@ -70,7 +174,7 @@ impl ExitScalars<'_, '_> {
                 source = Some(value);
             }
         }
-        self.closed_call_value(source?)
+        source
     }
 
     pub(super) fn normal_return_call(
@@ -81,8 +185,21 @@ impl ExitScalars<'_, '_> {
         else {
             return None;
         };
+        if !authored.machine_arguments.is_empty() {
+            return None;
+        }
+        self.normal_return_call_target(expression)
+    }
+
+    pub(super) fn normal_return_call_target(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<NormalReturnCall<'_>> {
+        let ExpressionNode::Call(authored) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
         if authored.receiver.is_valid()
-            || !authored.machine_arguments.is_empty()
             || !authored.evidence_arguments.is_empty()
             || authored.static_requirement_dispatch.is_some()
             || authored.quotient_operation.is_some()
@@ -189,11 +306,10 @@ impl ExitScalars<'_, '_> {
         let NormalReturnCall {
             state,
             fact: call,
-            callee,
             entry,
             arguments,
+            ..
         } = selected;
-        let parameters = self.program.state_parameters(entry);
         let result_type = self.program.primitive_type_reference(entry.return_type)?;
         if !matches!(
             result_type,
@@ -210,52 +326,10 @@ impl ExitScalars<'_, '_> {
         }
         let mut retained = None;
         for guarantee_expression in self.normal_call_guarantees(selected) {
-            let ExpressionNode::Binary(binary) = self
-                .program
-                .expression_table
-                .expression(guarantee_expression)
+            let Some(position) = self.normal_call_result_parameter(selected, guarantee_expression)
             else {
                 continue;
             };
-            if binary.operator != BinaryOperator::Equal {
-                continue;
-            }
-            let formal = if is_result_reference(self.program, callee, binary.left) {
-                binary.right
-            } else if is_result_reference(self.program, callee, binary.right) {
-                binary.left
-            } else {
-                continue;
-            };
-            let ExpressionNode::Name(path) = self.program.expression_table.expression(formal)
-            else {
-                continue;
-            };
-            let Some((position, parameter)) =
-                parameters.iter().enumerate().find(|(_, parameter)| {
-                    parameter.symbol.is_valid()
-                        && path.symbol == parameter.symbol
-                        && path.head_symbol == parameter.symbol
-                })
-            else {
-                continue;
-            };
-            if parameter.is_mutable
-                || self
-                    .program
-                    .primitive_type_reference(parameter.type_reference)
-                    != Some(result_type)
-                || !result_type.accepts_integer_literal()
-                || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                    self.program,
-                    callee.symbol,
-                    guarantee_expression,
-                    language_core::OperatorSpelling::Equal,
-                    &[Some(entry.return_type), Some(parameter.type_reference)],
-                )
-            {
-                continue;
-            }
             let argument = arguments[position];
             let value = self.closed_argument_value(
                 state,
