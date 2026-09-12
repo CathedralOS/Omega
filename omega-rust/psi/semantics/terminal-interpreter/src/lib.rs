@@ -13,6 +13,7 @@ use byte_sequence_binding::{ByteSequenceBinding, StructuralCallArguments};
 mod byte_sequence_view;
 mod byte_sequence_write;
 mod scalar_array;
+mod scalar_record;
 mod structural_byte_arrays;
 pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
 pub use structural_byte_arrays::TerminalStructuralByteArrayValue;
@@ -1267,7 +1268,11 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
-        let structural_values = prepared_arguments.values;
+        let mut structural_values = prepared_arguments.values;
+        self.copy_owned_scalar_record_arguments(
+            &callee.structural_parameters,
+            &mut structural_values,
+        )?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
@@ -1363,7 +1368,11 @@ impl TerminalExecution {
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee_id, structural_arguments)?;
-        let structural_values = prepared_arguments.values;
+        let mut structural_values = prepared_arguments.values;
+        self.copy_owned_scalar_record_arguments(
+            &callee.structural_parameters,
+            &mut structural_values,
+        )?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
@@ -1471,11 +1480,21 @@ impl TerminalExecution {
             && (self
                 .structural_types
                 .get(&result.structural_type)
-                .is_some_and(|declaration| {
-                    matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
-                    if cases.iter().all(|case| case.fields.iter().all(|field|
-                        field.relevance == terminal_psi::BindingRelevance::Relevant
-                            && field.field_type.scalar_type().is_some())))
+                .is_some_and(|declaration| match &declaration.shape {
+                    StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
+                        case.fields.iter().all(|field| {
+                            !field.relevance.is_erased() && field.field_type.scalar_type().is_some()
+                        })
+                    }),
+                    StructuralTypeShape::Record { fields } => fields.iter().all(|field| {
+                        !field.relevance.is_erased()
+                            && matches!(
+                                field.field_type,
+                                terminal_psi::StructuralFieldType::Scalar(_)
+                                    | terminal_psi::StructuralFieldType::IeeeFloat(_)
+                            )
+                    }),
+                    _ => false,
                 })
                 || (result.multiplicity == StructuralMultiplicity::Unrestricted
                     && terminal_semantics::scalar_array_leaf_shape(
@@ -1508,7 +1527,11 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
-        let structural_values = prepared_arguments.values;
+        let mut structural_values = prepared_arguments.values;
+        self.copy_owned_scalar_record_arguments(
+            &callee.structural_parameters,
+            &mut structural_values,
+        )?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
@@ -1897,52 +1920,8 @@ impl TerminalExecution {
                             structural_type: *structural_type,
                         });
                     }
-                    OperationKind::EstablishAffineScalarRecord { field, value } => {
-                        let terminal_psi::OperationResult::Structural(result) = &operation.result
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if self.structural_values.contains_key(&result.place)
-                            || result.multiplicity != StructuralMultiplicity::Affine
-                            || !result.qualifications.is_empty()
-                            || !result.projected_qualifications.is_empty()
-                            || !result.claims.is_empty()
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let Some(ScalarType::Integer(scalar_type)) = direct_scalar_field_type(
-                            &self.structural_types,
-                            result.structural_type,
-                            field,
-                        ) else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if scalar_type.sign() != semantic_vocabulary::IntegerSign::Signed
-                            || scalar_type.bits() != 64
-                            || !scalar_type.admits(value)
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let structural_value = TerminalStructuralValue {
-                            opaque_identity: result.place.get(),
-                            structural_type: result.structural_type,
-                            qualifications: Vec::new(),
-                            path: Vec::new(),
-                        };
-                        self.structural_scalar_fields.insert(
-                            StructuralScalarRuntimeField {
-                                parent: StructuralRuntimePlace::from(&structural_value),
-                                field,
-                            },
-                            TerminalScalarValue::Integer { scalar_type, value },
-                        );
-                        self.structural_values
-                            .insert(result.place, structural_value);
-                        self.live_affine_frontier.insert(StructuralAffineDiscard {
-                            place: result.place,
-                            path: Vec::new(),
-                            structural_type: result.structural_type,
-                        });
+                    OperationKind::EstablishScalarRecord { fields } => {
+                        self.execute_scalar_record_establishment(&operation, &fields)?;
                     }
                     OperationKind::CallUnit {
                         callee,
@@ -3319,7 +3298,7 @@ impl TerminalExecution {
                             "validated nominal cleanup roots remain live through edge charge",
                         );
                     }
-                    self.retire_primitive_locals();
+                    self.retire_plain_locals();
                     if !self.structural_values.is_empty() {
                         return Err(TerminalInterpretError::AffineFrontierMismatch);
                     }
@@ -3452,7 +3431,7 @@ impl TerminalExecution {
                         }
                         self.blocks = caller.blocks;
                         self.values = caller.values;
-                        self.retire_primitive_locals();
+                        self.retire_plain_locals();
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;
                         self.scalar_array_values = caller.scalar_array_values;
@@ -3466,7 +3445,7 @@ impl TerminalExecution {
                         continue;
                     }
                     let result = TerminalExecutionResult::Unit;
-                    self.retire_primitive_locals();
+                    self.retire_plain_locals();
                     self.result = Some(result.clone());
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
@@ -3674,7 +3653,7 @@ impl TerminalExecution {
                         self.structural_values.remove(place);
                     }
                     self.byte_sequence_values.clear();
-                    self.retire_primitive_locals();
+                    self.retire_plain_locals();
                     let cleanups = commit_cleanup_actions(
                         &self.structural_types,
                         &self.machines,
@@ -3728,7 +3707,7 @@ impl TerminalExecution {
                         self.blocks = caller.blocks;
                         self.values = caller.values;
                         self.values.insert(result_value, result);
-                        self.retire_primitive_locals();
+                        self.retire_plain_locals();
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;
                         self.scalar_array_values = caller.scalar_array_values;
@@ -3742,7 +3721,7 @@ impl TerminalExecution {
                         continue;
                     }
                     let result = TerminalExecutionResult::Scalar(result);
-                    self.retire_primitive_locals();
+                    self.retire_plain_locals();
                     self.result = Some(result.clone());
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
@@ -3775,7 +3754,7 @@ impl TerminalExecution {
                         let result = caller.result;
                         self.blocks = caller.blocks;
                         self.values = caller.values;
-                        self.retire_primitive_locals();
+                        self.retire_plain_locals();
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;
                         self.scalar_array_values = caller.scalar_array_values;
@@ -3870,7 +3849,7 @@ impl TerminalExecution {
                                     self.blocks = caller.blocks;
                                     self.values = caller.values;
                                     self.values.insert(result_value, returned);
-                                    self.retire_primitive_locals();
+                                    self.retire_plain_locals();
                                     self.structural_values = caller.structural_values;
                                     self.scalar_case_values = caller.scalar_case_values;
                                     self.scalar_array_values = caller.scalar_array_values;
@@ -3887,7 +3866,7 @@ impl TerminalExecution {
                                     TerminalExecutionResult::Unit,
                                     TerminalExecutionResult::Scalar,
                                 );
-                                self.retire_primitive_locals();
+                                self.retire_plain_locals();
                                 self.result = Some(result.clone());
                                 return Ok(TerminalExecutionStatus::Complete(result));
                             }
@@ -3899,7 +3878,7 @@ impl TerminalExecution {
                         continue;
                     }
                     let result = TerminalExecutionResult::Unit;
-                    self.retire_primitive_locals();
+                    self.retire_plain_locals();
                     self.result = Some(result.clone());
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
@@ -3987,7 +3966,7 @@ impl TerminalExecution {
                             };
                             self.blocks = caller.blocks;
                             self.values = caller.values;
-                            self.retire_primitive_locals();
+                            self.retire_plain_locals();
                             self.structural_values = caller.structural_values;
                             self.scalar_case_values = caller.scalar_case_values;
                             self.scalar_array_values = caller.scalar_array_values;
@@ -4016,7 +3995,7 @@ impl TerminalExecution {
                         }
                         let result =
                             TerminalExecutionResult::ScalarCase(TerminalScalarCaseResult { value });
-                        self.retire_primitive_locals();
+                        self.retire_plain_locals();
                         self.result = Some(result.clone());
                         return Ok(TerminalExecutionStatus::Complete(result));
                     }
@@ -4114,7 +4093,7 @@ impl TerminalExecution {
                         };
                         self.blocks = caller.blocks;
                         self.values = caller.values;
-                        self.retire_primitive_locals();
+                        self.retire_plain_locals();
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;
                         self.scalar_array_values = caller.scalar_array_values;
@@ -4142,7 +4121,7 @@ impl TerminalExecution {
                         value,
                         claims: returned_claims.clone(),
                     });
-                    self.retire_primitive_locals();
+                    self.retire_plain_locals();
                     self.result = Some(result.clone());
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }

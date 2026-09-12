@@ -406,7 +406,6 @@ pub(crate) fn validate_transfer_shape(
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
     caller_parameters: &[StructuralParameterDeclaration],
     caller_trivial_affine_locals: &[StructuralPlaceDeclaration],
-    caller_affine_scalar_record_locals: &[StructuralPlaceDeclaration],
     caller_structural_results: &[(StructuralPlaceDeclaration, bool)],
     target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     type_ids: &[(String, StructuralTypeId)],
@@ -494,40 +493,6 @@ pub(crate) fn validate_transfer_shape(
                 || !target.qualifications.is_empty()
             {
                 return unsupported("Unit local argument has invalid checked custody");
-            }
-            continue;
-        }
-        if let Some(declaration_ordinal) =
-            argument.source_affine_scalar_record_local_declaration_ordinal()
-        {
-            let source = caller_affine_scalar_record_locals
-                .get(usize::try_from(declaration_ordinal).map_err(|_| {
-                    LoweringError::Unsupported(
-                        "Unit affine scalar-record local argument ordinal exceeds usize",
-                    )
-                })?)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit affine scalar-record local argument has an invalid declaration ordinal",
-                ))?;
-            let StructuralPlaceKind::OperationResult {
-                structural_type, ..
-            } = source.kind
-            else {
-                return unsupported(
-                    "Unit affine scalar-record local argument does not name an operation result",
-                );
-            };
-            if !argument.path.is_empty()
-                || argument.type_identity != target.type_identity
-                || structural_type != lookup_type_id(type_ids, &argument.type_identity)?
-                || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                || target.access != checked_trees::CheckedStructuralAccess::Owned
-                || target.multiplicity != Multiplicity::Affine
-                || !target.qualifications.is_empty()
-            {
-                return unsupported(
-                    "Unit affine scalar-record local argument has invalid checked custody",
-                );
             }
             continue;
         }
@@ -728,7 +693,6 @@ pub(crate) fn lower_structural_arguments(
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
-    affine_scalar_record_locals: &[StructuralPlaceDeclaration],
     structural_results: &[(StructuralPlaceDeclaration, bool)],
     byte_argument_places: &[PlaceId],
     primitive_locals: &[super::primitive_locals::PrimitiveLocal],
@@ -793,33 +757,6 @@ pub(crate) fn lower_structural_arguments(
                 ) || !argument.path.is_empty()
                 {
                     return unsupported("Unit local argument drifted from checked custody");
-                }
-                return Ok(StructuralArgument {
-                    place: source.id,
-                    path: Vec::new(),
-                    access: StructuralAccess::Owned,
-                });
-            }
-            if let Some(declaration_ordinal) =
-                argument.source_affine_scalar_record_local_declaration_ordinal()
-            {
-                let source = affine_scalar_record_locals
-                    .get(usize::try_from(declaration_ordinal).map_err(|_| {
-                        LoweringError::Unsupported(
-                            "Unit affine scalar-record local argument ordinal exceeds usize",
-                        )
-                    })?)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit affine scalar-record local argument has an invalid declaration ordinal",
-                    ))?;
-                if !matches!(
-                    source.kind,
-                    StructuralPlaceKind::OperationResult { .. }
-                ) || !argument.path.is_empty()
-                {
-                    return unsupported(
-                        "Unit affine scalar-record local argument drifted from checked custody",
-                    );
                 }
                 return Ok(StructuralArgument {
                     place: source.id,

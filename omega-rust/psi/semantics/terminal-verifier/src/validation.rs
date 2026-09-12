@@ -59,6 +59,7 @@ pub(crate) mod scalar_array;
 pub(crate) mod scalar_case;
 mod scalar_qualifications;
 mod scalar_range_invariants;
+pub(crate) mod scalar_record;
 mod structural_byte_sequence_fields;
 mod structural_byte_sequence_store;
 mod structural_case_membership;

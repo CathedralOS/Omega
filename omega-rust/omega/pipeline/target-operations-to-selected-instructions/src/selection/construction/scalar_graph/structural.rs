@@ -150,7 +150,8 @@ pub(super) fn operation(
     }
     if matches!(
         row.kind,
-        LegalizedScalarInstructionKind::EstablishScalarArray { .. }
+        LegalizedScalarInstructionKind::EstablishScalarRecord { .. }
+            | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
     ) {
         scalar_array::establish(source, row, builder)?;
         return Ok(true);

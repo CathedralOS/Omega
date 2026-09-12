@@ -320,7 +320,7 @@ fn structural_operation_result_contract(
                 }
                 O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
-                | O::EstablishAffineScalarRecord { result, .. }
+                | O::EstablishScalarRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),

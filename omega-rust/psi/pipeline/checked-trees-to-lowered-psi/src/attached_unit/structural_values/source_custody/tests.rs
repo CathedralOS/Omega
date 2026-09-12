@@ -5,6 +5,10 @@ fn checked() -> CheckedTrees {
         machine choose(selector: u64) -> Tag {
             match selector { 0 -> Tag::First, _ -> Tag::Second }
         }";
+    checked_source(source)
+}
+
+fn checked_source(source: &str) -> CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();
@@ -13,6 +17,82 @@ fn checked() -> CheckedTrees {
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap()
+}
+
+#[test]
+fn record_replay_rejects_swapped_same_carrier_fields_and_operands() {
+    let original = checked_source(
+        "data Pair[copy] { first: u64; second: u64; }
+        machine make(first: u64, second: u64) -> Pair {
+            Pair { second: second, first: first }
+        }",
+    );
+    let (machine, state, operation) = operation(&original);
+    validate(&original, machine, state, &operation).expect("authored record");
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation else {
+        panic!("construction");
+    };
+    let CheckedStructuralValueKind::Record { fields, .. } = original
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .get(value)
+        .kind
+    else {
+        panic!("record");
+    };
+    let first = fields.start();
+    let second = arena::Handle::from_parts(first.arena_index() + 1, first.generation());
+    for exchange_field_identity in [false, true] {
+        let mut forged = original.clone();
+        let left = forged
+            .facts
+            .values
+            .structural_values
+            .record_fields
+            .get(first)
+            .clone();
+        let right = forged
+            .facts
+            .values
+            .structural_values
+            .record_fields
+            .get(second)
+            .clone();
+        if exchange_field_identity {
+            forged
+                .facts
+                .values
+                .structural_values
+                .record_fields
+                .get_mut(first)
+                .field = right.field;
+            forged
+                .facts
+                .values
+                .structural_values
+                .record_fields
+                .get_mut(second)
+                .field = left.field;
+        } else {
+            forged
+                .facts
+                .values
+                .structural_values
+                .record_fields
+                .get_mut(first)
+                .value = right.value;
+            forged
+                .facts
+                .values
+                .structural_values
+                .record_fields
+                .get_mut(second)
+                .value = left.value;
+        }
+        assert!(validate(&forged, machine, state, &operation).is_err());
+    }
 }
 
 fn operation(

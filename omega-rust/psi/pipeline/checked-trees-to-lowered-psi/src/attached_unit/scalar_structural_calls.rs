@@ -196,13 +196,10 @@ fn validate_constructed_local(
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     expression: ExpressionHandle,
 ) -> Result<bool, LoweringError> {
-    let (ordinal, scalar_record) = match argument.source {
+    let ordinal = match argument.source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
             declaration_ordinal,
-        } => (declaration_ordinal, false),
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal {
-            declaration_ordinal,
-        } => (declaration_ordinal, true),
+        } => declaration_ordinal,
         _ => return Ok(false),
     };
     let mut establishments = caller
@@ -213,25 +210,12 @@ fn validate_constructed_local(
                 statement_index,
                 declaration_ordinal,
                 type_identity,
-            } if !scalar_record && *declaration_ordinal == ordinal => {
-                Some((*statement_index, type_identity, None))
-            }
-            CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
-                statement_index,
-                declaration_ordinal,
-                type_identity,
-                field_identity,
-                value,
-            } if scalar_record && *declaration_ordinal == ordinal => Some((
-                *statement_index,
-                type_identity,
-                Some((field_identity, value)),
-            )),
+            } if *declaration_ordinal == ordinal => Some((*statement_index, type_identity)),
             _ => None,
         });
-    let (statement, identity, field_value) = establishments.next().ok_or(
-        LoweringError::Unsupported("scalar wrapper local has no exact establishment"),
-    )?;
+    let (statement, identity) = establishments.next().ok_or(LoweringError::Unsupported(
+        "scalar wrapper local has no exact establishment",
+    ))?;
     if establishments.next().is_some()
         || statement >= coordinate.statement_index
         || identity != &argument.type_identity
@@ -240,16 +224,18 @@ fn validate_constructed_local(
     {
         return unsupported("scalar wrapper local substituted its establishment or access");
     }
-    if !scalar_record {
-        let local = caller.trivial_affine_locals.get(ordinal as usize).ok_or(
-            LoweringError::Unsupported("scalar wrapper local has no declaration"),
-        )?;
-        if local.declaration_ordinal != ordinal
-            || local.type_identity != *identity
-            || local.construction.is_some()
-        {
-            return unsupported("scalar wrapper local is not a whole declared record");
-        }
+    let local =
+        caller
+            .trivial_affine_locals
+            .get(ordinal as usize)
+            .ok_or(LoweringError::Unsupported(
+                "scalar wrapper local has no declaration",
+            ))?;
+    if local.declaration_ordinal != ordinal
+        || local.type_identity != *identity
+        || local.construction.is_some()
+    {
+        return unsupported("scalar wrapper local is not a whole declared record");
     }
     let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
     let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
@@ -304,58 +290,8 @@ fn validate_constructed_local(
         return unsupported("scalar wrapper local requires claim-free non-nominal affine custody");
     }
     let fields = checked.expression_table.struct_fields(literal.fields);
-    match field_value {
-        None if fields.is_empty() && checked.data_members(record).is_empty() => {}
-        Some((identity, CheckedScalarExpression::IntegerLiteral { literal: retained })) => {
-            let [checked_trees::data::DataMember::Field(field)] = checked.data_members(record)
-            else {
-                return unsupported("scalar wrapper local lost its single scalar field");
-            };
-            let [actual] = fields else {
-                return unsupported("scalar wrapper local constructor field count drifted");
-            };
-            let anonymous = validation::land_anonymous_integer_expression(
-                checked,
-                actual.value,
-                PrimitiveType::I64,
-                |expression| match checked.facts.operators.expression_use(expression) {
-                    Some(operator) => {
-                        operator.status
-                            == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                    }
-                    None => validation::has_anonymous_operator_meaning(checked, expression),
-                },
-            );
-            let value = if let Some(value) = anonymous.as_ref() {
-                value
-            } else if let ExpressionNode::Integer(value) =
-                checked.expression_table.expression(actual.value)
-            {
-                value
-            } else {
-                return unsupported("scalar wrapper local lost its exact integer field value");
-            };
-            let field_identity = field
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| field.name.as_str().to_owned());
-            if actual.field_symbol != field.symbol
-                || *identity != field_identity
-                || field.relevance.is_erased()
-                || checked.primitive_type_reference(field.type_reference)
-                    != Some(PrimitiveType::I64)
-                || value.landing().is_some_and(|landing| {
-                    landing.landed_type != numerics::literals::LandedIntegerType::I64
-                })
-                || value.value_i64().is_none()
-                || value.value_i64() != retained.value_i64()
-            {
-                return unsupported(
-                    "scalar wrapper local field or value differs from its constructor",
-                );
-            }
-        }
-        _ => return unsupported("scalar wrapper local establishment differs from its constructor"),
+    if !fields.is_empty() || !checked.data_members(record).is_empty() {
+        return unsupported("trivial local establishment differs from its empty constructor");
     }
     let establishment_source = language_semantics::PermissionEventSource::Statement {
         statement_index: statement as usize,

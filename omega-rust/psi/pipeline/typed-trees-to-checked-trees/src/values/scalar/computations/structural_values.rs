@@ -41,6 +41,86 @@ impl Builder<'_, '_> {
                 });
             }
             CheckedStructuralValueKind::Case(constructor)
+        } else if let ExpressionNode::StructLiteral(literal) =
+            self.program.expression_table.expression(expression).clone()
+        {
+            let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+                self.program.type_reference_table.type_reference(expected)
+            else {
+                return None;
+            };
+            if *symbol != literal.type_symbol
+                || literal.case_symbol.is_some()
+                || !validation::has_plain_owned_contents_with_numeric_constraints(
+                    self.program,
+                    expected,
+                )
+                || !matches!(
+                    self.program.type_multiplicity(expected),
+                    language_semantics::Multiplicity::Affine
+                        | language_semantics::Multiplicity::Unrestricted
+                )
+            {
+                return None;
+            }
+            let data_symbol = *symbol;
+            let record = self
+                .program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == data_symbol)?;
+            let declarations = self.program.data_members(record);
+            let authored = self
+                .program
+                .expression_table
+                .struct_fields(literal.fields)
+                .to_vec();
+            if declarations.len() != authored.len() {
+                return None;
+            }
+            let mut fields = Vec::new();
+            for (ordinal, field) in authored.iter().enumerate() {
+                if fields
+                    .iter()
+                    .any(|retained: &checked_trees::CheckedStructuralRecordField| {
+                        retained.field == field.field_symbol
+                    })
+                {
+                    return None;
+                }
+                let declaration = declarations.iter().find_map(|member| match member {
+                    typed_trees::data::DataMember::Field(declaration)
+                        if declaration.symbol == field.field_symbol
+                            && !declaration.relevance.is_erased() =>
+                    {
+                        Some(declaration)
+                    }
+                    _ => None,
+                })?;
+                let primitive = self
+                    .program
+                    .primitive_type_reference(declaration.type_reference)?;
+                let value = self.expression(field.value, primitive)?;
+                self.plans.nodes.get_mut(value).authored_root = field.value;
+                self.plans.roots.append(CheckedScalarComputationRoot {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                    role: CheckedScalarExpressionRole::RecordField {
+                        expression,
+                        field_ordinal: u32::try_from(ordinal).ok()?,
+                    },
+                    root: value,
+                });
+                fields.push(checked_trees::CheckedStructuralRecordField {
+                    field: field.field_symbol,
+                    value,
+                });
+            }
+            CheckedStructuralValueKind::Record {
+                data_symbol,
+                fields: values.record_fields.insert_many(fields),
+            }
         } else {
             let ExpressionNode::Match(dispatch) =
                 self.program.expression_table.expression(expression).clone()

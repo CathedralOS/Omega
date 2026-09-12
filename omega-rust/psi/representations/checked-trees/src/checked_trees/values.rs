@@ -219,6 +219,11 @@ pub enum CheckedScalarExpressionRole {
         expression: ExpressionHandle,
         field_ordinal: u32,
     },
+    /// One scalar field operand in its authored record construction.
+    RecordField {
+        expression: ExpressionHandle,
+        field_ordinal: u32,
+    },
     /// Saved scalar subject of this structural value's exact Match occurrence.
     StructuralValueSubject {
         expression: ExpressionHandle,

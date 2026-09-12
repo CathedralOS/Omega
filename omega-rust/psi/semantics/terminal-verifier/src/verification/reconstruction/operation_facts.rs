@@ -18,6 +18,7 @@ use super::{ReconstructedOperationObligation, ReconstructedTerminalObligationOwn
 mod boolean_polarity;
 mod byte_extent;
 mod scalar_case;
+mod scalar_record;
 
 #[derive(Clone, Copy)]
 pub(super) enum OperationFactPurpose {
@@ -55,6 +56,9 @@ pub(super) fn append_operation(
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
+    if matches!(operation.kind, OperationKind::EstablishScalarRecord { .. }) {
+        return scalar_record::append(module, machine, operation, axioms);
+    }
     if matches!(operation.kind, OperationKind::EstablishScalarCase { .. }) {
         return scalar_case::append(module, machine, operation, axioms, operation_obligations);
     }
@@ -260,7 +264,7 @@ pub(super) fn append_operation(
         | OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishScalarArray { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
-        | OperationKind::EstablishAffineScalarRecord { .. }
+        | OperationKind::EstablishScalarRecord { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }

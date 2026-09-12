@@ -54,7 +54,7 @@ pub(crate) fn operation_scalar_types_match(
         | O::EstablishScalarCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
-        | O::EstablishAffineScalarRecord { .. }
+        | O::EstablishScalarRecord { .. }
         | O::PortWrite { .. }
         | O::BooleanStructuralField { .. }
         | O::StructuralCase { .. }

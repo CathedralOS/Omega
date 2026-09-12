@@ -177,16 +177,34 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                 super::parameters::validate_receiver(checked, plan, source, parameter, *access)?;
                 continue;
             }
-            let TypeReferenceNode::Slice { element_type } =
-                checked.type_reference_table.type_reference(*referee)
-            else {
-                return unsupported("Unit graph borrowed parameter is not a byte slice");
+            let expected_shape = if let Some(primitive) = checked.primitive_type_reference(*referee)
+            {
+                if !matches!(
+                    checked.type_reference_table.type_reference(*referee),
+                    TypeReferenceNode::Named { .. }
+                ) {
+                    return unsupported("Unit graph primitive borrow has qualified storage");
+                }
+                checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
+            } else {
+                let TypeReferenceNode::Slice { element_type } =
+                    checked.type_reference_table.type_reference(*referee)
+                else {
+                    return unsupported(
+                        "Unit graph borrowed parameter is not a primitive or byte slice",
+                    );
+                };
+                if checked.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
+                    return unsupported("Unit graph borrowed slice is not bytes");
+                }
+                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                    checked_trees::CheckedByteSequenceCarrier::BorrowedView,
+                )
             };
             if !matches!(
                 *access,
                 language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
-            ) || checked.primitive_type_reference(*element_type) != Some(PrimitiveType::U8)
-                || source.is_self
+            ) || source.is_self
                 || source.is_const
                 || source.is_mutable != (*access == language_core::ReferenceAccess::Mutable)
                 || parameter.is_self
@@ -211,14 +229,10 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                 .structural_types
                 .iter()
                 .filter(|shape| shape.identity == parameter.type_identity);
-            if !matches!(
-                shapes.next().map(|shape| &shape.shape),
-                Some(checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                    checked_trees::CheckedByteSequenceCarrier::BorrowedView
-                ))
-            ) || shapes.next().is_some()
+            if shapes.next().map(|shape| &shape.shape) != Some(&expected_shape)
+                || shapes.next().is_some()
             {
-                return unsupported("Unit graph view has no exact byte descriptor shape");
+                return unsupported("Unit graph borrow has no exact referent shape");
             }
         }
         let statements = checked.statement_table.statements(source.statement_nodes);

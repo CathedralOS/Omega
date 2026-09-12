@@ -106,8 +106,8 @@ use module_wire::{decode_module_body, encode_raw};
 use proposition_wire::{decode_proposition, encode_proposition};
 use scalar_term_wire::{decode_scalar_term, encode_scalar_term};
 use semantic_vocabulary::{
-    ClaimId, IntegerSign, IntegerValue, ObligationId, PropositionError, PsiSemanticId, ScalarType,
-    ServiceId, StructuralPlaceKind, StructuralTypeId,
+    ClaimId, IntegerSign, ObligationId, PropositionError, PsiSemanticId, ScalarType, ServiceId,
+    StructuralPlaceKind, StructuralTypeId,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -1347,6 +1347,41 @@ fn validate_operation_foundation(
             ) {
                 return malformed("scalar structural field has an invalid result type");
             }
+            // A constructed/call-result record remains a local result, not a
+            // synthetic parameter. The verifier separately checks its producer,
+            // dominance, live ownership and loans at this observation.
+            if let Some(local) = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|producer| {
+                    matches!(
+                        producer.kind,
+                        OperationKind::EstablishScalarRecord { .. }
+                            | OperationKind::CallStructural { .. }
+                            | OperationKind::CallStructuralWithScalarArguments { .. }
+                    )
+                })
+                .filter_map(|producer| producer.result.structural())
+                .find(|local| local.place == *source)
+            {
+                let matching = module.structural_types.iter().find(|declaration|
+                    declaration.id == local.structural_type).is_some_and(|declaration|
+                        matches!(&declaration.shape, StructuralTypeShape::Record { fields }
+                            if fields.iter().all(|field| !field.relevance.is_erased()
+                                && matches!(field.field_type, StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_)))
+                                && fields.iter().any(|candidate| candidate.id == *field
+                                    && candidate.field_type.scalar_type() == Some(result.scalar_type))));
+                if !matching
+                    || local.multiplicity == StructuralMultiplicity::Linear
+                    || !local.qualifications.is_empty()
+                    || !local.projected_qualifications.is_empty()
+                    || !local.claims.is_empty()
+                {
+                    return malformed("scalar record field has invalid local result custody");
+                }
+                return Ok(());
+            }
             let Some(parameter) = machine
                 .structural_parameters
                 .iter()
@@ -1970,9 +2005,9 @@ fn validate_operation_foundation(
                 return malformed("trivial affine local must have an empty record type");
             }
         }
-        OperationKind::EstablishAffineScalarRecord { field, value } => {
+        OperationKind::EstablishScalarRecord { fields } => {
             let Some(result) = operation.result.structural() else {
-                return malformed("affine scalar record has no structural result");
+                return malformed("scalar record has no structural result");
             };
             let Some(StructuralPlaceDeclaration {
                 kind:
@@ -1986,37 +2021,39 @@ fn validate_operation_foundation(
                 .iter()
                 .find(|place| place.id == result.place)
             else {
-                return malformed("affine scalar record has no operation-result declaration");
+                return malformed("scalar record has no operation-result declaration");
             };
             if *producer != operation.id
                 || *structural_type != result.structural_type
-                || result.multiplicity != StructuralMultiplicity::Affine
+                || !matches!(
+                    result.multiplicity,
+                    StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                )
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
             {
-                return malformed("affine scalar record result custody is noncanonical");
+                return malformed("scalar record result custody is noncanonical");
             }
             let Some(declaration) = module
                 .structural_types
                 .iter()
                 .find(|declaration| declaration.id == result.structural_type)
             else {
-                return malformed("affine scalar record has an unknown structural type");
+                return malformed("scalar record has an unknown structural type");
             };
             if !matches!(
                 &declaration.shape,
-                StructuralTypeShape::Record { fields }
-                    if matches!(fields.as_slice(), [candidate]
-                        if candidate.id == *field
-                            && candidate.relevance == terminal_psi::BindingRelevance::Relevant
-                            && matches!(candidate.field_type,
-                                StructuralFieldType::Scalar(ScalarType::Integer(integer_type))
-                                    if integer_type.sign() == IntegerSign::Signed
-                                        && integer_type.bits() == 64))
-            ) || !matches!(value, IntegerValue::Signed(value) if i64::try_from(*value).is_ok())
-            {
-                return malformed("affine scalar record is not one exact signed-i64 field");
+                StructuralTypeShape::Record { fields: declarations }
+                    if declarations.len() == fields.len()
+                        && declarations.iter().zip(fields).all(|(declaration, binding)|
+                            declaration.id == binding.field
+                                && declaration.relevance == terminal_psi::BindingRelevance::Relevant
+                                && matches!(declaration.field_type, StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_)))
+            ) {
+                return malformed(
+                    "scalar record fields do not match the complete scalar declaration",
+                );
             }
         }
         OperationKind::EstablishPrimitiveLocal { .. } => {
@@ -2093,9 +2130,21 @@ fn is_plain_primitive_structural_call(
         && callee.contract.outcome_specific_ensures.is_empty()
         && (module.structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
-                && matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
-                    if cases.iter().all(|case| case.fields.iter().all(|field|
-                        !field.relevance.is_erased() && field.field_type.scalar_type().is_some())))
+                && match &declaration.shape {
+                    StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
+                        case.fields.iter().all(|field| {
+                            !field.relevance.is_erased() && field.field_type.scalar_type().is_some()
+                        })
+                    }),
+                    StructuralTypeShape::Record { fields } => fields.iter().all(|field| {
+                        !field.relevance.is_erased()
+                            && matches!(
+                                field.field_type,
+                                StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_)
+                            )
+                    }),
+                    _ => false,
+                }
         }) || (result.multiplicity == StructuralMultiplicity::Unrestricted
             && terminal_semantics::scalar_array_leaf_shape(
                 module.structural_types.iter(),

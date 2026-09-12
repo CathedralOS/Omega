@@ -40,7 +40,7 @@ impl PrimitiveLocalIdentities {
         }
     }
 
-    fn allocate(&mut self) -> Result<u64, TerminalInterpretError> {
+    pub(super) fn allocate(&mut self) -> Result<u64, TerminalInterpretError> {
         loop {
             let identity = self
                 .next
@@ -269,7 +269,7 @@ impl TerminalExecution {
             })
     }
 
-    pub(super) fn retire_primitive_locals(&mut self) {
+    pub(super) fn retire_plain_locals(&mut self) {
         let Some(machine) = self.machines.get(&self.current_machine) else {
             return;
         };
@@ -281,6 +281,7 @@ impl TerminalExecution {
                     .remove(&StructuralRuntimePlace::from(&view));
             }
         }
+        self.retire_unrestricted_scalar_records();
     }
 }
 

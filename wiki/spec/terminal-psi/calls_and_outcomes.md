@@ -92,6 +92,30 @@ without replaying it. Consumers that cannot carry the payload through an argumen
 result, transfer, or native realization reject that use explicitly; recognizing
 the structural type alone does not establish executable support.
 
+### Scalar record construction
+
+`EstablishScalarRecord { fields }` establishes one complete owned record from
+already evaluated scalar operands. Each row retains its exact field identity and
+SSA value; rows follow declaration order while the producing operations preserve
+authored evaluation order. Every relevant field appears exactly once with its
+declared integer, Boolean, or IEEE carrier. Construction copies payload bits:
+it performs no conversion, rounding, or arithmetic.
+
+The result retains its exact record type and affine or unrestricted multiplicity.
+The admitted form is unqualified and claim-free; nested structural fields,
+erased fields, and bounded-integer fields require separate construction/evidence
+support, not implicit omission or weakening. Linear custody cannot be created by
+this operation. Affine results retain ordinary cleanup and transfer obligations;
+unrestricted payload availability is checked independently of that frontier.
+
+All operands must dominate establishment, and establishment must dominate each
+use of the resulting place. The complete operation costs one logical work unit
+before publishing its payload. A repeated execution creates distinct storage;
+owned unrestricted argument copies cannot become aliases, while borrowed
+arguments retain the original referent. Integer and Boolean field equations are
+reconstructed from the exact initializer values and invalidated by later writes.
+IEEE payload preservation does not assert mathematical floating-point equality.
+
 ## Call contracts
 
 A call names its exact callee and positional actuals. Each published callee

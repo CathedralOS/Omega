@@ -16,6 +16,14 @@ pub struct Operation {
     pub kind: OperationKind,
 }
 
+/// One already-evaluated field of a complete record construction. Rows follow
+/// declaration order; the defining scalar operations retain evaluation order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScalarRecordFieldValue {
+    pub field: StructuralFieldId,
+    pub value: ValueId,
+}
+
 /// Runtime result of one operation. Unit creates no `ValueId` or structural
 /// place. A structural result establishes its declared place only after the
 /// operation succeeds.
@@ -252,11 +260,11 @@ pub enum OperationKind {
     EstablishTrivialAffineLocal {
         destination: PlaceId,
     },
-    /// Atomically establish one complete owned-affine record local from its
-    /// single fixed-width scalar field.
-    EstablishAffineScalarRecord {
-        field: StructuralFieldId,
-        value: IntegerValue,
+    /// Atomically establish a complete, claim-free owned record from exact
+    /// scalar operands. Affine and unrestricted results retain their declared
+    /// custody; construction creates no qualifications or range evidence.
+    EstablishScalarRecord {
+        fields: Vec<ScalarRecordFieldValue>,
     },
     /// Establish one already-selected two-word dynamic descriptor in the
     /// exact aggregate field named by the module dynamic-dispatch catalog.

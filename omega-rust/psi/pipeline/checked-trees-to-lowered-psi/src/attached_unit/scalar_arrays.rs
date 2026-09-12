@@ -547,10 +547,6 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         }
         | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
             statement_index, ..
-        }
-        | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
-            statement_index,
-            ..
         } => Some(*statement_index),
         CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
         | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }

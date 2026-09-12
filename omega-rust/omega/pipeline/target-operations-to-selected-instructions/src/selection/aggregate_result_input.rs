@@ -109,8 +109,9 @@ pub(super) fn has_local_aggregates(source: &LegalizedScalarFunction) -> bool {
         .iter()
         .flat_map(|block| &block.instructions)
         .any(|row| match &row.kind {
-            LegalizedScalarInstructionKind::EstablishScalarArray { .. } => {
-                super::scalar_array_input::elements(source, row).is_some()
+            LegalizedScalarInstructionKind::EstablishScalarRecord { .. }
+            | LegalizedScalarInstructionKind::EstablishScalarArray { .. } => {
+                super::scalar_array_input::storage(source, row).is_some()
             }
             LegalizedScalarInstructionKind::EstablishScalarCase { .. } => {
                 fields(source, row).is_some()
@@ -142,6 +143,21 @@ pub(super) fn call_result<'a>(
         .iter()
         .find(|declaration| declaration.id == result.structural_type)?;
     let shape = match &declaration.shape {
+        terminal_psi::StructuralTypeShape::Record { fields }
+            if fields.iter().all(|field| {
+                !field.relevance.is_erased()
+                    && matches!(
+                        field.field_type,
+                        terminal_psi::StructuralFieldType::Scalar(_)
+                            | terminal_psi::StructuralFieldType::IeeeFloat(_)
+                    )
+            }) =>
+        {
+            crate::structural_reference_input::shape(
+                result.structural_type,
+                &source.structural.as_ref()?.structural_types,
+            )?
+        }
         terminal_psi::StructuralTypeShape::FixedArray { .. } => {
             super::scalar_array_input::shape(source, result.structural_type)?.2
         }
@@ -328,8 +344,9 @@ pub(super) fn returned<'a>(
                 .flat_map(|block| &block.instructions)
                 .find(|row| row.operation == *operation)?;
             let (result, shape) = match &row.kind {
-                LegalizedScalarInstructionKind::EstablishScalarArray { result, shape, .. } => {
-                    super::scalar_array_input::elements(source, row)?;
+                LegalizedScalarInstructionKind::EstablishScalarRecord { result, shape, .. }
+                | LegalizedScalarInstructionKind::EstablishScalarArray { result, shape, .. } => {
+                    super::scalar_array_input::storage(source, row)?;
                     (result, *shape)
                 }
                 LegalizedScalarInstructionKind::EstablishScalarCase { result, layout, .. } => {

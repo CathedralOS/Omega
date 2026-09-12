@@ -210,10 +210,15 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 writer.u8(37);
                 writer.id(destination);
             }
-            OperationKind::EstablishAffineScalarRecord { field, value } => {
-                writer.u8(51);
-                writer.id(field);
-                encode_integer_value(writer, value);
+            OperationKind::EstablishScalarRecord { fields } => {
+                // Tag 51 described the retired literal-only record operation.
+                // Do not reinterpret its payload as an SSA field roster.
+                writer.u8(67);
+                writer.len("scalar record fields", fields.len())?;
+                for field in fields {
+                    writer.id(field.field);
+                    writer.id(field.value);
+                }
             }
             OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
                 writer.u8(54);
@@ -1231,9 +1236,13 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             37 => OperationKind::EstablishTrivialAffineLocal {
                 destination: reader.id("PlaceId")?,
             },
-            51 => OperationKind::EstablishAffineScalarRecord {
-                field: reader.id("StructuralFieldId")?,
-                value: decode_integer_value(reader)?,
+            67 => OperationKind::EstablishScalarRecord {
+                fields: decode_counted(reader, |reader| {
+                    Ok(terminal_psi::ScalarRecordFieldValue {
+                        field: reader.id("StructuralFieldId")?,
+                        value: reader.id("ValueId")?,
+                    })
+                })?,
             },
             39 => OperationKind::CallStructuralScalar {
                 callee: reader.id("MachineId")?,

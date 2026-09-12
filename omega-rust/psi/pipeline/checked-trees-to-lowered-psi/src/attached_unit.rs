@@ -844,7 +844,6 @@ fn assemble_unit_closure(
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
@@ -1479,7 +1478,6 @@ fn assemble_unit_closure(
         let call_literal_count = literal_places.len();
         let mut next_value_identity = next_value;
         let mut scalar_result_values = scalar_parameters.clone();
-        let mut affine_scalar_record_places = Vec::<StructuralPlaceDeclaration>::new();
         let mut primitive_local_places = Vec::<primitive_locals::PrimitiveLocal>::new();
         let mut structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
         let mut structural_value_temporaries = Vec::<StructuralPlaceDeclaration>::new();
@@ -1861,81 +1859,6 @@ fn assemble_unit_closure(
                         destination: local.id,
                     }
                 }
-                CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
-                    declaration_ordinal,
-                    type_identity,
-                    field_identity,
-                    value,
-                    ..
-                } => {
-                    if usize::try_from(*declaration_ordinal).ok()
-                        != Some(affine_scalar_record_places.len())
-                    {
-                        return unsupported("Unit affine scalar-record local ordinal is not dense");
-                    }
-                    let structural_type = lookup_type_id(&type_ids, type_identity)?;
-                    let declaration = structural_types
-                        .iter()
-                        .find(|declaration| declaration.id == structural_type)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit affine scalar-record local type is absent",
-                        ))?;
-                    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                        return unsupported(
-                            "Unit affine scalar-record local is not a direct record",
-                        );
-                    };
-                    let [field] = fields.as_slice() else {
-                        return unsupported(
-                            "Unit affine scalar-record local does not have exactly one field",
-                        );
-                    };
-                    let expected_scalar_type = terminal_scalar_type(PrimitiveType::I64)?;
-                    if field.identity != *field_identity
-                        || field.relevance != terminal_psi::BindingRelevance::Relevant
-                        || field.field_type != StructuralFieldType::Scalar(expected_scalar_type)
-                    {
-                        return unsupported(
-                            "Unit affine scalar-record field drifted from checked custody",
-                        );
-                    }
-                    let CheckedScalarExpression::IntegerLiteral { literal } = value else {
-                        return unsupported(
-                            "Unit affine scalar-record value is not an integer literal",
-                        );
-                    };
-                    if integer_landing_scalar_type(literal)? != expected_scalar_type {
-                        return unsupported(
-                            "Unit affine scalar-record value is not an exact signed i64",
-                        );
-                    }
-                    let operation_id = operations.allocate();
-                    let result_place = place_id(allocate_dense(&mut next_place)?);
-                    let result_declaration = StructuralPlaceDeclaration {
-                        id: result_place,
-                        kind: StructuralPlaceKind::OperationResult {
-                            producer: operation_id,
-                            structural_type,
-                        },
-                    };
-                    operations.push(Operation {
-                        id: operation_id,
-                        result: OperationResult::Structural(StructuralOperationResult {
-                            place: result_place,
-                            structural_type,
-                            multiplicity: StructuralMultiplicity::Affine,
-                            qualifications: Vec::new(),
-                            projected_qualifications: Vec::new(),
-                            claims: Vec::new(),
-                        }),
-                        kind: OperationKind::EstablishAffineScalarRecord {
-                            field: field.id,
-                            value: integer_value(literal, expected_scalar_type)?,
-                        },
-                    });
-                    affine_scalar_record_places.push(result_declaration);
-                    continue;
-                }
                 CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
                     if !UnitBody::contains(plans, *target_machine) =>
                 {
@@ -2007,7 +1930,6 @@ fn assemble_unit_closure(
                         claim_transfers,
                         parameters,
                         &local_places,
-                        &affine_scalar_record_places,
                         &structural_result_places,
                         target.structural_parameters,
                         &type_ids,
@@ -2029,7 +1951,6 @@ fn assemble_unit_closure(
                         structural_arguments,
                         parameters,
                         &local_places,
-                        &affine_scalar_record_places,
                         &structural_result_places,
                         &call_byte_places,
                         &primitive_local_places,
@@ -2120,7 +2041,6 @@ fn assemble_unit_closure(
                                             argument,
                                             parameters,
                                             &local_places,
-                                            &affine_scalar_record_places,
                                             &structural_result_places,
                                             &structural_types,
                                             &primitive_local_places,
@@ -2419,7 +2339,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                             claim_transfers,
                             parameters,
                             &local_places,
-                            &affine_scalar_record_places,
                             &structural_result_places,
                             target.structural_parameters(),
                             &type_ids,
@@ -2438,7 +2357,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                                 structural_arguments,
                                 parameters,
                                 &local_places,
-                                &affine_scalar_record_places,
                                 &structural_result_places,
                                 &[],
                                 &primitive_local_places,
@@ -2563,7 +2481,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         parameters,
                         &[],
                         &[],
-                        &[],
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -2607,7 +2524,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                     let arguments = lower_structural_arguments(
                         structural_arguments,
                         parameters,
-                        &[],
                         &[],
                         &[],
                         &[],
@@ -2692,7 +2608,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         parameters,
                         &[],
                         &[],
-                        &[],
                         std::slice::from_ref(&target.structural_parameter),
                         &type_ids,
                         &structural_types,
@@ -2736,7 +2651,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                     let arguments = lower_structural_arguments(
                         structural_arguments,
                         parameters,
-                        &[],
                         &[],
                         &[],
                         &[],
@@ -2941,7 +2855,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         completion_receipts,
                         parameters,
                         &[],
-                        &[],
                         &structural_result_places,
                         &target.structural_parameters,
                         &type_ids,
@@ -2979,7 +2892,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
-                            &[],
                             &[],
                             &structural_result_places,
                             &call_byte_places,
@@ -3057,7 +2969,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         completion_receipts,
                         parameters,
                         &[],
-                        &[],
                         &structural_result_places,
                         &target.structural_parameters,
                         &type_ids,
@@ -3095,7 +3006,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
-                            &[],
                             &[],
                             &structural_result_places,
                             &call_byte_places,
@@ -3233,7 +3143,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         completion_receipts,
                         parameters,
                         &[],
-                        &[],
                         &structural_result_places,
                         &target.structural_parameters,
                         &type_ids,
@@ -3271,7 +3180,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
-                            &[],
                             &[],
                             &structural_result_places,
                             &call_byte_places,
@@ -3829,7 +3737,6 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
             })
             .chain(provider_places.iter().copied())
             .chain(local_places.iter().copied())
-            .chain(affine_scalar_record_places.iter().copied())
             .chain(primitive_local_places.iter().map(|local| local.declaration))
             .chain(literal_places.iter().copied())
             .chain(subslice_places.iter().copied())

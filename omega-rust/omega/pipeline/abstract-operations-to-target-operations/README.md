@@ -68,6 +68,15 @@ the selected callee, ordered arguments, result home, exact ABI and contract.
 Parallel transfers must preserve duplicate sources and cycles before replacing
 destinations. Allocation owns the actual snapshots and frame locations.
 
+Plain scalar record construction uses the existing aggregate result home.
+Each field retains its semantic identity and already evaluated SSA operand;
+target and legalized receiving checks reconstruct the field roster, scalar
+carriers, shape, and storage offsets. Selection shares scalar-array store
+emission and independent replay, with record-specific layout derived at the
+input boundary. No literal-only construction or separate record storage graph
+remains. Direct aggregate returns are exercised on Linux x64/ARM64 and macOS
+ARM64; Windows indirect aggregate returns remain a realization dependency.
+
 Dynamic descriptor operations may be representable here without native indirect
 call support. Their source/table/slot identities are not permission to substitute
 a direct call or fabricate an implementation. Object, image and installation

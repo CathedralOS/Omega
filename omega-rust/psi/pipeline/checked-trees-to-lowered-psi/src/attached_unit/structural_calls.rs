@@ -273,7 +273,6 @@ pub(super) fn emit(
         &[],
         parameters,
         &[],
-        &[],
         earlier_results,
         std::slice::from_ref(&target.structural_parameter),
         type_ids,
@@ -298,7 +297,6 @@ pub(super) fn emit(
     let structural_arguments = lower_structural_arguments(
         structural_arguments,
         parameters,
-        &[],
         &[],
         earlier_results,
         &[],

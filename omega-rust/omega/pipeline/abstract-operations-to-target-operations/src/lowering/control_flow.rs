@@ -178,6 +178,7 @@ pub(super) fn lower(
         let established = match operation {
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
             | AbstractOperation::EstablishScalarArray { result, .. }
+            | AbstractOperation::EstablishScalarRecord { result, .. }
             | AbstractOperation::EstablishScalarCase { result, .. }
             | AbstractOperation::CallStructural { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. }

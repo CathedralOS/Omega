@@ -232,6 +232,21 @@ through installation replay for Linux x64/ARM64 and macOS ARM64. Windows
 indirect aggregate returns remain a realization dependency; see
 `tests/native-differential/tests/scalar_case_results.rs` at the repository root.
 
+Plain scalar records use the same checked structural-value roots and ordinary
+operand evaluator, followed by `EstablishScalarRecord`. Runtime integer, Boolean,
+and IEEE field operands retain authored evaluation order; the constructor's
+field/value roster is in declaration order. Source replay checks the exact
+nominal declaration, field occurrences, operand computations, and named affine
+local establishment permission. This replaces the separate one-field literal-i64
+local recognizer. Direct structural returns use the existing result homes and
+ABI; no new record-specific function representation is introduced.
+
+The admitted record is affine or unrestricted, unqualified, and claim-free.
+Nested/erased fields and declaration-restricted integers still require additional
+construction/evidence support. Source local-receiver calls and constructor-to-block
+structural transport remain separate missing joins: a constructor or a
+source-free Terminal getter does not establish source getter support.
+
 Closed integer field restrictions retain their exact carrier and inclusive
 bounds through the checked catalog and Terminal declaration. The selected case
 introduces those bounds on its copied scalar payload, allowing
@@ -243,8 +258,8 @@ byte-input realization rejects restrictions excluding either 0 or 255.
 Source range normalization uses the existing closed-expression evaluator's i64
 window. Unsupported or unevaluated bounds reject instead of becoming unrestricted
 scalars; floating/address restrictions and non-Exact arithmetic/range combinations
-are not admitted by this producer. Restricted field stores and scalar-record
-construction remain fenced until written-value obligations are retained.
+are not admitted by this producer. Restricted field stores and restricted
+scalar-record construction remain fenced until written-value obligations are retained.
 Opaque interpreter inputs/results cannot establish these restrictions from type
 identity alone. The authored `terminal_byte_views/read_line.omg` native fixture
 composes the byte leaf, guarded writes, and payload-bearing line outcomes through

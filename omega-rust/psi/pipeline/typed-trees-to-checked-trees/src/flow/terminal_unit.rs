@@ -491,7 +491,6 @@ pub(crate) fn build_checked_unit_effect_plans(
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                     | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
                     | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                     | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }

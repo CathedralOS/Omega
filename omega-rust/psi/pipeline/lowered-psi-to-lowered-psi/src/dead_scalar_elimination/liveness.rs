@@ -120,9 +120,11 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::StructuralCaseMembership { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
-        | O::EstablishAffineScalarRecord { .. }
         | O::PortWrite { .. } => {}
         O::EstablishScalarCase { fields, .. } => {
+            values.extend(fields.iter().map(|field| field.value));
+        }
+        O::EstablishScalarRecord { fields } => {
             values.extend(fields.iter().map(|field| field.value));
         }
         O::EstablishScalarArray { elements } => values.extend(elements),

@@ -20,6 +20,9 @@ mod membership;
 #[path = "scalar_case_results/package_membership.rs"]
 mod package_membership;
 
+#[path = "scalar_case_results/records.rs"]
+mod records;
+
 #[cfg(any(
     all(
         target_os = "linux",
@@ -116,12 +119,12 @@ fn publish(
         bytes
     );
     image_emission::validate_installation_record(&decoded, &image).unwrap();
-    if module
+    if let Some(result_machine) = module
         .machines
         .iter()
-        .any(|machine| machine.result.structural().is_some())
+        .find(|machine| machine.result.structural().is_some())
     {
-        admission::installation_cannot_change_call_or_result(&decoded, &image);
+        admission::installation_cannot_change_call_or_result(&decoded, &image, result_machine.id);
     } else {
         // Local construction has no function-result ABI. Keep the call/result
         // corruption controls required for every actual returning fixture.

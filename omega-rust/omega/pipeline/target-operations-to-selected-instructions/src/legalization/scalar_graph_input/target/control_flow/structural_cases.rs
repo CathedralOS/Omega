@@ -32,6 +32,9 @@ pub(super) fn home_available(
                         | TargetUnitOperation::EstablishScalarCase {
                             result_home: home, ..
                         }
+                        | TargetUnitOperation::EstablishScalarRecord {
+                            result_home: home, ..
+                        }
                         | TargetUnitOperation::EstablishScalarArray {
                             result_home: home, ..
                         }

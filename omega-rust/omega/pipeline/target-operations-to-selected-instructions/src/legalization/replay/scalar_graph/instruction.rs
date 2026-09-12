@@ -55,6 +55,7 @@ pub(super) fn validate(
         (
             _,
             AbstractOperation::CallStructural { .. }
+            | AbstractOperation::EstablishScalarRecord { .. }
             | AbstractOperation::EstablishScalarArray { .. }
             | AbstractOperation::EstablishScalarCase { .. }
             | AbstractOperation::StructuralCaseMembership { .. },

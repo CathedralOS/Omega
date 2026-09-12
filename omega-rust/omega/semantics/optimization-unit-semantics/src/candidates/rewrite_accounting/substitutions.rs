@@ -22,6 +22,11 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
                 replace(&mut field.value);
             }
         }
+        O::EstablishScalarRecord { fields, .. } => {
+            for field in fields {
+                replace(&mut field.value);
+            }
+        }
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }
         | O::WriteOnlyPrimitiveStore { value, .. }
@@ -101,7 +106,6 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
-        | O::EstablishAffineScalarRecord { .. }
         | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }

@@ -87,6 +87,82 @@ pub(crate) fn validate(
             return unsupported("structural construction exchanged authored value occurrences");
         }
         match node.kind.clone() {
+            CheckedStructuralValueKind::Record {
+                data_symbol,
+                fields,
+            } => {
+                let ExpressionNode::StructLiteral(literal) =
+                    checked.expression_table.expression(expression)
+                else {
+                    return unsupported("record construction lost its literal");
+                };
+                let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
+                    checked.type_reference_table.type_reference(reference)
+                else {
+                    return unsupported("record construction lost its nominal type");
+                };
+                let record = checked
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == data_symbol)
+                    .ok_or(LoweringError::Unsupported("record declaration missing"))?;
+                let authored = checked.expression_table.struct_fields(literal.fields);
+                let retained = plans
+                    .record_fields
+                    .span(fields)
+                    .ok_or(LoweringError::Unsupported("record field span is stale"))?;
+                let declarations = checked.data_members(record);
+                if *symbol != data_symbol
+                    || literal.type_symbol != data_symbol
+                    || literal.case_symbol.is_some()
+                    || authored.len() != retained.len()
+                    || declarations.len() != retained.len()
+                {
+                    return unsupported("record construction changed its exact field roster");
+                }
+                let mut seen = Vec::new();
+                for (ordinal, (source, field)) in authored.iter().zip(retained).enumerate() {
+                    let declaration = declarations
+                        .iter()
+                        .find_map(|member| match member {
+                            checked_trees::data::DataMember::Field(declaration)
+                                if declaration.symbol == field.field
+                                    && !declaration.relevance.is_erased() =>
+                            {
+                                Some(declaration)
+                            }
+                            _ => None,
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "record field is not an exact scalar declaration",
+                        ))?;
+                    if source.field_symbol != field.field || seen.contains(&field.field) {
+                        return unsupported("record fields were duplicated or reordered");
+                    }
+                    seen.push(field.field);
+                    let role = CheckedScalarExpressionRole::RecordField {
+                        expression,
+                        field_ordinal: u32::try_from(ordinal).map_err(|_| {
+                            LoweringError::Unsupported("record field ordinal overflow")
+                        })?,
+                    };
+                    operand_roles.push(role);
+                    let primitive = validate_operand(
+                        checked,
+                        machine,
+                        state,
+                        result.statement_index,
+                        role,
+                        field.value,
+                        source.value,
+                    )?;
+                    if checked.primitive_type_reference(declaration.type_reference)
+                        != Some(primitive)
+                    {
+                        return unsupported("record field changed its scalar carrier");
+                    }
+                }
+            }
             CheckedStructuralValueKind::Case(construction) => {
                 if construction.expression != expression
                     || checked.normalized_type_identity(construction.type_reference)
@@ -264,6 +340,7 @@ pub(crate) fn validate(
                 && matches!(
                     root.role,
                     CheckedScalarExpressionRole::StructuralValueSubject { .. }
+                        | CheckedScalarExpressionRole::RecordField { .. }
                         | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                         | CheckedScalarExpressionRole::StructuralValueField { .. }
                 )
@@ -353,6 +430,47 @@ pub(crate) fn operand_source(
                 .map(|(_, expression, primitive)| (*expression, *primitive))
                 .ok_or(LoweringError::Unsupported(
                     "structural field ordinal escaped its constructor",
+                ));
+        }
+        if let CheckedScalarExpressionRole::RecordField {
+            expression: owner,
+            field_ordinal,
+        } = role
+            && owner == expression
+            && let ExpressionNode::StructLiteral(literal) =
+                checked.expression_table.expression(expression)
+        {
+            let field = checked
+                .expression_table
+                .struct_fields(literal.fields)
+                .get(field_ordinal as usize)
+                .ok_or(LoweringError::Unsupported("record operand ordinal missing"))?;
+            let declaration = checked
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == literal.type_symbol)
+                .and_then(|data| {
+                    checked
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            checked_trees::data::DataMember::Field(declaration)
+                                if declaration.symbol == field.field_symbol
+                                    && !declaration.relevance.is_erased() =>
+                            {
+                                Some(declaration)
+                            }
+                            _ => None,
+                        })
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "record operand declaration missing",
+                ))?;
+            return checked
+                .primitive_type_reference(declaration.type_reference)
+                .map(|primitive| (field.value, primitive))
+                .ok_or(LoweringError::Unsupported(
+                    "record operand has no scalar carrier",
                 ));
         }
         let ExpressionNode::Match(dispatch) = checked.expression_table.expression(expression)

@@ -236,9 +236,38 @@ fn retained_scalar_record_field_plans_deliver_exact_seven_to_an_owned_call() {
             .operations
             .iter()
             .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
-                    value, ..
-                } => Some(value),
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } => {
+                    let checked_trees::CheckedStructuralValueKind::Record { fields, .. } = checked
+                        .facts
+                        .values
+                        .structural_values
+                        .nodes
+                        .get(*value)
+                        .kind
+                    else {
+                        return None;
+                    };
+                    let [field] = checked
+                        .facts
+                        .values
+                        .structural_values
+                        .record_fields
+                        .span_or_empty(fields)
+                    else {
+                        return None;
+                    };
+                    let checked_trees::CheckedScalarComputationKind::Value(value) = &checked
+                        .facts
+                        .values
+                        .scalar_computations
+                        .nodes
+                        .get(field.value)
+                        .kind
+                    else {
+                        return None;
+                    };
+                    Some(value)
+                }
                 _ => None,
             })
             .collect::<Vec<_>>();

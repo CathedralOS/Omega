@@ -140,15 +140,11 @@ pub enum TargetUnitOperation {
         place: StructuralPlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
     },
-    /// One complete owned-affine one-i64-field record retained until its
-    /// exact owned use. The empty source placement used by that call is a
-    /// checked virtual aggregate, not a physical stack location.
-    EstablishAffineScalarRecord {
+    /// One complete scalar record in its ordinary structural result home.
+    EstablishScalarRecord {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
-        field: StructuralFieldId,
-        value: IntegerValue,
-        shape: ValueShape,
+        result_home: TargetStructuralHomeRequirement,
+        fields: Vec<terminal_psi::ScalarRecordFieldValue>,
     },
     /// One direct Unit-result call. Scalar arguments occupy the prefix of the
     /// complete ABI plan; structural arguments retain the remaining placements.

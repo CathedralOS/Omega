@@ -51,7 +51,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::EstablishScalarCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
-        | O::EstablishAffineScalarRecord { .. }
+        | O::EstablishScalarRecord { .. }
         | O::CallUnit { .. }
         | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }

@@ -92,8 +92,8 @@ pub(crate) fn operation_structural_call_contract_matches(
         O::EstablishScalarCase { .. } => {
             scalar_case_establishment_matches(caller, operation, types)
         }
-        O::EstablishAffineScalarRecord { .. } => {
-            affine_scalar_record_establishment_matches(caller, operation, types)
+        O::EstablishScalarRecord { .. } => {
+            scalar_record_establishment_matches(caller, operation, types)
         }
         O::CallUnit {
             callee,

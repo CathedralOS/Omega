@@ -96,6 +96,7 @@ pub(super) fn locate(
             _,
             CheckedScalarExpressionRole::StructuralValueSubject { .. }
             | CheckedScalarExpressionRole::StructuralValuePattern { .. }
+            | CheckedScalarExpressionRole::RecordField { .. }
             | CheckedScalarExpressionRole::StructuralValueField { .. },
         ) => {
             let (expression, primitive) =

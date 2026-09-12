@@ -265,7 +265,7 @@ pub(super) fn validate_structural_frontier(
             snapshots
                 .operation_entries
                 .insert(operation.id, frontier.snapshot());
-            validate_owned_reads(machine, operation, &frontier)?;
+            validate_owned_reads(module, machine, operation, &frontier)?;
             if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind
                 && frontier
                     .owned_places
@@ -439,7 +439,8 @@ pub(super) fn validate_structural_frontier(
                 && super::primitive_storage::local_result(machine, result.place).is_none()
                 && !super::scalar_array::plain_return_source(module, machine, result.place)
                 && !(result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && super::scalar_case::plain_return_source(module, machine, result.place))
+                    && (super::scalar_case::plain_return_source(module, machine, result.place)
+                        || super::scalar_record::plain_return_source(module, machine, result.place)))
             {
                 if frontier
                     .owned_places
@@ -814,7 +815,8 @@ pub(super) fn validate_structural_frontier(
                     && !exact_unrestricted_parameter_return
                     && !super::scalar_array::plain_return_source(module, machine, *source)
                     && !(source_signature.multiplicity == StructuralMultiplicity::Unrestricted
-                        && super::scalar_case::plain_return_source(module, machine, *source))
+                        && (super::scalar_case::plain_return_source(module, machine, *source)
+                            || super::scalar_record::plain_return_source(module, machine, *source)))
                     && !(plain_owned_block_return
                         && source_signature.multiplicity == StructuralMultiplicity::Unrestricted)
                 {
@@ -899,7 +901,8 @@ pub(super) fn validate_structural_frontier(
                     && !exact_affine_parameter_return
                     && !plain_owned_block_return
                     && !super::scalar_array::plain_return_source(module, machine, *source)
-                    && !super::scalar_case::plain_return_source(module, machine, *source))
+                    && !super::scalar_case::plain_return_source(module, machine, *source)
+                    && !super::scalar_record::plain_return_source(module, machine, *source))
                     || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
                 {
                     return Err(ModuleError::NonCanonicalStructuralReturnClaims {
@@ -988,6 +991,7 @@ pub(super) fn validate_structural_frontier(
 /// Check every read before committing any outgoing move; repeated shared
 /// arguments do not alter the frontier.
 fn validate_owned_reads(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     frontier: &StructuralOwnershipFrontier,
@@ -1062,6 +1066,13 @@ fn validate_owned_reads(
     for place in reads.filter(|place| {
         super::byte_sequence_subslice::borrowed_result(machine, *place).is_none()
             && super::primitive_storage::local_result(machine, *place).is_none()
+            && !super::scalar_record::result(machine, *place).is_some_and(|result| {
+                result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && super::scalar_record::plain_return_source(module, machine, *place)
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+            })
             && (machine.structural_places.iter().any(|declaration| {
                 declaration.id == *place
                     && matches!(
@@ -1196,7 +1207,9 @@ fn validate_scalar_cleanup_actions(
     // Scalar-case temporaries follow the same reverse producer order as
     // ordinary edge and Unit-return disposal, before older named roots.
     for place in expected_trivial_affine_discards(machine, parameter_order, &frontier) {
-        if !super::scalar_case::plain_return_source(module, machine, place) {
+        if !super::scalar_case::plain_return_source(module, machine, place)
+            && !super::scalar_record::plain_return_source(module, machine, place)
+        {
             continue;
         }
         if frontier.partial_custody_paths.contains_key(&place)

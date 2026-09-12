@@ -53,16 +53,15 @@ pub(crate) fn plain_scalar_sum_call(
         })
 }
 
-pub(crate) fn affine_scalar_record_establishment_matches(
+pub(crate) fn scalar_record_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
-    let O::EstablishAffineScalarRecord {
+    let O::EstablishScalarRecord {
         psi_operation,
         result,
-        field,
-        value,
+        fields,
     } = operation
     else {
         return false;
@@ -77,30 +76,31 @@ pub(crate) fn affine_scalar_record_establishment_matches(
                 } if producer == *psi_operation && structural_type == result.structural_type
             )
     });
-    let exact_i64_field = types.get(&result.structural_type).is_some_and(|declaration| {
+    let exact_fields = types.get(&result.structural_type).is_some_and(|declaration| {
         matches!(
             &declaration.shape,
-            terminal_psi::StructuralTypeShape::Record { fields }
-                if matches!(fields.as_slice(), [candidate]
-                    if candidate.id == *field
-                        && candidate.relevance == terminal_psi::BindingRelevance::Relevant
-                        && matches!(candidate.field_type,
-                            terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer))
-                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                                    && integer.sign() == semantic_vocabulary::IntegerSign::Signed
-                                    && integer.bits() == 64))
+            terminal_psi::StructuralTypeShape::Record { fields: declarations }
+                if declarations.len() == fields.len()
+                    && declarations.iter().zip(fields).all(|(declaration, field)| {
+                        declaration.id == field.field
+                            && declaration.relevance == terminal_psi::BindingRelevance::Relevant
+                            && !matches!(declaration.field_type, terminal_psi::StructuralFieldType::BoundedInteger(_))
+                            && declaration.field_type.scalar_type().is_some_and(|scalar_type|
+                                function.parameters.iter().chain(function.blocks.iter().flat_map(|block| block.parameters.iter().chain(block.nodes.iter().flat_map(|node| &node.definitions))))
+                                    .any(|definition| definition.value == field.value && definition.scalar_type == scalar_type))
+                    })
         )
     });
-    let i64_type =
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 64)
-            .expect("signed i64 is valid");
     place_matches
-        && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        && matches!(
+            result.multiplicity,
+            terminal_psi::StructuralMultiplicity::Affine
+                | terminal_psi::StructuralMultiplicity::Unrestricted
+        )
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
-        && exact_i64_field
-        && i64_type.admits(*value)
+        && exact_fields
 }
 
 pub(crate) fn scalar_case_establishment_matches(

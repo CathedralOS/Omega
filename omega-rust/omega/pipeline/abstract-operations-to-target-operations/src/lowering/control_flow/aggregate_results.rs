@@ -78,6 +78,17 @@ pub(in crate::lowering) fn result_home_layout(
             result.structural_type,
         ));
     }
+    if matches!(types.get(&result.structural_type).map(|declaration| &declaration.shape), Some(StructuralTypeShape::Record { fields }) if fields.iter().all(|field| !field.relevance.is_erased() && !matches!(field.field_type, StructuralFieldType::BoundedInteger(_)) && field.field_type.scalar_type().is_some_and(|scalar| super::primitive_storage::native_shape(scalar).is_some())))
+    {
+        return Ok(TargetStructuralHomeLayout::Aggregate(
+            crate::lowering::structural_layout::structural_shape(
+                result.structural_type,
+                types,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )?,
+        ));
+    }
     Ok(TargetStructuralHomeLayout::Sum(sum_layout(
         result.structural_type,
         types,
@@ -166,6 +177,65 @@ pub(super) fn establish_scalar_case(
         psi_operation: *psi_operation,
         result_home,
         result_case: *result_case,
+        fields: fields.clone(),
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}
+
+pub(super) fn establish_scalar_record(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    live: &mut LiveDefinitions,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let AbstractOperation::EstablishScalarRecord {
+        psi_operation,
+        result,
+        fields,
+    } = operation
+    else {
+        return Err(invalid());
+    };
+    let result_home = home(*psi_operation, result, types)?;
+    let StructuralTypeShape::Record {
+        fields: declarations,
+    } = &types
+        .get(&result.structural_type)
+        .ok_or_else(invalid)?
+        .shape
+    else {
+        return Err(invalid());
+    };
+    if fields.len() != declarations.len() {
+        return Err(invalid());
+    }
+    for (field, declaration) in fields.iter().zip(declarations) {
+        let source = super::scalar_sources::source(field.value, function, live)?;
+        if field.field != declaration.id
+            || declaration.relevance.is_erased()
+            || matches!(
+                declaration.field_type,
+                StructuralFieldType::BoundedInteger(_)
+            )
+            || declaration.field_type.scalar_type() != Some(source.scalar_type())
+        {
+            return Err(invalid());
+        }
+    }
+    if live
+        .structural_homes
+        .insert(result.place, result_home.clone())
+        .is_some()
+    {
+        return Err(invalid());
+    }
+    operations.push(TargetUnitOperation::EstablishScalarRecord {
+        psi_operation: *psi_operation,
+        result_home,
         fields: fields.clone(),
     });
     provenance.operations.push(*psi_operation);

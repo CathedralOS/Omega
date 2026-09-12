@@ -44,7 +44,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::EstablishPrimitiveLocal { result, .. }
         | O::EstablishScalarArray { result, .. }
         | O::EstablishScalarCase { result, .. }
-        | O::EstablishAffineScalarRecord { result, .. }
+        | O::EstablishScalarRecord { result, .. }
         | O::CallStructural { result, .. }
         | O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -145,7 +145,7 @@ pub(super) fn collect_operation_structural_places(
             result,
             ..
         }
-        | AbstractOperation::EstablishAffineScalarRecord {
+        | AbstractOperation::EstablishScalarRecord {
             psi_operation,
             result,
             ..

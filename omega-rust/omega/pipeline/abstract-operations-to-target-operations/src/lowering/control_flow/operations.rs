@@ -165,6 +165,16 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        AbstractOperation::EstablishScalarRecord { .. } => {
+            super::aggregate_results::establish_scalar_record(
+                operation,
+                function,
+                structural_types,
+                live,
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::EstablishScalarCase { .. } => {
             super::aggregate_results::establish_scalar_case(
                 operation,

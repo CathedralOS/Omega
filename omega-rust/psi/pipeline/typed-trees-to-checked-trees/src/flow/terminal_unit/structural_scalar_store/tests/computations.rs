@@ -83,7 +83,6 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
             &structural,
             &[],
             &[],
-            &[],
             call,
             false,
             None,
@@ -101,7 +100,6 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
         &scalar,
         &[],
         &outer,
-        &[],
         &[],
         0,
     )

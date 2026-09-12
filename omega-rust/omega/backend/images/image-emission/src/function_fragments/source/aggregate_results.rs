@@ -66,6 +66,11 @@ pub(super) fn operation(
                             | selected_instructions::SelectedInstructionKind::ZeroExtendU32)
                 ).count() == 1
         }
+        AbstractOperation::EstablishScalarRecord { psi_operation, result, fields } => {
+            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                TargetUnitOperation::EstablishScalarRecord { psi_operation: retained, result_home, fields: retained_fields }
+                if psi_operation == retained && result_home.operation_result() == Some((*psi_operation, result)) && fields == retained_fields)).count() == 1
+        }
         AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
                 TargetUnitOperation::EstablishScalarArray { psi_operation: retained, result_home, elements: retained_elements }

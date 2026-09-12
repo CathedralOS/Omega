@@ -355,6 +355,11 @@ fn bounded_integer_record_constructor_remains_fail_closed() {
                 structural_type,
             },
         });
+    machine.parameters.push(ValueDeclaration {
+        id: ValueId::new(1).unwrap(),
+        scalar_type: ScalarType::Integer(integer),
+        qualifications: Default::default(),
+    });
     machine.blocks[0].operations.push(Operation {
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
@@ -365,9 +370,11 @@ fn bounded_integer_record_constructor_remains_fail_closed() {
             projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
-        kind: OperationKind::EstablishAffineScalarRecord {
-            field,
-            value: IntegerValue::Signed(0),
+        kind: OperationKind::EstablishScalarRecord {
+            fields: vec![terminal_psi::ScalarRecordFieldValue {
+                field,
+                value: ValueId::new(1).unwrap(),
+            }],
         },
     });
     let Terminator::ReturnUnit {
@@ -392,7 +399,7 @@ fn bounded_integer_record_constructor_remains_fail_closed() {
     );
     assert!(matches!(
         validate_module(&module),
-        Err(ModuleError::AffineScalarRecordRequiresSingleI64Field { .. })
+        Err(ModuleError::ScalarRecordResultMismatch(_))
     ));
 }
 

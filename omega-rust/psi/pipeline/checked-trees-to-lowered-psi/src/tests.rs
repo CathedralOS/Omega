@@ -1803,9 +1803,105 @@ fn affine_i64_record_literal_crosses_source_codec_and_verification() {
     );
     let lowered = lower_machine(&checked, "Root::enter").expect("lower affine scalar record");
     let module = &lowered.semantic_module;
-    let caller = module.machines.first().expect("caller machine");
-    let [establish, call] = caller.blocks[0].operations.as_slice() else {
-        panic!("record establishment followed by owned call")
+    let caller = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("caller entry machine");
+    let operations = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    let establishments = operations
+        .iter()
+        .copied()
+        .filter(|operation| matches!(operation.kind, OperationKind::EstablishScalarRecord { .. }))
+        .collect::<Vec<_>>();
+    let [establish] = establishments.as_slice() else {
+        panic!("one record establishment: {operations:#?}");
+    };
+    let OperationKind::EstablishScalarRecord { fields } = &establish.kind else {
+        unreachable!();
+    };
+    let [field] = fields.as_slice() else {
+        panic!("one scalar field");
+    };
+    // Scalar evaluation may forward its result through private block parameters.
+    // Follow every incoming binding to the actual field-value definition.
+    let mut pending = vec![field.value];
+    let mut visited = Vec::new();
+    let mut constants = Vec::new();
+    while let Some(value) = pending.pop() {
+        if visited.contains(&value) {
+            continue;
+        }
+        visited.push(value);
+        if let Some(operation) = operations.iter().copied().find(|operation| {
+            operation
+                .result
+                .scalar()
+                .is_some_and(|result| result.id == value)
+        }) {
+            assert!(
+                matches!(
+                    operation.kind,
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Signed(7)
+                    }
+                ),
+                "exact field payload: {operation:#?}"
+            );
+            constants.push(operation.id);
+            continue;
+        }
+        let (block, position) = caller
+            .blocks
+            .iter()
+            .find_map(|block| {
+                block
+                    .parameters
+                    .iter()
+                    .position(|parameter| parameter.id == value)
+                    .map(|position| (block.id, position))
+            })
+            .unwrap_or_else(|| panic!("field value {value:?} has no definition: {caller:#?}"));
+        let mut incoming = 0;
+        for predecessor in &caller.blocks {
+            match &predecessor.terminator {
+                Terminator::Jump {
+                    target, arguments, ..
+                } if *target == block => {
+                    pending.push(arguments[position]);
+                    incoming += 1;
+                }
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    for successor in [when_true, when_false] {
+                        if successor.target == block {
+                            pending.push(successor.arguments[position]);
+                            incoming += 1;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(incoming > 0, "field value must have an incoming producer");
+    }
+    let constant_identity = *constants
+        .first()
+        .expect("field traces to an exact constant");
+    let calls = operations
+        .iter()
+        .copied()
+        .filter(|operation| matches!(operation.kind, OperationKind::CallUnit { .. }))
+        .collect::<Vec<_>>();
+    let [call] = calls.as_slice() else {
+        panic!("one owned consumer call");
     };
     let result = establish
         .result
@@ -1815,13 +1911,6 @@ fn affine_i64_record_literal_crosses_source_codec_and_verification() {
     assert!(result.qualifications.is_empty());
     assert!(result.projected_qualifications.is_empty());
     assert!(result.claims.is_empty());
-    assert!(matches!(
-        establish.kind,
-        OperationKind::EstablishAffineScalarRecord {
-            value: IntegerValue::Signed(7),
-            ..
-        }
-    ));
     assert!(matches!(
         &call.kind,
         OperationKind::CallUnit { structural_arguments, .. }
@@ -1837,9 +1926,17 @@ fn affine_i64_record_literal_crosses_source_codec_and_verification() {
     terminal_verifier::validate_module(&decoded).expect("verify affine scalar record");
 
     let mut forged = decoded;
-    let OperationKind::EstablishAffineScalarRecord { value, .. } =
-        &mut forged.machines[0].blocks[0].operations[0].kind
-    else {
+    let constant = forged
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == forged.entry)
+        .expect("same entry machine")
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| operation.id == constant_identity)
+        .expect("same constant producer");
+    let OperationKind::IntegerConstant { value } = &mut constant.kind else {
         unreachable!()
     };
     *value = IntegerValue::Unsigned(7);
