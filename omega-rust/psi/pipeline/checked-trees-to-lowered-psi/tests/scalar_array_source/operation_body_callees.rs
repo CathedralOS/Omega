@@ -88,10 +88,12 @@ fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
                 local.is_mutable = true;
             }
             "local symbol" => {
+                // Arrays share the structural-local representation with other
+                // aggregates; the exact authored declaration remains custody.
                 let handle = changed.facts.values.scalar_computations.structural_arguments.iter()
                     .find_map(|(handle, argument)| match argument {
                         checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)
-                            if matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { .. }) => Some(handle),
+                            if matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }) => Some(handle),
                         _ => None,
                     }).unwrap();
                 let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
@@ -105,7 +107,7 @@ fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
                     panic!("local argument");
                 };
                 argument.source =
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol: symbols::SymbolHandle::invalid(),
                     };
             }
