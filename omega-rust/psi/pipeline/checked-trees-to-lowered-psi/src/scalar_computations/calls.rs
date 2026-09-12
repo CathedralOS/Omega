@@ -199,6 +199,7 @@ impl Expansion<'_> {
                             },
                         )],
                         terminator: LoweredScalarBranchTerminator::Jump {
+                            trivial_affine_discards: Vec::new(),
                             target: continuation,
                             arguments: super::parameters(prefix),
                             structural_arguments: Vec::new(),

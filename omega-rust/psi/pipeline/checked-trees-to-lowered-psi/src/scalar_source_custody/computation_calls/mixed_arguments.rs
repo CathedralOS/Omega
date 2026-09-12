@@ -169,6 +169,7 @@ pub(crate) fn rejoin_computation_call_arguments(
     };
     let access_positions = if structural.iter().any(|argument| match argument {
         CheckedScalarComputationStructuralArgument::Array { .. } => true,
+        CheckedScalarComputationStructuralArgument::Case(_) => false,
         CheckedScalarComputationStructuralArgument::Place(argument) => matches!(
             argument.access,
             checked_trees::CheckedStructuralAccess::SharedBorrow

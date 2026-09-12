@@ -36,12 +36,28 @@ pub(super) fn lower_terminator(
             function.machine,
         ));
     }
-    let successor = |edge: &abstract_operations::AbstractSuccessor| TargetControlSuccessor {
-        psi_edge: edge.psi_edge,
-        target: edge.target,
-        bindings: edge.bindings.clone(),
-        structural_bindings: edge.structural_bindings.clone(),
-        cleanup_actions: Vec::new(),
+    // Plain aggregate homes need no executable destructor, but their exact
+    // edge-local disposition remains part of the independently replayed plan.
+    // A constructor temporary can die before a join, not only at function exit.
+    let cleanup = |places: &[PlaceId]| {
+        let actions = places
+            .iter()
+            .copied()
+            .map(TerminalAffineCleanupAction::DiscardRoot)
+            .collect::<Vec<_>>();
+        if !plain_home_cleanup(live, &actions) {
+            return Err(invalid());
+        }
+        Ok(actions)
+    };
+    let successor = |edge: &abstract_operations::AbstractSuccessor| -> Result<TargetControlSuccessor, LoweringError> {
+        Ok(TargetControlSuccessor {
+            psi_edge: edge.psi_edge,
+            target: edge.target,
+            bindings: edge.bindings.clone(),
+            structural_bindings: edge.structural_bindings.clone(),
+            cleanup_actions: cleanup(&edge.trivial_affine_discards)?,
+        })
     };
     match operation {
         AbstractOperation::ReturnStructural {
@@ -213,8 +229,12 @@ pub(super) fn lower_terminator(
             target,
             bindings,
             structural_bindings,
-            ..
+            trivial_affine_discards,
+            residual_affine_discards,
         } => {
+            if !residual_affine_discards.is_empty() {
+                return Err(invalid());
+            }
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::Jump {
                 successor: TargetControlSuccessor {
@@ -222,7 +242,7 @@ pub(super) fn lower_terminator(
                     target: *target,
                     bindings: bindings.clone(),
                     structural_bindings: structural_bindings.clone(),
-                    cleanup_actions: Vec::new(),
+                    cleanup_actions: cleanup(trivial_affine_discards)?,
                 },
             })
         }
@@ -271,8 +291,8 @@ pub(super) fn lower_terminator(
             Ok(TargetControlTerminator::Conditional {
                 condition_source: *condition,
                 condition: expression,
-                when_true: successor(when_true),
-                when_false: successor(when_false),
+                when_true: successor(when_true)?,
+                when_false: successor(when_false)?,
             })
         }
         _ => Err(invalid()),

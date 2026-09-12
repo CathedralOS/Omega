@@ -49,6 +49,25 @@ pub(super) fn validate(
             }
             visited.push(handle);
             match &computations.nodes.get(handle).kind {
+                CheckedScalarComputationKind::CaseMembership {
+                    subject:
+                        checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
+                        | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+                    ..
+                } => {}
+                CheckedScalarComputationKind::CaseMembership {
+                    subject:
+                        checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+                    ..
+                } => {
+                    pending.extend(
+                        computations
+                            .case_fields
+                            .span(subject.fields)?
+                            .iter()
+                            .map(|field| field.value),
+                    );
+                }
                 CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                     pending.extend([*left, *right])
                 }
@@ -91,6 +110,18 @@ pub(super) fn validate(
                         .span(*structural_arguments)?
                     {
                         let argument = match argument {
+                            checked_trees::CheckedScalarComputationStructuralArgument::Case(
+                                subject,
+                            ) => {
+                                pending.extend(
+                                    computations
+                                        .case_fields
+                                        .span(subject.fields)?
+                                        .iter()
+                                        .map(|field| field.value),
+                                );
+                                continue;
+                            }
                             checked_trees::CheckedScalarComputationStructuralArgument::Place(
                                 argument,
                             ) => argument,

@@ -3,7 +3,7 @@
 use super::*;
 use checked_trees::{CheckedControlResultPlan, CheckedScalarCaseFieldPlan};
 
-pub(super) fn signature(
+pub(in crate::flow::terminal_unit) fn signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
     reference: TypeReferenceHandle,
@@ -60,23 +60,12 @@ pub(super) fn constructor(
     else {
         return None;
     };
-    let (case_symbol, fields) = match program.expression_table.expression(expression) {
-        ExpressionNode::StructLiteral(literal) if literal.type_symbol == *symbol => (
-            literal.case_symbol?,
-            program.expression_table.struct_fields(literal.fields),
-        ),
-        ExpressionNode::Name(path)
-            if path.head_symbol == *symbol
-                && program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    == 2 =>
-        {
-            (path.symbol, &[][..])
-        }
-        _ => return None,
-    };
+    let constructor = validation::scalar_case_constructor(program, expression)?;
+    if program.normalized_type_identity(constructor.type_reference)
+        != program.normalized_type_identity(state.return_type)
+    {
+        return None;
+    }
     let data = program
         .data_definitions()
         .iter()
@@ -85,18 +74,15 @@ pub(super) fn constructor(
         .data_members(data)
         .iter()
         .find_map(|member| match member {
-            DataMember::Variant(variant) if variant.symbol == case_symbol => Some(variant),
+            DataMember::Variant(variant) if variant.symbol == constructor.case => Some(variant),
             _ => None,
         })?;
     let declarations = program.data_payload_fields(variant);
-    if fields.len() != declarations.len() {
-        return None;
-    }
     let mut planned = Vec::new();
-    for (ordinal, field) in fields.iter().enumerate() {
+    for (ordinal, (field_symbol, source, primitive_type)) in constructor.fields.iter().enumerate() {
         let declaration = declarations
             .iter()
-            .find(|declaration| declaration.symbol == field.field_symbol)?;
+            .find(|declaration| declaration.symbol == *field_symbol)?;
         let identity = declaration
             .identity
             .map(|identity| format!("#{identity}"))
@@ -113,13 +99,13 @@ pub(super) fn constructor(
             statement_ordinal,
             CheckedScalarExpressionRole::ReturnCaseField { field_ordinal },
         )?;
-        if binding.expression != field.value || binding.destination.is_valid() {
+        if binding.expression != *source || binding.destination.is_valid() {
             return None;
         }
         planned.push(CheckedScalarCaseFieldPlan {
             field_ordinal,
             field_identity: identity,
-            primitive_type: program.primitive_type_reference(declaration.type_reference)?,
+            primitive_type: *primitive_type,
             expression: expression.clone(),
         });
     }

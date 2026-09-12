@@ -6,6 +6,7 @@ use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use semantic_vocabulary::MachineId;
 mod aggregate_results;
+mod control_flow;
 mod structural_case;
 mod unobserved_owned;
 pub(super) use unobserved_owned::{arrivals as unobserved_owned_arrivals, scalar_cleanup_retained};
@@ -333,18 +334,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                             && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
                     })
                 }
-                AbstractOperation::Jump {
-                    trivial_affine_discards,
-                    ..
-                } => trivial_affine_discards.is_empty(),
-                AbstractOperation::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    when_true.trivial_affine_discards.is_empty()
-                        && when_false.trivial_affine_discards.is_empty()
-                }
+                AbstractOperation::Jump { .. }
+                | AbstractOperation::Conditional { .. } => control_flow::retained(operation, targeted),
                 AbstractOperation::StructuralCase { source, cases } => {
                     structural_case::retained(selected, &abstracted.block_entries, *source, cases)
                 }

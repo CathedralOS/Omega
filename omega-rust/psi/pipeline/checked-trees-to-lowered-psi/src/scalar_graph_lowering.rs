@@ -409,9 +409,11 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let lowered_state_count = states.len() + usize::from(return_sink.is_some());
     let mut lowered_states = Vec::with_capacity(lowered_state_count);
     let arrays = computations::arrays::prepare(checked, machine, structural_types, next_place)?;
+    let cases = computations::cases::prepare(checked, machine, structural_types, next_place)?;
     let mut computations =
         computations::Expansion::new(checked, qualifications, machine, lowered_state_count)
-            .with_arrays(&arrays);
+            .with_arrays(&arrays)
+            .with_cases(&cases);
 
     for state in states {
         let (parameter_types, state_result_type) =
@@ -458,6 +460,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 };
                 if let Some(target) = computed_entry {
                     LoweredScalarBranchTerminator::Jump {
+                        trivial_affine_discards: Vec::new(),
                         target,
                         arguments: computations::parameters(value_types),
                         structural_arguments: Vec::new(),
@@ -556,6 +559,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     &mut computations,
                 )?;
                 LoweredScalarBranchTerminator::Jump {
+                    trivial_affine_discards: Vec::new(),
                     target,
                     arguments,
                     structural_arguments: Vec::new(),

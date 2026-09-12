@@ -11,6 +11,10 @@ pub(super) fn retain_catalog_roots<'checked>(
 ) -> Result<(), LoweringError> {
     for callee in callees {
         if let CheckedScalarCallee::Graph(graph) = callee {
+            type_roots.extend(crate::scalar_computations::cases::type_roots(
+                checked,
+                graph.machine,
+            )?);
             type_roots.extend(
                 graph
                     .states

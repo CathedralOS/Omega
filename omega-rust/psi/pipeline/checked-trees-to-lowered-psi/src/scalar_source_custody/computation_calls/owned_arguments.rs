@@ -22,7 +22,7 @@ pub(super) fn validate(
     call: &BorrowCallFact,
     access_position: usize,
 ) -> Result<usize, LoweringError> {
-    if let CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { symbol } = argument.source {
+    if let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = argument.source {
         return validate_array_local(
             checked,
             state,

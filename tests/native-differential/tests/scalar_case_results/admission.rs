@@ -70,7 +70,15 @@ pub(super) fn installation_cannot_change_call_or_result(
                     1 => plan.result = None,
                     2 => plan.result.as_mut().unwrap().shape.byte_size = 8,
                     3 => plan.result.as_mut().unwrap().locations.clear(),
-                    4 => plan.parameters.clear(),
+                    4 => {
+                        // Zero-argument source functions must undergo a real
+                        // substitution too; clearing their roster changes nothing.
+                        if plan.parameters.is_empty() {
+                            plan.parameters.push(plan.result.clone().unwrap());
+                        } else {
+                            plan.parameters.clear();
+                        }
+                    }
                     _ => unreachable!(),
                 }
             }

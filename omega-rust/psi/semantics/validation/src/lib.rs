@@ -38,7 +38,11 @@ mod machine_data;
 mod machine_parameters;
 mod machine_specialization_identity;
 mod operators;
+mod scalar_case_constructor;
 mod storage_contents;
+pub use scalar_case_constructor::{
+    ScalarCaseConstructor, is_fresh_scalar_case_value, scalar_case_constructor,
+};
 pub use storage_contents::{
     has_plain_owned_contents, has_plain_owned_contents_with_numeric_constraints,
     has_plain_owned_contents_with_substitutions, has_stable_observable_contents,

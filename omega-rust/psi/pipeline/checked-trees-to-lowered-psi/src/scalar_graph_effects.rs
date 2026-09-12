@@ -11,6 +11,9 @@ pub(crate) fn emit(
 ) -> Result<(), LoweringError> {
     for effect in effects {
         match effect {
+            LoweredScalarEffect::EstablishScalarCase(case) => {
+                crate::scalar_computations::cases::emit(case, values, next_value, operations)?
+            }
             LoweredScalarEffect::EstablishScalarArray(array) => {
                 crate::scalar_computations::arrays::emit(
                     std::slice::from_ref(array),

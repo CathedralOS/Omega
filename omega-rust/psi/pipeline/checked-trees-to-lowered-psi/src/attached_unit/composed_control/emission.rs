@@ -246,7 +246,18 @@ pub(in crate::attached_unit) fn emit_callable_body(
         machine
             .blocks
             .iter()
-            .flat_map(|block| crate::scalar_computations::arrays::declarations(&block.operations)),
+            .flat_map(|block| {
+                crate::scalar_computations::arrays::declarations(&block.operations).chain(
+                    crate::scalar_computations::cases::declarations(&block.operations),
+                )
+            })
+            .filter(|place| {
+                !catalogs
+                    .result_places
+                    .iter()
+                    .chain(&catalogs.temporary_places)
+                    .any(|existing| existing.id == place.id)
+            }),
     );
     machine
         .structural_places
@@ -279,8 +290,15 @@ pub(crate) fn emit_call_leaf(
 ) -> Result<(Vec<Block>, Vec<LoweredSourceCallOccurrence>), LoweringError> {
     let mut operations = OperationBuffer::new(*next_operation - 1);
     let mut evaluation = super::super::argument_evaluation::Evaluation {
-        array_locals: Vec::new(),
+        structural_locals: Vec::new(),
+        local_cases: Vec::new(),
         arrays: crate::scalar_computations::arrays::prepare(
+            checked,
+            machine,
+            &catalogs.structural_types,
+            &mut catalogs.next_place,
+        )?,
+        cases: crate::scalar_computations::cases::prepare(
             checked,
             machine,
             &catalogs.structural_types,
@@ -352,12 +370,17 @@ pub(super) fn emit_call_operations(
             operation,
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
         ) {
-            crate::attached_unit::structural_values::emit(
+            let mut calls = catalogs.scalar_calls.emission_context();
+            let declaration = crate::attached_unit::structural_values::emit(
                 checked,
                 machine,
                 state.state,
                 operation,
-                catalogs,
+                &catalogs.structural_types,
+                &catalogs.type_ids,
+                &mut catalogs.next_place,
+                &mut catalogs.temporary_places,
+                &mut calls,
                 evaluation,
                 values,
                 next_value,
@@ -365,6 +388,8 @@ pub(super) fn emit_call_operations(
                 next_edge,
                 operations,
             )?;
+            catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            catalogs.result_places.push(declaration);
             continue;
         }
         if let CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } = operation {

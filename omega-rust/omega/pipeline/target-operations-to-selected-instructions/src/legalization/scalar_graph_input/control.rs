@@ -127,7 +127,7 @@ pub(super) fn validate(
                 residual_affine_discards,
             },
             _,
-        ) if trivial_affine_discards.is_empty() && residual_affine_discards.is_empty() => {
+        ) if residual_affine_discards.is_empty() => {
             let [edge] = node.successors.as_slice() else {
                 return Err(invalid);
             };
@@ -135,10 +135,12 @@ pub(super) fn validate(
                 || edge.target != *target
                 || edge.bindings != *bindings
                 || edge.structural_bindings != *structural_bindings
+                || edge.trivial_affine_discards != *trivial_affine_discards
+                || !edge.residual_affine_discards.is_empty()
             {
                 return Err(invalid);
             }
-            branch_edges(node)
+            branch_edges(node, function)
         }
         (
             AbstractOperation::Conditional {
@@ -159,12 +161,12 @@ pub(super) fn validate(
                     || actual.target != expected.target
                     || actual.bindings != expected.bindings
                     || actual.structural_bindings != expected.structural_bindings
-                    || !expected.trivial_affine_discards.is_empty()
+                    || actual.trivial_affine_discards != expected.trivial_affine_discards
                 {
                     return Err(invalid);
                 }
             }
-            branch_edges(node)
+            branch_edges(node, function)
         }
         _ => Err(invalid),
     }
@@ -185,12 +187,22 @@ fn return_edge(
     }
     Ok(())
 }
-fn branch_edges(node: &OptimizationNode) -> Result<(), LegalizationError> {
+fn branch_edges(
+    node: &OptimizationNode,
+    function: &PsiOptimizationFunction,
+) -> Result<(), LegalizationError> {
     if !node.provenance.is_empty()
         || !node.fuel.is_empty()
         || node.successors.iter().any(|edge| {
-            !edge.trivial_affine_discards.is_empty()
-                || !edge.residual_affine_discards.is_empty()
+            !super::aggregate_results::cleanup(
+                function,
+                &edge
+                    .trivial_affine_discards
+                    .iter()
+                    .copied()
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .collect::<Vec<_>>(),
+            ) || !edge.residual_affine_discards.is_empty()
                 || edge.provenance != [PsiProvenance::Edge(edge.psi_edge)]
                 || edge.fuel.is_empty()
                 || edge

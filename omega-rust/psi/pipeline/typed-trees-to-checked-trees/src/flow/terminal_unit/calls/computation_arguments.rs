@@ -209,7 +209,7 @@ fn owned_array_local_argument(
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {
-        source: CheckedUnitStructuralArgumentSourcePlan::ArrayLocal {
+        source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
             symbol: source_symbol,
         },
         path: Vec::new(),

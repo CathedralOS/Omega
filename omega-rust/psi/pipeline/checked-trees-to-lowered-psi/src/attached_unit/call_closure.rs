@@ -160,8 +160,14 @@ pub(super) fn validate_unit_operation_sequence(
         .enumerate()
     {
         let coordinate = match operation {
-            CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+                structural_calls::validate_usage(machine, result)?;
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: result.statement_index,
+                    call_ordinal: 0,
+                }
+            }
+            CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
                     call_ordinal: 0,

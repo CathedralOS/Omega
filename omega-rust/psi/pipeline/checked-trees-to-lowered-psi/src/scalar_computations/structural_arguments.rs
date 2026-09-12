@@ -29,6 +29,9 @@ pub(super) fn lower(
         .zip(target.structural_parameters())
         .map(|(argument, parameter)| {
             let argument = match argument {
+                checked_trees::CheckedScalarComputationStructuralArgument::Case(_) => {
+                    return unsupported("computed case call arguments are not admitted");
+                }
                 checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) => {
                     argument
                 }

@@ -27,6 +27,20 @@ impl Evaluation {
         }
         let source = crate::scalar_source_custody::locate(checked, state, statement, role)?;
         let scalar_type = terminal_scalar_type(source.primitive_type)?;
+        if matches!(
+            role,
+            CheckedScalarExpressionRole::ReturnCaseField { .. }
+                | CheckedScalarExpressionRole::StructuralValueField { .. }
+        ) {
+            crate::scalar_source_custody::value_correspondence::validate(
+                checked,
+                state,
+                statement,
+                source.expression,
+                source.primitive_type,
+                value,
+            )?;
+        }
         match value {
             CheckedCallScalarArgument::Pure(value) => {
                 let (binding, retained) = checked
@@ -68,7 +82,8 @@ impl Evaluation {
             .clone()
             .unwrap_or_else(|| crate::scalar_bindings::ScalarBindings::new(source_value_count))
             .with_primitive_storage(&self.primitive_storage)
-            .with_array_locals(&self.array_locals)
+            .with_local_cases(&self.local_cases)
+            .with_structural_locals(&self.structural_locals)
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
         let qualifications = prepare_shared_qualifications(checked, machine, values)?;
@@ -92,7 +107,8 @@ impl Evaluation {
         }
         let mut expansion =
             crate::scalar_computations::Expansion::new(checked, &qualifications, machine, 1)
-                .with_arrays(&self.arrays);
+                .with_arrays(&self.arrays)
+                .with_cases(&self.cases);
         let entry = match value {
             CheckedCallScalarArgument::Pure(_) => expansion.retained_pure_value(
                 state,

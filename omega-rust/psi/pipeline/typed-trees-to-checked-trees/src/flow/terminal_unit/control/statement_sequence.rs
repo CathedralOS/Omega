@@ -28,11 +28,7 @@ pub(super) fn has_structural_result(
     if !local.initial_value.is_valid() {
         return false;
     }
-    if validation::is_fresh_payloadless_structural_value(
-        program,
-        local.initial_value,
-        local.type_reference,
-    ) {
+    if validation::is_fresh_scalar_case_value(program, local.initial_value, local.type_reference) {
         return !local.is_mutable;
     }
     if validation::is_closed_primitive_array_type(program, local.type_reference) {
@@ -97,7 +93,7 @@ pub(super) fn has_statement_shape(
                             .statement_table
                             .statements(state.statement_nodes)
                             .len()
-                        && (validation::is_fresh_payloadless_structural_value(
+                        && (validation::is_fresh_scalar_case_value(
                             program,
                             *expression,
                             state.return_type,
@@ -249,8 +245,11 @@ pub(in crate::flow::terminal_unit) fn build(
                     structural_count = structural_count.checked_add(1)?;
                     structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
                     structural_local_symbols.push(local.symbol);
+                    // Only affine values create disposal debt; copy locals
+                    // retain their result identity without a cleanup action.
+                    let discard_result_on_return = result.multiplicity == Multiplicity::Affine;
                     operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        result, value: root.root, discard_result_on_return: true,
+                        result, value: root.root, discard_result_on_return,
                     });
                     continue;
                 }

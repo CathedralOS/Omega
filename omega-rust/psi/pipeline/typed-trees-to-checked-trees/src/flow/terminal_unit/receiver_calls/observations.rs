@@ -44,6 +44,24 @@ pub(in crate::flow::terminal_unit) fn reads_receiver(
         }
         let node = computations.nodes.get(handle);
         match &node.kind {
+            CheckedScalarComputationKind::CaseMembership {
+                subject:
+                    checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
+                    | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+                ..
+            } => {}
+            CheckedScalarComputationKind::CaseMembership {
+                subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+                ..
+            } => {
+                pending.extend(
+                    computations
+                        .case_fields
+                        .span_or_empty(subject.fields)
+                        .iter()
+                        .map(|field| field.value),
+                );
+            }
             CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                 pending.extend([*left, *right])
             }

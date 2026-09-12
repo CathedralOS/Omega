@@ -177,14 +177,46 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
                 )?;
             }
         }
-        let array_destination = match statement {
+        let construction_destination = match statement {
             StatementNode::LocalData(local) if !local.is_mutable => {
                 Some((local.initial_value, local.type_reference))
             }
             StatementNode::Expression(expression) => Some((*expression, state.return_type)),
             _ => None,
         };
-        let arrays = array_destination
+        // Structural dispatch operands and selected case fields own their calls.
+        // This is the static call roster, not an instruction to evaluate every
+        // arm: emission follows the structural value's selected control path.
+        for (_, root) in facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .filter(|(_, root)| {
+                root.state == state.symbol
+                    && root.statement_ordinal as usize == statement_index
+                    && matches!(
+                        root.role,
+                        CheckedScalarExpressionRole::StructuralValueField { .. }
+                            | CheckedScalarExpressionRole::StructuralValueSubject { .. }
+                            | CheckedScalarExpressionRole::StructuralValuePattern { .. }
+                    )
+            })
+        {
+            if root.machine != machine {
+                return None;
+            }
+            collect(
+                facts,
+                statement_index,
+                root.root,
+                calls,
+                0,
+                &mut Vec::new(),
+                &mut consumed,
+            )?;
+        }
+        let constructions = construction_destination
             .into_iter()
             .map(|(expression, expected)| {
                 (
@@ -204,7 +236,7 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
                 .into_iter()
                 .map(|array| (array.source, array.expression, array.type_reference)),
             );
-        for (source, expression, expected) in arrays {
+        for (source, expression, expected) in constructions {
             let Some(elements) =
                 validation::scalar_array_elements(program, machine, expression, expected)
             else {
@@ -521,6 +553,28 @@ fn collect(
     }
     active.push(handle);
     match &plans.nodes.get(handle).kind {
+        CheckedScalarComputationKind::CaseMembership {
+            subject:
+                checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
+                | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+            ..
+        } => {}
+        CheckedScalarComputationKind::CaseMembership {
+            subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+            ..
+        } => {
+            for field in plans.case_fields.span(subject.fields)? {
+                collect(
+                    facts,
+                    statement,
+                    field.value,
+                    calls,
+                    minimum_call_ordinal,
+                    active,
+                    consumed,
+                )?;
+            }
+        }
         CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
             collect(
                 facts,

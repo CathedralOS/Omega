@@ -34,10 +34,7 @@ pub struct CheckedStructuralValue {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedStructuralValueKind {
-    Case {
-        data_symbol: SymbolHandle,
-        case_symbol: SymbolHandle,
-    },
+    Case(crate::CheckedScalarCaseConstruction),
     Dispatch {
         subject: CheckedScalarComputationHandle,
         arms: HandleSpan<CheckedStructuralDispatchArm>,
@@ -46,10 +43,7 @@ pub enum CheckedStructuralValueKind {
 
 impl Default for CheckedStructuralValueKind {
     fn default() -> Self {
-        Self::Case {
-            data_symbol: SymbolHandle::invalid(),
-            case_symbol: SymbolHandle::invalid(),
-        }
+        Self::Case(crate::CheckedScalarCaseConstruction::default())
     }
 }
 

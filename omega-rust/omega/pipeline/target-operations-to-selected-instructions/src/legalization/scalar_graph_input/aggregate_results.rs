@@ -155,12 +155,30 @@ pub(super) fn cleanup(
         let terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) = action else {
             return false;
         };
+        // Selection transfers a fresh owner into a block parameter. Its final
+        // discard owes the same whole affine cleanup as a direct producer;
+        // requiring an operation result here would reject the completed join.
         discarded.insert(*place)
-            && super::structural_case::source_result(function, *place).is_ok_and(|(_, result)| {
-                result.multiplicity == StructuralMultiplicity::Affine
-                    && result.claims.is_empty()
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
+            && super::structural_case::source_owner(function, *place).is_ok_and(|owner| match owner
+            {
+                legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                    result,
+                    ..
+                } => {
+                    result.multiplicity == StructuralMultiplicity::Affine
+                        && result.claims.is_empty()
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                }
+                legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                    declaration,
+                    ..
+                } => {
+                    declaration.multiplicity == StructuralMultiplicity::Affine
+                        && declaration.access == terminal_psi::StructuralAccess::Owned
+                        && declaration.qualifications.is_empty()
+                        && declaration.projected_qualifications.is_empty()
+                }
             })
     })
 }

@@ -24,8 +24,10 @@ fn prepare_shared_qualifications(
 }
 
 pub(crate) struct Evaluation {
-    pub(crate) array_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
+    pub(crate) structural_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
+    pub(crate) local_cases: Vec<crate::scalar_bindings::structural_cases::LocalCaseBinding>,
     pub(crate) arrays: Vec<crate::scalar_computations::arrays::Slot>,
+    pub(crate) cases: Vec<crate::scalar_computations::cases::Slot>,
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// State-local storage has its own namespace; it is not an immutable slot.
     /// Other callers retain the ordinary dense source-prefix mapping.
@@ -86,8 +88,10 @@ impl Evaluation {
     pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
-            array_locals: Vec::new(),
+            structural_locals: Vec::new(),
+            local_cases: Vec::new(),
             arrays: Vec::new(),
+            cases: Vec::new(),
             primitive_storage: Vec::new(),
             scalar_bindings: None,
             structural_fields: Vec::new(),
@@ -200,7 +204,8 @@ impl Evaluation {
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
         let source_bindings = source_bindings
             .with_primitive_storage(&self.primitive_storage)
-            .with_array_locals(&self.array_locals);
+            .with_local_cases(&self.local_cases)
+            .with_structural_locals(&self.structural_locals);
         let (coordinate, arguments, boundary) = match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
                 coordinate,
@@ -298,7 +303,8 @@ impl Evaluation {
 
         let mut expansion =
             crate::scalar_computations::Expansion::new(checked, &qualifications, machine, 1)
-                .with_arrays(&self.arrays);
+                .with_arrays(&self.arrays)
+                .with_cases(&self.cases);
         let entry_index = expansion.call_arguments(
             state,
             coordinate,
@@ -374,7 +380,8 @@ impl Evaluation {
         }
         let mut expansion =
             crate::scalar_computations::Expansion::new(checked, &qualifications, machine, 1)
-                .with_arrays(&self.arrays);
+                .with_arrays(&self.arrays)
+                .with_cases(&self.cases);
         let entry = expansion.retained_value(
             state,
             store.statement_index,
@@ -644,6 +651,7 @@ fn emit_state(
             target,
             arguments: outgoing,
             structural_arguments,
+            trivial_affine_discards,
         } => Terminator::Jump {
             structural_arguments: structural_arguments.clone(),
             edge: edge_id(allocate_dense(next_edge)?),
@@ -652,7 +660,7 @@ fn emit_state(
             ))?,
             arguments: arguments(outgoing)?,
             residual_affine_discards: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            trivial_affine_discards: trivial_affine_discards.clone(),
         },
         LoweredScalarBranchTerminator::Conditional {
             condition,

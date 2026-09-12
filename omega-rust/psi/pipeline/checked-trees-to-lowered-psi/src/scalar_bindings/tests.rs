@@ -3,7 +3,7 @@ use crate::scalar_graph_lowering::lower_checked_boolean_expression;
 use checked_trees::CheckedScalarBindingDestination;
 
 #[test]
-fn owned_array_locals_reuse_exact_published_payloads_and_reject_invalid_custody() {
+fn owned_structural_locals_reuse_exact_published_payloads_and_reject_invalid_custody() {
     let symbol = symbols::SymbolHandle::from_arena_index(1);
     let other = symbols::SymbolHandle::from_arena_index(2);
     let source = StructuralArgument {
@@ -12,10 +12,10 @@ fn owned_array_locals_reuse_exact_published_payloads_and_reject_invalid_custody(
         access: StructuralAccess::Owned,
     };
     let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
-        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { symbol },
+        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         ..Default::default()
     };
-    let bindings = ScalarBindings::new(0).with_array_locals(&[(symbol, source.clone())]);
+    let bindings = ScalarBindings::new(0).with_structural_locals(&[(symbol, source.clone())]);
     for _ in 0..2 {
         assert_eq!(bindings.owned_argument(&argument).unwrap(), source);
     }
@@ -40,7 +40,7 @@ fn owned_array_locals_reuse_exact_published_payloads_and_reject_invalid_custody(
     ] {
         assert!(
             ScalarBindings::new(0)
-                .with_array_locals(&locals)
+                .with_structural_locals(&locals)
                 .owned_argument(&argument)
                 .is_err()
         );
@@ -58,11 +58,11 @@ fn owned_array_locals_reuse_exact_published_payloads_and_reject_invalid_custody(
     changed.path.clear();
     let invalid = symbols::SymbolHandle::invalid();
     changed.source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::ArrayLocal { symbol: invalid };
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: invalid };
     changed.access = checked_trees::CheckedStructuralAccess::Owned;
     assert!(
         ScalarBindings::new(0)
-            .with_array_locals(&[(invalid, source)])
+            .with_structural_locals(&[(invalid, source)])
             .owned_argument(&changed)
             .is_err()
     );

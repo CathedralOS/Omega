@@ -3,7 +3,7 @@
 use super::*;
 
 mod closed_sum;
-mod returns;
+pub(super) mod returns;
 
 #[cfg(test)]
 mod tests;

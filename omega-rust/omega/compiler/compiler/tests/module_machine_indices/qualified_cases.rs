@@ -4,6 +4,7 @@ use compiler::CheckedCompileRequest;
 
 #[test]
 fn package_qualified_case_values_and_membership_select_the_declaring_owner() {
+    let mut terminal_failures = Vec::new();
     for (expression, is_empty) in [
         ("shapes::settings::Choice::Empty", true),
         ("shapes::settings::Choice::Empty {}", true),
@@ -107,8 +108,19 @@ fn package_qualified_case_values_and_membership_select_the_declaring_owner() {
                 )
                 .expect("checked membership evaluates with its selected nominal owner");
             assert_eq!(result.value(), &BuildTimeValue::Bool(expected));
+            if matches!(entry, "is_empty" | "is_some" | "local_is_empty") {
+                if let Err(error) = terminal_production::produce_terminal_artifact(&checked, entry)
+                {
+                    terminal_failures.push(format!("{expression}, {entry}: {error:?}"));
+                }
+            }
         }
     }
+    assert!(
+        terminal_failures.is_empty(),
+        "constructed membership must reach Terminal:\n{}",
+        terminal_failures.join("\n")
+    );
 }
 
 #[test]

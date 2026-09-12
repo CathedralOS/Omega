@@ -3,6 +3,7 @@ use super::*;
 mod array_arguments;
 mod assignments;
 mod borrowed_arguments;
+mod cases;
 mod dispatch;
 mod guards;
 mod qualifications;

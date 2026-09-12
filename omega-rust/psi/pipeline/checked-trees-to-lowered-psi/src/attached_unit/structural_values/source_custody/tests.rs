@@ -150,7 +150,7 @@ fn structural_replay_rejects_case_identity_and_root_owner_substitution() {
         .nodes
         .iter()
         .find_map(|(handle, node)| {
-            matches!(node.kind, CheckedStructuralValueKind::Case { .. }).then_some(handle)
+            matches!(node.kind, CheckedStructuralValueKind::Case(_)).then_some(handle)
         })
         .unwrap();
     let original = checked
@@ -160,7 +160,7 @@ fn structural_replay_rejects_case_identity_and_root_owner_substitution() {
         .nodes
         .get(case)
         .clone();
-    let CheckedStructuralValueKind::Case { case_symbol, .. } = &mut checked
+    let CheckedStructuralValueKind::Case(construction) = &mut checked
         .facts
         .values
         .structural_values
@@ -170,7 +170,7 @@ fn structural_replay_rejects_case_identity_and_root_owner_substitution() {
     else {
         panic!("case");
     };
-    *case_symbol = machine;
+    construction.case = machine;
     assert!(validate(&checked, machine, state, &operation).is_err());
     *checked.facts.values.structural_values.nodes.get_mut(case) = original;
     let root = checked

@@ -69,6 +69,13 @@ impl PreparedScalarQualifications {
             }
             visited.push(handle);
             match &plans.nodes.get(handle).kind {
+                CheckedScalarComputationKind::CaseMembership { subject, .. } => {
+                    pending.extend(
+                        crate::scalar_computations::cases::operand_fields(checked, subject)?
+                            .iter()
+                            .map(|field| field.value),
+                    );
+                }
                 CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                     pending.extend([*left, *right])
                 }

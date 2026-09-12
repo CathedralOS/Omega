@@ -42,7 +42,7 @@ machine observe(selector: u64) {
     assert_eq!(arms.len(), 2);
     assert!(matches!(
         values.nodes.get(arms[0].value).kind,
-        CheckedStructuralValueKind::Case { .. }
+        CheckedStructuralValueKind::Case(_)
     ));
     assert!(matches!(
         values.nodes.get(arms[1].value).kind,

@@ -7,20 +7,24 @@ pub(crate) fn emit(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
-    catalogs: &mut composed_control::ComposedCatalogs,
+    structural_types: &[StructuralTypeDeclaration],
+    type_ids: &[(String, StructuralTypeId)],
+    next_place: &mut u64,
+    temporary_places: &mut Vec<StructuralPlaceDeclaration>,
+    calls: &mut CallEmissionContext<'_>,
     evaluation: &mut argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
-) -> Result<(), LoweringError> {
+) -> Result<StructuralPlaceDeclaration, LoweringError> {
     source_custody::validate(checked, machine, state, operation)?;
     let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } = operation
     else {
         return unsupported("structural value producer missing");
     };
-    let structural_type = lookup_type_id(&catalogs.type_ids, &result.type_identity)?;
+    let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
     let multiplicity = match result.multiplicity {
         Multiplicity::Affine => StructuralMultiplicity::Affine,
         Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
@@ -35,7 +39,10 @@ pub(crate) fn emit(
         statement: result.statement_index,
         structural_type,
         multiplicity,
-        catalogs,
+        structural_types,
+        next_place,
+        temporary_places,
+        calls,
         evaluation,
         values,
         next_value,
@@ -47,15 +54,13 @@ pub(crate) fn emit(
     // Private arm producers are not authored result ordinals. Publish exactly
     // one completed place for this binding, whether a direct producer or join.
     let declaration = emission
-        .catalogs
         .temporary_places
         .iter()
         .position(|item| item.id == place)
         .ok_or(LoweringError::Unsupported(
             "structural value place was not declared",
         ))?;
-    let declaration = emission.catalogs.temporary_places.remove(declaration);
-    emission.catalogs.result_places.push(declaration);
+    let declaration = emission.temporary_places.remove(declaration);
     if emission
         .operations
         .structural_values
@@ -75,17 +80,54 @@ pub(crate) fn emit(
             claims: Vec::new(),
         },
     ));
-    Ok(())
+    if let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
+        .statement_table
+        .statements(
+            crate::scalar_source_custody::authored_state(checked, state)?
+                .1
+                .statement_nodes,
+        )
+        .get(result.statement_index as usize)
+    {
+        if emission
+            .evaluation
+            .structural_locals
+            .iter()
+            .any(|(symbol, _)| *symbol == local.symbol)
+        {
+            return unsupported("structural value repeats its local binding");
+        }
+        let cases = crate::scalar_bindings::structural_cases::LocalCaseBinding::new(
+            checked,
+            local.symbol,
+            local.type_reference,
+            place,
+            structural_types,
+        )?;
+        emission.evaluation.structural_locals.push((
+            local.symbol,
+            StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            },
+        ));
+        emission.evaluation.local_cases.push(cases);
+    }
+    Ok(declaration)
 }
 
-struct Emission<'a, 'b> {
+struct Emission<'a, 'b, 'calls> {
     checked: &'a CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     statement: u32,
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
-    catalogs: &'b mut composed_control::ComposedCatalogs,
+    structural_types: &'a [StructuralTypeDeclaration],
+    next_place: &'b mut u64,
+    temporary_places: &'b mut Vec<StructuralPlaceDeclaration>,
+    calls: &'b mut CallEmissionContext<'calls>,
     evaluation: &'b mut argument_evaluation::Evaluation,
     values: &'b mut Vec<ValueDeclaration>,
     next_value: &'b mut u64,
@@ -94,7 +136,7 @@ struct Emission<'a, 'b> {
     operations: &'b mut OperationBuffer,
 }
 
-impl Emission<'_, '_> {
+impl Emission<'_, '_, '_> {
     fn value(&mut self, value: CheckedStructuralValueHandle) -> Result<PlaceId, LoweringError> {
         let node = self
             .checked
@@ -105,82 +147,55 @@ impl Emission<'_, '_> {
             .get(value)
             .clone();
         match node.kind {
-            CheckedStructuralValueKind::Case {
-                data_symbol,
-                case_symbol,
-            } => {
-                let data = self
-                    .checked
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == data_symbol)
-                    .ok_or(LoweringError::Unsupported(
-                        "constructed sum declaration missing",
-                    ))?;
-                let variant = self
-                    .checked
-                    .data_members(data)
-                    .iter()
-                    .find_map(|member| match member {
-                        checked_trees::data::DataMember::Variant(variant)
-                            if variant.symbol == case_symbol =>
-                        {
-                            Some(variant)
-                        }
-                        _ => None,
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "constructed case declaration missing",
-                    ))?;
-                let identity = variant
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| variant.name.as_str().to_owned());
-                let shape = &self
-                    .catalogs
-                    .structural_types
-                    .iter()
-                    .find(|item| item.id == self.structural_type)
-                    .ok_or(LoweringError::Unsupported(
-                        "constructed structural type missing",
-                    ))?
-                    .shape;
-                let StructuralTypeShape::Sum { cases } = shape else {
-                    return unsupported("case construction needs a nominal sum");
-                };
-                let case = cases
-                    .iter()
-                    .find(|case| case.identity == identity && case.fields.is_empty())
-                    .ok_or(LoweringError::Unsupported(
-                        "fresh case requires its exact empty payload",
-                    ))?
-                    .id;
-                let operation = self.operations.allocate();
-                let place = place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                self.catalogs
-                    .temporary_places
-                    .push(StructuralPlaceDeclaration {
-                        id: place,
-                        kind: StructuralPlaceKind::OperationResult {
-                            producer: operation,
-                            structural_type: self.structural_type,
+            CheckedStructuralValueKind::Case(construction) => {
+                let source = validation::scalar_case_constructor(
+                    &self.checked.typed,
+                    construction.expression,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "structural case lost its authored constructor",
+                ))?;
+                let place = place_id(allocate_dense(self.next_place)?);
+                let slot = crate::scalar_computations::cases::reserve(
+                    self.checked,
+                    construction.expression,
+                    &source,
+                    self.structural_types,
+                    place,
+                )?;
+                let fields =
+                    crate::scalar_computations::cases::fields(self.checked, &construction)?
+                        .to_vec();
+                let field_start = self.values.len();
+                for (ordinal, field) in fields.iter().enumerate() {
+                    let field_ordinal = u32::try_from(ordinal).map_err(|_| {
+                        LoweringError::Unsupported("structural field ordinal overflow")
+                    })?;
+                    let value = self.scalar(
+                        CheckedScalarExpressionRole::StructuralValueField {
+                            expression: construction.expression,
+                            field_ordinal,
                         },
-                    });
-                self.operations.push(Operation {
-                    id: operation,
-                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                        place,
-                        structural_type: self.structural_type,
-                        multiplicity: self.multiplicity,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                        claims: Vec::new(),
-                    }),
-                    kind: OperationKind::EstablishScalarCase {
-                        result_case: case,
-                        fields: Vec::new(),
-                    },
-                });
+                        field.value,
+                        field_start,
+                    )?;
+                    self.values.push(value);
+                }
+                let completed = slot.construction(&self.values[field_start..])?;
+                crate::scalar_computations::cases::emit(
+                    &completed,
+                    &self.values[field_start..],
+                    self.next_value,
+                    self.operations,
+                )?;
+                let declaration =
+                    crate::scalar_computations::cases::declarations(&self.operations.operations)
+                        .find(|declaration| declaration.id == place)
+                        .ok_or(LoweringError::Unsupported(
+                            "structural case result declaration missing",
+                        ))?;
+                self.temporary_places.push(declaration);
+                self.values.truncate(field_start);
                 Ok(place)
             }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
@@ -214,16 +229,14 @@ impl Emission<'_, '_> {
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
-                let place = place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                self.catalogs
-                    .temporary_places
-                    .push(StructuralPlaceDeclaration {
-                        id: place,
-                        kind: StructuralPlaceKind::BlockParameter {
-                            block: join,
-                            position: 0,
-                        },
-                    });
+                let place = place_id(allocate_dense(self.next_place)?);
+                self.temporary_places.push(StructuralPlaceDeclaration {
+                    id: place,
+                    kind: StructuralPlaceKind::BlockParameter {
+                        block: join,
+                        position: 0,
+                    },
+                });
                 for (position, arm) in arms.iter().enumerate() {
                     let mut fallback = None;
                     if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
@@ -333,7 +346,6 @@ impl Emission<'_, '_> {
         value: checked_trees::CheckedScalarComputationHandle,
         source_count: usize,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let mut calls = self.catalogs.scalar_calls.emission_context();
         let value = self.evaluation.source_value(
             self.checked,
             self.machine,
@@ -347,9 +359,8 @@ impl Emission<'_, '_> {
             self.next_block,
             self.next_edge,
             self.operations,
-            &mut calls,
+            self.calls,
         )?;
-        self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
         Ok(value)
     }
 

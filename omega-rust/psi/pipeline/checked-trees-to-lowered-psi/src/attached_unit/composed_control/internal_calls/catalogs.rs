@@ -41,6 +41,9 @@ pub(in crate::attached_unit::composed_control) fn lower(
         .map(str::to_owned)
         .into_iter()
         .collect::<Vec<_>>();
+    type_roots.extend(crate::scalar_computations::cases::type_roots(
+        checked, machine,
+    )?);
     type_roots.extend(
         states
             .iter()

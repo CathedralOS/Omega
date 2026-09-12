@@ -40,6 +40,7 @@ pub(super) fn requires_place_namespace(
                 || !state.primitive_locals.is_empty()
                 || !state.unit_operations.is_empty()
         }) || !crate::scalar_computations::structural_call_targets(checked, machine)?.is_empty()
+            || !crate::scalar_computations::cases::type_roots(checked, machine)?.is_empty()
         {
             // Computation-owned constructors require the shared namespace even
             // when neither this machine nor its callers have structural formals.
