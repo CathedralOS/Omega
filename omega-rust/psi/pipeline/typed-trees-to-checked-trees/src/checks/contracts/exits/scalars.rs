@@ -445,6 +445,11 @@ impl ExitScalars<'_, '_> {
         if bindings.next().is_some() || binding.expression != expression {
             return None;
         }
+        if matches!(role, CheckedScalarExpressionRole::CallArgument { .. })
+            && binding.destination.is_valid()
+        {
+            return None;
+        }
         let mut selected = plans.expressions.iter().filter(|plan| {
             plan.state == binding.state
                 && plan.statement_ordinal == binding.statement_ordinal

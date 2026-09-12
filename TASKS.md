@@ -664,9 +664,11 @@ Owners include
   through ordered boundary completion. Reuse the machine-entry and scalar
   normal-guarantee path (`unit_scalar_result_source`'s `ordered_boundary`,
   `ordered_scalar`, `ordered_boolean`, `ordered_computed_boolean`,
-  `ordered_nested_boolean` and `ordered_saved_boolean` tests).
-  Call-produced Boolean guarantees, saved mutable snapshots, state/control
-  contracts, and field/arithmetic predicates still need their evidence joins. Preserve
+  `ordered_nested_boolean`, `ordered_saved_boolean`, and
+  `ordered_call_produced_boolean` tests).
+  Boolean call results beyond immutable captures with pure scalar arguments,
+  saved mutable snapshots, state/control contracts, and field/arithmetic
+  predicates still need their evidence joins. Preserve
   authored callee contracts regardless of whether a helper is a direct closure
   root or a transitive dependency; a checked call identity is not contract proof.
   Mutable scalar inputs still need the shared signature/storage path beyond the
