@@ -76,6 +76,20 @@ pub(in crate::encoding) fn encode_callable(
             |encoder, row| encoder.sequence(row, encode_nominal),
         )
     })?;
+    encoder.field("service_reach_dependency", |encoder| {
+        encoder.field("concrete", |encoder| {
+            encoder.sequence(&callable.service_reach_dependency.concrete, encode_nominal)
+        })?;
+        encoder.field("parameters", |encoder| {
+            encoder.sequence(
+                &callable.service_reach_dependency.parameters,
+                |encoder, ordinal| {
+                    encoder.u32(*ordinal);
+                    Ok(())
+                },
+            )
+        })
+    })?;
     encoder.field("checked_service_reach", |encoder| {
         match &callable.checked_service_reach {
             PackageReviewCheckedServiceReach::NoCheckedBody => encoder.tag("no_checked_body", 0),

@@ -229,15 +229,15 @@ Optimizer revision/analysis reuse is tracked only in `TASKS_OPTIMIZER.md`.
 
 ## Automatic service reach
 
-Complete [static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies)
-in Psi call-component normalization, specialization, exported contract identity,
-and Terminal evidence/replay. Nominal callback calls must retain bounded union
-dependencies and specialize from selected public contracts instead of always
-publishing the fixed requirement upper bound on open generic interfaces. Derive
-these summaries before specialization consumes the live binder spans; reuse the
+Carry [static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies)
+through specialization and Terminal evidence/replay. Preserve the original
+generic dependency and exported binder telescope before specialization consumes
+live binder spans, including closed in-place reuse. Use the finite union in
+`flow-effects::ServiceReachInferencePlan` and checked service-reach facts; reuse
 retained static-call contracts and exact specialization commitments rather than
-introducing another selection identity. Compose these dependencies through
-ordinary checked wrappers and recursive call components. Preserve direct boundary
+introducing another selection identity. Closed applications must independently
+replay exact substitutions from selected public contracts, including nested
+generic/private helpers and recursive call components. Preserve direct boundary
 declarations, pinned requirement bounds, and independent suspension/blocking
 checks. No forwarding syntax, closure machinery, reach-prohibition syntax, or
 backend effect inference.
@@ -255,6 +255,11 @@ markers and suspending-call positions remain enforced for every selection.
 Keep `tests/omega/pass/effects/nominal_callback_const_reach/main.omg` checking
 through the CLI and its structural/Console negative controls rejecting; constant
 evaluation must not consume the source program's generic declarations.
+Keep the source-to-canonical-policy regression in
+`tests/omega/pass/effects/nominal_callback_dependency/README.md` passing when a
+public generic also has closed applications; original interface identity must
+not depend on which applications are present. Its current open-only controls
+do not establish template preservation or Terminal custody.
 
 ## Semantic reflection
 

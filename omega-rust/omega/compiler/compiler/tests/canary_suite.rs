@@ -570,6 +570,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "capabilities/boundary_trait_multiple_effects",
     "effects/exported_wrapper_service_reach",
     "effects/nominal_callback_const_reach",
+    "effects/nominal_callback_dependency",
     "capabilities/declared_synchronous_invocation",
     "capabilities/invariant_parameterized_slice",
     "capabilities/string_domain_boundary_requirement",

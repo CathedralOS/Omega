@@ -2,7 +2,9 @@
 
 mod conformances;
 mod getters;
+mod reach_dependency;
 pub use conformances::PackagePolicyCallableConformance;
+pub use reach_dependency::PackagePolicyServiceReachDependency;
 pub(in crate::record) mod validation;
 
 use crate::record::{
@@ -63,6 +65,7 @@ pub struct PackagePolicyCallable {
     /// one. `None` is retained for the current ordinary build-machine form;
     /// admission must not silently reinterpret it as a public empty promise.
     pub(crate) declared_service_reach: Option<Vec<PackageReviewNominalIdentity>>,
+    pub(crate) service_reach_dependency: PackagePolicyServiceReachDependency,
     pub(crate) checked_service_reach: PackageReviewCheckedServiceReach,
     pub(crate) unresolved_installation_reaches: Vec<PackageReviewInstallationReach>,
     /// `Some` preserves a published direct synchronous-invocation ceiling,

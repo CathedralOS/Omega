@@ -7,6 +7,9 @@
 //! Exact typed named-operator targets remain distinct from machine targets so
 //! early execution can validate their declaration authority without inventing
 //! a call-closure machine edge.
+//! Static argument bindings belong to the same call topology: retaining their
+//! exact parameter-to-selection join lets generic summaries substitute rows
+//! without recovering arguments from source spelling or a second body walk.
 
 //! Operational summaries share borrow/semantic call-site coordinates. Every
 //! named transfer reserves its parent ordinal before argument calls, including
@@ -52,6 +55,7 @@ struct CallWork {
     target_name: String,
     target_state_symbol: SymbolHandle,
     static_machine_parameter: SymbolHandle,
+    static_machine_arguments: Box<[typed_trees::expression::StaticMachineArgument]>,
     target_machine_symbol: SymbolHandle,
     target_operator_symbol: SymbolHandle,
     direct_may_suspend: bool,
@@ -70,7 +74,7 @@ struct DirectCallOperational {
 pub fn infer_operational_may(program: &TypedTrees) -> OperationalPlan {
     let mut machines = build_machine_work(program);
     propagate_operational_may(&mut machines);
-    build_plan(machines)
+    build_plan(program, machines)
 }
 
 fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
@@ -240,6 +244,7 @@ fn collect_transition_target_expression_calls(
                     &target_name,
                     target,
                     *static_machine_parameter,
+                    &[],
                     SymbolHandle::invalid(),
                     Default::default(),
                     statement_index,
@@ -282,6 +287,7 @@ fn push_statement_call(
         call.target.as_str(),
         call.target_symbol,
         call.static_machine_parameter,
+        &call.machine_arguments,
         target_operator_symbol,
         call.operational_acknowledgement,
         statement_index,
@@ -400,6 +406,7 @@ fn push_expression_call(
         call.target.as_str(),
         call.target_symbol,
         call.static_machine_parameter,
+        &call.machine_arguments,
         target_operator_symbol,
         call.operational_acknowledgement,
         statement_index,
@@ -413,6 +420,7 @@ fn push_call(
     target_name: &str,
     target_state_symbol: SymbolHandle,
     static_machine_parameter: SymbolHandle,
+    static_machine_arguments: &[typed_trees::expression::StaticMachineArgument],
     target_operator_symbol: SymbolHandle,
     acknowledgement: language_semantics::CallOperationalAcknowledgement,
     statement_index: usize,
@@ -432,6 +440,7 @@ fn push_call(
         target_name: target_name.to_owned(),
         target_state_symbol,
         static_machine_parameter,
+        static_machine_arguments: static_machine_arguments.into(),
         target_machine_symbol,
         target_operator_symbol,
         direct_may_suspend: direct.may_suspend,
@@ -632,7 +641,54 @@ fn propagate_operational_may(machines: &mut [MachineWork]) {
     }
 }
 
-fn build_plan(machines: Vec<MachineWork>) -> OperationalPlan {
+fn retain_static_machine_bindings(
+    program: &TypedTrees,
+    target: SymbolHandle,
+    arguments: &[typed_trees::expression::StaticMachineArgument],
+    bindings: &mut arena::Arena<flow_effects::StaticMachineCallBinding>,
+) -> HandleSpan<flow_effects::StaticMachineCallBinding> {
+    let mut result = HandleSpan::empty();
+    let Some((machine, _)) = crate::transitions::resolved_transition_target_state(program, target)
+    else {
+        return result;
+    };
+    let parameters = program
+        .machine_type_parameters(machine)
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Machine { .. }
+            )
+        });
+    // Static arguments occupy category-specific slots, matching specialization:
+    // type and const arguments do not shift a machine parameter's ordinal.
+    let selected = arguments.iter().filter(|argument| {
+        argument.symbol.is_valid()
+            && matches!(
+                program.symbols.get(argument.symbol).kind,
+                symbols::SymbolKind::State | symbols::SymbolKind::MachineParameter
+            )
+    });
+    for (parameter, selected) in parameters.zip(selected) {
+        let nested = selected
+            .application
+            .as_ref()
+            .map_or(&[][..], |application| application.arguments.as_ref());
+        let arguments = retain_static_machine_bindings(program, selected.symbol, nested, bindings);
+        bindings.append_to_span(
+            &mut result,
+            flow_effects::StaticMachineCallBinding {
+                parameter: parameter.symbol,
+                selected: selected.symbol,
+                arguments,
+            },
+        );
+    }
+    result
+}
+
+fn build_plan(program: &TypedTrees, machines: Vec<MachineWork>) -> OperationalPlan {
     let mut plan = OperationalPlan::default();
 
     for machine in machines {
@@ -640,6 +696,12 @@ fn build_plan(machines: Vec<MachineWork>) -> OperationalPlan {
         for state in machine.states {
             let mut calls = HandleSpan::empty();
             for call in state.calls {
+                let static_machine_bindings = retain_static_machine_bindings(
+                    program,
+                    call.target_state_symbol,
+                    &call.static_machine_arguments,
+                    &mut plan.static_machine_bindings,
+                );
                 let acknowledgement = if call.acknowledgement.origin
                     == language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized
                 {
@@ -659,6 +721,7 @@ fn build_plan(machines: Vec<MachineWork>) -> OperationalPlan {
                         target_name: call.target_name,
                         target_state_symbol: call.target_state_symbol,
                         static_machine_parameter: call.static_machine_parameter,
+                        static_machine_bindings,
                         target_machine_symbol: call.target_machine_symbol,
                         target_operator_symbol: call.target_operator_symbol,
                         direct_may_suspend: call.direct_may_suspend,

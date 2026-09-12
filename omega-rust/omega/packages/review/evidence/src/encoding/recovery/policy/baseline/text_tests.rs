@@ -41,8 +41,8 @@ fn labels_variants_whitespace_and_scalar_spellings_are_authoritative() {
     for changed in [
         text.replacen("field public_api", "field private_api", 1),
         text.replacen("tag layout 1", "tag ownership_behavior 1", 1),
-        text.replacen("u16 2", "u16 02", 1),
-        text.replacen("u16 2", "u16 +2", 1),
+        text.replacen("u16 3", "u16 03", 1),
+        text.replacen("u16 3", "u16 +3", 1),
         text.replacen("  field", " field", 1),
         text.replace('\n', "\r\n"),
         format!("{text}\n"),

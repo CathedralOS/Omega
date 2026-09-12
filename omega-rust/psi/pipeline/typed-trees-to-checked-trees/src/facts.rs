@@ -2523,11 +2523,13 @@ fn build_service_reach_facts(
     checked_trees::ServiceReachFacts {
         services: program.service_reaches.clone(),
         rows: inferred.rows,
+        dependency_parameters: inferred.dependency_parameters,
         root_machines: remap_service_reach_span(inferred.root_machines),
         machines: inferred
             .machines
             .map(|machine| checked_trees::MachineServiceReachRows {
                 machine: machine.machine,
+                dependency: machine.dependency,
                 interface: machine.interface,
                 published_ceiling: machine.published,
                 inferred_direct: machine.inferred_direct,

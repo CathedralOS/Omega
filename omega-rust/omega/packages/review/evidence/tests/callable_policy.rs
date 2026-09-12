@@ -12,6 +12,8 @@ mod flows;
 mod mutation;
 #[path = "callable_policy/progress.rs"]
 mod progress;
+#[path = "callable_policy/reach_dependencies.rs"]
+mod reach_dependencies;
 #[path = "callable_policy/signatures.rs"]
 mod signatures;
 mod support;

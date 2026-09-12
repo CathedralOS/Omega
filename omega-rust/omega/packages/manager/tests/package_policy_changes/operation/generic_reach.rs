@@ -132,6 +132,117 @@ fn invoked_generic_contract_reach_survives_policy_and_changed_review() {
     assert!(!tree.path("sources/root/omega.lock").exists());
 }
 
+#[test]
+fn private_helper_reach_dependency_changes_require_review_with_equal_conservative_rows() {
+    const NOMINAL: &str = r#"
+pub boundary trait Console {}
+pub trait StepContract { machine step(value: u64) -> u64 reaches Console; }
+machine note() reaches Console {}
+machine relay<machine Forward>(value: u64) -> u64
+where machine Forward satisfies StepContract::step;
+{ Forward(value) }
+pub machine traverse<machine Step>(value: u64) -> u64
+where machine Step satisfies StepContract::step;
+{ relay<Step>(value) }
+"#;
+    let tree = Tree::new();
+    source(&tree, NOMINAL, "");
+    let initial = review(&tree, "nominal-dependency-initial", None);
+    let root = initial.source_closure().graph().root();
+    let original = initial.reviews().review(root).unwrap().policy();
+    let accepted = propose(&initial);
+    assert_round_trip(&initial, accepted.clone());
+
+    fs::write(
+        tree.path("sources/root/main.omg"),
+        NOMINAL.replace("{ Forward(value) }", "{ note(); Forward(value) }"),
+    )
+    .unwrap();
+    let updated = review(&tree, "nominal-dependency-expanded", Some(&accepted));
+    let candidate = updated.reviews().review(root).unwrap().policy();
+    assert_eq!(original.public_api(), candidate.public_api());
+    let original_callable = original
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.role() == PackagePolicyCallableRole::Public)
+        .unwrap();
+    let candidate_callable = candidate
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.role() == PackagePolicyCallableRole::Public)
+        .unwrap();
+    assert!(original_callable.identity().path().contains("traverse"));
+    assert_eq!(original_callable.identity(), candidate_callable.identity());
+    assert_eq!(
+        original_callable.type_parameters(),
+        candidate_callable.type_parameters()
+    );
+    assert_eq!(
+        original_callable.declared_service_reach(),
+        candidate_callable.declared_service_reach()
+    );
+    assert_eq!(
+        original_callable.checked_service_reach(),
+        candidate_callable.checked_service_reach()
+    );
+    assert_eq!(
+        original_callable.contracts(),
+        candidate_callable.contracts()
+    );
+    assert_eq!(
+        original_callable.checked_may_suspend(),
+        candidate_callable.checked_may_suspend()
+    );
+    assert_eq!(
+        original_callable.checked_may_block(),
+        candidate_callable.checked_may_block()
+    );
+    assert_eq!(original_callable.mutation(), candidate_callable.mutation());
+    let before = original_callable.service_reach_dependency();
+    let after = candidate_callable.service_reach_dependency();
+    assert!(before.concrete().is_empty());
+    assert_eq!(before.parameters(), &[0]);
+    assert_eq!(after.parameters(), before.parameters());
+    assert_eq!(
+        after
+            .concrete()
+            .iter()
+            .map(|service| service.path())
+            .collect::<Vec<_>>(),
+        ["Console"]
+    );
+    let changes = updated
+        .changes()
+        .packages()
+        .iter()
+        .find(|package| package.key() == root)
+        .unwrap();
+    let [row] = changes.rows() else {
+        panic!(
+            "only the public callable dependency changes: {:?}",
+            changes.rows()
+        );
+    };
+    assert_eq!(row.kind(), PackagePolicyRowKind::Callable);
+    assert_eq!(row.change(), PackagePolicyChangeKind::Changed);
+    assert!(row.requires_decision());
+    assert_ne!(
+        row.baseline().unwrap().canonical_bytes(),
+        row.candidate().unwrap().canonical_bytes()
+    );
+    let report = render_package_policy_review(updated.changes(), MAXIMUM_DOCUMENT_BYTES).unwrap();
+    assert!(report.contains("change callable changed\n"));
+    assert!(report.contains("service_reach_dependency"));
+    assert!(matches!(
+        recover_package_policy_review(updated.changes(), &report, MAXIMUM_DOCUMENT_BYTES),
+        Err(PackagePolicyReviewError::UnresolvedDecision(_))
+    ));
+    assert_round_trip(&updated, propose(&updated));
+    assert!(!tree.path("sources/root/omega.lock").exists());
+}
+
 // This is the checked-source fixture from package-evidence's unresolved
 // installation-reach regression, exercised through the package operation.
 const UNRESOLVED: &str = r#"pub boundary trait MachineControl {}

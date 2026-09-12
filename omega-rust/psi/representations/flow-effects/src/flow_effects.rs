@@ -8,8 +8,11 @@ pub mod service_reach;
 
 pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
 pub use invocations::{InvocationInferencePlan, InvocationTarget, MachineInvocationInference};
-pub use operational::{CallOperational, MachineOperational, OperationalPlan, StateOperational};
+pub use operational::{
+    CallOperational, MachineOperational, OperationalPlan, StateOperational,
+    StaticMachineCallBinding,
+};
 pub use service_reach::{
     CallServiceReachInference, InstallationReachRequirement, MachineServiceReachInference,
-    ServiceReachInferencePlan, StateServiceReachInference,
+    ServiceReachDependency, ServiceReachInferencePlan, StateServiceReachInference,
 };

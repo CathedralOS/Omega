@@ -31,6 +31,7 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyCallables
             requirement_lifetime_partition: vec![0], trait_lifetime_arguments: vec![1], arguments: Vec::new(), alias: Some("selected".into()),
         }],
         operator_realizations: Vec::new(), contracts: Vec::new(), declared_service_reach: Some(Vec::new()),
+        service_reach_dependency: Default::default(),
         checked_service_reach: PackageReviewCheckedServiceReach::CheckedBody { realized: Vec::new(), concrete: Vec::new() },
         unresolved_installation_reaches: Vec::new(), declared_synchronous_invocations: Some(Vec::new()), realized_synchronous_invocations: Vec::new(),
         capability_flows: Vec::new(), reachable_capability_flows: Vec::new(), checked_may_suspend: false, checked_may_block: false,
@@ -311,7 +312,7 @@ fn every_prefix_version_and_trailing_field_rejects() {
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
     let mut previous = bytes.clone();
     previous[CALLABLE_POLICY_MAGIC.len()..CALLABLE_POLICY_MAGIC.len() + 2]
-        .copy_from_slice(&2_u16.to_le_bytes());
+        .copy_from_slice(&3_u16.to_le_bytes());
     assert_eq!(recover(&previous), Err(Error::UnsupportedVersion));
     let mut changed = bytes;
     changed.push(0);
