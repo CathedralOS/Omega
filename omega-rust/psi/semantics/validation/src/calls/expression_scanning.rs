@@ -128,6 +128,56 @@ fn validate_expression_call_bounds(
             current_state,
             expression,
         );
+    crate::contract_entailment::validate_const_range_call(
+        program,
+        current_machine,
+        Some(current_state),
+        call.target_symbol,
+        &call.machine_arguments,
+        program.expression_table.expression_handles(call.arguments),
+        diagnostics,
+    );
+    let evidence_receiver = super::generic_requirement::expression_conformance_receiver(
+        program,
+        current_machine,
+        call.receiver,
+    );
+    match super::generic_requirement::named_conformance_requirement(
+        program,
+        current_machine,
+        evidence_receiver,
+        call.target_symbol,
+    ) {
+        Ok(Some(requirement)) => {
+            if !unit_statement
+                && (!requirement.signature.return_type.is_valid()
+                    || matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(requirement.signature.return_type),
+                        TypeReferenceNode::Unit
+                    ))
+            {
+                diagnostics.push(Diagnostic::error(format!("trait requirement `{}::{}` does not return a value but is used in a VALUE position", requirement.trait_definition.name, requirement.signature.name)));
+            }
+            super::generic_requirement::validate_named_conformance_arguments(
+                program,
+                current_machine,
+                Some(current_state),
+                value_env,
+                program.expression_table.expression_handles(call.arguments),
+                &requirement,
+                writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+        Err(error) => {
+            diagnostics.push(Diagnostic::error(error));
+            return;
+        }
+        Ok(None) => {}
+    }
     if super::unit_returns::call_returns_unit(program, current_machine, expression)
         && !unit_statement
     {
@@ -354,7 +404,6 @@ fn validate_expression_call_bounds(
 
         if let Some((callee_machine, callee_state)) =
             machine_state_by_symbol(program, call.target_symbol)
-            && callee_machine.symbol != current_machine.symbol
         {
             report_void_value_callee(
                 program,

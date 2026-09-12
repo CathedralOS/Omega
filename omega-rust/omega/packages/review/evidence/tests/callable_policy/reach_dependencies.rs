@@ -4,6 +4,82 @@ const SOURCE: &str = include_str!(
     "../../../../../../../tests/omega/pass/effects/nominal_callback_dependency/main.omg"
 );
 
+fn assert_private_closed_uses_preserve_public_policy(case: &str, users: &str) {
+    let original = project(&Fixture::local(SOURCE));
+    let original_bytes = original.canonical_bytes().unwrap();
+    let callbacks = r#"
+machine quiet(value: u64) -> u64 satisfies StepContract::step { value }
+machine loud(value: u64) -> u64 satisfies StepContract::step reaches Console { value }
+"#;
+    let fixture = Fixture::local(&format!("{SOURCE}\n{callbacks}\n{users}"));
+    let policy = project(&fixture);
+    assert_eq!(
+        callable(&original, "traverse"),
+        callable(&policy, "traverse"),
+        "{case}: private closed selections cannot consume the public template contract"
+    );
+    assert_eq!(
+        original, policy,
+        "{case}: only the original public surface is published"
+    );
+    assert_eq!(
+        original_bytes,
+        policy.canonical_bytes().unwrap(),
+        "{case}: recovered canonical policy cannot depend on private selection order"
+    );
+}
+
+#[test]
+fn private_closed_quiet_use_preserves_public_generic_policy() {
+    assert_private_closed_uses_preserve_public_policy(
+        "quiet",
+        "machine use_quiet(value: u64) -> u64 { traverse<quiet>(value) }",
+    );
+}
+
+#[test]
+fn private_closed_console_use_preserves_public_generic_policy() {
+    assert_private_closed_uses_preserve_public_policy(
+        "Console",
+        "machine use_loud(value: u64) -> u64 { traverse<loud>(value) }",
+    );
+}
+
+#[test]
+fn private_closed_both_uses_preserve_public_generic_policy() {
+    assert_private_closed_uses_preserve_public_policy(
+        "both",
+        "machine use_both(value: u64) -> u64 { let next: u64 = traverse<quiet>(value); traverse<loud>(next) }",
+    );
+}
+
+#[test]
+fn private_closed_reversed_uses_preserve_public_generic_policy() {
+    assert_private_closed_uses_preserve_public_policy(
+        "reversed",
+        "machine use_both(value: u64) -> u64 { let next: u64 = traverse<loud>(value); traverse<quiet>(next) }",
+    );
+}
+
+#[test]
+fn private_closed_relay_uses_preserve_public_generic_policy() {
+    assert_private_closed_uses_preserve_public_policy(
+        "private relay",
+        "machine relay<machine Forward>(value: u64) -> u64\n\
+         where machine Forward satisfies StepContract::step;\n\
+         { traverse<Forward>(value) }\n\
+         machine use_both(value: u64) -> u64 { let next: u64 = relay<quiet>(value); relay<loud>(next) }",
+    );
+}
+
+#[test]
+fn unused_private_generic_closed_use_preserves_public_generic_policy() {
+    assert_private_closed_uses_preserve_public_policy(
+        "unused generic caller",
+        "machine unused<Element>(witness: &Element, value: u64) -> u64 { traverse<quiet>(value) }",
+    );
+}
+
 #[test]
 fn exported_nominal_reach_dependency_distinguishes_an_additive_private_service() {
     let dependent = project(&Fixture::local(SOURCE));

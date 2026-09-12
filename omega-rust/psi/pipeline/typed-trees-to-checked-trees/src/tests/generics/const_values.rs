@@ -61,7 +61,7 @@ fn returned_expression(program: &TypedTrees, machine_symbol: SymbolHandle) -> Ex
 
 #[test]
 fn inferred_const_binder_is_an_executable_checked_value() {
-    let source = "machine endpoint<const N: u64>(witness: &[u8; N]) -> u64 [0..=3] { N }
+    let source = "machine endpoint<const N: u64[0..=3]>(witness: &[u8; N]) -> u64 [0..=3] { N }
         machine main() -> u64 {
             let witness: [u8; 2] = [0, 0];
             endpoint(&witness)
@@ -82,9 +82,16 @@ fn inferred_const_binder_is_an_executable_checked_value() {
     let endpoint_symbol = endpoint.symbol;
     let checked =
         lower_typed_trees(typed).expect("inferred N must pass checked return-range proof");
+    let endpoint_instance = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.template == endpoint_symbol)
+        .expect("selected endpoint instance")
+        .instance;
+    assert_ne!(endpoint_instance, endpoint_symbol);
     let ExpressionNode::Integer(value) = checked
         .expression_table
-        .expression(returned_expression(&checked, endpoint_symbol))
+        .expression(returned_expression(&checked, endpoint_instance))
     else {
         panic!("closed body returns an integer value")
     };
@@ -94,7 +101,7 @@ fn inferred_const_binder_is_an_executable_checked_value() {
 #[test]
 fn original_and_cloned_instances_return_distinct_closed_values() {
     let checked = accepts(
-        "machine endpoint<const N: u64>(witness: &[u8; N]) -> u64 [0..=3] { N }
+        "machine endpoint<const N: u64[0..=3]>(witness: &[u8; N]) -> u64 [0..=3] { N }
          machine main() -> u64 {
              let pair: [u8; 2] = [0, 0];
              let triple: [u8; 3] = [0, 0, 0];
@@ -106,7 +113,8 @@ fn original_and_cloned_instances_return_distinct_closed_values() {
     let [original, cloned] = checked.machine_specializations.as_slice() else {
         panic!("two closed const instances")
     };
-    assert_eq!(original.instance, original.template);
+    assert_ne!(original.instance, original.template);
+    assert_ne!(cloned.instance, cloned.template);
     assert_eq!(cloned.template, original.template);
     assert_ne!(original.instance, cloned.instance);
     for (specialization, expected) in [(original, 2), (cloned, 3)] {
@@ -140,8 +148,8 @@ fn original_and_cloned_const_values_must_independently_prove_return_ranges() {
 
 #[test]
 fn same_spelled_const_binders_in_different_machines_keep_their_symbols() {
-    let source = "machine pair<const N: u64>(witness: &[u8; N]) -> u64 [2..=2] { N }
-        machine triple<const N: u64>(witness: &[u8; N]) -> u64 [3..=3] { N }
+    let source = "machine pair<const N: u64[2..=2]>(witness: &[u8; N]) -> u64 [2..=2] { N }
+        machine triple<const N: u64[3..=3]>(witness: &[u8; N]) -> u64 [3..=3] { N }
         machine main() -> u64 {
             let pair_witness: [u8; 2] = [0, 0];
             let triple_witness: [u8; 3] = [0, 0, 0];
@@ -189,11 +197,11 @@ fn local_with_const_binders_spelling_keeps_its_lexical_value() {
 fn negative_integer_const_values_check_in_original_and_cloned_bodies() {
     accepts(
         "data Values {}
-         const Values::NEGATIVE: i32 = -2;
-         const Values::POSITIVE: i32 = 3;
-         data Witness<const N: i32> { case Only; }
+         const Values::NEGATIVE: i32[-2..=3] = -2;
+         const Values::POSITIVE: i32[-2..=3] = 3;
+         data Witness<const N: i32[-2..=3]> { case Only; }
          data Main { first: Witness<Values::NEGATIVE>; second: Witness<Values::POSITIVE>; }
-         machine value<const N: i32>(witness: &Witness<N>) -> i32 [-2..=3] ensures result == N { N }
+         machine value<const N: i32[-2..=3]>(witness: &Witness<N>) -> i32 [-2..=3] ensures result == N { N }
          machine Main::main(&self) -> i32 {
              let negative: i32 = value(&self.first);
              value(&self.second)
@@ -236,9 +244,9 @@ fn named_structured_const_values_check_as_executable_machine_results() {
 #[test]
 fn const_body_values_and_ensures_close_through_forwarded_static_arguments() {
     accepts(
-        "machine endpoint<const N: u64>(witness: &[u8; N]) -> u64 [0..=3]
+        "machine endpoint<const N: u64[0..=3]>(witness: &[u8; N]) -> u64 [0..=3]
              ensures result == N { N }
-         machine forward<const N: u64>(witness: &[u8; N]) -> u64 [0..=3]
+         machine forward<const N: u64[0..=3]>(witness: &[u8; N]) -> u64 [0..=3]
              ensures result == N { endpoint<N>(witness) }
          machine main() -> u64 {
              let pair: [u8; 2] = [0, 0];
@@ -263,6 +271,40 @@ fn a_const_binder_in_ensures_does_not_prove_a_different_body_value() {
 }
 
 #[test]
+fn retained_const_binder_return_equality_is_checked_without_observed_values() {
+    accepts(
+        "machine endpoint<const N: u64>() -> u64 ensures result == N { N }
+        machine main() -> u64 { endpoint<2>() }",
+    );
+    accepts(
+        "machine endpoint<const N: u64>() -> u64 ensures result == N { N }
+        machine main() -> u64 { 0 }",
+    );
+    rejects(
+        "machine endpoint<const N: u64>() -> u64 ensures result == N { 0 }
+        machine main() -> u64 { endpoint<0>() }",
+        "ensures",
+    );
+}
+
+#[test]
+fn observed_const_values_cannot_authorize_an_unbounded_template_return() {
+    rejects(
+        "machine endpoint<const N: u64>() -> u64[0..=3] { N }
+        machine main() -> u64 { endpoint<2>() }",
+        "returns a value not provably within its declared range",
+    );
+}
+
+#[test]
+fn declared_const_carrier_range_justifies_the_template_return_range() {
+    accepts(
+        "machine endpoint<const N: u64[0..=3]>() -> u64[0..=3] { N }
+        machine main() -> u64 { endpoint<2>() }",
+    );
+}
+
+#[test]
 fn selected_const_value_keeps_its_declared_integer_width() {
     rejects(
         "machine value<const N: u8>() -> u64 { N }
@@ -282,6 +324,50 @@ fn const_values_close_literal_return_range_endpoints() {
              let second: u64 = value(&triple);
              second
          }",
+    );
+}
+
+#[test]
+fn symbolic_const_return_ranges_use_the_declared_binder_not_selected_values() {
+    accepts(
+        "machine endpoint<const N: u64>() -> u64[0..=N] { N }
+        machine main() -> u64 { endpoint<2>() }",
+    );
+    accepts(
+        "machine endpoint<const N: u64>() -> u64[0..=N] { 0 }
+        machine main() -> u64 { 0 }",
+    );
+    accepts(
+        "const Values::NEGATIVE: i32 = -2;
+        machine endpoint<const N: i32>() -> i32[N..=N] { N }
+        machine main() -> i32 { endpoint<Values::NEGATIVE>() }",
+    );
+    accepts(
+        "machine endpoint<const N: i32[2..=3]>() -> i32[2..=N] { N }
+        machine main() -> i32 { endpoint<2>() }",
+    );
+    rejects(
+        "machine endpoint<const N: u64>() -> u64[N..=N] { 0 }
+        machine main() -> u64 { endpoint<0>() }",
+        "declared symbolic const range",
+    );
+    rejects(
+        "machine endpoint<const N: u64, const M: u64>() -> u64[0..=N] { M }
+        machine main() -> u64 { endpoint<2, 2>() }",
+        "declared symbolic const range",
+    );
+    rejects(
+        "machine endpoint<const N: i32>() -> i32[0..=N] { N }
+        machine main() -> i32 { endpoint<2>() }",
+        "declared symbolic const range",
+    );
+    rejects(
+        "machine endpoint<const N: u64>() -> u64[N..=N] {
+            let N: u64 = 0;
+            N
+        }
+        machine main() -> u64 { endpoint<0>() }",
+        "declared symbolic const range",
     );
 }
 

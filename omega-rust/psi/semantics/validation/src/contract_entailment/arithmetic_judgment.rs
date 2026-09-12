@@ -41,7 +41,7 @@ impl Polynomial {
         polynomial
     }
 
-    fn constant_value(&self) -> Option<BigInt> {
+    pub(super) fn constant_value(&self) -> Option<BigInt> {
         match self.terms.len() {
             0 => Some(BigInt::zero()),
             1 => self.terms.get(&Monomial::new()).cloned(),

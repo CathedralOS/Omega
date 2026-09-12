@@ -182,6 +182,31 @@ pub(super) fn validate_type_constraints_node(
                     // here so an unranged/mistyped field name refuses at the
                     // declaration instead of unproving every call site.
                     _ if primitive_type.accepts_integer_literal() => {
+                        if matches!(
+                            owner,
+                            TypeReferenceOwner::StateReturn {
+                                owner: StateSignatureOwner::Machine(_),
+                                generic_depth: 0,
+                                ..
+                            } | TypeReferenceOwner::StateParameter {
+                                owner: StateSignatureOwner::Machine(_),
+                                generic_depth: 0,
+                                ..
+                            } | TypeReferenceOwner::StateLocalData {
+                                generic_depth: 0,
+                                ..
+                            }
+                        ) && [*minimum, *maximum].into_iter().all(|bound| {
+                            crate::contract_entailment::const_range_bound_is_supported(
+                                program,
+                                type_parameter_scope.type_parameters,
+                                bound,
+                            )
+                        }) {
+                            // Returns, stores and exact call delivery independently
+                            // prove these bounds in their current const namespace.
+                            continue;
+                        }
                         if let Some(message) = dependent_state_parameter_range_error(
                             program, &owner, *minimum, *maximum,
                         ) {

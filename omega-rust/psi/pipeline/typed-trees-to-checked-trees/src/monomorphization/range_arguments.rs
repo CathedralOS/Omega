@@ -11,12 +11,11 @@
 //! Named/typed computations still need their own evaluation custody; neither
 //! flow bounds nor type display strings establish a static endpoint.
 
-use numerics::arithmetic::ArithmeticDomain;
-use symbols::{BuiltinTypeAtom, SymbolHandle};
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-use validation::closed_integer_range_bound;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
+use validation::{closed_integer_range_bound, declared_integer_range as declared_range};
 
 pub(super) fn collect_literals(program: &TypedTrees, literals: &mut Vec<String>) {
     for (_, constraints) in program.type_reference_table.constrained_type_references() {
@@ -88,53 +87,11 @@ pub(super) fn infer(
     }
 }
 
-fn declared_range(
-    program: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
-) -> Option<(BuiltinTypeAtom, [ExpressionHandle; 2])> {
-    if program.arithmetic_domain_for_type_reference(type_reference) != ArithmeticDomain::Exact {
-        return None;
-    }
-    let mut endpoints = None;
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(type_reference)
-    {
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            if let TypeConstraintNode::Range { minimum, maximum } = constraint {
-                // Multiple range declarations require normalization, not an
-                // arbitrary first match or an inferred intersection endpoint.
-                if endpoints.replace([*minimum, *maximum]).is_some() {
-                    return None;
-                }
-            }
-        }
-        type_reference = *base_type;
-    }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
-    let carrier = program.symbols.builtin_type_atom(*symbol)?;
-    matches!(
-        carrier,
-        BuiltinTypeAtom::U8
-            | BuiltinTypeAtom::U16
-            | BuiltinTypeAtom::U32
-            | BuiltinTypeAtom::U64
-            | BuiltinTypeAtom::I8
-            | BuiltinTypeAtom::I16
-            | BuiltinTypeAtom::I32
-            | BuiltinTypeAtom::I64
-    )
-    .then_some((carrier, endpoints?))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use numerics::arithmetic::ArithmeticDomain;
+    use typed_trees::types::TypeReferenceNode;
 
     #[test]
     fn declared_range_keeps_full_width_endpoints_and_rejects_ambiguous_shells() {

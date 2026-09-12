@@ -83,7 +83,9 @@ pub(super) fn collect_expression_borrow_calls(
                     } else {
                         call.target_symbol
                     },
-                    call.receiver.is_valid(),
+                    call.receiver.is_valid()
+                        && collection.program.symbols.get(receiver_symbol).kind
+                            != symbols::SymbolKind::ConformanceParameter,
                     accesses,
                 );
             }

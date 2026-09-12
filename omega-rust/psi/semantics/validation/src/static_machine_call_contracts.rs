@@ -7,7 +7,7 @@ use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 
 /// Stable operational projection embedded in the full template commitment.
-/// Parameter types may specialize in place; callable kind, service identity,
+/// Parameter types specialize in private instances; callable kind, service identity,
 /// and fixed acknowledgement envelopes must not narrow with them.
 pub fn static_machine_parameter_contract_bytes(
     program: &TypedTrees,
@@ -271,11 +271,41 @@ fn validate_call_selection(
             "retained static machine call has no selected argument at its binder ordinal",
         ));
     };
-    let selected_entry = crate::transitions::resolved_transition_target_state(program, *selected)
-        .map(|(_, state)| state.symbol);
-    let actual_entry = crate::transitions::resolved_transition_target_state(program, target)
-        .map(|(_, state)| state.symbol);
-    if selected_entry.is_none() || selected_entry != actual_entry {
+    let selected_entry = crate::transitions::resolved_transition_target_state(program, *selected);
+    let actual_entry = crate::transitions::resolved_transition_target_state(program, target);
+    let matches = match (selected_entry, actual_entry) {
+        (Some((selected_machine, selected_state)), Some((actual_machine, actual_state))) => {
+            if selected_state.symbol == actual_state.symbol {
+                true
+            } else {
+                // A higher-order binder selects an authored generic schema.
+                // Its executable call selects a closed instance of that exact
+                // schema, not a different callable with a matching signature.
+                // The application commitment below also binds the concrete
+                // target; the template is never rewritten to the first tuple.
+                let mut applications = program
+                    .machine_specializations
+                    .iter()
+                    .filter(|application| application.instance == actual_machine.symbol);
+                let application = applications.next();
+                application.is_some_and(|application| {
+                    application.template == selected_machine.symbol
+                        && !program.machine_type_parameters(selected_machine).is_empty()
+                        && program.machine_type_parameters(actual_machine).is_empty()
+                        && program
+                            .machine_states(selected_machine)
+                            .iter()
+                            .position(|state| state.symbol == selected_state.symbol)
+                            == program
+                                .machine_states(actual_machine)
+                                .iter()
+                                .position(|state| state.symbol == actual_state.symbol)
+                }) && applications.next().is_none()
+            }
+        }
+        _ => false,
+    };
+    if !matches {
         return Err(Diagnostic::error(
             "retained static machine call target disagrees with its selected argument",
         ));

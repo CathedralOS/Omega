@@ -148,7 +148,9 @@ fn validate_checked_call_join(
                 } else {
                     call.target_symbol
                 },
-                !call.receiver.is_empty(),
+                !call.receiver.is_empty()
+                    && program.symbols.get(call.receiver_symbol).kind
+                        != symbols::SymbolKind::ConformanceParameter,
                 call.operational_acknowledgement,
             )
         }
@@ -170,7 +172,9 @@ fn validate_checked_call_join(
                 } else {
                     call.target_symbol
                 },
-                call.receiver.is_valid(),
+                call.receiver.is_valid()
+                    && program.symbols.get(receiver_symbol).kind
+                        != symbols::SymbolKind::ConformanceParameter,
                 call.operational_acknowledgement,
             )
         }

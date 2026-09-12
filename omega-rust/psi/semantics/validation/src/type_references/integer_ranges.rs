@@ -9,6 +9,54 @@
 use numerics::bignum::BigInt;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+
+/// The exact integer carrier and single authored range, without intersecting
+/// multiple declarations or converting symbolic endpoints to guessed values.
+pub fn declared_integer_range(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+) -> Option<(symbols::BuiltinTypeAtom, [ExpressionHandle; 2])> {
+    if program.arithmetic_domain_for_type_reference(type_reference)
+        != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    let mut endpoints = None;
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(type_reference)
+    {
+        for constraint in program.type_reference_table.constraints(*constraints) {
+            if let TypeConstraintNode::Range { minimum, maximum } = constraint
+                && endpoints.replace([*minimum, *maximum]).is_some()
+            {
+                return None;
+            }
+        }
+        type_reference = *base_type;
+    }
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    let carrier = program.symbols.builtin_type_atom(*symbol)?;
+    use symbols::BuiltinTypeAtom;
+    matches!(
+        carrier,
+        BuiltinTypeAtom::U8
+            | BuiltinTypeAtom::U16
+            | BuiltinTypeAtom::U32
+            | BuiltinTypeAtom::U64
+            | BuiltinTypeAtom::I8
+            | BuiltinTypeAtom::I16
+            | BuiltinTypeAtom::I32
+            | BuiltinTypeAtom::I64
+    )
+    .then_some((carrier, endpoints?))
+}
 
 /// Read a closed integer range endpoint without interpreting typed
 /// computations as anonymous arithmetic. Unknown, fractional and invalid

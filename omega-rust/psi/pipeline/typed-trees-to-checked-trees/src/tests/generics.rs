@@ -4,8 +4,38 @@ use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 
 mod const_arguments;
 mod const_values;
+mod named_conformance;
 mod nested_calls;
 mod result_local_providers;
+mod symbolic_ranges;
+
+fn specialized_machine<'program>(
+    program: &'program checked_trees::CheckedTrees,
+    name: &str,
+) -> &'program typed_trees::machine::Machine {
+    let template = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == name)
+        .expect("authored generic template");
+    assert!(!program.machine_type_parameters(template).is_empty());
+    let instances = program
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.template == template.symbol)
+        .collect::<Vec<_>>();
+    let [specialization] = instances.as_slice() else {
+        panic!("expected one selected instance of {name}")
+    };
+    assert_ne!(specialization.instance, template.symbol);
+    let instance = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == specialization.instance)
+        .expect("selected private instance");
+    assert!(!instance.is_public);
+    instance
+}
 
 fn typed_source(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -1410,15 +1440,76 @@ fn higher_order_machine_schema_specializes_nested_selection_to_fixed_point() {
             "{name} should have a concrete specialization"
         );
     }
-    assert!(
-        checked
-            .expression_table
-            .iter_expressions()
-            .filter_map(|(_, expression)| match expression {
+    let forward = specialized_machine(&checked, "forward_schema");
+    let identity = specialized_machine(&checked, "identity_schema");
+    let identity_entry = checked.machine_states(identity)[0].symbol;
+    let mut expressions = Vec::new();
+    for state in checked.machine_states(forward) {
+        for statement in checked.statement_table.statements(state.statement_nodes) {
+            crate::monomorphization::collect_statement_expression_trees(
+                &checked.typed,
+                statement,
+                &mut expressions,
+            );
+        }
+    }
+    let calls = expressions
+        .iter()
+        .filter_map(
+            |expression| match checked.expression_table.expression(*expression) {
                 typed_trees::expression::ExpressionNode::Call(call) => Some(call),
                 _ => None,
-            })
-            .all(|call| call.machine_arguments.is_empty() && call.target.as_str() != "Schema")
+            },
+        )
+        .collect::<Vec<_>>();
+    assert!(!calls.is_empty());
+    assert!(
+        calls
+            .iter()
+            .all(|call| call.machine_arguments.is_empty() && call.target_symbol == identity_entry)
+    );
+    let mut wrong_template = checked.typed.clone();
+    wrong_template
+        .machine_specializations
+        .iter_mut()
+        .find(|specialization| specialization.instance == identity.symbol)
+        .expect("identity receipt")
+        .template = forward.symbol;
+    assert!(
+        validation::validate_static_machine_call_contracts(
+            &wrong_template,
+            &validation::infer_operational_may(&wrong_template)
+        )
+        .is_err(),
+        "a same-signature instance of another schema cannot replace the selected declaration"
+    );
+    let mut missing_receipt = checked.typed.clone();
+    missing_receipt
+        .machine_specializations
+        .retain(|specialization| specialization.instance != identity.symbol);
+    assert!(
+        validation::validate_static_machine_call_contracts(
+            &missing_receipt,
+            &validation::infer_operational_may(&missing_receipt)
+        )
+        .is_err(),
+        "a higher-order target needs its exact schema application receipt"
+    );
+    let mut duplicate_receipt = checked.typed.clone();
+    let receipt = duplicate_receipt
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.instance == identity.symbol)
+        .expect("identity receipt")
+        .clone();
+    duplicate_receipt.machine_specializations.push(receipt);
+    assert!(
+        validation::validate_static_machine_call_contracts(
+            &duplicate_receipt,
+            &validation::infer_operational_may(&duplicate_receipt)
+        )
+        .is_err(),
+        "duplicate higher-order receipts cannot establish a unique selected schema"
     );
 }
 
@@ -1642,11 +1733,7 @@ fn static_machine_argument_specializes_body_calls_to_direct_symbols() {
         .expect("power entry symbol");
 
     let checked = lower_typed_trees(typed).expect("static specialization should check");
-    let apply = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "apply")
-        .expect("specialized apply machine");
+    let apply = specialized_machine(&checked, "apply");
     assert!(checked.machine_type_parameters(apply).is_empty());
     assert_eq!(checked.machine_specializations.len(), 1);
     assert_eq!(checked.machine_specializations[0].instance, apply.symbol);
@@ -1950,14 +2037,18 @@ fn public_visibility_survives_value_type_specialization() {
         })
         .expect("public weigh specialization");
 
-    for symbol in [specialization.template, specialization.instance] {
-        assert!(
+    for (symbol, is_public) in [
+        (specialization.template, true),
+        (specialization.instance, false),
+    ] {
+        assert_eq!(
             checked
                 .machines()
                 .iter()
                 .find(|machine| machine.symbol == symbol)
                 .expect("public machine retained through specialization")
-                .is_public
+                .is_public,
+            is_public,
         );
     }
 }
@@ -2023,8 +2114,9 @@ fn distinct_static_machine_specializations_clone_the_template() {
             .machines()
             .iter()
             .filter(|machine| {
-                machine.name.as_str() == "apply"
-                    || machine.name.as_str().starts_with("apply$specialized$")
+                apply_specializations
+                    .iter()
+                    .any(|specialization| specialization.instance == machine.symbol)
             })
             .count(),
         2
@@ -2228,11 +2320,7 @@ fn bounded_generic_call_specializes_to_concrete_attached_state() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("the nominal bound should specialize");
 
-    let step = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "step")
-        .expect("specialized step machine");
+    let step = specialized_machine(&checked, "step");
     assert!(checked.machine_type_parameters(step).is_empty());
     assert!(step.conformance_bounds.is_empty());
     let state = checked
@@ -5580,7 +5668,11 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
         .collect::<Vec<_>>();
     assert_eq!(
         cast_domains,
-        ["Quantity<integer:u64:1>", "Quantity<integer:u64:2>"]
+        [
+            "Quantity<binder:retag::To:u64>",
+            "Quantity<integer:u64:1>",
+            "Quantity<integer:u64:2>"
+        ]
     );
     let checked = lower_typed_trees(typed).expect("const result indices should specialize");
 
@@ -5589,7 +5681,7 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
         .iter()
         .find(|machine| machine.name.as_str() == "retag")
         .expect("retag template instance");
-    assert!(checked.machine_type_parameters(retag).is_empty());
+    assert_eq!(checked.machine_type_parameters(retag).len(), 1);
     let specializations = checked
         .machine_specializations
         .iter()
@@ -5701,6 +5793,23 @@ fn contract_only_static_selections_do_not_consume_generic_machine_schema() {
             .iter()
             .all(|specialization| specialization.template != equivalent.symbol)
     );
+}
+
+#[test]
+fn generic_member_borrows_use_the_receivers_exact_type_arguments() {
+    for (member, accepted) in [("first", true), ("second", false)] {
+        let source = format!(
+            r#"
+            data Pair<Left, Right> {{ first: Left; second: Right; }}
+            machine inspect<Left, Right, machine Visit>(pair: Pair<Left, Right>)
+            where machine Visit(value: &Left);
+            {{ Visit(pair.{member}); }}
+        "#
+        );
+        let typed = typed_source(&source).expect("generic member source types");
+        let result = lower_typed_trees(typed);
+        assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
+    }
 }
 
 #[test]

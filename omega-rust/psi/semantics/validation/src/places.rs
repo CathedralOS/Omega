@@ -223,6 +223,25 @@ pub fn declared_place_type_raw(
     }
 
     if let ExpressionNode::Name(path) = program.expression_table.expression(handle)
+        && path.symbol.is_valid()
+        && path.head_symbol == path.symbol
+        && program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1
+        && let Some(parameter) = program
+            .machine_type_parameters(current_machine)
+            .iter()
+            .find(|parameter| parameter.symbol == path.symbol)
+        && let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+    {
+        // Static binders are immutable values of their declared carrier even
+        // before specialization. This type query grants no writable place.
+        return Some(type_reference);
+    }
+
+    if let ExpressionNode::Name(path) = program.expression_table.expression(handle)
         && path.head_symbol == path.symbol
         && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Field
         && let [name] = program.expression_table.name_path_members(path.members)

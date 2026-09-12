@@ -97,8 +97,8 @@ fn declared_range_inference_uses_lower_and_upper_endpoint_positions() {
 #[test]
 fn declared_range_inference_keeps_partial_and_forwarded_slots_in_order() {
     let checked = accepts(
-        "machine bounds<const Low: u64, const High: u64>(value: u64[Low..=High]) -> u64 { High }
-        machine forward<const K: u64>(value: u64[5..=256]) -> u64 { bounds<K, 512>(value) }
+        "machine bounds<const Low: u64[0..=5], const High: u64>(value: u64[Low..=High]) -> u64 { High }
+        machine forward<const K: u64[0..=5]>(value: u64[5..=256]) -> u64 { bounds<K, 512>(value) }
         machine partial(value: u64[5..=256]) -> u64 { bounds<0>(value) }
         machine main(value: u64[5..=256]) -> u64 { forward<0>(value) }",
     );
@@ -127,8 +127,8 @@ fn declared_range_inference_composes_with_borrowed_parameters_and_expected_resul
 #[test]
 fn declared_range_inference_waits_for_explicit_forwarded_const_arguments() {
     let checked = accepts(
-        "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
-        machine forward<const K: u64>(value: u64[0..=256]) -> u64 { upper_bound<K>(value) }
+        "machine upper_bound<const N: u64[256..=512]>(value: u64[0..=N]) -> u64 { N }
+        machine forward<const K: u64[256..=512]>(value: u64[0..=256]) -> u64 { upper_bound<K>(value) }
         machine main(value: u64[0..=256]) -> u64 { forward<512>(value) }",
     );
     assert_eq!(checked.machine_specializations.len(), 2);
@@ -155,7 +155,7 @@ fn declared_range_inference_retains_open_and_unusable_repeated_occurrences() {
     for (selected, accepted) in [(128, false), (256, true)] {
         let source = format!(
             "machine bound<const N: u64>(first: u64[0..=N], second: u64[0..=N]) -> u64 {{ N }}
-            machine forward<const K: u64>(first: u64[0..=K], second: u64[0..=256]) -> u64 {{ bound(first, second) }}
+            machine forward<const K: u64[256..=256]>(first: u64[0..=K], second: u64[0..=256]) -> u64 {{ bound(first, second) }}
             machine main(first: u64[0..={selected}], second: u64[0..=256]) -> u64 {{ forward<{selected}>(first, second) }}"
         );
         assert_eq!(check(&source).is_ok(), accepted, "{source}");
@@ -164,6 +164,20 @@ fn declared_range_inference_retains_open_and_unusable_repeated_occurrences() {
         "machine bound<const N: u64>(first: u64[0..=N], second: u64[0..=N]) -> u64 { N }
         machine main(first: u64[0..=64 + 64], second: u64[0..=256]) -> u64 { bound(first, second) }",
     ).is_err());
+}
+
+#[test]
+fn observed_range_inference_cannot_authorize_an_unrestricted_template() {
+    for source in [
+        "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine forward<const K: u64>(value: u64[0..=256]) -> u64 { bound<K>(value) }
+        machine main(value: u64[0..=256]) -> u64 { forward<512>(value) }",
+        "machine bound<const N: u64>(first: u64[0..=N], second: u64[0..=N]) -> u64 { N }
+        machine forward<const K: u64>(first: u64[0..=K], second: u64[0..=256]) -> u64 { bound(first, second) }
+        machine main(first: u64[0..=256], second: u64[0..=256]) -> u64 { forward<256>(first, second) }",
+    ] {
+        assert!(check(source).is_err(), "observed selection cannot validate: {source}");
+    }
 }
 
 #[test]

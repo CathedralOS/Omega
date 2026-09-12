@@ -259,7 +259,15 @@ pub(super) fn validate_const_data_argument(
             )));
             return;
         };
-        validate_const_integer_range(base_name, parameter, primitive, value, diagnostics);
+        validate_const_integer_range(
+            program,
+            base_name,
+            parameter,
+            parameter_type,
+            primitive,
+            value,
+            diagnostics,
+        );
         return;
     }
 
@@ -829,8 +837,10 @@ fn validate_typed_const_index_type(
 }
 
 fn validate_const_integer_range(
+    program: &TypedTrees,
     base_name: &str,
     parameter: &TypeParameter,
+    mut parameter_type: TypeReferenceHandle,
     primitive: PrimitiveType,
     value: i128,
     diagnostics: &mut Vec<Diagnostic>,
@@ -841,6 +851,36 @@ fn validate_const_integer_range(
             parameter.name,
             primitive.name()
         )));
+        return;
+    }
+    let exact_value = numerics::bignum::BigInt::from_i128(value);
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(parameter_type)
+    {
+        for constraint in program.type_reference_table.constraints(*constraints) {
+            let typed_trees::types::TypeConstraintNode::Range { minimum, maximum } = constraint
+            else {
+                continue;
+            };
+            let bounds = crate::closed_integer_range_bound(program, *minimum)
+                .zip(crate::closed_integer_range_bound(program, *maximum));
+            let Some((minimum, maximum)) = bounds else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "const argument `{value}` for `{base_name}::{}` cannot establish its declared range from closed integer bounds",
+                    parameter.name,
+                )));
+                continue;
+            };
+            if exact_value < minimum || exact_value > maximum {
+                diagnostics.push(Diagnostic::error(format!(
+                    "const argument `{value}` for `{base_name}::{}` is outside its declared range `[{minimum}..={maximum}]`",
+                    parameter.name,
+                )));
+            }
+        }
+        parameter_type = *base_type;
     }
 }
 
@@ -903,6 +943,66 @@ pub(super) fn validate_generic_argument_bounds(
                 bound_labels.join(", "),
                 type_reference_label(program, *argument)
             )));
+        }
+    }
+}
+
+#[cfg(test)]
+mod const_range_tests {
+    use super::*;
+
+    #[test]
+    fn closed_const_arguments_check_declared_bounds_without_a_call_or_result() {
+        let tokens = source_files_to_tokens::Lexer::new(
+            "machine bounded<const N: u64[2..=3]>() {} machine wider<const N: u64[0..=10]>() {}",
+        )
+        .tokenize()
+        .expect("tokens");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+        let resolved =
+            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolution");
+        let mut program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("typing");
+        let parameter = program.machine_type_parameters(&program.machines()[0])[0].clone();
+        let TypeParameterKind::Const {
+            type_reference: inner,
+        } = parameter.kind
+        else {
+            panic!("const parameter");
+        };
+        let mut nested = program.machine_type_parameters(&program.machines()[1])[0].clone();
+        let TypeParameterKind::Const {
+            type_reference: outer,
+        } = nested.kind
+        else {
+            panic!("outer const parameter");
+        };
+        let TypeReferenceNode::Constrained { constraints, .. } =
+            *program.type_reference_table.type_reference(outer)
+        else {
+            panic!("outer constraint");
+        };
+        nested.kind = TypeParameterKind::Const {
+            type_reference: program
+                .type_reference_table
+                .insert(TypeReferenceNode::Constrained {
+                    base_type: inner,
+                    constraints,
+                }),
+        };
+        for parameter in [parameter, nested] {
+            for (literal, accepted) in [("1", false), ("2", true), ("3", true), ("4", false)] {
+                let argument = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: SymbolHandle::invalid(),
+                        name: typed_trees::name::Identifier::generated(literal),
+                    });
+                let result =
+                    validate_closed_const_argument(&program, "bounded", &parameter, argument);
+                assert_eq!(result.is_ok(), accepted, "{literal}: {result:?}");
+            }
         }
     }
 }

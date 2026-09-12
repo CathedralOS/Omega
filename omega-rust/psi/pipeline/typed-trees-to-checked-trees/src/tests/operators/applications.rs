@@ -718,7 +718,7 @@ fn specialized_generic_operator_provider_retains_exact_closed_realization() {
         .iter()
         .find(|specialization| {
             checked.machines().iter().any(|machine| {
-                machine.symbol == specialization.instance
+                machine.symbol == specialization.template
                     && machine.name.as_str() == "GenericProvider::identity"
             })
         })

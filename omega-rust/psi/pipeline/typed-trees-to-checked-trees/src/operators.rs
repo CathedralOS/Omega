@@ -814,7 +814,7 @@ fn named_float_policy_adapter(
 /// The fixed operator spelling for a binary operator, when one exists.
 /// Logical/shift operators have no spelling surface (frozen Wave 0 decision
 /// #3) and never participate in spelled dispatch.
-fn binary_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
+pub(crate) fn binary_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
     Some(match operator {
         BinaryOperator::Add => OperatorSpelling::Add,
         BinaryOperator::Subtract => OperatorSpelling::Subtract,

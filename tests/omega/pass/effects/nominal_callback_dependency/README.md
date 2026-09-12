@@ -1,4 +1,4 @@
-# Open nominal callback reach dependencies
+# Nominal callback reach dependencies
 
 From the repository root:
 
@@ -18,5 +18,8 @@ forwarded binder selections reject during independent capture.
 The package-manager regression changes a private helper and requires an explicit
 changed-review decision before proposing and recovering the new lock baseline.
 
-This checks open-generic publication, not original-template retention after
-specialization or Terminal dependency replay.
+Private quiet and Console applications, reordered applications, a nested relay,
+and an unused generic caller preserve the original public traversal and its
+canonical policy bytes. Concrete applications use private instances; they do not
+consume the authored generic declaration. This checks original-template retention
+and package publication, not Terminal dependency replay.

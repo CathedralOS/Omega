@@ -21,6 +21,7 @@ mod generic_bounds;
 mod generic_requirement;
 pub use generic_requirement::{
     generic_bound_call_requirement, generic_bound_value_call_requirement,
+    named_conformance_target_requirement,
 };
 mod inline_assembly;
 mod recursion;
@@ -71,6 +72,47 @@ pub(crate) fn validate_call_node(
 ) {
     let receiver_members = program.statement_table.name_path_members(call.receiver);
     let arguments = program.statement_table.expression_handles(call.arguments);
+    crate::contract_entailment::validate_const_range_call(
+        program,
+        current_machine,
+        current_state,
+        call.target_symbol,
+        &call.machine_arguments,
+        arguments,
+        diagnostics,
+    );
+    match generic_requirement::named_conformance_requirement(
+        program,
+        current_machine,
+        call.receiver_symbol,
+        call.target_symbol,
+    ) {
+        Ok(Some(requirement)) => {
+            validate_result_use(
+                program,
+                call,
+                requirement.signature.name.as_str(),
+                requirement.signature.return_type,
+                diagnostics,
+            );
+            generic_requirement::validate_named_conformance_arguments(
+                program,
+                current_machine,
+                current_state,
+                value_env,
+                arguments,
+                &requirement,
+                writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+        Err(error) => {
+            diagnostics.push(Diagnostic::error(error));
+            return;
+        }
+        Ok(None) => {}
+    }
     let namespace: Vec<_> = receiver_members
         .iter()
         .map(|member| member.as_str())

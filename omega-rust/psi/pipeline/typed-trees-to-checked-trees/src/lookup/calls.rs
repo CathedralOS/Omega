@@ -165,6 +165,19 @@ pub(crate) fn resolve_state_call_target(
     receiver: Option<&[Identifier]>,
     target_state: &Identifier,
 ) -> SymbolHandle {
+    // An evidence namespace has no storage receiver. Preserve its exact
+    // public callable signature in the shared call topology; specialization
+    // separately replaces the child with its selected realization state.
+    if program.symbols.get(receiver_symbol).kind == ::symbols::SymbolKind::ConformanceParameter
+        && program
+            .symbols
+            .child_handles(receiver_symbol)
+            .is_some_and(|mut children| children.any(|child| child == target_symbol))
+        && let Ok(Some((_, requirement))) =
+            validation::named_conformance_target_requirement(program, machine, target_symbol)
+    {
+        return requirement.symbol;
+    }
     if receiver.is_none() || receiver_symbol == machine.symbol {
         let local = resolve_state_symbol_in_machine(program, machine, target_symbol);
         if local.is_valid() {
