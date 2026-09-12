@@ -26,7 +26,8 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
     let predicate = Reader {
         program,
         operators,
-        machine,
+        machine: Some(machine),
+        owner: machine.symbol,
         parameters,
         remaining: 4096,
     }
@@ -45,9 +46,46 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
 struct Reader<'program> {
     program: &'program TypedTrees,
     operators: &'program CheckedOperatorFacts,
-    machine: &'program Machine,
+    machine: Option<&'program Machine>,
+    owner: symbols::SymbolHandle,
     parameters: &'program [StateParameter],
     remaining: usize,
+}
+
+/// Bodyless requirements have an exact signature namespace, not a synthetic
+/// machine body. Structural guards remain outside this scalar contract slice.
+pub(crate) fn lower_signature_crash_contract_expression(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    signature: &typed_trees::signature::StateSignature,
+    expression: ExpressionHandle,
+) -> Option<CheckedBooleanExpression> {
+    if !signature.symbol.is_valid()
+        || !program
+            .state_signature_type_parameters(signature)
+            .is_empty()
+    {
+        return None;
+    }
+    let parameters = program.state_signature_parameters(signature);
+    for (position, parameter) in parameters.iter().enumerate() {
+        if !parameter.symbol.is_valid()
+            || parameters[..position]
+                .iter()
+                .any(|prior| prior.symbol == parameter.symbol)
+        {
+            return None;
+        }
+    }
+    Reader {
+        program,
+        operators,
+        machine: None,
+        owner: signature.symbol,
+        parameters,
+        remaining: 4096,
+    }
+    .boolean(expression, 0)
 }
 
 struct FieldPath {
@@ -155,6 +193,25 @@ impl<'program> Reader<'program> {
                 }
                 let left = Box::new(self.boolean(binary.left, depth + 1)?);
                 let right = Box::new(self.boolean(binary.right, depth + 1)?);
+                if self.machine.is_none()
+                    && matches!(
+                        binary.operator,
+                        BinaryOperator::Equal | BinaryOperator::NotEqual
+                    )
+                    && !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                        self.program,
+                        self.owner,
+                        expression,
+                        if binary.operator == BinaryOperator::Equal {
+                            language_core::OperatorSpelling::Equal
+                        } else {
+                            language_core::OperatorSpelling::NotEqual
+                        },
+                        &[None, None],
+                    )
+                {
+                    return None;
+                }
                 Some(match binary.operator {
                     BinaryOperator::And => CheckedBooleanExpression::And { left, right },
                     BinaryOperator::Or => CheckedBooleanExpression::Or { left, right },
@@ -284,7 +341,7 @@ impl<'program> Reader<'program> {
         super::super::result_contract::lower_integer_contract_comparison(
             self.program,
             self.operators,
-            self.machine,
+            self.owner,
             expression,
             subjects,
         )
@@ -309,8 +366,9 @@ impl<'program> Reader<'program> {
                 && if parameter.is_self {
                     allow_self
                         && parameter.name.as_str() == "self"
-                        && name.symbol == self.machine.symbol
-                        && name.head_symbol == self.machine.symbol
+                        && self.machine.is_some_and(|machine| {
+                            name.symbol == machine.symbol && name.head_symbol == machine.symbol
+                        })
                 } else {
                     name.symbol == parameter.symbol && name.head_symbol == parameter.symbol
                 }
@@ -318,6 +376,7 @@ impl<'program> Reader<'program> {
     }
 
     fn field_path(&mut self, expression: ExpressionHandle, depth: usize) -> Option<FieldPath> {
+        let machine = self.machine?;
         self.charge(depth)?;
         if !self
             .program
@@ -349,10 +408,10 @@ impl<'program> Reader<'program> {
         )?;
         let field =
             if receiver.path.is_empty() && self.parameters[receiver.parameter_position].is_self {
-                if owner.symbol != self.machine.attached_data_symbol {
+                if owner.symbol != machine.attached_data_symbol {
                     return None;
                 }
-                validation::exact_self_field(self.program, self.machine, expression)?
+                validation::exact_self_field(self.program, machine, expression)?
             } else {
                 let mut fields =
                     self.program
@@ -440,10 +499,12 @@ impl<'program> Reader<'program> {
                     // Resolution assigns SelfType the attached machine's
                     // symbol; typing retains that exact symbol as Named Self.
                     // Only the validated self formal may use this alias.
-                    let self_alias =
-                        self_root && *symbol == self.machine.symbol && name.as_str() == "Self";
+                    let self_alias = self_root
+                        && self.machine.is_some_and(|machine| {
+                            *symbol == machine.symbol && name.as_str() == "Self"
+                        });
                     let data_symbol = if self_alias {
-                        self.machine.attached_data_symbol
+                        self.machine?.attached_data_symbol
                     } else {
                         *symbol
                     };

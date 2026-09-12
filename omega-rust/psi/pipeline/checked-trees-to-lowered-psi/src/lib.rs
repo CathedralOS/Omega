@@ -175,9 +175,10 @@ pub use content_conservation::{
 #[cfg(test)]
 use crash_routes::{checked_boolean_proposition, lower_checked_crash_frontier};
 use crash_routes::{
-    lower_checked_crash_exit, lower_checked_crash_predicates, lower_checked_crash_route_buckets,
-    lower_checked_crash_routes, lower_structural_crash_route_buckets,
-    structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
+    lower_boundary_crash_routes, lower_checked_crash_exit, lower_checked_crash_predicates,
+    lower_checked_crash_route_buckets, lower_checked_crash_routes,
+    lower_structural_crash_route_buckets, structural_crash_route_argument_prefix,
+    substitute_structural_crash_route_roots,
 };
 use debug_map::build_debug_map;
 use evidence_lowering::lower_and_install_evidence_artifacts;

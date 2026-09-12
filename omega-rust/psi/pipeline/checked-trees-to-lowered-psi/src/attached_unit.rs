@@ -996,6 +996,7 @@ fn assemble_unit_closure(
                 .map(|identity| lookup_type_id(&type_ids, identity))
                 .transpose()?,
             scalar_parameters: scalar_parameters.clone(),
+            crash_routes: lower_boundary_crash_routes(checked, plan, &scalar_parameters)?,
             structural_parameters: parameters.clone(),
             result: lower_boundary_result(&plan.result, &type_ids, &domain_ids)?,
             requires,

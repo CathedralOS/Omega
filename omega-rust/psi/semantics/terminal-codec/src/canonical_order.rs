@@ -357,6 +357,12 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         ));
     }
     for declaration in &module.boundary_machines {
+        if !crash_routes_are_canonical(&declaration.crash_routes) {
+            return Err(CodecError::NonCanonicalOrder(
+                "boundary crash route buckets",
+            ));
+        }
+        validate_crash_route_predicates(&declaration.crash_routes)?;
         validate_parameter_order(&declaration.structural_parameters)?;
         if !strictly_increasing(declaration.requires.iter().copied()) {
             return Err(CodecError::NonCanonicalOrder(

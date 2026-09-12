@@ -12,6 +12,74 @@ mod site_truth;
 
 pub(super) use site_truth::validate_site_guard_truth;
 
+pub(super) fn validate_boundary_crash_routes(
+    boundary: &BoundaryMachineDeclaration,
+) -> Result<(), ModuleError> {
+    if !crash_routes_match(&boundary.crash_routes, &boundary.crash_routes) {
+        return Err(ModuleError::NonCanonicalBoundaryCrashRoutes(boundary.id));
+    }
+    if boundary.crash_routes.is_empty() {
+        return Ok(());
+    }
+    // These identities belong to the declaration's positional scalar telescope,
+    // not to any caller or provider value table, even when their numbers coincide.
+    let context = PropositionContext::from_value_types(
+        boundary
+            .scalar_contract_parameters()
+            .ok_or(ModuleError::InvalidBoundaryCrashParameters(boundary.id))?
+            .iter()
+            .map(|parameter| (parameter.id, parameter.scalar_type)),
+    )
+    .map_err(ModuleError::MalformedProposition)?;
+    for predicate in boundary
+        .crash_routes
+        .iter()
+        .flat_map(|bucket| &bucket.alternatives)
+        .filter_map(|guard| match guard {
+            CrashRouteGuard::Truth => None,
+            CrashRouteGuard::Predicate(predicate) => Some(predicate.proposition()),
+        })
+    {
+        if matches!(predicate, Proposition::Truth | Proposition::Falsehood) {
+            return Err(ModuleError::NonCanonicalBoundaryCrashRoutes(boundary.id));
+        }
+        // The complete traversal rejects structural, opaque and float terms;
+        // this bounded boundary envelope admits scalar contract inputs only.
+        if !predicate.visit_value_ids(|_| {}) {
+            return Err(ModuleError::UnsupportedBoundaryCrashPredicate(boundary.id));
+        }
+        context
+            .validate(predicate)
+            .map_err(ModuleError::MalformedProposition)?;
+    }
+    Ok(())
+}
+
+pub(super) fn validate_boundary_call_crash_coverage(
+    caller: &TerminalMachine,
+    boundary: &BoundaryMachineDeclaration,
+    arguments: &[ValueId],
+    operation: OperationId,
+) -> Result<(), ModuleError> {
+    if boundary.crash_routes.is_empty() {
+        return Ok(());
+    }
+    let substitutions = boundary
+        .scalar_contract_parameters()
+        .ok_or(ModuleError::InvalidBoundaryCrashParameters(boundary.id))?
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| {
+            (
+                parameter.id,
+                ScalarTerm::value(*argument, parameter.scalar_type),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let continuations = substitute_crash_routes(&boundary.crash_routes, &substitutions);
+    validate_call_crash_coverage(caller, &continuations, operation)
+}
+
 pub(super) fn substitute_crash_routes(
     routes: &[CrashRouteBucket],
     substitutions: &BTreeMap<ValueId, ScalarTerm>,

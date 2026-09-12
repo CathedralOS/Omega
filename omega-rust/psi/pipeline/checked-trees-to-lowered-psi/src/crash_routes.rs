@@ -8,6 +8,64 @@ pub(crate) use argument_prefix::structural_crash_route_argument_prefix;
 #[cfg(test)]
 mod structural_boolean_tests;
 
+pub(super) fn lower_boundary_crash_routes(
+    checked: &CheckedTrees,
+    boundary: &CheckedBoundaryMachinePlan,
+    scalar_types: &[ScalarType],
+) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
+    // Trait requirements own capsules; attached bodyless declarations own
+    // machine contracts. Neither may borrow a selected provider's body summary.
+    let buckets = checked
+        .facts
+        .contract_plans
+        .for_machine(boundary.contract_owner)
+        .map(|contract| contract.crash.published())
+        .or_else(|| {
+            checked
+                .facts
+                .contract_plans
+                .crash_capsule(boundary.contract_owner, boundary.state)
+                .map(|capsule| capsule.published_buckets())
+        })
+        .ok_or(LoweringError::Unsupported(
+            "boundary crash contract owner is absent",
+        ))?;
+    let parameters = scalar_types
+        .iter()
+        .enumerate()
+        .map(|(position, scalar_type)| {
+            Ok(ValueDeclaration {
+                id: value_id(dense_identity(position)?),
+                scalar_type: *scalar_type,
+                qualifications: Default::default(),
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let normalized = buckets
+        .iter()
+        .filter_map(|bucket| {
+            let guards = bucket
+                .alternative_guards()
+                .iter()
+                .filter_map(|guard| match guard {
+                    checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                        match predicate.scalar_expression() {
+                            Some(CheckedBooleanExpression::Constant(false)) => None,
+                            Some(CheckedBooleanExpression::Constant(true)) => {
+                                Some(checked_trees::CrashRouteGuard::Truth)
+                            }
+                            _ => Some(guard.clone()),
+                        }
+                    }
+                    _ => Some(guard.clone()),
+                })
+                .collect();
+            checked_trees::CrashRouteBucket::new(bucket.cause(), guards)
+        })
+        .collect::<Vec<_>>();
+    lower_checked_crash_route_buckets(&normalized, &parameters)
+}
+
 pub(super) fn lower_checked_crash_frontier(
     frontier: &[PermissionClaimIdentity],
     source_claims: &[(PermissionClaimIdentity, ClaimId)],

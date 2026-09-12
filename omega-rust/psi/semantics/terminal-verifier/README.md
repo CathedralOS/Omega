@@ -63,6 +63,16 @@ formation directly.
 
 ## Call and crash reconstruction
 
+Boundary declarations retain their own published scalar crash routes. Their
+formal values are reconstructed from scalar signature order in a declaration-local
+namespace, validated without caller values, then simultaneously substituted at
+each executable `BoundaryCall`. This reuses ordinary same-cause ceiling coverage
+without storing another continuation roster. Structural/opaque/float guard forms
+remain unsupported here; mixed signatures may use their scalar inputs. Providers
+with a nonempty crash contract still require explicit refinement support.
+Source-free verification does not imply executable boundary-crash support:
+the interpreter and Omega lowering retain their outcome-handling fences.
+
 Contracts: [call substitution](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#call-contracts)
 and [entry facts](../../../../wiki/spec/terminal-psi/verification.md#entry-facts-and-crash-coverage).
 [entry_requirements.rs](src/validation/crash/entry_requirements.rs) proves a

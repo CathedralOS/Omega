@@ -5,6 +5,7 @@ use super::*;
 
 mod crash_entry;
 pub(crate) use crash_entry::lower_machine_entry_crash_contract_expression;
+pub(crate) use crash_entry::lower_signature_crash_contract_expression;
 
 /// Requires-only fallback for scalar Boolean formals in an exact entry namespace.
 /// Unlike the shared structural crash reader, this boundary cannot recover a source name

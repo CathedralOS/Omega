@@ -583,6 +583,15 @@ Owners include
   infer semantic crashes from emitted traps, or narrow opaque contracts by
   inspecting providers.
 
+  Boundary declarations now retain scalar guarded ceilings through canonical
+  encoding and independent actual-argument substitution; run
+  `cargo nextest run -p checked-trees-to-lowered-psi --test scalar_boundary_arguments --no-fail-fast`.
+  Reuse that requirement contract for selected operators, retaining exact occurrence
+  evidence. Boundary crash outcomes still need interpreter, provider-refinement
+  and Omega projection support; those consumers reject nonempty boundary routes.
+  Extend the ordinary scalar-call sequencing path for direct boundary returns;
+  the existing result-bearing producer still requires a local-result binding.
+
   Extend captured-value-to-entry provenance to state arrivals, rebinding and
   structural fields, including the separate named-operator use path. Unknown
   provenance must remain conservative; current spelling/live storage is not a

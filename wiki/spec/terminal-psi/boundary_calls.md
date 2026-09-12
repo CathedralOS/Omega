@@ -42,6 +42,22 @@ canonical kinds. A top-level requirement retains its package-qualified operation
 static telescope, signature, contract, and visibility. A bodyless implementation,
 bounded effect row, or provider selection cannot synthesize that identity.
 
+## Boundary crash contracts
+
+The boundary declaration retains its published crash routes, independently of
+any selected provider. A scalar route uses declaration-local formal value IDs:
+scalar argument ordinal plus one, typed by the declaration's existing scalar
+signature. These IDs are not executable caller values, even when their numeric
+coordinates coincide. Mixed structural/scalar signatures retain the scalar
+lane's order; structural arguments do not consume scalar formal positions.
+
+At each `BoundaryCall`, verification simultaneously substitutes its exact scalar
+actuals into those routes and checks same-cause caller coverage. The declaration
+and executable arguments are sufficient to reconstruct the obligation; a second
+encoded continuation roster is not required. Neither successful provider
+selection nor a narrower provider body changes the published requirement.
+This is the boundary form of [call crash composition](calls_and_outcomes.md#call-contracts).
+
 ## Structural domain requirements
 
 A boundary structural requirement identifies an argument position and an exact

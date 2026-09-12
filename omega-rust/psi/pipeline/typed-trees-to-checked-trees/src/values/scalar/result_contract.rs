@@ -100,7 +100,7 @@ pub(crate) fn lower_integer_contract_predicate(
             type_reference,
         ))
     });
-    lower_integer_contract_comparison(program, operators, machine, expression, subjects)
+    lower_integer_contract_comparison(program, operators, machine.symbol, expression, subjects)
 }
 
 /// Subject readers retain their own namespace custody. Comparison selection,
@@ -108,7 +108,7 @@ pub(crate) fn lower_integer_contract_predicate(
 pub(super) fn lower_integer_contract_comparison(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
+    owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
     subjects: [Option<(CheckedScalarExpression, TypeReferenceHandle)>; 2],
 ) -> Option<CheckedBooleanExpression> {
@@ -143,7 +143,7 @@ pub(super) fn lower_integer_contract_comparison(
     }
     if !typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,
-        machine.symbol,
+        owner,
         expression,
         spelling,
         &operand_types,

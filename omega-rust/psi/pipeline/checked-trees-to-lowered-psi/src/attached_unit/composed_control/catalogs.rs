@@ -256,6 +256,7 @@ fn lower_catalogs(
                 .map(|identity| lookup_type_id(&type_ids, identity))
                 .transpose()?,
             scalar_parameters: scalar_parameters.clone(),
+            crash_routes: lower_boundary_crash_routes(checked, boundary, &scalar_parameters)?,
             structural_parameters: structural_parameters.clone(),
             result: result.clone(),
             requires: Vec::new(),

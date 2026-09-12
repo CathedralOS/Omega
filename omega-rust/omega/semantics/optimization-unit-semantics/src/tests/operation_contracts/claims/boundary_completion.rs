@@ -31,6 +31,7 @@ fn accepts_content_only_boundary_completion_and_rejects_correspondence_corruptio
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
+            crash_routes: Vec::new(),
         });
     let (psi_operation, structural_arguments) =
         match &baseline.functions[0].blocks[0].nodes[0].operation {

@@ -353,6 +353,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         if boundary.identity.is_empty() || !boundary_names.insert(boundary.identity.as_str()) {
             return Err(ModuleError::InvalidBoundaryMachineIdentity(boundary.id));
         }
+        super::crash::validate_boundary_crash_routes(boundary)?;
         validate_attachment(boundary.id, boundary.attachment, &types)?;
         validate_structural_signature(
             &boundary.structural_parameters,
@@ -500,6 +501,10 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 .all(|(boundary, candidate)| *boundary == candidate.scalar_type);
         if attachment.identity.is_empty()
             || !scalar_signature_matches
+            // A crash-free checked candidate refines any may-crash ceiling.
+            // Wider candidate contracts need independent guarded refinement,
+            // which this bounded provider-conformance lane does not yet carry.
+            || !candidate.contract.crash_routes.is_empty()
             || !provider_result::matches(boundary, candidate)
             || row.signature.parameters != boundary_signature
             || row.signature.parameters != candidate_signature

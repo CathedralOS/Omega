@@ -50,6 +50,7 @@ fn boundary_fixture(mut module: TerminalModule) -> TerminalModule {
     module
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            crash_routes: Vec::new(),
             id: id(1),
             identity: "Host::borrow_bytes".into(),
             attachment: None,

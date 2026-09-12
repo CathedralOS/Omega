@@ -21,6 +21,7 @@ use terminal_psi::{
 use super::content_wire::{
     decode_content_conservation_guarantee, encode_content_conservation_guarantee,
 };
+use super::contract_wire::{decode_crash_routes, encode_crash_routes};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::wire::{Reader, Writer};
 use super::{
@@ -42,6 +43,7 @@ pub(super) fn encode_boundary_machine(
     for parameter in &declaration.scalar_parameters {
         encode_scalar_type(writer, *parameter);
     }
+    encode_crash_routes(writer, &declaration.crash_routes)?;
     encode_structural_parameters(writer, &declaration.structural_parameters)?;
     match &declaration.result {
         BoundaryMachineResult::Unit => writer.u8(0),
@@ -223,6 +225,7 @@ pub(super) fn decode_boundary_machine(
         identity: reader.string("boundary machine identity")?,
         attachment: decode_optional_id(reader, "StructuralTypeId")?,
         scalar_parameters: decode_counted(reader, decode_scalar_type)?,
+        crash_routes: decode_crash_routes(reader)?,
         structural_parameters: decode_structural_parameters(reader)?,
         result: match reader.u8()? {
             0 => BoundaryMachineResult::Unit,

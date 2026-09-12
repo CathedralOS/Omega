@@ -41,6 +41,7 @@ fn recomputed_immutable_signature_forgery_is_rejected_by_verified_context() {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
+            crash_routes: Vec::new(),
         });
     forged.push(unit);
 

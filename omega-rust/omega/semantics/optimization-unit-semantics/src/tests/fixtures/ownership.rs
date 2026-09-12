@@ -448,6 +448,7 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
+            crash_routes: Vec::new(),
         }],
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

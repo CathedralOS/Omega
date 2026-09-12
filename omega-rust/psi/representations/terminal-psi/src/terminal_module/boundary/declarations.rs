@@ -1,11 +1,11 @@
 use crate::{
-    RetainedBorrowCustody, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration,
+    CrashRouteBucket, RetainedBorrowCustody, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, ValueDeclaration,
 };
 use semantic_vocabulary::{
     BoundaryMachineId, ContentAlgebra, ContentConservation, ContentProjectionExpression,
     ContentProjectionIdentity, ContentProjectionScalar, ScalarType, ServiceId, StructuralDomainId,
-    StructuralTypeId,
+    StructuralTypeId, ValueId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -56,6 +56,12 @@ pub struct BoundaryMachineDeclaration {
     /// Ordered primitive scalar parameters. Boundary calls bind their scalar
     /// arguments positionally and preserve this authored order exactly.
     pub scalar_parameters: Vec<ScalarType>,
+    /// Published routes in this declaration's scalar-formal namespace. Formal
+    /// IDs are scalar argument ordinals plus one, independent of caller IDs;
+    /// verification substitutes all actuals simultaneously. The signature is
+    /// the sole source of formal types, so no duplicate ID/type roster is stored.
+    /// A selected provider cannot narrow this opaque requirement's contract.
+    pub crash_routes: Vec<CrashRouteBucket>,
     /// Ordered runtime structural parameters, independently positional from
     /// the scalar lane.
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
@@ -75,6 +81,24 @@ pub struct BoundaryMachineDeclaration {
     pub content_guarantees: Vec<BoundaryContentGuarantee>,
     /// Strictly ordered normalized published ceiling.
     pub published_service_ceiling: Vec<ServiceId>,
+}
+
+impl BoundaryMachineDeclaration {
+    /// Reconstruct declaration-local scalar formals for contract validation and
+    /// substitution. These are proof coordinates, not executable module values.
+    pub fn scalar_contract_parameters(&self) -> Option<Vec<ValueDeclaration>> {
+        self.scalar_parameters
+            .iter()
+            .enumerate()
+            .map(|(position, scalar_type)| {
+                Some(ValueDeclaration {
+                    id: ValueId::new(u64::try_from(position).ok()?.checked_add(1)?)?,
+                    scalar_type: *scalar_type,
+                    qualifications: Default::default(),
+                })
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

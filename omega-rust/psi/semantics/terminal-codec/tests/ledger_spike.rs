@@ -289,6 +289,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            crash_routes: Vec::new(),
             id: boundary_machine_id(10),
             identity: "Spike::Resource::settle".into(),
             attachment: Some(resource),

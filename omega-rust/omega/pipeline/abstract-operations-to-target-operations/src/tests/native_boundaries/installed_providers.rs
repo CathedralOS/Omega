@@ -118,6 +118,7 @@ fn installed_provider_plan() -> (
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
+            crash_routes: Vec::new(),
         }],
         provider_candidates: vec![provider.clone()],
         functions: vec![
@@ -263,6 +264,7 @@ fn installed_scalar_provider_plan() -> (
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
+            crash_routes: Vec::new(),
         }],
         provider_candidates: vec![provider.clone()],
         functions: vec![

@@ -91,6 +91,7 @@ pub(super) fn structural_provider_module() -> TerminalModule {
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
         published_service_ceiling: Vec::new(),
+        crash_routes: Vec::new(),
     });
     for row in &mut module.provider_candidates {
         row.signature.parameters = vec![signature_parameter.clone()];

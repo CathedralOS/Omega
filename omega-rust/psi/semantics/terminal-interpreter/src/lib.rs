@@ -822,6 +822,18 @@ impl TerminalExecution {
         structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
         installation: Option<&AdmittedProviderInstallation>,
     ) -> Result<Self, TerminalInterpretError> {
+        // Host effect results do not yet report a boundary crash and its exact
+        // no-successor outcome. Verification preserves the permission, but
+        // execution must not silently treat that richer contract as crash-free.
+        if module
+            .boundary_machines
+            .iter()
+            .any(|boundary| !boundary.crash_routes.is_empty())
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "boundary crash outcome execution",
+            ));
+        }
         let terminal_psi = terminal_codec::terminal_psi_identity(module)
             .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
         if installation.is_some_and(|installation| installation.terminal_psi != terminal_psi) {

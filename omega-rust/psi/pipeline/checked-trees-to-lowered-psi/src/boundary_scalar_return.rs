@@ -78,6 +78,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             .map(|identity| lookup_type_id(&type_ids, identity))
             .transpose()?,
         scalar_parameters: boundary_scalar_parameters.clone(),
+        crash_routes: lower_boundary_crash_routes(checked, boundary, &boundary_scalar_parameters)?,
         structural_parameters: boundary_parameters,
         result: BoundaryMachineResult::Scalar(terminal_scalar_type(plan.result_type)?),
         requires,

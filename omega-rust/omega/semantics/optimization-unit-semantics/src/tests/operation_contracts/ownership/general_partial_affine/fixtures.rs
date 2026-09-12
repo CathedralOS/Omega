@@ -294,6 +294,7 @@ fn build_unit(
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
+            crash_routes: Vec::new(),
         });
     }
     let mut unit = reconstruct_psi_optimization_unit_seed(
