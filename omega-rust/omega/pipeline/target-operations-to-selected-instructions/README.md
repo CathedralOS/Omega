@@ -131,7 +131,13 @@ not a second semantic transition. No source block or operation is fabricated.
 Whole plain-owned arrivals with no runtime structural observer retain
 `SelectedStructuralTransport::Unused`. Their complete semantic bindings and
 owned value ABI survive; selection emits no payload pointer, descriptor slot,
-memory access, or edge copy. The bounded input gate independently rejects
+memory access, or edge copy. Bounded integer fields use their integer carrier's
+layout while retaining the complete range declaration. Layout eligibility does
+not authorize restricted-field writes; source replay rejects altered bounds even
+when the physical layout is unchanged. The
+[ranked primitive-local regression](../../../../tests/native-differential/tests/primitive_locals/walk.omg)
+composes such an unused record with a borrowed local on the ordinary cyclic graph.
+The bounded input gate independently rejects
 observations, call actuals, projections, and escapes of those owned places, and
 executable cleanup. Independently established primitive locals may be observed
 and borrowed by calls while the owned inputs remain unused. Exact no-code return discards remain in the retained source

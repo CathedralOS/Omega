@@ -108,6 +108,134 @@ fn source(native: target::NativeTarget) -> LegalizedScalarFunction {
 }
 
 #[test]
+fn bounded_owned_fields_keep_range_identity_without_storage_or_write_authority() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        let mut source = source(native);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let bounded = StructuralFieldType::BoundedInteger(
+            semantic_vocabulary::BoundedIntegerType::new(
+                integer,
+                semantic_vocabulary::IntegerValue::Unsigned(3),
+                semantic_vocabulary::IntegerValue::Unsigned(5),
+            )
+            .unwrap(),
+        );
+        let contract = source.structural.as_mut().unwrap();
+        let StructuralTypeShape::Record { fields } =
+            &mut contract.structural_types.make_mut()[0].shape
+        else {
+            panic!("record");
+        };
+        fields[0].field_type = bounded;
+        let identity = StructuralTypeId::new(1).unwrap();
+        assert!(crate::unobserved_owned_input::plain_type(
+            identity,
+            &contract.structural_types,
+        ));
+        assert_eq!(
+            crate::structural_reference_input::shape(identity, &contract.structural_types),
+            Some(ValueShape::integer(16, 8)),
+        );
+        assert_eq!(
+            crate::structural_reference_input::store(
+                identity,
+                &[],
+                semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                ScalarType::Integer(integer),
+                &contract.structural_types,
+            ),
+            None,
+            "layout eligibility does not discharge restricted-field writes",
+        );
+        assert_eq!(
+            crate::structural_reference_input::store(
+                identity,
+                &[],
+                semantic_vocabulary::StructuralFieldId::new(2).unwrap(),
+                ScalarType::Integer(integer),
+                &contract.structural_types,
+            ),
+            Some((8, 8)),
+            "a writable sibling follows the restricted field's full carrier width",
+        );
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            fixed_inputs: Vec::new(),
+        };
+        let selected = build(
+            0,
+            &source,
+            native,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        let validate = |candidate| {
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                &source,
+                candidate,
+                native,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        validate(&selected).unwrap();
+        assert!(selected.memory_accesses.is_empty());
+        assert!(selected.local_storage_slots.is_empty());
+        assert_eq!(selected.structural, source.structural);
+        let mut changed = selected.clone();
+        let StructuralTypeShape::Record { fields } = &mut changed
+            .structural
+            .as_mut()
+            .unwrap()
+            .structural_types
+            .make_mut()[0]
+            .shape
+        else {
+            panic!("record");
+        };
+        fields[0].field_type = StructuralFieldType::Scalar(ScalarType::Integer(integer));
+        assert!(
+            validate(&changed).is_err(),
+            "same layout cannot erase the retained bound"
+        );
+        let mut changed = selected.clone();
+        let StructuralTypeShape::Record { fields } = &mut changed
+            .structural
+            .as_mut()
+            .unwrap()
+            .structural_types
+            .make_mut()[0]
+            .shape
+        else {
+            panic!("record");
+        };
+        fields[0].field_type = StructuralFieldType::BoundedInteger(
+            semantic_vocabulary::BoundedIntegerType::new(
+                integer,
+                semantic_vocabulary::IntegerValue::Unsigned(3),
+                semantic_vocabulary::IntegerValue::Unsigned(6),
+            )
+            .unwrap(),
+        );
+        assert!(
+            validate(&changed).is_err(),
+            "same layout cannot change the retained bound"
+        );
+    }
+}
+
+#[test]
 fn unused_owned_bindings_select_and_replay_without_homes_or_copies() {
     for native in [
         target::NativeTarget::linux_x64(),

@@ -170,7 +170,11 @@ fn plain_type(
             StructuralTypeShape::Record { fields } => fields.iter().all(|field| {
                 field.relevance.is_erased()
                     || match field.field_type {
-                        StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => true,
+                        // Bounds remain part of the declaration and source proof;
+                        // they do not make an unobserved scalar payload executable.
+                        StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::BoundedInteger(_)
+                        | StructuralFieldType::IeeeFloat(_) => true,
                         StructuralFieldType::Structural(nested) => {
                             plain_type(nested, types, active)
                         }
