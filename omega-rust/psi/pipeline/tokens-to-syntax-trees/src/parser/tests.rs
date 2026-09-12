@@ -7,6 +7,7 @@ use syntax_trees::types::TypeReferenceNode;
 
 mod constructors;
 mod expression_stack;
+mod numbered_data;
 mod type_constraints;
 mod value_dispatch;
 
@@ -615,7 +616,7 @@ fn retains_public_trait_and_numbered_data_visibility() {
     )));
     assert!(parsed.root_items().any(|item| matches!(
         item,
-        syntax_trees::item::Item::WireData(definition) if definition.is_public
+        syntax_trees::item::Item::Data(definition) if definition.is_public
     )));
 }
 
@@ -636,15 +637,12 @@ fn owns_non_utf8_string_literal_bytes_in_syntax_tree() {
 }
 
 #[test]
-fn parses_relevance_on_numbered_wire_fields() {
+fn parses_relevance_on_ordinary_numbered_fields() {
     let tokens = Lexer::new(
         r#"
         data Message {
             #0 value: u32;
             #1 proof [erased]: Evidence;
-            version v0 {
-                #7 historical_proof [erased]: Evidence;
-            }
         }
         "#,
     )
@@ -654,37 +652,22 @@ fn parses_relevance_on_numbered_wire_fields() {
     let schema = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::WireData(schema) => Some(schema),
+            syntax_trees::item::Item::Data(schema) => Some(schema),
             _ => None,
         })
-        .expect("wire schema");
+        .expect("ordinary numbered data");
     let fields = parsed
         .items
-        .wire_data_members(schema.members)
+        .data_members(schema.members)
         .iter()
         .filter_map(|member| match member {
-            syntax_trees::item::WireDataMember::Field(field) => Some(field),
+            syntax_trees::item::DataMember::Field(field) => Some(field),
             _ => None,
         })
         .collect::<Vec<_>>();
     assert_eq!(fields.len(), 2);
     assert!(!fields[0].relevance.is_erased());
     assert!(fields[1].relevance.is_erased());
-    let version = parsed
-        .items
-        .wire_data_members(schema.members)
-        .iter()
-        .find_map(|member| match member {
-            syntax_trees::item::WireDataMember::Version(version) => Some(version),
-            _ => None,
-        })
-        .expect("wire version");
-    let [syntax_trees::item::WireDataMember::Field(historical)] =
-        parsed.items.wire_data_members(version.members)
-    else {
-        panic!("historical wire field");
-    };
-    assert!(historical.relevance.is_erased());
 }
 
 #[test]

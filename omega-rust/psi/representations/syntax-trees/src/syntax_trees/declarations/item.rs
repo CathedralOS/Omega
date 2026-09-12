@@ -24,7 +24,6 @@ pub enum Item {
     Use(UseItem),
     Machine(Machine),
     Trait(TraitDefinition),
-    WireData(WireDataDefinition),
 }
 
 /// A named compile-time pure value (wiki/spec/language/constants.md), either
@@ -95,48 +94,6 @@ impl Default for ExternalBinding {
     fn default() -> Self {
         Self::Syscall { number: 0 }
     }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct WireDataDefinition {
-    pub name: Identifier,
-    /// Source visibility for the numbered data declaration. This does not
-    /// participate in schema or nominal identity.
-    pub is_public: bool,
-    pub encoding: Option<Identifier>,
-    pub members: HandleSpan<WireDataMember>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WireDataMember {
-    Field(WireDataField),
-    Reserved(WireDataReserved),
-    Version(WireDataVersion),
-}
-
-impl Default for WireDataMember {
-    fn default() -> Self {
-        Self::Reserved(WireDataReserved::default())
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct WireDataField {
-    pub number: u64,
-    pub name: Identifier,
-    pub relevance: language_core::BindingRelevance,
-    pub type_reference: crate::types::TypeReferenceHandle,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct WireDataReserved {
-    pub number: u64,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct WireDataVersion {
-    pub name: Identifier,
-    pub members: HandleSpan<WireDataMember>,
 }
 
 impl Default for Item {
@@ -852,7 +809,6 @@ struct DeclarationStorage {
     capability_contracts: Arena<CapabilityContract>,
     data_members: Arena<DataMember>,
     data_payload_fields: Arena<DataField>,
-    wire_data_members: Arena<WireDataMember>,
     operators: Arena<OperatorDefinition>,
     measures: Arena<MeasureDefinition>,
     proof_facts: Arena<ProofFact>,
@@ -953,12 +909,6 @@ impl ItemTable {
     pub fn data_payload_fields(&self, span: HandleSpan<DataField>) -> &[DataField] {
         self.declaration_storage
             .data_payload_fields
-            .span_or_empty(span)
-    }
-
-    pub fn wire_data_members(&self, span: HandleSpan<WireDataMember>) -> &[WireDataMember] {
-        self.declaration_storage
-            .wire_data_members
             .span_or_empty(span)
     }
 
@@ -1118,10 +1068,6 @@ impl ItemTable {
         self.declaration_storage.data_payload_fields.append(field)
     }
 
-    pub fn append_wire_data_member(&mut self, member: WireDataMember) -> Handle<WireDataMember> {
-        self.declaration_storage.wire_data_members.append(member)
-    }
-
     pub fn append_operator(&mut self, operator: OperatorDefinition) -> Handle<OperatorDefinition> {
         self.declaration_storage.operators.append(operator)
     }
@@ -1243,7 +1189,6 @@ impl DeclarationStorage {
             capability_contracts: Arena::new(),
             data_members: Arena::new(),
             data_payload_fields: Arena::new(),
-            wire_data_members: Arena::new(),
             operators: Arena::new(),
             measures: Arena::new(),
             proof_facts: Arena::new(),

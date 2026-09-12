@@ -1,0 +1,7 @@
+// Numbered fields cannot revive the retired nested-version declaration route.
+data Message {
+    #1 value: u32;
+    version v1 { #1 value: u32; }
+}
+data Main {}
+machine Main::main(&mut self) {}

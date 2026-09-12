@@ -1,1 +1,0 @@
-data `CounterMessage` version `v2` drops field number 0 (`counter` in version `v1`) without tombstoning it

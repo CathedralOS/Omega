@@ -10,8 +10,6 @@ pub(crate) const RUNTIME_SHRINKING_SLICE_RECURSION_EXIT: &str =
     "termination/runtime_shrinking_slice_recursion_exit";
 pub(crate) const RUNTIME_WIRE_ENCODE_PRIMITIVE_EXIT: &str =
     "wire/runtime_wire_encode_primitive_exit";
-pub(crate) const RUNTIME_WIRE_ENCODE_ERA_DISCRIMINATOR_EXIT: &str =
-    "wire/runtime_wire_encode_era_discriminator_exit";
 pub(crate) const NUMBERED_CASE_IDENTITIES: &str = "wire/numbered_case_identities";
 pub(crate) const RUNTIME_WIRE_ROUNDTRIP_PRIMITIVE_EXIT: &str =
     "wire/runtime_wire_roundtrip_primitive_exit";
@@ -131,7 +129,6 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_VIEW_OF_VIEW_CHAIN_EXIT,
     RUNTIME_SHRINKING_SLICE_RECURSION_EXIT,
     RUNTIME_WIRE_ENCODE_PRIMITIVE_EXIT,
-    RUNTIME_WIRE_ENCODE_ERA_DISCRIMINATOR_EXIT,
     NUMBERED_CASE_IDENTITIES,
     RUNTIME_WIRE_ROUNDTRIP_PRIMITIVE_EXIT,
     RUNTIME_WIRE_DECODE_RANGED_FIELD_EXIT,

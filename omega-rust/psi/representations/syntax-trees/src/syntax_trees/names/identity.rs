@@ -1,6 +1,6 @@
 use crate::SyntaxTrees;
 use crate::identifier::Identifier;
-use crate::item::{CapabilityMember, Item, ProofFact, PropositionBody, WireDataMember};
+use crate::item::{CapabilityMember, Item, ProofFact, PropositionBody};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AstIdentityStorageCounts {
@@ -253,13 +253,6 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 count_state_signature_node(syntax_trees, signature, counts);
             }
         }
-        Item::WireData(wire_data) => {
-            count_identifier(&wire_data.name, counts);
-            if let Some(encoding) = &wire_data.encoding {
-                count_identifier(encoding, counts);
-            }
-            count_wire_data_members(syntax_trees, wire_data.members, counts);
-        }
     }
 }
 
@@ -284,26 +277,6 @@ fn count_machine(
         }
         for statement in syntax_trees.items.statements(state.statements) {
             count_statement_node(syntax_trees, *statement, counts);
-        }
-    }
-}
-
-fn count_wire_data_members(
-    syntax_trees: &SyntaxTrees,
-    members: arena::HandleSpan<WireDataMember>,
-    counts: &mut AstIdentityStorageCounts,
-) {
-    for member in syntax_trees.items.wire_data_members(members) {
-        match member {
-            WireDataMember::Field(field) => {
-                count_identifier(&field.name, counts);
-                count_type_reference_handle(syntax_trees, field.type_reference, counts);
-            }
-            WireDataMember::Reserved(_) => {}
-            WireDataMember::Version(version) => {
-                count_identifier(&version.name, counts);
-                count_wire_data_members(syntax_trees, version.members, counts);
-            }
         }
     }
 }

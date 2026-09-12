@@ -1,8 +1,7 @@
 use crate::parser::capability::parse_capability_definition;
 use crate::parser::const_item::parse_const_definition;
 use crate::parser::data::{
-    parse_boundary_data_definition, parse_data_definition, parse_field_relevance_brackets,
-    parse_machine_type_parameters,
+    parse_boundary_data_definition, parse_data_definition, parse_machine_type_parameters,
 };
 use crate::parser::domain::parse_domain_definition;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
@@ -11,14 +10,12 @@ use crate::parser::measure::parse_measure_definition;
 use crate::parser::operator::parse_operator_definition;
 use crate::parser::proposition::parse_proposition_definition;
 use crate::parser::trait_definition::parse_trait_definition;
-use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use crate::parser::use_item::parse_use_item;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{
     ConformanceBody, ConformanceMember, ExternalBinding, Item, ModuleDeclaration,
-    PackageDeclaration, State, WireDataDefinition, WireDataField, WireDataMember, WireDataReserved,
-    WireDataVersion,
+    PackageDeclaration, State,
 };
 use tokens::{KeywordKind, PunctuationKind};
 
@@ -29,8 +26,7 @@ pub(super) fn parse_item<'tokens, 'source>(
     if input.at_keyword(KeywordKind::Pub) {
         let input = input.take_keyword(KeywordKind::Pub, "pub")?;
         // Data retains this bit because public structural declarations publish
-        // their source shape. Numbered data
-        // retains it on both its schema and wire-derived plain-data roots.
+        // their source shape, including numbered fields.
         // Domains and propositions retain it because a public transparent
         // alias may not publish a private constituent; machines retain it because public checked
         // bodies publish strict authority and operational ceilings. Traits
@@ -45,7 +41,6 @@ pub(super) fn parse_item<'tokens, 'source>(
             Item::Operator(operator) => operator.is_public = true,
             Item::Proposition(proposition) => proposition.is_public = true,
             Item::Trait(trait_definition) => trait_definition.is_public = true,
-            Item::WireData(wire_data) => wire_data.is_public = true,
             _ => {
                 return Err(rest.error_here(
                     "`pub` is not yet retained for this declaration kind; refusing to compile a silently private API",
@@ -62,13 +57,22 @@ pub(super) fn parse_item<'tokens, 'source>(
         // `repr native` explicitly requests the compiler's current native
         // field layout, so no extra representation marker is needed yet.
         let (item, rest) = parse_data_definition(syntax_trees, input)?;
-        return match item {
-            crate::parser::data::ParsedDataDefinition::Plain(item) => Ok((Item::Data(item), rest)),
-            crate::parser::data::ParsedDataDefinition::Numbered(_) => Err(input.error_here(
+        if syntax_trees
+            .items
+            .data_members(item.members)
+            .iter()
+            .any(|member| match member {
+                syntax_trees::item::DataMember::Field(field) => field.identity.is_some(),
+                syntax_trees::item::DataMember::Variant(variant) => variant.identity.is_some(),
+                syntax_trees::item::DataMember::Retired(_) => true,
+            })
+        {
+            return Err(input.error_here(
                 "`repr native` data cannot carry identity numbers (identity is a schema fact \
                  for serialization grammars, not a layout request)",
-            )),
-        };
+            ));
+        }
+        return Ok((Item::Data(item), rest));
     }
 
     if input.at_contextual("wire") {
@@ -113,13 +117,7 @@ pub(super) fn parse_item<'tokens, 'source>(
     if input.at_keyword(KeywordKind::Data) {
         let input = input.take_keyword(KeywordKind::Data, "data")?;
         let (item, rest) = parse_data_definition(syntax_trees, input)?;
-        return Ok((
-            match item {
-                crate::parser::data::ParsedDataDefinition::Plain(item) => Item::Data(item),
-                crate::parser::data::ParsedDataDefinition::Numbered(item) => Item::WireData(item),
-            },
-            rest,
-        ));
+        return Ok((Item::Data(item), rest));
     }
 
     if input.at_contextual("domain") {
@@ -592,127 +590,6 @@ fn normalize_conformance_machine_entry(
     });
     let state = syntax_trees.items.append_state_handle(state);
     machine.states = HandleSpan::from_parts(state, 1);
-}
-
-/// Parse the body of an IDENTITY-NUMBERED data declaration (ch20): the caller
-/// (`parse_data_definition`) has consumed `data Name ... {` and peeked a
-/// `#N`/`retired #N` first member. Numbers are optional schema facts on plain
-/// `data` -- any values, any order, sparse -- but within one declaration they
-/// are all-or-nothing today (a numbered schema with an unnumbered field is a
-/// guided error; the tagged grammar consumes numbers only). The legacy
-/// `encoding <name>` clause died with the `wire data` form: grammar selection
-/// belongs at carriers, not declarations.
-pub(super) fn parse_identity_data_body<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    name: syntax_trees::identifier::Identifier,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, WireDataDefinition> {
-    let (members, input) = parse_wire_data_members(syntax_trees, input)?;
-    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-
-    Ok((
-        WireDataDefinition {
-            name,
-            is_public: false,
-            encoding: None,
-            members,
-        },
-        input,
-    ))
-}
-
-fn parse_wire_data_members<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, arena::HandleSpan<WireDataMember>> {
-    // Parse the whole member list before appending any of it: a nested
-    // `version` block appends its own members mid-list, so appending parent
-    // members as they parse would interleave the two lists and break the
-    // parent span's contiguity.
-    let mut parsed_members = Vec::new();
-
-    while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (member, rest) = parse_wire_data_member(syntax_trees, input)?;
-        parsed_members.push(member);
-        input = rest;
-    }
-
-    let mut member_start = arena::Handle::invalid();
-    let mut member_count = 0u32;
-    for member in parsed_members {
-        let handle = syntax_trees.items.append_wire_data_member(member);
-        if member_count == 0 {
-            member_start = handle;
-        }
-        member_count = member_count
-            .checked_add(1)
-            .expect("wire data member span count overflow");
-    }
-
-    let members = if member_count == 0 {
-        arena::HandleSpan::empty()
-    } else {
-        arena::HandleSpan::from_parts(member_start, member_count)
-    };
-    Ok((members, input))
-}
-
-fn parse_wire_data_member<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, WireDataMember> {
-    if input.at_contextual("retired") {
-        let input = input.take_contextual("retired")?;
-        let input = input.take_punctuation(PunctuationKind::Hash, "#")?;
-        let (number, input) = input.take_identity()?;
-        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        return Ok((WireDataMember::Reserved(WireDataReserved { number }), input));
-    }
-
-    if input.at_contextual("reserved") {
-        // The `reserved N;` spelling died with the `wire data` form: a retired
-        // identity number is a DECLARATION, not a tombstone field.
-        return Err(input
-            .error_here("`reserved` is retired: tombstone an identity number with `retired #N;`"));
-    }
-
-    if input.at_contextual("version") {
-        let input = input.take_contextual("version")?;
-        let (name, input) = input.take_identifier()?;
-        let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-        let (members, input) = parse_wire_data_members(syntax_trees, input)?;
-        let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-        return Ok((
-            WireDataMember::Version(WireDataVersion { name, members }),
-            input,
-        ));
-    }
-
-    if !input.at_punctuation(PunctuationKind::Hash) {
-        return Err(input.error_here(
-            "identity numbers are all-or-nothing within one declaration: every field of a \
-             numbered data needs its `#N` prefix (`#N name: Type;`)",
-        ));
-    }
-    let input = input.take_punctuation(PunctuationKind::Hash, "#")?;
-    let (number, input) = input.take_identity()?;
-    let (name, input) = input.take_identifier()?;
-    let (relevance, input) = parse_field_relevance_brackets(input)?;
-    let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-    // A wire field may be a borrowed view (`&[u8]`): the zero-copy raw-bytes
-    // field that decodes as a window into the buffer rather than owning a copy.
-    let (type_reference, input) = parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
-    let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-
-    Ok((
-        WireDataMember::Field(WireDataField {
-            number,
-            name,
-            relevance,
-            type_reference,
-        }),
-        input,
-    ))
 }
 
 fn parse_provider_binding_case<'tokens, 'source>(

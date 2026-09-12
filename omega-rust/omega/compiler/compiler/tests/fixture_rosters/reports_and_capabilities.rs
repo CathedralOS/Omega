@@ -10,7 +10,6 @@ pub const FREE_STANDING_MACHINE_HELPER_COMPILE: &str = "calls/free_standing_mach
 pub const LINEAR_TRANSFER_AND_CONSUME: &str = "ownership/linear_transfer_and_consume";
 pub const BOUNDARY_TRAIT_EFFECTS_HOST_CALL: &str = "traits/boundary_trait_effects_host_call";
 pub const BOUNDARY_DATA_OPAQUE_CONTRACT: &str = "proofs/boundary_data_opaque_contract";
-pub const WIRE_CROSS_ERA_TYPE_CHANGE_MIGRATION: &str = "wire/wire_cross_era_type_change_migration";
 pub const WIRE_COMPATIBILITY_DEMAND_REPORT: &str = "wire/wire_compatibility_demand_report";
 pub const LINEAR_TRANSPARENT_RECORD_FRONTIER: &str = "ownership/linear_transparent_record_frontier";
 pub const LINEAR_STATE_CALL_HANDOFF: &str = "ownership/linear_state_call_handoff";
@@ -37,7 +36,6 @@ pub const PASS_CANARIES: &[&str] = &[
     LINEAR_TRANSFER_AND_CONSUME,
     BOUNDARY_TRAIT_EFFECTS_HOST_CALL,
     BOUNDARY_DATA_OPAQUE_CONTRACT,
-    WIRE_CROSS_ERA_TYPE_CHANGE_MIGRATION,
     WIRE_COMPATIBILITY_DEMAND_REPORT,
     LINEAR_TRANSPARENT_RECORD_FRONTIER,
     LINEAR_STATE_CALL_HANDOFF,

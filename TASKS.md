@@ -904,6 +904,25 @@ Owners include
 
 ## Parallel language and compiler lanes
 
+- **CODEC-LINEAGE-CLOSURE.** Complete policy-selected historical compatibility
+  over immutable ordinary data under [codec durability and historical lineages](wiki/spec/layouts/codecs.md).
+  Owners: `validation/src/wire`, `build-time-evaluation/src/wire_plans.rs`,
+  `compiler/src/pipeline/reporting/wire.rs`, and the ordinary
+  `FormatMigration<Lineage, Old, New>` library requirement. Current compatibility
+  demands and checked migration machines exist; historical dispatch and
+  retirement obligations must join the exact selected policy, published shapes,
+  and migration route. Nested `version` declarations are not that join.
+  Generated record codecs currently cannot establish whole-record `where`,
+  declared-property, lifetime, or sum obligations; keep those codec applications
+  rejected while the ordinary declarations remain usable.
+
+  Acceptance: an old/new ordinary declaration pair and explicitly selected
+  checked migration satisfy the requesting channel/store policy; missing routes
+  and retired-identity reuse reject where that policy requires them. Check era
+  dispatch chosen by the policy without implicit declaration-order versioning.
+  Preserve the distinction between current-shape codec roundtrip and historical
+  migration, plus decoder rejection when full destination validity is unproved.
+
 - **CASE-CONSTRAINTS.** Implement [case-local `where` constraints](wiki/spec/language/data_and_literals.md#case-constraints)
   for typed requests/IR and case-specific payload invariants. Psi owns parsing,
   resolved case contracts, generic substitution, construction checking,

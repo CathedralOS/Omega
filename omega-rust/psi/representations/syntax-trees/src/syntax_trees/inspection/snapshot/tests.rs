@@ -1,9 +1,6 @@
 use super::{ItemSnapshot, SyntaxTreesSnapshot, TypeReferenceSnapshot};
 use crate::identifier::Identifier;
-use crate::item::{
-    DataDefinition, DataField, DataMember, DataVariant, Item, WireDataDefinition, WireDataField,
-    WireDataMember,
-};
+use crate::item::{DataDefinition, DataField, DataMember, DataVariant, Item};
 use crate::syntax_trees::SyntaxTrees;
 use crate::types::TypeReferenceNode;
 
@@ -143,40 +140,46 @@ fn variant_snapshot_retains_payload_only_erased_field() {
 }
 
 #[test]
-fn wire_snapshot_retains_erased_field_relevance() {
+fn numbered_data_snapshot_retains_erased_field_relevance() {
     let mut syntax_trees = SyntaxTrees::new(Default::default());
     let evidence_type = syntax_trees
         .type_references
         .insert(TypeReferenceNode::Named(Identifier::generated("Evidence")));
     let field = syntax_trees
         .items
-        .append_wire_data_member(WireDataMember::Field(WireDataField {
-            number: 7,
+        .append_data_member(DataMember::Field(DataField {
+            identity: Some(7),
             name: Identifier::generated("proof"),
             relevance: language_core::BindingRelevance::Erased,
             type_reference: evidence_type,
         }));
-    syntax_trees.push_root_item(Item::WireData(WireDataDefinition {
+    syntax_trees.push_root_item(Item::Data(DataDefinition {
         is_public: false,
         name: Identifier::generated("Certified"),
-        encoding: None,
         members: arena::HandleSpan::from_parts(field, 1),
+        supply_mode: language_core::DataSupplyMode::CheckedShape,
+        lifetime_parameters: Vec::new(),
+        type_parameters: arena::HandleSpan::empty(),
+        generic_instance: None,
+        properties: Default::default(),
+        quotient: None,
+        where_facts: arena::HandleSpan::empty(),
     }));
 
     let snapshot = syntax_trees.snapshot();
-    let ItemSnapshot::WireData { members, .. } = &snapshot.root_items[0] else {
-        panic!("wire data snapshot");
+    let ItemSnapshot::Data { members, .. } = &snapshot.root_items[0] else {
+        panic!("ordinary data snapshot");
     };
-    let super::WireDataMemberSnapshot::Field {
-        number,
+    let super::DataMemberSnapshot::Field {
+        identity,
         name,
         relevance,
         type_reference,
     } = &members[0]
     else {
-        panic!("wire field snapshot");
+        panic!("numbered field snapshot");
     };
-    assert_eq!(*number, 7);
+    assert_eq!(*identity, Some(7));
     assert_eq!(name.text, "proof");
     assert_eq!(*relevance, "erased");
     assert!(matches!(

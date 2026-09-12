@@ -124,8 +124,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                     );
                 }
             }
-            Item::WireData(_)
-            | Item::Use(_)
+            Item::Use(_)
             | Item::Measure(_)
             | Item::Conformance(_)
             | Item::Module(_)
