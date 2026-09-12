@@ -41,15 +41,33 @@ impl LocalStructuralIdentities {
     }
 
     pub(super) fn allocate(&mut self) -> Result<u64, TerminalInterpretError> {
+        let mut cursor = self.next;
+        let result = self.allocate_staged(&mut cursor);
+        self.next = cursor;
+        result
+    }
+
+    pub(super) fn cursor(&self) -> Option<u64> {
+        self.next
+    }
+
+    /// Reserve identities in a transaction-local cursor without changing the
+    /// live allocator or cloning its immutable host reservation set.
+    pub(super) fn allocate_staged(
+        &self,
+        cursor: &mut Option<u64>,
+    ) -> Result<u64, TerminalInterpretError> {
         loop {
-            let identity = self
-                .next
-                .ok_or(TerminalInterpretError::StructuralIdentityExhausted)?;
-            self.next = identity.checked_add(1);
+            let identity = cursor.ok_or(TerminalInterpretError::StructuralIdentityExhausted)?;
+            *cursor = identity.checked_add(1);
             if !self.reserved.contains(&identity) {
                 return Ok(identity);
             }
         }
+    }
+
+    pub(super) fn commit_cursor(&mut self, cursor: Option<u64>) {
+        self.next = cursor;
     }
 
     pub(super) fn reserve_host(
