@@ -234,17 +234,28 @@ fn normalize_case_membership_facts(
             continue;
         };
         let membership = *membership;
-        if membership.domain_symbol.is_valid() || membership.authored_domain_selection.is_some() {
-            continue;
-        }
         let members = program.domain_path_members(membership.domain);
         let source_span = path_span(members, SourceSpan::default());
-        let Some((case_type_symbol, case_symbol)) =
-            crate::symbols::case_symbols_for_source(&program.symbols, members)
-                .map_err(|message| Diagnostic::error(message).with_source_span(source_span))?
+        let name = members
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::");
+        // A prior declared-domain receipt does not authorize hiding a competing
+        // case. Proof and executable membership share the same selection rules.
+        let selected =
+            crate::symbols::membership_selection(&program.symbols, &name, source_span)
+                .map_err(|message| Diagnostic::error(message).with_source_span(source_span))?;
+        let Some(crate::symbols::MembershipSelection::Case {
+            owner: case_type_symbol,
+            case: case_symbol,
+        }) = selected
         else {
             continue;
         };
+        if membership.domain_symbol.is_valid() || membership.authored_domain_selection.is_some() {
+            continue;
+        }
         let members = members.to_vec();
         let fact_span = program
             .proof_fact_source_span(pending.fact)
@@ -863,14 +874,14 @@ fn expression_candidates(
         ExpressionNode::Membership(membership) => {
             let members = expressions.name_path_members(membership.domain);
             if !membership.domain_symbol.is_valid() && !membership.case_type_symbol.is_valid() {
-                // Symbol assignment retains failure rather than selecting a
-                // fallback. Rejoin ambiguity at this fallible diagnostic boundary.
-                crate::symbols::case_symbols_for_source(&program.symbols, members).map_err(
-                    |message| {
-                        Diagnostic::error(message)
-                            .with_source_span(path_span(members, expression_span))
-                    },
-                )?;
+                let name = members
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
+                let reference = path_span(members, expression_span);
+                let _ = crate::symbols::membership_selection(&program.symbols, &name, reference)
+                    .map_err(|message| Diagnostic::error(message).with_source_span(reference))?;
             }
             if membership.domain_symbol.is_valid() {
                 candidates.push(Candidate {
@@ -883,7 +894,10 @@ fn expression_candidates(
                 if membership.case_type_symbol.is_valid() {
                     candidates.push(Candidate {
                         expression,
-                        source_span: path_span(&members[..members.len() - 1], expression_span),
+                        source_span: path_span(
+                            &members[..members.len().saturating_sub(1)],
+                            expression_span,
+                        ),
                         kind: Kind::CaseReference,
                         target: CandidateTarget::Resolved(membership.case_type_symbol),
                     });

@@ -46,52 +46,6 @@ pub(super) fn top_level_symbol_for_source(
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
-/// Case selection shares ordinary source-aware carrier lookup with constructors.
-/// Package aliases are selectors, not symbol parents. Check case eligibility
-/// before precedence so a same-named carrier without that case cannot hide it.
-pub(crate) fn case_symbols_for_source(
-    symbols: &SymbolTable,
-    members: &[symbol_resolved_trees::name::DiagnosticName],
-) -> Result<Option<(SymbolHandle, SymbolHandle)>, String> {
-    let Some((case, owner_members)) = members.split_last() else {
-        return Ok(None);
-    };
-    if owner_members.is_empty() {
-        return Ok(None);
-    }
-    let owner_name = owner_members
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
-    let selected = symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
-        &owner_name,
-        &[SymbolKind::Data],
-        diagnostic_path_source_span(owner_members),
-        |owner| {
-            child_symbol_by_kinds(symbols, owner, &[SymbolKind::Variant], case.as_str()).is_valid()
-        },
-    );
-    let case_symbol =
-        |owner| child_symbol_by_kinds(symbols, owner, &[SymbolKind::Variant], case.as_str());
-    match selected {
-        SymbolLookup::Unique(owner) => Ok(Some((owner, case_symbol(owner)))),
-        SymbolLookup::NotFound => Ok(None),
-        SymbolLookup::Ambiguous { first, second } => {
-            let imports = symbols
-                .source_module_import_paths(diagnostic_path_source_span(members).source_id)
-                .collect::<Vec<_>>();
-            Err(format!(
-                "ambiguous case membership `{owner_name}::{}`: competing declarations `{}` and `{}`; source imports: {}",
-                case.as_str(),
-                symbols.display_path(case_symbol(first), "::"),
-                symbols.display_path(case_symbol(second), "::"),
-                imports.join(", "),
-            ))
-        }
-    }
-}
-
 /// Select the carrier of a complete constructor name through ordinary source
 /// visibility. A full data name and a case-owner prefix are competing meanings,
 /// never alternatives selected by the number of path segments.
@@ -130,7 +84,8 @@ pub(crate) fn constructor_type<'name>(
             case_name.expect("eligible case owner retains its requested case"),
         )
     };
-    let ambiguity = |first, second| constructor_ambiguity(symbols, name, reference, first, second);
+    let ambiguity =
+        |first, second| selection_ambiguity(symbols, name, reference, first, second, "constructor");
     match (record, case) {
         (SymbolLookup::Ambiguous { first, second }, _) => Err(ambiguity(first, second)),
         (_, SymbolLookup::Ambiguous { first, second }) => {
@@ -145,18 +100,19 @@ pub(crate) fn constructor_type<'name>(
     }
 }
 
-fn constructor_ambiguity(
+fn selection_ambiguity(
     symbols: &SymbolTable,
     name: &str,
     reference: source::SourceSpan,
     first: SymbolHandle,
     second: SymbolHandle,
+    role: &str,
 ) -> String {
     let imports = symbols
         .source_module_import_paths(reference.source_id)
         .collect::<Vec<_>>();
     format!(
-        "ambiguous constructor `{name}`: competing declarations `{}` and `{}`; source imports: {}",
+        "ambiguous {role} `{name}`: competing declarations `{}` and `{}`; source imports: {}",
         symbols.display_path(first, "::"),
         symbols.display_path(second, "::"),
         if imports.is_empty() {
@@ -186,8 +142,13 @@ pub(crate) fn bare_case_type<'name>(
     ) {
         SymbolLookup::Unique(_) => return Ok(None),
         SymbolLookup::Ambiguous { first, second } => {
-            return Err(constructor_ambiguity(
-                symbols, name, reference, first, second,
+            return Err(selection_ambiguity(
+                symbols,
+                name,
+                reference,
+                first,
+                second,
+                "constructor",
             ));
         }
         SymbolLookup::NotFound => {}
@@ -332,6 +293,70 @@ fn symbol_name_matches_indexed_member(symbol_name: &str, member: &str, index: i6
 
     index_text.parse::<i64>().ok() == Some(index)
 }
+
+/// Membership selects either a declared domain or an actual case of an exact
+/// carrier. Both meanings share the member namespace; ambiguity is not absence.
+/// Unlike construction, observing a case permits common fields and payloads.
+pub(crate) enum MembershipSelection {
+    Domain(SymbolHandle),
+    Case {
+        owner: SymbolHandle,
+        case: SymbolHandle,
+    },
+}
+
+pub(crate) fn membership_selection(
+    symbols: &SymbolTable,
+    name: &str,
+    reference: source::SourceSpan,
+) -> Result<Option<MembershipSelection>, String> {
+    let domain = symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+        name,
+        &[SymbolKind::Domain],
+        reference,
+        |_| true,
+    );
+    let (case_owner, case_name) =
+        name.rsplit_once("::")
+            .map_or((SymbolLookup::NotFound, ""), |(owner, case)| {
+                (
+                    symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+                        owner,
+                        &[SymbolKind::Data],
+                        reference,
+                        |owner| {
+                            child_symbol_by_kinds(symbols, owner, &[SymbolKind::Variant], case)
+                                .is_valid()
+                        },
+                    ),
+                    case,
+                )
+            });
+    let case = |owner| child_symbol_by_kinds(symbols, owner, &[SymbolKind::Variant], case_name);
+    let ambiguous =
+        |first, second| selection_ambiguity(symbols, name, reference, first, second, "membership");
+    match (domain, case_owner) {
+        (SymbolLookup::Ambiguous { first, second }, _) => Err(ambiguous(first, second)),
+        (_, SymbolLookup::Ambiguous { first, second }) => Err(ambiguous(case(first), case(second))),
+        (SymbolLookup::Unique(domain), SymbolLookup::Unique(owner)) => {
+            Err(ambiguous(domain, case(owner)))
+        }
+        (SymbolLookup::Unique(domain), SymbolLookup::NotFound) => {
+            Ok(Some(MembershipSelection::Domain(domain)))
+        }
+        (SymbolLookup::NotFound, SymbolLookup::Unique(owner)) => {
+            Ok(Some(MembershipSelection::Case {
+                owner,
+                case: case(owner),
+            }))
+        }
+        (SymbolLookup::NotFound, SymbolLookup::NotFound) => Ok(None),
+    }
+}
+
+#[cfg(test)]
+#[path = "lookup_membership_tests.rs"]
+mod membership_tests;
 
 #[cfg(test)]
 mod constructor_tests {

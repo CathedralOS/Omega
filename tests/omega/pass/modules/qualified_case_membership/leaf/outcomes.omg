@@ -1,0 +1,6 @@
+module outcomes;
+pub data Outcome {
+    common: u32;
+    case Empty;
+    case Value(item: u32);
+}
