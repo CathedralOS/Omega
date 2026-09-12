@@ -2,27 +2,23 @@
 //!
 //! See the adjacent `README.md` for the checked organization contract.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-mod bounds;
 mod catalogs;
 mod entrances;
 mod inventory;
-mod module_roles;
 mod retired_paths;
 
 struct Audit {
     repository: PathBuf,
-    source_lines: BTreeMap<String, usize>,
+    source_files: BTreeSet<String>,
     violations: BTreeSet<String>,
 }
 
 #[test]
-fn optimizer_source_organization_is_bounded_and_navigable() {
+fn optimizer_source_organization_preserves_semantic_owners() {
     let mut audit = inventory::collect();
-    bounds::check(&mut audit);
-    module_roles::check(&mut audit);
     entrances::check(&mut audit);
     catalogs::check(&mut audit);
     retired_paths::check(&mut audit);

@@ -4,22 +4,15 @@ use std::fs;
 
 use crate::Audit;
 
-use super::super::bounds::PREFERRED_ENTRANCE_LINES;
 use super::super::inventory::RULE_STAGES;
 
 pub(super) fn check(audit: &mut Audit) {
     for stage in RULE_STAGES {
-        let Some(lines) = audit.source_lines.get(stage.entrance) else {
+        if !audit.source_files.contains(stage.entrance) {
             audit
                 .violations
                 .insert(format!("missing rule-stage entrance: {}", stage.entrance));
             continue;
-        };
-        if *lines > PREFERRED_ENTRANCE_LINES {
-            audit.violations.insert(format!(
-                "rule-stage entrance exceeds {PREFERRED_ENTRANCE_LINES} lines: {} ({lines})",
-                stage.entrance
-            ));
         }
         match fs::read_to_string(audit.repository.join(stage.entrance)) {
             Ok(contents) if contents.contains(stage.coordination_marker) => {}

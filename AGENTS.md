@@ -134,7 +134,8 @@ package.
 mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
 ```
 
-Full surface (`omega-rust/omega/src/command.rs`):
+CLI startup and dispatch live in `omega-rust/omega/src/main.rs`; compilation
+options are parsed in `compile_arguments.rs`. Full surface:
 
 ```text
 omega [--check] [--offline] [--accept-admissions] [--output-only]
@@ -373,6 +374,13 @@ Use that exact local copy; these repository contracts take precedence.
 - Use real words in code. Prefer `character`, `statement`, `expression`, and `arguments` over `ch`, `stmt`, `expr`, and `args`.
 - Avoid names that only make sense to compiler insiders. `pipeline` is better than `driver`; `expression` is better than `expr`.
 - Keep compiler stages honest. Parse syntax, lower representation, validate semantics, plan native execution, then emit bytes.
+- Organize source by responsibility, not line-count or directory-depth quotas.
+  `main.rs` owns application startup and visible dispatch to the real subsystems;
+  it must not be a forwarding stub created to satisfy a size rule. Keep related
+  types and behavior together when that makes the flow easier to follow. Split
+  at a genuine ownership or reusable-operation boundary, not to manufacture a
+  small `main.rs`, `lib.rs`, or `mod.rs`. Architecture checks enforce dependency
+  and semantic boundaries, not file sizes or prescribed cosmetic splits.
 - Keep sample coverage out of the shipped CLI. Tests and dev harnesses may discover `samples/`, but user-facing compiler behavior stays generic.
 - Prefer small checkpoint commits after working improvements.
 - Samples should reveal language pressure, not hide it in giant `main` files.

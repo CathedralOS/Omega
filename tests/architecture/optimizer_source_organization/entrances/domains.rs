@@ -10,7 +10,7 @@ pub(super) fn check(audit: &mut Audit) {
     for domain in EXECUTABLE_ENTRANCE_DOMAINS {
         debug_assert!(!domain.name.is_empty());
         for entrance in domain.entrances {
-            if !audit.source_lines.contains_key(entrance.path) {
+            if !audit.source_files.contains(entrance.path) {
                 audit.violations.insert(format!(
                     "missing required optimizer coordination entrance: {}",
                     entrance.path
@@ -39,7 +39,7 @@ pub(super) fn check(audit: &mut Audit) {
         debug_assert!(!domain.name.is_empty());
         for ladder in domain.ladders {
             for path in ladder.paths {
-                if !audit.source_lines.contains_key(*path) {
+                if !audit.source_files.contains(*path) {
                     audit.violations.insert(format!(
                         "{} lost a named semantic leaf: {path}",
                         ladder.family

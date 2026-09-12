@@ -74,10 +74,3 @@ pub(super) const SEMANTIC_LADDER_DOMAINS: &[SemanticLadderDomain] = &[
         ladders: ladders::tooling::LADDERS,
     },
 ];
-
-pub(crate) fn is_required_coordination_entrance(path: &str) -> bool {
-    EXECUTABLE_ENTRANCE_DOMAINS
-        .iter()
-        .flat_map(|domain| domain.entrances)
-        .any(|entrance| entrance.path == path)
-}

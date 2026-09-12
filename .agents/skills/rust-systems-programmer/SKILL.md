@@ -1,6 +1,6 @@
 ---
 name: rust-systems-programmer
-description: Write and review Rust with explicit domain naming, type-focused modules, thin application adapters, recoverable errors, allocation-conscious storage, partitioned parallelism, and SIMD kernels. Use when implementing, refactoring, debugging, or reviewing Rust code in this repository. Not for prose-only work or non-Rust implementation.
+description: Write and review Rust with explicit domain naming, cohesive ownership, visible application orchestration, recoverable errors, allocation-conscious storage, partitioned parallelism, and SIMD kernels. Use when implementing, refactoring, debugging, or reviewing Rust code in this repository. Not for prose-only work or non-Rust implementation.
 ---
 
 # Rust Systems Programming

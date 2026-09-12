@@ -74,7 +74,7 @@ fn parse_inspect_terminal_arguments(
             if machine.is_some() {
                 return None;
             }
-            machine = super::compile_option_value(&mut arguments)
+            machine = crate::compile_arguments::compile_option_value(&mut arguments)
                 .and_then(|value| value.into_string().ok());
             machine.as_ref()?;
             continue;
@@ -83,7 +83,7 @@ fn parse_inspect_terminal_arguments(
             if target_name.is_some() {
                 return None;
             }
-            target_name = super::compile_option_value(&mut arguments)
+            target_name = crate::compile_arguments::compile_option_value(&mut arguments)
                 .and_then(|value| value.into_string().ok());
             target_name.as_ref()?;
             continue;

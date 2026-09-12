@@ -10,8 +10,8 @@ pub(super) fn check(audit: &mut Audit) {
     let codec_root = "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/";
     let codec_entrance = format!("{codec_root}mod.rs");
     for path in audit
-        .source_lines
-        .keys()
+        .source_files
+        .iter()
         .filter(|path| path.starts_with(codec_root))
     {
         let Ok(contents) = fs::read_to_string(audit.repository.join(path)) else {
