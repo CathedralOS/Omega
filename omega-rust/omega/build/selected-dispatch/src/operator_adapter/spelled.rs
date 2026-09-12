@@ -247,7 +247,7 @@ mod tests {
         let original = Arc::new(fixture.checked);
         let mut settled = Arc::clone(&original);
 
-        super::super::settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+        crate::settle_selected_execution_dispatch(&mut settled, &selected)
             .expect("exact fixed-token adapter dispatches");
 
         assert!(!Arc::ptr_eq(&settled, &original));
@@ -320,7 +320,7 @@ mod tests {
             let original = Arc::new(fixture.checked);
             let mut rejected = Arc::clone(&original);
 
-            super::super::settle_selected_operator_adapter_dispatch(&mut rejected, &selected)
+            crate::settle_selected_execution_dispatch(&mut rejected, &selected)
                 .expect_err("fixed-token identity drift must reject");
 
             assert!(Arc::ptr_eq(&rejected, &original), "{drift}");

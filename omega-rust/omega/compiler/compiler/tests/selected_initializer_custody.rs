@@ -78,7 +78,7 @@ fn settled_selected_initializer_lowers_and_cannot_be_deleted() {
     )
     .expect("select exact authored provider");
     let mut settled = Arc::new(checked);
-    selected_dispatch::settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+    selected_dispatch::settle_selected_execution_dispatch(&mut settled, &selected)
         .expect("settle selected initializer");
     selected_dispatch::validate_selected_operator_terminal_custody(&settled, &selected)
         .expect("selected initializer retains its exact application");
