@@ -88,9 +88,12 @@ replay. Direct reads use the same path for established record locals and owned
 block arrivals: the actual source place is retained rather than relabeled as an
 incoming parameter. Availability and field identity are checked separately from
 physical layout, and each load produces a fresh scalar before later operations.
+By-value record entry parameters still need a readable ABI-home binding for
+this graph path; they are not implicitly borrowed pointers.
 Source-produced integer getter controls cover direct and call-produced
 locals, tail completion, and nested scalar arguments. Nested record construction
-and broader projected/mutable receiver forms remain separate dependencies.
+and mutable local receiver storage remain separate dependencies; shared
+record-field receiver projections retain their original pointer and typed path.
 
 Integer XOR also follows ordinary scalar definitions, legalized operands and
 selected bitwise instructions. Its x86-64 and AArch64 realizations independently

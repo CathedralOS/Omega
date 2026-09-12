@@ -1393,6 +1393,12 @@ Owners include
   owns residual cleanup. Replace remaining flat guarded-call hoisting with the
   same evaluation graph, not another source-order family.
 
+  Direct native field reads from by-value record entry parameters still need a
+  readable home for their value ABI. Extend `primitive_storage.rs` and
+  `selection/primitive_local_input.rs` without relabeling owned inputs as
+  borrowed pointers. Acceptance: a source-authored by-value record parameter's
+  field survives surrounding calls and preserves its full-width native value.
+
   Complete caller-specific saved-argument and result facts: nonliteral contract
   arithmetic, borrowed collection lengths, dependent/public-trait results and
   subslice bounds need exact entry observations and substitutions. Mutable
