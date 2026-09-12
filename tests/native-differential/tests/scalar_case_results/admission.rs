@@ -124,7 +124,9 @@ pub(super) fn installation_cannot_change_call_or_result(
                     // Borrowed structural inputs have no scalar identity row,
                     // but still occupy the complete positional call plan.
                     if abi.call_plan.parameters.is_empty() {
-                        abi.call_plan.parameters.push(abi.call_plan.result.clone().unwrap());
+                        abi.call_plan
+                            .parameters
+                            .push(abi.call_plan.result.clone().unwrap());
                     } else {
                         abi.call_plan.parameters.clear();
                     }

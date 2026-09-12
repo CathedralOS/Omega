@@ -115,9 +115,8 @@ pub(crate) fn build_checked_value_computation_plans(
                     _ => None,
                 };
                 if let Some((expression, expected)) = construction_destination
-                    && (validation::is_fresh_scalar_case_value(
-                        program, expression, expected,
-                    ) || matches!(program.expression_table.expression(expression), ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none()))
+                    && (validation::is_fresh_scalar_case_value(program, expression, expected)
+                        || matches!(program.expression_table.expression(expression), ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none()))
                     && let Some(root) =
                         builder.structural_value(expression, expected, &mut structural_values)
                 {

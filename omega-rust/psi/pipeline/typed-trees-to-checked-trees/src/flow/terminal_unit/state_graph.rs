@@ -144,8 +144,21 @@ pub(super) fn build(
             return None;
         }
         let first_call = source_calls.partition_point(|call| call.statement_index < binding_count);
-        let after_calls =
-            source_calls.partition_point(|call| call.statement_index < terminator_index);
+        // A returned structural value is established by the ordinary operation
+        // sequence before its return edge. Its operand calls belong to that
+        // sequence too; excluding the tail statement loses their exact flow
+        // occurrences when outer_calls reconstructs the constructor roots.
+        let operation_end = if facts
+            .values
+            .structural_values
+            .root_at(state.symbol, u32::try_from(terminator_index).ok()?)
+            .is_some()
+        {
+            terminator_index.checked_add(1)?
+        } else {
+            terminator_index
+        };
+        let after_calls = source_calls.partition_point(|call| call.statement_index < operation_end);
         // Computation roots retain handles into this arena. Borrow the original
         // occurrences so their exact identity survives nested-call validation.
         let calls = control::outer_calls(
