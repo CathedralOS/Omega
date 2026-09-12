@@ -1810,13 +1810,13 @@ impl EvaluatedArgument {
     }
 }
 
-enum TransitionDecision {
+enum TransitionDecision<'program> {
     Terminal,
     SelfTarget,
     Value(Value),
     Named {
-        state_name: String,
-        machine: Machine,
+        state: &'program State,
+        machine: &'program Machine,
         instance: Cell,
         args: Vec<EvaluatedArgument>,
     },

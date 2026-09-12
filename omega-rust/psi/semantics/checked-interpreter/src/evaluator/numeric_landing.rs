@@ -124,14 +124,10 @@ impl Evaluator<'_> {
 
     pub(super) fn eval_state_arguments(
         &mut self,
-        machine: &Machine,
-        state_name: &str,
+        state: &State,
         arguments: &[ExpressionHandle],
         frame: &Frame,
     ) -> EvalResult<Vec<EvaluatedArgument>> {
-        let state = self.find_state(machine, state_name).ok_or_else(|| {
-            Halt::Unsupported(format!("unknown argument destination `{state_name}`"))
-        })?;
         let destinations: Vec<_> = self
             .program
             .state_parameters(state)

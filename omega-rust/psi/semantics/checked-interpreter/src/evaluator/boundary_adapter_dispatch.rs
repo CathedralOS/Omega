@@ -1,6 +1,6 @@
 use super::*;
 
-impl Evaluator<'_> {
+impl<'program> Evaluator<'program> {
     pub(super) fn selected_boundary_adapter(
         &self,
         receiver: SymbolHandle,
@@ -43,14 +43,11 @@ impl Evaluator<'_> {
         arguments: &[ExpressionHandle],
         frame: &Frame,
     ) -> EvalResult<Value> {
-        let (machine, state_name, instance) = self
+        let (machine, state, instance) = self
             .resolve_entry_state_symbol(dispatch.realization_state, frame)
             .ok_or_else(|| {
                 Halt::Trap("selected boundary adapter lost its exact entry state".into())
             })?;
-        let state = self
-            .find_state(&machine, &state_name)
-            .ok_or_else(|| Halt::Trap("selected boundary adapter lost its state".into()))?;
         let destinations = self
             .program
             .state_parameters(state)
@@ -73,7 +70,7 @@ impl Evaluator<'_> {
         }
         let guard_depth = self.guard_depth;
         self.guard_depth = 0;
-        let result = self.run_state_collect(&machine, &state_name, instance, evaluated);
+        let result = self.run_state_collect(machine, state, instance, evaluated);
         self.guard_depth = guard_depth;
         result.map(|value| value.unwrap_or(Value::Unit))
     }

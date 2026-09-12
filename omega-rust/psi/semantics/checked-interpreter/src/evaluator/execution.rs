@@ -138,22 +138,18 @@ impl<'program> Evaluator<'program> {
     pub(super) fn run_entry(&mut self, entry_machine_name: &str) -> EvalResult<()> {
         let entry_machine = self
             .find_machine_by_name(entry_machine_name)
-            .ok_or_else(|| Halt::Unsupported(format!("no entry machine `{entry_machine_name}`")))?
-            .clone();
-        let entry_state_name = self
-            .machine_entry_state_name(&entry_machine)
-            .ok_or_else(|| {
-                Halt::Unsupported(format!(
-                    "entry machine `{entry_machine_name}` has no executable state"
-                ))
-            })?;
+            .ok_or_else(|| Halt::Unsupported(format!("no entry machine `{entry_machine_name}`")))?;
+        let entry_state = self.machine_entry_state(entry_machine).ok_or_else(|| {
+            Halt::Unsupported(format!(
+                "entry machine `{entry_machine_name}` has no executable state"
+            ))
+        })?;
 
-        let instance = self.instantiate_machine(&entry_machine)?;
+        let instance = self.instantiate_machine(entry_machine)?;
         // The entry machine's value (its terminal `Value` transition / final expression)
         // becomes the process exit code when it has no explicit `exit_process`. Mirrors the
         // backend: `machine Main::main(...) -> i32` returns the exit status.
-        let returned =
-            self.run_state_collect(&entry_machine, &entry_state_name, instance, Vec::new())?;
+        let returned = self.run_state_collect(entry_machine, entry_state, instance, Vec::new())?;
         if let Some(value) = returned
             && let Some(code) = value.as_int()
         {
@@ -169,9 +165,8 @@ impl<'program> Evaluator<'program> {
     pub(super) fn run_const_machine(&mut self, machine_name: &str) -> EvalResult<i64> {
         let machine = self
             .find_machine_by_name(machine_name)
-            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?
-            .clone();
-        let entry_state_name = self.machine_entry_state_name(&machine).ok_or_else(|| {
+            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?;
+        let entry_state = self.machine_entry_state(machine).ok_or_else(|| {
             Halt::Trap(format!(
                 "machine `{machine_name}` has no states to evaluate"
             ))
@@ -180,8 +175,8 @@ impl<'program> Evaluator<'program> {
         // (checked before running so the diagnostic names the type, not
         // whatever value the body happened to produce).
         let return_primitive = match self
-            .find_state(&machine, &entry_state_name)
-            .and_then(|state| self.program.primitive_type_reference(state.return_type))
+            .program
+            .primitive_type_reference(entry_state.return_type)
         {
             Some(primitive)
                 if primitive != PrimitiveType::Bool
@@ -203,8 +198,8 @@ impl<'program> Evaluator<'program> {
             }
         };
 
-        let instance = self.instantiate_machine(&machine)?;
-        let returned = self.run_state_collect(&machine, &entry_state_name, instance, Vec::new())?;
+        let instance = self.instantiate_machine(machine)?;
+        let returned = self.run_state_collect(machine, entry_state, instance, Vec::new())?;
         let value = returned.ok_or_else(|| {
             Halt::Trap(format!(
                 "machine `{machine_name}` terminated without producing a value"
@@ -231,8 +226,7 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<crate::build_time::BuildTimeValue> {
         let machine = self
             .find_machine_by_name(machine_name)
-            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?
-            .clone();
+            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?;
         self.run_resolved_build_time_machine(machine, arguments)
     }
 
@@ -244,24 +238,21 @@ impl<'program> Evaluator<'program> {
         machine_symbol: SymbolHandle,
         arguments: Vec<crate::build_time::BuildTimeValue>,
     ) -> EvalResult<crate::build_time::BuildTimeValue> {
-        let machine = self
-            .find_machine_by_symbol(machine_symbol)
-            .ok_or_else(|| {
-                Halt::Trap(format!(
-                    "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
-                ))
-            })?
-            .clone();
+        let machine = self.find_machine_by_symbol(machine_symbol).ok_or_else(|| {
+            Halt::Trap(format!(
+                "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
+            ))
+        })?;
         self.run_resolved_build_time_machine(machine, arguments)
     }
 
     fn run_resolved_build_time_machine(
         &mut self,
-        machine: Machine,
+        machine: &'program Machine,
         arguments: Vec<crate::build_time::BuildTimeValue>,
     ) -> EvalResult<crate::build_time::BuildTimeValue> {
         let machine_name = machine.name.as_str();
-        let entry_state_name = self.machine_entry_state_name(&machine).ok_or_else(|| {
+        let entry_state = self.machine_entry_state(machine).ok_or_else(|| {
             Halt::Trap(format!(
                 "machine `{machine_name}` has no states to evaluate"
             ))
@@ -269,15 +260,11 @@ impl<'program> Evaluator<'program> {
         // The `&self` receiver is bound from the machine instance, not the
         // argument list -- exclude it from the positional count.
         let parameter_count = self
-            .find_state(&machine, &entry_state_name)
-            .map(|state| {
-                self.program
-                    .state_parameters(state)
-                    .iter()
-                    .filter(|parameter| parameter.name.as_str() != "self")
-                    .count()
-            })
-            .unwrap_or(0);
+            .program
+            .state_parameters(entry_state)
+            .iter()
+            .filter(|parameter| parameter.name.as_str() != "self")
+            .count();
         if parameter_count != arguments.len() {
             return Err(Halt::Trap(format!(
                 "machine `{machine_name}` takes {parameter_count} argument(s); the build-time \
@@ -286,7 +273,7 @@ impl<'program> Evaluator<'program> {
             )));
         }
 
-        let instance = self.instantiate_machine(&machine)?;
+        let instance = self.instantiate_machine(machine)?;
         let argument_cells = arguments
             .into_iter()
             .map(|argument| {
@@ -297,8 +284,7 @@ impl<'program> Evaluator<'program> {
                 Ok(EvaluatedArgument::plain(self.allocate_cell(value)?))
             })
             .collect::<EvalResult<Vec<_>>>()?;
-        let returned =
-            self.run_state_collect(&machine, &entry_state_name, instance, argument_cells)?;
+        let returned = self.run_state_collect(machine, entry_state, instance, argument_cells)?;
         let value = returned.ok_or_else(|| {
             Halt::Trap(format!(
                 "machine `{machine_name}` terminated without producing a value"
@@ -352,8 +338,7 @@ impl<'program> Evaluator<'program> {
         self.enable_rooted_build_paths_from_arguments(&arguments);
         let machine = self
             .find_machine_by_name(machine_name)
-            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?
-            .clone();
+            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?;
         self.run_resolved_build_machine_arguments(machine, arguments, allow_filesystem)
     }
 
@@ -366,39 +351,32 @@ impl<'program> Evaluator<'program> {
         allow_filesystem: bool,
     ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
         self.enable_rooted_build_paths_from_arguments(&arguments);
-        let machine = self
-            .find_machine_by_symbol(machine_symbol)
-            .ok_or_else(|| {
-                Halt::Trap(format!(
-                    "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
-                ))
-            })?
-            .clone();
+        let machine = self.find_machine_by_symbol(machine_symbol).ok_or_else(|| {
+            Halt::Trap(format!(
+                "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
+            ))
+        })?;
         self.run_resolved_build_machine_arguments(machine, arguments, allow_filesystem)
     }
 
     fn run_resolved_build_machine_arguments(
         &mut self,
-        machine: Machine,
+        machine: &'program Machine,
         arguments: Vec<crate::build_time::BuildTimeValue>,
         allow_filesystem: bool,
     ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
         let machine_name = machine.name.as_str();
-        let entry_state_name = self.machine_entry_state_name(&machine).ok_or_else(|| {
+        let entry_state = self.machine_entry_state(machine).ok_or_else(|| {
             Halt::Trap(format!(
                 "machine `{machine_name}` has no states to evaluate"
             ))
         })?;
         let parameter_count = self
-            .find_state(&machine, &entry_state_name)
-            .map(|state| {
-                self.program
-                    .state_parameters(state)
-                    .iter()
-                    .filter(|parameter| parameter.name.as_str() != "self")
-                    .count()
-            })
-            .unwrap_or(0);
+            .program
+            .state_parameters(entry_state)
+            .iter()
+            .filter(|parameter| parameter.name.as_str() != "self")
+            .count();
         if parameter_count != arguments.len() {
             return Err(Halt::Trap(format!(
                 "machine `{machine_name}` takes {parameter_count} argument(s); the build-time position supplied {}",
@@ -406,7 +384,7 @@ impl<'program> Evaluator<'program> {
             )));
         }
 
-        let instance = self.instantiate_machine(&machine)?;
+        let instance = self.instantiate_machine(machine)?;
         let argument_cells: Vec<Cell> = arguments
             .into_iter()
             .map(|argument| {
@@ -425,7 +403,7 @@ impl<'program> Evaluator<'program> {
             .map(EvaluatedArgument::plain)
             .collect();
         let _terminal =
-            self.run_state_collect(&machine, &entry_state_name, instance, evaluated_arguments)?;
+            self.run_state_collect(machine, entry_state, instance, evaluated_arguments)?;
         let impure = if allow_filesystem {
             self.non_fs_host_boundary_touched
         } else {
@@ -865,8 +843,8 @@ impl<'program> Evaluator<'program> {
     /// instead of overflowing the host stack.
     pub(super) fn run_state_collect(
         &mut self,
-        machine: &Machine,
-        state_name: &str,
+        machine: &'program Machine,
+        state: &'program State,
         instance: Cell,
         args: Vec<EvaluatedArgument>,
     ) -> EvalResult<Option<Value>> {
@@ -875,15 +853,15 @@ impl<'program> Evaluator<'program> {
             self.call_depth -= 1;
             return unsupported("recursion depth budget exceeded");
         }
-        let result = self.run_state_collect_inner(machine, state_name, instance, args);
+        let result = self.run_state_collect_inner(machine, state, instance, args);
         self.call_depth -= 1;
         result
     }
 
     fn run_state_collect_inner(
         &mut self,
-        machine: &Machine,
-        state_name: &str,
+        machine: &'program Machine,
+        state: &'program State,
         instance: Cell,
         args: Vec<EvaluatedArgument>,
     ) -> EvalResult<Option<Value>> {
@@ -891,9 +869,9 @@ impl<'program> Evaluator<'program> {
         // continues the loop (a jump, mirroring the native dispatch-loop
         // lowering) instead of recursing -- an admitted measured mutual
         // cycle must not consume interpreter call depth.
-        let mut machine = machine.clone();
+        let mut machine = machine;
         let mut instance = instance;
-        let mut current_state = state_name.to_owned();
+        let mut state = state;
         let mut current_args = args;
         // Locals accumulated across SAME-machine sibling transitions: the backend models a
         // machine as one frame whose slots persist, so an inlined sub-state still sees the
@@ -905,13 +883,9 @@ impl<'program> Evaluator<'program> {
 
         loop {
             self.tick()?;
-            let state = self
-                .find_state(&machine, &current_state)
-                .ok_or_else(|| Halt::Unsupported(format!("unknown state `{current_state}`")))?
-                .clone();
 
             let frame = self.bind_frame(
-                &state,
+                state,
                 instance.clone(),
                 &current_args,
                 machine.symbol,
@@ -923,15 +897,14 @@ impl<'program> Evaluator<'program> {
             // Execute statements, watching for the first satisfied transition. A state
             // whose body ends in a bare expression (`{ 22 }`) returns that expression's
             // value as its result (the backend's value-state form).
-            let mut next: Option<TransitionDecision> = None;
+            let mut next: Option<TransitionDecision<'program>> = None;
             let mut tail_value: Option<Value> = None;
             for statement in self
                 .program
                 .statement_table
                 .statements(state.statement_nodes)
             {
-                let statement = statement.clone();
-                match &statement {
+                match statement {
                     StatementNode::Transition(transition) => {
                         if let Some(decision) = self.eval_transition(transition, &frame)? {
                             next = Some(decision);
@@ -964,7 +937,7 @@ impl<'program> Evaluator<'program> {
                     continue;
                 }
                 Some(TransitionDecision::Named {
-                    state_name,
+                    state: target_state,
                     machine: target_machine,
                     instance: target_instance,
                     args,
@@ -976,7 +949,7 @@ impl<'program> Evaluator<'program> {
                         carried = frame.locals.into_inner();
                         carried_types = frame.type_locals.into_inner();
                         carried_recasts = frame.mutable_scalar_recasts.into_inner();
-                        current_state = state_name;
+                        state = target_state;
                         current_args = args;
                         continue;
                     }
@@ -988,7 +961,7 @@ impl<'program> Evaluator<'program> {
                     // locals clear: the callee binds a fresh frame.
                     machine = target_machine;
                     instance = target_instance;
-                    current_state = state_name;
+                    state = target_state;
                     current_args = args;
                     carried = BTreeMap::new();
                     carried_types = BTreeMap::new();
