@@ -88,7 +88,7 @@ pub(super) fn emit_prefix(
 ) -> Result<ScalarBindings, LoweringError> {
     let mut bindings = ScalarBindings::new(values.len())
         .with_structural_parameters(parameters)
-        .with_structural_fields(structural_types);
+        .with_structural_observations(structural_types);
     let (_, authored) = crate::scalar_source_custody::authored_state(checked, state.state)?;
     for (position, parameter) in state.scalar_parameters.iter().enumerate() {
         let source = &checked.state_parameters(authored)[parameter.source_position as usize];

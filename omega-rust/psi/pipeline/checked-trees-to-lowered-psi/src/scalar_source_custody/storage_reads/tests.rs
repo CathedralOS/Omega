@@ -68,6 +68,43 @@ fn boolean_field(position: u32, identity: &str) -> CheckedBooleanExpression {
 }
 
 #[test]
+fn case_membership_rejects_substituted_case_subject_and_erasure() {
+    let tokens = source_files_to_tokens::Lexer::new(
+        "data Choice { case Empty; case Some(value: u32); }
+         machine read(choice: &Choice, alternate: &Choice) -> bool {
+             choice in Choice::Empty
+         }",
+    )
+    .tokenize()
+    .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let membership = |parameter_position, case: &str| {
+        CheckedScalarExpression::Boolean(Box::new(
+            CheckedBooleanExpression::StructuralCaseMembership {
+                subject: checked_trees::CheckedStructuralParameterField {
+                    parameter_position,
+                    path: Vec::new(),
+                },
+                case: case.into(),
+            },
+        ))
+    };
+    assert!(validate_return(&checked, &membership(0, "Empty")).is_ok());
+    for forged in [
+        membership(0, "Some"),
+        membership(1, "Empty"),
+        membership(2, "Empty"),
+        CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Constant(true))),
+    ] {
+        assert!(validate_return(&checked, &forged).is_err(), "{forged:?}");
+    }
+}
+
+#[test]
 fn owned_integer_field_rejects_same_typed_field_parameter_and_erasure() {
     let checked = fixture("limits.limit", "u64");
     let state = &checked.machine_states(&checked.machines()[0])[0];

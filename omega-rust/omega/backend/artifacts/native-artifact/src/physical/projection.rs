@@ -254,6 +254,7 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
         | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
         | AbstractOperation::PrimitiveScalarRead { psi_operation, .. }
+        | AbstractOperation::StructuralCaseMembership { psi_operation, .. }
         | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
         | AbstractOperation::StoreDynamicDescriptor { psi_operation, .. }
         | AbstractOperation::EstablishScalarArray { psi_operation, .. }

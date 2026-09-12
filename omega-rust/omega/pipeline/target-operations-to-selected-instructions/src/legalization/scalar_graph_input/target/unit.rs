@@ -26,6 +26,43 @@ pub(super) fn validate_operation(
     };
     match (target, abstracted) {
         (
+            TargetUnitOperation::StructuralCaseMembership {
+                psi_operation,
+                result,
+                source,
+                case,
+                case_tag,
+            },
+            AbstractOperation::StructuralCaseMembership {
+                psi_operation: expected_operation,
+                result: expected_result,
+                source: expected_source,
+                case: expected_case,
+            },
+        ) if psi_operation == expected_operation
+            && result == expected_result
+            && source == expected_source
+            && case == expected_case
+            && result.scalar_type == ScalarType::Boolean
+            && *case_tag
+                == super::super::structural_case::membership_tag(
+                    optimized,
+                    *expected_source,
+                    *expected_case,
+                    plan,
+                )? =>
+        {
+            sources.push((
+                result.value,
+                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                    defining_operation: *psi_operation,
+                    source_value: result.value,
+                    scalar_type: result.scalar_type,
+                    shape: calling_conventions::ValueShape::integer(1, 1),
+                }),
+            ));
+        }
+        (
             _,
             AbstractOperation::IeeeFloatCompare { .. }
             | AbstractOperation::IeeeFloatConstant { .. },

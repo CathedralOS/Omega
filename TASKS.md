@@ -1331,17 +1331,19 @@ Owners include
   same evaluation graph, not another source-order family.
 
   Case construction must produce an ordinary intermediate structural value,
-  followed by an observing membership operation with a Boolean result. Reuse
-  Terminal's `EstablishScalarCase`; return-only `ReturnCase` production does
-  not cover locals or nested operands. Preserve exact owner/case identity and
-  loans without turning membership into an affine-consuming dispatch.
+  followed by Terminal's non-consuming `StructuralCaseMembership` Boolean
+  observation. Reuse `EstablishScalarCase`; return-only `ReturnCase` production
+  does not cover locals or nested operands. Preserve exact owner/case identity,
+  occurrence-bound source replay, liveness and loans.
   Customer: extend `compiler --test module_machine_indices qualified_cases`
   from checked evaluation to canonical Terminal and native execution for both
   direct constructions and `local_is_empty`, including nonempty payloads and
-  same-leaf foreign-owner rejection. The macOS probe based on `0e6c25c4dc`
-  after namespace repair reached `scalar_bindings.rs`'s missing checked
-  expression/source-binding rejection for direct membership; the local form
-  had no checked scalar control plan. The producer owners are
+  same-leaf foreign-owner rejection. On macOS, the `1c06331a70`-based probe
+  (`cargo test -p compiler --test module_machine_indices qualified_cases
+  --no-fail-fast`, temporarily requesting canonical artifacts for `is_empty`
+  and `local_is_empty`) still reached the missing checked expression/source
+  binding for direct membership and missing scalar control plan for local
+  membership, for both empty cases and payload 37. The producer owners are
   `typed-trees-to-checked-trees/src/flow/terminal_unit/state_graph/returns.rs`
   and the ordinary checked operation sequence, not a new source-shape family.
 

@@ -154,6 +154,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
             primitive_storage: Vec::new(),
             scalar_bindings: None,
             structural_fields: Vec::new(),
+            structural_cases: Vec::new(),
             structural_parameters: state
                 .structural_parameters
                 .iter()
@@ -198,6 +199,11 @@ pub(in crate::attached_unit::composed_control) fn emit(
         evaluation.scalar_bindings = Some(bindings.clone());
         evaluation.structural_fields =
             crate::scalar_bindings::StructuralScalarFieldBinding::collect(
+                &evaluation.structural_parameters,
+                &catalogs.structural_types,
+            );
+        evaluation.structural_cases =
+            crate::scalar_bindings::structural_cases::StructuralCaseBinding::collect(
                 &evaluation.structural_parameters,
                 &catalogs.structural_types,
             );

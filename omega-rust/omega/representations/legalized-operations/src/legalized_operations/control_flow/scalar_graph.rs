@@ -85,6 +85,7 @@ impl LegalizedScalarInstruction {
                     LegalizedScalarInstructionKind::Constant(_)
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
+                    | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
@@ -136,6 +137,11 @@ pub enum LegalizedScalarInstructionKind {
     },
     PrimitiveScalarRead {
         source: semantic_vocabulary::PlaceId,
+    },
+    StructuralCaseMembership {
+        source: semantic_vocabulary::PlaceId,
+        case: semantic_vocabulary::StructuralCaseId,
+        case_tag: u32,
     },
     /// Exact admitted byte-input boundary and its owned structural result home.
     HostedReadByte {

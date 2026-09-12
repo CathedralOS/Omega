@@ -28,7 +28,7 @@ fn bindings(access: StructuralAccess, relevance: BindingRelevance) -> ScalarBind
     };
     ScalarBindings::new(0)
         .with_structural_parameters(&[(3, parameter)])
-        .with_structural_fields(&[declaration])
+        .with_structural_observations(&[declaration])
 }
 
 fn observation(

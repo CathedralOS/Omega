@@ -82,6 +82,20 @@ realizations establish non-observation through their call closure. Opaque
 realizations require an admitted judgment bound to the selected implementation
 and receipt, unless installation supplies physical isolation evidence.
 
+## Case observation
+
+`StructuralCaseMembership` reads a whole sum's current discriminator and produces
+an unqualified Boolean. Its case identity must belong to the exact source type;
+matching case spellings in another type supply no authority. The source must be
+readable and established on every incoming path. An affine source must also be
+live and whole at the observation, not merely present in the declaration table.
+
+The operation neither consumes the owner nor projects its payload. Its result
+captures that occurrence's observation; it grants no reusable equality with
+mutable storage and no payload-access refinement after intervening mutation.
+Write-only access cannot read the discriminator, even with a known-case premise.
+Each observation costs one logical operation unit, charged before execution.
+
 ## Store vocabulary
 
 An initialized primitive local uses an unrestricted, unqualified, claim-free

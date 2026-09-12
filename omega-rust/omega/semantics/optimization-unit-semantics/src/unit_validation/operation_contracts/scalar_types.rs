@@ -48,6 +48,7 @@ pub(crate) fn operation_scalar_types_match(
         | O::StructuralScalarFieldStore { value, .. } => {
             scalar(value.value) == Some(value.scalar_type)
         }
+        O::StructuralCaseMembership { result, .. } => result.scalar_type == ScalarType::Boolean,
         O::PrimitiveScalarRead { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishScalarCase { .. }

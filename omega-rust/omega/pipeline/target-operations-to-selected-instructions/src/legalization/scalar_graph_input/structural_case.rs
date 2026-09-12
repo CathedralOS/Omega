@@ -80,6 +80,66 @@ pub(in crate::legalization) fn source_owner(
     )
 }
 
+/// Resolve the exact nominal case under the independently validated root access.
+pub(in crate::legalization) fn membership_tag(
+    function: &PsiOptimizationFunction,
+    source: PlaceId,
+    case: semantic_vocabulary::StructuralCaseId,
+    plan: &AbstractOperationPlan,
+) -> Result<u32, LegalizationError> {
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    let identity = if let Ok((_, result)) = source_result(function, source) {
+        if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !result.claims.is_empty()
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+        {
+            return Err(invalid);
+        }
+        result.structural_type
+    } else {
+        let parameter = function
+            .structural_parameters
+            .iter()
+            .chain(
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.structural_parameters),
+            )
+            .find(|parameter| parameter.place == source)
+            .ok_or(invalid.clone())?;
+        if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+            || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !function.entry_claims.is_empty()
+        {
+            return Err(invalid);
+        }
+        parameter.structural_type
+    };
+    let layout = super::aggregate_results::sum_type_layout(identity, plan)?;
+    if layout.tag_byte_offset != 0
+        || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
+    {
+        return Err(invalid);
+    }
+    let declaration = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == identity)
+        .ok_or(invalid.clone())?;
+    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return Err(invalid);
+    };
+    cases
+        .iter()
+        .position(|candidate| candidate.id == case)
+        .and_then(|ordinal| u32::try_from(ordinal).ok())
+        .ok_or(invalid)
+}
+
 pub(super) fn validate(
     node: &OptimizationNode,
     function: &PsiOptimizationFunction,

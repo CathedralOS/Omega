@@ -719,6 +719,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::IeeeFloatCompare { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::BooleanStructuralField { .. }
+        | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::IntegerStructuralField { .. }
         | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ByteSequenceRead { .. }

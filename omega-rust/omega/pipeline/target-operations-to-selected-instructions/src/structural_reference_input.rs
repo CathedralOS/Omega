@@ -118,7 +118,13 @@ pub(crate) fn parameter_shape(
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && !parameter.is_self
     {
-        return primitive_array_shape(parameter.structural_type, declarations);
+        return primitive_array_shape(parameter.structural_type, declarations).or_else(|| {
+            declarations
+                .iter()
+                .find(|declaration| declaration.id == parameter.structural_type)
+                .filter(|declaration| matches!(declaration.shape, StructuralTypeShape::Sum { .. }))
+                .and_then(|_| shape(parameter.structural_type, declarations))
+        });
     }
     let referent = shape(parameter.structural_type, declarations)?;
     match (parameter.access, parameter.multiplicity) {
@@ -245,6 +251,31 @@ fn shape_inner(
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView) => {
             Some(ValueShape::integer(16, 8))
+        }
+        StructuralTypeShape::Sum { cases } => {
+            let payloads = cases
+                .iter()
+                .map(|case| {
+                    case.fields
+                        .iter()
+                        .map(|field| {
+                            if field.relevance.is_erased() {
+                                return None;
+                            }
+                            let ScalarType::Integer(integer) = field.field_type.scalar_type()?
+                            else {
+                                return None;
+                            };
+                            scalar_shape(ScalarType::Integer(integer))
+                        })
+                        .collect::<Option<Vec<_>>>()
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some(
+                calling_conventions::evaluate_conventional_sum_layout(&[], &payloads)
+                    .ok()?
+                    .shape,
+            )
         }
         StructuralTypeShape::Record { fields } => {
             let mut bytes = 0;

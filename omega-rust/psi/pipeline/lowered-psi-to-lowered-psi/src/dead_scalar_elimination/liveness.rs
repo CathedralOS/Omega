@@ -117,6 +117,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::BooleanStructuralField { .. }
+        | O::StructuralCaseMembership { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }

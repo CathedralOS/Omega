@@ -2589,6 +2589,15 @@ impl TerminalExecution {
                             TerminalScalarValue::Boolean(value),
                         );
                     }
+                    OperationKind::StructuralCaseMembership { source, case } => {
+                        let value = self.scalar_case_values.get(&source).ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
+                        )?;
+                        self.values.insert(
+                            operation.result.expect_scalar().id,
+                            TerminalScalarValue::Boolean(value.result_case == case),
+                        );
+                    }
                     OperationKind::BooleanStructuralField { source, field } => {
                         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);

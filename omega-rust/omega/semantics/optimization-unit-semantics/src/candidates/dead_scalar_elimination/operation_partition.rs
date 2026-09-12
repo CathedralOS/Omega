@@ -44,6 +44,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
         | O::PrimitiveScalarRead { .. }
+        | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::EstablishScalarArray { .. }

@@ -59,6 +59,7 @@ mod scalar_qualifications;
 mod scalar_range_invariants;
 mod structural_byte_sequence_fields;
 mod structural_byte_sequence_store;
+mod structural_case_membership;
 mod structural_operations;
 mod structural_qualification_rosters;
 mod structural_result_contracts;

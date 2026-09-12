@@ -346,6 +346,10 @@ impl LoweredDirectExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredBooleanReturnExpression {
+    StructuralCaseMembership {
+        source: PlaceId,
+        case: semantic_vocabulary::StructuralCaseId,
+    },
     PrimitiveRead {
         source: PlaceId,
     },

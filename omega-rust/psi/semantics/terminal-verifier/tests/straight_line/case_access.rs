@@ -1,6 +1,94 @@
 use super::*;
 use terminal_psi::StructuralCaseSuccessorEdge;
 
+fn membership_module(access: StructuralAccess) -> TerminalModule {
+    let mut module = dispatch_module(access);
+    let machine = &mut module.machines[0];
+    machine.blocks.truncate(1);
+    machine.blocks[0].operations.push(Operation {
+        id: OperationId::new(1).unwrap(),
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: ValueId::new(1).unwrap(),
+            scalar_type: ScalarType::Boolean,
+            qualifications: Default::default(),
+        }),
+        kind: OperationKind::StructuralCaseMembership {
+            source: machine.structural_parameters[0].place,
+            case: StructuralCaseId::new(1).unwrap(),
+        },
+    });
+    machine.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: EdgeId::new(1).unwrap(),
+        trivial_affine_discards: Vec::new(),
+    };
+    module
+}
+
+#[test]
+fn case_membership_observes_each_readable_parameter_without_consumption() {
+    for access in [
+        StructuralAccess::Owned,
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let module = membership_module(access);
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("readable membership verifies independently");
+    }
+}
+
+#[test]
+fn case_membership_rejects_write_only_access_even_with_a_refinement() {
+    let mut module = membership_module(StructuralAccess::WriteOnlyBorrow);
+    let source = module.machines[0].structural_parameters[0].place;
+    for refined in [false, true] {
+        if refined {
+            module.machines[0]
+                .contract
+                .requires
+                .push(Proposition::StructuralCaseMembership {
+                    subject: StructuralCaseSubject::new(source, Vec::new()),
+                    case: StructuralCaseId::new(1).unwrap(),
+                });
+        }
+        assert_eq!(
+            validate_module(&module).err(),
+            Some(ModuleError::StructuralObservationRequiresReadableAccess {
+                operation: OperationId::new(1).unwrap(),
+                source,
+            }),
+        );
+    }
+}
+
+#[test]
+fn case_membership_rejects_same_named_foreign_case() {
+    let mut module = membership_module(StructuralAccess::SharedBorrow);
+    let mut foreign = module.structural_types[0].clone();
+    foreign.id = StructuralTypeId::new(2).unwrap();
+    foreign.identity = "foreign::Choice".to_owned();
+    let StructuralTypeShape::Sum { cases } = &mut foreign.shape else {
+        unreachable!()
+    };
+    cases[0].id = StructuralCaseId::new(3).unwrap();
+    cases[1].id = StructuralCaseId::new(4).unwrap();
+    module.structural_types.push(foreign);
+    let OperationKind::StructuralCaseMembership { case, .. } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *case = StructuralCaseId::new(3).unwrap();
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::InvalidStructuralCaseObservation { .. }),
+    ));
+}
+
 pub(super) fn dispatch_module(access: StructuralAccess) -> TerminalModule {
     let mut module = unit_module();
     let structural_type = StructuralTypeId::new(1).expect("sum type");

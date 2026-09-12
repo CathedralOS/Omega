@@ -1,5 +1,5 @@
 use super::*;
-use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::{IntegerValue, ScalarType};
 mod aggregate_results;
 pub(super) fn validate(
     actual: &LegalizedScalarInstruction,
@@ -48,7 +48,8 @@ pub(super) fn validate(
             _,
             AbstractOperation::CallStructural { .. }
             | AbstractOperation::EstablishScalarArray { .. }
-            | AbstractOperation::EstablishScalarCase { .. },
+            | AbstractOperation::EstablishScalarCase { .. }
+            | AbstractOperation::StructuralCaseMembership { .. },
         ) => {
             aggregate_results::validate(actual, node, optimized, native, plan, unit)?;
         }

@@ -223,6 +223,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
         | O::PrimitiveScalarRead { .. }
+        | O::StructuralCaseMembership { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceSubslice { .. }

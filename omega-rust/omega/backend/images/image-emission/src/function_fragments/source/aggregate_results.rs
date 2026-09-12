@@ -54,6 +54,18 @@ pub(super) fn operation(
 ) -> bool {
     let graph = &target.graph;
     match source {
+        AbstractOperation::StructuralCaseMembership { psi_operation, result, source, case } => {
+            result.scalar_type == semantic_vocabulary::ScalarType::Boolean
+                && graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                    TargetUnitOperation::StructuralCaseMembership { psi_operation: retained, result: retained_result, source: retained_source, case: retained_case, .. }
+                    if retained == psi_operation && retained_result == result && retained_source == source && retained_case == case
+                )).count() == 1
+                && selected.blocks.iter().flat_map(|block| &block.instructions).filter(|row|
+                    row.provenance.operations == [*psi_operation] && row.provenance.values == [result.value]
+                        && matches!(row.kind, selected_instructions::SelectedInstructionKind::Load32 { byte_offset: 0 }
+                            | selected_instructions::SelectedInstructionKind::ZeroExtendU32)
+                ).count() == 1
+        }
         AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
                 TargetUnitOperation::EstablishScalarArray { psi_operation: retained, result_home, elements: retained_elements }

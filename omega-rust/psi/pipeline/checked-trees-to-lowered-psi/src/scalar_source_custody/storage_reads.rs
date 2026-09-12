@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod case_membership;
+
 #[cfg(test)]
 mod tests;
 
@@ -88,6 +90,7 @@ pub(crate) fn validate_expression(
         .collect::<Vec<_>>();
     let namespace = ReadNamespace {
         scalar: namespace,
+        structural: checked.state_parameters(state),
         owned_field_paths: member_paths,
         owned: checked
             .state_parameters(state)
@@ -139,12 +142,17 @@ enum ReadKind {
     Parameter,
     Local,
     OwnedField(Vec<checked_trees::CheckedStructuralPredicatePathSegment>),
+    CaseMembership {
+        path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+        case: String,
+    },
 }
 
 type StorageReadOccurrence = (Vec<usize>, symbols::SymbolHandle, PrimitiveType, ReadKind);
 
-struct ReadNamespace {
+struct ReadNamespace<'checked> {
     scalar: Vec<symbols::SymbolHandle>,
+    structural: &'checked [checked_trees::signature::StateParameter],
     owned_field_paths: Vec<Vec<usize>>,
     // Structural positions are authored positions, including scalar formals.
     owned: Vec<symbols::SymbolHandle>,
@@ -394,6 +402,19 @@ fn collect_authored_storage_reads(
         return unsupported("scalar storage source contains a stale or cyclic expression");
     }
     active.push(expression);
+    if let Some((subject, case)) = case_membership::authored(checked, state, expression)? {
+        reads.push((
+            path.clone(),
+            subject,
+            PrimitiveType::Bool,
+            ReadKind::CaseMembership {
+                path: Vec::new(),
+                case,
+            },
+        ));
+        active.pop();
+        return Ok(());
+    }
     match checked.expression_table.expression(expression) {
         ExpressionNode::Match(_) => {
             return unsupported("scalar dispatch requires selective computation source custody");
@@ -636,10 +657,24 @@ fn collect_boolean_storage_reads(
                 reads,
             );
         }
+        CheckedBooleanExpression::StructuralCaseMembership { subject, case } => {
+            reads.push((
+                path.clone(),
+                namespace
+                    .structural
+                    .get(subject.parameter_position as usize)
+                    .map(|parameter| parameter.symbol)
+                    .unwrap_or_default(),
+                PrimitiveType::Bool,
+                ReadKind::CaseMembership {
+                    path: subject.path.clone(),
+                    case: case.clone(),
+                },
+            ));
+        }
         CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
-        | CheckedBooleanExpression::StructuralCaseMembership { .. } => {}
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {}
     }
 }

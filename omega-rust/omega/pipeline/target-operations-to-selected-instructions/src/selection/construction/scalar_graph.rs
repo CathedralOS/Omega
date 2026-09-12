@@ -271,6 +271,9 @@ pub(super) fn build_with_environment(
                     LegalizedScalarInstructionKind::IeeeFloatCompare { .. } => {
                         ieee_comparison::emit(operation, &mut builder)?
                     }
+                    LegalizedScalarInstructionKind::StructuralCaseMembership { .. } => {
+                        structural::observe(source, &mut builder, operation)?
+                    }
                     LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
                         structural::read(source, &mut builder, operation)?
                     }

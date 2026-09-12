@@ -2395,8 +2395,9 @@ fn checked_boolean_scalar_term_from_lowered(
     values: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
     match expression {
-        LoweredBooleanReturnExpression::PrimitiveRead { .. } => {
-            unsupported("primitive storage read requires an occurrence-bound crash predicate")
+        LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. } => {
+            unsupported("storage observation requires an occurrence-bound crash predicate")
         }
         LoweredBooleanReturnExpression::Constant { value } => Ok(ScalarTerm::boolean(*value)),
         LoweredBooleanReturnExpression::Parameter { position }

@@ -69,6 +69,37 @@ pub(crate) fn validate_structural_root_operations(
                 structural_types,
             )?;
             match &node.operation {
+                O::StructuralCaseMembership {
+                    source,
+                    case,
+                    result,
+                    ..
+                } => {
+                    let signature = crate::unit_validation::structural_source_contract(
+                        function, *source, false,
+                    );
+                    let valid = result.scalar_type == ScalarType::Boolean
+                        && signature.is_some_and(|signature| {
+                            signature.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+                                && structural_types
+                                    .get(&signature.structural_type)
+                                    .is_some_and(|declaration| match &declaration.shape {
+                                        terminal_psi::StructuralTypeShape::Sum { cases }
+                                        | terminal_psi::StructuralTypeShape::Mixed {
+                                            cases, ..
+                                        } => cases.iter().any(|candidate| candidate.id == *case),
+                                        _ => false,
+                                    })
+                        });
+                    if !valid {
+                        return Err(
+                            OptimizationUnitValidationError::InvalidStructuralCaseDispatch {
+                                machine: function.machine,
+                                source: *source,
+                            },
+                        );
+                    }
+                }
                 O::ByteSequenceSubslice { source, .. }
                 | O::ByteSequenceLength { source, .. }
                 | O::ByteSequenceRead { source, .. } => {

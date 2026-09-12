@@ -123,7 +123,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 88;
+const FORMAT_MARKER: u16 = 89;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1120,6 +1120,15 @@ fn validate_operation_foundation(
             if operation.result != OperationResult::Unit {
                 return malformed("byte-sequence write requires a Unit result");
             }
+        }
+        OperationKind::StructuralCaseMembership { .. } => {
+            if operation.result.scalar().is_none_or(|result| {
+                result.scalar_type != ScalarType::Boolean || !result.qualifications.is_empty()
+            }) {
+                return malformed("case membership requires an unqualified Boolean result");
+            }
+            // Full module validation independently checks the source's nominal
+            // owner, readable access, establishment order and live custody.
         }
         OperationKind::ByteSequenceRead { .. } => {
             let expected = ScalarType::Integer(

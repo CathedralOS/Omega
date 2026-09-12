@@ -70,7 +70,7 @@ impl Evaluation {
             .with_primitive_storage(&self.primitive_storage)
             .with_array_locals(&self.array_locals)
             .with_structural_parameters(&self.structural_parameters)
-            .with_resolved_structural_fields(&self.structural_fields);
+            .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
         let qualifications = prepare_shared_qualifications(checked, machine, values)?;
         let source_types = values
             .iter()

@@ -31,6 +31,7 @@ pub(crate) fn expected_definitions(
         | O::CallStoredDynamicScalar { result, .. }
         | O::CallDynamicParameterScalar { result, .. }
         | O::PrimitiveScalarRead { result, .. }
+        | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }
         | O::ByteSequenceLength { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),

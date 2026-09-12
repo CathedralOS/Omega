@@ -60,6 +60,8 @@ mod affine_identity_calls;
 mod boundary_borrows;
 #[path = "unit/bounded_fields.rs"]
 mod bounded_fields;
+#[path = "unit/case_membership.rs"]
+mod case_membership;
 #[path = "unit/scalar_arrays.rs"]
 mod scalar_arrays;
 #[path = "unit/scalar_cases.rs"]

@@ -231,6 +231,7 @@ pub(super) fn validate(
                     && source_value == value
                     && cleanup_actions == expected_cleanup
                     && (cleanup_actions.is_empty()
+                        || super::super::aggregate_results::cleanup(optimized, cleanup_actions)
                         || (super::super::unobserved_owned::body(optimized)
                             && super::super::unobserved_owned::cleanup(optimized, cleanup_actions)))
                     && available.iter().any(|(identity, source)| {

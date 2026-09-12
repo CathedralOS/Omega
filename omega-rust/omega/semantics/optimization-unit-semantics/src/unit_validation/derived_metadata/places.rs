@@ -169,6 +169,7 @@ pub(crate) fn validate_operation_places(
             }
         }
         O::PrimitiveScalarRead { source, .. }
+        | O::StructuralCaseMembership { source, .. }
         | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceWrite {

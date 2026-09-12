@@ -377,6 +377,7 @@ fn operation_effect(
         O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
         | O::PrimitiveScalarRead { .. }
+        | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::StructuralScalarFieldStore { .. }

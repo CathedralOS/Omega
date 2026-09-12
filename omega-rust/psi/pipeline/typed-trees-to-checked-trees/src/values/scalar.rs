@@ -28,6 +28,7 @@ mod array_constructions;
 pub(crate) use array_constructions::{CallArrayConstruction, call_array_constructions};
 pub(crate) use call_arguments::is_scalar_return_call;
 mod call_arguments;
+mod case_membership;
 mod computations;
 mod constant_array_projection;
 mod primitive_reference_read;
@@ -3343,6 +3344,9 @@ fn lower_boolean_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
+    if let Some(membership) = case_membership::lower(program, authored_parameters, expression) {
+        return Some(membership);
+    }
     if let Some(leaf) = constant_array_projection::selected_leaf(
         program,
         operators,

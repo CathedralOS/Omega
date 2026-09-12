@@ -159,6 +159,9 @@ pub(in crate::selection) fn validate_with_environment(
                     LegalizedScalarInstructionKind::IeeeFloatCompare { .. } => {
                         ieee_comparison::validate(operation, &mut replay)?
                     }
+                    LegalizedScalarInstructionKind::StructuralCaseMembership { .. } => {
+                        structural::observe(source, &mut replay, operation)?
+                    }
                     LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
                         structural::read(source, &mut replay, operation)?
                     }

@@ -450,6 +450,17 @@ Mutable-to-write-only attenuation preserves root access and independently
 records the callee's weaker access. Shared projections preserve unrestricted
 multiplicity and cannot originate from write-only roots.
 
+Whole borrowed sum parameters support runtime `in` observations through ordinary
+scalar completion, including Boolean locals and Boolean composition. Checked
+source replay retains the authored subject and case; Terminal records a
+non-consuming `StructuralCaseMembership` operation. It does not grant a durable
+fact about later mutable contents. Canonical interpretation also observes
+established scalar-case values without consuming their payload or owner. Native
+realization currently follows the existing scalar-field sum layout; mixed
+common-field sums remain outside that native layout route. Direct and local
+constructor operands still need ordinary intermediate-value sequencing in the
+source producer; return-only `ReturnCase` planning does not supply it.
+
 Ordinary Unit helpers retain borrowed `self` when checked scalar operands read
 its fields, including through computed arguments. Attachment metadata cannot
 supply the referent. Helpers without runtime receiver reads keep their existing

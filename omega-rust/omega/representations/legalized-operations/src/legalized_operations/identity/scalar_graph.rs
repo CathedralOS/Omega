@@ -132,6 +132,16 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&value.value.get().to_le_bytes());
                     encode_scalar_type(bytes, value.scalar_type);
                 }
+                LegalizedScalarInstructionKind::StructuralCaseMembership {
+                    source,
+                    case,
+                    case_tag,
+                } => {
+                    bytes.push(24);
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                    bytes.extend_from_slice(&case.get().to_le_bytes());
+                    bytes.extend_from_slice(&case_tag.to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::PrimitiveScalarRead { source } => {
                     bytes.push(18);
                     bytes.extend_from_slice(&source.get().to_le_bytes());

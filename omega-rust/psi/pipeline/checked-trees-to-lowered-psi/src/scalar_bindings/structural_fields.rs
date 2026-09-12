@@ -14,22 +14,6 @@ pub(crate) struct StructuralScalarFieldBinding {
     pub scalar_type: ScalarType,
 }
 
-impl ScalarBindings {
-    pub(crate) fn with_structural_fields(mut self, types: &[StructuralTypeDeclaration]) -> Self {
-        self.structural_fields =
-            StructuralScalarFieldBinding::collect(&self.structural_parameters, types);
-        self
-    }
-
-    pub(crate) fn with_resolved_structural_fields(
-        mut self,
-        fields: &[StructuralScalarFieldBinding],
-    ) -> Self {
-        self.structural_fields = fields.to_vec();
-        self
-    }
-}
-
 impl StructuralScalarFieldBinding {
     pub(crate) fn collect(
         parameters: &[(u32, StructuralParameterDeclaration)],

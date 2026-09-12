@@ -3,6 +3,104 @@ use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
 
+/// Reconstruct nominal tag identity from the retained readable root contract.
+/// This lookup establishes shape and layout, not occurrence liveness: optimized
+/// ownership/dominance replay and exact legalized-source replay remain required.
+pub(super) fn membership_tag(
+    source: &LegalizedScalarFunction,
+    place: semantic_vocabulary::PlaceId,
+    case: semantic_vocabulary::StructuralCaseId,
+) -> Option<u32> {
+    let signature = source.structural.as_ref()?;
+    let parameter = signature
+        .parameters
+        .iter()
+        .map(|parameter| &parameter.semantic)
+        .chain(
+            source
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == place);
+    let identity = if let Some(parameter) = parameter {
+        if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+            || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !signature.entry_claims.is_empty()
+        {
+            return None;
+        }
+        parameter.structural_type
+    } else {
+        let mut producers = source
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter_map(|row| {
+                let result = match &row.kind {
+                    LegalizedScalarInstructionKind::EstablishScalarCase { result, .. }
+                    | LegalizedScalarInstructionKind::HostedReadByte { result, .. } => result,
+                    LegalizedScalarInstructionKind::Call(call) => {
+                        call.structural_result.as_ref()?
+                    }
+                    _ => return None,
+                };
+                (result.place == place).then_some((row.operation, result))
+            });
+        let (operation, result) = producers.next()?;
+        if producers.next().is_some()
+            || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !result.claims.is_empty()
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !signature.structural_places.iter().any(|declared| {
+                declared.id == place
+                    && declared.kind
+                        == semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                            producer: operation,
+                            structural_type: result.structural_type,
+                        }
+            })
+        {
+            return None;
+        }
+        result.structural_type
+    };
+    let declaration = signature
+        .structural_types
+        .iter()
+        .find(|declared| declared.id == identity)?;
+    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return None;
+    };
+    let payloads = cases
+        .iter()
+        .map(|case| {
+            case.fields
+                .iter()
+                .map(|field| {
+                    if field.relevance.is_erased() {
+                        return None;
+                    }
+                    super::scalar_call_abi::scalar_shape(field.field_type.scalar_type()?)
+                })
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let layout = calling_conventions::evaluate_conventional_sum_layout(&[], &payloads).ok()?;
+    if layout.tag_byte_offset != 0
+        || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
+    {
+        return None;
+    }
+    cases
+        .iter()
+        .position(|candidate| candidate.id == case)
+        .and_then(|ordinal| u32::try_from(ordinal).ok())
+}
+
 /// These places are created inside the graph, not copied from incoming parameters.
 /// Each constructor/call and its complete storage is checked at its instruction.
 pub(super) fn has_local_aggregates(source: &LegalizedScalarFunction) -> bool {

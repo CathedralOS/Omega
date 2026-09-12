@@ -53,7 +53,8 @@ pub(super) fn is_structural_boolean_return_expression(
             path.len() == 1
         }
         LoweredBooleanReturnExpression::StructuralField { .. } => true,
-        LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
+        LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
         LoweredBooleanReturnExpression::Local { position } => {
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)
@@ -155,7 +156,8 @@ pub(super) fn is_branch_free_structural_boolean_expression(
             path.len() == 1
         }
         LoweredBooleanReturnExpression::StructuralField { .. } => true,
-        LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
+        LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
         LoweredBooleanReturnExpression::Local { position } => {
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)
@@ -191,6 +193,7 @@ pub(super) fn boolean_local_reference_count(
                 .saturating_add(boolean_local_reference_count(right, local))
         }
         LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
@@ -230,6 +233,7 @@ pub(super) fn inline_boolean_local(
         expression @ (LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField {
             ..

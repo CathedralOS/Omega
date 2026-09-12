@@ -289,6 +289,7 @@ pub(crate) fn emit_call_leaf(
         primitive_storage: Vec::new(),
         scalar_bindings: None,
         structural_fields: Vec::new(),
+        structural_cases: Vec::new(),
         structural_parameters: Vec::new(),
         entry: block,
         current: block,

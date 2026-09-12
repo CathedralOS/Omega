@@ -6,6 +6,62 @@ use target_operations::{
     TargetScalarBlockValue,
 };
 
+pub(super) fn observe(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
+    live: &mut LiveDefinitions,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let AbstractOperation::StructuralCaseMembership {
+        psi_operation,
+        result,
+        source,
+        case,
+    } = operation
+    else {
+        return Err(invalid());
+    };
+    let identity = if let Some(home) = live.structural_homes.get(source) {
+        home.structural_type()
+    } else {
+        let parameter = prepared
+            .parameters
+            .iter()
+            .find(|parameter| parameter.place == *source)
+            .ok_or_else(invalid)?;
+        if parameter.access == StructuralAccess::WriteOnlyBorrow {
+            return Err(invalid());
+        }
+        parameter.structural_type
+    };
+    let declaration = types.get(&identity).ok_or_else(invalid)?;
+    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return Err(invalid());
+    };
+    let case_tag = cases
+        .iter()
+        .position(|candidate| candidate.id == *case)
+        .and_then(|ordinal| u32::try_from(ordinal).ok())
+        .ok_or_else(invalid)?;
+    if result.scalar_type != ScalarType::Boolean {
+        return Err(invalid());
+    }
+    super::primitive_storage::retain_result(*psi_operation, *result, live)?;
+    operations.push(TargetUnitOperation::StructuralCaseMembership {
+        psi_operation: *psi_operation,
+        result: *result,
+        source: *source,
+        case: *case,
+        case_tag,
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}
+
 pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,

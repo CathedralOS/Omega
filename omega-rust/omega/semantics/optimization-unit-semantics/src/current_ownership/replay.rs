@@ -28,7 +28,9 @@ pub(super) fn validate_current_ownership_cfg(
             let node_index =
                 u32::try_from(node_index).expect("optimization-unit node position fits u32");
 
-            if let O::StructuralCase { source, .. } = &node.operation {
+            if let O::StructuralCase { source, .. } | O::StructuralCaseMembership { source, .. } =
+                &node.operation
+            {
                 let signature =
                     crate::unit_validation::structural_source_contract(function, *source, false)
                         .ok_or(

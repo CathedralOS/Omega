@@ -979,6 +979,40 @@ fn validate_owned_reads(
     operation: &terminal_psi::Operation,
     frontier: &StructuralOwnershipFrontier,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::StructuralCaseMembership { source, .. } = operation.kind {
+        let borrowed = machine
+            .structural_parameters
+            .iter()
+            .chain(
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.structural_parameters),
+            )
+            .any(|parameter| {
+                parameter.place == source && parameter.access != StructuralAccess::Owned
+            });
+        if !borrowed
+            && let Some(signature) =
+                super::structural_result_contracts::source_signature(machine, source)
+            && signature.multiplicity != StructuralMultiplicity::Unrestricted
+        {
+            if frontier.owned_places.get(&source) != Some(&signature.multiplicity) {
+                return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                    operation: operation.id,
+                    place: source,
+                });
+            }
+            if frontier.partial_custody_paths.contains_key(&source) {
+                return Err(
+                    ModuleError::PartiallyMovedStructuralPlaceUsedWholeAtOperation {
+                        operation: operation.id,
+                        place: source,
+                    },
+                );
+            }
+        }
+    }
     let arguments = match &operation.kind {
         OperationKind::CallUnit {
             structural_arguments,

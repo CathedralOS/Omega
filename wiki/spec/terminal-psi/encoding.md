@@ -52,6 +52,12 @@ operation follows FloatSemantics, including unordered NaN comparisons and equal
 signed zeros; it does not assert mathematical equality facts. Source selection
 and provider realization custody remain separate from these portable semantics.
 
+Case membership uses operation tag 66, followed by the whole source place
+identity and exact structural case identity. Its ordinary operation result is
+an unqualified Boolean. Decoding and verification reconstruct readable access,
+nominal case ownership, dominance and current ownership; no payload projection
+or reusable mutable-storage equation is encoded by this observation.
+
 The semantic scalar-range-invariant roster precedes the machine table. Rows
 are strictly ordered by `(machine, header, parameter)` and encode those three
 identities, the integer carrier, inclusive minimum and maximum, and a counted
