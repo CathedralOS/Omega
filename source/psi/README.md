@@ -62,6 +62,11 @@ codepoint escapes or raw strings. Both maintained lexers reject all retired
 XID, `\u{...}`, raw-string, Unicode-whitespace, and raw quoted-newline spellings
 through the same profile diagnostic; no compiler source may depend on them.
 
+The parser entrance is [`parse/parser.omg`](parse/parser.omg): it owns `Parser`,
+initialization, and whole-file root dispatch. [`parse/input.omg`](parse/input.omg)
+owns bounded token selection and trivia traversal;
+[`parse/data.omg`](parse/data.omg) owns data-declaration grammar.
+
 ## Retention inventory
 
 | Retained child | Product role | Deletion or absorption condition |

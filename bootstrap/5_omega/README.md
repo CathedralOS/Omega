@@ -282,7 +282,7 @@ through the same syntax. Path-valued casts complete
 initializers completes `Lexer::span_equals`; the three Parser roots that use the
 same form advance to qualified token-pattern guards. Retaining qualified case
 paths, shorthand bindings, and fixed path matches then completes `Main::main`,
-`Lexer::digit_in_base`, and `Parser::{parse_data,skip_trivia,parse_roots}`. The
+`Lexer::digit_in_base`, and `Parser::{parse_data,skip_trivia,parse}`. The
 shared grouping and multiplicative reducer then completes
 `Lexer::{decode_at,lex_cooked_string}`. Recursive logical-not retention completes
 `Lexer::lex_number`. The sixteen external leaves are the four

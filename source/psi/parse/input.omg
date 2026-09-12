@@ -1,4 +1,4 @@
-use psi::parse::owner;
+use psi::parse::parser;
 use psi::tokens::tokens;
 
 machine Parser::initialize_cursor(&mut self) {
