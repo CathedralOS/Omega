@@ -46,6 +46,25 @@ authority. Omega's coordinator owns the
 [ordered settlement boundary](../../../omega/compiler/compiler/checked_settlement.md)
 outside this crate.
 
+Ordinary multi-tuple machine specialization appends additional instances before
+rewriting the authored first tuple. Its input remains in the live program;
+only selected expression, type, and statement graphs pass through temporary
+cross-table copying storage. Selected call-site rewrites wait until all copies
+finish, including sites owned by the template. Receipt order remains first
+tuple followed by additional instances. Separate saved operator-provider
+templates retain their existing distinct-source path.
+
+This removes the per-template whole-program snapshot, not all copying or
+whole-program scans. Selected graphs are copied through staging and then into
+their destination; generated names and evidence still allocate. Shared source
+payloads retain their existing owners. The manual `specialization_allocations`
+example counts successful allocation/reallocation requests and requested bytes
+during complete static specialization, excluding input construction/cloning.
+It varies demanded templates and unrelated machines and checks exact repeated
+output and allocation counts. It does not measure peak memory or speedup.
+Run `cargo run -p typed-trees-to-checked-trees --example specialization_allocations`
+(or use `mbx run` when available).
+
 ## Flow, ranges, and progress
 
 Computed scalar tags enter flow after expression effects and result joins, using
