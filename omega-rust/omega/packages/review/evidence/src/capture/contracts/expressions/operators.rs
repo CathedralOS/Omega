@@ -71,9 +71,9 @@ pub(crate) fn exact_checked_contract_operator_meaning(
 
 pub(crate) const fn project_contract_binary_operator(
     operator: typed_trees::expression::BinaryOperator,
-) -> PackageReviewContractBinaryOperator {
+) -> Option<PackageReviewContractBinaryOperator> {
     use typed_trees::expression::BinaryOperator;
-    match operator {
+    Some(match operator {
         BinaryOperator::Add => PackageReviewContractBinaryOperator::Add,
         BinaryOperator::And => PackageReviewContractBinaryOperator::And,
         BinaryOperator::BitwiseAnd => PackageReviewContractBinaryOperator::BitwiseAnd,
@@ -92,7 +92,10 @@ pub(crate) const fn project_contract_binary_operator(
         BinaryOperator::ShiftLeft => PackageReviewContractBinaryOperator::ShiftLeft,
         BinaryOperator::ShiftRight => PackageReviewContractBinaryOperator::ShiftRight,
         BinaryOperator::Subtract => PackageReviewContractBinaryOperator::Subtract,
-    }
+        // The review vocabulary does not yet carry a nominal tag operation.
+        // Encoding it as value equality would erase payload-vs-tag meaning.
+        BinaryOperator::CaseMembership => return None,
+    })
 }
 
 pub(crate) const fn project_contract_unary_operator(
@@ -105,5 +108,23 @@ pub(crate) const fn project_contract_unary_operator(
         typed_trees::expression::UnaryOperator::LogicalNot => {
             PackageReviewContractUnaryOperator::LogicalNot
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nominal_tag_observation_cannot_be_reviewed_as_value_equality() {
+        use typed_trees::expression::BinaryOperator;
+        assert_eq!(
+            project_contract_binary_operator(BinaryOperator::CaseMembership),
+            None
+        );
+        assert_eq!(
+            project_contract_binary_operator(BinaryOperator::Equal),
+            Some(PackageReviewContractBinaryOperator::Equal)
+        );
     }
 }

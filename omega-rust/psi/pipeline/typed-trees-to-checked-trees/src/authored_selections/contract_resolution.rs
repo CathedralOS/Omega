@@ -146,7 +146,8 @@ fn checked_spelled_operator_resolution(
         | BinaryOperator::BitwiseXor
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight => return None,
+        | BinaryOperator::ShiftRight
+        | BinaryOperator::CaseMembership => return None,
     };
     let operand_types = [
         checked_operand_type(program, facts, expression, binary.left),

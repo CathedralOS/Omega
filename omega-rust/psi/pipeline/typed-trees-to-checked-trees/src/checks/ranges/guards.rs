@@ -201,7 +201,8 @@ fn seed_binary_guard_facts(
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight
-        | BinaryOperator::Subtract => {}
+        | BinaryOperator::Subtract
+        | BinaryOperator::CaseMembership => {}
     }
 }
 

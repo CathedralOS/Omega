@@ -549,6 +549,7 @@ fn binary_operator_spelling(
         | BinaryOperator::BitwiseXor
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight => return None,
+        | BinaryOperator::ShiftRight
+        | BinaryOperator::CaseMembership => return None,
     })
 }

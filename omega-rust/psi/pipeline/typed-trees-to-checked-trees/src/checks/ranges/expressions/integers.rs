@@ -114,6 +114,7 @@ pub(in crate::checks::ranges) fn folded_integer_binary(
         | BinaryOperator::NotEqual
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight => None,
+        | BinaryOperator::ShiftRight
+        | BinaryOperator::CaseMembership => None,
     }
 }

@@ -26,9 +26,14 @@ pub(super) fn project_operator_form(
             })
         })()),
         ExpressionNode::Binary(binary) => Some((|| {
+            let operator = project_contract_binary_operator(binary.operator).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "package contract review does not yet support case-membership operations",
+                )]
+            })?;
             Ok(PackageReviewContractExpression::Binary {
                 meaning: exact_checked_contract_operator_meaning(compilation, context, expression)?,
-                operator: project_contract_binary_operator(binary.operator),
+                operator,
                 left: Box::new(child(binary.left)?),
                 right: Box::new(child(binary.right)?),
             })

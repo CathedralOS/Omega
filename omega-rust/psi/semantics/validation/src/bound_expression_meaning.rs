@@ -1,6 +1,8 @@
 //! Guard facts and build-time execution require the current node's builtin
-//! meaning. Typed case membership shares equality's shape, so its exact case
-//! selections must be distinguished from authored value-operator selections.
+//! meaning. Authored case membership retains its selections on an equality
+//! node; structural synthesis instead retains an explicit CaseMembership
+//! operation. Both must rejoin the exact nominal subject and case classifier,
+//! rather than treating a payload-bearing classifier as a constructor value.
 
 use crate::places::declared_place_type_raw;
 use language_core::OperatorSpelling;
@@ -72,6 +74,9 @@ pub fn has_builtin_binary_expression_meaning(
         return false;
     };
     match binary.operator {
+        BinaryOperator::CaseMembership => {
+            has_exact_case_membership_meaning(program, machine, state, expression, binary)
+        }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
             builtin_boolean_equality(program, machine, state, expression, binary)
         }
@@ -194,9 +199,9 @@ pub(super) fn builtin_boolean_equality(
     )
 }
 
-/// Rejoin a retained case-membership occurrence with its exact subject and
-/// carrier. This distinguishes tag observation from ordinary value equality;
-/// it does not admit the operands or their declarations.
+/// Rejoin authored or explicitly generated case membership with its exact
+/// subject and carrier. This distinguishes tag observation from ordinary value
+/// equality; it does not admit the operands or their declarations.
 pub fn has_exact_case_membership_meaning(
     program: &TypedTrees,
     machine: &Machine,
@@ -204,7 +209,18 @@ pub fn has_exact_case_membership_meaning(
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
-    if comparison.operator != BinaryOperator::Equal {
+    if !program.expression_table.expression_is_valid(expression)
+        || !program
+            .expression_table
+            .expression_is_valid(comparison.left)
+        || !program
+            .expression_table
+            .expression_is_valid(comparison.right)
+        || !matches!(
+            comparison.operator,
+            BinaryOperator::Equal | BinaryOperator::CaseMembership
+        )
+    {
         return false;
     }
     let Some(owner) = exact_case_reference_owner(program, comparison.right) else {
@@ -212,6 +228,13 @@ pub fn has_exact_case_membership_meaning(
     };
     if !membership_subject_matches_owner(program, machine, state, comparison.left, owner) {
         return false;
+    }
+    // Structural synthesis has an explicit tag operation, not an authored
+    // membership occurrence. Its meaning follows from that operation and the
+    // independently checked subject/carrier/case relationship above. Plain
+    // equality still needs the complete authored membership roster below.
+    if comparison.operator == BinaryOperator::CaseMembership {
+        return true;
     }
     let ExpressionNode::Name(case) = program.expression_table.expression(comparison.right) else {
         return false;
@@ -245,13 +268,17 @@ pub fn has_exact_case_membership_meaning(
     has_owner && has_case
 }
 
-// A namespace root names a declaration, not runtime storage. Rejoin the entire
-// retained chain here; authored selection and import visibility remain separate
-// source-authority checks. Payload/default obligations apply only in value roles.
-pub(crate) fn exact_case_reference_owner(
+/// Rejoin a case classifier's complete retained namespace/carrier/case chain.
+/// A namespace root names a declaration, not runtime storage. Authored selection
+/// and import visibility remain separate source-authority checks; payload and
+/// default obligations apply only when the expression is used as a value.
+pub fn exact_case_reference_owner(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<&DataDefinition> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
     let ExpressionNode::Name(case) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -310,6 +337,37 @@ fn membership_subject_matches_owner(
     // case's type as evidence for an otherwise unknown subject. Field
     // construction and default-domain obligations remain separate checks.
     match program.expression_table.expression(subject) {
+        ExpressionNode::Name(path)
+            if path.symbol == machine.symbol && path.head_symbol == machine.symbol =>
+        {
+            // Attached `self` is rooted at the machine symbol, not the entry
+            // parameter symbol. Rejoin that exact owner; its diagnostic name
+            // alone cannot authorize a foreign receiver's tag observation.
+            return machine.symbol.is_valid()
+                && machine.attached_data_symbol == owner.symbol
+                && matches!(program.expression_table.name_path_members(path.members),
+                    [name] if name.as_str() == "self")
+                && program
+                    .expression_table
+                    .name_path_member_symbols(path.member_symbols)
+                    == [machine.symbol]
+                && state.map_or_else(
+                    || {
+                        program.machine_states(machine).iter().any(|state| {
+                            program
+                                .state_parameters(state)
+                                .iter()
+                                .any(|parameter| parameter.is_self)
+                        })
+                    },
+                    |state| {
+                        program
+                            .state_parameters(state)
+                            .iter()
+                            .any(|parameter| parameter.is_self)
+                    },
+                );
+        }
         ExpressionNode::StructLiteral(literal) => {
             return literal.type_symbol == owner.symbol
                 && program.data_members(owner).iter().any(|member| {

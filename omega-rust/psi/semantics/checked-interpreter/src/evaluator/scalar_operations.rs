@@ -579,6 +579,7 @@ impl<'program> Evaluator<'program> {
             LessOrEqual => Value::Bool(l <= r),
             Greater => Value::Bool(l > r),
             GreaterOrEqual => Value::Bool(l >= r),
+            CaseMembership => return trap("case membership requires its retained classifier"),
             Equal | NotEqual | And | Or => unreachable!("handled earlier"),
         })
     }
@@ -671,6 +672,7 @@ impl<'program> Evaluator<'program> {
             }
             Equal => Value::Bool(FloatSemantics::equal(&left, &right)),
             NotEqual => Value::Bool(!FloatSemantics::equal(&left, &right)),
+            CaseMembership => return trap("case membership requires a nominal sum subject"),
             And | Or => unreachable!("logical operations have Boolean operands"),
         })
     }

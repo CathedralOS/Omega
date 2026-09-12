@@ -789,6 +789,7 @@ fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle
         ExpressionNode::Match(_) => false,
         ExpressionNode::Atomic(atomic) => is_boolean_fact_expression(program, atomic.value),
         ExpressionNode::Binary(binary) => match binary.operator {
+            BinaryOperator::CaseMembership => true,
             BinaryOperator::And
             | BinaryOperator::Equal
             | BinaryOperator::Greater

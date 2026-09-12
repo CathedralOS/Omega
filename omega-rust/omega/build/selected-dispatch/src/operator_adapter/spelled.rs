@@ -154,7 +154,8 @@ fn binary_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
         | BinaryOperator::BitwiseXor
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight => return None,
+        | BinaryOperator::ShiftRight
+        | BinaryOperator::CaseMembership => return None,
     })
 }
 

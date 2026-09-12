@@ -283,6 +283,7 @@ fn expression_primitive(
         }),
         ExpressionNode::Boolean(_) => Some(PrimitiveType::Bool),
         ExpressionNode::Binary(binary) => match binary.operator {
+            BinaryOperator::CaseMembership => Some(PrimitiveType::Bool),
             BinaryOperator::Equal
             | BinaryOperator::NotEqual
             | BinaryOperator::Less

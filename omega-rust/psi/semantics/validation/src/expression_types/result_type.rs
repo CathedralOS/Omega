@@ -243,7 +243,8 @@ fn binary_result(
         LessOrEqual => Some(OperatorSpelling::LessEqual),
         Greater => Some(OperatorSpelling::Greater),
         GreaterOrEqual => Some(OperatorSpelling::GreaterEqual),
-        And | Or | BitwiseAnd | BitwiseOr | BitwiseXor | ShiftLeft | ShiftRight => None,
+        And | Or | BitwiseAnd | BitwiseOr | BitwiseXor | ShiftLeft | ShiftRight
+        | CaseMembership => None,
     };
     // Unknown operands stay unknown during selection. Substituting the known
     // peer first could hide a heterogeneous or reference-typed declaration.
@@ -280,6 +281,11 @@ fn binary_result(
         return Some(result);
     }
     match binary.operator {
+        CaseMembership => crate::bound_expression_meaning::has_exact_case_membership_meaning(
+            program, machine, None, expression, binary,
+        )
+        .then(|| builtin_reference(program, BuiltinTypeAtom::Bool))
+        .flatten(),
         And | Or => operands
             .into_iter()
             .all(|reference| {

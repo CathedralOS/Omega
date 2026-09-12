@@ -2681,6 +2681,11 @@ pub enum BinaryOperator {
     ShiftLeft,
     ShiftRight,
     Subtract,
+    /// Observe the subject's case tag, not value equality or construction.
+    /// Structural equality synthesis uses this operation because generated tag
+    /// tests have no authored membership occurrence. The right operand names
+    /// an exact case; consumers must validate its carrier against the subject.
+    CaseMembership,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

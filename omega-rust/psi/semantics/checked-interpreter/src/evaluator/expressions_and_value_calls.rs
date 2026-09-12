@@ -3,6 +3,10 @@ use super::*;
 #[path = "expressions_and_value_calls/match_dispatch.rs"]
 mod match_dispatch;
 
+#[cfg(test)]
+#[path = "expressions_and_value_calls/case_membership_tests.rs"]
+mod case_membership_tests;
+
 impl<'program> Evaluator<'program> {
     pub(super) fn eval_expression(
         &mut self,
@@ -107,6 +111,9 @@ impl<'program> Evaluator<'program> {
                 self.eval_unary(unary.operator, operand)
             }
             ExpressionNode::Binary(binary) => {
+                if binary.operator == BinaryOperator::CaseMembership {
+                    return self.eval_case_membership(handle, &binary, frame);
+                }
                 if let Some(selected) = self
                     .selected_build_time_operators
                     .iter()
@@ -375,6 +382,72 @@ impl<'program> Evaluator<'program> {
                 _ => return false,
             }
         }
+    }
+
+    /// Observe a nominal tag without constructing the classifier as a value.
+    fn eval_case_membership(
+        &mut self,
+        expression: ExpressionHandle,
+        binary: &typed_trees::expression::TableBinaryExpression,
+        frame: &Frame,
+    ) -> EvalResult<Value> {
+        if self
+            .selected_build_time_operators
+            .iter()
+            .any(|selected| selected.expression == expression)
+            || self.operator_facts.is_some_and(|facts| {
+                facts
+                    .uses
+                    .iter()
+                    .any(|(_, selected)| selected.expression == expression)
+            })
+        {
+            return trap("case membership cannot carry selected value-operator execution");
+        }
+        let table = &self.program.expression_table;
+        if !table.expression_is_valid(binary.left) || !table.expression_is_valid(binary.right) {
+            return trap("case membership has an invalid operand");
+        }
+        let ExpressionNode::Name(classifier) = table.expression(binary.right) else {
+            return trap("case membership requires an exact case classifier");
+        };
+        let case_symbol = classifier.symbol;
+        let Some(owner) = validation::exact_case_reference_owner(self.program, binary.right) else {
+            return trap("case membership requires an exact case classifier");
+        };
+        let owner_symbol = owner.symbol;
+        let subject = self.eval_expression(binary.left, frame)?;
+        let subject = match subject {
+            Value::Ref(cell) => self.deref_cell(cell).borrow().clone(),
+            value => value,
+        };
+        let Value::Enum {
+            type_symbol,
+            variant_name,
+            ..
+        } = subject
+        else {
+            return trap("case membership subject is not a nominal sum value");
+        };
+        if type_symbol != owner_symbol {
+            return trap("case membership subject has a different nominal owner");
+        }
+        let Some(runtime_case) =
+            self.program
+                .data_members(owner)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees::data::DataMember::Variant(variant)
+                        if variant.name.as_str() == variant_name =>
+                    {
+                        Some(variant.symbol)
+                    }
+                    _ => None,
+                })
+        else {
+            return trap("case membership subject has no declared runtime case");
+        };
+        Ok(Value::Bool(runtime_case == case_symbol))
     }
 
     /// Execute a fixed token through the exact conformance row already

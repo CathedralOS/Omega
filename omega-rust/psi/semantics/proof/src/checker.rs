@@ -2056,7 +2056,8 @@ fn apply_right_literal_guard(
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight
-        | BinaryOperator::Subtract => {}
+        | BinaryOperator::Subtract
+        | BinaryOperator::CaseMembership => {}
     }
 
     range
@@ -2095,7 +2096,8 @@ fn apply_left_literal_guard(
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight
-        | BinaryOperator::Subtract => {}
+        | BinaryOperator::Subtract
+        | BinaryOperator::CaseMembership => {}
     }
 
     range

@@ -2097,7 +2097,10 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             else {
                 return None;
             };
-            if binary.operator != BinaryOperator::Equal {
+            if !matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::CaseMembership
+            ) {
                 return None;
             }
             let state = program.machine_states(machine).first()?;
