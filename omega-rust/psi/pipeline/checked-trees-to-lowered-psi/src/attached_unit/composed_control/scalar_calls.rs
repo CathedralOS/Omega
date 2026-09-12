@@ -36,6 +36,43 @@ fn selected_roots(
     let mut pending = Vec::new();
     for state in states {
         for operation in &state.operations {
+            if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } =
+                operation
+            {
+                crate::attached_unit::structural_values::source_custody::validate(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                )?;
+                pending.extend(
+                    checked
+                        .facts
+                        .values
+                        .scalar_computations
+                        .roots
+                        .iter()
+                        .map(|(_, root)| root)
+                        .filter(|root| {
+                            root.machine == machine
+                                && root.state == state.state
+                                && root.statement_ordinal == result.statement_index
+                                && matches!(
+                                    root.role,
+                                    CheckedScalarExpressionRole::StructuralValueSubject { .. }
+                                        | CheckedScalarExpressionRole::StructuralValuePattern { .. }
+                                )
+                        })
+                        .map(|root| root.root),
+                );
+                continue;
+            }
+            if let CheckedUnitEffectOperationPlan::EstablishScalarLocal { value, .. } = operation {
+                if let CheckedCallScalarArgument::Computation(handle) = value {
+                    pending.push(*handle);
+                }
+                continue;
+            }
             if let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation {
                 if let Some(root) = crate::structural_scalar_store_source::computation_root(
                     checked,

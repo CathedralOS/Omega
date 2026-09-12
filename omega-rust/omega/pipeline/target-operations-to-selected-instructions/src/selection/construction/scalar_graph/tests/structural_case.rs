@@ -5,6 +5,121 @@ use selected_instructions::{
 };
 
 #[test]
+fn joined_structural_return_rejects_owner_declaration_and_abi_substitution() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+    ] {
+        let (abstracted, targeted, unit) =
+            crate::tests::legalization::structural_case::fixture(native);
+        let legal = crate::legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
+        let mut source = legal.plan().scalar_functions[0].clone();
+        let LegalizedScalarTerminator::StructuralCase {
+            source: subject,
+            layout,
+            ..
+        } = &source.blocks[0].terminator
+        else {
+            panic!("case source");
+        };
+        let shape = layout.shape;
+        let declaration = terminal_psi::StructuralParameterDeclaration {
+            place: semantic_vocabulary::PlaceId::new(99).unwrap(),
+            position: 0,
+            is_self: false,
+            structural_type: subject.structural_type(),
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            access: terminal_psi::StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        let block = source.blocks[1].id;
+        source.blocks[1]
+            .structural_parameters
+            .push(declaration.clone());
+        source.structural.as_mut().unwrap().result =
+            Some(terminal_psi::StructuralResultDeclaration {
+                place: semantic_vocabulary::PlaceId::new(100).unwrap(),
+                structural_type: declaration.structural_type,
+                multiplicity: declaration.multiplicity,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            });
+        source.call_plan.result = evaluate_call_plan(
+            CallingPolicy::native_for_target(native),
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(shape),
+            },
+        )
+        .unwrap()
+        .result;
+        let returned = LegalizedScalarReturnValue::Structural {
+            source: legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                block,
+                declaration,
+            },
+        };
+        let accepted =
+            crate::selection::aggregate_result_input::returned(&source, &returned).unwrap();
+        assert_eq!(
+            accepted.0,
+            selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                block,
+                place: semantic_vocabulary::PlaceId::new(99).unwrap(),
+            }
+        );
+        for mutation in [
+            "owner",
+            "place",
+            "position",
+            "access",
+            "multiplicity",
+            "type",
+            "abi",
+        ] {
+            let mut changed_source = source.clone();
+            let mut changed = returned.clone();
+            let LegalizedScalarReturnValue::Structural {
+                source:
+                    legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                        block,
+                        declaration,
+                    },
+            } = &mut changed
+            else {
+                panic!("block owner");
+            };
+            match mutation {
+                "owner" => *block = changed_source.blocks[0].id,
+                "place" => declaration.place = semantic_vocabulary::PlaceId::new(98).unwrap(),
+                "position" => declaration.position += 1,
+                "access" => declaration.access = terminal_psi::StructuralAccess::SharedBorrow,
+                "multiplicity" => {
+                    declaration.multiplicity = terminal_psi::StructuralMultiplicity::Linear
+                }
+                "type" => declaration.structural_type = StructuralTypeId::new(98).unwrap(),
+                "abi" => {
+                    changed_source
+                        .call_plan
+                        .result
+                        .as_mut()
+                        .unwrap()
+                        .shape
+                        .byte_size += 1
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                crate::selection::aggregate_result_input::returned(&changed_source, &changed)
+                    .is_none(),
+                "accepted {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn structural_case_unused_payload_retains_direct_edge_metadata_without_load() {
     for native in [
         target::NativeTarget::linux_x64(),

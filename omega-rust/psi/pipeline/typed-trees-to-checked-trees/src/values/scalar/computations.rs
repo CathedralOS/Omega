@@ -17,9 +17,11 @@ mod call_arguments;
 mod dispatch;
 mod integers;
 mod normal_return;
+mod structural_values;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
 pub(crate) fn build_checked_scalar_computation_plans(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
@@ -29,7 +31,32 @@ pub(crate) fn build_checked_scalar_computation_plans(
     pure: &CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> CheckedScalarComputationPlans {
+    build_checked_value_computation_plans(
+        program,
+        operators,
+        flow,
+        borrow,
+        proof,
+        pure,
+        exact_integer_casts,
+    )
+    .0
+}
+
+pub(crate) fn build_checked_value_computation_plans(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    flow: &FlowFacts,
+    borrow: &checked_trees::BorrowFacts,
+    proof: &ProofFacts,
+    pure: &CheckedScalarExpressionPlans,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> (
+    CheckedScalarComputationPlans,
+    checked_trees::CheckedStructuralValuePlans,
+) {
     let mut plans = CheckedScalarComputationPlans::default();
+    let mut structural_values = checked_trees::CheckedStructuralValuePlans::default();
     for machine in program.machines() {
         // Existing named-output emission joins statement binding positions.
         // It must not silently reinterpret computation-local call positions.
@@ -86,6 +113,24 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     StatementNode::Expression(expression) => Some((*expression, state.return_type)),
                     _ => None,
                 };
+                if let Some((expression, expected)) = array_destination
+                    && validation::is_fresh_payloadless_structural_value(
+                        program, expression, expected,
+                    )
+                    && let Some(root) =
+                        builder.structural_value(expression, expected, &mut structural_values)
+                {
+                    structural_values
+                        .roots
+                        .append(checked_trees::CheckedStructuralValueRoot {
+                            machine: machine.symbol,
+                            state: state.symbol,
+                            statement_ordinal,
+                            expression,
+                            type_reference: expected,
+                            root,
+                        });
+                }
                 if let Some((expression, expected)) = array_destination
                     && let Some(elements) = validation::scalar_array_elements(
                         program,
@@ -433,7 +478,7 @@ pub(crate) fn build_checked_scalar_computation_plans(
             }
         }
     }
-    plans
+    (plans, structural_values)
 }
 
 fn has_pure_call_arguments(

@@ -239,8 +239,86 @@ fn result_needs_custody_join(
             .any(|element| result_needs_custody_join(program, machine, state, *element)),
         _ => reference.is_some_and(|reference| {
             program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted
+                && fresh_payloadless_case(program, value, reference).is_none()
         }),
     }
+}
+
+/// A fresh claim-free payloadless constructor has no input ownership to merge.
+/// Resolve its actual declaration and case; an owned local with the same type
+/// is a transfer and must not inherit this construction permission.
+pub fn fresh_payloadless_case(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
+    use typed_trees::data::DataMember;
+    use typed_trees::types::TypeReferenceNode;
+    if !crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
+        return None;
+    }
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *symbol)?;
+    let members = program.data_members(data);
+    if members.is_empty()
+        || members.iter().any(|member| match member {
+            DataMember::Variant(variant) => !program.data_payload_fields(variant).is_empty(),
+            DataMember::Field(_) => true,
+        })
+    {
+        return None;
+    }
+    let selected = match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path)
+            if path.head_symbol == *symbol
+                && program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 2 =>
+        {
+            path.symbol
+        }
+        ExpressionNode::StructLiteral(literal)
+            if literal.type_symbol == *symbol
+                && program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .is_empty() =>
+        {
+            literal.case_symbol?
+        }
+        _ => return None,
+    };
+    members
+        .iter()
+        .any(|member| matches!(member, DataMember::Variant(variant) if variant.symbol == selected))
+        .then_some((*symbol, selected))
+}
+
+pub fn is_fresh_payloadless_structural_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+) -> bool {
+    if fresh_payloadless_case(program, expression, reference).is_some() {
+        return true;
+    }
+    let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let arms = program.expression_table.match_arms(dispatch.arms);
+    !arms.is_empty()
+        && arms
+            .iter()
+            .all(|arm| is_fresh_payloadless_structural_value(program, arm.value, reference))
 }
 
 /// Static scalar theories do not add storage to a result join. Their exact

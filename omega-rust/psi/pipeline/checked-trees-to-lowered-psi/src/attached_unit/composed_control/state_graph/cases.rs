@@ -120,6 +120,11 @@ fn result_source<'a>(
                         result,
                         discard_result_on_return: false,
                         ..
+                    }
+                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                        result,
+                        discard_result_on_return: false,
+                        ..
                     } if result.binding_ordinal == binding_ordinal => Some(result),
                     _ => None,
                 });

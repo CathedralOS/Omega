@@ -106,8 +106,6 @@ fn callable_composed_targets_survive_direct_and_interleaved_transitive_calls() {
 
 #[test]
 fn missing_transitive_body_prunes_both_catalogs_to_a_joint_fixed_point() {
-    // A declaration after a call is outside the retained scalar prefix.
-    // Knowing the callee's source symbol cannot admit its missing body.
     let checked = checked(&CHAIN.replace(
         "machine Helper::quiet() {}",
         r#"
@@ -117,7 +115,13 @@ fn missing_transitive_body_prunes_both_catalogs_to_a_joint_fixed_point() {
         }
     "#,
     ));
-    let plans = &checked.facts.flow.terminal_unit_effects;
+    let quiet = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "quiet"))
+        .expect("interleaved local is supported");
+    let plans = without_interleaved_local_evidence(&checked, &quiet.states[1]);
     for name in ["enter", "outer", "middle", "relay", "inner", "quiet"] {
         let symbol = machine_named(&checked, name);
         assert!(plans.for_machine(symbol).is_none(), "ordinary {name}");
@@ -131,16 +135,22 @@ fn missing_transitive_body_prunes_both_catalogs_to_a_joint_fixed_point() {
             .for_machine(machine_named(&checked, "unrelated"))
             .is_some()
     );
-    assert_unique_catalogs(plans);
+    assert_unique_catalogs(&plans);
 }
 
 #[test]
-fn unsupported_composed_leaf_prunes_upstream_without_relaxing_body_admission() {
+fn missing_composed_leaf_evidence_prunes_upstream_without_relaxing_body_admission() {
     let checked = checked(&CHAIN.replace(
         "state yes() { Helper::quiet(); }",
         "state yes() { Helper::quiet(); let local: u8 = 1u8; }",
     ));
-    let plans = &checked.facts.flow.terminal_unit_effects;
+    let inner = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "inner"))
+        .expect("interleaved local is supported");
+    let plans = without_interleaved_local_evidence(&checked, &inner.states[1]);
     for name in ["enter", "outer", "middle", "relay", "inner"] {
         let symbol = machine_named(&checked, name);
         assert!(plans.for_machine(symbol).is_none(), "ordinary {name}");
@@ -155,7 +165,36 @@ fn unsupported_composed_leaf_prunes_upstream_without_relaxing_body_admission() {
             "{name}"
         );
     }
-    assert_unique_catalogs(plans);
+    assert_unique_catalogs(&plans);
+}
+
+fn without_interleaved_local_evidence(
+    checked: &checked_trees::CheckedTrees,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+) -> checked_trees::CheckedUnitEffectPlans {
+    // The source sequence is supported. Remove only its required scalar fact,
+    // so pruning is still tested against a genuinely incomplete checked body.
+    assert!(matches!(state.operations.as_slice(), [
+        CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. },
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value: checked_trees::CheckedCallScalarArgument::Pure(_), .. },
+    ] if coordinate.statement_index == 0 && result.statement_index == 1 && result.binding_ordinal == 0));
+    let mut facts = checked.facts.clone();
+    let before = facts.values.scalar_expressions.expressions.len();
+    facts
+        .values
+        .scalar_expressions
+        .expressions
+        .retain(|expression| {
+            expression.state != state.state
+                || expression.statement_ordinal != 1
+                || expression.role
+                    != CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 }
+        });
+    assert_eq!(
+        facts.values.scalar_expressions.expressions.len() + 1,
+        before
+    );
+    crate::flow::build_checked_unit_effect_plans(&checked.typed, &facts, &[], &[])
 }
 
 #[test]

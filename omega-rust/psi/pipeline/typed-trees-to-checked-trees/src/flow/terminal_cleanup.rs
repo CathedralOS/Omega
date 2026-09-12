@@ -477,10 +477,14 @@ fn wholly_transferred_result_locals(
         if local.symbol != symbol
             || local.is_mutable
             || program.type_multiplicity(local.type_reference) != Multiplicity::Affine
-            || !matches!(
+            || !(matches!(
                 program.expression_table.expression(local.initial_value),
                 typed_trees::expression::ExpressionNode::Call(_)
-            )
+            ) || validation::is_fresh_payloadless_structural_value(
+                program,
+                local.initial_value,
+                local.type_reference,
+            ))
             || !validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 local.type_reference,

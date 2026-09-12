@@ -6,14 +6,12 @@ use target_operations::{
     TargetBoundaryResult, TargetControlCaseSuccessor, TargetStructuralHomeRequirement,
 };
 
-pub(super) fn matches(
+pub(super) fn home_available(
     graph: &TargetControlGraph,
     optimized: &PsiOptimizationFunction,
     block: BlockId,
     source: &TargetStructuralHomeRequirement,
-    cases: &[TargetControlCaseSuccessor],
     expected_source: PlaceId,
-    expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
 ) -> bool {
     if source.place() != expected_source {
         return false;
@@ -32,6 +30,9 @@ pub(super) fn matches(
                             ..
                         }
                         | TargetUnitOperation::EstablishScalarCase {
+                            result_home: home, ..
+                        }
+                        | TargetUnitOperation::EstablishScalarArray {
                             result_home: home, ..
                         }
                         | TargetUnitOperation::StructuralResultCall {
@@ -127,6 +128,21 @@ pub(super) fn matches(
                 return false;
             }
         }
+    }
+    true
+}
+
+pub(super) fn matches(
+    graph: &TargetControlGraph,
+    optimized: &PsiOptimizationFunction,
+    block: BlockId,
+    source: &TargetStructuralHomeRequirement,
+    cases: &[TargetControlCaseSuccessor],
+    expected_source: PlaceId,
+    expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
+) -> bool {
+    if !home_available(graph, optimized, block, source, expected_source) {
+        return false;
     }
     let Some(declaration) = graph
         .structural_types

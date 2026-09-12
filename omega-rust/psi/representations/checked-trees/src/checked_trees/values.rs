@@ -5,6 +5,8 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod computations;
 pub use computations::*;
+mod structural_values;
+pub use structural_values::*;
 mod array_construction_source;
 pub use array_construction_source::CheckedArrayConstructionSource;
 
@@ -94,6 +96,7 @@ pub struct CheckedValueFacts {
     pub values: Arena<CheckedValueFact>,
     pub scalar_expressions: CheckedScalarExpressionPlans,
     pub scalar_computations: CheckedScalarComputationPlans,
+    pub structural_values: CheckedStructuralValuePlans,
 }
 
 impl CheckedValueFacts {
@@ -102,6 +105,7 @@ impl CheckedValueFacts {
             values,
             scalar_expressions: CheckedScalarExpressionPlans::default(),
             scalar_computations: CheckedScalarComputationPlans::default(),
+            structural_values: CheckedStructuralValuePlans::default(),
         }
     }
 
@@ -210,6 +214,14 @@ pub struct CheckedLocatedScalarExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedScalarExpressionRole {
+    /// Saved scalar subject of this structural value's exact Match occurrence.
+    StructuralValueSubject {
+        expression: ExpressionHandle,
+    },
+    /// Ordered scalar pattern of this structural Match arm.
+    StructuralValuePattern {
+        source_arm: Handle<typed_trees::expression::TableMatchArm>,
+    },
     /// One row-major scalar operand of an array construction at this statement.
     ArrayElement {
         source: CheckedArrayConstructionSource,

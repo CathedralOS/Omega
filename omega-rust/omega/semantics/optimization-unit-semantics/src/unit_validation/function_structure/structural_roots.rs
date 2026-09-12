@@ -359,6 +359,27 @@ pub(crate) fn validate_structural_root_operations(
                                                 && *is_self == parameter.is_self
                                     )
                             })
+                            .or_else(|| {
+                                let Some(StructuralPlaceKind::BlockParameter { block, position }) =
+                                    place_kinds.get(source).copied()
+                                else {
+                                    return None;
+                                };
+                                function
+                                    .blocks
+                                    .iter()
+                                    .find(|candidate| candidate.id == block)
+                                    .and_then(|block| {
+                                        block.structural_parameters.get(position as usize)
+                                    })
+                                    .filter(|parameter| {
+                                        parameter.place == *source
+                                            && parameter.position == position
+                                            && !parameter.is_self
+                                            && parameter.access
+                                                == terminal_psi::StructuralAccess::Owned
+                                    })
+                            })
                             .map(|parameter| {
                                 (
                                     parameter.structural_type,

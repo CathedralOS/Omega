@@ -349,6 +349,37 @@ pub(in crate::selection) fn validate_with_environment(
                         )?;
                         register
                     }
+                    LegalizedScalarInstructionKind::BitwiseAnd { left, right } => {
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                        {
+                            return Err(invalid());
+                        }
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        replay.check_instruction(
+                            SelectedInstructionKind::BitwiseAndI64,
+                            constraints.keys.subtract_i64,
+                            &[left_register, right_register, output],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::ExactBinary {
                         operator,
                         left,

@@ -126,6 +126,14 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
         {
             Some((*psi_operation, *result))
         }
+        AbstractOperation::IntegerBitwiseAnd {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
+            Some((*psi_operation, *result))
+        }
         AbstractOperation::ExactIntegerAdd {
             psi_operation,
             result,
@@ -420,6 +428,19 @@ pub(super) fn validate(
             }
             AbstractOperation::IntegerConstant { scalar_type, .. }
             | AbstractOperation::Call { scalar_type, .. } => *scalar_type,
+            AbstractOperation::IntegerBitwiseAnd {
+                scalar_type,
+                left,
+                right,
+                ..
+            } => {
+                if value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
+                    || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
+                {
+                    return Err(invalid);
+                }
+                ScalarType::Integer(*scalar_type)
+            }
             AbstractOperation::ExactIntegerAdd { scalar_type, .. }
             | AbstractOperation::ExactIntegerSubtract { scalar_type, .. } => {
                 ScalarType::Integer(*scalar_type)

@@ -123,6 +123,13 @@ pub(super) fn result<'a>(
     binding_ordinal: u32,
     operations: &'a OperationBuffer,
 ) -> Result<&'a terminal_psi::StructuralOperationResult, LoweringError> {
+    if let Some((_, produced)) = operations
+        .structural_values
+        .iter()
+        .find(|(ordinal, _)| *ordinal == binding_ordinal)
+    {
+        return Ok(produced);
+    }
     let mut bindings = state
         .operations
         .iter()

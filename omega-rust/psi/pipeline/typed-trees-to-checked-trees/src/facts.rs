@@ -116,15 +116,16 @@ pub(crate) fn build_check_facts(
         &mut values.scalar_expressions,
         &validation_facts.exact_integer_casts,
     );
-    values.scalar_computations = crate::values::build_checked_scalar_computation_plans(
-        program,
-        &operators,
-        &flow,
-        &borrow,
-        &proof,
-        &values.scalar_expressions,
-        &validation_facts.exact_integer_casts,
-    );
+    (values.scalar_computations, values.structural_values) =
+        crate::values::build_checked_value_computation_plans(
+            program,
+            &operators,
+            &flow,
+            &borrow,
+            &proof,
+            &values.scalar_expressions,
+            &validation_facts.exact_integer_casts,
+        );
     let index_compatibility = index_compatibility::build_index_compatibility_facts(
         program, &operators, &semantic, &flow,
     )?;

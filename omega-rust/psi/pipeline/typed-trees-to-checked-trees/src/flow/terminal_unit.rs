@@ -371,6 +371,16 @@ pub(crate) fn build_checked_unit_effect_plans(
         selected_operator_applications,
         selected_ieee_float_fma_applications,
     );
+    // Structural expression control is emitted by the general state graph.
+    // Do not let an earlier single-state candidate hide that implementation.
+    candidates.retain(|plan| {
+        !plan.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+            )
+        })
+    });
     let dynamic_dispatch =
         build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);
 
@@ -458,6 +468,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                     } => true,
                     CheckedUnitEffectOperationPlan::PortWrite { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                     | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
@@ -504,7 +515,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                         | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                         | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                        | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => true,
+                        | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => true,
                         _ => false,
                     })
         });
@@ -586,9 +599,11 @@ pub(crate) fn build_checked_unit_effect_plans(
                                 result,
                                 ..
                             }
-                            | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } => {
-                                Some(result.type_identity.as_str())
-                            }
+                            | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                            | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                result,
+                                ..
+                            } => Some(result.type_identity.as_str()),
                             _ => None,
                         })
                 }))
@@ -715,6 +730,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 retained_type_identities.insert(result.type_identity.as_str());
             }
             CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());
             }

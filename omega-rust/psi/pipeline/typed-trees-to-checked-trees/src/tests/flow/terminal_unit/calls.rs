@@ -619,7 +619,7 @@ fn composes_one_compile_known_u64_binding_with_exact_boundary_leaves() {
 }
 
 #[test]
-fn rejects_the_whole_composed_control_plan_when_one_leaf_is_unsupported() {
+fn rejects_the_whole_composed_control_plan_when_one_leaf_loses_scalar_evidence() {
     let checked = checked(
         r#"
         boundary trait Host { machine exit(code: i32); }
@@ -633,14 +633,48 @@ fn rejects_the_whole_composed_control_plan_when_one_leaf_is_unsupported() {
         }
         "#,
     );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "enter"))
+        .expect("boundary leaf and call followed by local compose");
+    assert!(matches!(
+        plan.states[1].operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::BoundaryCall { .. }]
+    ));
+    let leaf = &plan.states[2];
+    assert!(matches!(leaf.operations.as_slice(), [
+        CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. },
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value: checked_trees::CheckedCallScalarArgument::Pure(_), .. },
+    ] if coordinate.statement_index == 0 && result.statement_index == 1 && result.binding_ordinal == 0));
+    let mut facts = checked.facts.clone();
+    let before = facts.values.scalar_expressions.expressions.len();
+    facts
+        .values
+        .scalar_expressions
+        .expressions
+        .retain(|expression| {
+            expression.state != leaf.state
+                || expression.statement_ordinal != 1
+                || expression.role
+                    != CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 }
+        });
+    assert_eq!(
+        facts.values.scalar_expressions.expressions.len() + 1,
+        before
+    );
+    let plans = crate::flow::build_checked_unit_effect_plans(&checked.typed, &facts, &[], &[]);
     assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
+        plans
             .composed_for_machine(machine_named(&checked, "enter"))
             .is_none(),
-        "one unsupported leaf must remove the composed plan atomically"
+        "one leaf missing required scalar evidence must remove the composed plan atomically"
+    );
+    assert!(
+        plans
+            .for_machine(machine_named(&checked, "touch"))
+            .is_some()
     );
 }
 

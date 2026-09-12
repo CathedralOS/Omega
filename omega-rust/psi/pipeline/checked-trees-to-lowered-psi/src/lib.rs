@@ -640,6 +640,9 @@ const TERMINAL_UNIT_CALL_OBLIGATION_BASE: u64 = 1_u64 << 63;
 /// uses the historical one-based range; additional machines receive disjoint
 /// ranges when source call-closure production composes them.
 struct OperationBuffer {
+    /// Authored structural bindings may complete at a control join rather than
+    /// a call operation. Keep those places in the same state-local namespace.
+    structural_values: Vec<(u32, terminal_psi::StructuralOperationResult)>,
     selected_ieee_float_comparisons: Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     next_identity: u64,
     operations: Vec<Operation>,
@@ -652,6 +655,7 @@ struct OperationBuffer {
 impl OperationBuffer {
     fn new(identity_base: u64) -> Self {
         Self {
+            structural_values: Vec::new(),
             next_identity: identity_base
                 .checked_add(1)
                 .expect("operation identity base admits one-based identities"),

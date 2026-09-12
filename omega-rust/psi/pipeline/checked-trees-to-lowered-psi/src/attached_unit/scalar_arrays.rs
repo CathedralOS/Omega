@@ -12,8 +12,6 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::{CheckedCallScalarArgument, CheckedUnitStructuralResultBindingPlan};
 
-mod operands;
-
 /// Bind only the local whose initializer owns this exact published result.
 /// Nested call/argument arrays in the same statement have different owners and
 /// must never replace its payload merely because their types happen to match.
@@ -294,7 +292,7 @@ pub(super) fn validate(
                 )?;
             }
         }
-        operands::validate(
+        crate::scalar_source_custody::value_correspondence::validate(
             checked,
             machine.state,
             result.statement_index,
@@ -530,6 +528,9 @@ fn validate_shape(
 
 pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32> {
     match operation {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+            Some(result.statement_index)
+        }
         CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } => {

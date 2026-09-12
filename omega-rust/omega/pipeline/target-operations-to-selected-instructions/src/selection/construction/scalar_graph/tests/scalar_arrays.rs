@@ -77,8 +77,10 @@ fn array_fixture(target: target::NativeTarget, length: u16) -> LegalizedScalarFu
         panic!("return");
     };
     returned.value = LegalizedScalarReturnValue::Structural {
-        defining_operation: producer,
-        result,
+        source: legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+            operation: producer,
+            result,
+        },
     };
     source.call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),

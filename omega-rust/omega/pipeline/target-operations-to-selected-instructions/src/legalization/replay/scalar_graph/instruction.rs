@@ -27,6 +27,14 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::BitwiseAnd { left, right },
+            AbstractOperation::IntegerBitwiseAnd {
+                left: source_left,
+                right: source_right,
+                ..
+            },
+        ) if left == source_left && right == source_right => {}
+        (
             LegalizedScalarInstructionKind::IeeeFloatCompare {
                 comparison,
                 format,

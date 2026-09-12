@@ -30,6 +30,7 @@ mod scalar_structural_calls;
 mod selected_operator;
 pub(super) mod shared_closure;
 mod structural_calls;
+pub(crate) mod structural_values;
 
 use bodies::UnitBody;
 use parameters::lower_unit_scalar_parameter_types;
@@ -478,6 +479,14 @@ fn assemble_unit_closure(
                 &machine.structural_parameters,
             )?;
             match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
+                    structural_values::source_custody::validate(
+                        checked,
+                        machine.machine,
+                        machine.state,
+                        operation,
+                    )?;
+                }
                 CheckedUnitEffectOperationPlan::EstablishScalarArray {
                     source,
                     result,
@@ -1679,6 +1688,11 @@ fn assemble_unit_closure(
             next_call_obligation = scalar_calls.next_obligation_identity;
             let mut source_call = None;
             let kind = match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
+                    return unsupported(
+                        "structural value production requires the composed control graph",
+                    );
+                }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                     statement_index,
                     symbol,
@@ -3715,9 +3729,9 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                 Vec::new()
             };
         evaluation.blocks.push(Block {
-            structural_parameters: Vec::new(),
             id: block,
             parameters: evaluation.parameters,
+            structural_parameters: evaluation.block_structural_parameters,
             operations: operations[evaluation.operation_start..].to_vec(),
             terminator: if let Some((source, _)) = &scalar_return {
                 Terminator::Return {

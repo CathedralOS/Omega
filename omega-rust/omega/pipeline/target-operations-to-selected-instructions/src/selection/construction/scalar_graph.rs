@@ -340,6 +340,36 @@ pub(super) fn build_with_environment(
                         )?;
                         output
                     }
+                    LegalizedScalarInstructionKind::BitwiseAnd { left, right } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                        {
+                            return Err(invalid());
+                        }
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        // Subtraction shares operand constraints and conservatively models
+                        // x64 flag clobbers; the distinct AND form carries the semantics.
+                        builder.emit(
+                            SelectedInstructionKind::BitwiseAndI64,
+                            constraints.keys.subtract_i64,
+                            &[left_register, right_register, output],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::ExactBinary {
                         operator,
                         left,

@@ -135,7 +135,7 @@ pub(in crate::attached_unit) fn emit(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut catalogs = catalogs::ComposedCatalogs {
-        literal_store_places: Vec::new(),
+        temporary_places: Vec::new(),
         result_places: Vec::new(),
         structural_types: shared.structural_types.to_vec(),
         type_ids: shared.type_ids.to_vec(),

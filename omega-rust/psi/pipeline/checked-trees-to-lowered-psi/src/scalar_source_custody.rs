@@ -12,6 +12,7 @@ mod parameters;
 pub(crate) mod primitive_references;
 mod storage_reads;
 pub(crate) mod successors;
+pub(crate) mod value_correspondence;
 pub(crate) use computation_calls::validate_computation_calls;
 pub(super) use parameters::parameter_storage;
 pub(crate) use storage_reads::validate_expression as validate_storage_read_expression;
@@ -91,6 +92,20 @@ pub(super) fn locate(
         .count();
     let absent = symbols::SymbolHandle::invalid();
     let selected = match (authored, role) {
+        (
+            _,
+            CheckedScalarExpressionRole::StructuralValueSubject { .. }
+            | CheckedScalarExpressionRole::StructuralValuePattern { .. },
+        ) => {
+            let (expression, primitive) =
+                crate::attached_unit::structural_values::source_custody::operand_source(
+                    checked,
+                    state.symbol,
+                    statement,
+                    role,
+                )?;
+            Some((expression, absent, primitive))
+        }
         (
             _,
             CheckedScalarExpressionRole::ArrayElement {

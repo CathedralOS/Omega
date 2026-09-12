@@ -36,6 +36,9 @@ pub(crate) struct Evaluation {
     pub entry: BlockId,
     pub current: BlockId,
     pub parameters: Vec<ValueDeclaration>,
+    /// Parameters established at the current private join, distinct from the
+    /// authored structural namespace used to resolve source operands.
+    pub block_structural_parameters: Vec<StructuralParameterDeclaration>,
     pub operation_start: usize,
     pub blocks: Vec<Block>,
 }
@@ -60,7 +63,7 @@ impl Evaluation {
         let parameters = declarations(&types, next_value)?;
         let continuation = block_id(allocate_dense(next_block)?);
         self.blocks.push(Block {
-            structural_parameters: Vec::new(),
+            structural_parameters: std::mem::take(&mut self.block_structural_parameters),
             id: self.current,
             parameters: std::mem::take(&mut self.parameters),
             operations: operations[self.operation_start..].to_vec(),
@@ -93,6 +96,7 @@ impl Evaluation {
             entry,
             current: entry,
             parameters: Vec::new(),
+            block_structural_parameters: Vec::new(),
             operation_start: 0,
             blocks: Vec::new(),
         })
@@ -444,7 +448,7 @@ impl Evaluation {
             parameters.push(declarations(&state.parameter_types, next_value)?);
         }
         self.blocks.push(Block {
-            structural_parameters: Vec::new(),
+            structural_parameters: std::mem::take(&mut self.block_structural_parameters),
             id: self.current,
             parameters: std::mem::take(&mut self.parameters),
             operations: operations[self.operation_start..].to_vec(),

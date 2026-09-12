@@ -113,7 +113,22 @@ fn publish(
         bytes
     );
     image_emission::validate_installation_record(&decoded, &image).unwrap();
-    admission::installation_cannot_change_call_or_result(&decoded, &image);
+    if module
+        .machines
+        .iter()
+        .any(|machine| machine.result.structural().is_some())
+    {
+        admission::installation_cannot_change_call_or_result(&decoded, &image);
+    } else {
+        // Local construction has no function-result ABI. Keep the call/result
+        // corruption controls required for every actual returning fixture.
+        assert!(decoded.functions().iter().all(|function| {
+            function
+                .parameter_abi
+                .as_ref()
+                .is_none_or(|abi| abi.call_plan.result.is_none())
+        }));
+    }
     assert_eq!(
         image_emission::derive_stack_demand(&object, module.entry).unwrap(),
         image_emission::derive_installation_stack_demand(&decoded, &image, module.entry).unwrap(),

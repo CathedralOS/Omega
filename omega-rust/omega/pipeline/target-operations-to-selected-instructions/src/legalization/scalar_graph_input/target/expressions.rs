@@ -106,6 +106,13 @@ impl Checker<'_> {
                 let Some(parameter) = self.scalar_parameters().get(*parameter_index) else {return false;};
                 *source_value == value && parameter.value == resolved && location_matches(*location,&parameter.placement)
             }
+            Expression::BitwiseAnd { psi_operation, left, right } => {
+                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    AbstractOperation::IntegerBitwiseAnd { psi_operation: operation, result, left: source_left, right: source_right, .. }
+                    if operation == psi_operation && *result == resolved
+                        && self.integer_source(left, *source_left, aliases)
+                        && self.integer_source(right, *source_right, aliases)))
+            }
             Expression::ExactAdd {psi_operation,obligation,left,right} | Expression::ExactSubtract {psi_operation,obligation,left,right} => {
                 let Some(node) = self.optimized.blocks.iter().flat_map(|block|&block.nodes).find(|node| matches!(&node.operation,
                     AbstractOperation::ExactIntegerAdd {psi_operation:operation,..} | AbstractOperation::ExactIntegerSubtract {psi_operation:operation,..} if operation == psi_operation)) else {return false;};

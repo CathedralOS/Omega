@@ -43,8 +43,16 @@ pub(super) fn validate(
                 }
                 (parameter.structural_type, parameter.multiplicity)
             } else {
-                let (_, result) = super::structural_case::source_result(function, *source)?;
-                (result.structural_type, result.multiplicity)
+                match super::structural_case::source_owner(function, *source)? {
+                    legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                        result,
+                        ..
+                    } => (result.structural_type, result.multiplicity),
+                    legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                        declaration,
+                        ..
+                    } => (declaration.structural_type, declaration.multiplicity),
+                }
             };
             if structural_type != declared.structural_type
                 || multiplicity != declared.multiplicity

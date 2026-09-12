@@ -351,6 +351,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::SignExtendI32
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::ByteViewAddress
+        | MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::ExactAddI64
         | MachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ExactAddI64Immediate

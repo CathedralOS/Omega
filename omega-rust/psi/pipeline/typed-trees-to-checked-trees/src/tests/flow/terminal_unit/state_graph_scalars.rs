@@ -314,20 +314,37 @@ fn general_scalar_prefix_and_successors_require_exact_facts_and_custody() {
 }
 
 #[test]
-fn general_state_graph_rejects_interleaved_scalar_statements() {
-    for statement in ["let later: u8 = byte;", "output = byte;"] {
-        let checked = checked(&PREFIX.replace(
-            "Helper::quiet(output);\n        Helper::quiet(previous);",
-            &format!("Helper::quiet(output); {statement} Helper::quiet(previous);"),
-        ));
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .composed_for_machine(machine_named(&checked, "writer"))
-                .is_none(),
-            "{statement}"
-        );
-    }
+fn general_state_graph_retains_interleaved_immutable_scalar_local() {
+    let checked = checked(&PREFIX.replace(
+        "Helper::quiet(output);\n        Helper::quiet(previous);",
+        "Helper::quiet(output); let later: u8 = byte; Helper::quiet(previous);",
+    ));
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "writer"))
+        .expect("immutable local composes after call");
+    assert!(matches!(plan.states[0].operations.as_slice(), [
+        CheckedUnitEffectOperationPlan::CallUnit { coordinate: first, .. },
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. },
+        CheckedUnitEffectOperationPlan::CallUnit { coordinate: last, .. },
+    ] if first.statement_index == 4 && result.statement_index == 5
+        && result.binding_ordinal == 2 && last.statement_index == 6));
+}
+
+#[test]
+fn general_state_graph_rejects_interleaved_scalar_storage_write() {
+    let checked = checked(&PREFIX.replace(
+        "Helper::quiet(output);\n        Helper::quiet(previous);",
+        "Helper::quiet(output); output = byte; Helper::quiet(previous);",
+    ));
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine_named(&checked, "writer"))
+            .is_none()
+    );
 }

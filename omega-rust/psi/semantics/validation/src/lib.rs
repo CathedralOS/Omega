@@ -150,6 +150,7 @@ pub use expression_types::bounded_byte_buffer_capacity;
 pub use expression_types::expression_result_type_reference;
 pub use expression_types::match_subject_primitive_type;
 pub use expression_types::validate_match_dispatch;
+pub use expression_types::{fresh_payloadless_case, is_fresh_payloadless_structural_value};
 pub use float_projection_bindings::{
     exact_toolchain_float_projection_contract, exact_toolchain_float_projection_primitive,
     is_exact_toolchain_float_meaning_type,

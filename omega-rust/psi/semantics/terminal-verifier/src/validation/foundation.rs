@@ -956,9 +956,11 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                                 ..
                             } => {
                                 returned_claims.is_empty()
-                                    && super::scalar_case::plain_return_source(
+                                    && (super::scalar_case::plain_return_source(
                                         module, machine, *source,
-                                    )
+                                    ) || super::block_views::plain_owned_return_source(
+                                        module, machine, *source,
+                                    ))
                             }
                             _ => true,
                         }))

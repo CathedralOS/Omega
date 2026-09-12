@@ -89,6 +89,8 @@ pub enum SelectedInstructionKind {
         value: IntegerValue,
     },
     CopyI64,
+    /// Bitwise intersection of normalized integer carriers; no arithmetic overflow.
+    BitwiseAndI64,
     /// Preserve the IEEE binary32 payload while moving from an FP ABI home to GPR storage.
     Float32ToBits,
     /// Preserve the IEEE binary64 payload while moving from an FP ABI home to GPR storage.

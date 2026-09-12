@@ -41,6 +41,20 @@ fn producer(
             .iter()
             .enumerate()
             .filter_map(|(operation_index, operation)| match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
+                    discard_result_on_return,
+                    ..
+                } if result.binding_ordinal == binding_ordinal => Some(Producer {
+                    operation_index,
+                    coordinate: checked_trees::CheckedUnitCallCoordinate {
+                        statement_index: result.statement_index,
+                        call_ordinal: 0,
+                    },
+                    result,
+                    discard: *discard_result_on_return,
+                    construction_source: None,
+                }),
                 CheckedUnitEffectOperationPlan::EstablishScalarArray { source, result, .. }
                     if result.binding_ordinal == binding_ordinal =>
                 {
@@ -495,7 +509,8 @@ pub(crate) fn validate_consumer(
                     result,
                     ..
                 } => (*producer_coordinate, *source_site, result),
-                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => (
+                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => (
                     checked_trees::CheckedUnitCallCoordinate {
                         statement_index: result.statement_index,
                         call_ordinal: 0,

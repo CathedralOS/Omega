@@ -312,39 +312,79 @@ pub(super) fn returned<'a>(
     selected_instructions::LocalStorageSlotId,
     &'a calling_conventions::ValuePlacement,
 )> {
-    let legalized_operations::LegalizedScalarReturnValue::Structural {
-        defining_operation,
-        result: returned,
-    } = value
+    let legalized_operations::LegalizedScalarReturnValue::Structural { source: owner } = value
     else {
         return None;
     };
     let declared = source.structural.as_ref()?.result.as_ref()?;
-    let row = source
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .find(|row| row.operation == *defining_operation)?;
-    let (result, shape) = match &row.kind {
-        LegalizedScalarInstructionKind::EstablishScalarArray { result, shape, .. } => {
-            super::scalar_array_input::elements(source, row)?;
-            (result, *shape)
+    let (slot, shape, structural_type, multiplicity) = match owner {
+        legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+            operation,
+            result: returned,
+        } => {
+            let row = source
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find(|row| row.operation == *operation)?;
+            let (result, shape) = match &row.kind {
+                LegalizedScalarInstructionKind::EstablishScalarArray { result, shape, .. } => {
+                    super::scalar_array_input::elements(source, row)?;
+                    (result, *shape)
+                }
+                LegalizedScalarInstructionKind::EstablishScalarCase { result, layout, .. } => {
+                    (result, layout.shape)
+                }
+                LegalizedScalarInstructionKind::Call(call) => (
+                    call.structural_result.as_ref()?,
+                    call.result_placement.as_ref()?.shape,
+                ),
+                _ => return None,
+            };
+            if result != returned
+                || !result.claims.is_empty()
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+            {
+                return None;
+            }
+            (
+                selected_instructions::LocalStorageSlotId::Structural {
+                    operation: *operation,
+                    place: result.place,
+                },
+                shape,
+                result.structural_type,
+                result.multiplicity,
+            )
         }
-        LegalizedScalarInstructionKind::EstablishScalarCase { result, layout, .. } => {
-            (result, layout.shape)
+        legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+            block,
+            declaration,
+        } => {
+            let parameter = source
+                .blocks
+                .iter()
+                .find(|candidate| candidate.id == *block)?
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == declaration.place)?;
+            if parameter != declaration {
+                return None;
+            }
+            (
+                selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                    block: *block,
+                    place: declaration.place,
+                },
+                block_parameter_shape(source, parameter)?,
+                parameter.structural_type,
+                parameter.multiplicity,
+            )
         }
-        LegalizedScalarInstructionKind::Call(call) => (
-            call.structural_result.as_ref()?,
-            call.result_placement.as_ref()?.shape,
-        ),
-        _ => return None,
     };
-    if result != returned
-        || result.structural_type != declared.structural_type
-        || result.multiplicity != declared.multiplicity
-        || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
+    if structural_type != declared.structural_type
+        || multiplicity != declared.multiplicity
         || !declared.qualifications.is_empty()
         || !declared.projected_qualifications.is_empty()
         || declared.multiplicity == terminal_psi::StructuralMultiplicity::Linear
@@ -355,13 +395,7 @@ pub(super) fn returned<'a>(
     if placement.shape != shape || !direct_fragments(placement) {
         return None;
     }
-    Some((
-        selected_instructions::LocalStorageSlotId::Structural {
-            operation: *defining_operation,
-            place: returned.place,
-        },
-        placement,
-    ))
+    Some((slot, placement))
 }
 
 pub(super) fn fields<'a>(

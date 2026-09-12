@@ -495,14 +495,38 @@ pub(super) fn result_home(
     place: PlaceId,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralHomeRequirement, LegalizationError> {
-    let (operation, result) = super::structural_case::source_result(function, place)?;
-    Ok(target_operations::TargetStructuralHomeRequirement {
-        origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+    let (origin, layout) = match super::structural_case::source_owner(function, place)? {
+        legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation,
-            result: result.clone(),
-        },
-        layout: home_layout(result, plan)?,
-    })
+            result,
+        } => {
+            let layout = home_layout(&result, plan)?;
+            (
+                target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation,
+                    result,
+                },
+                layout,
+            )
+        }
+        legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+            block,
+            declaration,
+        } => {
+            let layout = target_operations::TargetStructuralHomeLayout::Sum(sum_type_layout(
+                declaration.structural_type,
+                plan,
+            )?);
+            (
+                target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                    block,
+                    declaration,
+                },
+                layout,
+            )
+        }
+    };
+    Ok(target_operations::TargetStructuralHomeRequirement { origin, layout })
 }
 
 pub(in crate::legalization) fn home_layout(

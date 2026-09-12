@@ -19,7 +19,15 @@ pub(super) fn build(
         return None;
     }
     let result = returns::signature(program, shapes, states[0].return_type)?;
-    if states.len() < 2 && result == checked_trees::CheckedControlResultPlan::Unit {
+    if states.len() < 2
+        && result == checked_trees::CheckedControlResultPlan::Unit
+        && !facts
+            .values
+            .structural_values
+            .roots
+            .iter()
+            .any(|(_, root)| root.machine == machine.symbol)
+    {
         return None;
     }
     let natural_ranks = if machine.termination_plan.implementation_witness.is_some() {
@@ -158,7 +166,12 @@ pub(super) fn build(
             &[],
             binding_count,
         )?;
-        if sequence.local_count != binding_count + sequence.structural_local_symbols.len() {
+        let scalar_locals = sequence.operations.iter().filter(|operation| matches!(operation,
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
+                if matches!(statements.get(result.statement_index as usize), Some(StatementNode::LocalData(_))))).count();
+        if sequence.local_count
+            != binding_count + sequence.structural_local_symbols.len() + scalar_locals
+        {
             return None;
         }
         let mut operations = sequence.operations;
@@ -172,6 +185,11 @@ pub(super) fn build(
                     ..
                 }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     result,
                     discard_result_on_return,
                     ..
@@ -210,7 +228,12 @@ pub(super) fn build(
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                     discard_result_on_return: false,
                     ..
-                } => {}
+                }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    discard_result_on_return: false,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => {}
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
@@ -267,7 +290,11 @@ pub(super) fn build(
                 [StatementNode::Expression(expression)]
                     if result != checked_trees::CheckedControlResultPlan::Unit =>
                 {
-                    returns::constructor(program, facts, state, ordinal, *expression)?
+                    if let Some(result) = sequence.structural_result.clone() {
+                        CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
+                    } else {
+                        returns::constructor(program, facts, state, ordinal, *expression)?
+                    }
                 }
                 [StatementNode::Transition(transition)]
                     if transition.guard == TransitionGuardNode::Always =>
@@ -304,7 +331,8 @@ pub(super) fn build(
         for operation in &operations {
             let result = match operation {
                 CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => result,
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => result,
                 _ => continue,
             };
             let transferred = |edge: &CheckedStructuralControlSuccessorPlan| {
@@ -314,6 +342,7 @@ pub(super) fn build(
                 CheckedComposedUnitControlTerminatorPlan::Jump { successor } => transferred(successor),
                 CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, when_false, .. } => transferred(when_true) && transferred(when_false),
                 CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } => matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal) && cases.iter().all(|case| !case.successor.transfers.iter().any(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal))),
+                CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => matches!(returned.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal),
                 _ => false,
             };
             if !consumed {
@@ -621,6 +650,7 @@ fn successor_bindings(
                 if place.segments.is_empty() {
                     let mut matches = operations.iter().filter_map(|operation| match operation {
                         CheckedUnitEffectOperationPlan::StructuralCall { result, discard_result_on_return: false, .. }
+                        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: false, .. }
                         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, discard_result_on_return: false, .. } => Some(result),
                         _ => None,
                     }).filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));

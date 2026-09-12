@@ -12,6 +12,7 @@ pub(super) fn successors(
     match &state.terminator {
         CheckedComposedUnitControlTerminatorPlan::ReturnUnit
         | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. } => Vec::new(),
+        CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. } => Vec::new(),
         CheckedComposedUnitControlTerminatorPlan::Jump { successor } => vec![successor],
         CheckedComposedUnitControlTerminatorPlan::Conditional {
             when_true,
@@ -142,6 +143,11 @@ pub(super) fn validate_bindings(
                         ..
                     }
                     | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        result,
+                        discard_result_on_return: false,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                         result,
                         discard_result_on_return: false,
                         ..
@@ -334,7 +340,7 @@ fn validate_parameter_cleanup(
         let matching = edge.transfers.iter().filter(|transfer| {
             let checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } = transfer.source else { return false; };
             state.operations.iter().any(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } if result.binding_ordinal == binding_ordinal => matches!(checked.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(checked_trees::statement::StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol)),
+                CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } if result.binding_ordinal == binding_ordinal => matches!(checked.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(checked_trees::statement::StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol)),
                 _ => false,
             })
         }).count();
