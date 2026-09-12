@@ -112,8 +112,8 @@ pub(super) fn value_class(
         };
     }
     if let ExpressionNode::Call(call) = program.expression_table.expression(value) {
-        let machine = machine?;
-        let primitive = crate::arithmetic_domains::call_return_type(program, machine, call)
+        machine?;
+        let primitive = crate::arithmetic_domains::call_return_type(program, call)
             .and_then(|handle| program.primitive_type_reference(handle))?;
         return Some(ValueClass::of_primitive(primitive));
     }

@@ -1246,27 +1246,16 @@ fn dependent_maximum_substituted(
     resolved?.checked_add(symbolic.offset)
 }
 
-/// S4 return-range inference: the DECLARED return type of a value-position call,
-/// when it resolves soundly and UNIQUELY from `program` alone. Conservative --
-/// only `self`/receiver-free calls to a sibling machine (one attached to the same
-/// data as the caller, with a state named after the call target) are resolved;
-/// an external receiver, an ambiguous match, or no match returns `None` (no
-/// narrowing). Soundness rests on uniqueness: bail rather than guess.
-/// If `operand` is a value-machine call resolving to a self/sibling machine with an
-/// INTEGER return type, return the call's target name (for the decision-17 overflow
-/// hint). `None` for non-calls, builtins/external-receiver calls (unresolved), and
-/// non-integer returns -- so the hint only fires where "annotate the callee's return"
-/// is the actionable fix.
+/// Suggest a declared range only when the exact selected callee returns an
+/// integer. Spelling is diagnostic text, never callee selection authority.
 fn overflow_operand_value_call_target(
     program: &TypedTrees,
-    current_machine: &Machine,
     operand: ExpressionHandle,
 ) -> Option<String> {
     let ExpressionNode::Call(call) = program.expression_table.expression(operand) else {
         return None;
     };
-    let call = call.clone();
-    let return_type = call_return_type(program, current_machine, &call)?;
+    let return_type = call_return_type(program, call)?;
     program
         .primitive_type_reference(return_type)
         .filter(|primitive| primitive.accepts_integer_literal())
@@ -1275,7 +1264,6 @@ fn overflow_operand_value_call_target(
 
 pub(crate) fn call_return_type(
     program: &TypedTrees,
-    current_machine: &Machine,
     call: &TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
     if crate::proof_embeddings::is_exact_embed_call(program, call) {
@@ -1287,43 +1275,10 @@ pub(crate) fn call_return_type(
         return Some(operator.return_type);
     }
 
-    let receiver_is_self = !call.receiver.is_valid()
-        || matches!(
-            program.expression_table.expression(call.receiver),
-            ExpressionNode::Name(path)
-                if matches!(
-                    program.expression_table.name_path_members(path.members),
-                    [only] if only.as_str() == "self"
-                )
-        );
-    if !receiver_is_self {
-        return None;
-    }
-    let target = call.target.as_str();
-    let attached_data = current_machine.attached_data.as_ref()?;
-    let mut returns = program
-        .machines()
-        .iter()
-        .filter(|candidate| {
-            candidate
-                .attached_data
-                .as_ref()
-                .is_some_and(|data| data.as_str() == attached_data.as_str())
-        })
-        .filter_map(|candidate| {
-            program
-                .machine_states(candidate)
-                .iter()
-                .find(|state| state.name.as_str() == target)
-        })
-        .filter(|state| state.return_type.is_valid())
-        .map(|state| state.return_type);
-    let first = returns.next()?;
-    // Unique match only -- bail on ambiguity (sound: fall back to unbounded).
-    if returns.next().is_some() {
-        return None;
-    }
-    Some(first)
+    // A declared result belongs to the selected state, including calls through
+    // ordinary borrowed receivers. Keep its full type reference for consumers
+    // to check qualifications and bounds; do not infer from the caller's places.
+    crate::calls::resolved_call_result_type(program, call)
 }
 
 thread_local! {

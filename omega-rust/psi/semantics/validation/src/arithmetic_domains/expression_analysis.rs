@@ -711,8 +711,8 @@ pub(super) fn analyze(
                 // When an operand is a value-machine CALL, "constrain the operands'
                 // range" is unactionable at the call site -- the fix is to annotate
                 // the CALLEE's return type. Name it so the user knows where to look.
-                let call_hint = overflow_operand_value_call_target(program, machine, binary.left)
-                    .or_else(|| overflow_operand_value_call_target(program, machine, binary.right))
+                let call_hint = overflow_operand_value_call_target(program, binary.left)
+                    .or_else(|| overflow_operand_value_call_target(program, binary.right))
                     .map(|target| {
                         format!(
                             " Here the operand `{target}(..)` is a value-machine call whose \
@@ -1273,7 +1273,7 @@ pub(super) fn analyze(
             // range + primitive to an otherwise-unbounded call result would turn a
             // previously-unchecked expression into a spurious overflow.
             if let Some((primitive, interval)) =
-                call_return_type(program, machine, call).and_then(|return_type| {
+                call_return_type(program, call).and_then(|return_type| {
                     range_constraint_interval(program, return_type)
                         .map(|interval| (program.primitive_type_reference(return_type), interval))
                 })
