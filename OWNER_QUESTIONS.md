@@ -44,80 +44,18 @@ These questions concern general mathematical proof and its connection to PCC,
 not a replacement for the compiler's existing bounded checks. The current
 [product checker](omega-rust/psi/semantics/proof-admission/src/lib.rs) checks
 explicit rules; [source automation](omega-rust/psi/semantics/validation/README.md#source-proof-automation)
-is not yet a complete certificate producer. Neither implementation chooses the
-unsettled foundations by precedent. Proposed directions below are not ratified.
+is not yet a complete certificate producer. The
+[mathematical foundation](wiki/spec/proofs/foundation.md) now selects the
+reference core, strict/relevant distinction, noncomputability and assumption
+rules. The remaining questions below do not reopen those decisions.
 
-Decide the calculus first, then its source elaboration and PCC authority bridge.
+Complete its source elaboration, PCC authority bridge and exact extended profile.
 No question restores anonymous machines, dedicated formula declarations, or
 authored `-> Prop` syntax. Those ergonomic proposals remain separate.
 
-<a id="proof-foundation-calculus"></a>
-
-## Q1. Canonical mathematical calculus
-
-### Context
-
-[Proof contracts](wiki/spec/proofs/contracts.md#undetermined-foundations) require
-general mathematics but leave dependent functions, universes, equality,
-computation, induction, quotients and proof irrelevance undetermined. These are
-not seven missing Rust features: together they determine which derivations are
-valid. The current [Proposition vocabulary](omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs)
-has bounded arithmetic, atoms and logical connectives, not a general dependent
-term/universe judgment. Static-machine indices in
-[Cauchy code](source/library/core/cauchy.omg) do not establish that judgment.
-
-The customer is general mathematical libraries: higher-order theorems about
-arbitrary predicates/functions, dependent witness/law bundles, and quotient-based
-analysis. The existing proof-machine spelling cannot settle these rules.
-
-### Problem and required decision
-
-Which mathematical calculus is Omega committing to, and what is its exact rule
-set? In particular, settle universe formation and quantification levels;
-dependent function formation/application; definitional conversion versus proved
-equality and transport; inductive formation/elimination and recursive proof
-admission; logical proof irrelevance versus identity-bearing Type witnesses;
-and the foundational realization of the already specified quotient interface.
-Changing any of these later can change theorem meaning or admissibility, not
-merely certificate bytes.
-
-### Proposed solution
-
-Adopt one explicitly documented dependent type theory as the mathematical core,
-with stratified universes, dependent functions/products and checked inductive
-eliminators. Keep decidable kernel conversion distinct from theorem-proved
-equality; selected extra axioms must not silently become conversion rules.
-Preserve ordinary machine contracts and named bundles as the authoring model.
-Logical proof erasure must not identify distinct witnesses or resource claims.
-
-Ratification needs actual formation, introduction, elimination and computation
-rules, including the predicate-universe/impredicativity and quotient choices;
-"dependent types" alone is not a completed answer. State the kernel's trusted
-rules and their soundness assumptions. Work through a universe-polymorphic
-theorem, dependent equality transport, structural induction, and a
-representative-independent quotient operation, with invalid counterparts.
-These examples exercise the rules; passing them is not a consistency proof.
-
-### Alternates
-
-- **Viable:** a fixed logical foundation encoding mathematical functions,
-  sets and dependence rather than making all of them primitive dependent
-  types. It must still provide general quantification, explicit axioms and
-  tractable certificate checking; compare the authoring and checking cost on
-  the same mathematical examples.
-- **Tempting but wrong:** treat the current Rust enum, a successful arithmetic
-  proof, or removal of a source keyword as a choice of general foundation.
-  A self-typing universal universe or arbitrary equality-to-conversion shortcut
-  is not an implementation convenience to add without foundational justification.
-
-**Blocked work:** the general calculus portion of `PROOF-CONTRACT-MIGRATION`,
-general dependent proof terms and foundation-dependent quotient/induction
-extensions. Existing specified arithmetic, ownership and certificate checks
-remain actionable; this is not a compiler-wide stop.
-
 <a id="mathematical-binders"></a>
 
-## Q2. Mathematical binders and proof-machine elaboration
+## Q1. Mathematical binders and proof-machine elaboration
 
 ### Context
 
@@ -142,6 +80,14 @@ substitution, universes, assumption introduction/discharge, and witness access.
 In particular, an existential claim cannot automatically yield executable data.
 Source forms must not accidentally require the revoked anonymous-machine feature.
 
+The semantic decisions are already fixed: Type-valued mathematical results need
+not compute; representable carriers such as `u32` remain eligible mathematical
+subjects. Strict existence differs from a relevant witness package. Specify how
+ordinary declarations express those distinctions and explicit universe levels
+when inference is insufficient, without restoring authored `-> Prop` or adding
+a noncomputability domain. Do not make authors name executable declarations to
+quantify over arbitrary mathematical functions.
+
 ### Proposed solution
 
 Use explicitly typed mathematical binders and proof-level abstraction/application,
@@ -155,9 +101,12 @@ As an acceptance example, express the mathematical statement "for arbitrary
 type A and predicates P and Q over A, if every P implies Q and some P holds,
 then some Q holds." Also show nested binder shadowing, a dependent witness
 bundle, and a nonconstructive existence proof whose attempted runtime witness
-extraction rejects. These are mathematical descriptions, not proposed Omega
-punctuation. Include a pure terminating machine used denotationally and an
-effectful call whose result is known only through its outcome contract.
+extraction rejects. Include choice of a member of a nonempty subset of `u32`,
+both direct materialization and a branch depending on it, alongside an erased
+proof reference that needs no runtime value. These are mathematical descriptions,
+not proposed Omega punctuation. Include a pure terminating machine used
+denotationally and an effectful call whose result is known only through its
+outcome contract.
 
 ### Alternates
 
@@ -171,14 +120,15 @@ effectful call whose result is known only through its outcome contract.
   proposition is not proving it.
 
 **Blocked work:** general source elaboration in `PROOF-CONTRACT-MIGRATION` and
-its dependent value/computation judgments. Depends on the calculus decision.
+its source forms for the selected value/computation judgments. Reference-core
+checking and assumption-closure work can proceed independently.
 The existing [evaluation admission](wiki/spec/language/evaluation.md#invocation-admission)
 and total-term rules stay fixed: this question does not reopen whether arbitrary
 runtime effects may execute in proofs.
 
 <a id="general-proof-pcc-authority"></a>
 
-## Q3. General proof authority and the PCC checking boundary
+## Q2. General proof authority and the PCC checking boundary
 
 ### Context
 
@@ -186,7 +136,8 @@ runtime effects may execute in proofs.
 untrusted producers, verifier-reconstructed questions and certificate checking.
 It requires exact subjects, transitive assumptions and low-rung soundness
 theorems. Those responsibilities are settled. What is not settled is the
-general calculus/derivation interface, foundation identity and compatibility.
+exact derivation interface and operational interpretation of the selected
+[foundation](wiki/spec/proofs/foundation.md), including its completed profile identity.
 
 The [product proof checker](omega-rust/psi/semantics/proof-admission/src/evidence.rs)
 has primitive, certificate and explicitly admitted routes. The
@@ -243,9 +194,73 @@ assumptions, stale translations and disallowed safety-use assumptions reject;
 two consumer policies distinguish the same assumption-bearing theorem. Include
 an operational schema/call-composition proof, not only an unrelated theorem.
 This does not claim the existing bootstrap checker can express that proof.
+Also check a well-founded mathematical denotation against an emitted iterative
+machine. Termination, functional correctness and lowering preservation are
+distinct obligations: a bad accumulator update that still decreases rejects.
 
-**Blocked work:** the general kernel/encoding and foundation-bridge parts of
-`PROOF-CERTIFICATION-BRIDGE` and `PCC-CANONICAL-SEMANTIC-LEDGER`. Bounded current-rule
-production, replay repairs and the existing bootstrap proof customer can continue.
+**Blocked work:** the general PCC publication/interpretation and authority-bearing
+encoding parts of `PROOF-CERTIFICATION-BRIDGE` and
+`PCC-CANONICAL-SEMANTIC-LEDGER`. Bounded current-rule
+production, reference-core checking, replay repairs and the existing bootstrap
+proof customer can continue.
 Byte tags, certificate storage, tactic APIs and the Real library are not separate
 owner decisions unless implementing them exposes a new semantic or trust choice.
+
+<a id="foundation-profile-completion"></a>
+
+## Q3. Exact inductive and quotient extension of the reference core
+
+### Context
+
+The [foundation](wiki/spec/proofs/foundation.md#decision-and-scope) selects the
+predicative sMLTT reference core, proof-relevant identity and strict logical
+proofs. It deliberately does not splice Lean's irrelevant equality or singleton
+elimination into that theory. The reference paper is not a complete declaration
+manual for Omega's general inductives and existing
+[quotient interface](wiki/spec/proofs/quotients.md).
+
+The concrete customers are dependent mathematical data and induction, and
+representative-independent Cauchy/Real analysis. General quotient equality and
+elimination need a foundational realization; a checked congruence row alone
+does not supply one.
+
+### Required decision and proposed route
+
+Pin one complete extension profile: accepted inductive declarations, positivity,
+universe levels, generated eliminators, identity elimination, computation and
+conversion rules. Use a documented intensional MLTT extension compatible with
+the selected strict layer; do not infer legality from current source syntax.
+Keep ordinary mathematical identity relevant and exclude unconditional UIP/K.
+
+For quotients, first evaluate an explicitly assumption-bearing abstract
+mathematical interface, with no new reduction rules. State exactly its projection,
+relation-to-identity law, elimination restrictions and correspondence laws, and
+which carrier/target truncation conditions it requires. A checked executable
+adapter remains separate. This is the recommended initial route because it
+does not expand trusted conversion merely to support the library; it is not yet
+ratified, and ordinary set-quotient laws cannot be assumed valid for arbitrary
+higher types.
+
+Before closing, give the exact declaration/rule table and a checked interpretation
+or applicable metatheoretic justification. Work through identity transport,
+indexed induction, squashed existence versus a relevant pair, and a quotient
+operation independent of representative. Show rejection of unjustified strict
+elimination, negative recursion and representative-sensitive observation.
+
+### Alternatives and boundary
+
+- **Viable:** a precisely specified primitive quotient extension with its own
+  metatheory and computation rules. Price the trusted surface and demonstrate
+  compatibility with proof-relevant identity rather than copying another kernel.
+- **Viable narrower implementation:** explicit setoid reasoning until the
+  quotient extension is settled. It may support library progress, but cannot
+  be reported as implementing the ratified quotient interface.
+- **Wrong:** silently import `Quot.sound`, singleton elimination or general
+  higher inductive types, treat all identity proofs as irrelevant, or publish a
+  canonical calculus identity before its rules are fixed.
+
+**Blocked work:** generalized inductive/quotient extensions in `PROOF-KERNEL-CORE`
+and the quotient leg of `PROOF-CONTRACT-MIGRATION`; complete profile publication
+used by the PCC bridge. The selected reference-core implementation, source
+design, existing bounded checks and explicit assumption tracking can proceed.
+This is completion of a chosen foundation, not another vote among proof languages.

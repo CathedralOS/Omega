@@ -6,6 +6,12 @@ the concrete invocation's complete normalized contract determines admission.
 There is no `comptime`, `#run`, `const machine`, macro language, or
 `is_build_time()` observation.
 
+Mathematical checking is a different judgment: a well-typed symbolic term may
+refer to an admitted axiom without computing a value. The
+[foundation](../proofs/foundation.md#mathematical-values-are-not-executable-promises)
+governs that distinction. Neither empty reach nor a representable result carrier
+supplies a missing algorithm.
+
 For an eligible runtime-capable machine, evaluation produces exactly the value
 that target execution would produce with the same arguments, selected
 conformances/providers, and target semantics. Evaluation changes when, not what.
@@ -32,6 +38,8 @@ and available facts. Admission requires all of the following:
 - No runtime authority acquisition or consumption.
 - No escaping runtime mutation.
 - Only proof/build-admissible trust and resource inputs.
+- A checked computation or executable realization for every demanded data/control
+  dependency; an axiomatic mathematical result is not an executable provider.
 
 Empty reach alone proves none of the other axes. Trait requirements bound static
 callback selections; their consumers use the application's
@@ -80,6 +88,14 @@ snapshot and `ConstMaterializable(value, layout)` for determined observable
 runtime bits. Neither is user-satisfiable. The latter is a separate,
 value-sensitive judgment described in [constant materialization](constants.md#materialization).
 Canonical type/index identity imposes the additional rules below.
+
+Proof-only references retain their full assumption closure without introducing
+runtime demand. Relevant branches and calls still require their inputs: an
+axiomatic Boolean cannot control materialization merely because its alternatives
+are constants. A checked transformation may remove that dependency, but cannot
+silently remove the retained trust record. Diagnose the unrealized mathematical
+use where evaluation is requested, rather than suggesting ordinary provider
+selection. Executable checking and lowering enforce the same distinction.
 
 ## Termination and sponsorship
 
@@ -190,6 +206,11 @@ the introducing observation or realization.
 
 ## Canonical static identities
 
+This section governs systems generic/domain indices and their published
+specialization identity. It does not replace the mathematical core's dependent
+typing or definitional conversion, and does not limit proof-only quantification
+to the finite list of canonical runtime atoms below.
+
 A value used as a canonical generic/domain index needs decidable structural
 equality and one unique canonical encoding. Its value, not its evaluation
 trace, enters identity. Generic, monomorphized, structural, indexed-qualification,
@@ -229,7 +250,7 @@ production cost.
 
 Published carrierless selected-conformance evidence is separate compilation,
 not a local cache exception. A producer performs witness search; a consumer
-projects the retained proposition and may cheaply verify its artifact/kernel
+projects the retained proposition and verifies its artifact/kernel
 evidence without rerunning the search. Ordinary theorem contracts and named
 witness/law bundles follow [proof contracts](../proofs/contracts.md); a cache
 does not turn erased evidence into runtime values. The separate

@@ -235,9 +235,11 @@ declared family and a valid realization, with no implicit runtime proof objects,
 storage allocation, or unlimited specialization. Existing const-indexed families
 retain their static requirement. These rules neither prohibit eligible static
 evaluation in layout plans nor restrict general proof-side quantification.
-Arbitrary mathematical functions/predicates, noncomputable values, and the full
-universe/equality foundations remain required but
-[undetermined](../spec/proofs/contracts.md#undetermined-foundations).
+The [mathematical foundation](../spec/proofs/foundation.md) supports arbitrary
+mathematical functions/predicates and noncomputable values independently of
+runtime representation. General source binders and the exact extended profile
+remain [open joins](../spec/proofs/contracts.md#open-joins), not limits inferred
+from this systems fragment.
 
 ## Relationship To Other Chapters
 

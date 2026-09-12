@@ -318,7 +318,8 @@ An application in a proof contract instantiates a schema without itself
 demanding executable monomorphization. This supports universal law statements
 without reifying a runtime function. It still does not replace arbitrary
 mathematical function/predicate binders, whose general source forms remain
-[undetermined](../spec/proofs/contracts.md#undetermined-foundations).
+[a source-design question](../../OWNER_QUESTIONS.md#mathematical-binders)
+under the [selected foundation](../spec/proofs/foundation.md).
 [Quotients](../spec/proofs/quotients.md) owns relation-family matching and laws.
 
 ## Where Clauses

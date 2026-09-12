@@ -47,8 +47,9 @@ beat ordinary named trait/conformance bundles on a concrete proof.
 
 General predicate abstraction, logical binders, proof-only noncomputable values,
 and explicitly tracked selectable axioms remain required independently of this
-candidate. The precise source forms and underlying universe/equality rules need
-design and validation. Neither candidate establishes Lean-level expressivity by
+candidate. The [foundation](../spec/proofs/foundation.md) now selects the
+mathematical core; its exact extended profile and general source forms remain
+separately scoped work. Neither candidate establishes mathematical completeness by
 itself, and removing either does not establish that the current compiler already
 has a complete replacement.
 

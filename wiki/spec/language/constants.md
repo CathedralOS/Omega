@@ -42,6 +42,16 @@ the realized active value, recursively through its active fields and case.
 Failure identifies the offending component and producer origin. Semantically
 unobservable padding is emitted as zero.
 
+Layout is necessary, not sufficient: the value must come from admitted
+computation or a checked realization of its mathematical meaning. A chosen
+member of a nonempty subset of `u32` may exist in a proof without providing
+materializable bits. A condition computationally depending on an unrealized
+mathematical value also creates demand even if both branch results are ordinary
+constants. Admitted premises used only to justify executable computation are
+not themselves missing algorithms. No domain cast or carrier substitution can
+discharge that demand. See the
+[foundation's separate judgments](../proofs/foundation.md#separate-judgments).
+
 A NaN whose payload is not determined remains usable through `Float::meaning`
 in proof and compile-time positions. Runtime materialization requires
 canonicalization, explicit bits, or a selected realization publishing the exact
