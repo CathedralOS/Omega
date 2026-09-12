@@ -94,7 +94,7 @@ impl ImmutableSourceParseCheckpoint {
             source_storage: Arc::new(source_storage),
             build_source_id,
             package_imports: package_imports.into(),
-            package_source_inputs: package_inputs.map(|inputs| Arc::new(inputs.source_inputs())),
+            package_source_inputs: package_inputs.map(PackageCompilationInputs::source_inputs),
         })
     }
 
@@ -126,7 +126,7 @@ impl ImmutableSourceParseCheckpoint {
     ) -> Result<(), Vec<Diagnostic>> {
         if package_inputs
             .map(PackageCompilationInputs::source_inputs)
-            .as_ref()
+            .as_deref()
             != self.package_source_inputs.as_deref()
         {
             return Err(vec![Diagnostic::error(

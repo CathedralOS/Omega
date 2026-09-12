@@ -364,28 +364,26 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         "the compiler driver must admit every requested product through one request-owner entrance"
     );
     assert_eq!(
-        compact_driver.matches("check_request(&request)?").count(),
-        0,
-        "the common checked-Psi frontend now receives the optional prepared source checkpoint explicitly"
-    );
-    assert_eq!(
         compact_driver
-            .matches("check_request(&request,prepared)?")
+            .matches("PreparedCheckedSource::prepare(")
             .count(),
         1,
-        "every single or batched child product must share one checked-Psi frontend continuation"
+        "all product counts must acquire their shared source through one preparation"
     );
     assert!(
-        compact_driver.contains(
-            "letrequest=request.validate_for_execution()?;compile_validated(request,None)"
-        ),
-        "the single-request entrance must admit once before the common product continuation"
+        compact_driver.contains("check_request(&target,prepared).and_then("),
+        "checked and Terminal children must continue from the prepared source"
+    );
+    assert!(
+        !driver.contains("compile_validated"),
+        "the coordinator must not retain an alternate unprepared child route"
     );
     let mut ordered_driver = compact_driver.as_str();
     for stage in [
-        "fncompile_validated(",
-        "check_request(&request,prepared)?;",
-        "matchrequest.requested_product(){",
+        "fncompile_request(",
+        "request.validate_for_execution()?;",
+        "PreparedCheckedSource::prepare(",
+        "matchrequest.shared.requested_product{",
     ] {
         let offset = ordered_driver.find(stage).unwrap_or_else(|| {
             panic!("the compiler driver must contain ordered common stage `{stage}`")
@@ -407,8 +405,8 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         .map(|(_, native_arm)| native_arm)
         .expect("the common product stop must contain its native arm");
     native_arm
-        .find("native::compile(request,checked).map(finalize_report)")
-        .expect("the native product arm must invoke its report owner");
+        .find("native::compile_targets(request.targets,prepared)")
+        .expect("every native product count must invoke the same prepared target owner");
     let checked_receipt = compact_optimization
         .find("NativeCompilationWithCheckedReceipt::new(checked,report)")
         .expect("the native report owner must retain checked/report custody validation");
@@ -420,12 +418,19 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         "native report assembly must precede checked/report custody validation"
     );
     let targets = fs::read_to_string(
-        repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/targets.rs"),
+        repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/native/targets.rs"),
     )
     .expect("read exact-target compilation");
     assert!(
-        without_ascii_whitespace(&targets).contains("native::prepare(request,checked)?"),
+        without_ascii_whitespace(&targets).contains("super::prepare(request,checked)")
+            && without_ascii_whitespace(&targets).contains("check_request(&request,source)"),
         "the native batch route must delegate each child's Terminal preparation to the same owner"
+    );
+    assert!(
+        compact_driver.contains("outcomes.push(compile_target(last,prepared))")
+            && without_ascii_whitespace(&targets)
+                .contains("staged.push(prepare_target(last,prepared_source))"),
+        "the final child must consume the source checkpoint, not copy behind a retained coordinator owner"
     );
     assert!(
         !request.contains("validate_for_native_execution"),

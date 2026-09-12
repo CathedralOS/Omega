@@ -71,6 +71,7 @@ pub(super) fn compile_retained_native(target: &str) -> RetainedNativeArtifact {
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| {
         panic!(
             "no-selection native compilation for {target} failed: {:#?}",

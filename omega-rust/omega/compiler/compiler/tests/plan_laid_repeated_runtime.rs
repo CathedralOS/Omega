@@ -15,7 +15,8 @@ fn compile(
     let report = compiler::compile(
         compiler::CompileRequest::new(options)
             .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
-    )?;
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)?;
     report
         .publish_retained_native_artifact(&build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])

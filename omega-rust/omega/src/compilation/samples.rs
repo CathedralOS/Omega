@@ -65,7 +65,9 @@ pub(crate) fn refresh(samples_root: &Path) -> ! {
                         .with_package_inputs(package_inputs)
                         .with_requested_product(RequestedCompileProduct::NativeArtifact)
                         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
-                    let result = match compile(request) {
+                    let result = match compile(request)
+                        .and_then(compiler::CompileOutcomes::into_single_report)
+                    {
                         Ok(report) => publication::publish_native_artifact(report, &build_dir),
                         Err(diagnostics) => Err(diagnostics
                             .first()

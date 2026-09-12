@@ -604,7 +604,7 @@ invokes console;
                 })
                 .with_package_inputs(production_inputs(semantic_bindings))
                 .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact),
-            )
+            ).and_then(compiler::CompileOutcomes::into_single_report)
             .unwrap_or_else(|diagnostics| {
                 panic!("accepted package application must produce one retained Terminal report: {diagnostics:#?}")
             })

@@ -294,8 +294,10 @@ fn terminal_handoff_rejects_callbacks_outside_the_emitted_entry_closure() {
     .expect("callback program should reach checked compilation");
     assert_eq!(checked.callback_placements().len(), 2);
     compile(fixture.request(RequestedCompileProduct::Check, "check"))
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .expect("check-only compilation retains callback placements without executing them");
     let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "terminal"))
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .expect_err("unreachable callback placements cannot float beside an unrelated artifact");
     assert!(
         terminal.iter().any(|diagnostic| diagnostic
@@ -309,6 +311,7 @@ fn terminal_handoff_rejects_callbacks_outside_the_emitted_entry_closure() {
 fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     let fixture = Fixture::direct();
     let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "terminal"))
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .expect("direct callback registrar should reach canonical Terminal custody");
     let retained = terminal
         .into_retained_terminal_artifact()
@@ -668,6 +671,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     );
 
     let native = compile(fixture.request(RequestedCompileProduct::NativeArtifact, "native"))
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .expect_err("native production remains fenced after exact occurrence custody");
     assert_custody_diagnostic(&native, "native-artifact", 1);
 }
@@ -708,6 +712,7 @@ impl ProviderExecutionEvidence for CallbackRegistrarExecution {
 fn direct_callback_relocation_resolves_to_its_private_function() {
     let fixture = Fixture::direct_with_import();
     let retained = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "native"))
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .unwrap_or_else(|diagnostics| {
             panic!("direct callback import must reach Terminal: {diagnostics:#?}")
         })

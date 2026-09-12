@@ -44,7 +44,8 @@ pub(super) fn compile(
                 .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
                 .with_artifact_policy(artifact_policy)
                 .with_accepted_trust_admissions(admissions),
-        )?;
+        )
+        .and_then(compiler::CompileOutcomes::into_single_report)?;
         let interpretation = interpret.then(|| {
             compiler::compile_to_checked(CheckedCompileRequest::new(
                 &options.root_path,

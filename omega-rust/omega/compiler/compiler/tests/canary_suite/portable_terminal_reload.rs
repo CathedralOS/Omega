@@ -66,6 +66,7 @@ fn produce_portable_terminal_product() {
         .with_requested_product(RequestedCompileProduct::TerminalArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("first invocation must produce standalone Terminal Psi");
     let retained = report
         .into_retained_terminal_artifact()

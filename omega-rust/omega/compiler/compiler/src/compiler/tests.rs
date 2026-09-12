@@ -27,12 +27,17 @@ impl MultiTargetFixture {
         Self { root, main }
     }
 
-    fn request(&self, profile: target::TargetProfile) -> CompileRequest {
+    fn request(&self) -> CompileRequest {
         CompileRequest::new(CompileOptions {
             root_path: self.main.clone(),
-            build_dir: Some(self.root.join("build").join(profile.target_name())),
+            build_dir: None,
             target_name: None,
         })
+    }
+
+    fn target_configuration(&self, profile: target::TargetProfile) -> TargetCompileConfiguration {
+        TargetCompileConfiguration::new(profile)
+            .with_build_dir(self.root.join("build").join(profile.target_name()))
     }
 }
 
@@ -112,7 +117,8 @@ fn exact_target_invocation_needs_no_authored_target_declaration() {
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
-        let report = compile_request(request)
+        let report = compile(request)
+            .and_then(crate::CompileOutcomes::into_single_report)
             .unwrap_or_else(|diagnostics| panic!("{target}: {diagnostics:#?}"));
         let profile = target::TargetProfile::from_omega_target_name(Some(target))
             .expect("hosted target fixture must name a canonical target");
@@ -143,22 +149,30 @@ fn native_batch_reuses_exact_terminal_input_before_distinct_target_lowering() {
         .join("main.omg");
     let targets = ExplicitTargetSet::from_caller_names(["linux_x64", "linux_arm64"])
         .expect("hosted targets should canonicalize");
-    let batch = MultiTargetCompileRequest::from_target_set(targets, |profile| {
-        CompileRequest::new(CompileOptions {
-            root_path: root.clone(),
-            build_dir: Some(std::env::temp_dir().join(format!(
-                "omega-native-input-reuse-{}-{}",
-                std::process::id(),
-                profile.target_name(),
-            ))),
-            target_name: None,
-        })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
+    let batch = CompileRequest::new(CompileOptions {
+        root_path: root.clone(),
+        build_dir: None,
+        target_name: None,
     })
-    .expect("target factory should produce an exact native batch");
+    .with_target_configurations(
+        targets
+            .profiles()
+            .iter()
+            .map(|&profile| {
+                TargetCompileConfiguration::new(profile).with_build_dir(std::env::temp_dir().join(
+                    format!(
+                        "omega-native-input-reuse-{}-{}",
+                        std::process::id(),
+                        profile.target_name(),
+                    ),
+                ))
+            })
+            .collect(),
+    )
+    .with_requested_product(RequestedCompileProduct::NativeArtifact)
+    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
 
-    let outcomes = compile_targets(batch).expect("native batch request should admit");
+    let outcomes = compile(batch).expect("native batch request should admit");
     assert_eq!(outcomes.prepared_terminal_native_input_count(), 1);
     let artifacts = outcomes
         .outcomes()
@@ -184,7 +198,9 @@ fn native_batch_reuses_exact_terminal_input_before_distinct_target_lowering() {
     assert_ne!(artifacts[0].target(), artifacts[1].target());
     assert_ne!(artifacts[0].identity(), artifacts[1].identity());
     for outcome in outcomes.outcomes() {
-        let profile = outcome.target_profile();
+        let profile = outcome
+            .target_profile()
+            .expect("batch selected an exact target");
         let standalone = compile(
             CompileRequest::new(CompileOptions {
                 root_path: root.clone(),
@@ -198,6 +214,7 @@ fn native_batch_reuses_exact_terminal_input_before_distinct_target_lowering() {
             .with_requested_product(RequestedCompileProduct::NativeArtifact)
             .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         )
+        .and_then(crate::CompileOutcomes::into_single_report)
         .unwrap_or_else(|diagnostics| panic!("{profile:?}: {diagnostics:#?}"));
         assert_eq!(
             outcome
@@ -231,15 +248,19 @@ machine ArmMain::main(&mut self) { }
     );
     let targets = ExplicitTargetSet::from_caller_names(["linux_x64", "linux_arm64"])
         .expect("hosted targets should canonicalize");
-    let batch = MultiTargetCompileRequest::from_target_set(targets, |profile| {
-        fixture
-            .request(profile)
-            .with_requested_product(RequestedCompileProduct::NativeArtifact)
-            .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
-    })
-    .expect("target factory should produce an exact native batch");
+    let batch = fixture
+        .request()
+        .with_target_configurations(
+            targets
+                .profiles()
+                .iter()
+                .map(|&profile| fixture.target_configuration(profile))
+                .collect(),
+        )
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
 
-    let outcomes = compile_targets(batch).expect("native batch request should admit");
+    let outcomes = compile(batch).expect("native batch request should admit");
     let terminal_identities = outcomes
         .outcomes()
         .iter()
@@ -275,30 +296,39 @@ fn exact_target_batch_is_canonical_and_matches_standalone() {
     );
     let targets = ExplicitTargetSet::from_caller_names(["windows_x64", "linux_arm64", "linux_x64"])
         .expect("explicit target set should canonicalize");
-    let batch =
-        MultiTargetCompileRequest::from_target_set(targets, |profile| fixture.request(profile))
-            .expect("target factory should not duplicate target identity");
-    let outcomes = compile_targets(batch).expect("batch request should admit");
+    let batch = fixture.request().with_target_configurations(
+        targets
+            .profiles()
+            .iter()
+            .map(|&profile| fixture.target_configuration(profile))
+            .collect(),
+    );
+    let outcomes = compile(batch).expect("batch request should admit");
     assert_eq!(outcomes.outcomes().len(), 3);
     assert_eq!(
         outcomes
             .outcomes()
             .iter()
-            .map(ExactTargetCompileOutcome::target_profile)
+            .map(CompileTargetOutcome::target_profile)
             .collect::<Vec<_>>(),
         [
-            target::TargetProfile::LinuxArm64,
-            target::TargetProfile::LinuxX64,
-            target::TargetProfile::WindowsX64,
+            Some(target::TargetProfile::LinuxArm64),
+            Some(target::TargetProfile::LinuxX64),
+            Some(target::TargetProfile::WindowsX64),
         ],
     );
     assert!(outcomes.outcomes()[0].succeeded());
     assert!(outcomes.outcomes()[1].succeeded());
     assert!(outcomes.outcomes()[2].succeeded());
 
-    let mut standalone_request = fixture.request(target::TargetProfile::LinuxX64);
-    standalone_request.options.target_name = Some("linux_x86_64".to_owned());
-    let standalone = compile(standalone_request).expect("standalone Linux child");
+    let standalone_request = CompileRequest::new(CompileOptions {
+        root_path: fixture.main.clone(),
+        build_dir: Some(fixture.root.join("build").join("linux_x86_64")),
+        target_name: Some("linux_x86_64".to_owned()),
+    });
+    let standalone = compile(standalone_request)
+        .and_then(crate::CompileOutcomes::into_single_report)
+        .expect("standalone Linux child");
     let batched = outcomes.outcomes()[1]
         .report()
         .expect("batched Linux child should compile");
@@ -323,10 +353,14 @@ fn shared_source_failure_is_retained_for_every_exact_target() {
     );
     let targets = ExplicitTargetSet::from_caller_names(["windows_x64", "linux_x64"])
         .expect("explicit target set should canonicalize");
-    let batch =
-        MultiTargetCompileRequest::from_target_set(targets, |profile| fixture.request(profile))
-            .expect("target factory should not duplicate target identity");
-    let outcomes = compile_targets(batch).expect("batch request should admit");
+    let batch = fixture.request().with_target_configurations(
+        targets
+            .profiles()
+            .iter()
+            .map(|&profile| fixture.target_configuration(profile))
+            .collect(),
+    );
+    let outcomes = compile(batch).expect("batch request should admit");
     assert_eq!(outcomes.outcomes().len(), 2);
     let linux = outcomes.outcomes()[0]
         .diagnostics()

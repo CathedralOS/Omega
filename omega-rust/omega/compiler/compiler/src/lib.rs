@@ -3,14 +3,14 @@ mod compiler;
 mod pipeline;
 
 pub use compiler::{
-    ArtifactEmissionPolicy, CheckedAdmission, CompileOptions, CompileOutputKind, CompileReport,
-    CompileRequest, Compiler, ExactTargetCompileOutcome, ExecutablePublicationReceipt,
-    ExplicitTargetSet, FinalRealizationEvidenceError, MultiTargetCompileOutcomes,
-    MultiTargetCompileRequest, OptimizationRollback, OptimizationRollbackInputError,
-    OptimizationRollbackReceipt, ProductionArtifactIdentity, ProductionCompilationManifest,
-    ProductionCompilationManifestIdentity, ProductionCompilationSubject, RequestedCompileProduct,
-    RetainedNativeArtifact, RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
-    TrustAdmission, TrustAdmissionSettlement, admit_checked_compilation, compile, compile_targets,
+    ArtifactEmissionPolicy, CheckedAdmission, CompileOptions, CompileOutcomes, CompileOutputKind,
+    CompileReport, CompileRequest, CompileTargetOutcome, Compiler, ExecutablePublicationReceipt,
+    ExplicitTargetSet, FinalRealizationEvidenceError, OptimizationRollback,
+    OptimizationRollbackInputError, OptimizationRollbackReceipt, ProductionArtifactIdentity,
+    ProductionCompilationManifest, ProductionCompilationManifestIdentity,
+    ProductionCompilationSubject, RequestedCompileProduct, RetainedNativeArtifact,
+    RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement, TargetCompileConfiguration,
+    TrustAdmission, TrustAdmissionSettlement, admit_checked_compilation, compile,
     realize_retained_native_artifact, retained_terminal_report_from_checked_package,
     validate_lowered_ieee_float_comparison_custody,
 };

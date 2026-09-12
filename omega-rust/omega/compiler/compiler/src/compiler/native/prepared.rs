@@ -2,8 +2,8 @@
 
 use super::{admission, realization};
 use crate::compiler::CompileReport;
-use crate::compiler::CompileRequest;
 use crate::compiler::optimization::rollback;
+use crate::compiler::request::ValidatedTargetCompilation;
 use diagnostics::Diagnostic;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -14,7 +14,7 @@ pub(in crate::compiler) struct NativeInputReuseKey {
 }
 
 pub(in crate::compiler) struct PreparedNativeCompilation {
-    pub(super) request: CompileRequest,
+    pub(super) request: ValidatedTargetCompilation,
     pub(super) checked: crate::pipeline::CheckedCompilation,
     pub(super) admission: admission::NativeCompilationAdmission,
     pub(super) rollback: rollback::OptimizationRollbackSettlement,
@@ -25,7 +25,7 @@ pub(in crate::compiler) struct PreparedNativeCompilation {
 
 impl PreparedNativeCompilation {
     pub(in crate::compiler::native) fn new(
-        request: CompileRequest,
+        request: ValidatedTargetCompilation,
         checked: crate::pipeline::CheckedCompilation,
         admission: admission::NativeCompilationAdmission,
         rollback: rollback::OptimizationRollbackSettlement,
@@ -48,7 +48,11 @@ impl PreparedNativeCompilation {
         let post_terminal = self.rollback.effective().project_post_terminal();
         NativeInputReuseKey {
             terminal_artifact_identity: self.terminal.artifact().manifest().identity(),
-            admission_profile: self.request.terminal_admission_profile.clone(),
+            admission_profile: self
+                .request
+                .configuration
+                .terminal_admission_profile
+                .clone(),
             optimized: !post_terminal.selections().is_empty(),
         }
     }
@@ -61,7 +65,7 @@ impl PreparedNativeCompilation {
         let post_terminal = self.rollback.effective().project_post_terminal();
         ::native_realization::prepare_native_realization_input(
             self.terminal.artifact(),
-            &self.request.terminal_admission_profile,
+            &self.request.configuration.terminal_admission_profile,
             post_terminal.selections(),
         )
     }
@@ -79,12 +83,12 @@ impl PreparedNativeCompilation {
             production_subject,
             source_file_count,
         } = self;
-        let CompileRequest {
-            options,
+        let options = request.options;
+        let crate::compiler::TargetCompileConfiguration {
             terminal_admission_profile,
             terminal_authority_permission_policy,
             ..
-        } = request;
+        } = request.configuration;
         let post_terminal = rollback.effective().project_post_terminal();
         let artifact = realization::realize(
             &checked,

@@ -1302,6 +1302,7 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
             .with_requested_product(RequestedCompileProduct::NativeArtifact)
             .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         )
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .unwrap_or_else(|error| {
             panic!("total-order satisfier canary should cross-compile for {target}: {error:?}")
         });

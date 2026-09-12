@@ -109,12 +109,14 @@ pub(crate) fn compile_project(arguments: CompileArguments) {
                 .with_artifact_policy(artifact_policy)
                 .with_optimization_rollback(arguments.optimization_rollback)
                 .with_accepted_trust_admissions(accepted_admissions);
-            compile(request).unwrap_or_else(|diagnostics| {
-                for diagnostic in diagnostics {
-                    eprintln!("{diagnostic}");
-                }
-                std::process::exit(1);
-            })
+            compile(request)
+                .and_then(compiler::CompileOutcomes::into_single_report)
+                .unwrap_or_else(|diagnostics| {
+                    for diagnostic in diagnostics {
+                        eprintln!("{diagnostic}");
+                    }
+                    std::process::exit(1);
+                })
         }
     };
     let settlement = report.trust_admission_settlement();

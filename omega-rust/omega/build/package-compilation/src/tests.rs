@@ -276,6 +276,10 @@ fn source_input_projection_excludes_exact_target_child_inputs() {
         .with_accepted_semantic_bindings(vec![accepted_console_binding(identity(2), 7)])
         .expect("exact-child semantic binding should attach");
     assert_eq!(with_binding.source_inputs(), expected);
+    assert!(std::sync::Arc::ptr_eq(
+        &with_binding.source_inputs(),
+        &expected
+    ));
 
     let generated = generated_bundle(
         &inputs,
@@ -291,6 +295,138 @@ fn source_input_projection_excludes_exact_target_child_inputs() {
         .with_complete_dependency_generated_sources(vec![generated])
         .expect("exact-child generated source should attach");
     assert_eq!(with_generated.source_inputs(), expected);
+    assert!(std::sync::Arc::ptr_eq(
+        &with_generated.source_inputs(),
+        &expected
+    ));
+    let expected_inputs = with_generated.clone();
+    let (source, target) = with_generated.into_parts();
+    assert!(std::sync::Arc::ptr_eq(&source, &expected));
+    let rejoined = PackageCompilationInputs::from_parts(source, target)
+        .expect("split generated inputs rejoin the same source graph");
+    assert_eq!(rejoined, expected_inputs);
+    assert!(std::sync::Arc::ptr_eq(&rejoined.source_inputs(), &expected));
+}
+
+#[test]
+fn target_inputs_share_sources_without_sharing_target_attachments() {
+    let tree = TempTree::new();
+    let inputs = three_package_generated_inputs(&tree);
+    let shared_source = inputs.source_inputs();
+    let for_target = |target, marker| {
+        let bundles = [identity(2), identity(3)]
+            .into_iter()
+            .map(|package| generated_bundle(&inputs, package, target, marker, vec![]))
+            .collect();
+        inputs
+            .clone()
+            .with_complete_dependency_generated_sources(bundles)
+            .expect("complete exact-target generated inputs")
+    };
+    let windows = for_target(target::TargetProfile::WindowsX64, 8)
+        .with_accepted_semantic_bindings(vec![accepted_console_binding(identity(2), 7)])
+        .expect("Windows binding belongs to shared source graph");
+    let linux = for_target(target::TargetProfile::LinuxX64, 9);
+    assert!(std::sync::Arc::ptr_eq(
+        &windows.source_inputs(),
+        &shared_source
+    ));
+    assert!(std::sync::Arc::ptr_eq(
+        &linux.source_inputs(),
+        &shared_source
+    ));
+    assert_eq!(windows.accepted_semantic_bindings().count(), 1);
+    assert_eq!(linux.accepted_semantic_bindings().count(), 0);
+    windows
+        .validate_dependency_generated_source_target(Some(target::TargetProfile::WindowsX64))
+        .expect("Windows attachments retain exact target");
+    linux
+        .validate_dependency_generated_source_target(Some(target::TargetProfile::LinuxX64))
+        .expect("Linux attachments retain exact target");
+    let expected = windows.clone();
+    let (source, target) = windows.into_parts();
+    assert_eq!(
+        PackageCompilationInputs::from_parts(source, target).expect("both maps rejoin"),
+        expected
+    );
+    let empty = PackageCompilationInputs::from_parts(
+        shared_source,
+        PackageCompilationTargetInputs::default(),
+    )
+    .expect("no target attachments is a valid initial state even with dependencies");
+    assert_eq!(empty, inputs);
+}
+
+#[test]
+fn rejoining_target_inputs_rejects_foreign_semantic_packages() {
+    let tree = TempTree::new();
+    let original = three_package_generated_inputs(&tree)
+        .with_accepted_semantic_bindings(vec![accepted_console_binding(identity(2), 7)])
+        .expect("binding belongs to original graph");
+    let (_, target) = original.into_parts();
+    let other = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![PackageSourceBinding::new(
+            identity(1),
+            "root",
+            tree.package("other"),
+        )],
+        vec![],
+    )
+    .expect("different closed source graph");
+    let errors = PackageCompilationInputs::from_parts(other.source_inputs(), target)
+        .expect_err("binding cannot cross into a graph without its package");
+    assert!(errors.iter().any(|error| matches!(error,
+        PackageCompilationInputError::ForeignSemanticBindingPackage { package, .. }
+            if *package == identity(2)
+    )));
+}
+
+#[test]
+fn rejoining_generated_inputs_revalidates_closure_and_completeness() {
+    let tree = TempTree::new();
+    let original = three_package_generated_inputs(&tree);
+    let bundles = [identity(2), identity(3)]
+        .into_iter()
+        .map(|package| {
+            generated_bundle(
+                &original,
+                package,
+                target::TargetProfile::LinuxX64,
+                9,
+                vec![],
+            )
+        })
+        .collect();
+    let (_, target) = original
+        .with_complete_dependency_generated_sources(bundles)
+        .expect("original complete bundles")
+        .into_parts();
+    let changed_graph = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", tree.package("new-root")),
+            PackageSourceBinding::new(identity(2), "middle", tree.package("new-middle")),
+            PackageSourceBinding::new(identity(3), "leaf", tree.package("new-leaf")),
+            PackageSourceBinding::new(identity(4), "extra", tree.package("extra")),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(1), "extra", identity(4)),
+        ],
+    )
+    .expect("new closed graph changes middle's closure and adds a dependency");
+    let errors = PackageCompilationInputs::from_parts(changed_graph.source_inputs(), target)
+        .expect_err("generated custody cannot cross into changed source graph");
+    assert!(errors.iter().any(|error| matches!(error,
+        PackageCompilationInputError::GeneratedSourceBundleClosureMismatch { package }
+            if *package == identity(2)
+    )));
+    assert!(errors.iter().any(|error| matches!(error,
+        PackageCompilationInputError::MissingGeneratedSourceBundle { package }
+            if *package == identity(4)
+    )));
 }
 
 #[test]

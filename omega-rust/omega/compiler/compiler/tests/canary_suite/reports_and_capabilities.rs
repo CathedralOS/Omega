@@ -57,6 +57,7 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
         })
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("output-only frontend check should succeed");
     assert!(!success.wrote_output());
     assert!(
@@ -74,6 +75,7 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
         })
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect_err("output-only mode must retain wire compatibility validation");
     assert!(
         diagnostics
@@ -99,6 +101,7 @@ fn full_checked_observation_emits_ordered_timings_with_checked_snapshots() {
         })
         .with_artifact_policy(ArtifactEmissionPolicy::Full),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("full frontend check should emit one checked observation bundle");
     assert!(!report.wrote_output());
 
@@ -157,6 +160,7 @@ fn output_only_backend_compile_keeps_primary_image_and_certification() {
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("output-only backend compile should still certify its image")
     .publish_retained_native_artifact(&build_dir)
     .expect("output-only native artifact should publish");
@@ -192,6 +196,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         .with_requested_product(compiler::RequestedCompileProduct::Check)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("the explicit Check product must stop before native realization");
     assert!(!report.wrote_output());
     assert_eq!(report.output_kind(), compiler::CompileOutputKind::CheckOnly);
@@ -207,6 +212,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("the retained native product should stop after validated native emission");
     assert!(!native.wrote_output());
     assert_eq!(
@@ -243,6 +249,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("terminal product should stop at the canonical Psi-owned artifact");
     assert!(!terminal.wrote_output());
     assert_eq!(
@@ -306,6 +313,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         })
         .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect_err("unsupported Terminal constructs must fail instead of selecting legacy lowering");
     assert!(unsupported.iter().any(|diagnostic| {
         diagnostic
@@ -323,6 +331,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect_err("unsupported Terminal constructs must not fall back for NativeArtifact");
     assert!(unsupported_native.iter().any(|diagnostic| {
         diagnostic

@@ -3,27 +3,28 @@
 mod admission;
 mod prepared;
 mod realization;
+mod targets;
 pub(super) use prepared::{NativeInputReuseKey, PreparedNativeCompilation};
+pub(super) use targets::compile_targets;
 
-use crate::compiler::CompileReport;
-use crate::compiler::request::ValidatedCompileRequest;
+use crate::compiler::request::ValidatedTargetCompilation;
 use diagnostics::Diagnostic;
 
 pub(super) fn prepare(
-    request: ValidatedCompileRequest,
+    request: ValidatedTargetCompilation,
     checked: crate::pipeline::CheckedCompilation,
 ) -> Result<PreparedNativeCompilation, Vec<Diagnostic>> {
-    let request = request.into_inner();
     admission::reject_unconsumed_callbacks(&checked)?;
     let production_subject = crate::pipeline::reporting::project_production_subject(&checked)?;
     let source_file_count = checked.source_file_count();
     let admission = admission::admit(&checked)?;
     let rollback = request
+        .configuration
         .optimization_rollback
         .settle(checked.optimization_selections());
     realization::validate_terminal_authority_permissions(
         &checked,
-        &request.terminal_authority_permission_policy,
+        &request.configuration.terminal_authority_permission_policy,
     )?;
     let terminal =
         realization::prepare_terminal_artifact(&checked, &admission, rollback.effective())?;
@@ -36,13 +37,4 @@ pub(super) fn prepare(
         production_subject,
         source_file_count,
     ))
-}
-
-pub(super) fn compile(
-    request: ValidatedCompileRequest,
-    checked: crate::pipeline::CheckedCompilation,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    let prepared = prepare(request, checked)?;
-    let reusable_input = prepared.prepare_reusable_input()?;
-    prepared.finish(&reusable_input)
 }

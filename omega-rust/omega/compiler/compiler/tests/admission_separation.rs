@@ -32,6 +32,7 @@ machine Main::exercise(&mut self) {}
         target_name: None,
     };
     let report = compiler::compile(CompileRequest::new(options()))
+        .and_then(compiler::CompileOutcomes::into_single_report)
         .expect("compilation returns unresolved policy obligations as evidence");
     let settlement = report.trust_admission_settlement();
     assert!(settlement.consumed().is_empty());
@@ -45,6 +46,7 @@ machine Main::exercise(&mut self) {}
         CompileRequest::new(options())
             .with_accepted_trust_admissions(settlement.required().to_vec()),
     )
+    .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("explicit in-memory admission set should be consumed");
     assert!(report.trust_admission_settlement().is_exactly_admitted());
     assert_eq!(

@@ -1,14 +1,15 @@
 # Compiler coordination
 
-[lib.rs](src/lib.rs) exposes source checking, compilation products and explicit
-multi-target requests. The coordinator sequences typed owner results; it does
+[lib.rs](src/lib.rs) exposes source checking and one `CompileRequest`/`compile`
+interface for any supplied target count. The coordinator sequences typed owner results; it does
 not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../../pipeline.md).
 
 [compiler.rs](src/compiler.rs) owns request admission, the shared checked
 continuation, and the Check / Terminal / Native product dispatch.
-[targets.rs](src/compiler/targets.rs) owns exact-target batching and immutable
-preparation reuse; every child returns through that same product continuation.
+It prepares immutable source once, then drives each target's ordinary continuation.
+[Native targets](src/compiler/native/targets.rs) group exactly reusable Terminal
+inputs before distinct native lowering, including when there is only one target.
 
 Checked-only consumers supply one `CheckedCompileRequest` to `compile_to_checked`.
 Package inputs, build staging, session sponsors and replay evidence are request
@@ -18,8 +19,10 @@ source continuation used by production and target batches.
 [Native compilation](src/compiler/native.rs) prepares and realizes the native
 product; it is not owned by optional optimization or report writing. Re-entry
 from retained Terminal Psi uses `RetainedNativeRealizationRequest`, with the
-receiving policy and image request supplied explicitly. `CompileReport` is the
-normal returned product record. Executable publication remains a later operation.
+receiving policy and image request supplied explicitly. `CompileOutcomes` returns
+one ordinary `CompileReport` or diagnostic result per target, without hiding failed
+siblings. Single-product consumers explicitly use `into_single_report`, which
+rejects any other cardinality. Executable publication remains a later operation.
 
 ## Product boundaries and observations
 
@@ -94,23 +97,33 @@ physical sources, unconditional imports and parse results once. Its package
 source-input projection includes root roles, exact package identities/names,
 physical roots, build-visible metadata and requester-local dependencies. It is
 a private checkpoint equality guard, not durable package identity or a receipt.
-Each target child must match that input before joining generated bundles,
+The invocation owns this source graph once; target configurations retain only
+their generated bundles and semantic bindings. Each target child must match the
+source checkpoint before joining generated bundles,
 generated-only imports or selected target imports. Prepared checked input shares
 the source frontier and parse timings, not mutable semantic/build state, sponsor,
 evaluation replay or target authority. The ordinary one-target route uses the
-same child continuation. [Generated source](generated_source.md) owns append
+same child continuation. The last (including only) child consumes the prepared
+checkpoint instead of cloning behind a retained coordinator owner.
+[Generated source](generated_source.md) owns append
 custody; [checked settlement](checked_settlement.md) owns its later ordered joins.
 
-[Multi-target admission](src/compiler/request/multi_target.rs) takes a targetless
-child-request factory; the explicit set is the only source of child target
-identity. Root, product, observation policy and package source projection must
-agree, and declared child build directories must differ before acquisition.
+[Request admission](src/compiler/request.rs) stores root, product, observation
+policy and package sources once, alongside target configurations. No child-request
+factory or repeated shared fields exist. Each configuration names its target,
+staging, admissions, permissions, rollback and target-specific package inputs.
+Empty or duplicate selections and colliding build directories reject before acquisition.
 That detects deterministic collisions, not host filesystem aliases or races.
 Compilation collects one ordered outcome per target without fail-fast collection;
 a shared preparation failure supplies the same diagnostics to all children.
 A target-specific malformed generated unit fails its child, not an unrelated
 sibling. Success retains the ordinary standalone artifact/manifest identity.
 The collection grants no batch manifest, support, test or audit claim.
+An absent target in a single configuration stays target-neutral for Check and
+Terminal production; Native resolves that convenience to Host. Multiple
+configurations require explicit exact targets. Configuration replacement does
+not inherit the discarded configuration's policies; request-level policy setters
+apply to all configurations currently present.
 
 [Native preparation reuse](../native-realization/README.md#multi-target-reuse)
 has its own exact artifact/profile/selection key. Shared parsing never permits

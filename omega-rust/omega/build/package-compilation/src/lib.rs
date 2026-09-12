@@ -28,6 +28,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 const CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1\0";
 const CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
@@ -269,24 +270,25 @@ impl PackageDependencyClosure {
 /// all source roots before the compiler can consume it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationInputs {
-    root: PackageKeyIdentity,
-    root_role: BuildDeclarationKind,
-    packages: BTreeMap<PackageKeyIdentity, PathBuf>,
-    /// Canonical declared names retained solely for human-facing package
-    /// diagnostics. Security decisions continue to compare exact identities.
-    package_names: BTreeMap<PackageKeyIdentity, String>,
-    canonical_source_metadata: BTreeMap<PackageKeyIdentity, CanonicalFilesystemMetadataIndex>,
-    dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
+    source: Arc<PackageCompilationSourceInputs>,
+    target: PackageCompilationTargetInputs,
+}
+
+/// Exact-target attachments kept independent of the shared source graph.
+/// These maps remain private and are revalidated when joined to another source
+/// graph. An empty value represents no attached target-specific inputs.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PackageCompilationTargetInputs {
     dependency_generated_sources: BTreeMap<PackageKeyIdentity, PackageGeneratedSourceBundle>,
     accepted_semantic_bindings: BTreeMap<AcceptedSemanticBindingRole, AcceptedSemanticBinding>,
 }
 
-/// Exact in-memory projection of the target-independent package inputs used
+/// Shared target-independent package inputs used
 /// while source roots and ordinary imports are discovered.
 ///
 /// This is not a durable package identity: it deliberately retains physical
-/// source roots and canonical build-visible metadata. Its sole purpose is to
-/// prevent a compiler source checkpoint prepared from one package graph from
+/// source roots and canonical build-visible metadata. Checkpoint equality
+/// prevents a compiler source checkpoint prepared from one package graph from
 /// being reused with a child whose source-routing inputs differ. Exact-target
 /// generated sources and accepted semantic bindings are excluded because they
 /// join only after that shared checkpoint forks.
@@ -451,14 +453,15 @@ impl PackageCompilationInputs {
 
         if errors.is_empty() {
             Ok(Self {
-                root,
-                root_role,
-                packages: canonical_packages,
-                package_names: canonical_names,
-                canonical_source_metadata,
-                dependencies: canonical_dependencies,
-                dependency_generated_sources: BTreeMap::new(),
-                accepted_semantic_bindings: BTreeMap::new(),
+                source: Arc::new(PackageCompilationSourceInputs {
+                    root,
+                    root_role,
+                    packages: canonical_packages,
+                    package_names: canonical_names,
+                    canonical_source_metadata,
+                    dependencies: canonical_dependencies,
+                }),
+                target: PackageCompilationTargetInputs::default(),
             })
         } else {
             Err(errors)
@@ -475,58 +478,89 @@ impl PackageCompilationInputs {
         Self::new(root, BuildDeclarationKind::Package, packages, dependencies)
     }
 
-    pub const fn root(&self) -> PackageKeyIdentity {
-        self.root
+    pub fn root(&self) -> PackageKeyIdentity {
+        self.source.root
     }
 
-    pub const fn root_role(&self) -> BuildDeclarationKind {
-        self.root_role
+    pub fn root_role(&self) -> BuildDeclarationKind {
+        self.source.root_role
     }
 
     pub fn package_root(&self, identity: PackageKeyIdentity) -> Option<&Path> {
-        self.packages.get(&identity).map(PathBuf::as_path)
+        self.source.packages.get(&identity).map(PathBuf::as_path)
     }
 
     pub fn package_name(&self, identity: PackageKeyIdentity) -> Option<&str> {
-        self.package_names.get(&identity).map(String::as_str)
+        self.source.package_names.get(&identity).map(String::as_str)
     }
 
     pub fn canonical_source_metadata(
         &self,
         identity: PackageKeyIdentity,
     ) -> Option<&CanonicalFilesystemMetadataIndex> {
-        self.canonical_source_metadata.get(&identity)
+        self.source.canonical_source_metadata.get(&identity)
     }
 
     pub fn packages(&self) -> impl Iterator<Item = (PackageKeyIdentity, &Path)> {
-        self.packages
+        self.source
+            .packages
             .iter()
             .map(|(identity, root)| (*identity, root.as_path()))
     }
 
-    /// Project every target-independent source-routing input as one exact
-    /// equality value. The projection is compiler plumbing, not a serialized
-    /// source receipt or an admission verdict.
+    /// Share the exact target-independent source-routing inputs. Equality remains
+    /// structural; pointer identity is not a source receipt or admission verdict.
     #[doc(hidden)]
-    pub fn source_inputs(&self) -> PackageCompilationSourceInputs {
-        PackageCompilationSourceInputs {
-            root: self.root,
-            root_role: self.root_role,
-            packages: self.packages.clone(),
-            package_names: self.package_names.clone(),
-            canonical_source_metadata: self.canonical_source_metadata.clone(),
-            dependencies: self.dependencies.clone(),
+    pub fn source_inputs(&self) -> Arc<PackageCompilationSourceInputs> {
+        Arc::clone(&self.source)
+    }
+
+    /// Separate shared source ownership from this invocation's target attachments.
+    pub fn into_parts(
+        self,
+    ) -> (
+        Arc<PackageCompilationSourceInputs>,
+        PackageCompilationTargetInputs,
+    ) {
+        (self.source, self.target)
+    }
+
+    /// Rejoin target attachments only after checking their association to the
+    /// supplied source graph. Nonempty generated inputs must cover every
+    /// dependency; the unattached empty target state remains valid.
+    pub fn from_parts(
+        source: Arc<PackageCompilationSourceInputs>,
+        target: PackageCompilationTargetInputs,
+    ) -> Result<Self, Vec<PackageCompilationInputError>> {
+        let PackageCompilationTargetInputs {
+            dependency_generated_sources,
+            accepted_semantic_bindings,
+        } = target;
+        let mut inputs = Self {
+            source,
+            target: PackageCompilationTargetInputs::default(),
+        };
+        inputs = inputs
+            .with_accepted_semantic_bindings(accepted_semantic_bindings.into_values().collect())?;
+        if !dependency_generated_sources.is_empty() {
+            inputs = inputs.with_complete_dependency_generated_sources(
+                dependency_generated_sources.into_values().collect(),
+            )?;
         }
+        Ok(inputs)
     }
 
     pub fn dependencies(
         &self,
     ) -> impl Iterator<Item = (PackageKeyIdentity, &str, PackageKeyIdentity)> {
-        self.dependencies.iter().flat_map(|(requester, aliases)| {
-            aliases
-                .iter()
-                .map(|(alias, target)| (*requester, alias.as_str(), *target))
-        })
+        self.source
+            .dependencies
+            .iter()
+            .flat_map(|(requester, aliases)| {
+                aliases
+                    .iter()
+                    .map(|(alias, target)| (*requester, alias.as_str(), *target))
+            })
     }
 
     /// Attach the complete consumer-policy semantic bindings admitted for this
@@ -541,7 +575,7 @@ impl PackageCompilationInputs {
         for binding in bindings {
             let role = binding.role();
             let package = binding.package();
-            if !self.packages.contains_key(&package) {
+            if !self.source.packages.contains_key(&package) {
                 errors.push(
                     PackageCompilationInputError::ForeignSemanticBindingPackage { role, package },
                 );
@@ -552,7 +586,7 @@ impl PackageCompilationInputs {
             }
         }
         if errors.is_empty() {
-            self.accepted_semantic_bindings = accepted;
+            self.target.accepted_semantic_bindings = accepted;
             Ok(self)
         } else {
             Err(errors)
@@ -564,21 +598,21 @@ impl PackageCompilationInputs {
         &self,
         role: AcceptedSemanticBindingRole,
     ) -> Option<&AcceptedSemanticBinding> {
-        self.accepted_semantic_bindings.get(&role)
+        self.target.accepted_semantic_bindings.get(&role)
     }
 
     #[doc(hidden)]
     pub fn accepted_semantic_bindings(&self) -> impl Iterator<Item = &AcceptedSemanticBinding> {
-        self.accepted_semantic_bindings.values()
+        self.target.accepted_semantic_bindings.values()
     }
 
     /// Project the exact validated graph without source paths, package display
     /// names, immutable source resolutions, or source bytes.
     pub fn dependency_closure(&self) -> PackageDependencyClosure {
         PackageDependencyClosure {
-            root: self.root,
-            root_role: self.root_role,
-            packages: self.packages.keys().copied().collect(),
+            root: self.source.root,
+            root_role: self.source.root_role,
+            packages: self.source.packages.keys().copied().collect(),
             dependencies: self
                 .dependencies()
                 .map(|(requester, alias, target)| {
@@ -600,11 +634,11 @@ impl PackageCompilationInputs {
         let mut generated = BTreeMap::new();
         for bundle in bundles {
             let package = bundle.package();
-            if package == self.root {
+            if package == self.source.root {
                 errors.push(PackageCompilationInputError::RootGeneratedSourceBundle { package });
                 continue;
             }
-            if !self.packages.contains_key(&package) {
+            if !self.source.packages.contains_key(&package) {
                 errors.push(PackageCompilationInputError::ForeignGeneratedSourceBundle { package });
                 continue;
             }
@@ -619,17 +653,18 @@ impl PackageCompilationInputs {
             }
         }
         for package in self
+            .source
             .packages
             .keys()
             .copied()
-            .filter(|package| *package != self.root)
+            .filter(|package| *package != self.source.root)
         {
             if !generated.contains_key(&package) {
                 errors.push(PackageCompilationInputError::MissingGeneratedSourceBundle { package });
             }
         }
         if errors.is_empty() {
-            self.dependency_generated_sources = generated;
+            self.target.dependency_generated_sources = generated;
             Ok(self)
         } else {
             Err(errors)
@@ -640,7 +675,7 @@ impl PackageCompilationInputs {
     pub fn dependency_generated_source_bundles(
         &self,
     ) -> impl Iterator<Item = &PackageGeneratedSourceBundle> {
-        self.dependency_generated_sources.values()
+        self.target.dependency_generated_sources.values()
     }
 
     #[doc(hidden)]
@@ -649,6 +684,7 @@ impl PackageCompilationInputs {
         selected_target: Option<target::TargetProfile>,
     ) -> Result<(), Vec<PackageCompilationInputError>> {
         let errors = self
+            .target
             .dependency_generated_sources
             .values()
             .filter(|bundle| Some(bundle.target()) != selected_target)
@@ -673,7 +709,7 @@ impl PackageCompilationInputs {
         package: PackageKeyIdentity,
         relative_candidates: &[PathBuf],
     ) -> Result<Option<PathBuf>, &'static str> {
-        let Some(bundle) = self.dependency_generated_sources.get(&package) else {
+        let Some(bundle) = self.target.dependency_generated_sources.get(&package) else {
             return Ok(None);
         };
         let mut matched = None;
@@ -687,7 +723,8 @@ impl PackageCompilationInputs {
                     return Err("generated-source import resolves to more than one handoff");
                 }
                 matched = Some(generated_source_logical_path(
-                    self.packages
+                    self.source
+                        .packages
                         .get(&package)
                         .expect("validated bundle package retains its source root"),
                     &relative,
@@ -701,10 +738,11 @@ impl PackageCompilationInputs {
         &self,
         path: &Path,
     ) -> Option<&PackageGeneratedSource> {
-        self.dependency_generated_sources
+        self.target
+            .dependency_generated_sources
             .iter()
             .find_map(|(package, bundle)| {
-                let root = self.packages.get(package)?;
+                let root = self.source.packages.get(package)?;
                 bundle.sources().iter().find(|source| {
                     generated_source_relative_path(source).is_ok_and(|relative| {
                         generated_source_logical_path(root, &relative) == path
@@ -720,15 +758,16 @@ impl PackageCompilationInputs {
 
     #[doc(hidden)]
     pub fn dependency_closure_for(&self, root: PackageKeyIdentity) -> PackageDependencyClosure {
-        let reachable = reachable_packages(root, &self.dependencies);
+        let reachable = reachable_packages(root, &self.source.dependencies);
         PackageDependencyClosure {
             root,
-            root_role: if root == self.root {
-                self.root_role
+            root_role: if root == self.source.root {
+                self.source.root_role
             } else {
                 BuildDeclarationKind::Package
             },
             packages: self
+                .source
                 .packages
                 .keys()
                 .copied()
@@ -752,7 +791,8 @@ impl PackageCompilationInputs {
         requester: PackageKeyIdentity,
         alias: &str,
     ) -> Option<PackageKeyIdentity> {
-        self.dependencies
+        self.source
+            .dependencies
             .get(&requester)
             .and_then(|aliases| aliases.get(alias))
             .copied()
@@ -766,6 +806,7 @@ impl PackageCompilationInputs {
     ) -> bool {
         requester == owner
             || self
+                .source
                 .dependencies
                 .get(&requester)
                 .is_some_and(|aliases| aliases.values().any(|target| *target == owner))
@@ -781,7 +822,8 @@ impl PackageCompilationInputs {
 
     #[doc(hidden)]
     pub fn package_for_source(&self, source: &Path) -> Option<PackageKeyIdentity> {
-        self.packages
+        self.source
+            .packages
             .iter()
             .find_map(|(identity, root)| source.starts_with(root).then_some(*identity))
     }
@@ -794,7 +836,7 @@ impl PackageCompilationInputs {
     ) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
 
-        for (identity, expected_root) in &self.packages {
+        for (identity, expected_root) in &self.source.packages {
             match canonical_source_root(expected_root) {
                 Ok(actual_root) if actual_root == *expected_root => {}
                 Ok(actual_root) => diagnostics.push(Diagnostic::error(format!(
@@ -816,8 +858,9 @@ impl PackageCompilationInputs {
         match root_path.canonicalize() {
             Ok(root_file) => {
                 let expected_root = self
+                    .source
                     .packages
-                    .get(&self.root)
+                    .get(&self.source.root)
                     .expect("validated package graph retains its root");
                 if !root_file.starts_with(expected_root) {
                     diagnostics.push(Diagnostic::error(format!(
@@ -836,7 +879,7 @@ impl PackageCompilationInputs {
         let canonical_toolchain = toolchain_root
             .canonicalize()
             .unwrap_or_else(|_| toolchain_root.to_path_buf());
-        for (identity, root) in &self.packages {
+        for (identity, root) in &self.source.packages {
             if root.starts_with(&canonical_toolchain) || canonical_toolchain.starts_with(root) {
                 diagnostics.push(Diagnostic::error(format!(
                     "package identity {} source root {} overlaps toolchain root {}",
@@ -857,8 +900,9 @@ impl PackageCompilationInputs {
     #[doc(hidden)]
     pub fn validate_canonical_source_metadata(&self) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
-        for (identity, metadata) in &self.canonical_source_metadata {
+        for (identity, metadata) in &self.source.canonical_source_metadata {
             let root = self
+                .source
                 .packages
                 .get(identity)
                 .expect("canonical Source metadata retains a validated package root");

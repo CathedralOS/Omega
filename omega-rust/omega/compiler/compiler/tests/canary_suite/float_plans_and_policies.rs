@@ -354,9 +354,11 @@ fn float_match_native_publication_retains_both_selected_physical_children() {
         let terminal_request = request
             .clone()
             .with_requested_product(RequestedCompileProduct::TerminalArtifact);
-        let report = compiler::compile(request).unwrap_or_else(|diagnostics| {
-            panic!("publish unchanged float Match for {target_name}: {diagnostics:#?}")
-        });
+        let report = compiler::compile(request)
+            .and_then(compiler::CompileOutcomes::into_single_report)
+            .unwrap_or_else(|diagnostics| {
+                panic!("publish unchanged float Match for {target_name}: {diagnostics:#?}")
+            });
         let artifact = report
             .retained_native_artifact()
             .expect("retained native product");
@@ -372,6 +374,7 @@ fn float_match_native_publication_retains_both_selected_physical_children() {
             "both selected equality arms survive as distinct physical children"
         );
         let retained = compiler::compile(terminal_request)
+            .and_then(compiler::CompileOutcomes::into_single_report)
             .expect("retain exact source and provider proposal")
             .into_retained_terminal_artifact()
             .unwrap();
