@@ -8,8 +8,9 @@
 //! The original callable remains in the typed program. Its normalized identity
 //! and binder span must match the retained application: hashing self-consistent
 //! bytes alone cannot establish which template or selected contracts they name.
-//! This replay does not reconstruct the template's complete inferred dependency
-//! or carry that relationship across the portable boundary.
+//! Static-call validation also reconstructs the original inferred reach
+//! dependency. The rest of the template contract is not fully re-encoded here;
+//! portable dependency/substitution custody remains a separate consumer gap.
 
 use checked_trees::CheckedTrees;
 use flow_effects::OperationalPlan;

@@ -11,6 +11,11 @@ pub(crate) fn specialize_selected_generic_operator_providers(
     materialize_static_argument_types(program);
     let mut diagnostics = Vec::new();
     let mut materialized = 0_usize;
+    // saved_calls::replay can redirect the clone to instances owned only by
+    // the live program. Infer the original contract before those redirects,
+    // against the complete immutable authored graph shared by all requests.
+    let operational = validation::infer_operational_may(templates);
+    let service_reaches = validation::infer_service_reaches(templates, &operational);
 
     for request in selected {
         // Clone the immutable authored graph per request so concrete type
@@ -154,7 +159,8 @@ pub(crate) fn specialize_selected_generic_operator_providers(
         }
 
         let canonical_template_contract_bytes =
-            canonical_template_contract_bytes(&source, machine_index);
+            canonical_template_contract_bytes(&source, machine_index, &service_reaches)
+                .map_err(|diagnostic| vec![diagnostic])?;
         let template_contract_report_fingerprint =
             fnv1a_report_fingerprint(&canonical_template_contract_bytes);
         let template_contract_commitment =

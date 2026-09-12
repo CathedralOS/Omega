@@ -25,7 +25,10 @@ fn recursive_instances_keep_each_tuples_own_state_and_template_commitment() {
         .position(|machine| machine.name.as_str() == "repeat")
         .expect("template");
     let template = candidate::from_machine(&program, template_index);
-    let contract = canonical_template_contract_bytes(&program, template_index);
+    let operational = validation::infer_operational_may(&program);
+    let service_reaches = validation::infer_service_reaches(&program, &operational);
+    let contract = canonical_template_contract_bytes(&program, template_index, &service_reaches)
+        .expect("template contract");
     // Exercise graph publication independently of discovery's recursive-call
     // admission. These are the three exact external selections from the input.
     let selections = program
@@ -64,7 +67,7 @@ fn recursive_instances_keep_each_tuples_own_state_and_template_commitment() {
             }
         })
         .collect::<Vec<_>>();
-    apply_call_specializations(&mut program, &template, &selections, 0)
+    apply_call_specializations(&mut program, &template, &selections, 0, &service_reaches)
         .expect("three recursive graph instances");
     assert_eq!(program.machine_specializations.len(), 3);
     assert!(

@@ -156,6 +156,10 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
         const_arguments::validate_bindings(program, &candidate).map_err(|error| vec![error])?;
     }
     result_locals::refresh_generic_call_results(program, &candidates, &selections)?;
+    // All templates in this round share the complete original call graph.
+    // Per-instance inference would mix capture with newly selected clones.
+    let operational = validation::infer_operational_may(program);
+    let service_reaches = validation::infer_service_reaches(program, &operational);
     let mut diagnostics = Vec::new();
     let mut applied_any = false;
     for (candidate_index, candidate) in candidates.iter().enumerate() {
@@ -176,7 +180,13 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
             )));
             continue;
         }
-        match apply_call_specializations(program, candidate, &selections, candidate_index) {
+        match apply_call_specializations(
+            program,
+            candidate,
+            &selections,
+            candidate_index,
+            &service_reaches,
+        ) {
             Ok(changed) => applied_any |= changed,
             Err(mut errors) => diagnostics.append(&mut errors),
         }
@@ -1847,6 +1857,7 @@ fn apply_call_specializations(
     template: &Candidate,
     selections: &[CallSelection],
     candidate_index: usize,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
 ) -> Result<bool, Vec<Diagnostic>> {
     let groups = unique_complete_selections(program, selections, candidate_index);
     if groups.is_empty() {
@@ -1876,7 +1887,8 @@ fn apply_call_specializations(
     }
 
     let canonical_template_contract_bytes =
-        canonical_template_contract_bytes(program, template.machine_index);
+        canonical_template_contract_bytes(program, template.machine_index, service_reaches)
+            .map_err(|diagnostic| vec![diagnostic])?;
     let template_contract_report_fingerprint =
         fnv1a_report_fingerprint(&canonical_template_contract_bytes);
     let template_contract_commitment =
@@ -4206,7 +4218,11 @@ fn encode_bound_static_argument(
 /// Capture it from the retained authored declaration, not a selected clone.
 /// This encoding is binder-positional:
 /// renaming a type, machine, or value parameter does not change the identity.
-fn canonical_template_contract_bytes(program: &TypedTrees, machine_index: usize) -> Vec<u8> {
+fn canonical_template_contract_bytes(
+    program: &TypedTrees,
+    machine_index: usize,
+    reach_inference: &flow_effects::ServiceReachInferencePlan,
+) -> Result<Vec<u8>, Diagnostic> {
     let machine = &program.machines()[machine_index];
     let parameters = program.machine_type_parameters(machine);
     let binders: Vec<(String, String)> = parameters
@@ -4447,10 +4463,12 @@ fn canonical_template_contract_bytes(program: &TypedTrees, machine_index: usize)
             encode_progress_premises(premises, &parameter_symbols, &mut bytes);
         }
     }
-    bytes.extend(validation::static_machine_parameter_contract_bytes(
-        program, parameters,
-    ));
-    bytes
+    bytes.extend(validation::static_machine_template_reach_contract_bytes(
+        program,
+        reach_inference,
+        machine,
+    )?);
+    Ok(bytes)
 }
 
 fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
@@ -4459,10 +4477,6 @@ fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
     bytes.iter().fold(OFFSET, |hash, byte| {
         (hash ^ u64::from(*byte)).wrapping_mul(PRIME)
     })
-}
-
-fn template_contract_report_fingerprint(program: &TypedTrees, machine_index: usize) -> u64 {
-    fnv1a_report_fingerprint(&canonical_template_contract_bytes(program, machine_index))
 }
 
 fn machine_template_commitment(
@@ -4486,10 +4500,16 @@ pub fn generic_machine_template_report_fingerprint(
         .machines()
         .iter()
         .position(|machine| machine.symbol == machine_symbol)?;
-    (!program
+    if program
         .machine_type_parameters(&program.machines()[machine_index])
-        .is_empty())
-    .then(|| template_contract_report_fingerprint(program, machine_index))
+        .is_empty()
+    {
+        return None;
+    }
+    let operational = validation::infer_operational_may(program);
+    let service_reaches = validation::infer_service_reaches(program, &operational);
+    let bytes = canonical_template_contract_bytes(program, machine_index, &service_reaches).ok()?;
+    Some(fnv1a_report_fingerprint(&bytes))
 }
 
 /// Domain-separated strong commitment to the exact canonical universal
@@ -4502,12 +4522,16 @@ pub fn generic_machine_template_commitment(
         .machines()
         .iter()
         .position(|machine| machine.symbol == machine_symbol)?;
-    (!program
+    if program
         .machine_type_parameters(&program.machines()[machine_index])
-        .is_empty())
-    .then(|| {
-        machine_template_commitment(&canonical_template_contract_bytes(program, machine_index))
-    })
+        .is_empty()
+    {
+        return None;
+    }
+    let operational = validation::infer_operational_may(program);
+    let service_reaches = validation::infer_service_reaches(program, &operational);
+    let bytes = canonical_template_contract_bytes(program, machine_index, &service_reaches).ok()?;
+    Some(machine_template_commitment(&bytes))
 }
 
 fn accepted_template_commitment(program: &TypedTrees, machine_index: usize) -> Option<String> {

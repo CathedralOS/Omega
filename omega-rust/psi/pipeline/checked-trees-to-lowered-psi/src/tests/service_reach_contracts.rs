@@ -1,6 +1,139 @@
 use super::*;
 
 #[test]
+fn generic_template_commitment_retains_private_helper_reach_dependency() {
+    let source = |helper_reach: &str, selected: &str| {
+        format!(
+            r#"
+            boundary trait Console {{ machine ping(); }}
+            boundary trait Callback {{ machine call() reaches Console; }}
+            machine helper() {helper_reach} {{}}
+            machine forward<machine Selected>()
+            where machine Selected satisfies Callback::call;
+            {{ helper(); Selected(); }}
+            machine quiet() satisfies Callback::call {{}}
+            machine loud() satisfies Callback::call reaches Console {{}}
+            pub machine enter() {{ forward<{selected}>(); }}
+            "#
+        )
+    };
+    let quiet = checked_source(&source("", "quiet"));
+    let additive = checked_source(&source("reaches Console", "quiet"));
+    let selected = checked_source(&source("", "loud"));
+    for checked in [&quiet, &additive, &selected] {
+        let _artifact = terminal_production::TerminalProductionRequest::new(checked, "enter")
+            .produce_artifact()
+            .expect("closed callback publication");
+    }
+    let original = &quiet.machine_specializations[0];
+    let changed = &additive.machine_specializations[0];
+    assert_ne!(
+        original.template_contract_commitment, changed.template_contract_commitment,
+        "a private helper's additive reach belongs to the original generic contract"
+    );
+    assert_eq!(
+        original.template_contract_commitment,
+        selected.machine_specializations[0].template_contract_commitment,
+        "a concrete callback selection must not change the original dependency"
+    );
+
+    let mut stale = additive.clone();
+    let receipt = &mut stale.typed.machine_specializations[0];
+    receipt.canonical_template_contract_bytes = original.canonical_template_contract_bytes.clone();
+    receipt.template_contract_commitment = original.template_contract_commitment;
+    receipt.template_contract_report_fingerprint = original.template_contract_report_fingerprint;
+    let instance = receipt.instance;
+    assert!(
+        validation::recompute_checked_machine_specialization_commitment(&stale, instance).is_err(),
+        "re-hashing a stale dependency cannot authorize the changed original graph"
+    );
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&stale, "enter")
+            .produce_artifact()
+            .is_err()
+    );
+}
+
+#[test]
+fn generic_dependency_identity_ignores_call_order_and_helper_extraction() {
+    let mut commitments = Vec::new();
+    for body in [
+        "helper(); First(); Second();",
+        "Second(); helper(); First(); First();",
+        "relay<First, Second>(); helper();",
+    ] {
+        for entries in [
+            "pub machine enter() { forward<u64, quiet, 2, loud>(); } machine other() { forward<u64, loud, 2, quiet>(); }",
+            "machine other() { forward<u64, loud, 2, quiet>(); } pub machine enter() { forward<u64, quiet, 2, loud>(); }",
+        ] {
+            let checked = checked_source(&format!(
+                r#"
+                boundary trait Console {{ machine ping(); }}
+                boundary trait Callback {{ machine call() reaches Console; }}
+                machine helper() reaches Console {{}}
+                machine relay<machine Left, machine Right>()
+                where machine Left satisfies Callback::call;
+                where machine Right satisfies Callback::call;
+                {{ Left(); Right(); }}
+                machine forward<T [copy], machine First, const Count: u64, machine Second>()
+                where machine First satisfies Callback::call;
+                where machine Second satisfies Callback::call;
+                {{ {body} }}
+                machine quiet() satisfies Callback::call {{}}
+                machine loud() satisfies Callback::call reaches Console {{}}
+                {entries}
+                "#
+            ));
+            let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+                .produce_artifact()
+                .expect("nested callback dependency publication");
+            let template = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "forward")
+                .expect("original forward");
+            for specialization in checked
+                .machine_specializations
+                .iter()
+                .filter(|specialization| specialization.template == template.symbol)
+            {
+                commitments.push(specialization.template_contract_commitment);
+            }
+            drop(checked);
+            let module = terminal_codec::decode_module(artifact.semantic_bytes())
+                .expect("source-free concrete dependency product");
+            assert!(!module.root_service_reach.concrete.is_empty());
+        }
+    }
+    assert_eq!(commitments.len(), 12);
+    assert!(
+        commitments
+            .iter()
+            .all(|commitment| *commitment == commitments[0])
+    );
+}
+
+#[test]
+fn type_only_generic_template_retains_concrete_helper_dependency() {
+    let mut commitments = Vec::new();
+    for reach in ["", "reaches Console"] {
+        let checked = checked_source(&format!(
+            r#"
+            boundary trait Console {{ machine ping(); }}
+            machine helper(value: u64) -> u64 {reach} {{ value }}
+            machine forward<T [copy]>(value: u64) -> u64 {{ helper(value) }}
+            pub machine enter(value: u64) -> u64 {{ forward<u64>(value) }}
+            "#
+        ));
+        let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+            .produce_artifact()
+            .expect("type-only generic helper dependency");
+        commitments.push(checked.machine_specializations[0].template_contract_commitment);
+    }
+    assert_ne!(commitments[0], commitments[1]);
+}
+
+#[test]
 fn ordinary_callback_publication_replays_its_exact_specialization() {
     for source in [
         r#"
