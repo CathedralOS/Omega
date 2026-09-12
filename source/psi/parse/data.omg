@@ -1,5 +1,5 @@
 use psi::parse::input;
-use psi::parse::owner;
+use psi::parse::parser;
 use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
