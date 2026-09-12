@@ -2,8 +2,8 @@
 //!
 //! Ordinary calls and selected operators share this substitution boundary.
 //! A stable binding is insufficient when its contents contain mutable loans or
-//! interior authority. Reuse owned-storage validation before projecting fields;
-//! a shared borrow is stable only when its referent has those same plain contents.
+//! interior authority. Reuse stable-observation validation before projecting
+//! fields; shared loans may retain immutable contents without owning them.
 //! Mutable bindings, unknown contents and state re-entry retain no entry identity.
 //! Substitution transports a proven origin, never re-reads an initializer after
 //! later operands execute. This is source provenance, not a Terminal certificate.
@@ -12,67 +12,10 @@ use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use validation::has_stable_observable_contents;
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn structural_entry_identity_requires_plain_contents_through_generic_substitution() {
-        for (carrier, stable) in [
-            ("Holder<Flag>", true),
-            ("Holder<Borrowed>", false),
-            ("Holder<Holder<Borrowed>>", false),
-            ("&Holder<Flag>", true),
-            ("&mut Holder<Flag>", false),
-        ] {
-            let source = format!(
-                "data Flag {{ enabled: bool; }}
-                 data Borrowed {{ flag: &mut Flag; }}
-                 data Holder<T> {{ value: T; }}
-                 machine inspect(holder: {carrier}) {{}}"
-            );
-            let tokens = source_files_to_tokens::Lexer::new(&source)
-                .tokenize()
-                .unwrap();
-            let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-            let resolved =
-                syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
-            let program =
-                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                    .unwrap();
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == "inspect")
-                .unwrap();
-            let parameter = &program.state_parameters(&program.machine_states(machine)[0])[0];
-            assert_eq!(
-                has_stable_contents(&program, parameter.type_reference),
-                stable,
-                "{carrier}"
-            );
-        }
-    }
-}
-
-fn has_stable_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
-    // Preserve scalar refinements: they constrain values without making an
-    // immutable scalar binding a reference to somebody else's storage.
-    if program.primitive_type_reference(reference).is_some() {
-        return true;
-    }
-    let owned = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Reference {
-            access: language_semantics::ReferenceAccess::Shared,
-            referee,
-            ..
-        } => *referee,
-        _ => reference,
-    };
-    validation::has_plain_owned_contents_with_numeric_constraints(program, owned)
-}
+mod tests;
 
 pub(super) fn entry_operand(
     program: &TypedTrees,
@@ -144,7 +87,9 @@ pub(super) fn entry_operand(
                 if let typed_trees::statement::StatementNode::LocalData(local) = statement
                     && local.symbol == path.symbol
                 {
-                    if local.is_mutable || !has_stable_contents(program, local.type_reference) {
+                    if local.is_mutable
+                        || !has_stable_observable_contents(program, local.type_reference)
+                    {
                         return None;
                     }
                     // This transports a fixed value, not a current read
@@ -181,7 +126,7 @@ pub(super) fn entry_operand(
                         parameter.symbol == path.symbol
                             && !parameter.is_mutable
                             && !parameter.is_self
-                            && has_stable_contents(program, parameter.type_reference)
+                            && has_stable_observable_contents(program, parameter.type_reference)
                     })?;
             Some(CrashPredicateExpression::Parameter(
                 u32::try_from(ordinal).ok()?,

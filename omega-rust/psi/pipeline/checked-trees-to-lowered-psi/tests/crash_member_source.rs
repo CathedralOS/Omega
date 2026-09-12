@@ -22,6 +22,9 @@ use typed_trees_to_checked_trees::lower_typed_trees;
 #[path = "crash_member_source/bounded_inputs.rs"]
 mod bounded_inputs;
 
+#[path = "crash_member_source/byte_entries.rs"]
+mod byte_entries;
+
 const SOURCE: &str = r#"
     data Packet { should_abort: bool; }
     data Helper {}
@@ -1778,11 +1781,17 @@ const BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE: &str = r#"
         Helper::inspect(left, right);
     }
 
+    data BoundedHelper {}
+    machine BoundedHelper::inspect(left: Bounded, right: Bounded)
+    crashes Abort
+        left == right
+    {}
+
     data BoundedRoot {}
     machine BoundedRoot::enter(left: Bounded, right: Bounded)
     crashes Abort
         left == right
-    {}
+    { BoundedHelper::inspect(left, right); }
 "#;
 
 const EMPTY_RECORD_EQUALITY_SOURCE: &str = r#"

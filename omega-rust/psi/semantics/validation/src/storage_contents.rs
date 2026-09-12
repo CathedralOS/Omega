@@ -1,4 +1,10 @@
-//! Check source ownership before referent-oriented structural shape collection.
+//! Distinguish owned storage from contents stable under shared observation.
+//!
+//! Both questions need the same closed generic substitution and recursive-data
+//! checks. A shared loan can freeze ordinary contents without owning them; that
+//! never authorizes no-code moves, cleanup erasure, or a copied reference ABI.
+//! Observation permits only recursively stable contents and understood value
+//! refinements. Unknown qualifications and mutation-capable loans stay opaque.
 
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
@@ -13,20 +19,30 @@ mod tests;
 /// environment. Reusing a declaration's parameter symbol must not capture an
 /// outer instantiation's argument or turn a stored reference into owned data.
 #[derive(Clone, PartialEq, Eq)]
-enum OwnedType {
+enum ContentType {
     Scalar(PrimitiveType),
-    Array(Box<OwnedType>, usize),
-    Data(SymbolHandle, Vec<OwnedType>),
+    Array(Box<ContentType>, usize),
+    Slice(Box<ContentType>),
+    Shared(Box<ContentType>),
+    Data(SymbolHandle, Vec<ContentType>),
 }
 
-impl OwnedType {
+impl ContentType {
     fn size(&self) -> usize {
         match self {
             Self::Scalar(_) => 1,
             Self::Array(element, _) => 1 + element.size(),
+            Self::Slice(element) | Self::Shared(element) => 1 + element.size(),
             Self::Data(_, arguments) => 1 + arguments.iter().map(Self::size).sum::<usize>(),
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ContentsRequirement {
+    PlainOwned,
+    NumericOwned,
+    StableObservation,
 }
 
 pub fn has_plain_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
@@ -38,7 +54,12 @@ pub fn has_plain_owned_contents_with_substitutions(
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    check_owned_contents(program, reference, substitutions, false)
+    check_contents_requirement(
+        program,
+        reference,
+        substitutions,
+        ContentsRequirement::PlainOwned,
+    )
 }
 
 /// Classify no-code owned storage while allowing primitive numeric restrictions.
@@ -48,30 +69,46 @@ pub fn has_plain_owned_contents_with_numeric_constraints(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> bool {
-    check_owned_contents(program, reference, &[], true)
+    check_contents_requirement(program, reference, &[], ContentsRequirement::NumericOwned)
 }
 
-fn check_owned_contents(
+/// Classify value contents that an immutable binding can retain as an entry
+/// observation while its loans remain valid. This proves neither binding
+/// immutability nor loan validity; those remain the caller's obligations.
+/// Shared contents are not necessarily owned, and synchronized/interior mutation
+/// or unclassified qualifications cannot supply a stable observation.
+pub fn has_stable_observable_contents(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    check_contents_requirement(
+        program,
+        reference,
+        &[],
+        ContentsRequirement::StableObservation,
+    )
+}
+
+fn check_contents_requirement(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    allow_numeric_constraints: bool,
+    requirement: ContentsRequirement,
 ) -> bool {
     let mut arguments = Vec::new();
     for (symbol, argument) in substitutions {
-        let Some(argument) = resolve(program, *argument, &arguments, allow_numeric_constraints)
-        else {
+        let Some(argument) = resolve(program, *argument, &arguments, requirement) else {
             return false;
         };
         arguments.push((*symbol, argument));
     }
-    resolve(program, reference, &arguments, allow_numeric_constraints).is_some_and(|resolved| {
+    resolve(program, reference, &arguments, requirement).is_some_and(|resolved| {
         check_contents(
             program,
             &resolved,
             &mut Vec::new(),
             &mut Vec::new(),
-            allow_numeric_constraints,
+            requirement,
         )
     })
 }
@@ -79,9 +116,9 @@ fn check_owned_contents(
 fn resolve(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
-    arguments: &[(SymbolHandle, OwnedType)],
-    allow_numeric_constraints: bool,
-) -> Option<OwnedType> {
+    arguments: &[(SymbolHandle, ContentType)],
+    requirement: ContentsRequirement,
+) -> Option<ContentType> {
     if !reference.is_valid() {
         return None;
     }
@@ -95,13 +132,13 @@ fn resolve(
                 return Some(argument.clone());
             }
             if let Some(primitive) = program.primitive_type_reference(reference) {
-                return Some(OwnedType::Scalar(primitive));
+                return Some(ContentType::Scalar(primitive));
             }
             let data = definition(program, *symbol)?;
             program
                 .data_type_parameters(data)
                 .is_empty()
-                .then_some(OwnedType::Data(*symbol, Vec::new()))
+                .then_some(ContentType::Data(*symbol, Vec::new()))
         }
         TypeReferenceNode::Generic {
             base_symbol,
@@ -122,45 +159,58 @@ fn resolve(
             }
             let resolved = source_arguments
                 .iter()
-                .map(|reference| resolve(program, *reference, arguments, allow_numeric_constraints))
+                .map(|reference| resolve(program, *reference, arguments, requirement))
                 .collect::<Option<Vec<_>>>()?;
-            Some(OwnedType::Data(*base_symbol, resolved))
+            Some(ContentType::Data(*base_symbol, resolved))
         }
         TypeReferenceNode::FixedArray {
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(length @ 1..),
-        } => Some(OwnedType::Array(
-            Box::new(resolve(
+        } => Some(ContentType::Array(
+            Box::new(resolve(program, *element_type, arguments, requirement)?),
+            *length,
+        )),
+        TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Shared,
+            referee,
+            ..
+        } if requirement == ContentsRequirement::StableObservation => Some(ContentType::Shared(
+            Box::new(resolve(program, *referee, arguments, requirement)?),
+        )),
+        TypeReferenceNode::Slice { element_type }
+            if requirement == ContentsRequirement::StableObservation =>
+        {
+            Some(ContentType::Slice(Box::new(resolve(
                 program,
                 *element_type,
                 arguments,
-                allow_numeric_constraints,
-            )?),
-            *length,
-        )),
+                requirement,
+            )?)))
+        }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
             let rows = program.type_reference_table.constraints(*constraints);
-            if !allow_numeric_constraints
+            if requirement == ContentsRequirement::PlainOwned
                 || rows.len() != constraints.count() as usize
                 || rows.is_empty()
-                || rows.iter().any(|constraint| {
-                    !matches!(
-                        constraint,
-                        typed_trees::types::TypeConstraintNode::Range { .. }
-                            | typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)
-                    )
-                })
             {
                 return None;
             }
-            // Numeric restrictions change valid values, not storage ownership.
-            // Loans, domains, atomic qualifiers, and constrained aggregates keep
-            // their separate custody; this is not general constraint erasure.
-            let scalar = resolve(program, *base_type, arguments, allow_numeric_constraints)?;
-            matches!(scalar, OwnedType::Scalar(_)).then_some(scalar)
+            let contents = resolve(program, *base_type, arguments, requirement)?;
+            let understood = rows.iter().all(|constraint| match constraint {
+                typed_trees::types::TypeConstraintNode::Range { .. }
+                | typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => {
+                    matches!(contents, ContentType::Scalar(_))
+                }
+                typed_trees::types::TypeConstraintNode::Domain(domain) => {
+                    requirement == ContentsRequirement::StableObservation
+                        && is_plain_value_domain(program, domain)
+                }
+                typed_trees::types::TypeConstraintNode::Named(_) => false,
+            });
+            understood.then_some(contents)
         }
         // These require retained loans, qualifications, or a different carrier.
         TypeReferenceNode::Reference { .. }
@@ -170,6 +220,35 @@ fn resolve(
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => None,
     }
+}
+
+fn is_plain_value_domain(
+    program: &TypedTrees,
+    domain: &typed_trees::types::DomainConstraint,
+) -> bool {
+    // Pure value refinements do not add storage or mutation authority. Their
+    // predicates still need ordinary formation/proof; stability does not prove
+    // membership. Inspect normalized identities, never a spelling such as Utf8.
+    // Routed, semantic-role-bearing and alias theories remain conservative until
+    // their independent obligations can be transported by the entry-value path.
+    if domain.subject != typed_trees::types::DomainConstraintSubject::Declared
+        || !domain.symbol.is_valid()
+        || domain.classification.is_some()
+        || !domain.semantic_roles.is_empty()
+        || !domain.establishment_routes.is_empty()
+    {
+        return false;
+    }
+    program
+        .domain_definitions()
+        .iter()
+        .find(|definition| definition.symbol == domain.symbol)
+        .is_some_and(|definition| {
+            definition.alias.is_none()
+                && definition.classification.is_none()
+                && definition.semantic_roles.is_empty()
+                && definition.establishment_routes.is_empty()
+        })
 }
 
 fn definition(
@@ -189,25 +268,23 @@ fn definition(
 
 fn check_contents(
     program: &TypedTrees,
-    resolved: &OwnedType,
-    active: &mut Vec<OwnedType>,
-    complete: &mut Vec<OwnedType>,
-    allow_numeric_constraints: bool,
+    resolved: &ContentType,
+    active: &mut Vec<ContentType>,
+    complete: &mut Vec<ContentType>,
+    requirement: ContentsRequirement,
 ) -> bool {
     if complete.contains(resolved) {
         return true;
     }
-    let OwnedType::Data(symbol, arguments) = resolved else {
+    let ContentType::Data(symbol, arguments) = resolved else {
         return match resolved {
-            OwnedType::Scalar(_) => true,
-            OwnedType::Array(element, _) => check_contents(
-                program,
-                element,
-                active,
-                complete,
-                allow_numeric_constraints,
-            ),
-            OwnedType::Data(..) => unreachable!(),
+            ContentType::Scalar(_) => true,
+            ContentType::Array(element, _)
+            | ContentType::Slice(element)
+            | ContentType::Shared(element) => {
+                check_contents(program, element, active, complete, requirement)
+            }
+            ContentType::Data(..) => unreachable!(),
         };
     };
     let Some(data) = definition(program, *symbol) else {
@@ -218,7 +295,7 @@ fn check_contents(
     // finite owned carrier and must not make this classifier recurse forever.
     if data.properties.multiplicity == Multiplicity::Linear
         || active.iter().any(|ancestor| {
-            matches!(ancestor, OwnedType::Data(owner, _)
+            matches!(ancestor, ContentType::Data(owner, _)
             if owner == symbol && resolved.size() >= ancestor.size())
         })
         || program.machines().iter().any(|machine| {
@@ -239,15 +316,8 @@ fn check_contents(
     active.push(resolved.clone());
     let mut check_field = |field: &typed_trees::data::DataField| {
         !field.relevance.is_erased()
-            && resolve(
-                program,
-                field.type_reference,
-                &substitutions,
-                allow_numeric_constraints,
-            )
-            .is_some_and(|field| {
-                check_contents(program, &field, active, complete, allow_numeric_constraints)
-            })
+            && resolve(program, field.type_reference, &substitutions, requirement)
+                .is_some_and(|field| check_contents(program, &field, active, complete, requirement))
     };
     let supported = program
         .data_members(data)
