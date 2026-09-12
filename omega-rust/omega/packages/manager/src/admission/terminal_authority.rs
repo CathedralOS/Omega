@@ -85,15 +85,31 @@ pub fn realize_accepted_terminal_artifact_with_source_evaluated_imports_and_poli
     let retained = report.into_retained_terminal_artifact().ok_or_else(|| {
         diagnostics("accepted Terminal realization requires one retained Terminal artifact")
     })?;
-    compiler::realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+    let subsystem = retained
+        .native_realization_proposal()
+        .ok_or_else(|| {
+            diagnostics("retained Terminal product: source-evaluated import realization requires one native proposal")
+        })?
+        .subsystem();
+    let artifact = compiler::realize_retained_native_artifact(
         retained,
-        profile,
-        optimization_selections,
-        terminal_authority_policy,
-        accepted_permission_policy,
-        receiving_terminal_authority_permission_policy,
-        imports,
+        compiler::RetainedNativeRealizationRequest {
+            profile,
+            optimization_selections,
+            terminal_authority_policy,
+            accepted_package_terminal_authority_permission_policy: accepted_permission_policy,
+            terminal_authority_permission_policy: receiving_terminal_authority_permission_policy,
+            image_request: native_realization::ExecutableImageEmissionRequest::direct(subsystem),
+            imports,
+        },
     )
+    .map_err(|(_, diagnostics)| diagnostics)?;
+    match artifact {
+        native_realization::RequestedNativeArtifact::Direct(artifact) => Ok(artifact),
+        native_realization::RequestedNativeArtifact::DynamicElf(_) => Err(diagnostics(
+            "accepted Terminal realization requires direct image custody",
+        )),
+    }
 }
 
 /// Consume the exact checked root retained by final package review and realize
@@ -167,16 +183,30 @@ pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_
     let retained = report.into_retained_terminal_artifact().ok_or_else(|| {
         diagnostics("accepted Terminal realization requires one retained Terminal artifact")
     })?;
-    let artifact =
-        compiler::realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-            retained,
+    let subsystem = retained
+        .native_realization_proposal()
+        .ok_or_else(|| {
+            diagnostics("retained Terminal product: source-evaluated import realization requires one native proposal")
+        })?
+        .subsystem();
+    let artifact = compiler::realize_retained_native_artifact(
+        retained,
+        compiler::RetainedNativeRealizationRequest {
             profile,
-            post_terminal_optimizations.selections(),
+            optimization_selections: post_terminal_optimizations.selections(),
             terminal_authority_policy,
-            accepted_permission_policy,
-            receiving_terminal_authority_permission_policy,
+            accepted_package_terminal_authority_permission_policy: accepted_permission_policy,
+            terminal_authority_permission_policy: receiving_terminal_authority_permission_policy,
+            image_request: native_realization::ExecutableImageEmissionRequest::direct(subsystem),
             imports,
-        )?;
+        },
+    )
+    .map_err(|(_, diagnostics)| diagnostics)?;
+    let native_realization::RequestedNativeArtifact::Direct(artifact) = artifact else {
+        return Err(diagnostics(
+            "accepted Terminal realization requires direct image custody",
+        ));
+    };
     compiler::CompileReport::from_retained_native_artifact(
         root_path,
         source_file_count,

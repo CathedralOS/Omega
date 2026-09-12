@@ -1,7 +1,7 @@
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
-    SourceEvaluatedImportSettlement, compile, compile_to_checked_with_packages,
-    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
+    RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement, compile,
+    compile_to_checked_with_packages, realize_retained_native_artifact,
 };
 use effects::provider_plan::ProviderBinding;
 use installation_evidence::ProviderExecutionEvidence;
@@ -802,18 +802,38 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
             ),
         ])
         .expect("callback registrar exact service permission");
-    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-        retained,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        policy,
-        native_realization::current_terminal_authority_permission_policy(),
-        permission_policy,
-        &[SourceEvaluatedImportSettlement::new(
-            &execution,
-            &same_stack,
-        )],
-    )
+    let artifact = {
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: policy,
+                accepted_package_terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                terminal_authority_permission_policy: permission_policy,
+                image_request,
+                imports: &[SourceEvaluatedImportSettlement::new(
+                    &execution,
+                    &same_stack,
+                )],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .unwrap_or_else(|diagnostics| panic!("direct callback must realize: {diagnostics:#?}"));
     artifact
         .validate()

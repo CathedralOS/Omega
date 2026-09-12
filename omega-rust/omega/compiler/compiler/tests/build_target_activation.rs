@@ -1,7 +1,7 @@
 use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
-    compile_to_checked, compile_to_checked_with_packages,
-    realize_retained_terminal_artifact_with_source_evaluated_imports,
+    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
+    RetainedNativeRealizationRequest, compile, compile_to_checked,
+    compile_to_checked_with_packages, realize_retained_native_artifact,
 };
 use package_compilation::{
     BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
@@ -630,12 +630,36 @@ machine Main::main(&mut self) {
     retained
         .validate()
         .expect("FMA occurrence proposal replays against canonical artifact");
-    let native = realize_retained_terminal_artifact_with_source_evaluated_imports(
-        retained,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        &[],
-    )
+    let native = {
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+                accepted_package_terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                image_request,
+                imports: &[],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .unwrap_or_else(|diagnostics| panic!("FMA native custody failed: {diagnostics:#?}"));
     native
         .validate()
@@ -771,12 +795,36 @@ machine Main::main(&mut self) {
             .len(),
         1
     );
-    let native = realize_retained_terminal_artifact_with_source_evaluated_imports(
-        retained,
-        &proof_admission::AdmissionProfile::default(),
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        &[],
-    )
+    let native = {
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+                accepted_package_terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                terminal_authority_permission_policy:
+                    native_realization::current_terminal_authority_permission_policy(),
+                image_request,
+                imports: &[],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
     .unwrap_or_else(|diagnostics| {
         panic!("FMA plus internal Unit call should realize natively: {diagnostics:#?}")
     });
