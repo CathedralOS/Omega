@@ -196,10 +196,11 @@ pub fn realize_retained_native_artifact(
             calling_plans,
             proposal.program_entry().fused_service_establishments(),
         );
-        native_realization::realize_requested_native_artifact_with_checked_boundary_operator_scope(
+        native_realization::realize_native_artifact(
             artifact,
-            proposal.checked_boundary_operator_scope(),
-            native_realization::RequestedNativeRealizationRequest {
+            native_realization::NativeRealizationRequest {
+                checked_scope: Some(proposal.checked_boundary_operator_scope()),
+                prepared_input: None,
                 target: proposal.native_target(),
                 image_request,
                 profile,

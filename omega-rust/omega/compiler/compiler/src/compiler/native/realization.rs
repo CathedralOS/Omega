@@ -153,8 +153,12 @@ pub(super) fn realize(
         ))]
     })?;
     let request = native_realization::NativeRealizationRequest {
+        checked_scope: Some(&checked_boundary_operator_scope),
+        prepared_input: Some(prepared_input),
         target: admission.target,
-        subsystem: checked.subsystem(),
+        image_request: native_realization::ExecutableImageEmissionRequest::direct(
+            checked.subsystem(),
+        ),
         profile,
         terminal_authority_policy:
             native_realization::current_compiler_intrinsic_terminal_authority_policy(),
@@ -170,12 +174,14 @@ pub(super) fn realize(
         native_callbacks: &[],
         callback_thunks: &[],
     };
-    native_realization::realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input(
-        artifact,
-        &checked_boundary_operator_scope,
-        request,
-        prepared_input,
-    )
+    native_realization::realize_native_artifact(artifact, request)
+        .map_err(|error| error.into_parts().1)?
+        .into_direct()
+        .map_err(|_| {
+            vec![Diagnostic::error(
+                "direct native realization returned a different image kind",
+            )]
+        })
 }
 
 #[cfg(test)]

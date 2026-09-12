@@ -55,7 +55,10 @@ fn source_ordered_calls_reach_executable_publication() {
         ] {
             let all = optimization_core::OptimizationSelections::new(choices).unwrap();
             let selections = all.project_post_terminal();
-            let request = NativeRealizationCoreRequest {
+            let request = NativeRealizationRequest {
+                image_request: image_emission::ExecutableImageEmissionRequest::direct(3),
+                checked_scope: None,
+                prepared_input: None,
                 target,
                 profile: &profile,
                 terminal_authority_policy: crate::current_terminal_authority_policy(),
@@ -145,7 +148,10 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
         ] {
             let all = optimization_core::OptimizationSelections::new(choices).unwrap();
             let selections = all.project_post_terminal();
-            let request = NativeRealizationCoreRequest {
+            let request = NativeRealizationRequest {
+                image_request: image_emission::ExecutableImageEmissionRequest::direct(3),
+                checked_scope: None,
+                prepared_input: None,
                 target,
                 profile: &profile,
                 terminal_authority_policy: crate::current_terminal_authority_policy(),
@@ -190,7 +196,9 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
             let demand = image_emission::derive_stack_demand(&object, object.entry()).unwrap();
             assert!(demand.ceiling_bytes() > 0);
             let complete_request = crate::NativeRealizationRequest {
-                subsystem: 3,
+                checked_scope: None,
+                prepared_input: None,
+                image_request: image_emission::ExecutableImageEmissionRequest::direct(3),
                 target,
                 profile: &profile,
                 terminal_authority_policy: crate::current_terminal_authority_policy(),
@@ -210,8 +218,10 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
             let replayed_artifact =
                 terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
                     .unwrap();
-            let native =
-                crate::realize_native_artifact(replayed_artifact, complete_request).unwrap();
+            let native = crate::realize_native_artifact(replayed_artifact, complete_request)
+                .unwrap()
+                .into_direct()
+                .expect("direct image requested");
             native.validate().unwrap();
             let record = image_emission::build_installation_record(
                 native.image(),

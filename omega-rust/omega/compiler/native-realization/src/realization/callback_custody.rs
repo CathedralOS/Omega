@@ -1,6 +1,6 @@
 use super::{NativeRealizationRequest, realize_native_artifact};
+use super::{RequestedNativeArtifact, RequestedNativeArtifactError};
 use diagnostics::Diagnostic;
-use native_artifact::NativeArtifact;
 
 /// A native artifact coupled to caller-owned callback-use custody.
 ///
@@ -12,12 +12,12 @@ use native_artifact::NativeArtifact;
 #[derive(Debug)]
 #[must_use = "native realization must preserve callback-use custody"]
 pub struct RealizedNativeArtifactWithCallbackCustody<C> {
-    artifact: NativeArtifact,
+    artifact: RequestedNativeArtifact,
     callback_custody: C,
 }
 
 impl<C> RealizedNativeArtifactWithCallbackCustody<C> {
-    pub const fn artifact(&self) -> &NativeArtifact {
+    pub const fn artifact(&self) -> &RequestedNativeArtifact {
         &self.artifact
     }
 
@@ -25,7 +25,7 @@ impl<C> RealizedNativeArtifactWithCallbackCustody<C> {
         &self.callback_custody
     }
 
-    pub fn into_parts(self) -> (NativeArtifact, C) {
+    pub fn into_parts(self) -> (RequestedNativeArtifact, C) {
         (self.artifact, self.callback_custody)
     }
 }
@@ -33,26 +33,26 @@ impl<C> RealizedNativeArtifactWithCallbackCustody<C> {
 /// Diagnostic rejection from callback-custody-aware native realization.
 ///
 /// The existing native realization consumes its canonical Terminal artifact.
-/// This adapter separately returns the only additional owned input, the
-/// opaque callback sidecar, exactly for diagnosis or a later owner.
+/// This adapter returns the opaque callback sidecar alongside the ordinary
+/// failure's retained image request, exactly for diagnosis or a later owner.
 #[derive(Debug)]
 #[must_use = "native realization rejection returns callback-use custody"]
 pub struct CallbackCustodyNativeRealizationError<C> {
-    diagnostics: Vec<Diagnostic>,
+    realization: RequestedNativeArtifactError,
     callback_custody: C,
 }
 
 impl<C> CallbackCustodyNativeRealizationError<C> {
     pub fn diagnostics(&self) -> &[Diagnostic] {
-        &self.diagnostics
+        self.realization.diagnostics()
     }
 
     pub const fn callback_custody(&self) -> &C {
         &self.callback_custody
     }
 
-    pub fn into_parts(self) -> (Vec<Diagnostic>, C) {
-        (self.diagnostics, self.callback_custody)
+    pub fn into_parts(self) -> (RequestedNativeArtifactError, C) {
+        (self.realization, self.callback_custody)
     }
 }
 
@@ -73,8 +73,8 @@ pub fn realize_native_artifact_with_callback_custody<C>(
             artifact,
             callback_custody,
         }),
-        Err(diagnostics) => Err(CallbackCustodyNativeRealizationError {
-            diagnostics,
+        Err(realization) => Err(CallbackCustodyNativeRealizationError {
+            realization,
             callback_custody,
         }),
     }

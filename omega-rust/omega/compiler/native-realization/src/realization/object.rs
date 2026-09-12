@@ -1,7 +1,7 @@
 //! One abstract-to-object sequence, independent of optimization selection.
 
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
 use crate::realization::optimization_stage::lower_realization_optimization_stage;
 use crate::realization::optimized_fragment_projection::{
     OptimizedFragmentPublicationRequest, emit_optimized_fragments,
@@ -24,7 +24,7 @@ pub(crate) fn emit_realization_object(
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
-    request: &NativeRealizationCoreRequest<'_>,
+    request: &NativeRealizationRequest<'_>,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
     if !request.callback_thunks.is_empty() || !request.native_callbacks.is_empty() {
         return Err(realization_error(

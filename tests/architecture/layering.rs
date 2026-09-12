@@ -1956,12 +1956,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
 
     let realization_root =
         root.join("omega-rust/omega/compiler/native-realization/src/realization");
-    let realization_path = realization_root.join("mod.rs");
+    let realization_path = realization_root.join("native_artifact.rs");
     let realization = std::fs::read_to_string(&realization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
-    let api_path = realization_root.join("api.rs");
-    let api = std::fs::read_to_string(&api_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", api_path.display()));
     let machine_code_path = realization_root.join("object.rs");
     let machine_code = std::fs::read_to_string(&machine_code_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", machine_code_path.display()));
@@ -1999,7 +1996,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let model = std::fs::read_to_string(&model_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", model_path.display()));
     let production_realization = format!(
-        "{realization}\n{api}\n{input}\n{optimization_stage}\n{target_stage}\n{target_output}\n{physical_stage}\n{optimized_fragment_projection}\n{machine_code}"
+        "{realization}\n{input}\n{optimization_stage}\n{target_stage}\n{target_output}\n{physical_stage}\n{optimized_fragment_projection}\n{machine_code}"
     );
     let selection_path =
         root.join("omega-rust/omega/representations/optimization-core/src/selection.rs");
@@ -2581,7 +2578,9 @@ fn retained_native_product_enters_only_terminal_realization() {
     for required in [
         "produce_program_entry_terminal_artifact_with_optimizations(",
         "validate_native_program_entry_settlement(",
-        "realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input(",
+        "realize_native_artifact(",
+        "checked_scope: Some(&checked_boundary_operator_scope)",
+        "prepared_input: Some(prepared_input)",
         "from_retained_native_artifact(",
     ] {
         assert!(

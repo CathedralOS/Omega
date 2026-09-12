@@ -188,8 +188,10 @@ fn stage_terminal_component_with_policies(
     let native_artifact = realize_native_artifact(
         artifact,
         native_realization::NativeRealizationRequest {
+            checked_scope: None,
+            prepared_input: None,
             target,
-            subsystem,
+            image_request: image_emission::ExecutableImageEmissionRequest::direct(subsystem),
             profile,
             terminal_authority_policy,
             terminal_authority_permission_policy,
@@ -214,7 +216,14 @@ fn stage_terminal_component_with_policies(
             native_callbacks: &[],
             callback_thunks: &[],
         },
-    )?;
+    )
+    .map_err(|error| error.into_parts().1)?
+    .into_direct()
+    .map_err(|_| {
+        vec![diagnostics::Diagnostic::error(
+            "direct component realization returned a different image kind",
+        )]
+    })?;
     let stack_demand = image_emission::derive_stack_demand(
         native_artifact.object(),
         native_artifact.object().entry(),

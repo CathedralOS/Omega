@@ -105,7 +105,12 @@ pub struct NativeCallbackThunkSettlement<'artifact> {
 /// optimization, and provider custody through separate positional channels.
 pub struct NativeRealizationRequest<'request> {
     pub target: target::NativeTarget,
-    pub subsystem: u16,
+    pub image_request: image_emission::ExecutableImageEmissionRequest,
+    /// Optional same-artifact source custody, validated before realization.
+    pub checked_scope:
+        Option<&'request lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
+    /// Optional target-neutral reuse; exact artifact/profile/selection equality is rechecked.
+    pub prepared_input: Option<&'request super::input::PreparedNativeRealizationInput>,
     pub profile: &'request proof_admission::AdmissionProfile,
     /// Receiving target policy used to classify every demanded compiler
     /// intrinsic before native settlement.
@@ -141,104 +146,6 @@ pub struct NativeRealizationRequest<'request> {
     pub callback_thunks: &'request [NativeCallbackThunkSettlement<'request>],
 }
 
-/// Complete native-realization inputs for authority-distinct image routing.
-/// Unlike the compatibility direct request, this carrier has no independent
-/// subsystem field that a dynamic route could silently ignore.
-pub struct RequestedNativeRealizationRequest<'request> {
-    pub target: target::NativeTarget,
-    pub image_request: image_emission::ExecutableImageEmissionRequest,
-    pub profile: &'request proof_admission::AdmissionProfile,
-    pub terminal_authority_policy: crate::realization::TerminalAuthorityPolicy,
-    pub terminal_authority_permission_policy: crate::realization::TerminalAuthorityPermissionPolicy,
-    pub program_entry: NativeProgramEntrySettlement<'request>,
-    pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
-    pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
-    pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
-    pub settlements: &'request [NativeProviderSettlement<'request>],
-    pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
-    pub boundary_application_coverage:
-        Option<&'request boundary_applications::TerminalBoundaryApplicationCoverage>,
-    pub ieee_float_fma:
-        &'request [abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement<
-            'request,
-        >],
-    pub native_callbacks:
-        &'request [abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
-    pub callback_thunks: &'request [NativeCallbackThunkSettlement<'request>],
-}
-
-pub(crate) struct NativeRealizationCoreRequest<'request> {
-    pub target: target::NativeTarget,
-    pub profile: &'request proof_admission::AdmissionProfile,
-    pub terminal_authority_policy: crate::realization::TerminalAuthorityPolicy,
-    pub terminal_authority_permission_policy: crate::realization::TerminalAuthorityPermissionPolicy,
-    pub program_entry: NativeProgramEntrySettlement<'request>,
-    pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
-    pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
-    pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
-    pub settlements: &'request [NativeProviderSettlement<'request>],
-    pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
-    pub boundary_application_coverage:
-        Option<&'request boundary_applications::TerminalBoundaryApplicationCoverage>,
-    pub ieee_float_fma:
-        &'request [abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement<
-            'request,
-        >],
-    pub native_callbacks:
-        &'request [abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
-    pub callback_thunks: &'request [NativeCallbackThunkSettlement<'request>],
-}
-
-impl<'request> NativeRealizationRequest<'request> {
-    pub(crate) fn into_core(self) -> NativeRealizationCoreRequest<'request> {
-        NativeRealizationCoreRequest {
-            target: self.target,
-            profile: self.profile,
-            terminal_authority_policy: self.terminal_authority_policy,
-            terminal_authority_permission_policy: self.terminal_authority_permission_policy,
-            program_entry: self.program_entry,
-            optimization_selections: self.optimization_selections,
-            selected_provider_plans: self.selected_provider_plans,
-            external_binding_rows: self.external_binding_rows,
-            settlements: self.settlements,
-            compiler_builtins: self.compiler_builtins,
-            boundary_application_coverage: self.boundary_application_coverage,
-            ieee_float_fma: self.ieee_float_fma,
-            native_callbacks: self.native_callbacks,
-            callback_thunks: self.callback_thunks,
-        }
-    }
-}
-
-impl<'request> RequestedNativeRealizationRequest<'request> {
-    pub(crate) fn into_parts(
-        self,
-    ) -> (
-        image_emission::ExecutableImageEmissionRequest,
-        NativeRealizationCoreRequest<'request>,
-    ) {
-        (
-            self.image_request,
-            NativeRealizationCoreRequest {
-                target: self.target,
-                profile: self.profile,
-                terminal_authority_policy: self.terminal_authority_policy,
-                terminal_authority_permission_policy: self.terminal_authority_permission_policy,
-                program_entry: self.program_entry,
-                optimization_selections: self.optimization_selections,
-                selected_provider_plans: self.selected_provider_plans,
-                external_binding_rows: self.external_binding_rows,
-                settlements: self.settlements,
-                compiler_builtins: self.compiler_builtins,
-                boundary_application_coverage: self.boundary_application_coverage,
-                ieee_float_fma: self.ieee_float_fma,
-                native_callbacks: self.native_callbacks,
-                callback_thunks: self.callback_thunks,
-            },
-        )
-    }
-}
-
 /// Source-free native result selected by the exact object-bound image request.
 /// Dynamic ELF remains a separate, non-installable authority class.
 #[derive(Debug)]
@@ -246,6 +153,24 @@ impl<'request> RequestedNativeRealizationRequest<'request> {
 pub enum RequestedNativeArtifact {
     Direct(NativeArtifact),
     DynamicElf(DynamicElfNativeArtifact),
+}
+
+impl RequestedNativeArtifact {
+    /// Borrow a direct artifact without treating dynamic custody as executable authority.
+    pub fn as_direct(&self) -> Option<&NativeArtifact> {
+        match self {
+            Self::Direct(artifact) => Some(artifact),
+            Self::DynamicElf(_) => None,
+        }
+    }
+
+    /// Extract a direct artifact without discarding a different image's custody.
+    pub fn into_direct(self) -> Result<NativeArtifact, Self> {
+        match self {
+            Self::Direct(artifact) => Ok(artifact),
+            other => Err(other),
+        }
+    }
 }
 
 /// Failed requested realization with the complete image input recoverable.
@@ -271,15 +196,15 @@ impl RequestedNativeArtifactError {
     }
 }
 
-/// Compatibility-preserving result for the receipt-requiring native path.
+/// Native result retaining its independently validated ProgramEntry settlement.
 #[derive(Debug)]
 pub struct SettledNativeArtifact {
-    pub(crate) artifact: NativeArtifact,
+    pub(crate) artifact: RequestedNativeArtifact,
     pub(crate) program_entry: ValidatedNativeProgramEntrySettlement,
 }
 
 impl SettledNativeArtifact {
-    pub const fn artifact(&self) -> &NativeArtifact {
+    pub const fn artifact(&self) -> &RequestedNativeArtifact {
         &self.artifact
     }
 
@@ -287,7 +212,12 @@ impl SettledNativeArtifact {
         &self.program_entry
     }
 
-    pub fn into_parts(self) -> (NativeArtifact, ValidatedNativeProgramEntrySettlement) {
+    pub fn into_parts(
+        self,
+    ) -> (
+        RequestedNativeArtifact,
+        ValidatedNativeProgramEntrySettlement,
+    ) {
         (self.artifact, self.program_entry)
     }
 }

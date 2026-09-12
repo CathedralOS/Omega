@@ -1,4 +1,4 @@
-use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
 use crate::realization::providers::AdmittedTerminalMechanism;
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
@@ -12,7 +12,7 @@ use target_operations::{
 
 pub(super) fn settle_compiler_builtins<'request>(
     input: &NativeRealizationInput,
-    request: &NativeRealizationCoreRequest<'request>,
+    request: &NativeRealizationRequest<'request>,
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,

@@ -4,7 +4,16 @@ This coordinator consumes canonical Terminal Psi and explicit realization
 inputs. Its public contracts are [boundary realization](../../../../wiki/spec/terminal-psi/boundary_calls.md),
 [private callbacks](../../../../wiki/spec/build/private_callbacks.md), and
 [component publication](../../../../wiki/spec/build/component_publication.md).
-Start at [lib.rs](src/lib.rs).
+Start at [lib.rs](src/lib.rs), then follow [realization](src/realization/native_artifact.rs):
+validate scope and entry, obtain the abstract input, admit providers, emit the
+object, and assemble the image. One `NativeRealizationRequest` carries the image
+request, optional checked scope and optional prepared input alongside target and
+provider evidence. Those inputs do not select alternate API entrypoints.
+
+The result distinguishes direct and dynamic ELF artifacts; extracting a direct
+artifact cannot grant dynamic output installation authority. Every rejection
+returns the exact image request. Program-entry and callback-custody adapters
+retain their additional owned evidence and use the same realization operation.
 
 ## Multi-target reuse
 

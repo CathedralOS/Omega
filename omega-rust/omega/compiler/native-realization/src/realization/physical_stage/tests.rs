@@ -62,12 +62,13 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
             )
             .unwrap()
             .into_parts();
-        let native = crate::realize_native_artifact_with_checked_boundary_operator_scope(
+        let native = crate::realize_native_artifact(
             artifact,
-            &scope,
             crate::NativeRealizationRequest {
+                checked_scope: Some(&scope),
+                prepared_input: None,
                 target,
-                subsystem: 3,
+                image_request: image_emission::ExecutableImageEmissionRequest::direct(3),
                 profile: &profile,
                 terminal_authority_policy: crate::current_terminal_authority_policy(),
                 terminal_authority_permission_policy:
@@ -84,7 +85,9 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
                 callback_thunks: &[],
             },
         )
-        .unwrap_or_else(|errors| panic!("{target_profile:?}: {errors:?}"));
+        .unwrap_or_else(|errors| panic!("{target_profile:?}: {errors:?}"))
+        .into_direct()
+        .expect("direct image requested");
         assert!(matches!(
             native.physical_evidence_scope(),
             native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
