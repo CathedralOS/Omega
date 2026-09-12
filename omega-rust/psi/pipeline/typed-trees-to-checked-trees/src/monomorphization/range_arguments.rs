@@ -12,18 +12,18 @@
 //! flow bounds nor type display strings establish a static endpoint.
 
 use numerics::arithmetic::ArithmeticDomain;
-use numerics::bignum::BigInt;
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use validation::closed_integer_range_bound;
 
 pub(super) fn collect_literals(program: &TypedTrees, literals: &mut Vec<String>) {
     for (_, constraints) in program.type_reference_table.constrained_type_references() {
         for constraint in program.type_reference_table.constraints(constraints) {
             if let TypeConstraintNode::Range { minimum, maximum } = constraint {
                 for endpoint in [*minimum, *maximum] {
-                    if let Some(value) = endpoint_value(program, endpoint) {
+                    if let Some(value) = closed_integer_range_bound(program, endpoint) {
                         literals.push(value.to_string());
                     }
                 }
@@ -50,10 +50,11 @@ pub(super) fn infer(
     if required_carrier != actual_carrier {
         return;
     }
-    let values = match actual_endpoints.map(|endpoint| endpoint_value(program, endpoint)) {
-        [Some(minimum), Some(maximum)] if minimum <= maximum => Some([minimum, maximum]),
-        _ => None,
-    };
+    let values =
+        match actual_endpoints.map(|endpoint| closed_integer_range_bound(program, endpoint)) {
+            [Some(minimum), Some(maximum)] if minimum <= maximum => Some([minimum, maximum]),
+            _ => None,
+        };
     for (endpoint_index, required_endpoint) in required_endpoints.into_iter().enumerate() {
         let ExpressionNode::Name(name) = program.expression_table.expression(required_endpoint)
         else {
@@ -85,22 +86,6 @@ pub(super) fn infer(
         // Unsupported endpoint computations likewise cannot be silently bypassed.
         proposals.push((candidate_index, parameter_index, binding));
     }
-}
-
-fn endpoint_value(program: &TypedTrees, endpoint: ExpressionHandle) -> Option<BigInt> {
-    if !program.expression_table.expression_is_valid(endpoint) {
-        return None;
-    }
-    if let ExpressionNode::Integer(value) = program.expression_table.expression(endpoint) {
-        return value.value_bignum();
-    }
-    validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
-        program,
-        endpoint,
-        &[],
-        |expression| validation::has_anonymous_operator_meaning(program, expression),
-    )?
-    .to_integer_exact()
 }
 
 fn declared_range(
@@ -169,7 +154,7 @@ mod tests {
             .constrained_type_reference_sites()[0];
         let (_, endpoints) = declared_range(&program, range).expect("one declared range");
         assert_eq!(
-            endpoint_value(&program, endpoints[1])
+            closed_integer_range_bound(&program, endpoints[1])
                 .expect("literal endpoint")
                 .to_string(),
             "18446744073709551615"

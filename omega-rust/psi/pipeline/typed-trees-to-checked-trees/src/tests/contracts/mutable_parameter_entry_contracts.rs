@@ -77,6 +77,41 @@ fn assert_entry_parameters(expression: &CheckedBooleanExpression, expected: &[us
 }
 
 #[test]
+fn computed_parameter_ranges_retain_exact_entry_predicates() {
+    let checked = lower_typed_trees(parse_typed_trees(
+        "machine value(input: u64[(5 / 2) * 2..=10]) -> u64 { input }",
+    ))
+    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let machine = &checked.machines()[0];
+    let contract = checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .unwrap();
+    let requirements = contract
+        .crash
+        .structural_runtime_requirements()
+        .expect("complete entry range");
+    let [CheckedBooleanExpression::And { left, right }] = requirements else {
+        panic!("one inclusive range: {requirements:?}")
+    };
+    assert_entry_parameters(&requirements[0], &[0, 0]);
+    let CheckedBooleanExpression::IntegerComparison { left: minimum, .. } = left.as_ref() else {
+        panic!("lower bound")
+    };
+    let CheckedBooleanExpression::IntegerComparison { right: maximum, .. } = right.as_ref() else {
+        panic!("upper bound")
+    };
+    for (expression, expected) in [(minimum, 5), (maximum, 10)] {
+        assert!(
+            matches!(expression.as_ref(), CheckedScalarExpression::IntegerLiteral { literal }
+            if literal.value_i64() == Some(expected)),
+            "{expression:?}"
+        );
+    }
+}
+
+#[test]
 fn mutable_boolean_requires_retains_entry_operand_and_body_retains_current_storage() {
     let checked = lower_typed_trees(parse_typed_trees(
         "machine value(mut input: bool) -> bool requires input { input = false; input }",

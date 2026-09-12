@@ -2955,6 +2955,39 @@ machine Main::main(&mut self) { }
             .collect::<std::collections::BTreeMap<_, _>>(),
         std::collections::BTreeMap::from([("mode", 5), ("present", 1)])
     );
+
+    let fractional_source = fs::read_to_string(&main_path)
+        .expect("literal range fixture")
+        .replace("mode: u8 [0..=7]", "mode: u8 [0..=(7 / 2) * 2 + 1]");
+    for width in [3, 4] {
+        let source = fractional_source.replace("width: 3 }", &format!("width: {width} }}"));
+        let main_path = write_program(&format!("fractional-bit-policy-{width}"), &source);
+        let checked = compile_to_checked(&main_path, None)
+            .expect("the exact anonymous endpoint is the integer eight");
+        let report = compute_layout_plan(&checked.typed, "CompactBits::plan", "PackedFlags");
+        if width == 3 {
+            let error = report.expect_err("eight cannot fit in a three-bit field");
+            assert!(error.contains("end at bit 3, expected 4"), "{error}");
+        } else {
+            let report = report.expect("four bits represent the exact declared range");
+            assert!(matches!(
+                report.entries[1].placement,
+                LayoutPlacementReport::Bits { width: 4, .. }
+            ));
+            let mut bytes = [0_u8];
+            materialize_scalar_layout_into(
+                &report,
+                &[
+                    ScalarFieldValue::new("present", 1, 1).expect("present"),
+                    ScalarFieldValue::new("mode", 4, 8).expect("mode"),
+                ],
+                ByteOrder::LittleEndian,
+                &mut bytes,
+            )
+            .expect("the exact endpoint fits the validated layout");
+            assert_eq!(bytes, [0b10001]);
+        }
+    }
 }
 
 #[test]

@@ -198,9 +198,19 @@ execution remains separate: `lower_machine` on the literal `inferred` caller fai
 scalar graph lowering's requirement for exactly one `requires` and one `ensures`
 clause.
 
-Named/typed and open symbolic endpoint evaluation, general range-compatibility
-normalization and exact type equations remain open. Anonymous normalization can
-select a bound without removing later compatibility/evaluation restrictions.
+Closed anonymous integer endpoints now share validation's
+`closed_integer_range_bound` through inference, declaration/store checking,
+proof, retained entry predicates, scalar field custody, wire decoding and layout.
+It evaluates fractional intermediates exactly before the final integer landing;
+bounded readers convert only that result. The authored roots remain intact for
+operator selection and fractional-origin warnings. Thus `1 / 2 * 512` supplies
+the same bound 256 to inference and to an actual call accepting 256.
+
+Closed builtin typed arithmetic reuses immutable integer analysis, preserving
+its carrier checks and integer division/remainder. Named computations, open
+symbolic endpoints, full-width compatibility intervals and exact type equations
+remain open; context-free typed evaluation refuses matching selected trait
+operators until the endpoint has direct owner context.
 `generic_data/arguments.rs` still excludes range-qualified arguments from its
 slug path, and constrained-shell substitution is not general decomposition.
 `STRUCTURAL-GENERIC-MATCHING` tracks migration through source,

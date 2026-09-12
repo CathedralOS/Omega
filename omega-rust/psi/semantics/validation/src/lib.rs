@@ -54,6 +54,7 @@ mod quotients;
 mod recasts;
 mod relevance;
 mod result_overloads;
+mod scalar_representation_range;
 mod slice_ranking;
 mod state_signatures;
 mod struct_literals;
@@ -62,6 +63,7 @@ mod traits;
 mod transitions;
 mod type_references;
 mod wire;
+pub use scalar_representation_range::scalar_representation_range;
 mod write_only_borrows;
 
 pub use locals::receiver_allows_mutation;
@@ -202,6 +204,7 @@ pub use traits::{
     collect_dynamic_descriptor_storages, resolve_dynamic_call_targets,
     revalidate_top_level_requirement_realization,
 };
+pub use type_references::closed_integer_range_bound;
 pub use type_references::normalize_open_index_expressions;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;

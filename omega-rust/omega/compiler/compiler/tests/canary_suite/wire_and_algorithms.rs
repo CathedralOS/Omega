@@ -281,6 +281,49 @@ fn runtime_wire_decode_ranged_field_exit_canary_runs() {
 }
 
 #[test]
+fn computed_range_wire_decoding_preserves_exact_endpoints_in_the_interpreter() {
+    let scratch = unique_no_output_build_dir();
+    for (name, fixture) in [
+        (
+            "field",
+            fixture_roster::RUNTIME_WIRE_DECODE_RANGED_FIELD_EXIT,
+        ),
+        (
+            "repeated",
+            fixture_roster::RUNTIME_WIRE_DECODE_RANGED_REPEATED_EXIT,
+        ),
+    ] {
+        let canary = pass_canary(fixture);
+        let original = fs::read_to_string(canary.join("main.omg")).expect("ranged wire source");
+        let source = if name == "field" {
+            original
+                .replace("[0..=100]", "[0..=(51 / 2) * 2]")
+                .replace("self.buffer[2] = 50;", "self.buffer[2] = 51;")
+                .replace("good.v == 50", "good.v == 51")
+        } else {
+            original.replace("[-2..=2]", "[0 - 1 / 2 * 4..=1 / 2 * 4]")
+        };
+        let project = scratch.join(name);
+        fs::create_dir_all(&project).expect("computed range fixture directory");
+        let main_path = project.join("main.omg");
+        fs::write(&main_path, source).expect("computed range fixture source");
+        // The shared checked compiler derives the standard-library and console
+        // service bindings from this copied declaration and the source import.
+        fs::copy(canary.join("build.omg"), project.join("build.omg"))
+            .expect("ranged wire build declaration");
+        let checked = compile_to_checked(&main_path, None)
+            .unwrap_or_else(|diagnostics| panic!("{name}: {diagnostics:#?}"));
+        let outcome = interpret(&checked, &[]);
+        assert_eq!(outcome.error, None, "{name}");
+        assert_eq!(
+            outcome.exit_code, 70,
+            "{name}: rejected slots must remain intact and exact endpoints must decode"
+        );
+    }
+    fs::remove_dir_all(scratch).expect("computed range fixture cleanup");
+}
+
+#[test]
 fn runtime_wire_decode_ranged_repeated_exit_canary_runs() {
     // A hostile repeated element must clear the verdict without overwriting
     // its prior ranged slot; valid elements in the same payload still decode.

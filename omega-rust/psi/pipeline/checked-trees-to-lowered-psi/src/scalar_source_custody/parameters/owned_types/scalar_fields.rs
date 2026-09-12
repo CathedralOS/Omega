@@ -46,10 +46,12 @@ pub(super) fn reconstruct(
                         }
                         TypeConstraintNode::Range { minimum, maximum } => {
                             let minimum = i128::from(
-                                checked.expression_table.constant_integer_value(*minimum)?,
+                                validation::closed_integer_range_bound(&checked.typed, *minimum)?
+                                    .to_i64()?,
                             );
                             let maximum = i128::from(
-                                checked.expression_table.constant_integer_value(*maximum)?,
+                                validation::closed_integer_range_bound(&checked.typed, *maximum)?
+                                    .to_i64()?,
                             );
                             bounds = Some(match bounds {
                                 Some((prior_minimum, prior_maximum)) => {

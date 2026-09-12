@@ -1541,7 +1541,7 @@ fn wire_nested_decode_scalar_fields(
             field.name.as_str().to_owned(),
             field.number,
             scalar,
-            typed_trees::wire::scalar_decode_range(program, target_type),
+            validation::scalar_representation_range(program, target_type),
         ));
     }
     children.sort_by_key(|(_, number, _, _)| *number);

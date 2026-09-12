@@ -3,7 +3,7 @@
 //! authored range shell; unsupported bounds must not disappear through an
 //! optional interval query that also represents absence of a range.
 
-use super::{Interval, ValueEnv, known_u64_value, literal_i64, literal_u64, primitive_range};
+use super::{Interval, ValueEnv, known_u64_value, primitive_range};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
@@ -250,7 +250,9 @@ fn integer_bound(
     program: &TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<i128> {
-    literal_i64(program, expression)
+    let value = crate::closed_integer_range_bound(program, expression)?;
+    value
+        .to_i64()
         .map(i128::from)
-        .or_else(|| literal_u64(program, expression).map(i128::from))
+        .or_else(|| value.to_u64().map(i128::from))
 }

@@ -97,7 +97,7 @@ pub(super) fn validate_nested_value_field(
                 program,
                 child_value_field.type_reference,
             )
-            && typed_trees::wire::scalar_decode_range(program, child_value_field.type_reference)
+            && crate::scalar_representation_range(program, child_value_field.type_reference)
                 .is_none()
         {
             diagnostics.push(Diagnostic::error(format!(
@@ -182,7 +182,7 @@ pub(super) fn validate_repeated_value_field(
                     repeated.carrier,
                 )
                 && typed_trees::wire::type_reference_carries_range(program, element_type)
-                && typed_trees::wire::scalar_decode_range(program, element_type).is_none()
+                && crate::scalar_representation_range(program, element_type).is_none()
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}::decode` repeated value field `{}.{}` declares an element range fact \

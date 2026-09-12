@@ -392,7 +392,7 @@ fn stored_integer_write_is_total(
         return false;
     };
     let (admitted_minimum, admitted_maximum) =
-        if let Some(range) = typed_trees::wire::scalar_representation_range(typed, field_type) {
+        if let Some(range) = validation::scalar_representation_range(typed, field_type) {
             (i128::from(range.minimum), i128::from(range.maximum))
         } else {
             let width = primitive.scalar_byte_size().unwrap_or(0) * 8;

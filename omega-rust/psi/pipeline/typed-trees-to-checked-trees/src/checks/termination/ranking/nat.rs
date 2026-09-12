@@ -197,7 +197,8 @@ fn declared_floor_at_least_one(
                 }
                 if let Some(minimum) = constraints.iter().find_map(|constraint| match constraint {
                     TypeConstraintNode::Range { minimum, .. } => {
-                        program.expression_table.constant_integer_value(*minimum)
+                        validation::closed_integer_range_bound(program, *minimum)
+                            .and_then(|value| value.to_i64())
                     }
                     _ => None,
                 }) {

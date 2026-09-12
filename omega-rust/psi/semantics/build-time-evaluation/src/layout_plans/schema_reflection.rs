@@ -128,7 +128,7 @@ fn declared_source_bits(
     if primitive == PrimitiveType::Bool {
         return 1;
     }
-    let Some(range) = typed_trees::wire::scalar_representation_range(typed, type_reference) else {
+    let Some(range) = validation::scalar_representation_range(typed, type_reference) else {
         return byte_size * 8;
     };
     if range.minimum < 0 {
@@ -170,7 +170,7 @@ pub(super) fn reflected_field_layout(
             declared_source_bits(typed, type_reference, primitive, size),
             Some(primitive),
             "Scalar",
-            typed_trees::wire::scalar_representation_range(typed, type_reference)
+            validation::scalar_representation_range(typed, type_reference)
                 .map(|range| (range.minimum, range.maximum)),
             None,
         ));

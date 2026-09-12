@@ -139,8 +139,14 @@ fn formal_predicates_reject_selected_operators_and_nonliteral_arithmetic() {
 }
 
 #[test]
-fn literal_parameter_ranges_append_native_requirements() {
-    for range in ["[0..=255]", "[0..256]", "[0..=200, 0..=255]"] {
+fn closed_parameter_ranges_append_native_requirements() {
+    for range in [
+        "[0..=255]",
+        "[0..256]",
+        "[0..=200, 0..=255]",
+        "[0..=128 + 127]",
+        "[0..=255 / 2 * 2]",
+    ] {
         let program = typed(&format!(
             r#"
             boundary operator <= Meaning::before(left: u16, right: u16) -> bool;
@@ -170,11 +176,7 @@ fn literal_parameter_ranges_append_native_requirements() {
 
 #[test]
 fn unsupported_present_ranges_are_not_silently_erased() {
-    for parameter in [
-        "input: u16 [0..=limit]",
-        "input: u16 [0..=128 + 127]",
-        "input: u16 [0..=255] in Wrapping",
-    ] {
+    for parameter in ["input: u16 [0..=limit]", "input: u16 [0..=255] in Wrapping"] {
         let program = typed(&format!(
             "machine value(limit: u16, {parameter}) -> u16\nrequires 7u16 == 7u16\nensures result == input\n{{ input }}"
         ));

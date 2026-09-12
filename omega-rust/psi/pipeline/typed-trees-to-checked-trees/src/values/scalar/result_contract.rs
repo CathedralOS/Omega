@@ -234,14 +234,9 @@ pub(crate) fn lower_integer_parameter_range_requirements(
                             if !is_integer(primitive_type) {
                                 return None;
                             }
-                            let expressions = &program.expression_table;
-                            let (ExpressionNode::Integer(low), ExpressionNode::Integer(high)) = (
-                                expressions.expression(*minimum),
-                                expressions.expression(*maximum),
-                            ) else {
-                                return None;
-                            };
-                            if low.value_bignum()? > high.value_bignum()? {
+                            let low = validation::closed_integer_range_bound(program, *minimum)?;
+                            let high = validation::closed_integer_range_bound(program, *maximum)?;
+                            if low > high {
                                 return None;
                             }
                             let minimum = lower_return_expression(
