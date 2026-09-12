@@ -2,8 +2,15 @@
 //! or a replay of its body. Both sides enter the immutable entry namespace via
 //! exact exit origins before substitution. Unknown leaves remain symbolic;
 //! only Boolean congruence and closed connectives establish a truth value.
+//! Immutable locals join their earlier source-bound selected computations.
+//! These plans exist before contract checking; later execution plans cannot
+//! authorize this check. Expansion establishes denotation, not reevaluation:
+//! only immutable origins and earlier captured locals may supply operands.
 
-use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
+use checked_trees::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
+};
+use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
 
 use super::{ExitScalars, ExpressionHandle, exit_return_expression};
@@ -86,23 +93,40 @@ impl ExitScalars<'_, '_> {
                 .map(|parameter| parameter.symbol)
         };
         let mut remaining = 4096;
-        let returned = bind_boolean(
+        let returned = self.bind_selected_boolean(
             selected,
-            &|position| {
-                let symbol = *symbols.get(position)?;
+            symbols,
+            u32::try_from(self.exit.statement_index).ok()?,
+            &|symbol| {
                 let mut positions = (0..scalar_parameters().count())
                     .filter(|position| origin(*position) == Some(symbol));
                 let position = positions.next()?;
                 positions.next().is_none().then_some(position)
             },
-            None,
             &mut remaining,
             0,
         )?;
         let predicate = bind_boolean(
             &predicate,
-            &|position| origin(position).map(|_| position),
-            Some((scalar_parameters().count(), &returned)),
+            &|position, local, remaining, depth| {
+                if local {
+                    return None;
+                }
+                if position == scalar_parameters().count() {
+                    // Keep substitution inside the same budget, even for
+                    // repeated reserved-result occurrences.
+                    bind_boolean(
+                        &returned,
+                        &|position, local, _, _| {
+                            (!local).then_some(CheckedBooleanExpression::Parameter { position })
+                        },
+                        remaining,
+                        depth,
+                    )
+                } else {
+                    origin(position).map(|_| CheckedBooleanExpression::Parameter { position })
+                }
+            },
             &mut remaining,
             0,
         )?;
@@ -111,12 +135,99 @@ impl ExitScalars<'_, '_> {
             _ => None,
         }
     }
+
+    fn bind_selected_boolean(
+        &self,
+        expression: &CheckedBooleanExpression,
+        symbols: &[SymbolHandle],
+        before_statement: u32,
+        entry_position: &dyn Fn(SymbolHandle) -> Option<usize>,
+        remaining: &mut usize,
+        depth: usize,
+    ) -> Option<CheckedBooleanExpression> {
+        bind_boolean(
+            expression,
+            &|position, local, remaining, depth| {
+                let symbol = *symbols.get(position)?;
+                if !local {
+                    return entry_position(symbol)
+                        .map(|position| CheckedBooleanExpression::Parameter { position });
+                }
+                let plans = &self.facts.values.scalar_expressions;
+                let mut definitions = plans.source_bindings.iter().filter(|(_, binding)| {
+                    binding.state == self.exit.state_symbol && binding.destination == symbol
+                });
+                let (_, binding) = definitions.next()?;
+                if definitions.next().is_some() || binding.statement_ordinal >= before_statement {
+                    return None;
+                }
+                let CheckedScalarExpressionRole::LocalInitializer { binding_ordinal } =
+                    binding.role
+                else {
+                    return None;
+                };
+                let state = crate::find_state_in_machine(
+                    self.program,
+                    self.exit.machine_symbol,
+                    self.exit.state_symbol,
+                )?;
+                let parameters = self
+                    .program
+                    .state_parameters(state)
+                    .iter()
+                    .filter(|parameter| {
+                        self.program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                    })
+                    .count();
+                if position.checked_sub(parameters)? != binding_ordinal as usize {
+                    return None;
+                }
+                let typed_trees::statement::StatementNode::LocalData(local) = self
+                    .program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .get(binding.statement_ordinal as usize)?
+                else {
+                    return None;
+                };
+                if local.symbol != symbol
+                    || local.is_mutable
+                    || local.initial_value != binding.expression
+                    || self.program.primitive_type_reference(local.type_reference)
+                        != Some(PrimitiveType::Bool)
+                {
+                    return None;
+                }
+                let (selected, operands) = self.selected_scalar_expression(
+                    binding.statement_ordinal,
+                    binding.role,
+                    binding.expression,
+                )?;
+                let CheckedScalarExpression::Boolean(selected) = selected else {
+                    return None;
+                };
+                // Strictly earlier definition coordinates rule out forward/cyclic
+                // capture. StorageRead and call leaves still lack snapshot evidence.
+                self.bind_selected_boolean(
+                    selected,
+                    operands,
+                    binding.statement_ordinal,
+                    entry_position,
+                    remaining,
+                    depth,
+                )
+            },
+            remaining,
+            depth,
+        )
+    }
 }
 
 fn bind_boolean(
     expression: &CheckedBooleanExpression,
-    resolve: &impl Fn(usize) -> Option<usize>,
-    result: Option<(usize, &CheckedBooleanExpression)>,
+    resolve: &dyn Fn(usize, bool, &mut usize, usize) -> Option<CheckedBooleanExpression>,
     remaining: &mut usize,
     depth: usize,
 ) -> Option<CheckedBooleanExpression> {
@@ -127,30 +238,23 @@ fn bind_boolean(
     *remaining -= 1;
     Some(match expression {
         Boolean::Constant(value) => Boolean::Constant(*value),
-        Boolean::Parameter { position } => {
-            if let Some((result_position, returned)) = result
-                && *position == result_position
-            {
-                // The returned expression already uses entry positions. Rewalk
-                // it with the same budget rather than multiplying unbounded
-                // clones for repeated reserved-result occurrences.
-                return bind_boolean(returned, resolve, None, remaining, depth + 1);
-            }
-            Boolean::Parameter {
-                position: resolve(*position)?,
-            }
+        Boolean::Parameter { position } | Boolean::Local { position } => {
+            return resolve(
+                *position,
+                matches!(expression, Boolean::Local { .. }),
+                remaining,
+                depth + 1,
+            );
         }
-        Boolean::Not(operand) => {
-            match bind_boolean(operand, resolve, result, remaining, depth + 1)? {
-                Boolean::Constant(value) => Boolean::Constant(!value),
-                operand => Boolean::Not(Box::new(operand)),
-            }
-        }
+        Boolean::Not(operand) => match bind_boolean(operand, resolve, remaining, depth + 1)? {
+            Boolean::Constant(value) => Boolean::Constant(!value),
+            operand => Boolean::Not(Box::new(operand)),
+        },
         Boolean::Equal { left, right }
         | Boolean::And { left, right }
         | Boolean::Or { left, right } => {
-            let left = Box::new(bind_boolean(left, resolve, result, remaining, depth + 1)?);
-            let right = Box::new(bind_boolean(right, resolve, result, remaining, depth + 1)?);
+            let left = Box::new(bind_boolean(left, resolve, remaining, depth + 1)?);
+            let right = Box::new(bind_boolean(right, resolve, remaining, depth + 1)?);
             match expression {
                 Boolean::Equal { .. } if left == right => Boolean::Constant(true),
                 Boolean::Equal { .. } => match (&*left, &*right) {
@@ -173,7 +277,7 @@ fn bind_boolean(
                 },
             }
         }
-        // Locals, storage and non-Boolean computations need their own retained
+        // Storage and non-Boolean computations need their own retained
         // value/effect evidence; matching their spelling or shape is not proof.
         _ => return None,
     })
