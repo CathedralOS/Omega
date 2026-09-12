@@ -5010,10 +5010,11 @@ fn allocation_history_does_not_choose_a_separate_frame_or_publication_owner() {
     .expect("read allocation phase entrance");
     assert!(!allocation.contains("FunctionRelativeLayout"));
     assert!(!allocation.contains("stage_optimized_allocation_legality_for_frameless_leaf"));
-    let frame = std::fs::read_to_string(root.join(
-        "omega-rust/omega/backend/machine-emission/src/function_realization/routes/fixed_frame.rs",
-    ))
-    .expect("read common fixed-frame realization");
+    let frame =
+        std::fs::read_to_string(root.join(
+            "omega-rust/omega/backend/machine-emission/src/function_realization/fixed_frame.rs",
+        ))
+        .expect("read common fixed-frame realization");
     assert!(frame.contains("replay_allocation()"));
     assert!(!frame.contains("baseline_allocation_source"));
     assert!(frame.contains("execute_resolved_layout_optimization("));

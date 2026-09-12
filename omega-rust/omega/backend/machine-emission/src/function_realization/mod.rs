@@ -4,6 +4,7 @@
 
 mod assembly;
 mod carriers;
+mod fixed_frame;
 #[cfg(any(test, feature = "test-support"))]
 mod fixed_frame_test_support;
 mod frame;
@@ -14,13 +15,15 @@ mod codec;
 mod error;
 mod model;
 mod prelude;
-mod routes;
 
 pub use carriers::*;
 pub use codec::FunctionRelativeOptimizationRealizationManifestDecodeError;
 pub use error::FunctionRelativeOptimizationRealizationError;
+pub use fixed_frame::{
+    stage_fixed_frame_function_relative_realization,
+    validate_fixed_frame_function_relative_realization,
+};
 pub use model::*;
-pub use routes::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {

@@ -9,7 +9,7 @@ and [stack provisioning](../../../../wiki/spec/resources/storage.md).
 
 ## Function realization
 
-[Fixed-frame realization](src/function_realization/routes/fixed_frame.rs) is the
+[Fixed-frame realization](src/function_realization/fixed_frame.rs) is the
 common entrance for admitted allocation histories, including identity execution.
 It replays allocation, rejoins the current machine, derives frame evidence,
 performs selected-form encoding and baseline layout, executes the phase-local
