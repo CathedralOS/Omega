@@ -166,10 +166,9 @@ fn initial_authority(build: &str, source: &str, package: &str, service: &str) {
     let lock = fixture.lock();
     let target = lock.target(TARGET).unwrap();
     assert!(target.baselines().iter().any(|baseline| {
-        baseline
-            .dangerous_capabilities()
-            .iter()
-            .any(|authority| authority.service().path() == service)
+        baseline.rows().iter().any(|row| {
+            row.kind().as_str() == "dangerous_capability" && row.canonical_text().contains(service)
+        })
     }));
     assert_eq!(
         target.decisions().decisions().len(),
@@ -260,12 +259,9 @@ fn added_and_removed_process_authority_require_exact_update_decisions() {
         fs::write(&path, accepted.replace(&accepted_decision, decision)).unwrap();
         assert_status(&fixture.omega(&["update", "--resume"]), 3);
         assert_eq!(fixture.accepted_files(), before);
-        // Duplicating another choice cannot stand in for this row's identity.
-        let other = accepted
-            .lines()
-            .find(|line| line.starts_with("decision ") && *line != accepted_decision)
-            .unwrap();
-        fs::write(&path, accepted.replace(&accepted_decision, other)).unwrap();
+        // An unknown choice cannot stand in for this row's identity.
+        let other = format!("decision row {} accept", "ff".repeat(32));
+        fs::write(&path, accepted.replace(&accepted_decision, &other)).unwrap();
         assert_status(&fixture.omega(&["update", "--resume"]), 1);
         assert_eq!(fixture.accepted_files(), before);
         fs::write(&path, accepted).unwrap();
@@ -371,12 +367,26 @@ fn generated_authority(source: &str, callable: &str, services: &[&str]) {
     for service in services {
         authority_decision(section, "added", service);
     }
-    assert!(section.contains(callable), "{section}");
+    assert!(!section.contains("change callable "), "{section}");
     assert_status(&fixture.omega(&["install", "--resume"]), 3);
     assert_eq!(fixture.accepted_files(), before);
     accept_document(&path, &document);
     assert_status(&fixture.omega(&["install", "--resume"]), 0);
     fixture.lock();
+    let fresh = fixture.fresh_reviews(TARGET);
+    let generated = fresh
+        .reviews()
+        .iter()
+        .find(|review| review.key().name().as_str() == "generated-table")
+        .unwrap();
+    assert!(
+        generated
+            .policy()
+            .callables()
+            .callables()
+            .iter()
+            .any(|definition| definition.identity().path().contains(callable))
+    );
     assert!(!fixture.path("root/table.generated.omg").exists());
     assert!(!fixture.path("dependency/table.generated.omg").exists());
     check_import(&fixture, "generated_table");

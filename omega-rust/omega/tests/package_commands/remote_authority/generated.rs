@@ -36,12 +36,12 @@ fn pinned_ssh_pure_to_generated_authority_update_requires_review() {
     let baseline = fixture.lock();
     let old_target = baseline.target(TARGET).unwrap();
     assert_eq!(old_target.source().packages().len(), 2);
-    assert!(
-        old_target
-            .baselines()
+    assert!(old_target.baselines().iter().all(|policy| {
+        policy
+            .rows()
             .iter()
-            .all(|policy| policy.dangerous_capabilities().is_empty())
-    );
+            .all(|row| row.kind().as_str() != "dangerous_capability")
+    }));
     let old_package = old_target
         .source()
         .packages()
@@ -56,7 +56,7 @@ fn pinned_ssh_pure_to_generated_authority_update_requires_review() {
     let section = package_section(&document, "generated-table");
     assert!(section.contains("source-changed true\n"), "{section}");
     assert!(section.contains("audit-recommended true\n"), "{section}");
-    assert!(section.contains("terminate"), "{section}");
+    assert!(!section.contains("change callable "), "{section}");
     let dangerous = dangerous_decisions(section);
     let [(row, decision)] = dangerous.as_slice() else {
         panic!("the generated callable must introduce one dangerous row: {section}");
@@ -128,11 +128,8 @@ fn check_generated_apis(fixture: &Fixture) {
         .iter()
         .find(|package| package.key().name().as_str() == "generated-table")
         .unwrap();
-    let policy = target
-        .baselines()
-        .iter()
-        .find(|policy| policy.package() == package.key().identity())
-        .unwrap();
+    let fresh = fixture.fresh_reviews(TARGET);
+    let policy = fresh.review(package.key()).unwrap().policy();
     for name in ["table_size", "terminate"] {
         assert!(
             policy.callables().callables().iter().any(|callable| {

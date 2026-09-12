@@ -25,11 +25,11 @@ fn pinned_ssh_process_updates_review_removed_and_reintroduced_authority() {
         .iter()
         .find(|package| package.key().name().as_str() == "process-exit")
         .unwrap();
-    let original_policy = original_target
-        .baselines()
-        .iter()
-        .find(|policy| policy.package() == original_consumer.key().identity())
-        .unwrap();
+    let original_reviews = fixture.fresh_reviews(TARGET);
+    let original_policy = original_reviews
+        .review(original_consumer.key())
+        .unwrap()
+        .policy();
     let original_callable = original_policy
         .callables()
         .callables()
@@ -86,12 +86,9 @@ fn pinned_ssh_process_updates_review_removed_and_reintroduced_authority() {
             assert_status(&fixture.omega(&["update", "--resume"]), 3);
             assert_eq!(fixture.accepted_files(), before);
         }
-        // A different row's choice cannot stand in for this authority delta.
-        let other = accepted
-            .lines()
-            .find(|line| line.starts_with("decision ") && *line != accepted_decision)
-            .expect("reach/invocation changes need choices separate from dangerous authority");
-        fs::write(&path, accepted.replace(&accepted_decision, other)).unwrap();
+        // An unknown row cannot stand in for the exact authority choice.
+        let foreign = format!("decision row {} accept", "ff".repeat(32));
+        fs::write(&path, accepted.replace(&accepted_decision, &foreign)).unwrap();
         assert_status(&fixture.omega(&["update", "--resume"]), 1);
         assert_eq!(fixture.accepted_files(), before);
         if let Some(stale) = &previous_review {
@@ -155,11 +152,8 @@ fn pinned_ssh_process_updates_review_removed_and_reintroduced_authority() {
                 assert_eq!(current.request(), original_edge.request());
             }
         }
-        let policy = target
-            .baselines()
-            .iter()
-            .find(|policy| policy.package() == original_consumer.key().identity())
-            .unwrap();
+        let fresh = fixture.fresh_reviews(TARGET);
+        let policy = fresh.review(original_consumer.key()).unwrap().policy();
         let callable = policy
             .callables()
             .callables()

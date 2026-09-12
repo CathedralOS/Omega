@@ -80,6 +80,35 @@ impl Fixture {
         .expect("CLI published a structurally valid lock")
     }
 
+    // Exact API assertions use current compiler output, never lock-file consent.
+    pub(super) fn fresh_reviews(
+        &self,
+        target: target::TargetProfile,
+    ) -> package_manager::review::CompilerIssuedPackageReviewSet {
+        use package_manager::resolution::graph::{
+            PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
+        };
+        let root = self.path("root");
+        let storage =
+            package_source::SourceResolverStorage::for_current_user_excluding_primary_git_roots(&[
+                root.clone(),
+            ])
+            .unwrap();
+        let closure = resolve_external_local_project_closure_with_storage(
+            &root,
+            package_source::ExternalSourceContext::derive(b"omega-local-project-v1"),
+            &storage,
+            package_source::LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+        )
+        .expect("resolve current fixture sources for a fresh audit");
+        package_manager::review::compile_resolved_package_candidate_reviews(
+            &closure.for_exact_target(target),
+            &self.path("fresh-audit-build"),
+        )
+        .expect("compile current fixture sources for a fresh audit")
+    }
+
     pub(super) fn assert_published(&self, before: &(Option<Vec<u8>>, Option<Vec<u8>>)) {
         let after = self.accepted_files();
         assert_ne!(after.0, before.0, "install did not edit build.omg");

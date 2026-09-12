@@ -32,6 +32,7 @@ fn pinned_ssh_same_name_and_api_do_not_bypass_source_replacement_review() {
     check_import(&fixture);
     let original_lock = fixture.lock();
     let original_target = original_lock.target(TARGET).unwrap();
+    let original_reviews = fixture.fresh_reviews(TARGET);
     let original = original_target
         .source()
         .packages()
@@ -114,12 +115,10 @@ fn pinned_ssh_same_name_and_api_do_not_bypass_source_replacement_review() {
         assert_status(&fixture.omega(&["update", "--resume"]), 3);
         assert_eq!(fixture.accepted_files(), before);
     }
-    // Accepting every API row does not replace acceptance of source identity.
-    let other = accepted
-        .lines()
-        .find(|line| line.starts_with("decision row "))
-        .unwrap();
-    fs::write(path, accepted.replace(&accepted_decision, other)).unwrap();
+    // A row-shaped token cannot replace acceptance of source identity, even
+    // when neither package has any risk rows requiring consent.
+    let other = format!("decision row {} accept", "ff".repeat(32));
+    fs::write(path, accepted.replace(&accepted_decision, &other)).unwrap();
     assert_status(&fixture.omega(&["update", "--resume"]), 1);
     assert_eq!(fixture.accepted_files(), before);
     fs::write(path, &accepted).unwrap();
@@ -179,16 +178,21 @@ fn pinned_ssh_same_name_and_api_do_not_bypass_source_replacement_review() {
         matches!(selection, PackageSelection::Named(name) if name.as_str() == "arithmetic-kernels")
     );
 
-    let previous_policy = original_target
-        .baselines()
-        .iter()
-        .find(|policy| policy.package() == original.key().identity())
-        .unwrap();
-    let policy = target
-        .baselines()
-        .iter()
-        .find(|policy| policy.package() == replacement.key().identity())
-        .unwrap();
+    let previous_policy = original_reviews.review(original.key()).unwrap().policy();
+    let fresh = fixture.fresh_reviews(TARGET);
+    let policy = fresh.review(replacement.key()).unwrap().policy();
+    assert!(
+        original_target
+            .baselines()
+            .iter()
+            .all(|acceptance| acceptance.rows().is_empty())
+    );
+    assert!(
+        target
+            .baselines()
+            .iter()
+            .all(|acceptance| acceptance.rows().is_empty())
+    );
     assert!(previous_policy.dangerous_capabilities().is_empty());
     assert!(policy.dangerous_capabilities().is_empty());
     let previous_callable = previous_policy
