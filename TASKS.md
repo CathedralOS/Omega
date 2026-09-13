@@ -1535,32 +1535,18 @@ Owners include
   Remove the nested-call gate only when those result uses have real producers;
   a correct declared type or source origin alone does not realize a value.
   Resume at the checked/Terminal representation seam, not another evaluator
-  source-shape gate: extend the whole mutable primitive reference carrier to
-  stored-reference aggregates, projected result sources, and their recursive
-  loan custody. At `17d763cbbf`, `cargo nextest run -p checked-trees-to-lowered-psi
-  --test reference_result_source --no-fail-fast` (macOS ARM64,
-  `RUST_MIN_STACK=33554432`) exercises encoded
-  whole-reference and local record custody, including ordinary projected calls,
-  exact source-loan tampering controls, and original backing restoration after
-  cleanup. It retains the helper-result publication fence:
-  `make_view(value)` followed by `replace(held.body)` reaches checked trees but
-  has no source-independent checked scalar control plan. Its full-checked
-  interpreter acceptance is `cargo nextest run -p checked-interpreter --test
-  projected_results --no-fail-fast`; this is not stored-reference Terminal or
-  native acceptance. The source-free dependency probe is `cargo nextest run
-  -p terminal-interpreter --test unit reference_records --no-fail-fast` at
-  `f6022df5e9` on the same host: nested record construction, field reborrowing,
-  whole-record cleanup, and ordinary record returns execute against original
-  primitive backing, including returned children and reversed actual arguments.
-  The verifier reconstructs exact reference-leaf result maps and formal-to-actual
-  substitution; canonical wire and runtime support no longer block this record
-  return. Resume in source production with the helper's complete returned-leaf
-  origin map and exact caller substitution, sharing `reference_result_custody`
-  between ordinary completion and independent source replay. Checked record
-  initializers now retain reference carriers instead of scalar-normalized fields;
-  their ingress, captured owner path, active consumer premise, and weakening are
-  independently reconstructed. Transfer existing permissions through owned
-  call/edge/result moves and residual cleanup;
+  source-shape gate: realize reference-bearing aggregate parameters and projected
+  nested result operands with their recursive loan custody. The primitive-ingress
+  record route is available: at `7ee27ae715`, `cargo nextest run
+  -p checked-trees-to-lowered-psi --test reference_result_source --no-fail-fast`
+  (macOS ARM64, `RUST_MIN_STACK=33554432`) checks canonical encoding, independent
+  verification, and fuel-stepped execution of `make_view(value)` followed by
+  `replace(held.body)`, restoring the caller's original backing after cleanup.
+  This is Terminal acceptance, not native acceptance. Reuse
+  `validation/src/reference_result_custody.rs` for ordinary completion and
+  independent source replay; preserve conservative lifetime unions when extending
+  exact runtime origins beyond primitive formal inputs. Transfer existing
+  permissions through owned call/edge/result moves and residual cleanup;
   `EstablishReference` creates a child loan and cannot substitute for moving an
   existing leaf. Keep carrier location distinct from loan occurrence/parent,
   relocate runtime descriptors without copying referents, and reject nested
