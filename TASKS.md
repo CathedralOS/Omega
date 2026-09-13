@@ -1027,11 +1027,16 @@ Owners include
   established. Explicit arguments alone do not establish all callee reads;
   preserved numeric captures must remain independent of subsequent source writes.
 
-- **CALLBACK-PARAMETER-REQUIREMENT.** Implement the nominal
-  `where machine Selected satisfies Trait::requirement` binder and retain its
-  exact requirement, conformance, envelope refinement, call site, and target
-  entry recipe. Structural coincidence and overloaded/implicit selection
-  reject.
+- **CALLBACK-PARAMETER-REQUIREMENT.** Checked admission of the nominal
+  `where machine Selected satisfies Trait::requirement` binder is pinned by
+  `tests/omega/pass/generics/nominal_machine_parameter_satisfaction_compile`
+  and the `fail/generics/*nominal_binder*` canaries (structural coincidence,
+  overloaded requirement, implicit selection). Remaining: a native run canary
+  witnessing that the retained selected entry, envelope refinement, and call
+  site reach the target entry recipe. Native legs depending on `build.omg`
+  need private resolver storage; on Linux 5.15 `fchmod` on an `O_PATH`
+  directory descriptor fails with `EBADF`, so witness on a 6.6+ kernel or
+  fix the storage opener first.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
   selected through exact conformances and validated layout paths under the
