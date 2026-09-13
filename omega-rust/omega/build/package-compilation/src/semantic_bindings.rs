@@ -9,6 +9,12 @@ pub enum AcceptedSemanticBindingRole {
     /// Target-independent recognition of the exact process-exit Console
     /// declaration. Physical lowering support remains a separate target fact.
     ConsoleExitProcessI32,
+    /// Target-independent recognition of the canonical core `ProcessExit`
+    /// boundary requirement realized by the bound package's provider. The
+    /// toolchain-owned trait carries no package identity; the binding still
+    /// commits the package-owned provider, normalized schema, and selected
+    /// plan. Physical lowering support remains a separate target fact.
+    ProcessExitExitProcessI32,
     /// Exact package-owned raw filesystem service whose use is classified as
     /// filesystem authority. This role binds the complete service schema but
     /// does not invent a provider for a requirement-only boundary.
@@ -44,7 +50,11 @@ impl AcceptedSemanticBinding {
         normalized_schema_digest: ServiceSchemaDigest,
         selected_provider_plan_digest: ProviderPlanDigest,
     ) -> Result<Self, &'static str> {
-        if role != AcceptedSemanticBindingRole::ConsoleExitProcessI32 {
+        if !matches!(
+            role,
+            AcceptedSemanticBindingRole::ConsoleExitProcessI32
+                | AcceptedSemanticBindingRole::ProcessExitExitProcessI32
+        ) {
             return Err("accepted semantic role does not bind a selected provider plan");
         }
         let declaration_path = declaration_path.into();

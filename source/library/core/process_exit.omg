@@ -1,0 +1,18 @@
+// Canonical process-exit boundary owned by core
+// (wiki/spec/language/process_exit.md).
+//
+// `ProcessExit::exit_process` is the exact terminal-event identity for a
+// non-crashing external terminal outcome. Invocation ends the caller's
+// containing process execution domain with the exact semantic i32 status; it
+// produces no normal result or continuation and performs no implicit cleanup.
+//
+// This boundary is deliberately separate from Console: console I/O grants no
+// process-exit reach or authority, and Console must not inherit `ProcessExit`
+// wholesale. Actual authority is bound to the caller's containing process
+// execution domain by the admitted entry/runtime environment; declaring the
+// reach or selecting a provider grants none of it.
+pub boundary trait ProcessExit {
+    machine exit_process(return_code: i32)
+    reaches
+        ProcessExit;
+}

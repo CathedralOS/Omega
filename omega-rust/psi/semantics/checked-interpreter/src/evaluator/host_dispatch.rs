@@ -84,6 +84,25 @@ impl<'program> Evaluator<'program> {
 
         match target {
             "exit_process" => {
+                // A `ProcessExit`-named boundary may only end the simulated
+                // domain through the exact canonical toolchain requirement
+                // (omega::language::core::process_exit). An ordinary package or
+                // user declaration with a matching name is a lookalike and
+                // does not acquire terminal meaning. Requirements on any other
+                // boundary trait keep the transitional console lane.
+                if let Some((trait_symbol, requirement_symbol)) =
+                    self.exit_process_call_requirement(call, frame)
+                    && self.program.traits().iter().any(|definition| {
+                        definition.symbol == trait_symbol
+                            && definition.name.as_str() == "ProcessExit"
+                    })
+                    && !self.is_canonical_process_exit_requirement(trait_symbol, requirement_symbol)
+                {
+                    return unsupported(
+                        "boundary call `exit_process` names a non-canonical `ProcessExit` declaration; only the exact toolchain requirement ends the simulated domain"
+                            .to_owned(),
+                    );
+                }
                 let code = if let Some(first) = arguments.first() {
                     self.eval_expression(*first, frame)?
                         .as_int()
@@ -202,7 +221,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    /// Rejoin a concrete Console leaf to its satisfied requirement before
+    /// Rejoin a concrete hosted leaf to its satisfied requirement before
     /// selecting host behavior. Other external realizations retain their own
     /// execution path, even when their method spelling matches a host method.
     pub(super) fn exact_console_intrinsic_host_method(
@@ -213,19 +232,29 @@ impl<'program> Evaluator<'program> {
             validation::exact_compiler_intrinsic_boundary_requirement(self.program, target_symbol)?;
         let realization = self.program.machines().iter().find(|machine| {
             machine.attached_data_symbol == provider_symbol
-                && machine.attached_data.as_ref().map(|name| name.as_str())
-                    == Some("ConsoleNativeProvider")
                 && self
                     .program
                     .machine_states(machine)
                     .iter()
                     .any(|state| state.symbol == target_symbol)
         })?;
+        let (provider_name, trait_name) = match realization.name.as_str() {
+            "ConsoleNativeProvider::read_byte"
+            | "ConsoleNativeProvider::write_byte"
+            | "ConsoleNativeProvider::exit_process" => ("ConsoleNativeProvider", "Console"),
+            "ProcessExitNativeProvider::exit_process" => {
+                ("ProcessExitNativeProvider", "ProcessExit")
+            }
+            _ => return None,
+        };
+        if realization.attached_data.as_ref().map(|name| name.as_str()) != Some(provider_name) {
+            return None;
+        }
         let requirement = self
             .program
             .traits()
             .iter()
-            .filter(|definition| definition.is_boundary && definition.name.as_str() == "Console")
+            .filter(|definition| definition.is_boundary && definition.name.as_str() == trait_name)
             .flat_map(|definition| self.program.trait_machine_signatures(definition))
             .find(|requirement| requirement.symbol == requirement_symbol)?;
         match (realization.name.as_str(), requirement.name.as_str()) {
@@ -244,6 +273,7 @@ impl<'program> Evaluator<'program> {
             }
             ("ConsoleNativeProvider::write_byte", "write_byte") => Some("write_byte"),
             ("ConsoleNativeProvider::exit_process", "exit_process") => Some("exit_process"),
+            ("ProcessExitNativeProvider::exit_process", "exit_process") => Some("exit_process"),
             _ => None,
         }
     }

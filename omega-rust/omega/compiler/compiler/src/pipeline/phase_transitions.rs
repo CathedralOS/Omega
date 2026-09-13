@@ -50,6 +50,8 @@ pub(super) struct SelectedExecutionSettlementInput<'a> {
     pub(super) opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
     pub(super) accepted_console_binding: Option<&'a package_compilation::AcceptedSemanticBinding>,
+    pub(super) accepted_process_exit_binding:
+        Option<&'a package_compilation::AcceptedSemanticBinding>,
     pub(super) accepted_filesystem_binding:
         Option<&'a package_compilation::AcceptedSemanticBinding>,
     pub(super) accepted_uefi_binding: Option<&'a package_compilation::AcceptedSemanticBinding>,
@@ -290,7 +292,7 @@ pub(super) fn settle_selected_execution(
             &mut checked.program,
             &checked.selected_provider_plan_facts,
         )?;
-    let resolved_console_binding =
+    let resolved_exit_bindings =
         selected_dispatch::retain_selected_compiler_intrinsic_review_identities(
             &checked.program,
             &checked.selected_provider_plan_facts,
@@ -299,6 +301,7 @@ pub(super) fn settle_selected_execution(
                 .selected_target_profile
                 .map(target::TargetProfile::target_name),
             settlement.accepted_console_binding,
+            settlement.accepted_process_exit_binding,
         )?;
     let resolved_filesystem_binding = settlement
         .accepted_filesystem_binding
@@ -343,7 +346,7 @@ pub(super) fn settle_selected_execution(
         accepted_template_classifications: checked.accepted_template_classifications,
         contract_entailment_stand_downs: checked.contract_entailment_stand_downs,
         selected_provider_provenance: settlement.selected_provider_provenance,
-        resolved_semantic_bindings: resolved_console_binding
+        resolved_semantic_bindings: resolved_exit_bindings
             .into_iter()
             .chain(resolved_filesystem_binding)
             .chain(resolved_uefi_binding)

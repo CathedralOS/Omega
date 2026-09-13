@@ -102,7 +102,8 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
     provenance: &mut [SelectedProviderReviewProvenance],
     selected_target: Option<&str>,
     accepted_console_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-) -> Result<Option<ResolvedAcceptedSemanticBinding>, Vec<Diagnostic>> {
+    accepted_process_exit_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+) -> Result<Vec<ResolvedAcceptedSemanticBinding>, Vec<Diagnostic>> {
     let plans = selected_provider_plans.plans();
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
@@ -111,7 +112,8 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
     }
 
     let mut retained_rows = Vec::with_capacity(plans.len());
-    let mut accepted_matches = Vec::new();
+    let mut console_accepted_matches = Vec::new();
+    let mut process_exit_accepted_matches = Vec::new();
     let mut diagnostics = Vec::new();
     for (plan, retained) in plans.iter().zip(provenance.iter()) {
         if retained.plan != *plan
@@ -150,43 +152,41 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
                 *realization_symbol,
                 selected_target,
                 accepted_console_binding,
+                accepted_process_exit_binding,
             ) {
                 Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity))) => {
                     if identity == effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
-                        && let Some(binding) = accepted_console_binding
                     {
-                        match crate::compiler_intrinsic::accepted_binding_matches_console_exit_process_i32_row(
+                        accumulate_accepted_row_match(
                             checked,
                             plan,
                             row,
                             retained.provider.schema.symbol(),
                             *requirement_symbol,
                             *realization_symbol,
-                            binding,
-                        ) {
-                            Ok(true) => accepted_matches.push(retained.provider.schema.symbol()),
-                            Ok(false) => {}
-                            Err(diagnostic) => diagnostics.push(diagnostic),
-                        }
+                            accepted_console_binding,
+                            accepted_process_exit_binding,
+                            &mut console_accepted_matches,
+                            &mut process_exit_accepted_matches,
+                            &mut diagnostics,
+                        );
                     }
                     rows.push(Some(identity))
                 }
                 Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported)) => {
-                    if let Some(binding) = accepted_console_binding {
-                        match crate::compiler_intrinsic::accepted_binding_matches_console_exit_process_i32_row(
-                            checked,
-                            plan,
-                            row,
-                            retained.provider.schema.symbol(),
-                            *requirement_symbol,
-                            *realization_symbol,
-                            binding,
-                        ) {
-                            Ok(true) => accepted_matches.push(retained.provider.schema.symbol()),
-                            Ok(false) => {}
-                            Err(diagnostic) => diagnostics.push(diagnostic),
-                        }
-                    }
+                    accumulate_accepted_row_match(
+                        checked,
+                        plan,
+                        row,
+                        retained.provider.schema.symbol(),
+                        *requirement_symbol,
+                        *realization_symbol,
+                        accepted_console_binding,
+                        accepted_process_exit_binding,
+                        &mut console_accepted_matches,
+                        &mut process_exit_accepted_matches,
+                        &mut diagnostics,
+                    );
                     rows.push(None)
                 }
                 Ok(None) => rows.push(None),
@@ -199,40 +199,41 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
         retained_rows.push(rows);
     }
 
-    let resolved = match (accepted_console_binding, accepted_matches.as_slice()) {
-        (None, _) => None,
-        (Some(binding), [declaration_symbol]) => {
-            match resolve_terminal_authority_permissions_for_symbol(
-                checked,
-                binding,
-                *declaration_symbol,
-            ) {
-                Ok(()) => Some(ResolvedAcceptedSemanticBinding {
-                    accepted: binding.clone(),
-                    declaration_symbol: *declaration_symbol,
-                }),
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    None
+    let mut resolved = Vec::new();
+    for (binding, matches) in [
+        (accepted_console_binding, console_accepted_matches),
+        (accepted_process_exit_binding, process_exit_accepted_matches),
+    ] {
+        match (binding, matches.as_slice()) {
+            (None, _) => {}
+            (Some(binding), [declaration_symbol]) => {
+                match resolve_terminal_authority_permissions_for_symbol(
+                    checked,
+                    binding,
+                    *declaration_symbol,
+                ) {
+                    Ok(()) => resolved.push(ResolvedAcceptedSemanticBinding {
+                        accepted: binding.clone(),
+                        declaration_symbol: *declaration_symbol,
+                    }),
+                    Err(diagnostic) => diagnostics.push(diagnostic),
                 }
             }
+            (Some(binding), []) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "accepted semantic binding {:?} was not consumed by one exact selected provider plan",
+                    binding.role(),
+                )));
+            }
+            (Some(binding), matches) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "accepted semantic binding {:?} ambiguously matched {} selected provider rows",
+                    binding.role(),
+                    matches.len(),
+                )));
+            }
         }
-        (Some(binding), []) => {
-            diagnostics.push(Diagnostic::error(format!(
-                "accepted semantic binding {:?} was not consumed by one exact selected provider plan",
-                binding.role(),
-            )));
-            None
-        }
-        (Some(binding), matches) => {
-            diagnostics.push(Diagnostic::error(format!(
-                "accepted semantic binding {:?} ambiguously matched {} selected provider rows",
-                binding.role(),
-                matches.len(),
-            )));
-            None
-        }
-    };
+    }
 
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -241,6 +242,56 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
         retained.row_compiler_intrinsic_executions = rows;
     }
     Ok(resolved)
+}
+
+/// Consume one hosted-exit row against each supplied consumer binding. The
+/// Console and canonical ProcessExit roles are independent: a row can consume
+/// at most one of them, and each binding must be consumed by exactly one
+/// declaration below.
+#[allow(clippy::too_many_arguments)]
+fn accumulate_accepted_row_match(
+    checked: &CheckedTrees,
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    schema_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    accepted_console_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+    accepted_process_exit_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+    console_matches: &mut Vec<SymbolHandle>,
+    process_exit_matches: &mut Vec<SymbolHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(binding) = accepted_console_binding {
+        match crate::compiler_intrinsic::accepted_binding_matches_console_exit_process_i32_row(
+            checked,
+            plan,
+            row,
+            schema_symbol,
+            requirement_symbol,
+            realization_symbol,
+            binding,
+        ) {
+            Ok(true) => console_matches.push(schema_symbol),
+            Ok(false) => {}
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
+    }
+    if let Some(binding) = accepted_process_exit_binding {
+        match crate::compiler_intrinsic::accepted_binding_matches_process_exit_i32_row(
+            checked,
+            plan,
+            row,
+            schema_symbol,
+            requirement_symbol,
+            realization_symbol,
+            binding,
+        ) {
+            Ok(true) => process_exit_matches.push(schema_symbol),
+            Ok(false) => {}
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
+    }
 }
 
 fn resolve_terminal_authority_permissions_for_symbol(

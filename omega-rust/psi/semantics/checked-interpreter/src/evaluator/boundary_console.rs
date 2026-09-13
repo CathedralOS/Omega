@@ -69,6 +69,26 @@ impl<'program> Evaluator<'program> {
             })
     }
 
+    /// Byte-exact custody for `omega::language::core::process_exit`: the
+    /// toolchain origin and relative path alone cannot distinguish the core
+    /// trait file from another toolchain module of the same name.
+    fn symbol_has_exact_core_process_exit_source(&self, symbol: SymbolHandle) -> bool {
+        const CORE_PROCESS_EXIT: &[u8] = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../source/library/core/process_exit.omg"
+        ));
+        self.program
+            .symbols
+            .symbol_source_span(symbol)
+            .and_then(|span| self.program.symbols.source_file(span))
+            .is_some_and(|file| {
+                file.origin == source::SourceOrigin::Toolchain
+                    && file.path.strip_prefix(&file.package_root).ok()
+                        == Some(std::path::Path::new("process_exit.omg"))
+                    && file.source.as_bytes() == CORE_PROCESS_EXIT
+            })
+    }
+
     /// Validate the exact requirement's byte result before advancing input.
     /// A same-spelled declaration or invalid result symbol supplies no identity.
     pub(super) fn read_stdin_byte_value(&mut self, target: SymbolHandle) -> EvalResult<Value> {
@@ -133,6 +153,135 @@ impl<'program> Evaluator<'program> {
             line.push(byte as char);
         }
         line
+    }
+
+    /// Resolve the boundary trait and requirement that own an `exit_process`
+    /// call target: the requirement signature directly, an exact provider
+    /// realization through its satisfied requirement, or the receiver field's
+    /// declared boundary-trait type by method name.
+    pub(super) fn exit_process_call_requirement(
+        &self,
+        call: &TableCall,
+        frame: &Frame,
+    ) -> Option<(SymbolHandle, SymbolHandle)> {
+        if call.target_symbol.is_valid() {
+            for definition in self.program.traits() {
+                if !definition.is_boundary {
+                    continue;
+                }
+                for signature in self.program.trait_machine_signatures(definition) {
+                    if signature.symbol == call.target_symbol {
+                        return Some((definition.symbol, signature.symbol));
+                    }
+                }
+            }
+            if let Some((requirement, _provider)) =
+                validation::exact_compiler_intrinsic_boundary_requirement(
+                    self.program,
+                    call.target_symbol,
+                )
+            {
+                for definition in self.program.traits() {
+                    if !definition.is_boundary {
+                        continue;
+                    }
+                    for signature in self.program.trait_machine_signatures(definition) {
+                        if signature.symbol == requirement {
+                            return Some((definition.symbol, signature.symbol));
+                        }
+                    }
+                }
+            }
+        }
+
+        let receiver_leaf = self
+            .program
+            .statement_table
+            .name_path_members(call.receiver)
+            .last()
+            .map(|name| name.as_str().to_owned())?;
+        let self_type = match &*frame.self_cell.borrow() {
+            Value::Struct { type_name, .. } => type_name.clone(),
+            _ => String::new(),
+        };
+        let machine = self.find_machine_by_name(&self_type)?;
+        let data = self.find_data_by_name(machine.attached_data.as_ref()?.as_str())?;
+        for member in self.program.data_members(data) {
+            let DataMember::Field(field) = member else {
+                continue;
+            };
+            if field.name.as_str() != receiver_leaf {
+                continue;
+            }
+            let type_symbol = self.program.type_reference_symbol(field.type_reference);
+            let definition =
+                self.program.traits().iter().find(|definition| {
+                    definition.is_boundary && definition.symbol == type_symbol
+                })?;
+            let signature = self
+                .program
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|signature| signature.name.as_str() == "exit_process")?;
+            return Some((definition.symbol, signature.symbol));
+        }
+        None
+    }
+
+    /// The exact canonical `ProcessExit::exit_process` requirement:
+    /// `omega::language::core::process_exit` toolchain custody owns one closed
+    /// public boundary trait with one `i32 -> Unit` signature. A same-named
+    /// declaration elsewhere is an ordinary lookalike, not the terminal-event
+    /// identity.
+    pub(super) fn is_canonical_process_exit_requirement(
+        &self,
+        trait_symbol: SymbolHandle,
+        requirement_symbol: SymbolHandle,
+    ) -> bool {
+        let Some(definition) = self
+            .program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == trait_symbol)
+        else {
+            return false;
+        };
+        if !definition.is_boundary
+            || definition.name.as_str() != "ProcessExit"
+            || !definition.is_public
+            || !definition.lifetime_parameters.is_empty()
+            || !self.program.trait_type_parameters(definition).is_empty()
+            || !self.symbol_has_exact_core_process_exit_source(definition.symbol)
+        {
+            return false;
+        }
+        let signatures = self.program.trait_machine_signatures(definition);
+        let [signature] = signatures else {
+            return false;
+        };
+        if signature.symbol != requirement_symbol
+            || signature.name.as_str() != "exit_process"
+            || !self.symbol_has_exact_core_process_exit_source(signature.symbol)
+        {
+            return false;
+        }
+        let parameters = self.program.state_signature_parameters(signature);
+        let [parameter] = parameters else {
+            return false;
+        };
+        !parameter.is_self
+            && !parameter.is_const
+            && !parameter.is_mutable
+            && self
+                .program
+                .primitive_type_reference(parameter.type_reference)
+                == Some(typed_trees::types::PrimitiveType::I32)
+            && matches!(
+                self.program
+                    .type_reference_table
+                    .type_reference(signature.return_type),
+                typed_trees::types::TypeReferenceNode::Unit
+            )
     }
 
     /// A call is a host-boundary call when its target state is declared on a

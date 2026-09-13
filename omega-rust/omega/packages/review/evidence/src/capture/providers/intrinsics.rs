@@ -36,6 +36,9 @@ pub(crate) fn project_compiler_intrinsic_execution(
             compilation.resolved_semantic_binding(
                 package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
             ),
+            compilation.resolved_semantic_binding(
+                package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+            ),
         )
         .map_err(|diagnostic| vec![diagnostic])?;
     reconcile_compiler_intrinsic_execution(&plan.name, true, derived, retained)

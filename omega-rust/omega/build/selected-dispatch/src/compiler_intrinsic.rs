@@ -37,6 +37,7 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
         realization_symbol,
         selected_target,
         None,
+        None,
     )
 }
 
@@ -49,6 +50,7 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_bindin
     realization_symbol: SymbolHandle,
     selected_target: Option<&str>,
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+    accepted_process_exit_binding: Option<&package_compilation::AcceptedSemanticBinding>,
 ) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
     derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_and_symbol(
         checked,
@@ -59,6 +61,8 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_bindin
         realization_symbol,
         selected_target,
         accepted_binding,
+        None,
+        accepted_process_exit_binding,
         None,
     )
 }
@@ -72,6 +76,7 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolv
     realization_symbol: SymbolHandle,
     selected_target: Option<&str>,
     accepted_binding: Option<&crate::ResolvedAcceptedSemanticBinding>,
+    accepted_process_exit_binding: Option<&crate::ResolvedAcceptedSemanticBinding>,
 ) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
     derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_and_symbol(
         checked,
@@ -83,9 +88,13 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolv
         selected_target,
         accepted_binding.map(crate::ResolvedAcceptedSemanticBinding::accepted),
         accepted_binding.map(crate::ResolvedAcceptedSemanticBinding::declaration_symbol),
+        accepted_process_exit_binding.map(crate::ResolvedAcceptedSemanticBinding::accepted),
+        accepted_process_exit_binding
+            .map(crate::ResolvedAcceptedSemanticBinding::declaration_symbol),
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_and_symbol(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
@@ -96,6 +105,8 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
     selected_target: Option<&str>,
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
+    accepted_process_exit_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+    accepted_process_exit_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
     if !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
         return Ok(None);
@@ -122,6 +133,21 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
         selected_target,
         accepted_binding,
         accepted_declaration_symbol,
+    )? {
+        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+            CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
+        )));
+    }
+    if hosted_process_exit_row(
+        checked,
+        plan,
+        row,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+        accepted_process_exit_binding,
+        accepted_process_exit_declaration_symbol,
     )? {
         return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
             CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
@@ -297,13 +323,14 @@ fn console_row_for_targets(
         return Ok(false);
     }
 
-    console_row_shape(
+    boundary_row_shape(
         checked,
         plan,
         row,
         trait_symbol,
         requirement_symbol,
         realization_symbol,
+        "Console",
         matches!(shape, ConsoleIntrinsicShape::I32ToUnit),
         requirement_name,
         realization_name,
@@ -368,6 +395,162 @@ fn exact_bundled_standalone_source(
         })
 }
 
+fn hosted_process_exit_row(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    selected_target: Option<&str>,
+    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+    accepted_declaration_symbol: Option<SymbolHandle>,
+) -> Result<bool, Diagnostic> {
+    process_exit_row_for_targets(
+        checked,
+        plan,
+        row,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+        accepted_binding,
+        accepted_declaration_symbol,
+        &["linux_x86_64", "linux_arm64", "macos_arm64"],
+    )
+}
+
+/// Canonical core `ProcessExit::exit_process` rows. The exact toolchain-owned
+/// requirement identity is checked against the bundled core source (or, for
+/// package-aware consumers, against the accepted semantic binding); only the
+/// exact `ProcessExitNativeProvider::exit_process` realization closes as the
+/// hosted process-exit builtin.
+#[allow(clippy::too_many_arguments)]
+fn process_exit_row_for_targets(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    selected_target: Option<&str>,
+    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+    accepted_declaration_symbol: Option<SymbolHandle>,
+    supported_targets: &[&str],
+) -> Result<bool, Diagnostic> {
+    let Some(selected_target) = selected_target.filter(|target| supported_targets.contains(target))
+    else {
+        return Ok(false);
+    };
+    if plan.target != selected_target {
+        return Ok(false);
+    }
+    let typed = &checked.typed;
+    let legacy_bundled_binding = exact_bundled_process_exit_binding(
+        typed,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+    );
+    let accepted_package_binding = accepted_binding.is_some_and(|binding| {
+        accepted_binding_matches_process_exit_row_identity(
+            checked,
+            plan,
+            trait_symbol,
+            requirement_symbol,
+            realization_symbol,
+            binding,
+        ) && accepted_declaration_symbol.is_none_or(|symbol| symbol == trait_symbol)
+    });
+    if !legacy_bundled_binding && !accepted_package_binding {
+        return Ok(false);
+    }
+
+    boundary_row_shape(
+        checked,
+        plan,
+        row,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        "ProcessExit",
+        true,
+        "exit_process",
+        "ProcessExitNativeProvider::exit_process",
+        ConsoleIntrinsicShape::I32ToUnit,
+    )
+}
+
+fn exact_bundled_process_exit_binding(
+    typed: &typed_trees::TypedTrees,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    selected_target: &str,
+) -> bool {
+    const CORE: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../source/library/core/process_exit.omg"
+    ));
+    const LINUX_X64: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../source/library/std/targets/linux_x86_64/process_exit_impl.omg"
+    ));
+    const LINUX_ARM64: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../source/library/std/targets/linux_arm64/process_exit_impl.omg"
+    ));
+    const MACOS_ARM64: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../source/library/std/targets/macos_arm64/process_exit_impl.omg"
+    ));
+    let (realization_path, realization_source) = match selected_target {
+        "linux_x86_64" => ("targets/linux_x86_64/process_exit_impl.omg", LINUX_X64),
+        "linux_arm64" => ("targets/linux_arm64/process_exit_impl.omg", LINUX_ARM64),
+        "macos_arm64" => ("targets/macos_arm64/process_exit_impl.omg", MACOS_ARM64),
+        _ => return false,
+    };
+    exact_bundled_standalone_source(typed, trait_symbol, "process_exit.omg", CORE)
+        && exact_bundled_standalone_source(typed, requirement_symbol, "process_exit.omg", CORE)
+        && exact_bundled_standalone_source(
+            typed,
+            realization_symbol,
+            realization_path,
+            realization_source,
+        )
+}
+
+/// Exact package-consumer identity for a canonical `ProcessExit` row. The
+/// toolchain-owned trait and requirement carry no package identity; the
+/// bound package owns only the provider nominal and its plan.
+fn accepted_binding_matches_process_exit_row_identity(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    binding: &package_compilation::AcceptedSemanticBinding,
+) -> bool {
+    let typed = &checked.typed;
+    binding.role() == package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32
+        && typed
+            .symbols
+            .symbol_package_identity(trait_symbol)
+            .is_none()
+        && typed
+            .symbols
+            .symbol_package_identity(requirement_symbol)
+            .is_none()
+        && typed.symbols.symbol_package_identity(realization_symbol) == Some(binding.package())
+        && plan.schema.trait_package_identity.is_none()
+        && plan.provider_type_package_identity == Some(binding.package())
+        && plan.origin_package_identity == Some(binding.package())
+        && typed.symbols.display_path(trait_symbol, "::") == binding.declaration_path()
+        && plan.schema.identity_digest() == binding.normalized_schema_digest()
+        && binding.selected_provider_plan_digest() == Some(plan.identity_digest())
+}
+
 /// Rejoin the target-independent Console semantic role to one exact package-
 /// owned selected row. This recognizes Process authority; it does not claim
 /// that the selected target has a closed compiler lowering.
@@ -390,13 +573,14 @@ pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
     ) {
         return Ok(false);
     }
-    console_row_shape(
+    boundary_row_shape(
         checked,
         plan,
         row,
         trait_symbol,
         requirement_symbol,
         realization_symbol,
+        "Console",
         false,
         "exit_process",
         "ConsoleNativeProvider::exit_process",
@@ -404,13 +588,52 @@ pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
     )
 }
 
-fn console_row_shape(
+/// Rejoin the canonical core `ProcessExit` requirement to one exact
+/// package-owned selected row. The toolchain-owned trait carries no package
+/// identity; the bound package owns the provider nominal.
+pub(crate) fn accepted_binding_matches_process_exit_i32_row(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
     trait_symbol: SymbolHandle,
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
+    binding: &package_compilation::AcceptedSemanticBinding,
+) -> Result<bool, Diagnostic> {
+    if !accepted_binding_matches_process_exit_row_identity(
+        checked,
+        plan,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        binding,
+    ) {
+        return Ok(false);
+    }
+    boundary_row_shape(
+        checked,
+        plan,
+        row,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        "ProcessExit",
+        false,
+        "exit_process",
+        "ProcessExitNativeProvider::exit_process",
+        ConsoleIntrinsicShape::I32ToUnit,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn boundary_row_shape(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    trait_name: &str,
     require_inferred_supply: bool,
     requirement_name: &str,
     realization_name: &str,
@@ -431,7 +654,7 @@ fn console_row_shape(
         )));
     };
     if !definition.is_boundary
-        || definition.name.as_str() != "Console"
+        || definition.name.as_str() != trait_name
         || !definition.lifetime_parameters.is_empty()
         || !typed.trait_type_parameters(definition).is_empty()
     {

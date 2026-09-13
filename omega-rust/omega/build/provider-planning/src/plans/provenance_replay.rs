@@ -878,7 +878,29 @@ fn exact_installed_external_binding_identity<'typed>(
     (binding.mechanism() == supply_mechanism).then_some(binding)
 }
 
-/// Payload-free source-inferred Console catalog leaves. This is only
+/// Exact hosted catalog leaf identity: (provider nominal, boundary trait,
+/// requirement) for one source-inferred compiler intrinsic. Every listed
+/// leaf is realized on each hosted target (`linux_x86_64`, `linux_arm64`,
+/// `macos_arm64`); a leaf that cannot be realized on one of those targets
+/// needs its own target gate here rather than a widened catalog row.
+fn inferred_hosted_catalog_leaf(
+    machine_name: &str,
+) -> Option<(&'static str, &'static str, &'static str)> {
+    match machine_name {
+        "ConsoleNativeProvider::exit_process" => {
+            Some(("ConsoleNativeProvider", "Console", "exit_process"))
+        }
+        "ConsoleNativeProvider::write_byte" => {
+            Some(("ConsoleNativeProvider", "Console", "write_byte"))
+        }
+        "ProcessExitNativeProvider::exit_process" => {
+            Some(("ProcessExitNativeProvider", "ProcessExit", "exit_process"))
+        }
+        _ => None,
+    }
+}
+
+/// Payload-free source-inferred hosted catalog leaves. This is only
 /// candidate derivation: selected-dispatch independently rejoins package
 /// custody and the canonical target before granting a closed execution.
 fn inferred_hosted_console_compiler_intrinsic(
@@ -888,29 +910,18 @@ fn inferred_hosted_console_compiler_intrinsic(
     selected_target: Option<&str>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
-    let supports_target = |target: &str| {
-        matches!(target, "linux_x86_64" | "linux_arm64")
-            || (target == "macos_arm64"
-                && matches!(
-                    machine.name.as_str(),
-                    "ConsoleNativeProvider::write_byte" | "ConsoleNativeProvider::exit_process"
-                ))
-    };
+    let (provider_name, trait_name, requirement_name) =
+        inferred_hosted_catalog_leaf(machine.name.as_str())?;
+    let supports_target =
+        |target: &str| matches!(target, "linux_x86_64" | "linux_arm64" | "macos_arm64");
     if selected_target.is_some_and(|target| !supports_target(target))
         || machine.supply_mode != language_semantics::MachineSupplyMode::Boundary
         || machine.body_is_present
-        || !matches!(
-            machine.name.as_str(),
-            "ConsoleNativeProvider::exit_process" | "ConsoleNativeProvider::write_byte"
-        )
-        || machine.attached_data.as_ref().map(|name| name.as_str()) != Some("ConsoleNativeProvider")
+        || machine.attached_data.as_ref().map(|name| name.as_str()) != Some(provider_name)
         || !machine.lifetime_parameters.is_empty()
         || !typed.machine_type_parameters(machine).is_empty()
-        || conformance.name.as_str() != "Console"
-        || !matches!(
-            conformance.requirement.as_ref().map(|name| name.as_str()),
-            Some("exit_process" | "write_byte")
-        )
+        || conformance.name.as_str() != trait_name
+        || conformance.requirement.as_ref().map(|name| name.as_str()) != Some(requirement_name)
         || conformance.external_binding.is_some()
         || conformance.via_expression.is_valid()
         || conformance.external_binding_source_span.is_some()
@@ -939,15 +950,16 @@ fn inferred_hosted_console_compiler_intrinsic(
     };
     if !definition.is_boundary
         || definition.symbol != conformance.symbol
-        || definition.name.as_str() != "Console"
+        || definition.name.as_str() != trait_name
         || !definition.lifetime_parameters.is_empty()
         || !typed.trait_type_parameters(definition).is_empty()
         || requirement.symbol != conformance.requirement_symbol
-        || !matches!(requirement.name.as_str(), "exit_process" | "write_byte")
+        || requirement.name.as_str() != requirement_name
         || machine
             .name
             .as_str()
-            .strip_prefix("ConsoleNativeProvider::")
+            .strip_prefix(provider_name)
+            .and_then(|suffix| suffix.strip_prefix("::"))
             != Some(requirement.name.as_str())
         || !exact_catalog_i32_to_unit_signature(
             typed,

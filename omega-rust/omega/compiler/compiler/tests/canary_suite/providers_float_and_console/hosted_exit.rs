@@ -37,6 +37,15 @@ fn hosted_exit_normalizes_source_i32_status_through_selected_custody() {
 }
 
 pub(super) fn assert_matching_host_exit(target: &str, bytes: &[u8], status: i32) {
+    assert_matching_host_exit_stdout(target, bytes, status, &[]);
+}
+
+pub(super) fn assert_matching_host_exit_stdout(
+    target: &str,
+    bytes: &[u8],
+    status: i32,
+    expected_stdout: &[u8],
+) {
     if target != native_hosted_target() {
         eprintln!(
             "SKIP: source-produced {target} executable cannot run on {}",
@@ -76,11 +85,14 @@ pub(super) fn assert_matching_host_exit(target: &str, bytes: &[u8], status: i32)
             "{target}: {:?}",
             output.status
         );
-        assert!(output.stdout.is_empty());
+        assert_eq!(
+            output.stdout, expected_stdout,
+            "{target}: ordered output must precede the terminal event"
+        );
         assert!(output.stderr.is_empty());
     }
     #[cfg(not(unix))]
-    let _ = (bytes, status);
+    let _ = (bytes, status, expected_stdout);
 }
 
 #[cfg(unix)]

@@ -34,16 +34,25 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
         }
         _ => None,
     };
-    let inferred_console_intrinsic = machine.supply_mode == MachineSupplyMode::Boundary
-        && matches!(
-            machine.name.as_str(),
-            "ConsoleNativeProvider::exit_process" | "ConsoleNativeProvider::write_byte"
-        )
-        && machine.attached_data.as_ref().map(|name| name.as_str())
-            == Some("ConsoleNativeProvider");
-    if authored_binding.is_none() && !inferred_console_intrinsic {
+    // Exact hosted catalog leaves: (realization, provider nominal, boundary
+    // trait) admitted without an authored `via` binding.
+    let inferred_hosted_intrinsic = match machine.name.as_str() {
+        "ConsoleNativeProvider::exit_process" | "ConsoleNativeProvider::write_byte" => {
+            Some(("ConsoleNativeProvider", "Console"))
+        }
+        "ProcessExitNativeProvider::exit_process" => {
+            Some(("ProcessExitNativeProvider", "ProcessExit"))
+        }
+        _ => None,
+    }
+    .filter(|(provider_name, _)| {
+        machine.supply_mode == MachineSupplyMode::Boundary
+            && machine.attached_data.as_ref().map(|name| name.as_str()) == Some(*provider_name)
+    });
+    if authored_binding.is_none() && inferred_hosted_intrinsic.is_none() {
         return None;
     }
+    let inferred_trait_name = inferred_hosted_intrinsic.map(|(_, trait_name)| trait_name);
     let [state] = program.machine_states(machine) else {
         return None;
     };
@@ -68,11 +77,11 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
         .machine_trait_conformances(machine)
         .iter()
         .filter_map(|conformance| {
-            if ((inferred_console_intrinsic
+            if ((inferred_trait_name.is_some()
                 && (conformance.external_binding.is_some()
                     || conformance.via_expression.is_valid()
                     || conformance.external_binding_source_span.is_some()))
-                || (!inferred_console_intrinsic
+                || (inferred_trait_name.is_none()
                     && conformance.external_binding != authored_binding))
                 || conformance.requirement.is_none()
                 || !program
@@ -89,17 +98,22 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
             else {
                 return None;
             };
+            let provider_prefix = inferred_hosted_intrinsic
+                .map(|(provider_name, _)| provider_name)
+                .unwrap_or_default();
             (definition.symbol == conformance.symbol
                 && definition.is_boundary
-                && (!inferred_console_intrinsic || definition.name.as_str() == "Console")
+                && inferred_trait_name
+                    .is_none_or(|trait_name| definition.name.as_str() == trait_name)
                 && definition.lifetime_parameters.is_empty()
                 && program.trait_type_parameters(definition).is_empty()
                 && requirement.symbol == conformance.requirement_symbol
-                && (!inferred_console_intrinsic
+                && (inferred_trait_name.is_none()
                     || machine
                         .name
                         .as_str()
-                        .strip_prefix("ConsoleNativeProvider::")
+                        .strip_prefix(provider_prefix)
+                        .and_then(|suffix| suffix.strip_prefix("::"))
                         == Some(requirement.name.as_str()))
                 && requirement.lifetime_parameters.is_empty()
                 && program

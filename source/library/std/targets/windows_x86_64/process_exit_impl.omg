@@ -1,0 +1,12 @@
+// windows_x86_64 ProcessExit provider declaration. The realization retains
+// the exact canonical requirement through a compiler-intrinsic binding; the
+// hosted exit catalog does not yet close a native lowering for this target,
+// so executable realization remains an explicit unsupported-target
+// diagnostic rather than a substitute outcome.
+windows_x86_64 machine ProcessExitNativeProvider::exit_process(return_code: i32)
+    satisfies ProcessExit::exit_process
+    via Binding::CompilerIntrinsic;
+
+windows_x86_64 machine ProcessExitNativeProvider::provider_defaults(defaults: &mut ProcessExitNativeProvider) {
+    defaults.select_provider<ProcessExit, ProcessExitNativeProvider>();
+}
