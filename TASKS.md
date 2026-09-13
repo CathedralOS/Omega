@@ -1412,10 +1412,15 @@ Owners include
   Connect local record mutation and transfer-bearing state-transition storage joins;
   `declared_range_inference_local_effects_retain_pending_terminal_boundaries`
   retains nongeneric mutation reproductions of missing checked scalar control plans.
-  Require copy-after-mutation controls and whole-place record initializers before
+  Require copy-after-mutation controls and affine whole-place record moves before
   direct transitions to execute from canonical Terminal bytes. Fresh record
-  locals now retain nested guard/argument reads through the scalar graph's ordered
-  effects; shared source replay and selected-edge cleanup own their custody.
+  locals and unrestricted whole/nested copies retain guard/argument reads through
+  the scalar graph's ordered statements; copies bind independent block homes,
+  while shared source replay and selected-edge cleanup retain exact custody.
+  Affine moves must transport the surviving-owner frontier and dispose only
+  current homes in declaration order; reusing unrestricted-copy admission is
+  insufficient. The existing Unit structural-value emitter owns that transport
+  contract; join it without aliasing copy storage or dropping a moved source.
   Cyclic record establishment still reaches Terminal's `ControlCycle` admission
   fence in `terminal-verifier/src/validation/control_flow/unranked_cycles.rs`;
   close repeated establishment, per-iteration disposal and independent cycle
@@ -1437,7 +1442,7 @@ Owners include
   reads also need canonical carrier paths and bounded leaf types retained through
   abstract operations, layout, instruction selection and independent replay;
   `terminal-psi-to-abstract-operations` explicitly rejects nested paths today.
-  Resume evidence at `08d96d3dd0`: `cargo nextest run -p compiler --test
+  Resume evidence at `eb7279539b`: `cargo nextest run -p compiler --test
   canary_suite -E 'test(declared_range_inference)' --no-fail-fast` exercises the
   reviewed fixture and this boundary on macOS AArch64; it does not establish
   native execution.
