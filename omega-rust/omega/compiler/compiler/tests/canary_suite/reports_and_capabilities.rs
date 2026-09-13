@@ -639,6 +639,66 @@ fn wire_compatibility_complete_migration_demand_needs_bound_lineage_route() {
     );
 }
 
+#[test]
+fn wire_compatibility_era_dispatch_is_policy_selected_not_declaration_order() {
+    // The policy's authored era paths select the declarations; neither leaf
+    // names nor declaration order dispatch. The out-of-order canary declares
+    // the current shape before its historical era and the lineage last.
+    check_canary(&pass_canary(
+        fixture_roster::WIRE_COMPATIBILITY_MIGRATION_OUT_OF_ORDER_ERAS,
+    ))
+    .expect(
+        "a CompleteMigration demand resolves eras by name regardless of \
+         declaration order",
+    );
+
+    // Two modules publish identically named lineages and eras. The demand
+    // spells the `first` paths and only the route bound on `first`'s
+    // declarations satisfies it.
+    check_canary(&pass_canary(
+        fixture_roster::WIRE_COMPATIBILITY_MIGRATION_SAME_NAMED_ERAS,
+    ))
+    .expect(
+        "a demand naming qualified era paths selects exactly that module's \
+         declarations",
+    );
+
+    // The same module pair with the route bound only on `second`: matching
+    // leaf names do not let `second`'s migration satisfy `first`'s demand.
+    let diagnostics = check_canary(&fail_canary(
+        fixture_roster::WIRE_COMPATIBILITY_MIGRATION_SAME_NAMED_ROUTE_MISSING,
+    ))
+    .expect_err("a route bound on another module's declarations must not satisfy the demand");
+    let joined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        joined.contains(
+            "no complete `first::Lineage` migration route exists from \
+             `first::CounterV1` to `first::Counter`"
+        ),
+        "same-named route diagnostic should name the selected lineage and eras:\n{joined}"
+    );
+
+    // Control: bare leaf names with colliding declarations are ambiguous and
+    // reject rather than dispatching by declaration order.
+    let diagnostics = check_canary(&fail_canary(
+        fixture_roster::WIRE_COMPATIBILITY_MIGRATION_AMBIGUOUS_ERA,
+    ))
+    .expect_err("bare era names with colliding declarations must be ambiguous");
+    let joined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        joined.contains("peer schema `CounterV1` is ambiguous"),
+        "ambiguous era control should report the ambiguity:\n{joined}"
+    );
+}
+
 // The canonical permission ledger must stay visible per event in the backend
 // report's Artifact Semantic Spine after surviving the full spine (checked
 // trees -> state graph -> control flow -> abstract -> target -> assigned ->

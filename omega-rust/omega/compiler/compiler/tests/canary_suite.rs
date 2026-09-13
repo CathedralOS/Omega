@@ -798,6 +798,8 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "versioning/migration_machine_from_v1",
     "versioning/versioned_match_all_eras_exhaustive",
     "versioning/versioned_match_default_arm",
+    "wire/wire_compatibility_migration_out_of_order_eras",
+    "wire/wire_compatibility_migration_same_named_eras",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
@@ -1672,6 +1674,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "recast/recast_mut_record_fact_fenced",
     "recast/recast_mut_record_array_fact_fenced",
     "versioning/data_version_block_retired",
+    "wire/wire_compatibility_migration_same_named_route_missing",
+    "wire/wire_compatibility_migration_ambiguous_era",
 ];
 
 #[path = "canary_suite/entry_and_abi.rs"]
