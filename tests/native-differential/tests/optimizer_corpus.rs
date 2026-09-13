@@ -8,8 +8,17 @@
 //! The IEEE lane uses host `f64` as a third oracle: the interpreter and native
 //! result must both agree with host IEEE semantics, where NaNs and signed-zero
 //! mixtures are likely to expose folding or comparison-lowering bugs.
+//!
+//! The exact-trap lane keeps every generated operation defined — exact add,
+//! subtract, and divide plus a u64→u8 exact cast and widening return — so each
+//! leaf discharges a canonical certificate obligation that both the verifier
+//! and every lowering stage must preserve. Generated operands deliberately
+//! visit representability boundaries (saturating sums, zero results, unit and
+//! maximum divisors, and the u8 cast extremes) where an optimizer that folded
+//! definedness incorrectly would diverge from the reference interpreter.
 
 mod optimizer_corpus {
+    mod exact_traps;
     mod generator;
     mod ieee_compare;
     mod manifest;
@@ -116,6 +125,48 @@ mod optimizer_corpus {
                 all(target_os = "macos", target_arch = "aarch64"),
             ))]
             selected_machine::exercise_host_native_ieee_compare(case, &artifact);
+        }
+    }
+
+    #[test]
+    fn deterministic_exact_integer_trap_corpus() {
+        let cases = exact_traps::cases();
+        exact_traps::validate_manifest(&cases);
+        let requested = std::env::var("OMEGA_OPTIMIZER_CORPUS_CASE")
+            .ok()
+            .map(|value| {
+                value
+                    .parse::<usize>()
+                    .expect("corpus case must be an integer")
+            });
+        if let Some(ordinal) = requested {
+            assert!(
+                ordinal < exact_traps::CASE_COUNT,
+                "corpus case must be below {}",
+                exact_traps::CASE_COUNT
+            );
+        }
+
+        for case in cases
+            .iter()
+            .filter(|case| requested.is_none_or(|ordinal| case.ordinal == ordinal))
+        {
+            if requested.is_some() {
+                eprintln!(
+                    "optimizer corpus replay: format={} seed={:#018x} case={case:?}",
+                    exact_traps::FORMAT,
+                    generator::SEED,
+                );
+            }
+            let artifact = psi::exact_trap_artifact(case.ordinal, case, 70_000);
+            selected_machine::exercise_exact_traps(case, &artifact);
+
+            #[cfg(any(
+                all(target_os = "linux", target_arch = "x86_64"),
+                all(target_os = "linux", target_arch = "aarch64"),
+                all(target_os = "macos", target_arch = "aarch64"),
+            ))]
+            selected_machine::exercise_host_native_exact_traps(case, &artifact);
         }
     }
 }
