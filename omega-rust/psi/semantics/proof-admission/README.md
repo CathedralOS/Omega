@@ -26,6 +26,14 @@ Cumulative allocation charging bounds retained intermediates without a separate
 cache or storage ledger. A positive unrepresentable shift count refuses as a
 resource limit rather than changing its mathematical meaning.
 
+[mathematical_core.rs](src/mathematical_core.rs) owns the common mathematical
+core for the [selected foundation](../../../../wiki/spec/proofs/foundation.md):
+de Bruijn dependent terms, stratified `Type`/`Strict` sorts with closed levels,
+Π/λ/application typing without cumulativity, and typed conversion whose strict
+collapse is decided by the shared type's sort, never by term shape. It is the
+`PROOF-KERNEL-CORE` model; the bounded `Proposition` kernel above is a producer
+surface, not a second truth representation.
+
 ## Normalization is not authority
 
 [integer_affine.rs](src/integer_affine.rs),
