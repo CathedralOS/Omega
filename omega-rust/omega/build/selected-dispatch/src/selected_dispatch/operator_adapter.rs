@@ -407,7 +407,7 @@ fn stage_operator_adapter_rewrite(
 pub(super) fn apply_selected_operator_adapter_rewrites(
     checked: &mut CheckedTrees,
     rewrites: &[OperatorAdapterRewrite],
-    source_edits: &mut super::source_edits::SourceEditBuilder,
+    source_edits: &mut crate::source_edits::SourceEditBuilder,
 ) {
     for rewrite in rewrites {
         source_edits.expression(&checked.typed, rewrite.expression);
