@@ -9,7 +9,7 @@ defines the claims a successful replay may publish.
 
 [src/replay_record.rs](src/replay_record.rs) bounds, encodes, and rehydrates
 records. Its [submodules](src/replay_record) own operation-specific conversions.
-The [checked interpreter](../../../psi/semantics/checked-interpreter/src/lib.rs)
+The [checked interpreter](../../../psi/semantics/checked-interpreter/src/interpreter.rs)
 executes provider-free replay; its
 [filesystem replay modules](../../../psi/semantics/checked-interpreter/src/filesystem_replay)
 validate directories, links, duplicates, locks, ownership, and exact failures.
