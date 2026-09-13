@@ -79,6 +79,13 @@ fn validate_terminal_image_with_import_count(
             &output.final_data_bytes,
             output.bss_bytes,
         )?;
+        image_macho::validate_macho_aarch64_object_fixups(
+            object,
+            relocations,
+            text_bytes.len(),
+            artifact.data_bytes().len(),
+            output,
+        )?;
     }
     if output.final_image_imports != expected_imports {
         return Err(Diagnostic::error(
@@ -237,7 +244,7 @@ fn validate_terminal_image_with_import_count(
 /// Reconstruct initialized data introduced by the image writer itself.
 ///
 /// Mach-O lowers every referenced unresolved import through one image-local
-/// lazy-binding pointer. Those slots do not exist in the object data, but their
+/// eager-binding pointer. Those slots do not exist in the object data, but their
 /// count and placement are fully determined by the exact object import and
 /// relocation sets. Retaining them in this replay input keeps the relocation
 /// envelope closed without treating an arbitrary image-added suffix as trusted.

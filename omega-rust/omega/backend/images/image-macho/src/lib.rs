@@ -23,6 +23,8 @@
 //!   validate_import_thunk_footprints      thunk opcodes survived relocation
 //!   ... write header, load commands, segments, linkedit ...
 //!   macho_ad_hoc_code_signature           hashes the finished file, so LAST
+//!   validate_macho_aarch64_loader_mapping / loader_fixups
+//!       read-only checks of the actual container and exact loader writes
 //! ```
 //!
 //! The signature has to be last because it hashes every byte before it, and its
@@ -72,14 +74,6 @@
 //! build, where a disagreement would instead ship an executable whose
 //! `LC_CODE_SIGNATURE` length does not match its actual signature blob.
 //!
-//! @Note: "lazy binding" is the wrong term for what this emitter produces, and
-//! it appears in at least two places that describe it -
-//! `image-emission/src/final_image_validation.rs:214` and the terminal-Psi
-//! wiki page. In Mach-O that phrase names a specific mechanism, `dyld_stub_binder`
-//! resolving through `__la_symbol_ptr` on first call, and this emitter uses none
-//! of it. A reader who takes the phrase literally goes looking for a section
-//! that is not there.
-
 use diagnostics::Diagnostic;
 use image::{
     ExecutableImageOutput, FinalImage, apply_aarch64_relocations, place_executable_regions,
@@ -92,6 +86,7 @@ mod entry;
 mod imports;
 mod layout;
 mod load_commands;
+mod loader_fixups;
 mod loader_mapping;
 mod plan;
 mod rebases;
@@ -111,6 +106,10 @@ use load_commands::{
     write_macho_linkedit_segment, write_macho_load_dylib_command,
     write_macho_load_dylinker_command, write_macho_main_command, write_macho_pagezero_segment,
     write_macho_uuid_command,
+};
+pub use loader_fixups::{
+    MachoImportPointer, MachoRebasePointer, validate_macho_aarch64_loader_fixups,
+    validate_macho_aarch64_object_fixups,
 };
 pub use loader_mapping::validate_macho_aarch64_loader_mapping;
 use plan::plan_macho_image;
@@ -138,7 +137,7 @@ pub fn emit_macho_aarch64_executable(
 
     patch_import_thunks(&mut image, &layout, &import_thunks)?;
     apply_aarch64_relocations(&mut image, &layout, "Mach-O direct executable")?;
-    rebase_info.validate_patched_preferred_pointers(&image, &layout)?;
+    let rebase_pointers = rebase_info.validate_patched_preferred_pointers(&image, &layout)?;
     validate_import_thunk_footprints(&mut image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;
 
@@ -214,6 +213,20 @@ pub fn emit_macho_aarch64_executable(
         &image.memory.text,
         &image.memory.data,
         image.memory.bss_size,
+    )?;
+    let import_pointers: Vec<_> = import_thunks
+        .iter()
+        .map(|thunk| MachoImportPointer {
+            data_offset: thunk.data_offset,
+            install_name: &thunk.library,
+            symbol: &thunk.bind_symbol,
+        })
+        .collect();
+    validate_macho_aarch64_loader_fixups(
+        &bytes,
+        &image.memory.data,
+        &rebase_pointers,
+        &import_pointers,
     )?;
 
     Ok(ExecutableImageOutput {

@@ -35,7 +35,8 @@ impl MachoRebaseInfo {
         &self,
         image: &FinalImage,
         layout: &FinalImageLayout,
-    ) -> Result<(), Diagnostic> {
+    ) -> Result<Vec<crate::MachoRebasePointer>, Diagnostic> {
+        let mut pointers = Vec::with_capacity(self.sites.len());
         for site in &self.sites {
             let symbol_address = final_image_symbol_address(image, site.symbol, layout)
                 .ok_or_else(|| {
@@ -64,8 +65,12 @@ impl MachoRebaseInfo {
                     site.offset
                 )));
             }
+            pointers.push(crate::MachoRebasePointer {
+                data_offset: site.offset,
+                preferred_address: expected,
+            });
         }
-        Ok(())
+        Ok(pointers)
     }
 }
 
