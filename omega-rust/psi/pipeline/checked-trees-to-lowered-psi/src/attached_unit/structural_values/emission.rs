@@ -93,26 +93,17 @@ pub(crate) fn emit(
             evaluation,
             operations,
         )?;
-        let candidate_positions = owners
+        if owners
             .iter()
-            .enumerate()
-            .filter_map(|(position, owner)| {
+            .filter(|owner| {
                 sources
                     .iter()
                     .any(|source| source.place == owner.value.place)
-                    .then_some(position)
             })
-            .collect::<Vec<_>>();
-        if candidate_positions.len() != sources.len() {
-            return unsupported("owned selection source is absent from the live emitted frontier");
-        }
-        if candidate_positions
-            .windows(2)
-            .any(|positions| positions[1] != positions[0] + 1)
+            .count()
+            != sources.len()
         {
-            return unsupported(
-                "interleaved selection sources require path-dependent residual establishment-order correspondence",
-            );
+            return unsupported("owned selection source is absent from the live emitted frontier");
         }
         owners
     };
@@ -931,28 +922,59 @@ impl Emission<'_, '_, '_> {
         selected: PlaceId,
         continuation: &ValueContinuation,
     ) -> Result<(), LoweringError> {
-        // A fresh result cannot occupy a source's residual slot, so the
-        // unselected source the result slot displaced dies on this edge.
+        // The join binds owner slots positionally, so arguments are built
+        // against the same roster: the displaced slot (the first candidate,
+        // or the moved root on an ordinary move) is absent, every other
+        // candidate slot receives the next still-unselected source in roster
+        // order, and owners interleaved between candidates keep their own
+        // places. A fresh result cannot occupy a source's residual slot, so
+        // the unselected source the result slot displaced dies on this edge.
         // Plain-affine contents have no cleanup, making it a trivial discard,
         // and the join frontier is identical on every incoming path.
         let displaced = (!self.sources.is_empty()
             && !self.sources.iter().any(|source| source.place == selected))
         .then(|| self.first_candidate())
         .flatten();
-        let mut trivial_affine_discards = Vec::new();
-        let mut structural_arguments = self
-            .owners
+        let displaced_place = displaced.map(|position| self.owners[position].value.place);
+        // The first candidate's owner slot is the one the result parameter
+        // displaced; a selected non-first candidate's slot is an ordinary
+        // residual slot filled by the surviving candidates. An ordinary move
+        // instead removes the moved root's own slot.
+        let removed = self.first_candidate().or_else(|| {
+            self.owners
+                .iter()
+                .position(|owner| owner.value.place == selected)
+        });
+        let mut unselected = self
+            .sources
             .iter()
-            .enumerate()
-            .filter(|(position, owner)| {
-                owner.value.place != selected && Some(*position) != displaced
-            })
-            .map(|(_, owner)| StructuralArgument {
-                place: owner.value.place,
+            .map(|source| source.place)
+            .filter(|place| *place != selected && Some(*place) != displaced_place);
+        let mut structural_arguments = Vec::new();
+        for (position, owner) in self.owners.iter().enumerate() {
+            if Some(position) == removed {
+                continue;
+            }
+            let place = if self
+                .sources
+                .iter()
+                .any(|source| source.place == owner.value.place)
+            {
+                unselected.next().ok_or(LoweringError::Unsupported(
+                    "owned selection residual sources do not cover their slots",
+                ))?
+            } else {
+                owner.value.place
+            };
+            structural_arguments.push(StructuralArgument {
+                place,
                 path: Vec::new(),
                 access: StructuralAccess::Owned,
-            })
-            .collect::<Vec<_>>();
+            });
+        }
+        if unselected.next().is_some() {
+            return unsupported("owned selection has untransported residual candidates");
+        }
         structural_arguments.push(StructuralArgument {
             place: selected,
             path: Vec::new(),
@@ -961,8 +983,9 @@ impl Emission<'_, '_, '_> {
         if structural_arguments.len() != continuation.structural_parameters.len() {
             return unsupported("structural value has unequal residual ownership at its join");
         }
-        if let Some(position) = displaced {
-            trivial_affine_discards.push(self.owners[position].value.place);
+        let mut trivial_affine_discards = Vec::new();
+        if let Some(place) = displaced_place {
+            trivial_affine_discards.push(place);
         }
         let mut edge = self.edge(
             continuation.block,

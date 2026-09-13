@@ -341,17 +341,9 @@ impl Evaluation {
                     .filter(|(place, _)| cleanup.sources.contains(place))
                     .map(|(place, _)| place)
                     .eq(cleanup.sources.iter())
-                || roots[start..end].iter().any(|(place, discard)| {
-                    !cleanup.sources.contains(place)
-                        && (*discard
-                            || cleanup
-                                .pass_through
-                                .iter()
-                                .any(|(source, _)| source == place))
-                })
             {
                 return unsupported(
-                    "interleaved selection sources require a shared mixed-root establishment-order cleanup carrier",
+                    "owned selection cleanup source roster does not match its receipt",
                 );
             }
             if roots[start..end]
@@ -360,10 +352,43 @@ impl Evaluation {
             {
                 return unsupported("owned selection source retains conflicting return disposal");
             }
-            roots.splice(
-                start..end,
-                cleanup.remaining.iter().map(|place| (*place, true)),
-            );
+            // Candidates interleaved with other live owners share the joined
+            // frontier: a residual parameter stands at each surviving
+            // candidate's roster position in reverse order, the displaced
+            // candidate's row drops with the result parameter that displaced
+            // its slot, and transported owners keep their rebound parameter
+            // places at their own roster positions. Owners established
+            // between candidates therefore stay live in establishment order
+            // rather than being flattened into or out of the source run.
+            let mut remaining = cleanup.remaining.iter();
+            let mut source_rows = 0usize;
+            let replacement = roots[start..end]
+                .iter()
+                .filter_map(|(place, discard)| {
+                    if cleanup.sources.contains(place) {
+                        source_rows += 1;
+                        if source_rows == cleanup.sources.len() {
+                            return None;
+                        }
+                        return remaining.next().map(|place| (*place, true));
+                    }
+                    Some((
+                        cleanup
+                            .pass_through
+                            .iter()
+                            .find(|(source, _)| source == place)
+                            .map(|(_, target)| *target)
+                            .unwrap_or(*place),
+                        *discard,
+                    ))
+                })
+                .collect::<Vec<_>>();
+            if remaining.next().is_some() {
+                return unsupported(
+                    "owned selection cleanup residuals do not cover their source roster",
+                );
+            }
+            roots.splice(start..end, replacement);
             for (place, _) in &mut roots {
                 if let Some((_, target)) = cleanup
                     .pass_through

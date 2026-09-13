@@ -539,3 +539,211 @@ fn borrowed_untouched_local_keeps_the_lowering_boundary_explicit() {
         );
     }
 }
+
+const INTERLEAVED_SOURCE: &str = include_str!(
+    "../../../../../../tests/omega/pass/expressions/owned_match_interleaved_values/main.omg"
+);
+
+#[test]
+fn interleaved_live_owner_preserves_mixed_root_cleanup() {
+    for selected in [true, false] {
+        let (module, execution) = execute(
+            INTERLEAVED_SOURCE,
+            &[TerminalScalarValue::Boolean(selected), unsigned(91)],
+        );
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(selected)),
+            "selected={selected}"
+        );
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        assert_eq!(
+            machine
+                .blocks
+                .iter()
+                .filter(|block| !block.structural_parameters.is_empty())
+                .count(),
+            1,
+            "interleaved selection uses one result/residual continuation"
+        );
+        let cleanup_actions = machine
+            .blocks
+            .iter()
+            .find_map(|block| match &block.terminator {
+                terminal_psi::Terminator::Return {
+                    cleanup_actions, ..
+                } => Some(cleanup_actions.as_slice()),
+                _ => None,
+            })
+            .expect("scalar return cleanup");
+        // Reverse joined-frontier order: the selected result, the surviving
+        // candidate's residual slot, then the transported interleaved owner.
+        assert_eq!(cleanup_actions.len(), 3, "{cleanup_actions:?}");
+        assert!(
+            cleanup_actions.iter().all(|action| matches!(
+                action,
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+            )),
+            "{cleanup_actions:?}"
+        );
+    }
+}
+
+#[test]
+fn interleaved_selection_keeps_every_transported_owner_at_its_slot() {
+    let source = "data Choice { case Empty; case Some(value: u32); }
+        data Marker { tag: u64; }
+        machine choose(selected: bool, tag: u64) -> bool {
+            let left: Choice = Choice::Some { value: 37 };
+            let first: Marker = Marker { tag: tag };
+            let right: Choice = Choice::Empty;
+            let second: Marker = Marker { tag: 7 };
+            let result: Choice = match selected { true -> left, false -> right };
+            let observed: bool = result in Choice::Some;
+            first.tag == tag && second.tag == 7 && observed
+        }";
+    for selected in [true, false] {
+        let (_, execution) = execute(
+            source,
+            &[TerminalScalarValue::Boolean(selected), unsigned(91)],
+        );
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(selected)),
+            "selected={selected}"
+        );
+    }
+}
+
+#[test]
+fn interleaved_fresh_arm_discards_only_the_displaced_candidate() {
+    let source = INTERLEAVED_SOURCE
+        .replace("selected: bool", "selected: u64")
+        .replace(
+            "true -> left,\n        false -> right",
+            "0 -> left,\n        1 -> right,\n        _ -> Choice::Empty",
+        );
+    for (selected, expected) in [(0, true), (1, false), (2, false)] {
+        let (module, execution) = execute(&source, &[unsigned(selected), unsigned(91)]);
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected)),
+            "selected={selected}"
+        );
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        let discarded = machine
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                terminal_psi::Terminator::Jump {
+                    trivial_affine_discards,
+                    ..
+                } if !trivial_affine_discards.is_empty() => Some(trivial_affine_discards.len()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            discarded,
+            [1],
+            "the fresh arm edge discards exactly the displaced candidate"
+        );
+    }
+}
+
+#[test]
+fn interleaved_selection_rejects_reordered_or_incomplete_return_cleanup() {
+    let checked = check_source(INTERLEAVED_SOURCE).unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose").unwrap();
+    for mutation in 0..3 {
+        let mut changed = lowered.semantic_module.clone();
+        let machine = changed
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == changed.entry)
+            .unwrap();
+        let cleanup_actions = machine
+            .blocks
+            .iter_mut()
+            .find_map(|block| match &mut block.terminator {
+                terminal_psi::Terminator::Return {
+                    cleanup_actions, ..
+                } => Some(cleanup_actions),
+                _ => None,
+            })
+            .expect("scalar return cleanup");
+        assert_eq!(cleanup_actions.len(), 3);
+        match mutation {
+            // Losing the interleaved owner's discard leaks a live root.
+            0 => {
+                cleanup_actions.pop();
+            }
+            // Reordering breaks the shared establishment-order schedule.
+            1 => cleanup_actions.swap(1, 2),
+            // A duplicated residual fabricates a second cleanup obligation.
+            _ => cleanup_actions.push(cleanup_actions[1].clone()),
+        }
+        assert!(
+            terminal_verifier::verify_module(
+                &changed,
+                &lowered.proof_bundle,
+                &super::AdmissionProfile::default()
+            )
+            .is_err(),
+            "interleaved cleanup mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn interleaved_selection_rejects_swapped_join_arguments() {
+    let checked = check_source(INTERLEAVED_SOURCE).unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose").unwrap();
+    let mut changed = lowered.semantic_module.clone();
+    let machine = changed
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed.entry)
+        .unwrap();
+    let join = machine
+        .blocks
+        .iter()
+        .find(|block| !block.structural_parameters.is_empty())
+        .expect("result/residual continuation")
+        .id;
+    let mut swapped = 0;
+    for block in &mut machine.blocks {
+        if let terminal_psi::Terminator::Jump {
+            target,
+            structural_arguments,
+            ..
+        } = &mut block.terminator
+            && *target == join
+        {
+            // Each arm edge supplies the transported owner, the surviving
+            // candidate's residual, and the selected result positionally.
+            assert_eq!(structural_arguments.len(), 3);
+            structural_arguments.swap(0, 1);
+            swapped += 1;
+        }
+    }
+    assert_eq!(
+        swapped, 2,
+        "both arm edges transport the interleaved frontier"
+    );
+    assert!(
+        terminal_verifier::verify_module(
+            &changed,
+            &lowered.proof_bundle,
+            &super::AdmissionProfile::default()
+        )
+        .is_err()
+    );
+}
