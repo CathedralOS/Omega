@@ -4,7 +4,7 @@ use abstract_operations::AbstractOperationPlan;
 
 use super::retention::retain_verified_optimization_context;
 use crate::lowering::lower_decoded_verified_module;
-use crate::optimization::VerifiedPsiOptimizationInput;
+use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput};
 
 use super::ArtifactLoweringError;
 
@@ -19,6 +19,12 @@ pub struct VerifiedNativeArtifactInput {
 impl VerifiedNativeArtifactInput {
     pub fn plan(&self) -> &AbstractOperationPlan {
         self.optimization_input.plan()
+    }
+
+    /// The verifier-retained context this exact plan was lowered from. The
+    /// module inside remains immutable evidence, not an admission authority.
+    pub const fn context(&self) -> &VerifiedPsiOptimizationContext {
+        self.optimization_input.context()
     }
 
     pub fn into_optimization_input(self) -> VerifiedPsiOptimizationInput {

@@ -58,7 +58,12 @@ fn realize_image(
         Some(prepared) => prepared.reopen(&artifact, request)?,
         None => lower_realization_input(semantic_bytes, proof_bytes, request.profile)?,
     };
-    let provision_receiver = validate_executable_entry_receiver(input.plan(), &artifact, request)?;
+    let provision_receiver = validate_executable_entry_receiver(
+        input.plan(),
+        input.context().module(),
+        &artifact,
+        request,
+    )?;
     let AdmittedNativeProviders {
         settlements,
         executions,
@@ -97,34 +102,61 @@ fn realize_image(
 
 fn validate_executable_entry_receiver(
     plan: &abstract_operations::AbstractOperationPlan,
+    terminal: &terminal_psi::TerminalModule,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<bool, Vec<Diagnostic>> {
     // Settlement retains the entry declaration, not an installed receiver.
     // Every route through realize_image emits an executable image; callable
     // lowering and explicit semantic wrappers retain their own boundaries.
+    let has_self_parameter = |parameters: &[terminal_psi::StructuralParameterDeclaration]| {
+        parameters.iter().any(|parameter| parameter.is_self)
+    };
     let has_receiver = plan.functions.iter().any(|function| {
-        function.machine == plan.entry
-            && function
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.is_self)
+        function.machine == plan.entry && has_self_parameter(&function.structural_parameters)
     });
-    // Lowering cannot choose a different entry shape by losing its self marker.
-    // The source selection decides whether provisioning is required; the
-    // retained callable must agree before either executable route is selected.
-    let source_has_receiver = matches!(
-        request.program_entry.source().receiver(),
-        program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
-    );
-    if has_receiver != source_has_receiver {
+    // The verified Terminal entry is the receiver-mode frontier the abstract
+    // lowering replays. An unused `&mut self` receiver erases entirely inside
+    // checked production, so a provisioned source entry legitimately reaches
+    // this stage without a self parameter; the plan cannot gain or lose the
+    // marker that verification retained.
+    let terminal_has_receiver = terminal.machines.iter().any(|machine| {
+        machine.id == terminal.entry && has_self_parameter(&machine.structural_parameters)
+    });
+    if has_receiver != terminal_has_receiver {
         return Err(realization_error(
             "ProgramEntry receiver provisioning",
             "lowered entry does not preserve the source-selected receiver mode",
         ));
     }
+    let source_provisions_receiver = matches!(
+        request.program_entry.source().receiver(),
+        program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+    );
     if !has_receiver {
+        // A provisioned receiver whose self place erased before realization
+        // keeps its mode through the retained entry attachment: that attached
+        // type is the exact record the root bridge provisions and lends.
+        // Losing it leaves the bridge nothing to provision, which is mode
+        // loss rather than erasure.
+        let retains_receiver_type = plan
+            .functions
+            .iter()
+            .any(|function| function.machine == plan.entry && function.attachment.is_some());
+        if source_provisions_receiver && !retains_receiver_type {
+            return Err(realization_error(
+                "ProgramEntry receiver provisioning",
+                "lowered entry does not preserve the source-selected receiver mode",
+            ));
+        }
         return Ok(false);
+    }
+    if !source_provisions_receiver {
+        // A free source entry cannot acquire a receiver through lowering.
+        return Err(realization_error(
+            "ProgramEntry receiver provisioning",
+            "lowered entry does not preserve the source-selected receiver mode",
+        ));
     }
     if request.target != target::NativeTarget::macos_arm64() {
         return Err(realization_error(
