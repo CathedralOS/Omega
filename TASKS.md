@@ -1394,13 +1394,20 @@ Owners include
   after complete typing; substitution retains the original constrained argument.
   Finish open/template-dependent and machine-computed argument ranges, type
   equations and omitted data binders without a source-display identity key.
-  Connect local record mutation and direct state-transition storage joins;
+  Connect local record mutation and transfer-bearing state-transition storage joins;
   `declared_range_inference_local_effects_retain_pending_terminal_boundaries`
-  retains nongeneric reproductions of their missing checked scalar control plans.
-  Require copy-after-mutation controls and nested reads in direct transition
-  guards/arguments to execute from canonical Terminal bytes. Ordinary calls,
-  whole local copies/moves and nested integer/Boolean reads already share the
-  storage route; do not invent generic-specific plans.
+  retains nongeneric mutation reproductions of missing checked scalar control plans.
+  Require copy-after-mutation controls and whole-place record initializers before
+  direct transitions to execute from canonical Terminal bytes. Fresh record
+  locals now retain nested guard/argument reads through the scalar graph's ordered
+  effects; shared source replay and selected-edge cleanup own their custody.
+  Cyclic record establishment still reaches Terminal's `ControlCycle` admission
+  fence in `terminal-verifier/src/validation/control_flow/unranked_cycles.rs`;
+  close repeated establishment, per-iteration disposal and independent cycle
+  replay before admitting it. `owned_scalar_graphs/record_locals.rs` retains that
+  boundary beside executing acyclic ownership and evaluation-order controls.
+  Ordinary calls and whole local copies/moves already share the storage route;
+  do not invent generic-specific plans.
 
   Extend remaining named computations through build-time admission, using
   `typed-trees/src/typed_trees/type_system/closed_numeric.rs` and its existing
@@ -1415,7 +1422,7 @@ Owners include
   reads also need canonical carrier paths and bounded leaf types retained through
   abstract operations, layout, instruction selection and independent replay;
   `terminal-psi-to-abstract-operations` explicitly rejects nested paths today.
-  Resume evidence at `bce7007d08`: `cargo nextest run -p compiler --test
+  Resume evidence at `08d96d3dd0`: `cargo nextest run -p compiler --test
   canary_suite -E 'test(declared_range_inference)' --no-fail-fast` exercises the
   reviewed fixture and this boundary on macOS AArch64; it does not establish
   native execution.
