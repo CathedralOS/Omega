@@ -39,7 +39,10 @@ pub(in crate::generic_data) fn collect_statement_expression_handles(
     use syntax_trees::statement::{TransitionGuardNode, TransitionTargetNode};
     match syntax.tables.statements.statement(statement) {
         StatementNode::RootBinding(binding) => {
-            collect_expression_handles(syntax, binding.receiver, handles)
+            collect_expression_handles(syntax, binding.receiver, handles);
+            if binding.implementation_operand.is_valid() {
+                collect_expression_handles(syntax, binding.implementation_operand, handles);
+            }
         }
         StatementNode::AssemblyFact(fact) => {
             collect_expression_handles(syntax, fact.expression, handles)

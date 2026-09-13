@@ -1,5 +1,5 @@
 use arena::Arena;
-use symbols::{SymbolHandle, SymbolTable};
+use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::expressions::{
     assign_expression_span_symbols, assign_statement_expression_symbols,
@@ -35,6 +35,33 @@ pub(super) fn assign_statement_symbols(
                 child_type_references,
                 binding.receiver,
             );
+            if binding.implementation_operand.is_valid() {
+                assign_statement_expression_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    binding.implementation_operand,
+                );
+                // The operand stays delegated only when its bare name resolves
+                // to a value place -- the described `ProductEntryRef` handoff.
+                // Any declaration resolution (machine, module, data, const)
+                // falls back to the lexical product path in `implementation`.
+                let described = matches!(
+                    expression_table.expression(binding.implementation_operand),
+                    symbol_resolved_trees::expression::ExpressionNode::Name(path)
+                        if matches!(
+                            symbols.get(path.symbol).kind,
+                            SymbolKind::Local | SymbolKind::Parameter | SymbolKind::Field
+                        )
+                );
+                if !described {
+                    binding.implementation_operand =
+                        symbol_resolved_trees::expression::ExpressionHandle::invalid();
+                }
+            }
         }
         symbol_resolved_trees::statement::Statement::AssemblyFact(fact) => {
             assign_statement_expression_symbols(

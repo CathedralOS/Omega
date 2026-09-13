@@ -60,10 +60,22 @@ impl<'program> Evaluator<'program> {
         {
             return trap("root binding requires the current activation's original Build value");
         }
+        // A delegated operand binds the description the compiler issued for
+        // it; the target machine is looked up, never executed.
+        let described = if binding.implementation_operand.is_valid() {
+            let operand = self.eval_expression(binding.implementation_operand, frame)?;
+            Some(self.described_product_entry(&operand)?)
+        } else {
+            None
+        };
         self.executed_root_bindings
             .try_reserve(1)
             .map_err(|_| Halt::Resource("root-binding result allocation was refused".to_owned()))?;
-        self.executed_root_bindings.push(statement);
+        self.executed_root_bindings
+            .push(crate::ExecutedRootBinding {
+                statement,
+                described,
+            });
         Ok(())
     }
 }

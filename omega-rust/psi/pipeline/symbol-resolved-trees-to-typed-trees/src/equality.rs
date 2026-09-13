@@ -73,7 +73,13 @@ fn scan_statement(
     statement: &StatementNode,
 ) -> Result<(), Diagnostic> {
     match statement {
-        StatementNode::RootBinding(binding) => scan_expression(program, binding.receiver, false),
+        StatementNode::RootBinding(binding) => {
+            scan_expression(program, binding.receiver, false)?;
+            if binding.implementation_operand.is_valid() {
+                scan_expression(program, binding.implementation_operand, false)?;
+            }
+            Ok(())
+        }
         StatementNode::AssemblyFact(fact) => scan_expression(program, fact.expression, true),
         StatementNode::Assignment(assignment) => {
             scan_expression(program, assignment.target, false)?;

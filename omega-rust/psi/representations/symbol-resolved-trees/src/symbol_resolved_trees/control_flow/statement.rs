@@ -12,6 +12,11 @@ pub struct RootBinding {
     pub receiver: crate::expression::ExpressionHandle,
     pub slot: Box<[DiagnosticName]>,
     pub implementation: Box<[DiagnosticName]>,
+    /// Present only while the implementation operand remains a delegated
+    /// product-description candidate: symbol routing keeps it when the bare
+    /// name resolves to a place (local, parameter, or field) and clears it
+    /// when the name resolves to a product declaration path.
+    pub implementation_operand: crate::expression::ExpressionHandle,
     pub source_span: SourceSpan,
 }
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
@@ -467,8 +472,19 @@ impl StatementTable {
                     binding.receiver,
                     copy_expression_handles,
                 );
+                let implementation_operand = if binding.implementation_operand.is_valid() {
+                    expression_handle_from_tree(
+                        source_expressions,
+                        expressions,
+                        binding.implementation_operand,
+                        copy_expression_handles,
+                    )
+                } else {
+                    crate::expression::ExpressionHandle::invalid()
+                };
                 self.insert(StatementNode::RootBinding(RootBinding {
                     receiver,
+                    implementation_operand,
                     ..binding.clone()
                 }))
             }

@@ -239,6 +239,43 @@ fn finalize_checked_authored_selections_with_policy(
                     return Err(Diagnostic::error("root-slot binding requires exactly one slot path and one implementation path")
                         .with_source_span(binding.source_span));
                 }
+                if binding.implementation_operand.is_valid() {
+                    let operand_place = crate::flow::canonical_place_from_expression_in_state(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        binding.implementation_operand,
+                    );
+                    if !operand_place.is_some_and(|place| {
+                        matches!(place.root, facts::PlaceRoot::Symbol(_))
+                            && place.segments.iter().all(|segment| {
+                                matches!(
+                                    segment,
+                                    facts::PlaceSegment::Field { .. }
+                                        | facts::PlaceSegment::FixedIndex { .. }
+                                )
+                            })
+                    }) {
+                        return Err(Diagnostic::error("delegated root binding requires a retained product-description place; computed description results are not implemented")
+                            .with_source_span(binding.source_span));
+                    }
+                    let operand_type = crate::flow::expression_type_reference_in_state(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        binding.implementation_operand,
+                    );
+                    if !operand_type.is_some_and(|operand_type| {
+                        type_reference_names_exact_prelude_data(
+                            program,
+                            operand_type,
+                            "ProductEntryRef",
+                        )
+                    }) {
+                        return Err(Diagnostic::error("delegated root binding requires an operand of the compiler-owned ProductEntryRef description type")
+                            .with_source_span(binding.source_span));
+                    }
+                }
             }
         }
     }
@@ -1018,6 +1055,25 @@ fn exact_statement_build_member_receiver(
         type_symbol = selected_type;
     }
     exact_build_prelude_data(program, type_symbol, expected_receiver)
+}
+
+fn type_reference_names_exact_prelude_data(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    name: &str,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_names_exact_prelude_data(program, *referee, name)
+        }
+        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_names_exact_prelude_data(program, *base_type, name)
+        }
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+            exact_build_prelude_data(program, *symbol, name)
+        }
+        _ => false,
+    }
 }
 
 fn exact_build_prelude_data(program: &TypedTrees, type_symbol: SymbolHandle, name: &str) -> bool {

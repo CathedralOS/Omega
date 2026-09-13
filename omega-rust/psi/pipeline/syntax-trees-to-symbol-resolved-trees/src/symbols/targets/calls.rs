@@ -166,6 +166,17 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         }
     }
 
+    // Everything below selects a receiverless candidate: the enclosing
+    // machine's own states, static machine and proposition parameters,
+    // builtins, propositions, and free machines. A spelled receiver's target
+    // belongs to the receiver's declaration instead; when the receiver block
+    // above could not resolve it (for example a member receiver whose exact
+    // field awaits typed-stage resolution), the call stays unresolved here
+    // rather than minting a state owned by a different declaration.
+    if has_receiver {
+        return SymbolHandle::invalid();
+    }
+
     let machine_state = child_symbol_by_kinds(
         symbols,
         machine.symbol,
@@ -224,9 +235,6 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     // &Item) -> i32 { ... }`, called as `compute(item)`): resolve to the free
     // machine's entry state so downstream passes (contract call obligations,
     // state-call planning) see a resolved target instead of an invalid symbol.
-    if has_receiver {
-        return SymbolHandle::invalid();
-    }
     resolve_free_machine_entry_state_symbol(symbols, target)
 }
 

@@ -5904,6 +5904,36 @@ impl BuildIncludedSource {
     }
 }
 
+/// One product-entry description issued by the compiler-owned
+/// `Build.product.entry` query during build evaluation. The evaluator keeps
+/// this semantic payload in a private side table; the `ProductEntryRef` value
+/// handed to evaluated code carries only an opaque index into it, so source
+/// cannot read, convert, or fabricate the selection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DescribedProductEntry {
+    /// Exact product machine the description selected in its query's lexical
+    /// package scope. Final admission rejoins this symbol; it never reselects
+    /// by spelling.
+    pub machine_symbol: symbols::SymbolHandle,
+    /// The selected machine's authored name, retained for diagnostics only.
+    pub machine_name: String,
+    /// The root slot spelling the description was selected for. A later
+    /// `roots.bind` must spell the same slot path.
+    pub slot: String,
+}
+
+/// One executed `roots.bind` declaration plus, when its implementation
+/// operand was a delegated description, the exact product entry the compiler
+/// issued for it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedRootBinding {
+    /// The exact `roots.bind` statement that executed.
+    pub statement: typed_trees::statement::StatementHandle,
+    /// `Some` when the implementation operand evaluated to a compiler-issued
+    /// `ProductEntryRef` description instead of a product machine path.
+    pub described: Option<DescribedProductEntry>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildMachineEvaluationFailureKind {
     InvalidFilesystemGrant,
@@ -6163,7 +6193,7 @@ impl<T> BuildTimeOperationEvaluation<T> {
 pub struct MeasuredBuildMachineEvaluation<T> {
     measured: MeasuredEvaluation<T>,
     observations: EvaluationObservations,
-    executed_root_bindings: Vec<typed_trees::statement::StatementHandle>,
+    executed_root_bindings: Vec<ExecutedRootBinding>,
 }
 
 impl<T> MeasuredBuildMachineEvaluation<T> {
@@ -6171,7 +6201,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         value: T,
         usage: EvaluationUsage,
         observations: EvaluationObservations,
-        executed_root_bindings: Vec<typed_trees::statement::StatementHandle>,
+        executed_root_bindings: Vec<ExecutedRootBinding>,
     ) -> Self {
         Self {
             measured: MeasuredEvaluation::new(value, usage),
@@ -6205,7 +6235,9 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
     /// Executed declaration coordinates in the exact evaluated program.
     /// These are selection requests, not proof of target admission. Callers
     /// must rejoin them to that program and check lexical/product authority.
-    pub fn executed_root_bindings(&self) -> &[typed_trees::statement::StatementHandle] {
+    /// A described binding additionally carries the exact compiler-issued
+    /// `ProductEntryRef` payload it bound.
+    pub fn executed_root_bindings(&self) -> &[ExecutedRootBinding] {
         &self.executed_root_bindings
     }
 
@@ -6219,7 +6251,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         T,
         EvaluationUsage,
         EvaluationObservations,
-        Vec<typed_trees::statement::StatementHandle>,
+        Vec<ExecutedRootBinding>,
     ) {
         let (value, usage) = self.measured.into_parts();
         (value, usage, self.observations, self.executed_root_bindings)

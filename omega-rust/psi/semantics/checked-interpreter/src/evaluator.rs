@@ -1218,7 +1218,12 @@ struct Evaluator<'program> {
     build_log: Vec<u8>,
     /// The activation's original Build cell, never an authored copy.
     root_build: Option<Cell>,
-    executed_root_bindings: Vec<typed_trees::statement::StatementHandle>,
+    executed_root_bindings: Vec<crate::ExecutedRootBinding>,
+    /// Compiler-issued product-entry descriptions handed to evaluated code as
+    /// opaque `ProductEntryRef` markers. The marker value indexes this table;
+    /// evaluated code can copy the marker but cannot read or fabricate the
+    /// selection payload.
+    product_entry_descriptions: Vec<crate::DescribedProductEntry>,
     stdin: &'program [u8],
     stdin_cursor: usize,
     /// Virtual monotonic tick counter for `Clock.tick_count` (advances on every
@@ -1387,6 +1392,8 @@ mod host_dispatch;
 mod names_recasts_and_places;
 #[path = "evaluator/numeric_landing.rs"]
 mod numeric_landing;
+#[path = "evaluator/product_entries.rs"]
+mod product_entries;
 #[path = "evaluator/program_lookup.rs"]
 mod program_lookup;
 #[path = "evaluator/record_views.rs"]

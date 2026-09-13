@@ -366,7 +366,7 @@ impl<'program> Evaluator<'program> {
         self.exact_build_facet_method(expected_attached, "resolve", target_symbol)
     }
 
-    fn exact_build_facet_method(
+    pub(super) fn exact_build_facet_method(
         &self,
         expected_attached: &str,
         expected_state: &str,

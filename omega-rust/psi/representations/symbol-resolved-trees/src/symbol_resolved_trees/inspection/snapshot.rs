@@ -648,6 +648,8 @@ pub enum StatementSnapshot {
         receiver: ExpressionSnapshot,
         slot: Vec<String>,
         implementation: Vec<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        implementation_operand: Option<ExpressionSnapshot>,
     },
     AssemblyFact {
         contract_kind: &'static str,
@@ -1548,6 +1550,10 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
                 .iter()
                 .map(ToString::to_string)
                 .collect(),
+            implementation_operand: binding
+                .implementation_operand
+                .is_valid()
+                .then(|| statement_expression_snapshot(program, binding.implementation_operand)),
         },
         Statement::AssemblyFact(fact) => StatementSnapshot::AssemblyFact {
             contract_kind: match fact.kind {

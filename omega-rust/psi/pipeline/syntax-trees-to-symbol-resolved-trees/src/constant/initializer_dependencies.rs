@@ -338,7 +338,12 @@ impl Collector<'_> {
                     Statement::Assignment(assignment) => self
                         .expressions
                         .extend([assignment.target, assignment.value]),
-                    Statement::RootBinding(binding) => self.expressions.push(binding.receiver),
+                    Statement::RootBinding(binding) => {
+                        self.expressions.push(binding.receiver);
+                        if binding.implementation_operand.is_valid() {
+                            self.expressions.push(binding.implementation_operand);
+                        }
+                    }
                     Statement::AssemblyFact(fact) => self.expressions.push(fact.expression),
                     Statement::ProofOutputBindingStatement(binding) => {
                         self.expressions.push(binding.call)

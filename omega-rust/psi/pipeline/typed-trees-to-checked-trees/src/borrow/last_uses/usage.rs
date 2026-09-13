@@ -21,6 +21,12 @@ pub(super) fn statement_uses_local_name(
     match statement {
         StatementNode::RootBinding(binding) => {
             expression_uses_local_name(program, binding.receiver, local_name)
+                || (binding.implementation_operand.is_valid()
+                    && expression_uses_local_name(
+                        program,
+                        binding.implementation_operand,
+                        local_name,
+                    ))
         }
         StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
@@ -71,6 +77,8 @@ pub(super) fn statement_uses_symbol(
     match statement {
         StatementNode::RootBinding(binding) => {
             expression_uses_symbol(program, binding.receiver, symbol)
+                || (binding.implementation_operand.is_valid()
+                    && expression_uses_symbol(program, binding.implementation_operand, symbol))
         }
         StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
@@ -120,7 +128,11 @@ pub(super) fn statement_uses_place_symbol(
         expression_uses_place_symbol(program, state_symbol, statement_index, expression, symbol)
     };
     match statement {
-        StatementNode::RootBinding(binding) => expression_uses(binding.receiver),
+        StatementNode::RootBinding(binding) => {
+            expression_uses(binding.receiver)
+                || (binding.implementation_operand.is_valid()
+                    && expression_uses(binding.implementation_operand))
+        }
         StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses(assignment.target) || expression_uses(assignment.value)
@@ -178,7 +190,11 @@ pub(super) fn statement_uses_owner_path(
         )
     };
     match statement {
-        StatementNode::RootBinding(binding) => uses(binding.receiver),
+        StatementNode::RootBinding(binding) => {
+            uses(binding.receiver)
+                || (binding.implementation_operand.is_valid()
+                    && uses(binding.implementation_operand))
+        }
         StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => uses(assignment.target) || uses(assignment.value),
         StatementNode::Call(call) => {

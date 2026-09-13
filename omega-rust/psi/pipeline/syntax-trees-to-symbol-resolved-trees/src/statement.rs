@@ -64,6 +64,24 @@ fn lower_statement_node(
                     .iter()
                     .map(crate::name::lower_name)
                     .collect(),
+                // The delegated operand is a place expression, not a product
+                // declaration spelling: it is lowered outside the authored-
+                // selection exposure so a bare name that resolves to a
+                // declaration cannot mint a cross-package selection record.
+                // Routing clears the operand in that case and the lexical
+                // `implementation` path remains the only declaration channel.
+                implementation_operand: if binding.implementation_operand.is_valid() {
+                    let exposure = lowerer.current_authored_expression_exposure.take();
+                    let lowered = crate::expression::lower_expression_into_table(
+                        lowerer,
+                        syntax_trees,
+                        binding.implementation_operand,
+                    );
+                    lowerer.current_authored_expression_exposure = exposure;
+                    lowered?
+                } else {
+                    symbol_resolved_trees::expression::ExpressionHandle::invalid()
+                },
                 source_span: binding.source_span,
             },
         )]),
