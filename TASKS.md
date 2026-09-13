@@ -1398,9 +1398,15 @@ Owners include
   `fail/dependent/case_where_{reversed,unproved}_bound_rejected`, Linux). Case
   constraints on generic data are refused
   (`fail/dependent/case_where_generic_data_unsupported`) until generic instance
-  synthesis carries variant facts. Open: generic `T == i32` establishment,
-  match-contributed case facts, coverage, and stale facts after payload
-  writes/case replacement.
+  synthesis carries variant facts. `71e274d9d4` tracks the place's active case
+  through the invariant-window engine: a payload store re-proves the type-wide
+  and active-case fact union and opens a window when the fold fails, a
+  whole-value case literal reseeds the case identity, and open windows refuse
+  at calls and state exits including transported predecessors
+  (`pass/dependent/case_where_{payload_write_restores,replacement_clears}`,
+  `fail/dependent/case_where_payload_write_{unclosed,exit_open}`, macOS).
+  Open: generic `T == i32` establishment, match-contributed case facts, and
+  coverage through established contradictions.
 
   Acceptance: source tests establish `Value<T>::Integer where T == i32` and
   `Boolean where T == bool`, and a generic payload-returning match checks without
