@@ -391,7 +391,10 @@ promise that every terminating program fits every finite runtime provision.
 The [canonical compiler's execution-storage audit](execution_storage.md)
 separately bounds its own call contexts, lexical rows, and temporary values
 under the current Gamma profile. It does not bound cumulative pair allocation
-or the runtime resources of generated applications.
+or the runtime resources of generated applications. The
+[emission audit](../emission/README.md#publication-traversal-pairs) bounds
+serialization's own traversal pairs below the pair arena through the admitted
+payload extent; earlier-phase cumulative allocation remains the open term.
 
 ### Arithmetic allocation probe
 

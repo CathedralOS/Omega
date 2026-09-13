@@ -178,8 +178,9 @@ bytes, so partial sums also fit signed 64-bit arithmetic. The actual publication
 path runs only after exact preflight admits at most 16,777,212 bytes; its byte
 increments and pending closes follow the same immutable formatting structure.
 No saturation, fabricated requested count, or new source refusal is necessary.
-This does not bound cumulative pair allocation or establish canonical outcomes
-for underlying evaluator exhaustion.
+These counts do not establish canonical outcomes for underlying evaluator
+exhaustion; serialization's own traversal pairs are bounded
+[below](#publication-traversal-pairs).
 
 ### Unary fixed-word prefixes
 
@@ -202,6 +203,44 @@ No source-dependent lowering template remains in this directory. Calls,
 constructors, bindings, arithmetic, and matches belong under `lowering/`;
 durable Gamma plan nodes belong under `representation/`.
 
+### Publication traversal pairs
+
+The counts above bound emitted bytes; this bound covers the immutable pairs
+serialization itself allocates while producing them. The only pair
+allocations in this directory are the pending-work frames in
+[expressions.gamma](expressions.gamma): a nonfinal-argument frame costs four
+pairs (two frame cells plus a two-pair counted payload), and a pending
+let-body frame costs three (two plus one). Final children, unary-word calls,
+and the scalar pending-close count allocate none.
+
+The count-only pass allocates zero pairs: every expression answers through
+its cached extent and each fixed or atom spelling advances by its measured
+length, so preflight never descends the plan. Publication's byte loops,
+decimal, marker, definition, and adapter writers likewise use only `write`
+effects, lexical rows, and scalar arithmetic, not pairs. The two summary
+pairs per Gamma node belong to plan construction, not to this traversal.
+
+Publication runs only after exact preflight admits at most `P = 16,777,212`
+bytes including the final LF. Charge each frame to distinct emitted bytes: a
+nonfinal argument owns its separator byte and that argument's first emitted
+byte, and a `let` owns at least twelve bytes after its opening parenthesis
+(`let `, a binder, ` `, `Int`, ` `, the initializer-body separator, and `)`).
+An argument's first byte can be another let's opening parenthesis, which is
+why the let charge excludes it. Every other charged byte sits inside its own
+frame's extent, so the charged sets are disjoint. A shared immutable child
+revisited per occurrence simply charges that occurrence's own emitted bytes.
+Therefore
+
+```text
+traversal pairs <= 4 * floor(P / 2) + 3 * floor(P / 12)
+                <= 33,554,424 + 4,194,303 = 37,748,727 < 40,265,318
+```
+
+Serialization alone therefore cannot exhaust the selected pair arena: it adds
+at most 37,748,727 cumulative pairs to a compilation whose earlier phases are
+separately owned. This bounds emission's own traversal, not generated-program
+execution; it manufactures no DCOUT outcome and changes no provision.
+
 ## Validation and remaining boundaries
 
 The [emission gate](../../../../tests/delta/emission/README.md) exercises
@@ -222,6 +261,8 @@ limit of 255 nested expression lists per generated function body. Serialization
 does not make extraction or capture decisions and does not alter those budgets.
 
 Plan and continuation pairs consume the selected evaluator's finite immutable
-arena. Stack-safe compiler traversal, complete-before-write planning, and exact
+arena. The traversal bound above covers serialization's own frames; earlier
+phases' cumulative allocation remains separately owned. Stack-safe compiler
+traversal, complete-before-write planning, and exact
 receipt preservation do not close compiler-owned resource/internal outcomes,
 generated-profile admission, or the full Delta bootstrap edge.

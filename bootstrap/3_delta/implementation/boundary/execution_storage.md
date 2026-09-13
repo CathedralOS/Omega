@@ -127,8 +127,10 @@ The canonical compiler does not need more call contexts, lexical rows, or
 temporary-value storage for source depth or width. Explicit worklists and
 immutable plans still allocate **pairs cumulatively**; returning from a call or
 dropping a worklist does not reclaim them. Their whole-producer bound, including
-checking, lowering, generic capture-batch merges, and serialization, remains
-open. This audit neither supplies a DCOUT heap refusal nor converts an outer
+checking, lowering, and generic capture-batch merges, remains open;
+[serialization's own traversal](../emission/README.md#publication-traversal-pairs)
+is separately bounded below the pair arena by the admitted payload extent.
+This audit neither supplies a DCOUT heap refusal nor converts an outer
 Gamma failure into one.
 
 Generated Delta applications are different programs. Their recursion and live
