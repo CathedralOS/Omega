@@ -119,12 +119,17 @@ pub(crate) fn build_checked_value_computation_plans(
                 // constructor operand. Let the same builder check its selected
                 // type and storage; local copies must not lose their operation
                 // merely because they are the root of an initializer.
+                // A whole returned reference instead belongs to reference
+                // completion's affine establishment and exact ingress map.
+                // Reference nodes remain valid inside record constructors.
                 if let Some((expression, expected)) = construction_destination
                     && (validation::is_scalar_case_value(program, expression, expected)
-                        || matches!(
-                            program.expression_table.expression(expression),
-                            ExpressionNode::Name(_)
-                        )
+                        || (validation::reference_result_custody::parts(program, expected)
+                            .is_none()
+                            && matches!(
+                                program.expression_table.expression(expression),
+                                ExpressionNode::Name(_)
+                            ))
                         || matches!(program.expression_table.expression(expression), ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none()))
                     && let Some(root) =
                         builder.structural_value(expression, expected, &mut structural_values, pure)
