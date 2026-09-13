@@ -5,10 +5,13 @@
 //! catalog already uses. Only the producer (`compute/`) reads descriptors; the
 //! validator keeps its own inline matching so a descriptor mistake cannot
 //! self-certify. `LiteralFoldPolicy` bits stay the identity-bearing selection;
-//! descriptors are realization data derived from the catalog row. When a rule
-//! needs operand-shape data beyond one u12 immediate — register units, effects,
-//! traps, memory, or control flow — extend this struct rather than re-inlining
-//! kind matches in compute.
+//! descriptors are realization data derived from the catalog row. The result
+//! disposition carries the physical-register-unit dimension: whether the
+//! rewritten instruction delivers its output through a scalar `Def` operand
+//! or through implicit unit definitions such as the target condition state.
+//! When a rule needs operand-shape data beyond that — further unit roles,
+//! effects, traps, memory, stack, or control flow — extend this struct rather
+//! than re-inlining kind matches in compute.
 
 use register_model::{RegisterConstraintKey, TargetRegisterEnvironmentConstraintKeys};
 use selected_instructions::{MachineSemanticKind, SelectedInstructionKind};
@@ -16,13 +19,31 @@ use semantic_vocabulary::IntegerValue;
 
 use crate::machine_semantic_kind;
 
-/// The symbolic instruction triple and immediate bound of one lowering rule.
+/// How a pair rule's rewritten instruction delivers its output.
+///
+/// The producer admits the constraint-row shape matching this declared
+/// channel instead of inferring it from operand counts; the independent
+/// validator re-derives the same distinction from the consumer kind and row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PairResultDisposition {
+    /// The rewritten instruction writes one scalar `Def` operand; its
+    /// constraint row declares no implicit unit definitions.
+    ScalarRegister,
+    /// The rewritten instruction writes no `Def` operand; its output is the
+    /// constraint row's implicit physical-unit definitions — today the target
+    /// condition state defined by the compare-immediate forms.
+    ImplicitUnits,
+}
+
+/// The symbolic instruction triple, immediate bound, and result channel of
+/// one lowering rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SelectedInstructionPairRule {
     producer: MachineSemanticKind,
     consumer: MachineSemanticKind,
     rewritten: MachineSemanticKind,
     immediate_limit: u64,
+    result: PairResultDisposition,
 }
 
 impl SelectedInstructionPairRule {
@@ -31,18 +52,21 @@ impl SelectedInstructionPairRule {
         consumer: MachineSemanticKind::ExactAddI64,
         rewritten: MachineSemanticKind::ExactAddI64Immediate,
         immediate_limit: 4095,
+        result: PairResultDisposition::ScalarRegister,
     };
     pub const EXACT_SUBTRACT_IMMEDIATE_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::ExactSubtractI64,
         rewritten: MachineSemanticKind::ExactSubtractI64Immediate,
         immediate_limit: 4095,
+        result: PairResultDisposition::ScalarRegister,
     };
     pub const COMPARE_IMMEDIATE_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::CompareI64,
         rewritten: MachineSemanticKind::CompareI64Immediate,
         immediate_limit: 4095,
+        result: PairResultDisposition::ImplicitUnits,
     };
 
     pub const fn producer(self) -> MachineSemanticKind {
@@ -55,6 +79,12 @@ impl SelectedInstructionPairRule {
 
     pub const fn rewritten(self) -> MachineSemanticKind {
         self.rewritten
+    }
+
+    /// The rewritten instruction's declared output channel: a scalar `Def`
+    /// operand or implicit physical-unit definitions.
+    pub const fn result(self) -> PairResultDisposition {
+        self.result
     }
 
     pub const fn immediate_limit(self) -> u64 {

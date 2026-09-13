@@ -144,6 +144,7 @@ fn reconstruct_action(
                 || right.access != RegisterOperandAccess::Use
                 || right.virtual_register != candidate.victim
                 || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
