@@ -138,6 +138,14 @@ or nominal facts ignored by the arithmetic graph proof.
 
 ## Write frames and reference origins
 
+`expression_types/reference_values.rs` shares exact reference correspondence
+between named bindings, projected fields and call results. Raw fixed arrays
+can supply readable slice views with the same element type and permitted access.
+Known reference mismatches cannot fall back to syntax-only name matching.
+Mutable views do not erase array-carrier predicates; their invariant-window
+obligations remain separate from shape correspondence. Call admission still
+checks the originating binding and every enclosing reference permission.
+
 `calls/write_frames/` owns one complete-or-opaque may-write analysis used by
 ordinary state transfer, cycle equations, and public call/value/store queries.
 `LocalWriteOrigin` distinguishes exact paths, absorbing collection-coarse origins,

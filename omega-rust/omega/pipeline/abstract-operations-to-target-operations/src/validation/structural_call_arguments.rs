@@ -166,7 +166,7 @@ pub(super) fn validate(
                 ) else {
                     return Err(psi_operation);
                 };
-                if actual.structural_type != projected_type
+                if !matches_projected_carrier(actual, projected_type, declarations)
                     || actual.source_byte_offset != byte_offset
                 {
                     return Err(psi_operation);
@@ -175,6 +175,47 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+/// A fixed byte array lends its original backing through a view descriptor.
+/// The projected storage type therefore differs from the callee's view type;
+/// reconstruct the adaptation instead of requiring identity or trusting the
+/// producer's length and stride. Ordinary pointer arguments have no adaptation.
+fn matches_projected_carrier(
+    actual: &TargetStructuralArgument,
+    projected: semantic_vocabulary::StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> bool {
+    use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
+    if actual.structural_type == projected {
+        return actual.fixed_array_length.is_none() && actual.element_stride.is_none();
+    }
+    let find_shape = |identity| {
+        declarations
+            .iter()
+            .find(|declaration| declaration.id == identity)
+            .map(|declaration| &declaration.shape)
+    };
+    let Some(StructuralTypeShape::FixedArray { element, length }) = find_shape(projected) else {
+        return false;
+    };
+    actual.access == terminal_psi::StructuralAccess::MutableBorrow
+        && *length > 0
+        && matches!(
+            find_shape(*element),
+            Some(StructuralTypeShape::PrimitiveScalar(
+                semantic_vocabulary::ScalarType::Integer(integer)
+            )) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                && integer.bits() == 8 && !integer.is_address()
+        )
+        && matches!(
+            find_shape(actual.structural_type),
+            Some(StructuralTypeShape::ByteSequence(
+                ByteSequenceCarrier::BorrowedView
+            ))
+        )
+        && actual.fixed_array_length == Some(*length)
+        && actual.element_stride == Some(1)
 }
 
 fn matches_argument_identity(

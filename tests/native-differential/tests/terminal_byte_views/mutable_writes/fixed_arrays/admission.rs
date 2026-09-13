@@ -91,6 +91,13 @@ fn fixed_array_target_rejects_changed_backing_extent_and_access() {
                 _ => unreachable!(),
             }
             assert!(
+                abstract_operations_to_target_operations::validate_abstract_to_target_translation(
+                    abstracted, target, &changed,
+                )
+                .is_err(),
+                "abstract-to-target mutation {mutation} on {target:?}"
+            );
+            assert!(
                 legalize_target_operations(&changed, abstracted, unit).is_err(),
                 "target mutation {mutation} on {target:?}"
             );

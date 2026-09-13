@@ -7,6 +7,66 @@
 use super::*;
 use language_semantics::ReferenceAccess;
 
+/// Reference correspondence does not form a loan. Array-to-slice adaptation
+/// retains element identity and readable access; callers still establish the
+/// original backing, extent and permission. Write-only attenuation is explicit.
+pub(super) fn reference_type_matches(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    let TypeReferenceNode::Reference {
+        access: actual_access,
+        referee: actual_referee,
+        ..
+    } = program.type_reference_table.type_reference(actual)
+    else {
+        return false;
+    };
+    let TypeReferenceNode::Reference {
+        access: required_access,
+        referee: required_referee,
+        ..
+    } = program.type_reference_table.type_reference(required)
+    else {
+        return false;
+    };
+    let actual_identity = |reference| {
+        program.normalized_type_identity_with_binders_and_substitutions(
+            reference,
+            &[],
+            substitutions,
+        )
+    };
+    if actual_identity(actual) == program.normalized_type_identity(required) {
+        return true;
+    }
+    if *actual_access == ReferenceAccess::WriteOnly
+        || *required_access == ReferenceAccess::WriteOnly
+        || (*actual_access != *required_access
+            && !(*actual_access == ReferenceAccess::Mutable
+                && *required_access == ReferenceAccess::Shared))
+    {
+        return false;
+    }
+    actual_identity(*actual_referee) == program.normalized_type_identity(*required_referee)
+        // A shared view may forget a carrier predicate without changing its
+        // contents. A raw mutable view could violate that predicate; retain
+        // rejection until its invariant-window obligations are established.
+        || ((*required_access == ReferenceAccess::Shared
+            || matches!(
+                program.type_reference_table.type_reference(*actual_referee),
+                TypeReferenceNode::FixedArray { .. }
+            ))
+            && owned_array_projects_to_slice(
+                program,
+                *actual_referee,
+                *required_referee,
+                substitutions,
+            ))
+}
+
 pub(super) fn projected_matches_reference(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -34,17 +94,11 @@ pub(super) fn projected_matches_reference(
     else {
         return false;
     };
-    if let TypeReferenceNode::Reference {
-        access: actual_access,
-        referee: actual_referee,
-        ..
-    } = program.type_reference_table.type_reference(actual)
-    {
-        return actual_identity(actual) == program.normalized_type_identity(required)
-            || (*actual_access == ReferenceAccess::Mutable
-                && *required_access == ReferenceAccess::Shared
-                && actual_identity(*actual_referee)
-                    == program.normalized_type_identity(*required_referee));
+    if matches!(
+        program.type_reference_table.type_reference(actual),
+        TypeReferenceNode::Reference { .. }
+    ) {
+        return reference_type_matches(program, actual, required, &substitutions);
     }
     // The existing implicit shared borrow of an owned field still needs that
     // field's actual type. Member syntax alone cannot match an arbitrary referee.

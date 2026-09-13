@@ -34,6 +34,156 @@ fn expected(program: &TypedTrees) -> TypeReferenceHandle {
 }
 
 #[test]
+fn array_reference_correspondence_preserves_elements_and_access() {
+    for (actual, required, accepted) in [
+        ("&mut [u8; 3]", "&mut [u8]", true),
+        ("&mut [u8; 0]", "&mut [u8]", true),
+        ("&[u8; 3]", "&[u8]", true),
+        ("&mut [u8; 3]", "&[u8]", true),
+        ("&mut [[u8; 2]; 3]", "&mut [[u8; 2]]", true),
+        ("&mut [u8; 3]", "&mut [u8; 3]", true),
+        ("&write [u8; 3]", "&write [u8; 3]", true),
+        ("&mut [u8]", "&[u8]", true),
+        ("&mut u32", "&u32", true),
+        ("&[u8; 3]", "&mut [u8]", false),
+        ("&mut [u16; 3]", "&mut [u8]", false),
+        ("&mut [u16; 3]", "&[u8]", false),
+        ("&mut [u8 [0..=127]; 3]", "&mut [u8]", false),
+        ("&[u16; 3]", "&[u8]", false),
+        ("&mut [[u8; 2]; 3]", "&mut [[u8; 3]]", false),
+        ("&mut [u8; 3]", "&mut [u8; 2]", false),
+        ("&mut u32", "&u64", false),
+        ("&mut [u8; 3]", "&write [u8]", false),
+        ("&write [u8; 3]", "&mut [u8]", false),
+        ("&write [u8; 3]", "&[u8]", false),
+        ("&write [u8; 3]", "&write [u8]", false),
+    ] {
+        for origin in ["named", "projected", "returned"] {
+            let declarations = match origin {
+                "projected" => format!(
+                    "data Holder {{ body: {actual}; }}
+                     machine inspect(value: Holder, expected: {required}) {{ value.body; }}"
+                ),
+                "returned" => format!(
+                    "machine retain(input: {actual}) -> {actual} {{ input }}
+                     machine inspect(value: {actual}, expected: {required}) {{
+                         let returned: {actual} = retain(value); returned;
+                     }}"
+                ),
+                _ => format!("machine inspect(value: {actual}, expected: {required}) {{ value; }}"),
+            };
+            let program = typed(&declarations);
+            let expression = program
+                .expression_table
+                .iter_expressions()
+                .find_map(|(handle, node)| {
+                    let selected = match origin {
+                        "projected" => matches!(node, ExpressionNode::Member(_)),
+                        "returned" => matches!(node, ExpressionNode::Call(_)),
+                        _ => {
+                            matches!(node, ExpressionNode::Name(_))
+                                && program.expression_table.display_name(handle) == "value"
+                        }
+                    };
+                    selected.then_some(handle)
+                })
+                .unwrap_or_else(|| panic!("{origin}: authored {actual} reference expression"));
+            assert_eq!(
+                argument_matches_type_reference_handle(&program, expression, expected(&program)),
+                accepted,
+                "{origin}: {actual} to {required}"
+            );
+        }
+    }
+}
+
+#[test]
+fn named_shared_reference_inference_does_not_match_closed_nominals() {
+    for access in ["&", "&mut ", "&write "] {
+        let program = typed(&format!(
+            "data Card {{}} data Other {{}}
+             machine inspect<T>(value: {access}Card, expected: &T, closed: &Other) {{ value; }}"
+        ));
+        let parameters =
+            program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+        let expression = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, node)| {
+                (matches!(node, ExpressionNode::Name(_))
+                    && program.expression_table.display_name(handle) == "value")
+                    .then_some(handle)
+            })
+            .expect("named reference");
+        assert_eq!(
+            argument_matches_type_reference_handle(&program, expression, expected(&program)),
+            access != "&write ",
+        );
+        assert!(!argument_matches_type_reference_handle(
+            &program,
+            expression,
+            parameters[2].type_reference,
+        ));
+    }
+}
+
+#[test]
+fn array_view_matching_cannot_grant_mutation_through_shared_storage() {
+    let program = typed(
+        "data Holder { bytes: &mut [u8; 3]; }
+         machine inspect(value: &Holder, expected: &mut [u8]) { value.bytes; }",
+    );
+    let expression = member(&program, "value.bytes");
+    let root = &program.state_parameters(&program.machine_states(&program.machines()[0])[0])[0];
+    assert!(projected_matches_reference(
+        &program,
+        expression,
+        expected(&program)
+    ));
+    assert!(!place_forwards_mutable_reference(
+        &program,
+        expression,
+        root.symbol,
+        root.type_reference,
+    ));
+}
+
+#[test]
+fn mutable_array_views_do_not_erase_carrier_constraints() {
+    let mut program =
+        typed("machine inspect(value: &mut [u8; 3], expected: &mut [u8], read: &[u8]) { value; }");
+    let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+    let actual = parameters[0].type_reference;
+    let mutable_view = parameters[1].type_reference;
+    let shared_view = parameters[2].type_reference;
+    assert!(reference_type_matches(&program, actual, mutable_view, &[]));
+    let mut reference = program.type_reference_table.type_reference(actual).clone();
+    let TypeReferenceNode::Reference { referee, .. } = &mut reference else {
+        panic!("mutable reference");
+    };
+    let constraints = program
+        .type_reference_table
+        .insert_constraints([TypeConstraintNode::Named("qualified".into())]);
+    *referee = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Constrained {
+            base_type: *referee,
+            constraints,
+        });
+    program
+        .type_reference_table
+        .substitute_node(actual, reference);
+    assert!(
+        !reference_type_matches(&program, actual, mutable_view, &[]),
+        "a shape match cannot authorize writes that break a carrier predicate"
+    );
+    assert!(
+        reference_type_matches(&program, actual, shared_view, &[]),
+        "a plain shared view does not alter the qualified carrier"
+    );
+}
+
+#[test]
 fn generic_array_views_compare_selected_elements_not_the_data_telescope() {
     let mut program = typed(
         "data Box<Element> { values: [Element; 2]; } machine inspect<Value>(value: Box<Value>, expected: &[Value]) { value.values; }",
