@@ -283,9 +283,12 @@ typed block parameters and return from their arriving home, including across an
 unrelated owned selection. Direct structural returns use existing result homes
 with their exact declared ownership; there is no record-specific function
 representation or separate one-field local recognizer.
-Whole owned parameters also return after ordinary calls and writes through the
-same ordered body. A discarded scalar call still produces its typed SSA result
-and executes, but does not occupy a source-local binding ordinal. Source replay
+Whole plain owned parameters, including fixed arrays of records and closed generic
+carriers, also return after ordinary calls and writes through the same ordered
+body. Whole-value return checks the declared carrier and transfer rather than
+requiring record syntax or primitive array leaves. A discarded scalar call still
+produces its typed SSA result and executes, but does not occupy a source-local
+binding ordinal. Source replay
 checks the exact returned parameter and affine transfer at the final statement;
 Terminal verification independently retains type, access, claims, and liveness.
 `checked-trees-to-lowered-psi --test owned_record_return_source` covers these
@@ -378,7 +381,10 @@ parameter retains its exact structural slot, separately from operation-result
 ordinals. Replay checks authored positions and source identities; repeated
 unrestricted actuals do not acquire affine disposal obligations.
 Plain affine and copyable records use this same ordinary-call sequence, including
-parameter forwarding and constructed or call-produced locals. The complete graph
+parameter forwarding and constructed or call-produced locals. Plain affine record
+arrays and generic wrappers can likewise forward existing parameters and call
+results. This does not implement array-of-record construction, reference-bearing
+storage, qualified return claims or nominal cleanup. The complete graph
 plan wins over an overlapping straight-line structural plan, so declaration order
 does not erase either the caller or callee from the closure. Source replay rejoins
 the exact authored argument, not merely its type. Structural returns retain the

@@ -457,6 +457,45 @@ fn empty_unit_helper_composes_with_owned_record_calls() {
 }
 
 #[test]
+fn owned_record_arrays_forward_through_ordinary_calls() {
+    for carrier in ["[Entry; 3]", "Buffer<Entry>"] {
+        let artifact = produce_source(
+            "relay",
+            &format!(
+                "data Entry {{ marker: u8; value: u64; }}
+                 data Buffer<T> {{ entries: [T; 3]; }}
+                 machine retain(values: {carrier}) -> {carrier} {{ values }}
+                 machine relay(values: {carrier}) -> {carrier} {{
+                     let first: {carrier} = retain(values);
+                     retain(first)
+                 }}"
+            ),
+        );
+        execute(
+            &artifact,
+            r#"
+            #include <stdint.h>
+            typedef struct { uint8_t marker; uint64_t value; } Entry;
+            typedef struct { Entry entries[3]; } Buffer;
+            extern Buffer omega_entry(Buffer values);
+            int main(void) {
+                Buffer values = {{ { 3, UINT64_MAX }, { 5, UINT64_C(0x123456789abcdef0) },
+                    { 7, UINT64_C(0x8000000000000001) } }};
+                Buffer result = omega_entry(values);
+                return result.entries[0].marker == 3
+                    && result.entries[1].marker == 5
+                    && result.entries[2].marker == 7
+                    && result.entries[0].value == values.entries[0].value
+                    && result.entries[1].value == values.entries[1].value
+                    && result.entries[2].value == values.entries[2].value ? 0 : 1;
+            }
+            "#,
+            true,
+        );
+    }
+}
+
+#[test]
 fn owned_record_parameter_forwards_through_an_ordinary_call() {
     let artifact = produce_source(
         "relay",

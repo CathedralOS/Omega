@@ -9,13 +9,6 @@ pub(super) fn is_owned_parameter(
 ) -> bool {
     parameter.access == StructuralAccess::Owned
         && parameter.multiplicity != StructuralMultiplicity::Linear
-        && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
-            || matches!(
-                types
-                    .get(&parameter.structural_type)
-                    .map(|declaration| &declaration.shape),
-                Some(StructuralTypeShape::Record { .. })
-            ))
         && !parameter.is_self
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
@@ -91,7 +84,7 @@ fn value_shape(
         .get(&structural_type)
         .map(|declaration| &declaration.shape)
     {
-        Some(StructuralTypeShape::Record { .. }) => {
+        Some(StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {
             crate::lowering::structural_layout::structural_shape(
                 structural_type,
                 types,

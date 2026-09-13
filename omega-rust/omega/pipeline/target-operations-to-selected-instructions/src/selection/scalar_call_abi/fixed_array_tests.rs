@@ -175,6 +175,67 @@ fn fixed_array_view_rejects_coherent_scalar_result_calls() {
 }
 
 #[test]
+fn owned_record_array_geometry_retains_padding_and_rejects_invalid_contents() {
+    let (source, _) = fixed_array_call(target::NativeTarget::linux_x64());
+    // Geometry alone: the unrelated borrowed call fixture is not re-admitted.
+    let mut types = source.structural.unwrap().structural_types.to_vec();
+    let array = types[0].id;
+    let record = types[1].id;
+    let borrowed_view = types[2].id;
+    types[0].shape = StructuralTypeShape::FixedArray {
+        element: record,
+        length: 3,
+    };
+    types[1].shape = StructuralTypeShape::Record {
+        fields: [(1, 8), (2, 64)]
+            .into_iter()
+            .map(|(ordinal, bits)| terminal_psi::StructuralFieldDeclaration {
+                id: semantic_vocabulary::StructuralFieldId::new(ordinal).unwrap(),
+                identity: format!("field{ordinal}"),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, bits).unwrap(),
+                )),
+            })
+            .collect(),
+    };
+    let shape = crate::structural_reference_input::owned_aggregate_shape;
+    assert_eq!(shape(record, &types), Some(ValueShape::integer(16, 8)));
+    assert_eq!(shape(array, &types), Some(ValueShape::integer(48, 8)));
+    for mutation in 0..6 {
+        let mut changed = types.clone();
+        match mutation {
+            0 => {
+                changed[0].shape = StructuralTypeShape::FixedArray {
+                    element: record,
+                    length: u64::MAX,
+                }
+            }
+            1 => {
+                changed[0].shape = StructuralTypeShape::FixedArray {
+                    element: array,
+                    length: 3,
+                }
+            }
+            2 => {
+                changed[0].shape = StructuralTypeShape::FixedArray {
+                    element: borrowed_view,
+                    length: 3,
+                }
+            }
+            3 => changed[1].id = StructuralTypeId::new(99).unwrap(),
+            4 => changed.push(changed[1].clone()),
+            _ => {
+                changed[1].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    IntegerType::address(64).unwrap(),
+                ))
+            }
+        }
+        assert_eq!(shape(array, &changed), None, "changed geometry {mutation}");
+    }
+}
+
+#[test]
 fn inline_array_arguments_do_not_admit_stack_or_indirect_results() {
     use crate::selection::aggregate_result_input::{direct_fragments, inline_argument_fragments};
     for (policy, prefix) in [

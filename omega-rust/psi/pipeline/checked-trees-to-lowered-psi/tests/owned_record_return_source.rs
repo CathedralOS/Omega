@@ -16,12 +16,14 @@ fn typed_source(source: &str) -> typed_trees::TypedTrees {
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
-fn fixture(property: &str, parameters: &str, prefix: &str) -> CheckedTrees {
+fn fixture(property: &str, carrier: &str, parameters: &str, prefix: &str) -> CheckedTrees {
     let source = format!(
         "data Record {property} {{ first: u64; second: u64; third: u64; }}
+         data Entry {{ value: u64; }}
+         data Buffer<T> {{ entries: [T; 3]; }}
          machine identity(value: u64) -> u64 {{ value }}
          machine stamp(output: &mut u64, value: u64) -> u64 {{ output = value; value }}
-         machine retain(mask: u64, {parameters} record: Record) -> Record {{ {prefix} record }}"
+         machine retain(mask: u64, {parameters} record: {carrier}) -> {carrier} {{ {prefix} record }}"
     );
     typed_trees_to_checked_trees::lower_typed_trees(typed_source(&source)).unwrap()
 }
@@ -221,9 +223,14 @@ fn structural_return_requires_remaining_affine_input_cleanup_evidence() {
 }
 
 #[test]
-fn discarded_scalar_invocation_precedes_whole_record_return() {
-    for property in ["", "[copy]"] {
-        let checked = fixture(property, "", "_ = identity(mask);");
+fn discarded_scalar_invocation_precedes_whole_owned_return() {
+    for (property, carrier) in [
+        ("", "Record"),
+        ("[copy]", "Record"),
+        ("", "[Entry; 3]"),
+        ("", "Buffer<Entry>"),
+    ] {
+        let checked = fixture(property, carrier, "", "_ = identity(mask);");
         let source = checked
             .machines()
             .iter()
@@ -244,7 +251,10 @@ fn discarded_scalar_invocation_precedes_whole_record_return() {
         assert!(plan.structural_result.is_some());
         let artifact = terminal_production::TerminalProductionRequest::new(&checked, "retain")
             .produce_artifact()
-            .expect("discarded scalar result must not erase its call or record return");
+            .unwrap_or_else(|error| panic!("{property} {carrier}: {error:?}"));
+        let artifact =
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+        drop(checked);
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
         terminal_verifier::verify_module(
@@ -261,6 +271,7 @@ fn effectful_discarded_call_writes_before_return_across_fuel() {
     for property in ["", "[copy]"] {
         let checked = fixture(
             property,
+            "Record",
             "output: &mut u64,",
             "_ = stamp(&mut output, mask); let final_value: u64 = identity(73); _ = stamp(&mut output, final_value);",
         );
@@ -328,25 +339,60 @@ fn effectful_discarded_call_writes_before_return_across_fuel() {
 }
 
 #[test]
-fn source_replay_rejects_same_typed_return_parameter_substitution() {
-    let mut checked = fixture("[copy]", "other: Record,", "_ = identity(mask);");
-    let source = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "retain")
-        .unwrap()
-        .symbol;
-    let plan = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .iter_mut()
-        .find(|plan| plan.machine == source)
-        .unwrap();
-    plan.structural_result.as_mut().unwrap().source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 };
-    assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "retain").is_err());
+fn source_replay_rejects_return_parameter_and_carrier_substitution() {
+    for (property, carrier, wrong_carrier) in [
+        ("[copy]", "Record", "Entry"),
+        ("", "[Entry; 3]", "[Entry; 2]"),
+        ("", "Buffer<Entry>", "Buffer<u64>"),
+    ] {
+        let original = fixture(
+            property,
+            carrier,
+            &format!("other: {carrier},"),
+            "_ = identity(mask);",
+        );
+        let _ = terminal_production::TerminalProductionRequest::new(&original, "retain")
+            .produce_artifact()
+            .unwrap_or_else(|error| panic!("{carrier} before mutation: {error:?}"));
+        let source = original
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "retain")
+            .unwrap()
+            .symbol;
+        for mutation in ["parameter", "carrier"] {
+            let mut changed = original.clone();
+            let plan = changed
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter_mut()
+                .find(|plan| plan.machine == source)
+                .unwrap();
+            let result = plan.structural_result.as_mut().unwrap();
+            match mutation {
+                "parameter" => {
+                    result.source =
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                            parameter_index: 0,
+                        };
+                }
+                _ => {
+                    // Keep the plan's parameter and result consistent with each other,
+                    // but substitute a carrier different from the source declaration.
+                    result.type_identity = wrong_carrier.into();
+                    plan.structural_parameters[1].type_identity = wrong_carrier.into();
+                }
+            }
+            assert!(
+                terminal_production::TerminalProductionRequest::new(&changed, "retain")
+                    .produce_artifact()
+                    .is_err(),
+                "{carrier}: substituted return {mutation}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -363,44 +409,136 @@ fn consumed_affine_parameter_cannot_be_returned() {
 
 #[test]
 fn source_replay_requires_the_exact_affine_return_transfer() {
-    let original = fixture("", "", "_ = identity(mask);");
-    let machine = original
-        .machines()
+    for carrier in ["Record", "[Entry; 3]", "Buffer<Entry>"] {
+        let original = fixture("", carrier, "", "_ = identity(mask);");
+        let _ = terminal_production::TerminalProductionRequest::new(&original, "retain")
+            .produce_artifact()
+            .unwrap_or_else(|error| panic!("{carrier} before mutation: {error:?}"));
+        let machine = original
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "retain")
+            .unwrap()
+            .symbol;
+        let handle = original
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .find_map(|(handle, event)| {
+                (event.machine_symbol == machine
+                    && event.kind == language_semantics::PermissionEventKind::Transfer
+                    && event.source
+                        == language_semantics::PermissionEventSource::Statement {
+                            statement_index: 1,
+                        })
+                .then_some(handle)
+            })
+            .expect("authored affine return retains its statement transfer");
+        for mutation in 0..4 {
+            let mut changed = original.clone();
+            let permissions = &mut changed.facts.flow.ownership.permissions;
+            match mutation {
+                0 => permissions.get_mut(handle).machine_symbol = Default::default(),
+                1 => {
+                    permissions.get_mut(handle).multiplicity =
+                        language_semantics::Multiplicity::Unrestricted
+                }
+                2 => permissions.get_mut(handle).obligation_live = true,
+                _ => {
+                    permissions.append(permissions.get(handle).clone());
+                }
+            }
+            assert!(
+                terminal_production::TerminalProductionRequest::new(&changed, "retain")
+                    .produce_artifact()
+                    .is_err(),
+                "{carrier}: changed return transfer {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn owned_array_call_results_return_without_fabricated_claims() {
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_source(
+        "data Entry { value: u64; }
+         machine forward(values: [Entry; 3]) -> [Entry; 3] { values }
+         machine relay(values: [Entry; 3]) -> [Entry; 3] {
+             let first: [Entry; 3] = forward(values);
+             forward(first)
+         }",
+    ))
+    .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "relay")
+        .produce_artifact()
+        .expect("a call-produced owned array uses its exact live owner at return");
+    let artifact =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+    drop(checked);
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    let entry_position = module
+        .machines
         .iter()
-        .find(|machine| machine.name.as_str() == "retain")
-        .unwrap()
-        .symbol;
-    let handle = original
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .find_map(|(handle, event)| {
-            (event.machine_symbol == machine
-                && event.kind == language_semantics::PermissionEventKind::Transfer
-                && event.source
-                    == language_semantics::PermissionEventSource::Statement { statement_index: 1 })
-            .then_some(handle)
-        })
-        .expect("authored affine return retains its statement transfer");
-    for mutation in 0..4 {
-        let mut changed = original.clone();
-        let permissions = &mut changed.facts.flow.ownership.permissions;
+        .position(|machine| machine.id == module.entry)
+        .unwrap();
+    let entry = &module.machines[entry_position];
+    let input = TerminalStructuralValue {
+        opaque_identity: 73,
+        structural_type: entry.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        std::slice::from_ref(&input),
+    )
+    .unwrap();
+    let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(64);
+    let TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(result)) =
+        execution.resume(&mut fuel).unwrap()
+    else {
+        panic!("whole owned array call chain completes");
+    };
+    assert_eq!(result.value, input);
+    assert!(result.claims.is_empty());
+    for mutation in 0..3 {
+        let mut changed = module.clone();
+        let caller = &mut changed.machines[entry_position];
+        let consumed_input = caller.structural_parameters[0].place;
+        let returned = caller
+            .blocks
+            .iter_mut()
+            .find_map(|block| match &mut block.terminator {
+                terminal_psi::Terminator::ReturnStructural {
+                    source,
+                    returned_claims,
+                    trivial_affine_discards,
+                    ..
+                } => Some((source, returned_claims, trivial_affine_discards)),
+                _ => None,
+            })
+            .unwrap();
         match mutation {
-            0 => permissions.get_mut(handle).machine_symbol = Default::default(),
-            1 => {
-                permissions.get_mut(handle).multiplicity =
-                    language_semantics::Multiplicity::Unrestricted
-            }
-            2 => permissions.get_mut(handle).obligation_live = true,
-            _ => {
-                permissions.append(permissions.get(handle).clone());
-            }
+            0 => *returned.0 = consumed_input,
+            1 => returned
+                .1
+                .push(semantic_vocabulary::ClaimId::new(1).unwrap()),
+            _ => returned.2.push(*returned.0),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "retain").is_err(),
-            "changed return transfer {mutation}"
+            terminal_verifier::verify_module(
+                &changed,
+                &proof,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .is_err(),
+            "return must reject consumed owners, fabricated claims and double disposal: {mutation}"
         );
     }
 }
