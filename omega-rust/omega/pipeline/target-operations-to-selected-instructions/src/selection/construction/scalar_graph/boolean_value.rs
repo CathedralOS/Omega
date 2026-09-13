@@ -128,7 +128,7 @@ pub(super) fn emit_branch_comparison(
     if !control::branch_suffix(source, block, operation_index) {
         return Err(invalid());
     }
-    if let Some(zero) = zero_compare::folded_zero(source, block, operation_index) {
+    if let Some(zero) = super::literal_compare::folded_zero(source, block, operation_index) {
         let input = if *left == zero.result.ok_or_else(invalid)?.value {
             *right
         } else {
@@ -146,6 +146,46 @@ pub(super) fn emit_branch_comparison(
                 operations: vec![zero.operation, operation.operation],
                 values: vec![input, zero.result.ok_or_else(invalid)?.value, result.value],
                 fuel: zero.fuel.iter().chain(&operation.fuel).copied().collect(),
+                ..Default::default()
+            },
+        )?;
+        return Ok(());
+    }
+    if let Some(immediate) =
+        super::literal_compare::folded_immediate(source, block, operation_index)
+    {
+        let immediate_value = match immediate.kind {
+            LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(value)) => value,
+            _ => return Err(invalid()),
+        };
+        let input = if *left == immediate.result.ok_or_else(invalid)?.value {
+            *right
+        } else {
+            *left
+        };
+        let (_, register, _, actual_type) = builder.resolve(input).ok_or_else(invalid)?;
+        if actual_type != *operand_type || scalar_type != ScalarType::Boolean {
+            return Err(invalid());
+        }
+        builder.emit(
+            SelectedInstructionKind::CompareI64Immediate {
+                immediate: IntegerValue::Unsigned(immediate_value),
+            },
+            builder.constraints.keys.compare_i64_immediate,
+            &[register],
+            SelectedInstructionProvenance {
+                operations: vec![immediate.operation, operation.operation],
+                values: vec![
+                    input,
+                    immediate.result.ok_or_else(invalid)?.value,
+                    result.value,
+                ],
+                fuel: immediate
+                    .fuel
+                    .iter()
+                    .chain(&operation.fuel)
+                    .copied()
+                    .collect(),
                 ..Default::default()
             },
         )?;

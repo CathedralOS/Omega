@@ -15,13 +15,13 @@ mod byte_output;
 mod control;
 mod ieee_comparison;
 mod integer_conversion;
+mod literal_compare;
 mod process_exit;
 mod scalar_call;
 mod scalar_stack;
 mod structural;
 mod structural_case;
 mod unit_call;
-mod zero_compare;
 
 #[cfg(test)]
 mod tests;
@@ -242,7 +242,8 @@ pub(super) fn build_with_environment(
             {
                 continue;
             }
-            if zero_compare::folded_zero(source, block, operation_index + 1).is_some()
+            if (literal_compare::folded_zero(source, block, operation_index + 1).is_some()
+                || literal_compare::folded_immediate(source, block, operation_index + 1).is_some())
                 && control::branch_suffix(source, block, operation_index + 1)
             {
                 continue;

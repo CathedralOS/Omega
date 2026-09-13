@@ -16,6 +16,7 @@ mod byte_input;
 mod byte_output;
 mod control;
 mod ieee_comparison;
+mod literal_compare;
 mod process_exit;
 mod provenance;
 mod register_entry;
@@ -24,7 +25,6 @@ mod scalar_stack;
 mod structural;
 mod structural_case;
 mod unit_call;
-mod zero_compare;
 
 #[cfg(test)]
 mod raw_input_tests;
@@ -138,7 +138,9 @@ pub(in crate::selection) fn validate_with_environment(
             {
                 continue;
             }
-            if zero_compare::folded_zero(source, source_block, operation_index + 1).is_some()
+            if (literal_compare::folded_zero(source, source_block, operation_index + 1).is_some()
+                || literal_compare::folded_immediate(source, source_block, operation_index + 1)
+                    .is_some())
                 && control::branch_suffix(source, source_block, operation_index + 1)
             {
                 continue;
@@ -181,7 +183,7 @@ pub(in crate::selection) fn validate_with_environment(
                             return Err(invalid());
                         }
                         if let Some(zero) =
-                            zero_compare::folded_zero(source, source_block, operation_index)
+                            literal_compare::folded_zero(source, source_block, operation_index)
                         {
                             let input = if *left == zero.result.ok_or_else(invalid)?.value {
                                 *right
@@ -205,6 +207,49 @@ pub(in crate::selection) fn validate_with_environment(
                                         result.value,
                                     ],
                                     fuel: zero
+                                        .fuel
+                                        .iter()
+                                        .chain(&operation.fuel)
+                                        .copied()
+                                        .collect(),
+                                    ..Default::default()
+                                },
+                            )?;
+                            continue;
+                        }
+                        if let Some(immediate) =
+                            literal_compare::folded_immediate(source, source_block, operation_index)
+                        {
+                            let immediate_value = match immediate.kind {
+                                LegalizedScalarInstructionKind::Constant(
+                                    IntegerValue::Unsigned(value),
+                                ) => value,
+                                _ => return Err(invalid()),
+                            };
+                            let input = if *left == immediate.result.ok_or_else(invalid)?.value {
+                                *right
+                            } else {
+                                *left
+                            };
+                            let (_, register, _, actual_type) =
+                                replay.resolve(input).ok_or_else(invalid)?;
+                            if actual_type != *operand_type || scalar_type != ScalarType::Boolean {
+                                return Err(invalid());
+                            }
+                            replay.check_instruction(
+                                SelectedInstructionKind::CompareI64Immediate {
+                                    immediate: IntegerValue::Unsigned(immediate_value),
+                                },
+                                constraints.keys.compare_i64_immediate,
+                                &[register],
+                                &SelectedInstructionProvenance {
+                                    operations: vec![immediate.operation, operation.operation],
+                                    values: vec![
+                                        input,
+                                        immediate.result.ok_or_else(invalid)?.value,
+                                        result.value,
+                                    ],
+                                    fuel: immediate
                                         .fuel
                                         .iter()
                                         .chain(&operation.fuel)
