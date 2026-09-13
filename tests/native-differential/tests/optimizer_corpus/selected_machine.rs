@@ -112,6 +112,40 @@ pub(super) fn exercise_host_native_ieee_compare(
     super::native::assert_bool_result(&first.layout, expected_boolean(artifact));
 }
 
+pub(super) fn exercise_exact_traps(case: &super::exact_traps::TrapCase, artifact: &CorpusArtifact) {
+    let first_x86 = run_machine(case.ordinal, artifact, NativeTarget::linux_x64());
+    let second_x86 = run_machine(case.ordinal, artifact, NativeTarget::linux_x64());
+    assert_eq!(
+        first_x86, second_x86,
+        "exact-trap x86 corpus case drifted: {case:?}"
+    );
+    let first_aarch64 = run_machine(case.ordinal, artifact, NativeTarget::linux_arm64());
+    let second_aarch64 = run_machine(case.ordinal, artifact, NativeTarget::linux_arm64());
+    assert_eq!(
+        first_aarch64, second_aarch64,
+        "exact-trap AArch64 corpus case drifted: {case:?}"
+    );
+}
+
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+))]
+pub(super) fn exercise_host_native_exact_traps(
+    case: &super::exact_traps::TrapCase,
+    artifact: &CorpusArtifact,
+) {
+    let target = NativeTarget::host();
+    let first = run_machine(case.ordinal, artifact, target);
+    let second = run_machine(case.ordinal, artifact, target);
+    assert_eq!(
+        first, second,
+        "host-native exact-trap corpus case drifted: {case:?}"
+    );
+    super::native::assert_u64_result(&first.layout, expected_unsigned(artifact));
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PsiEvidence {
     unit: optimization_core::OptimizationUnitIdentity,

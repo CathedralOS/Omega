@@ -1,19 +1,24 @@
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, IeeeFloatComparisonOperation, IeeeFloatFormat, IeeeFloatValue,
-    IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
+    BlockId, ContractId, EdgeId, EvidenceIdentity, IeeeFloatComparisonOperation, IeeeFloatFormat,
+    IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
+    ScalarType, ValueId,
 };
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
-    Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    Block, CertificateEnvelope, EvidenceRoute, MachineContract, ObligationEvidence, Operation,
+    OperationKind, OperationResult, ProofSystemMarker, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::ProofBundle;
 
-use super::{generator::LaneInput, ieee_compare::CompareCase};
+use super::{
+    exact_traps::{TrapCase, TrapOperation},
+    generator::LaneInput,
+    ieee_compare::CompareCase,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum CorpusExpected {
@@ -57,6 +62,23 @@ pub(super) fn ieee_compare_artifact(
     )
 }
 
+pub(super) fn exact_trap_artifact(
+    ordinal: usize,
+    case: &TrapCase,
+    lane_base: u64,
+) -> CorpusArtifact {
+    build_artifact(
+        ordinal,
+        lane_base,
+        Leaf::ExactTrap {
+            operation: case.operation,
+            left: case.left,
+            right: case.right,
+            expected: case.expected,
+        },
+    )
+}
+
 #[derive(Clone, Copy)]
 enum Leaf {
     WrappingAdd(LaneInput),
@@ -66,6 +88,12 @@ enum Leaf {
         left_bits: u64,
         right_bits: u64,
         expected: bool,
+    },
+    ExactTrap {
+        operation: TrapOperation,
+        left: u64,
+        right: u64,
+        expected: u64,
     },
 }
 
@@ -129,6 +157,74 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
             right,
         },
     };
+    let narrow_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let trap_leaf = |operation: TrapOperation,
+                     left,
+                     right,
+                     obligation,
+                     left_id,
+                     right_id,
+                     result_id,
+                     left_operation,
+                     right_operation,
+                     combine_operation| {
+        match operation {
+            TrapOperation::ExactAdd | TrapOperation::ExactSubtract | TrapOperation::ExactDivide => {
+                let kind = match operation {
+                    TrapOperation::ExactAdd => OperationKind::ExactIntegerAdd {
+                        left: left_id,
+                        right: right_id,
+                        obligation,
+                    },
+                    TrapOperation::ExactSubtract => OperationKind::ExactIntegerSubtract {
+                        left: left_id,
+                        right: right_id,
+                        obligation,
+                    },
+                    TrapOperation::ExactDivide => OperationKind::ExactIntegerDivide {
+                        left: left_id,
+                        right: right_id,
+                        obligation,
+                    },
+                    TrapOperation::NarrowingCast => unreachable!("binary trap leaf match"),
+                };
+                vec![
+                    literal(left_operation, left_id, left),
+                    literal(right_operation, right_id, right),
+                    Operation {
+                        static_reach_binding: None,
+                        id: combine_operation,
+                        result: OperationResult::Scalar(declaration(
+                            result_id,
+                            integer_scalar_type,
+                        )),
+                        kind,
+                    },
+                ]
+            }
+            TrapOperation::NarrowingCast => vec![
+                literal(left_operation, left_id, left),
+                Operation {
+                    static_reach_binding: None,
+                    id: right_operation,
+                    result: OperationResult::Scalar(declaration(
+                        right_id,
+                        ScalarType::Integer(narrow_type),
+                    )),
+                    kind: OperationKind::IntegerExactCast {
+                        operand: left_id,
+                        obligation,
+                    },
+                },
+                Operation {
+                    static_reach_binding: None,
+                    id: combine_operation,
+                    result: OperationResult::Scalar(declaration(result_id, integer_scalar_type)),
+                    kind: OperationKind::IntegerWiden { operand: right_id },
+                },
+            ],
+        }
+    };
     let (true_operations, false_operations, add_operations, expected, machine_scalar_type) =
         match leaf {
             Leaf::WrappingAdd(input) => (
@@ -184,6 +280,40 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 Vec::new(),
                 CorpusExpected::Boolean(expected),
                 ScalarType::Boolean,
+            ),
+            Leaf::ExactTrap {
+                operation,
+                left,
+                right,
+                expected,
+            } => (
+                trap_leaf(
+                    operation,
+                    left,
+                    right,
+                    ObligationId::new(base + 24).unwrap(),
+                    true_left,
+                    true_right,
+                    true_result,
+                    true_left_operation,
+                    true_right_operation,
+                    true_add_operation,
+                ),
+                trap_leaf(
+                    operation,
+                    left,
+                    right,
+                    ObligationId::new(base + 25).unwrap(),
+                    false_left,
+                    false_right,
+                    false_result,
+                    false_left_operation,
+                    false_right_operation,
+                    false_add_operation,
+                ),
+                Vec::new(),
+                CorpusExpected::Unsigned(expected),
+                integer_scalar_type,
             ),
         };
     let module = TerminalModule {
@@ -294,7 +424,11 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
-        evidence: Vec::new(),
+        evidence: if matches!(leaf, Leaf::ExactTrap { .. }) {
+            canonical_integer_evidence(&module)
+        } else {
+            Vec::new()
+        },
     };
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let proof = terminal_codec::encode_proof_bundle(&proof).unwrap();
@@ -324,4 +458,54 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
         expected,
         add_operations,
     }
+}
+
+/// Builds canonical-certificate evidence for every reconstructed operation
+/// obligation in the corpus machine. Exact integer leaves admit canonical
+/// certificate goals, so each obligation carries a checked proof rather than
+/// the trivially-trusted kernel route used by obligation-free lanes.
+fn canonical_integer_evidence(module: &TerminalModule) -> Vec<ObligationEvidence> {
+    let validated = terminal_verifier::validate_module(module).unwrap();
+    let questions = terminal_verifier::reconstruct_operation_obligations(module).unwrap();
+    assert_eq!(questions.len(), 2, "each trap arm must own one obligation");
+    let mut evidence = questions
+        .iter()
+        .map(|question| {
+            assert!(
+                question.canonical_certificate,
+                "trap corpus obligation must admit a canonical certificate"
+            );
+            let machine = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == question.owner.machine())
+                .expect("reconstructed operation owner belongs to the corpus module");
+            let context = validated.value_context(machine).unwrap();
+            let machine_parameter_values = machine
+                .parameters
+                .iter()
+                .map(|parameter| parameter.id)
+                .collect();
+            let proof = checked_trees_to_lowered_psi::produce_checked_canonical_integer_proof(
+                &context,
+                &question.obligation.proposition,
+                &machine.contract.requires,
+                &question.semantic_axioms,
+                &machine_parameter_values,
+            )
+            .unwrap_or_else(|| {
+                panic!("trap corpus obligation must prove a canonical integer certificate")
+            });
+            ObligationEvidence {
+                obligation: question.obligation.id,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(question.obligation.id.get()).unwrap(),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof,
+                }),
+            }
+        })
+        .collect::<Vec<_>>();
+    evidence.sort_by_key(|evidence| evidence.obligation);
+    evidence
 }

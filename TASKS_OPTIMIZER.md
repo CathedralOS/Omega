@@ -121,8 +121,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   (`tests/native-differential/tests/optimizer_corpus/ieee_compare.rs`, 64
   cases, NaN/signed-zero/infinity/subnormal mixtures) replays on x86-64 and
   AArch64 and executes natively on Linux x86-64 with host `f64` as a third
-  oracle. Remaining: trap, atomic, placed-memory, cleanup, and transition
-  lanes.
+  oracle. Landed: the seeded exact/trapping integer lane
+  (`tests/native-differential/tests/optimizer_corpus/exact_traps.rs`, 64
+  cases) drives `ExactIntegerAdd`, `ExactIntegerSubtract`,
+  `ExactIntegerDivide`, and u64→u8 `IntegerExactCast`/`IntegerWiden` leaves
+  through canonical-certificate obligations at representability boundaries,
+  replays deterministically on x86-64 and AArch64 selected machines, and
+  carries the same cfg-gated host-native execution on Linux x86-64, Linux
+  AArch64, and macOS AArch64. Remaining: atomic, placed-memory, cleanup,
+  and transition lanes.
 
 - **CUSTODY-MUTATION-COVERAGE.** Complete authenticated one-field mutation
   tests for every remaining manifest, receipt, codec, and artifact-custody
