@@ -152,6 +152,50 @@ fn folded_result_replay_rejects_paired_literal_forgery_and_lost_owner() {
 }
 
 #[test]
+fn independent_and_selected_lengths_share_full_width_integer_decoding() {
+    for (carrier, result) in [("u64", "18446744073709551615"), ("i64", "-1")] {
+        let source = format!(
+            "machine length() -> {carrier} {{ {result} }} data Main {{ bytes: [u8; length()]; }}"
+        );
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens)
+                .unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let mut selected =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let mut independent = selected.clone();
+        let independent_result = evaluate_const_array_lengths(&mut independent);
+        let selected_result = evaluate_with_selected_operators(&mut selected, None, &[]);
+        if carrier == "i64" || usize::BITS < 64 {
+            assert!(independent_result.is_err());
+            assert!(selected_result.is_err());
+            continue;
+        }
+        // This checks length substitution only, not permission to allocate an
+        // enormous array. Placement and resource supply remain later checks.
+        independent_result.expect("unsigned length is not a negative host integer");
+        let folds = selected_result.expect("selected fold uses the same integer value");
+        assert_eq!(folds.len(), 1);
+        assert_eq!(folds[0].value, usize::MAX);
+        assert_eq!(
+            independent
+                .type_reference_table
+                .fixed_array_lengths()
+                .collect::<Vec<_>>(),
+            selected
+                .type_reference_table
+                .fixed_array_lengths()
+                .collect::<Vec<_>>()
+        );
+        validate_folded_array_lengths(&selected, &folds, &[], None)
+            .expect("independent replay retains the unsigned result");
+    }
+}
+
+#[test]
 fn equal_signature_authored_boundary_cannot_claim_float_semantics() {
     let (typed, rows) = fixture("Math");
     assert!(!rows.is_empty());

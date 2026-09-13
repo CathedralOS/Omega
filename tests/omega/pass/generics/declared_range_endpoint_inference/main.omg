@@ -13,6 +13,11 @@ machine limit() -> u64 { 256 }
 machine named(value: u64[0..=limit()]) -> u64 { upper_bound(value) }
 machine call_named() -> u64 { named(256) }
 machine named_exclusive(value: u64[0..limit()]) -> u64 { upper_bound(value) }
+machine wide_limit() -> u64 { 18446744073709551615 }
+machine named_full_width(value: u64[0..=wide_limit()]) -> u64 { upper_bound(value) }
+machine named_full_width_exclusive(value: u64[0..wide_limit()]) -> u64 { upper_bound(value) }
+machine negative_limit() -> i64 { -1 }
+machine named_signed(value: i64[-2..=negative_limit()]) -> i64 { value }
 machine exclusive_full_u64(value: u64[0..18446744073709551616]) -> u64 { upper_bound(value) }
 machine inclusive_to_exclusive(value: u64[0..=256]) -> u64 { exclusive_upper_bound(value) }
 machine exclusive_to_inclusive(value: u64[0..257]) -> u64 { upper_bound(value) }

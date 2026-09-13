@@ -77,7 +77,7 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
                 "const-generic evaluation of `{machine_name}()` failed: {reason}"
             ))]
         })?;
-        let value = u64::try_from(value).map_err(|_| {
+        let value = value.to_u64().ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "const-generic evaluation of `{machine_name}()` returned {value}, but const data arguments must be non-negative"
             ))]

@@ -26,6 +26,7 @@
 //! host widths.
 
 use diagnostics::Diagnostic;
+use numerics::bignum::BigInt;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
@@ -281,11 +282,11 @@ fn evaluate_exact_invocation(
         Vec::new(),
         crate::BuildTimeInvocationCustody::Source(source),
     )?;
-    let crate::BuildTimeValue::Int(value) = value else {
-        return Err("array length machine must return an integer".into());
-    };
-    usize::try_from(value)
-        .map_err(|_| "array length must be nonnegative and fit the compiler range".into())
+    let value = decode_integer_result(typed, machine, value)?;
+    value
+        .to_u64()
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| "array length must be nonnegative and fit the compiler range".into())
 }
 
 fn evaluate_one(
@@ -301,21 +302,25 @@ fn evaluate_one(
         "array length",
         crate::BuildTimeInvocationCustody::Source(source_span),
     )?;
-    if value < 0 {
+    if value.is_negative() {
         return Err(format!(
             "the call returned {value}, but an array length must be a non-negative integer"
         ));
     }
-    usize::try_from(value)
-        .map_err(|_| format!("the call returned {value}, which does not fit an array length"))
+    value
+        .to_u64()
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| format!("the call returned {value}, which does not fit an array length"))
 }
 
+/// Evaluate an admitted integer result as a mathematical value, not host-signed
+/// interpreter bits. Each receiving const position owns its final fit check.
 pub fn evaluate_zero_argument_machine(
     typed: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
     machine_name: &str,
     position: &str,
-) -> Result<i64, String> {
+) -> Result<BigInt, String> {
     evaluate_zero_argument_machine_with_optional_custody(
         typed,
         admission,
@@ -325,13 +330,14 @@ pub fn evaluate_zero_argument_machine(
     )
 }
 
+/// Preserve source invocation custody while decoding the declared result carrier.
 pub fn evaluate_zero_argument_machine_for_invocation(
     typed: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
     machine_name: &str,
     position: &str,
     custody: crate::BuildTimeInvocationCustody,
-) -> Result<i64, String> {
+) -> Result<BigInt, String> {
     evaluate_zero_argument_machine_with_optional_custody(
         typed,
         admission,
@@ -347,7 +353,7 @@ fn evaluate_zero_argument_machine_with_optional_custody(
     machine_name: &str,
     position: &str,
     custody: Option<crate::BuildTimeInvocationCustody>,
-) -> Result<i64, String> {
+) -> Result<BigInt, String> {
     let machine = typed
         .machines()
         .iter()
@@ -373,19 +379,40 @@ fn evaluate_zero_argument_machine_with_optional_custody(
         )?,
         None => admission.evaluate_const_evaluable_machine(typed, machine_name, Vec::new())?,
     };
-    let crate::BuildTimeValue::Int(value) = value else {
-        let entry = entry_state(typed, machine);
-        return match entry.and_then(|state| typed.primitive_type_reference(state.return_type)) {
-            Some(primitive) => Err(format!(
-                "machine `{machine_name}` returns `{}`, not an integer type",
-                primitive.name()
-            )),
-            None => Err(format!(
-                "machine `{machine_name}` does not declare an integer return type"
-            )),
-        };
-    };
-    Ok(value)
+    decode_integer_result(typed, machine, value)
+}
+
+/// Interpreter integers carry fixed-width bits in an i64 slot. Decode using
+/// the admitted callee's return carrier before a const position narrows them:
+/// u64::MAX is positive, while the same bits returned as i64 denote -1.
+/// Array lengths, generic arguments and range endpoints share this conversion;
+/// range normalization must never see a host-signed reinterpretation.
+fn decode_integer_result(
+    typed: &TypedTrees,
+    machine: &Machine,
+    value: crate::BuildTimeValue,
+) -> Result<BigInt, String> {
+    let machine_name = machine.name.as_str();
+    let primitive = entry_state(typed, machine)
+        .and_then(|state| typed.primitive_type_reference(state.return_type));
+    if let (Some(primitive), crate::BuildTimeValue::Int(value)) = (primitive, &value)
+        && primitive.accepts_integer_literal()
+    {
+        return Ok(if primitive.is_signed_integer() {
+            BigInt::from_i64(*value)
+        } else {
+            BigInt::from_u64(*value as u64)
+        });
+    }
+    match primitive {
+        Some(primitive) => Err(format!(
+            "machine `{machine_name}` returns `{}`, not an integer type",
+            primitive.name()
+        )),
+        None => Err(format!(
+            "machine `{machine_name}` does not declare an integer return type"
+        )),
+    }
 }
 
 /// The parameter count of the machine's entry state (the body of a free
