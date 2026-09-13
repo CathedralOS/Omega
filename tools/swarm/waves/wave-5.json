@@ -1,0 +1,235 @@
+{
+  "wave": "w5",
+  "max_acu_limit": 10,
+  "devin_mode": "fusion",
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "w5"],
+  "owner_label_prefix": "Jarod / swarm-w5",
+  "exclusions": [
+    "ADDRESS-TRANSLATION-CANARY",
+    "ALPHA-WINDOWS-CONFORMANCE",
+    "ANALYSIS-REVISION-REUSE",
+    "BOOTSTRAP-RUNTIME-SOURCE",
+    "BOUNDARY-QUALIFICATION-PRESERVATION",
+    "BOUNDED-INSTALLATION-REACH-ROWS",
+    "BUILD-PRODUCT-REFERENCES",
+    "BUILD-SEMANTIC-EXCLUSIONS",
+    "BUMP-ALLOCATOR-CANARY",
+    "CALLBACK-PARAMETER-REQUIREMENT",
+    "CASE-CONSTRAINTS",
+    "CHAIN-MANIFEST",
+    "CODEC-LINEAGE-CLOSURE",
+    "CRASH-CONTRACT",
+    "CUSTODY-MUTATION-COVERAGE",
+    "DECLARATIVE-PEEPHOLES",
+    "EXACT-MACHINE-SIMPLIFICATIONS",
+    "EXCEPTION-ROOTS-AND-TIMER",
+    "FILESYSTEM-RELEASE-CONTRACT",
+    "GAMMA-DERIVATION-CHECKER",
+    "GAMMA-PRODUCT-COMPARISON",
+    "GENERAL-CALL-CLOBBERS",
+    "MACOS-APPLICATION-PUBLICATION",
+    "MATCH-SELECTIVE-LOWERING",
+    "MODULE-NAMESPACE-RESOLUTION",
+    "NOMINAL-FIELD-FLOW",
+    "OFFLINE-REBUILD",
+    "OMEGA-D",
+    "OPERATOR-MACHINE-SUPPLY",
+    "PLAN-LAID-VIEWS",
+    "PROOF-RELEVANCE-MIGRATION",
+    "PSI-PRE-TERMINAL-OPTIMIZATION",
+    "SPILL-REALIZATION",
+    "SQUALR-HEADLESS",
+    "STRICT-FLOAT-RANGES",
+    "STRUCTURAL-BORROW-IDENTITY",
+    "STRUCTURAL-GENERIC-MATCHING",
+    "TERMINATION-RANKING-CHECKS",
+    "TPR6",
+    "WRITE-ONLY-BORROW"
+  ],
+  "sessions": [
+    {
+      "name": "access-plan-placed",
+      "board": "TASKS.md",
+      "item": "ACCESS-PLAN-AND-PLACED",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/foundation/access-plans/src/placement_admission.rs",
+        "omega-rust/psi/foundation/access-plans/src/placement_authority.rs",
+        "omega-rust/psi/foundation/layout-plans/src/tests.rs"
+      ],
+      "suggested_first_slice": "Finish the public AccessPlan and Placed model as an explicit relation among semantic value, target layout, backing, and placement."
+    },
+    {
+      "name": "symbolic-materialization",
+      "board": "TASKS.md",
+      "item": "SYMBOLIC-MATERIALIZATION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/build-time-evaluation/src/layout_plans",
+        "omega-rust/psi/semantics/build-time-evaluation/src/placed_views"
+      ],
+      "suggested_first_slice": "Complete one symbolic field or index materialization path while preserving exact paths and bounds until target-dependent realization."
+    },
+    {
+      "name": "general-cyclic-execution",
+      "board": "TASKS.md",
+      "item": "GENERAL-CYCLIC-EXECUTION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow.rs",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/attached_unit",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/control_flow"
+      ],
+      "suggested_first_slice": "Complete one cyclic control-contract path with separate safety and progress validation for the existing Console-writer customer."
+    },
+    {
+      "name": "proof-kernel-core",
+      "board": "TASKS.md",
+      "item": "PROOF-KERNEL-CORE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/proof/src/checker",
+        "omega-rust/psi/semantics/proof/src/obligations.rs"
+      ],
+      "suggested_first_slice": "Build one common mathematical term or declaration rule in the independent proof checker with exact formation and rejection evidence."
+    },
+    {
+      "name": "opaque-boundary-abi",
+      "board": "TASKS.md",
+      "item": "OPAQUE-BY-VALUE-BOUNDARY-ABI",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/provider-planning/src/calling_policy_plans/opaque_representations.rs",
+        "omega-rust/omega/representations/boundary-applications/src/realization.rs",
+        "omega-rust/omega/representations/installation-evidence/src/lib.rs"
+      ],
+      "suggested_first_slice": "Complete one independently compiled opaque by-value representation agreement and rejoin its consumer demands to the producer declarations."
+    },
+    {
+      "name": "borrow-proof-convergence",
+      "board": "TASKS.md",
+      "item": "BORROW-PROOF-CONVERGENCE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/validation/src/places.rs",
+        "omega-rust/psi/semantics/validation/src/slice_ranking.rs"
+      ],
+      "suggested_first_slice": "Extend one ordinary borrow-checking range proof beyond exact shared immutable slices without creating or amplifying authority."
+    },
+    {
+      "name": "foreign-retained-args",
+      "board": "TASKS.md",
+      "item": "FOREIGN-RETAINED-ARGUMENT-BACKING",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/backend/runtime/external-roots/src/epoch_stack_demand.rs",
+        "omega-rust/omega/backend/runtime/runtime-abi/src/lib.rs"
+      ],
+      "suggested_first_slice": "Generalize one retained outbound argument beyond callbacks with explicit backing, range, access, lifetime, and revision provenance."
+    },
+    {
+      "name": "runtime-value-generics",
+      "board": "TASKS.md",
+      "item": "RUNTIME-VALUE-GENERICS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/generic_data",
+        "omega-rust/psi/representations/typed-trees/src/typed_trees/type_system"
+      ],
+      "suggested_first_slice": "Implement one scalar runtime-capable value binder through substitution while preserving checked subject typing."
+    },
+    {
+      "name": "float-providers",
+      "board": "TASKS.md",
+      "item": "FLOAT-PROVIDERS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/compiler/compiler/tests/canary_suite/providers_float_and_console",
+        "tests/omega/pass/float"
+      ],
+      "suggested_first_slice": "Complete one runtime Boolean or machine operation for exact FloatMeaning with an artifact-aware proof source and focused canary."
+    },
+    {
+      "name": "optional-stdlib-bindings",
+      "board": "TASKS.md",
+      "item": "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/package-compilation/src/semantic_bindings.rs",
+        "omega-rust/omega/compiler/compiler/src/pipeline/package"
+      ],
+      "suggested_first_slice": "Finish one package-aware ordinary std dependency edge while preserving freestanding builds and explicit semantic bindings."
+    },
+    {
+      "name": "build-admission-checkpoint",
+      "board": "TASKS.md",
+      "item": "BUILD-ADMISSION-CHECKPOINT",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/build-output/src/replayed_tree.rs",
+        "omega-rust/omega/compiler/compilation-report/src/production_manifest.rs",
+        "omega-rust/omega/compiler/compiler/src/pipeline/source_assembly"
+      ],
+      "suggested_first_slice": "Execute one admitted build machine against a coherent frontend, source, and authority snapshot before appending generated source."
+    },
+    {
+      "name": "exact-selection-families",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "EXACT-SELECTION-FAMILIES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection",
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/optimized"
+      ],
+      "suggested_first_slice": "Add one exact address-mode, compare/branch, extension, or constant-materialization selection family with independent validation."
+    },
+    {
+      "name": "allocation-refinement",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "ALLOCATION-REFINEMENT",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation"
+      ],
+      "suggested_first_slice": "Complete one coalescing, live-range-splitting, fixed-interval, or rematerialization decision while preserving aliases, liveness, and target custody."
+    },
+    {
+      "name": "frame-layout",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "FRAME-LAYOUT",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase",
+        "omega-rust/omega/backend/layout/src/sum_materialization"
+      ],
+      "suggested_first_slice": "Extend one exact nonzero-frame realization case beyond the current bounded ordinary CFG family with replayed accesses."
+    },
+    {
+      "name": "generated-differentials",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "GENERATED-DIFFERENTIALS",
+      "host": "linux",
+      "probe_only": true,
+      "owning_paths": [
+        "tests/native-differential/tests/ieee_comparisons",
+        "tests/native-differential/tests/optimizer_corpus"
+      ],
+      "suggested_first_slice": "Probe one new float or trap differential lane run natively on Linux x86-64; runtime execution now works on this host."
+    },
+    {
+      "name": "proof-certification-bridge",
+      "board": "TASKS.md",
+      "item": "PROOF-CERTIFICATION-BRIDGE",
+      "host": "linux",
+      "probe_only": true,
+      "owning_paths": [
+        "omega-rust/psi/semantics/proof-admission/src",
+        "omega-rust/psi/semantics/terminal-codec/src"
+      ],
+      "suggested_first_slice": "Probe one source-automation certificate path as an untrusted producer for the common proof-kernel checker and identify the smallest bounded rule."
+    }
+  ]
+}
