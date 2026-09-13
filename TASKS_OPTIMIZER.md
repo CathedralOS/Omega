@@ -191,7 +191,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
-  scalar and structural calls on each ABI.
+  scalar and structural calls on each ABI. Witnessed: an ordinary
+  scalar-returning caller keeping a parameter and earlier call results live
+  across later calls reports and independently replays callee-saved
+  requirements on `linux_x64` and `linux_arm64`
+  (`tests/native-differential/.../fixtures/scalar_call_preserving.rs`,
+  `.../register_allocation/callee_saved_requirements/`). Remaining:
+  structural-argument calls, the Windows x64, UEFI, and macOS preservation
+  conventions, and reload intervals that survive an intervening call
+  (`selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs`
+  excludes them).
 
 ## Machine optimization
 
