@@ -317,8 +317,12 @@ callbacks, and unused selected ordinary or generic contracts without emitted bod
 Keep the [linear structural callback regression](tests/omega/pass/effects/structural_callback_reach/README.md)
 publishing and executing after source discard while rejecting stale call and claim
 custody independently of its retained reach application.
-Broader portable coverage for inlined/missing callees, unresolved installation
-selections and independently checkable original-contract projection openings
+Unresolved installation selections keep their closed applications: provider
+bounds ride inside the conservative selected and owner rows while the
+requirement axis stays in the separate installation dependencies, so
+substitution replay and stale-row controls need no new representation.
+Broader portable coverage for inlined/missing callees and independently
+checkable original-contract projection openings
 remains required. Template/specialization commitments identify provenance;
 they do not authenticate the structured projection. Original finite dependencies
 replay against the retained source graph
