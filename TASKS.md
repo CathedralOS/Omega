@@ -1952,6 +1952,16 @@ Owners include
   binder, a common concrete result, and dispatch around a region-sized operation;
   runtime arguments depend on RUNTIME-VALUE-GENERICS, not generic JIT execution.
 
+  Resume evidence (win-w2, selected-dispatch guard slice): selected boundary
+  requirements declaring local generic binders are now excluded individually in
+  `build/selected-dispatch/src/boundary_dispatch.rs` — they retain Fused
+  service-field/parameter joins but supply no dispatch row, calls to them
+  reject instead of reaching the unbound template, and a generic machine bound
+  to a nongeneric requirement rejects. Remaining open slice: extract the exact
+  tuple roster from explicit OR/equality constraints, produce tuple-keyed
+  family rows so eligible tuples settle instead of rejecting, and retain them
+  through Terminal dynamic-call/descriptor and native table replay.
+
   Acceptance: widths 16/32/64 need no handwritten suffix-method family; source
   alternative order and duplicates normalize deterministically. One selected
   conformance covers every required tuple; missing, wrong-width, mixed-provider,
