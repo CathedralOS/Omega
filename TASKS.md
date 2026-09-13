@@ -1132,6 +1132,17 @@ Owners include
   Connect to the existing case/match lowering work below rather than introduce
   a source-shape-specific evaluator.
 
+  Landed: case members parse `where` facts, carried on `DataVariant` through
+  syntax, symbol-resolved, and typed trees; the selected case's facts fold at
+  construction through the default-domain literal fold
+  (`pass/dependent/case_where_bound_literal_proves`,
+  `fail/dependent/case_where_{reversed,unproved}_bound_rejected`, Linux). Case
+  constraints on generic data are refused
+  (`fail/dependent/case_where_generic_data_unsupported`) until generic instance
+  synthesis carries variant facts. Open: generic `T == i32` establishment,
+  match-contributed case facts, coverage, and stale facts after payload
+  writes/case replacement.
+
   Acceptance: source tests establish `Value<T>::Integer where T == i32` and
   `Boolean where T == bool`, and a generic payload-returning match checks without
   casts; wrong-index construction rejects. `Range(lo, hi) where lo <= hi` accepts
