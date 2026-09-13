@@ -16,6 +16,8 @@ use lowered_psi_to_terminal_psi::{
 use semantic_vocabulary::MachineId;
 use terminal_codec::terminal_psi_identity;
 use terminal_psi::TerminalMachineResult;
+mod receiver_eligibility;
+pub use receiver_eligibility::CheckedProgramEntryReceiverEligibility;
 /// Canonical Terminal output coupled to its non-caller-authored checked D29
 /// demand scope.
 #[derive(Debug, PartialEq, Eq)]
@@ -187,9 +189,15 @@ pub struct CheckedProgramEntryTerminalReceipt {
     source_machine_symbol: symbols::SymbolHandle,
     terminal_psi_identity: terminal_psi::TerminalPsiIdentity,
     terminal_entry: MachineId,
+    receiver_eligibility: Option<CheckedProgramEntryReceiverEligibility>,
 }
 
 impl CheckedProgramEntryTerminalReceipt {
+    /// Checked-source eligibility for zero establishment and no-code owned
+    /// receiver disposal. Absence does not reject generic Terminal production.
+    pub const fn receiver_eligibility(&self) -> Option<&CheckedProgramEntryReceiverEligibility> {
+        self.receiver_eligibility.as_ref()
+    }
     pub const fn source_signature_identity(&self) -> [u8; 32] {
         self.source_signature_identity
     }
@@ -409,6 +417,8 @@ impl<'a> TerminalProductionRequest<'a> {
             .map_err(ProgramEntryTerminalReceiptError::TerminalIdentity)
             .map_err(TerminalArtifactProductionError::EntryReceipt)?;
         let terminal_entry = optimized_lowered.semantic_module.entry;
+        let receiver_eligibility =
+            receiver_eligibility::derive(checked, selection, &optimized_lowered.semantic_module);
         let (artifact, lowered) = publish_terminal_artifact(optimized)?;
         if artifact.manifest().semantic() != terminal_psi_identity {
             return Err(TerminalArtifactProductionError::EntryReceipt(
@@ -426,6 +436,7 @@ impl<'a> TerminalProductionRequest<'a> {
                 source_machine_symbol,
                 terminal_psi_identity,
                 terminal_entry,
+                receiver_eligibility,
             },
             selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
             selected_ieee_float_comparison_occurrences: lowered

@@ -18,6 +18,16 @@ while retaining distinct output evidence. ProgramEntry checks its unique Unit
 entry before publication and rejoins the published semantic identity afterward.
 Callback rejection returns the original opaque sidecar without cloning it.
 
+ProgramEntry also retains source-derived receiver eligibility when the exact
+attached record is ZII-valid and needs no executable nominal cleanup. The
+source `Self` reference names the machine; its resolved attachment names the
+owned data. Keep both identities distinct when joining the exact Terminal self
+parameter. An absent eligibility row means free or unsupported, not permission
+to infer validity from layout. The shared cleanup query also serves ordinary
+checked cleanup planning. This receipt is checked-source correspondence, not a
+source-free proof, a storage grant, or Fused service establishment; native entry
+must still supply those independent obligations.
+
 The product keeps checked boundary-operator application scope and selected
 floating-point occurrences beside the canonical artifact. Callback custody is
 an opaque owned sidecar: carrying it does not interpret placement or grant

@@ -608,6 +608,12 @@ Owners include
   activation loan, and account for normal cleanup. A writable section, prepared
   input, or C caller supplying a receiver pointer is not that bridge.
 
+  Consume `CheckedProgramEntryTerminalReceipt::receiver_eligibility` for the
+  checked source/owned-data/Terminal-self join; a missing row cannot authorize
+  zero initialization or omitted cleanup. Empty attached entries currently erase
+  Terminal `self`, so their provisioning needs an explicit projection rather
+  than a fabricated place. Fused `Bound` establishment remains separate.
+
   For macOS, use loader-backed RW/NX zero-fill storage with explicit disjoint
   receiver, private-stack and saved-continuation ranges. Switch stacks before
   any generated spill or call, and restore the physical continuation without
