@@ -1,19 +1,37 @@
-# Native artifact
+# Native artifact custody
 
-This crate owns the authority-free, replayable join from one canonical
-Terminal-Psi artifact to its target object and final executable image. It does
-not grant publication, installation, provider, or runtime authority.
+Start at [native_artifact.rs](src/native_artifact.rs). `NativeArtifact` keeps
+the canonical Terminal artifact, target object, executable image, selected
+provider projections, and replay evidence together.
 
-## Source map
+Its lifecycle is visible there: `from_emitted_parts` derives physical evidence,
+`from_replayed_parts` reconstructs retained custody, and `validate` replays the
+joins before the artifact can be returned. Receiving-policy checks remain
+explicit; structural validation alone grants no receiving authority.
 
-- `src/lib.rs` is the crate entrance: artifact construction, selected-provider
-  projections, top-level replay, and artifact identity.
-- `src/physical/mod.rs` is the D32 entrance.
-- `src/physical/model.rs` owns replayable optimization-projection, D41 parent,
-  physical-child, span, and evidence carriers.
-- `src/physical/derivation.rs` independently derives and validates the exact
-  physical relation from Terminal semantics, object/image custody, and strong
-  selected-plan digests.
+Follow its subordinate owners for:
+
+- [dynamic_elf.rs](src/native_artifact/dynamic_elf.rs): the distinct,
+  non-installable dynamic-ELF product and its own reconstruction and validation.
+- [identity.rs](src/native_artifact/identity.rs): exact identity-field
+  serialization, including foreign-call custody. This is not a substitute for
+  replaying those fields.
+- [boundary_applications.rs](src/native_artifact/boundary_applications.rs) and
+  [mixed_structural_scalar.rs](src/native_artifact/mixed_structural_scalar.rs):
+  focused semantic-to-object checks used by both products.
+
+[callable_entry.rs](src/callable_entry.rs) is the separate entrance for staging
+and replaying optimized ordinary callable entries. Its model, reconstruction,
+and codec live under `callable_entry/`. Follow
+[physical/derivation.rs](src/physical/derivation.rs) for independent physical
+evidence reconstruction and [physical/model.rs](src/physical/model.rs) for its
+retained carriers.
+
+This crate consumes source-free inputs. It does not select source providers,
+install an artifact, or publish executable files.
+It grants no publication, installation, provider, or runtime authority.
+
+## Physical evidence scope
 
 The current physical lane is deliberately narrow: an unoptimized handoff or a
 verified Psi-phase survivor projection, exact D29 custody for supported

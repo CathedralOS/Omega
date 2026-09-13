@@ -20,8 +20,7 @@ use terminal_psi::OperationKind;
 use super::{model::*, operator_applications::derive_operator_physical_span};
 use crate::{
     NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan,
-    NativeSelectedProviderPlanDigest,
-    boundary_applications::boundary_application_coverage_identity,
+    NativeSelectedProviderPlanDigest, native_artifact::boundary_application_coverage_identity,
 };
 
 pub(crate) fn derive_physical_evidence(

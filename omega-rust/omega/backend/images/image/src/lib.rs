@@ -106,7 +106,8 @@
 //! @Note: do not decide what is dead here by grepping for type names. The
 //! `CompilerEntryRegionBindingEvidence` and `CompilerEntryFootprintBindingEvidence`
 //! types have no external occurrence of their names at all, and are both live:
-//! `native-artifact/src/lib.rs:780-796` reaches them through
+//! `NativeArtifact::recomputed_identity` in `native-artifact/src/native_artifact.rs`
+//! reaches them through
 //! `output.compiler_entry_region_binding` and destructures the fields without
 //! ever spelling the type. Acting on a name grep there would have broken a
 //! consumer crate's build.

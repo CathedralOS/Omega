@@ -154,7 +154,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_validated_optimized_object_artifact",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/artifacts/native-artifact/src/callable_entry/mod.rs",
+        path: "omega-rust/omega/backend/artifacts/native-artifact/src/callable_entry.rs",
         coordination_marker: "stage_validated_optimized_ordinary_callable_entry",
     },
     RequiredCoordinationEntrance {

@@ -2278,7 +2278,8 @@ fn component_candidate_replay_keeps_compact_identity_report_only() {
         root.join("omega-rust/omega/backend/artifacts/component-candidate/src/lib.rs");
     let component = std::fs::read_to_string(&component_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", component_path.display()));
-    let native_path = root.join("omega-rust/omega/backend/artifacts/native-artifact/src/lib.rs");
+    let native_path =
+        root.join("omega-rust/omega/backend/artifacts/native-artifact/src/native_artifact.rs");
     let native = std::fs::read_to_string(&native_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", native_path.display()));
     let effects_path =
@@ -4732,7 +4733,8 @@ fn native_provider_execution_compact_coordinates_are_report_only() {
         "decodable installation provider coordinates must remain report-only",
     );
 
-    let native_path = root.join("omega-rust/omega/backend/artifacts/native-artifact/src/lib.rs");
+    let native_path =
+        root.join("omega-rust/omega/backend/artifacts/native-artifact/src/native_artifact.rs");
     let native = std::fs::read_to_string(&native_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", native_path.display()));
     assert!(
@@ -4741,7 +4743,11 @@ fn native_provider_execution_compact_coordinates_are_report_only() {
             && native.contains("provider_execution_report_identity: u64")
             && native.contains("boundary_contract_report_fingerprint: u64")
             && native.contains("validate_provider_execution_reports")
-            && native.contains("compact_equal_execution_cannot_substitute_an_exact_requirement",),
+            && std::fs::read_to_string(root.join(
+                "omega-rust/omega/backend/artifacts/native-artifact/src/native_artifact/tests.rs",
+            ))
+            .expect("read native artifact regression tests")
+            .contains("compact_equal_execution_cannot_substitute_an_exact_requirement"),
         "native artifacts must retain strong closure identity and exact requirement replay beside compact reports",
     );
 }
