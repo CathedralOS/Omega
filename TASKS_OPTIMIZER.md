@@ -128,8 +128,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   through canonical-certificate obligations at representability boundaries,
   replays deterministically on x86-64 and AArch64 selected machines, and
   carries the same cfg-gated host-native execution on Linux x86-64, Linux
-  AArch64, and macOS AArch64. Remaining: atomic, placed-memory, cleanup,
-  and transition lanes.
+  AArch64, and macOS AArch64. Landed: the seeded affine cleanup lane
+  (`tests/native-differential/tests/optimizer_corpus/affine_cleanup.rs`, 64
+  cases) establishes zero to three claim-free empty records per conditional
+  arm through `EstablishRecord` and returns a saturating u64 sum under an
+  exact `DiscardRoot` schedule in reverse producer order, replaying
+  deterministically on x86-64 and AArch64 selected machines with the same
+  cfg-gated host-native execution on Linux x86-64, Linux AArch64, and macOS
+  AArch64. Remaining: atomic, placed-memory, and transition lanes.
 
 - **CUSTODY-MUTATION-COVERAGE.** Complete authenticated one-field mutation
   tests for every remaining manifest, receipt, codec, and artifact-custody
