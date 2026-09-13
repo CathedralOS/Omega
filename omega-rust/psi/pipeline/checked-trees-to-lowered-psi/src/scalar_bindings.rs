@@ -23,6 +23,28 @@ pub(super) struct ScalarBindings {
 }
 
 impl ScalarBindings {
+    /// Retire the source name only after its whole value has moved to its consumer.
+    pub(crate) fn retire_structural_local(
+        &mut self,
+        symbol: symbols::SymbolHandle,
+        place: PlaceId,
+    ) -> Result<(), LoweringError> {
+        let position = self
+            .structural_locals
+            .iter()
+            .position(|(candidate, argument)| {
+                *candidate == symbol
+                    && argument.place == place
+                    && argument.access == StructuralAccess::Owned
+                    && argument.path.is_empty()
+            })
+            .ok_or(LoweringError::Unsupported(
+                "moved local lost its exact source home",
+            ))?;
+        self.structural_locals.remove(position);
+        Ok(())
+    }
+
     /// Make the completed whole result visible to subsequent computations.
     pub(crate) fn establish_structural_local(
         &mut self,

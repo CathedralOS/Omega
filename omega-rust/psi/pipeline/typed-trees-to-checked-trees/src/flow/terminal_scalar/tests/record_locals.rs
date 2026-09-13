@@ -221,7 +221,7 @@ fn local_record_graph_retains_whole_copy_initializers() {
 }
 
 #[test]
-fn local_record_graph_retains_nested_copies_and_fences_affine_moves() {
+fn local_record_graph_retains_nested_copies_and_affine_moves() {
     for copy in ["[copy]", ""] {
         for initializer in ["first", "Outer { inner: child }"] {
             let checked = check_source(&format!(
@@ -243,17 +243,319 @@ fn local_record_graph_retains_nested_copies_and_fences_affine_moves() {
                 .iter()
                 .find(|machine| machine.name.as_str() == "enter")
                 .unwrap();
-            assert_eq!(
+            assert!(
                 checked
                     .facts
                     .flow
                     .terminal_scalar_graphs
                     .for_machine(machine.symbol)
                     .is_some(),
-                !copy.is_empty(),
                 "{copy}: {initializer}"
             );
         }
+    }
+}
+
+const MOVED_RECORDS: &str = "data Owned { value: u64; }
+    machine moved() -> u64 {
+        let keep: Owned = Owned { value: 17 };
+        let first: Owned = Owned { value: 256 };
+        let second: Owned = first;
+        let third: Owned = second;
+        transition true {
+            true -> done(keep.value ^ third.value)
+            _ -> 0
+        }
+        state done(value: u64) { value }
+    }";
+
+#[test]
+fn record_wrapper_provenance_uses_common_child_origin_or_new_parent_origin() {
+    use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
+    for (second, origin) in [("Owned { value: 3 }", 0), ("second", 2)] {
+        let checked = check_source(&format!(
+            "const OFFSET: u64 = 17;
+             data Owned {{ value: u64; }}
+             data Pair {{ first: Owned; second: Owned; observed: u64; }}
+             machine wrapped() -> u64 {{
+                 let first: Owned = Owned {{ value: OFFSET }};
+                 let second: Owned = Owned {{ value: 3 }};
+                 let pair: Pair = Pair {{ observed: first.value, first: first, second: {second} }};
+                 let moved: Pair = pair;
+                 transition true {{ true -> done(moved.observed) _ -> 0 }}
+                 state done(value: u64) {{ value }}
+             }}"
+        ));
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "wrapped")
+            .unwrap()
+            .symbol;
+        let state = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(machine)
+            .expect("wrapper origin graph")
+            .states[0]
+            .state;
+        for ordinal in [2, 3] {
+            assert_eq!(
+                validation::record_local_disposition(
+                    &checked.typed,
+                    &checked.facts,
+                    machine,
+                    state,
+                    ordinal
+                ),
+                Some(ordinal == 3)
+            );
+            let handle = checked
+                .facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .find_map(|(handle, event)| {
+                    (event.machine_symbol == machine
+                        && event.state_symbol == state
+                        && event.kind == PermissionEventKind::Establish
+                        && event.source
+                            == PermissionEventSource::Statement {
+                                statement_index: ordinal as usize,
+                            })
+                    .then_some(handle)
+                })
+                .unwrap();
+            assert_eq!(
+                checked
+                    .facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get(handle)
+                    .provenance,
+                PermissionProvenance::Established {
+                    machine_symbol: machine,
+                    state_symbol: state,
+                    source: PermissionEventSource::Statement {
+                        statement_index: origin
+                    }
+                }
+            );
+            let mut forged = checked.clone();
+            forged
+                .facts
+                .flow
+                .ownership
+                .permissions
+                .get_mut(handle)
+                .provenance = PermissionProvenance::Established {
+                machine_symbol: machine,
+                state_symbol: state,
+                source: PermissionEventSource::Statement {
+                    statement_index: if origin == 0 { 2 } else { 0 },
+                },
+            };
+            assert_eq!(
+                validation::record_local_disposition(
+                    &forged.typed,
+                    &forged.facts,
+                    machine,
+                    state,
+                    ordinal
+                ),
+                None
+            );
+        }
+    }
+}
+
+#[test]
+fn record_move_disposition_retains_only_final_owners_and_original_provenance() {
+    let checked = check_source(MOVED_RECORDS);
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "moved")
+        .unwrap()
+        .symbol;
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine)
+        .expect("record move graph");
+    assert_eq!(graph.states[0].unit_operations.len(), 4);
+    for (ordinal, expected) in [true, false, false, true].into_iter().enumerate() {
+        assert_eq!(
+            validation::record_local_disposition(
+                &checked.typed,
+                &checked.facts,
+                machine,
+                graph.states[0].state,
+                ordinal as u32
+            ),
+            Some(expected)
+        );
+    }
+}
+
+#[test]
+fn record_move_disposition_rejects_forged_transfer_or_destination_receipts() {
+    use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
+    let original = check_source(MOVED_RECORDS);
+    let machine = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "moved")
+        .unwrap()
+        .symbol;
+    let state = original
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine)
+        .unwrap()
+        .states[0]
+        .state;
+    let transfer = original
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find_map(|(handle, event)| {
+            (event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.kind == PermissionEventKind::Transfer
+                && event.source == PermissionEventSource::Statement { statement_index: 2 })
+            .then_some(handle)
+        })
+        .unwrap();
+    let destination = original
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find_map(|(handle, event)| {
+            (event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.kind == PermissionEventKind::Establish
+                && event.source == PermissionEventSource::Statement { statement_index: 2 })
+            .then_some(handle)
+        })
+        .unwrap();
+    let keep = original
+        .machines()
+        .iter()
+        .flat_map(|machine| original.machine_states(machine))
+        .flat_map(|state| original.statement_table.statements(state.statement_nodes))
+        .find_map(|statement| match statement {
+            checked_trees::statement::StatementNode::LocalData(local)
+                if local.name.as_str() == "keep" =>
+            {
+                Some(local.symbol)
+            }
+            _ => None,
+        })
+        .unwrap();
+    for corruption in 0..6 {
+        let mut forged = original.clone();
+        match corruption {
+            0 => {
+                let duplicate = forged
+                    .facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get(transfer)
+                    .clone();
+                forged.facts.flow.ownership.permissions.append(duplicate);
+            }
+            1 => {
+                forged
+                    .facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get_mut(transfer)
+                    .source = PermissionEventSource::Statement { statement_index: 3 }
+            }
+            2 => {
+                forged
+                    .facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get_mut(transfer)
+                    .kind = PermissionEventKind::AffineDrop
+            }
+            3 => {
+                forged
+                    .facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get_mut(transfer)
+                    .access = language_semantics::PermissionAccess::Shared
+            }
+            4 => {
+                let event = forged.facts.flow.ownership.permissions.get_mut(destination);
+                event.provenance = PermissionProvenance::Established {
+                    machine_symbol: machine,
+                    state_symbol: state,
+                    source: event.source,
+                };
+            }
+            _ => {
+                let root = forged
+                    .facts
+                    .values
+                    .structural_values
+                    .root_at(state, 2)
+                    .unwrap()
+                    .root;
+                let checked_trees::CheckedStructuralValueKind::Place(argument) = &mut forged
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get_mut(root)
+                    .kind
+                else {
+                    panic!("move source");
+                };
+                argument.source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol: keep,
+                    };
+            }
+        }
+        let ordinal = if corruption == 4 { 2 } else { 1 };
+        assert_eq!(
+            validation::record_local_disposition(
+                &forged.typed,
+                &forged.facts,
+                machine,
+                state,
+                ordinal
+            ),
+            None,
+            "corruption {corruption}"
+        );
+        super::super::unit_operations::finalize(&forged.typed, &mut forged.facts);
+        assert!(
+            forged
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(machine)
+                .is_none(),
+            "corruption {corruption}"
+        );
     }
 }
 

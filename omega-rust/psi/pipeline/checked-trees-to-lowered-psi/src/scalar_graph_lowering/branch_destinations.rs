@@ -44,6 +44,8 @@ pub(super) fn lower_destination(
     result_type: QualifiedScalarType,
     return_sink: Option<usize>,
     computations: &mut computations::Expansion<'_>,
+    structural_types: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
 ) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
     match destination {
         CheckedScalarBranchDestination::Crash { statement_ordinal } => {
@@ -72,6 +74,8 @@ pub(super) fn lower_destination(
             successor,
             scalar_bindings,
             computations,
+            structural_types,
+            next_place,
         ),
         CheckedScalarBranchDestination::Return {
             statement_ordinal,
@@ -93,6 +97,8 @@ pub(super) fn lower_destination(
                 &mut Vec::new(),
                 target,
                 computations,
+                structural_types,
+                next_place,
             )?;
             if let Some(entry) = computations.return_value(
                 source_state,

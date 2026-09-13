@@ -3557,66 +3557,30 @@ fn expression_permission_provenance_for_claim(
     relative_path: &[facts::PlaceSegment],
     places: &[LinearPlace],
 ) -> Option<PermissionProvenance> {
-    if relative_path.is_empty() {
-        match program.expression_table.expression(expression) {
-            typed_trees::expression::ExpressionNode::Call(call) => {
-                let mut candidates = Vec::new();
-                if call.receiver.is_valid() {
-                    candidates.push(call.receiver);
-                }
-                candidates
-                    .extend_from_slice(program.expression_table.expression_handles(call.arguments));
-                return common_permission_provenance(candidates.into_iter().filter_map(
-                    |candidate| {
-                        expression_permission_provenance_for_claim(
-                            program,
-                            state_symbol,
-                            statement_index,
-                            candidate,
-                            &[],
-                            places,
-                        )
-                    },
-                ));
-            }
-            typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
-                return common_permission_provenance(
-                    program
-                        .expression_table
-                        .struct_fields(literal.fields)
-                        .iter()
-                        .filter_map(|field| {
-                            expression_permission_provenance_for_claim(
-                                program,
-                                state_symbol,
-                                statement_index,
-                                field.value,
-                                &[],
-                                places,
-                            )
-                        }),
-                );
-            }
-            typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
-                return common_permission_provenance(
-                    program
-                        .expression_table
-                        .expression_handles(*values)
-                        .iter()
-                        .filter_map(|value| {
-                            expression_permission_provenance_for_claim(
-                                program,
-                                state_symbol,
-                                statement_index,
-                                *value,
-                                &[],
-                                places,
-                            )
-                        }),
-                );
-            }
-            _ => {}
-        }
+    if relative_path.is_empty()
+        && matches!(
+            program.expression_table.expression(expression),
+            typed_trees::expression::ExpressionNode::Call(_)
+                | typed_trees::expression::ExpressionNode::StructLiteral(_)
+                | typed_trees::expression::ExpressionNode::ArrayLiteral(_)
+        )
+    {
+        return validation::expression_permission_provenance(
+            program,
+            expression,
+            &mut |candidate| {
+                Ok(expression_permission_provenance_for_claim(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    candidate,
+                    &[],
+                    places,
+                ))
+            },
+        )
+        .ok()
+        .flatten();
     }
 
     if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =

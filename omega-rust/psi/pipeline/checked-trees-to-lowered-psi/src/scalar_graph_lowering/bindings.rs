@@ -488,6 +488,9 @@ fn prepare_operation(
             types,
             next_place,
         )?;
+        for (symbol, place) in &prepared.consumed {
+            bindings.retire_structural_local(*symbol, *place)?;
+        }
         bindings.establish_structural_local(prepared.symbol, prepared.place)?;
         Ok(PreparedOperation::Structural(prepared))
     } else {

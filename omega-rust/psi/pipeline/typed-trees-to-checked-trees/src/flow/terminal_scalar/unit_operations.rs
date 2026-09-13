@@ -70,13 +70,12 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                     program,
                                     local.type_reference,
                                 )?;
-                                record_ownership(
+                                validation::record_local_disposition(
                                     program,
                                     facts,
                                     machine.symbol,
                                     state.state,
                                     ordinal,
-                                    local,
                                 )?;
                                 let result =
                                     checked_trees::CheckedUnitStructuralResultBindingPlan {
@@ -150,72 +149,6 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
             }
             true
         });
-}
-
-/// Fresh affine locals in this graph remain whole until its selected exit.
-/// Transfers or call consumption need their own final-live-state join; never
-/// turn a lexical StateExit receipt into unconditional disposal after a move.
-fn record_ownership(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    ordinal: u32,
-    local: &typed_trees::statement::TableLocalData,
-) -> Option<()> {
-    use language_semantics::{
-        Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-        PermissionEventSource, PermissionProvenance,
-    };
-    let events = || {
-        facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .map(|(_, event)| event)
-            .filter(|event| {
-                event.machine_symbol == machine
-                    && event.state_symbol == state
-                    && event.root == facts::PlaceRoot::Symbol(local.symbol)
-            })
-    };
-    let multiplicity = program.type_multiplicity(local.type_reference);
-    if multiplicity == Multiplicity::Unrestricted {
-        return events().next().is_none().then_some(());
-    }
-    if multiplicity != Multiplicity::Affine || events().count() != 2 {
-        return None;
-    }
-    let establishment = PermissionEventSource::Statement {
-        statement_index: ordinal as usize,
-    };
-    let provenance = PermissionProvenance::Established {
-        machine_symbol: machine,
-        state_symbol: state,
-        source: establishment,
-    };
-    for (kind, source) in [
-        (PermissionEventKind::Establish, establishment),
-        (
-            PermissionEventKind::AffineDrop,
-            PermissionEventSource::StateExit,
-        ),
-    ] {
-        let mut matching = events().filter(|event| event.kind == kind && event.source == source);
-        let event = matching.next()?;
-        if matching.next().is_some()
-            || event.multiplicity != multiplicity
-            || event.access != PermissionAccess::Owned
-            || event.claim_identity != PermissionClaimIdentity::Unknown
-            || event.provenance != provenance
-            || event.obligation_live
-            || !event.segments.is_empty()
-        {
-            return None;
-        }
-    }
-    Some(())
 }
 
 // The scalar emitter has no contract-substitution or service machinery. Keep

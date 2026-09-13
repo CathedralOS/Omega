@@ -43,7 +43,15 @@ pub(super) fn complete(
     let mut incoming = vec![Vec::new(); blocks.len()];
     let mut successors = vec![Vec::new(); blocks.len()];
     for (position, block) in blocks.iter().enumerate() {
-        if !block.structural_parameters.is_empty() && (position != entry_position || !reentered) {
+        // Local record moves/cleanup use their own block homes. This pass owns
+        // only the incoming formal frontier and must neither reject unrelated
+        // local transport nor mistake it for forwarding one of these formals.
+        if (position != entry_position || !reentered)
+            && block
+                .structural_parameters
+                .iter()
+                .any(|parameter| affine.contains(&parameter.place))
+        {
             return unsupported(
                 "scalar graph owned block parameters require exact forwarding custody",
             );
@@ -56,7 +64,10 @@ pub(super) fn complete(
                 trivial_affine_discards,
                 ..
             } => {
-                if (!structural_arguments.is_empty() && !(reentered && *target == entry))
+                if (structural_arguments
+                    .iter()
+                    .any(|argument| affine.contains(&argument.place))
+                    && !(reentered && *target == entry))
                     || !residual_affine_discards.is_empty()
                     || trivial_affine_discards
                         .iter()
@@ -79,7 +90,9 @@ pub(super) fn complete(
                 ..
             } => {
                 if [when_true, when_false].iter().any(|edge| {
-                    !edge.structural_arguments.is_empty()
+                    edge.structural_arguments
+                        .iter()
+                        .any(|argument| affine.contains(&argument.place))
                         || edge
                             .trivial_affine_discards
                             .iter()
