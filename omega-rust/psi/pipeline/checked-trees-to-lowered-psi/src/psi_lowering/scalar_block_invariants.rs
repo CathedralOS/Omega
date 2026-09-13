@@ -20,6 +20,7 @@ use crate::psi_lowering::nonzero_divisor_certificate::produce_checked_canonical_
 use crate::psi_lowering::{LoweredPsi, LoweringError};
 
 mod entry_ranges;
+mod field_bounds;
 mod joins;
 mod retained_evidence;
 
@@ -45,6 +46,7 @@ pub(super) fn retain_provable(lowered: &mut LoweredPsi) -> Result<(), LoweringEr
         .map_err(LoweringError::InvalidTerminalModule)?;
     let mut remaining = 4096usize;
     let mut candidates = entry_ranges::candidates(module);
+    candidates.extend(field_bounds::candidates(module, &original, &mut remaining));
     candidates.extend(joins::candidates(module, &original, &mut remaining));
     if candidates.is_empty() {
         return Ok(());
