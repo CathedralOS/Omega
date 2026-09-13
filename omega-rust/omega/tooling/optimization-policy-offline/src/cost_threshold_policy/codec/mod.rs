@@ -10,8 +10,10 @@ use super::model::{
     OfflinePolicyConfusion, OfflinePolicyEvaluationSummary, OfflinePolicyReferenceError,
 };
 
-pub(super) use model::{decode as decode_model, encode as encode_model};
-pub(super) use report::{decode as decode_report, encode as encode_report};
+pub use model::decode as decode_model;
+pub(super) use model::encode as encode_model;
+pub use report::decode as decode_report;
+pub(super) use report::encode as encode_report;
 
 pub(super) fn encode_summary(encoded: &mut Vec<u8>, summary: OfflinePolicyEvaluationSummary) {
     encoded.extend_from_slice(&summary.decision_count.to_le_bytes());

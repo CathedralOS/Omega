@@ -1,10 +1,10 @@
 use crate::{OfflinePolicyCorpusIdentity, OfflinePolicySplit, ValidatedOfflinePolicyCorpus};
 
 use super::{codec, identity};
-use crate::reference_policy::{
+use crate::cost_threshold_policy::{
     CostThresholdV1Model, OfflinePolicyAlgorithmIdentity, OfflinePolicyEvaluationSummary,
     OfflinePolicyModelIdentity, OfflinePolicyReferenceError, OfflinePolicyReportIdentity,
-    OfflinePolicySplitIdentity, evaluation,
+    OfflinePolicySplitIdentity, evaluate_cost_threshold_v1,
 };
 
 use super::identity::OfflinePolicyRegressionManifestIdentity;
@@ -58,7 +58,7 @@ pub(super) fn create(
     corpus: &ValidatedOfflinePolicyCorpus,
     model: &CostThresholdV1Model,
 ) -> Result<OfflinePolicyRegressionManifest, OfflinePolicyReferenceError> {
-    let report = evaluation::evaluate(corpus, model, OfflinePolicySplit::Regression)?;
+    let report = evaluate_cost_threshold_v1(corpus, model, OfflinePolicySplit::Regression)?;
     let mut manifest = OfflinePolicyRegressionManifest {
         identity: OfflinePolicyRegressionManifestIdentity::from_bytes([0; 32]),
         corpus: corpus.identity(),

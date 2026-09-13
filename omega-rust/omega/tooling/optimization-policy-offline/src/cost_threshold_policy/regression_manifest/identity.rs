@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 
 use super::model::OfflinePolicyRegressionManifest;
-use crate::reference_policy::identity::encode_summary;
+use crate::cost_threshold_policy::identity::encode_summary;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OfflinePolicyRegressionManifestIdentity([u8; 32]);

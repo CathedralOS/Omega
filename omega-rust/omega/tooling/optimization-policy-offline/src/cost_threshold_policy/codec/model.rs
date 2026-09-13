@@ -25,7 +25,8 @@ pub(crate) fn encode(model: &CostThresholdV1Model) -> Vec<u8> {
     encoded
 }
 
-pub(crate) fn decode(
+/// Decode a complete model record and replay its training against the supplied corpus.
+pub fn decode(
     encoded: &[u8],
     corpus: &ValidatedOfflinePolicyCorpus,
 ) -> Result<CostThresholdV1Model, OfflinePolicyReferenceError> {
@@ -50,6 +51,6 @@ pub(crate) fn decode(
     if cursor.remaining() != 0 {
         return Err(OfflinePolicyReferenceError::TrailingBytes);
     }
-    training::validate(&model, corpus)?;
+    training::replay::validate(&model, corpus)?;
     Ok(model)
 }

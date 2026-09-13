@@ -45,7 +45,8 @@ pub(crate) fn encode(report: &OfflinePolicyEvaluationReport) -> Vec<u8> {
     encoded
 }
 
-pub(crate) fn decode(
+/// Decode a complete report and independently check its model, predictions, and summary.
+pub fn decode(
     encoded: &[u8],
     corpus: &ValidatedOfflinePolicyCorpus,
     model: &CostThresholdV1Model,

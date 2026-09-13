@@ -13,7 +13,7 @@ use super::super::{
     },
 };
 
-pub(super) fn validate(
+pub(in crate::cost_threshold_policy) fn validate(
     model: &CostThresholdV1Model,
     corpus: &ValidatedOfflinePolicyCorpus,
 ) -> Result<(), OfflinePolicyReferenceError> {

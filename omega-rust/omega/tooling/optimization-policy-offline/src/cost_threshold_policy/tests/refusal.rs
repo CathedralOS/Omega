@@ -61,3 +61,29 @@ fn corpus_model_and_report_substitution_fail_closed() {
         Err(OfflinePolicyReferenceError::WrongCorpus)
     );
 }
+
+#[test]
+fn evaluation_replays_model_before_split_dispatch() {
+    let corpus = corpus();
+    let other_corpus = corpus_with_prefix(b"other-evaluation-corpus");
+    let model = train_cost_threshold_v1(&corpus).unwrap();
+    let mut changed_threshold = model.clone();
+    changed_threshold.threshold += 1;
+
+    for split in [
+        OfflinePolicySplit::Training,
+        OfflinePolicySplit::Evaluation,
+        OfflinePolicySplit::Regression,
+    ] {
+        assert_eq!(
+            evaluate_cost_threshold_v1(&other_corpus, &model, split),
+            Err(OfflinePolicyReferenceError::WrongCorpus),
+            "model custody must be checked even for an unsupported report split",
+        );
+        assert_eq!(
+            evaluate_cost_threshold_v1(&corpus, &changed_threshold, split),
+            Err(OfflinePolicyReferenceError::ModelMismatch),
+            "matching identities do not replace replay of the trained threshold",
+        );
+    }
+}
