@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    builder.application("wire-compatibility-migration-same-named-route-missing");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.require_wire_compatibility<
+        ArchiveStore,
+        first::Lineage,
+        first::Counter,
+        first::CounterV1,
+        CompleteMigration
+    >();
+}

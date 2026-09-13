@@ -1403,7 +1403,16 @@ Owners include
   `CompleteMigration` demand across differing eras is satisfied only by the
   bound `FormatMigration` machine (`canary_suite
   reports_and_capabilities::wire_compatibility_complete_migration_demand_needs_bound_lineage_route`,
-  Linux). Open: retired-identity reuse rejection and policy-chosen era dispatch.
+  Linux). `pass/wire/wire_compatibility_migration_{out_of_order_eras,
+  same_named_eras}` and `fail/wire/wire_compatibility_migration_{
+  same_named_route_missing,ambiguous_era}` witness era dispatch selected by
+  the policy's authored era paths rather than leaf names or declaration
+  order: demand paths resolve against qualified declaration paths, the route
+  binds declaration symbols, and bare names colliding across modules reject
+  as ambiguous (`canary_suite
+  reports_and_capabilities::wire_compatibility_era_dispatch_is_policy_selected_not_declaration_order`,
+  macOS). Open: retired-identity reuse rejection; the current-shape
+  codec-call surface still locates schemas by leaf name.
 
   Acceptance: an old/new ordinary declaration pair and explicitly selected
   checked migration satisfy the requesting channel/store policy; missing routes

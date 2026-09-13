@@ -1,0 +1,17 @@
+// Declaration order alone does not select an era. `first` and `second`
+// publish identically named lineage markers and eras, and `first` binds the
+// migration route. Because the store policy below spells bare leaf names, no
+// declaration is uniquely selected: the demand is ambiguous and rejected
+// rather than silently dispatched to whichever era was declared first.
+
+use first;
+use second;
+
+data ArchiveStore {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

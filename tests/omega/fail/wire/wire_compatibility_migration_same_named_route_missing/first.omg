@@ -1,0 +1,13 @@
+module first;
+
+pub data Lineage {
+}
+
+pub data CounterV1 {
+    #1 counter: i32;
+}
+
+pub data Counter {
+    #1 counter: i32;
+    #2 timestamp: i32;
+}

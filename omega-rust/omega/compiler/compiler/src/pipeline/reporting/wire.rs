@@ -30,7 +30,7 @@ fn validate_wire_protocol_report(report: &WireProtocolReport) -> Result<(), Vec<
             ]
             .into_iter()
             .filter(|(_, fact)| fact.required && !fact.satisfied)
-            .map(|(name, _)| name)
+            .map(|(name, fact)| format!("{name} ({})", fact.detail))
             .collect::<Vec<_>>()
             .join(", ");
             Diagnostic::error(format!(
@@ -47,47 +47,65 @@ fn validate_wire_protocol_report(report: &WireProtocolReport) -> Result<(), Vec<
     }
 }
 
+/// A published schema row paired with the qualified declaration path the
+/// demand language selects it by. Era dispatch is the policy's authored path
+/// resolving to one declaration; declaration order and leaf names alone do
+/// not pick an era.
+struct SchemaRow {
+    qualified_path: String,
+    entry: WireSchemaReportEntry,
+}
+
 fn build_wire_protocol_report(
     typed: &TypedTrees,
     compatibility_demands: &[crate::pipeline::build_config::WireCompatibilityDemand],
 ) -> WireProtocolReport {
-    let mut schemas = typed
+    let mut rows = typed
         .wire_schemas()
         .iter()
-        .map(|schema| schema_report_entry(typed, schema))
+        .map(|schema| SchemaRow {
+            qualified_path: qualified_schema_path(typed, schema.symbol, schema.name.as_str()),
+            entry: schema_report_entry(typed, schema),
+        })
         .collect::<Vec<_>>();
-    for ordinary in typed
-        .data_definitions()
-        .iter()
-        .filter_map(|data| ordinary_data_schema_report_entry(typed, data))
-    {
-        if let Some(generated) = schemas
+    for (ordinary_path, ordinary) in typed.data_definitions().iter().filter_map(|data| {
+        ordinary_data_schema_report_entry(typed, data).map(|entry| {
+            (
+                qualified_schema_path(typed, data.symbol, data.name.as_str()),
+                entry,
+            )
+        })
+    }) {
+        if let Some(generated) = rows
             .iter_mut()
-            .find(|schema| schema.name == ordinary.name)
+            .find(|row| row.qualified_path == ordinary_path)
         {
-            generated.normalized_schema_report_identity =
+            generated.entry.normalized_schema_report_identity =
                 ordinary.normalized_schema_report_identity;
-            if generated.fields.is_empty() {
-                generated.fields = ordinary.fields;
+            if generated.entry.fields.is_empty() {
+                generated.entry.fields = ordinary.fields;
             }
-            if generated.reserved.is_empty() {
-                generated.reserved = ordinary.reserved;
+            if generated.entry.reserved.is_empty() {
+                generated.entry.reserved = ordinary.reserved;
             }
-            generated.cases = ordinary.cases;
-            generated.retired_cases = ordinary.retired_cases;
+            generated.entry.cases = ordinary.cases;
+            generated.entry.retired_cases = ordinary.retired_cases;
         } else {
-            schemas.push(ordinary);
+            rows.push(SchemaRow {
+                qualified_path: ordinary_path,
+                entry: ordinary,
+            });
         }
     }
-    for schema in &mut schemas {
+    for row in &mut rows {
+        let schema = &mut row.entry;
         if !schema.synthesized_codec {
             continue;
         }
-        let Some(source_schema) = typed
-            .wire_schemas()
-            .iter()
-            .find(|candidate| candidate.name.as_str() == schema.name)
-        else {
+        let Some(source_schema) = typed.wire_schemas().iter().find(|candidate| {
+            qualified_schema_path(typed, candidate.symbol, candidate.name.as_str())
+                == row.qualified_path
+        }) else {
             continue;
         };
         schema.codec_requirement = Some(format!("StrictDecode<compact_binary, {}>", schema.name));
@@ -136,12 +154,28 @@ fn build_wire_protocol_report(
             "differential canaries are validation evidence, not derived-contract proof".to_owned(),
         ];
     }
-    schemas.sort_by(|left, right| left.name.cmp(&right.name));
+    rows.sort_by(|left, right| left.entry.name.cmp(&right.entry.name));
     let demands = compatibility_demands
         .iter()
-        .map(|demand| compatibility_demand_report(typed, &schemas, demand))
+        .map(|demand| compatibility_demand_report(typed, &rows, demand))
         .collect();
-    WireProtocolReport { schemas, demands }
+    WireProtocolReport {
+        schemas: rows.into_iter().map(|row| row.entry).collect(),
+        demands,
+    }
+}
+
+fn qualified_schema_path(
+    typed: &TypedTrees,
+    symbol: symbols::SymbolHandle,
+    fallback_name: &str,
+) -> String {
+    let path = typed.symbols.display_path(symbol, "::");
+    if path.is_empty() {
+        fallback_name.to_owned()
+    } else {
+        path
+    }
 }
 
 fn codec_requirement_report_identity(schema_report_identity: u64) -> u64 {
@@ -218,41 +252,51 @@ fn stable_wire_report_identity<'a>(
 
 fn compatibility_demand_report(
     typed: &TypedTrees,
-    schemas: &[WireSchemaReportEntry],
+    rows: &[SchemaRow],
     demand: &crate::pipeline::build_config::WireCompatibilityDemand,
 ) -> WireCompatibilityDemandReportEntry {
-    let local = find_schema(schemas, &demand.local_schema);
-    let peer = find_schema(schemas, &demand.peer_schema);
-    let codec = local
+    let local = select_era_path(
+        &demand.local_schema,
+        rows.iter()
+            .map(|row| (row.qualified_path.as_str(), &row.entry)),
+    );
+    let peer = select_era_path(
+        &demand.peer_schema,
+        rows.iter()
+            .map(|row| (row.qualified_path.as_str(), &row.entry)),
+    );
+    let local_schema = era_resolved(&local).copied();
+    let peer_schema = era_resolved(&peer).copied();
+    let codec = local_schema
         .and_then(|schema| schema.encoding.as_deref())
-        .or_else(|| peer.and_then(|schema| schema.encoding.as_deref()))
+        .or_else(|| peer_schema.and_then(|schema| schema.encoding.as_deref()))
         .unwrap_or("compact_binary")
         .to_owned();
     let compact_binary = codec == "compact_binary";
 
-    let readability_value = local
-        .zip(peer)
+    let readability_value = local_schema
+        .zip(peer_schema)
         .is_some_and(|(reader, writer)| schema_accepts(reader, writer));
-    let writability_value = local
-        .zip(peer)
+    let writability_value = local_schema
+        .zip(peer_schema)
         .is_some_and(|(writer, reader)| schema_accepts(reader, writer));
-    let readable_detail = match (local, peer) {
+    let readable_detail = match (local_schema, peer_schema) {
         (Some(_), Some(_)) if readability_value => {
             "the local decoder accepts every peer shape".to_owned()
         }
         (Some(_), Some(_)) => {
             "the strict local decoder does not accept every peer shape".to_owned()
         }
-        _ => missing_schema_detail(local, peer, demand),
+        _ => schema_selection_detail(&local, &peer, demand),
     };
-    let writable_detail = match (local, peer) {
+    let writable_detail = match (local_schema, peer_schema) {
         (Some(_), Some(_)) if writability_value => {
             "the peer decoder accepts every local shape".to_owned()
         }
         (Some(_), Some(_)) => {
             "the strict peer decoder does not accept every local shape".to_owned()
         }
-        _ => missing_schema_detail(local, peer, demand),
+        _ => schema_selection_detail(&local, &peer, demand),
     };
 
     let migration_route = migration_route(
@@ -261,9 +305,10 @@ fn compatibility_demand_report(
         &demand.peer_schema,
         &demand.local_schema,
     );
-    let migration_value = local.is_some() && peer.is_some() && migration_route.is_some();
-    let migration_detail = match (local, peer, migration_route) {
-        (None, _, _) | (_, None, _) => missing_schema_detail(local, peer, demand),
+    let migration_value =
+        local_schema.is_some() && peer_schema.is_some() && migration_route.is_some();
+    let migration_detail = match (local_schema, peer_schema, migration_route) {
+        (None, _, _) | (_, None, _) => schema_selection_detail(&local, &peer, demand),
         (Some(_), Some(_), None) => {
             format!(
                 "no complete `{}` migration route exists from `{}` to `{}`",
@@ -290,9 +335,9 @@ fn compatibility_demand_report(
             format!("codec `{codec}` publishes no preserving behavior")
         },
     );
-    let canonical_value = compact_binary && local.is_some() && peer.is_some();
-    let canonical_detail = if local.is_none() || peer.is_none() {
-        missing_schema_detail(local, peer, demand)
+    let canonical_value = compact_binary && local_schema.is_some() && peer_schema.is_some();
+    let canonical_detail = if local_schema.is_none() || peer_schema.is_none() {
+        schema_selection_detail(&local, &peer, demand)
     } else if compact_binary {
         "compact_binary emits its canonical field order and scalar encodings".to_owned()
     } else {
@@ -338,37 +383,87 @@ fn fact(required: bool, satisfied: bool, detail: String) -> WireCompatibilityFac
     }
 }
 
-fn missing_schema_detail(
-    local: Option<&WireSchemaReportEntry>,
-    peer: Option<&WireSchemaReportEntry>,
-    demand: &crate::pipeline::build_config::WireCompatibilityDemand,
-) -> String {
-    match (local, peer) {
-        (None, None) => format!(
-            "neither local schema `{}` nor peer schema `{}` is published",
-            demand.local_schema, demand.peer_schema
-        ),
-        (None, Some(_)) => format!("local schema `{}` is not published", demand.local_schema),
-        (Some(_), None) => format!("peer schema `{}` is not published", demand.peer_schema),
-        (Some(_), Some(_)) => unreachable!("caller only asks for missing-schema details"),
+/// How the demand's authored path selects one era. An exact qualified-path
+/// match wins; otherwise a bare or partial path must be the unambiguous
+/// suffix of exactly one published declaration path. More than one candidate
+/// is ambiguous — declaration order never picks an era — and none means the
+/// policy named an era that is not published.
+enum EraSelection<T> {
+    Resolved(T),
+    Ambiguous(Vec<String>),
+    Missing,
+}
+
+fn era_resolved<T>(selection: &EraSelection<T>) -> Option<&T> {
+    match selection {
+        EraSelection::Resolved(item) => Some(item),
+        _ => None,
     }
 }
 
-fn find_schema<'a>(
-    schemas: &'a [WireSchemaReportEntry],
+fn select_era_path<'a, T>(
     requested: &str,
-) -> Option<&'a WireSchemaReportEntry> {
-    schemas
-        .iter()
-        .find(|schema| schema.name == requested)
-        .or_else(|| {
-            let requested_leaf = name_leaf(requested);
-            let mut matching = schemas
+    candidates: impl Iterator<Item = (&'a str, T)>,
+) -> EraSelection<T> {
+    let nested_suffix = format!("::{requested}");
+    let mut exact = Vec::new();
+    let mut nested = Vec::new();
+    for (path, item) in candidates {
+        if path == requested {
+            exact.push((path, item));
+        } else if path.ends_with(&nested_suffix) {
+            nested.push((path, item));
+        }
+    }
+    let (paths, items): (Vec<&str>, Vec<T>) = if exact.is_empty() {
+        nested.into_iter().unzip()
+    } else {
+        exact.into_iter().unzip()
+    };
+    match items.len() {
+        0 => EraSelection::Missing,
+        1 => EraSelection::Resolved(items.into_iter().next().expect("one item")),
+        _ => EraSelection::Ambiguous(
+            paths
+                .into_iter()
+                .map(str::to_owned)
+                .collect::<Vec<String>>(),
+        ),
+    }
+}
+
+fn schema_selection_detail(
+    local: &EraSelection<&WireSchemaReportEntry>,
+    peer: &EraSelection<&WireSchemaReportEntry>,
+    demand: &crate::pipeline::build_config::WireCompatibilityDemand,
+) -> String {
+    if matches!(local, EraSelection::Missing) && matches!(peer, EraSelection::Missing) {
+        return format!(
+            "neither local schema `{}` nor peer schema `{}` is published",
+            demand.local_schema, demand.peer_schema
+        );
+    }
+    [
+        ("local", demand.local_schema.as_str(), local),
+        ("peer", demand.peer_schema.as_str(), peer),
+    ]
+    .into_iter()
+    .filter_map(|(role, authored, selection)| match selection {
+        EraSelection::Resolved(_) => None,
+        EraSelection::Missing => {
+            Some(format!("{role} schema `{authored}` is not published"))
+        }
+        EraSelection::Ambiguous(candidates) => Some(format!(
+            "{role} schema `{authored}` is ambiguous across published eras {}; qualify the era path in the demand",
+            candidates
                 .iter()
-                .filter(|schema| name_leaf(&schema.name) == requested_leaf);
-            let only = matching.next()?;
-            matching.next().is_none().then_some(only)
-        })
+                .map(|candidate| format!("`{candidate}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    })
+    .collect::<Vec<_>>()
+    .join("; ")
 }
 
 fn name_leaf(name: &str) -> &str {
@@ -405,13 +500,42 @@ fn fields_equal(left: &[WireFieldReportEntry], right: &[WireFieldReportEntry]) -
         })
 }
 
+/// Resolve an authored demand path to the exact ordinary data declaration it
+/// names. Era identity is the declaration symbol: the same path rules as
+/// schema dispatch apply, so a leaf must select one declaration unambiguously
+/// rather than whichever era was declared first.
+fn resolve_declared_era(typed: &TypedTrees, requested: &str) -> Option<symbols::SymbolHandle> {
+    let candidates = typed
+        .data_definitions()
+        .iter()
+        .map(|data| (typed.symbols.display_path(data.symbol, "::"), data.symbol))
+        .collect::<Vec<_>>();
+    match select_era_path(
+        requested,
+        candidates
+            .iter()
+            .map(|(path, symbol)| (path.as_str(), *symbol)),
+    ) {
+        EraSelection::Resolved(symbol) => Some(symbol),
+        _ => None,
+    }
+}
+
+/// The checked migration route between two explicitly selected eras. Edges
+/// are the machines bound to `FormatMigration<Lineage, Old, New>`; lineage,
+/// old, and new are compared by declaration symbol, never by leaf name, so a
+/// route bound on one module's declarations cannot satisfy another module's
+/// demand even when the declarations are spelled identically.
 fn migration_route(
     typed: &TypedTrees,
     lineage: &str,
     peer: &str,
     local: &str,
 ) -> Option<Vec<String>> {
-    if names_match(peer, local) {
+    let local_symbol = resolve_declared_era(typed, local)?;
+    let peer_symbol = resolve_declared_era(typed, peer)?;
+    let lineage_symbol = resolve_declared_era(typed, lineage)?;
+    if peer_symbol == local_symbol {
         return Some(Vec::new());
     }
     let mut edges = Vec::new();
@@ -428,38 +552,37 @@ fn migration_route(
             if arguments.len() != 3 {
                 continue;
             }
-            let argument = |index: usize| typed.display_type_reference(arguments[index]);
-            let edge_lineage = argument(0);
-            if !names_match(&edge_lineage, lineage) {
+            let symbol = |index: usize| typed.type_reference_table.type_symbol(arguments[index]);
+            if symbol(0) != lineage_symbol {
                 continue;
             }
-            edges.push((argument(1), argument(2), machine.name.as_str().to_owned()));
+            let (old, new) = (symbol(1), symbol(2));
+            if !old.is_valid() || !new.is_valid() {
+                continue;
+            }
+            edges.push((old, new, machine.name.as_str().to_owned()));
         }
     }
 
-    let mut frontier = vec![(peer.to_owned(), Vec::<String>::new())];
-    let mut visited = vec![peer.to_owned()];
+    let mut frontier = vec![(peer_symbol, Vec::<String>::new())];
+    let mut visited = vec![peer_symbol];
     while let Some((current, route)) = frontier.pop() {
         for (old, new, machine) in &edges {
-            if !names_match(old, &current) {
+            if *old != current {
                 continue;
             }
             let mut next_route = route.clone();
             next_route.push(machine.clone());
-            if names_match(new, local) {
+            if *new == local_symbol {
                 return Some(next_route);
             }
-            if !visited.iter().any(|seen| names_match(seen, new)) {
-                visited.push(new.clone());
-                frontier.push((new.clone(), next_route));
+            if !visited.contains(new) {
+                visited.push(*new);
+                frontier.push((*new, next_route));
             }
         }
     }
     None
-}
-
-fn names_match(left: &str, right: &str) -> bool {
-    left == right || name_leaf(left) == name_leaf(right)
 }
 
 fn ordinary_data_schema_report_entry(

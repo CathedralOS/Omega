@@ -13,6 +13,14 @@ pub const BOUNDARY_DATA_OPAQUE_CONTRACT: &str = "proofs/boundary_data_opaque_con
 pub const WIRE_COMPATIBILITY_DEMAND_REPORT: &str = "wire/wire_compatibility_demand_report";
 pub const WIRE_COMPATIBILITY_MIGRATION_ACROSS_SHAPES: &str =
     "wire/wire_compatibility_migration_across_shapes";
+pub const WIRE_COMPATIBILITY_MIGRATION_OUT_OF_ORDER_ERAS: &str =
+    "wire/wire_compatibility_migration_out_of_order_eras";
+pub const WIRE_COMPATIBILITY_MIGRATION_SAME_NAMED_ERAS: &str =
+    "wire/wire_compatibility_migration_same_named_eras";
+pub const WIRE_COMPATIBILITY_MIGRATION_SAME_NAMED_ROUTE_MISSING: &str =
+    "wire/wire_compatibility_migration_same_named_route_missing";
+pub const WIRE_COMPATIBILITY_MIGRATION_AMBIGUOUS_ERA: &str =
+    "wire/wire_compatibility_migration_ambiguous_era";
 pub const LINEAR_TRANSPARENT_RECORD_FRONTIER: &str = "ownership/linear_transparent_record_frontier";
 pub const LINEAR_STATE_CALL_HANDOFF: &str = "ownership/linear_state_call_handoff";
 pub const LINEAR_TRANSITION_NESTED_CALL_HANDOFF: &str =
@@ -40,6 +48,8 @@ pub const PASS_CANARIES: &[&str] = &[
     BOUNDARY_DATA_OPAQUE_CONTRACT,
     WIRE_COMPATIBILITY_DEMAND_REPORT,
     WIRE_COMPATIBILITY_MIGRATION_ACROSS_SHAPES,
+    WIRE_COMPATIBILITY_MIGRATION_OUT_OF_ORDER_ERAS,
+    WIRE_COMPATIBILITY_MIGRATION_SAME_NAMED_ERAS,
     LINEAR_TRANSPARENT_RECORD_FRONTIER,
     LINEAR_STATE_CALL_HANDOFF,
     LINEAR_TRANSITION_NESTED_CALL_HANDOFF,
@@ -52,7 +62,12 @@ pub const PASS_CANARIES: &[&str] = &[
     FLOAT_MEANING_CORE_SURFACE,
 ];
 
-pub const FAIL_CANARIES: &[&str] = &[WIRE_COMPATIBILITY_PRESERVATION_UNMET, UNAPPROVED_HOST_CALL];
+pub const FAIL_CANARIES: &[&str] = &[
+    WIRE_COMPATIBILITY_PRESERVATION_UNMET,
+    WIRE_COMPATIBILITY_MIGRATION_SAME_NAMED_ROUTE_MISSING,
+    WIRE_COMPATIBILITY_MIGRATION_AMBIGUOUS_ERA,
+    UNAPPROVED_HOST_CALL,
+];
 
 pub const CHECKED_CAPABILITY_PASS_CANARIES: &[&str] = &[
     "capabilities/uses_caller_folder",

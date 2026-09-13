@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    builder.application("wire-compatibility-migration-ambiguous-era");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.require_wire_compatibility<
+        ArchiveStore,
+        Lineage,
+        Counter,
+        CounterV1,
+        CompleteMigration
+    >();
+}

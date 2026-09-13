@@ -1,0 +1,18 @@
+// `first` and `second` publish identically named lineage markers and eras.
+// The store policy selects `first::` eras by qualified path, but the only
+// bound FormatMigration route belongs to `second`'s declarations. Matching
+// leaf names across modules are not the same era: the demand is unsatisfied
+// because `first`'s lineage has no migration route from `first::CounterV1`
+// to `first::Counter`.
+
+use first;
+use second;
+
+data ArchiveStore {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

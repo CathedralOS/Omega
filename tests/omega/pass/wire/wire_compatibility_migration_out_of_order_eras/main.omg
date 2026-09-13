@@ -1,0 +1,37 @@
+// Era dispatch is the build policy's explicit selection, not declaration
+// order: the current shape is declared BEFORE its historical era and the
+// lineage marker last, yet the CompleteMigration demand still resolves them
+// by name and the explicitly bound FormatMigration route satisfies it. This
+// is the ordered historical-migration canary with declaration order
+// inverted, so position in the file cannot be the selector.
+
+use omega_language_std::format_lineage;
+
+data ArchiveStore {
+}
+
+data Counter {
+    #1 counter: i32;
+    #2 timestamp: i32;
+}
+
+data CounterV1 {
+    #1 counter: i32;
+}
+
+data CounterLineage {
+}
+
+machine Counter::from_v1(
+    old: CounterV1,
+    out: &mut Counter
+) satisfies FormatMigration<CounterLineage, CounterV1, Counter>::migrate {
+    out.counter = old.counter;
+    out.timestamp = 0;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
