@@ -41,6 +41,7 @@
 //!   through the original Build activation, including local helpers/reborrows.
 //!   Executed requests rejoin their lexical owner before exact product selection.
 
+mod behavior_exclusions;
 mod configuration;
 mod declarations;
 mod filesystem_scope;
@@ -55,6 +56,12 @@ pub mod test_support;
 mod vocabulary;
 
 pub use observation_identity::BuildObservationIdentity;
+
+pub use behavior_exclusions::{
+    BehaviorExclusion, BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions,
+    EvidenceGap, EvidenceGapKind, ProhibitedBehavior, ProhibitedSite,
+    establish_behavior_exclusions,
+};
 
 pub use replay_record::{
     BuildFilesystemReplayRecordError, BuildFilesystemReplayRecordLimits,
