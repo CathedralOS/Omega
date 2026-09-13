@@ -177,8 +177,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   (`CompareI64` + u12 literal → `CompareI64Immediate`) needs a new
   `SelectedInstructionKind` across `selected-instructions`, both ISA encoders,
   `register-environment`, selection identity, and the optimizer vocabulary,
-  plus a fold action for flag-defining consumers without a `Def` result. Land
-  the instruction kind and encoders first, then the fold family.
+  plus a fold action for flag-defining consumers without a `Def` result.
+  Landed: the `CompareI64Immediate` kind and both encoders (x86-64 `cmp
+  r64,imm32`, AArch64 `subs xzr,xN,#imm12`; immediate domain is u12, semantic
+  tag 53), with canonical zero decode on AArch64 reusing `CompareI64Zero`.
+  Remaining: the fold family itself — a `CompareI64` + u12 literal
+  rematerialization candidate, the flag-defining/no-`Def` fold action, its
+  vocabulary entry, and corruption/replay coverage.
 
 - **SELECTED-ABI-VALIDATION.** Validate ABI operands, calls, clobbers, effects,
   traps, provenance, cleanup, and logical fuel across every selected rule.
