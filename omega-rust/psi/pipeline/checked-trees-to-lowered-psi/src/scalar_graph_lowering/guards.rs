@@ -14,7 +14,25 @@ pub(crate) fn lower(
     fallback: &CheckedScalarBranchDestination,
     computations: &mut computations::Expansion<'_>,
 ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
-    let computed = checked
+    if is_computed(checked, state, statement)
+        || matches!(fallback, CheckedScalarBranchDestination::Crash { .. })
+    {
+        validate_fallback(checked, state, statement, fallback)?;
+    }
+    evaluate(
+        checked,
+        state,
+        statement,
+        bindings,
+        source_types,
+        when_true,
+        when_false,
+        computations,
+    )
+}
+
+fn is_computed(checked: &CheckedTrees, state: symbols::SymbolHandle, statement: u32) -> bool {
+    checked
         .facts
         .values
         .scalar_computations
@@ -24,10 +42,23 @@ pub(crate) fn lower(
             root.state == state
                 && root.statement_ordinal == statement
                 && root.role == CheckedScalarExpressionRole::Guard
-        });
-    if computed || matches!(fallback, CheckedScalarBranchDestination::Crash { .. }) {
-        validate_fallback(checked, state, statement, fallback)?;
-    }
+        })
+}
+
+/// The caller has reconstructed its complete dispatch (binary or ordered).
+/// This evaluator owns just one selected guard and never starts either arm.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn evaluate(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    bindings: &storage::ScalarBindings,
+    source_types: &[QualifiedScalarType],
+    when_true: (usize, Vec<LoweredDirectExpression>),
+    when_false: (usize, Vec<LoweredDirectExpression>),
+    computations: &mut computations::Expansion<'_>,
+) -> Result<LoweredScalarBranchTerminator, LoweringError> {
+    let computed = is_computed(checked, state, statement);
     let condition = if computed {
         LoweredBooleanReturnExpression::Parameter {
             position: source_types.len(),

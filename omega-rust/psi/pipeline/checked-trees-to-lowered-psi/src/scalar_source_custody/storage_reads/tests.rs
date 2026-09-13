@@ -344,6 +344,47 @@ fn owned_integer_field_rejects_same_typed_field_parameter_and_erasure() {
 }
 
 #[test]
+fn case_membership_receiver_rejoins_only_its_declaring_machine() {
+    let checked = checked_source(
+        "data Choice [copy] { case Empty; case Full; }
+         machine Choice::read(&self) -> bool { self in Choice::Empty }
+         machine Choice::other(&self) -> bool { self in Choice::Empty }",
+    );
+    let state = checked.machine_states(&checked.machines()[0])[0].symbol;
+    let root = super::super::locate(&checked, state, 0, CheckedScalarExpressionRole::Return)
+        .expect("receiver return");
+    let membership = CheckedScalarExpression::Boolean(Box::new(
+        CheckedBooleanExpression::StructuralCaseMembership {
+            subject: checked_trees::CheckedStructuralParameterField {
+                parameter_position: 0,
+                path: Vec::new(),
+            },
+            case: "Empty".into(),
+        },
+    ));
+    assert!(validate_expression(&checked, state, 0, root.expression, &membership).is_ok());
+    let ExpressionNode::Binary(binary) = checked.expression_table.expression(root.expression)
+    else {
+        panic!("case expression");
+    };
+    let receiver = binary.left;
+    for change_head in [false, true] {
+        let mut forged = checked.clone();
+        let foreign = forged.machines()[1].symbol;
+        let ExpressionNode::Name(name) = forged.typed.expression_table.expression_mut(receiver)
+        else {
+            panic!("receiver name");
+        };
+        if change_head {
+            name.head_symbol = foreign;
+        } else {
+            name.symbol = foreign;
+        }
+        assert!(validate_expression(&forged, state, 0, root.expression, &membership).is_err());
+    }
+}
+
+#[test]
 fn cast_wrapped_owned_field_keeps_its_source_occurrence() {
     let checked = fixture("limits.limit as u64", "u64");
     assert!(validate_return(&checked, &integer_field(1, "limit")).is_ok());

@@ -846,6 +846,18 @@ pub(crate) fn reachable_nodes(
                     "scalar computation closure has invalid structural arguments",
                 ))?;
                 arrays::extend_elements(plans, structural_arguments, &mut pending)?;
+                for argument in structural_arguments {
+                    if let checked_trees::CheckedScalarComputationStructuralArgument::Case(
+                        subject,
+                    ) = argument
+                    {
+                        pending.extend(
+                            cases::fields(checked, subject)?
+                                .iter()
+                                .map(|field| field.value),
+                        );
+                    }
+                }
                 pending.extend(plans.operands.span(*arguments).ok_or(
                     LoweringError::Unsupported("scalar computation closure has invalid arguments"),
                 )?);

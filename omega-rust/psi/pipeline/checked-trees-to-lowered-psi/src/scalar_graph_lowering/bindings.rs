@@ -81,6 +81,19 @@ pub(super) fn prepare(
             guard_statement_ordinal,
             ..
         } => *guard_statement_ordinal,
+        CheckedScalarStateTerminator::Guarded { arms, .. } => {
+            checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .guarded_exits
+                .span(*arms)
+                .and_then(|arms| arms.first())
+                .ok_or(LoweringError::Unsupported(
+                    "guarded scalar graph has no current guard roster",
+                ))?
+                .guard_statement_ordinal
+        }
     };
     if source_machine.symbol != machine
         || state.bindings.len() + state.unit_operations.len() != authored_prefix

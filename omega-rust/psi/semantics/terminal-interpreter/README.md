@@ -211,10 +211,13 @@ interpreter carries its exact case and field identities through structural
 return and internal-call suspension; case inspection stages the selected scalar
 parameters before whole-result disposal. Empty payloads share this representation.
 Affine case results support ordinary whole-root cleanup on returns and edges.
-Opaque host values still cannot supply case observations. Passing an internally
-constructed case as a structural call argument remains unsupported by the
-interpreter's argument presentation; scalar and borrowed-view inputs with a
-scalar-case result use the existing call path.
+Opaque host values still cannot supply case observations. Ordinary calls pass
+complete internally established scalar cases through the same prepared payload
+roster as arrays: owned affine cases move once, unrestricted cases remain usable,
+and shared lending preserves the caller's immutable selected payload. Mutable or
+projected case arguments remain unsupported; this scalar-only representation has
+no case-payload mutation route. Scalar and borrowed-view inputs with a scalar-case
+result use the existing call path.
 
 Host response validation is not allocation or freshness verification. The host
 must return a legitimate owned value. Rejection preserves interpreter bookkeeping,

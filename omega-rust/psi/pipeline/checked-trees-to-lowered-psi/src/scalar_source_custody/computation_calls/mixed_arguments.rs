@@ -22,7 +22,7 @@ pub(crate) enum RejoinedComputationArgument {
     Structural {
         expression: ExpressionHandle,
     },
-    Array {
+    Construction {
         expression: ExpressionHandle,
         elements: Vec<(ExpressionHandle, CheckedScalarComputationHandle)>,
     },
@@ -268,13 +268,32 @@ pub(crate) fn rejoin_computation_call_arguments(
             let argument = structural.next().ok_or(LoweringError::Unsupported(
                 "computed invocation omits a structural argument",
             ))?;
+            if let CheckedScalarComputationStructuralArgument::Case(subject) = argument {
+                if owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                    || parameter.is_mutable
+                    || subject.expression != expression
+                    || checked.normalized_type_identity(subject.type_reference)
+                        != checked.normalized_type_identity(parameter.type_reference)
+                {
+                    return unsupported(
+                        "computed case differs from its exact owned formal or actual",
+                    );
+                }
+                result.push(RejoinedComputationArgument::Construction {
+                    expression,
+                    elements: crate::scalar_computations::cases::source::construction(
+                        checked, subject,
+                    )?,
+                });
+                continue;
+            }
             if let CheckedScalarComputationStructuralArgument::Array { .. } = argument {
                 if owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
                     return unsupported(
                         "computed array operands require an ordinary checked callee",
                     );
                 }
-                result.push(RejoinedComputationArgument::Array {
+                result.push(RejoinedComputationArgument::Construction {
                     expression,
                     elements: arrays::rejoin(checked, machine, parameter, expression, argument)?,
                 });

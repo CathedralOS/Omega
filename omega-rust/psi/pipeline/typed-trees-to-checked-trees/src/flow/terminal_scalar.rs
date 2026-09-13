@@ -62,6 +62,7 @@ use typed_trees::{
 };
 
 mod constructions;
+mod guarded_exits;
 mod guards;
 mod owned_parameters;
 pub(super) mod primitive_locals;
@@ -79,6 +80,7 @@ pub(crate) fn build_checked_scalar_graph_plans(
     computations: &checked_trees::CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
 ) -> CheckedScalarGraphPlans {
+    let (guarded_exits, guarded_tails) = guarded_exits::build(program, expressions);
     let mut parameter_storage = arena::Arena::default();
     let mut structural_types = std::collections::BTreeMap::new();
     let mut machines: Vec<_> = program
@@ -117,6 +119,8 @@ pub(crate) fn build_checked_scalar_graph_plans(
         structural_transfers,
         scalar_arguments,
         structural_types: structural_types.into_values().collect(),
+        guarded_exits,
+        guarded_tails,
     }
 }
 

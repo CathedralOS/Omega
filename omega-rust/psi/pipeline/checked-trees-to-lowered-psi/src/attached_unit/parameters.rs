@@ -670,6 +670,14 @@ pub(crate) fn validate_transfer_shape(
                         | checked_trees::CheckedStructuralAccess::MutableBorrow
                 ) && record_projection_type(structural_types, structural_type, &argument.path)
                     == Some(lookup_type_id(type_ids, &argument.type_identity)?);
+            // A completed case value can lend its whole sum to a shared
+            // receiver without selecting or transferring a case payload.
+            let case_receiver_borrow = argument.path.is_empty()
+                && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                && structural_types.iter().any(|declaration| {
+                    declaration.id == structural_type
+                        && matches!(declaration.shape, StructuralTypeShape::Sum { .. })
+                });
             let reference_borrow = argument.path.split_last().is_some_and(|(last, prefix)| {
                 *last == CheckedUnitStructuralPathSegment::Referent
                     && argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
@@ -717,7 +725,7 @@ pub(crate) fn validate_transfer_shape(
                     } else {
                         Multiplicity::Affine
                     }
-                || (target.is_self && !record_borrow)
+                || (target.is_self && !record_borrow && !case_receiver_borrow)
                 || !target.qualifications.is_empty()
                 || target.fused_service_erasure.is_some()
                 || transfers.iter().any(|transfer| {

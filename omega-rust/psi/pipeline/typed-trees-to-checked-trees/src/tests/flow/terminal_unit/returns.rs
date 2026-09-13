@@ -1,6 +1,99 @@
 use super::*;
 
 #[test]
+fn borrowed_case_getter_retains_ordered_refined_scalar_returns() {
+    let checked = checked(
+        r#"
+        data MemoryAlignment [copy] {
+            case Alignment1; case Alignment2; case Alignment4; case Alignment8;
+        }
+        machine MemoryAlignment::get_size_in_bytes(&self) -> u64 [1..=8] {
+            transition self {
+                MemoryAlignment::Alignment1 -> (1)
+                MemoryAlignment::Alignment2 -> (2)
+                MemoryAlignment::Alignment4 -> (4)
+                MemoryAlignment::Alignment8 -> (8)
+            }
+        }
+    "#,
+    );
+    let getter = machine_named(&checked, "get_size_in_bytes");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == getter)
+        .expect("borrowed four-case getter retains ordinary ordered scalar completion");
+    let control = plan
+        .scalar_control
+        .as_ref()
+        .expect("ordered scalar result owner");
+    let checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } =
+        &control.terminator
+    else {
+        panic!("ordered guards");
+    };
+    assert!(
+        fallback.is_none(),
+        "the final case is not an implicit wildcard"
+    );
+    let arms = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_exits
+        .span(*arms)
+        .unwrap();
+    assert_eq!(arms.len(), 4);
+    assert!(
+        arms.windows(2)
+            .all(|pair| pair[0].guard_statement_ordinal + 1 == pair[1].guard_statement_ordinal)
+    );
+}
+
+#[test]
+fn ordered_scalar_guards_retain_explicit_fallback() {
+    let checked = checked(
+        r#"
+        machine choose(input: u64) -> u64 {
+            transition input {
+                0 -> (1)
+                1 -> (2)
+                _ -> (3)
+            }
+        }
+    "#,
+    );
+    let machine = machine_named(&checked, "choose");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == machine)
+        .expect("ordinary guarded scalar body");
+    let checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } =
+        &plan.scalar_control.as_ref().unwrap().terminator
+    else {
+        panic!("ordered guards");
+    };
+    let arms = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_exits
+        .span(*arms)
+        .unwrap();
+    assert_eq!(arms.len(), 2);
+    assert!(
+        matches!(fallback, Some(checked_trees::CheckedScalarBranchDestination::Return { statement_ordinal, is_continuation: false }) if *statement_ordinal == arms[1].guard_statement_ordinal + 1)
+    );
+}
+
+#[test]
 fn retains_exact_payloadless_guarded_identity_call() {
     let checked = checked(
         r#"

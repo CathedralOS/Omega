@@ -358,6 +358,48 @@ fn scalar_computation_call(
     let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
         return false;
     };
+    // Receiver calls retain their whole expression in the scalar computation
+    // graph. Both immutable and storage initializers use that ordered evaluator;
+    // this admission must not reclassify the call as a result operation.
+    if allow_static_local
+        && call.receiver.is_valid()
+        && call.machine_arguments.is_empty()
+        && call.evidence_arguments.is_empty()
+        && call.static_requirement_dispatch.is_none()
+        && call.quotient_operation.is_none()
+        && call.private_layout_operation.is_none()
+        && program.machines().iter().any(|target| {
+            let Some(entry) = program.machine_states(target).first() else {
+                return false;
+            };
+            let Some(result_type) = program.primitive_type_reference(entry.return_type) else {
+                return false;
+            };
+            let parameters = program.state_parameters(entry);
+            target.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                && entry.symbol == call.target_symbol
+                && parameters.first().is_some_and(|parameter| {
+                    parameter.is_self
+                        && !parameter.is_const
+                        && matches!(program.type_reference_table.type_reference(parameter.type_reference),
+                            typed_trees::types::TypeReferenceNode::Reference {
+                                access: language_semantics::ReferenceAccess::Shared,
+                                referee, ..
+                            } if matches!(program.type_reference_table.type_reference(*referee),
+                                typed_trees::types::TypeReferenceNode::Named { .. }))
+                })
+                && parameters.iter().filter(|parameter| parameter.is_self).count() == 1
+                && program.machine_states(machine).iter().any(|state| {
+                    program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
+                        matches!(statement, StatementNode::LocalData(local)
+                            if local.initial_value == value
+                                && program.primitive_type_reference(local.type_reference) == Some(result_type))
+                    })
+                })
+        })
+    {
+        return true;
+    }
     (free_scalar_machine(program, machine)
         || (allow_static_local && static_scalar_local(program, machine, value)))
         && !call.receiver.is_valid()
@@ -481,15 +523,12 @@ fn free_scalar_machine(program: &TypedTrees, machine: &Machine) -> bool {
         })
 }
 
-/// A LET/ASSIGNMENT-bound value call whose ARGUMENT nests another machine call
-/// (`let out = self.double(self.inc(3))`) reads a garbage inner result: the
-/// inner callee's frame locals cannot materialize inside the outer call's
-/// argument context in the VALUE sink (some consumer shapes fence loudly with
-/// "needs stack/local storage lowering", but the guard-consumer shape slipped
-/// through and natively bound 0). STATEMENT-call arguments take a different
-/// materialization path and legitimately nest (the dungeon's
-/// `self.append_exit(.., self.direction_command(self.opposite(d)), ..)`), so
-/// this check runs ONLY on the value expression of a local/assignment.
+/// Destinations without ordinary computation or result-operand evaluation must
+/// retain this fence: the legacy value sink cannot materialize an inner callee's
+/// result in the outer argument frame. Supported local computations are admitted
+/// above and sequence nested calls explicitly; statement-call operands have their
+/// own ordered materialization path. This check only handles the remaining local
+/// and assignment destinations, not every bound nested call.
 pub(crate) fn report_nested_call_in_bound_value_call(
     program: &TypedTrees,
     machine: &Machine,

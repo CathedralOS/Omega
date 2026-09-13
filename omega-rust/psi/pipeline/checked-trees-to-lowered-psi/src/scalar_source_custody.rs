@@ -8,6 +8,7 @@ use checked_trees::statement::{
 
 pub(crate) mod computation_calls;
 pub(super) mod direct_calls;
+pub(crate) mod guarded_exits;
 mod parameters;
 pub(crate) mod primitive_references;
 mod storage_reads;

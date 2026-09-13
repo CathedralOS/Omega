@@ -14,22 +14,22 @@ pub(crate) mod source;
 
 #[derive(Clone)]
 pub(crate) struct Slot {
-    expression: checked_trees::expression::ExpressionHandle,
-    place: PlaceId,
-    structural_type: StructuralTypeId,
-    multiplicity: StructuralMultiplicity,
-    case: StructuralCaseId,
+    pub(super) expression: checked_trees::expression::ExpressionHandle,
+    pub(super) place: PlaceId,
+    pub(super) structural_type: StructuralTypeId,
+    pub(super) multiplicity: StructuralMultiplicity,
+    pub(super) case: StructuralCaseId,
     cases: Vec<(symbols::SymbolHandle, StructuralCaseId)>,
-    fields: Vec<(symbols::SymbolHandle, StructuralFieldId, ScalarType)>,
+    pub(super) fields: Vec<(symbols::SymbolHandle, StructuralFieldId, ScalarType)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Construction {
-    place: PlaceId,
-    structural_type: StructuralTypeId,
-    multiplicity: StructuralMultiplicity,
-    case: StructuralCaseId,
-    fields: Vec<(StructuralFieldId, LoweredDirectExpression)>,
+    pub(super) place: PlaceId,
+    pub(super) structural_type: StructuralTypeId,
+    pub(super) multiplicity: StructuralMultiplicity,
+    pub(super) case: StructuralCaseId,
+    pub(super) fields: Vec<(StructuralFieldId, LoweredDirectExpression)>,
 }
 
 pub(crate) fn fields<'a>(
@@ -74,31 +74,26 @@ pub(crate) fn prepare(
         .collect::<Vec<_>>();
     let mut slots: Vec<Slot> = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
-        let CheckedScalarComputationKind::CaseMembership {
-            subject: CheckedScalarComputationStructuralArgument::Case(subject),
-            ..
-        } = &plans.nodes.get(handle).kind
-        else {
-            continue;
-        };
-        source::construction(checked, subject)?;
-        if slots
-            .iter()
-            .any(|slot| slot.expression == subject.expression)
-        {
-            continue;
+        for subject in constructions(checked, &plans.nodes.get(handle).kind)? {
+            source::construction(checked, subject)?;
+            if slots
+                .iter()
+                .any(|slot| slot.expression == subject.expression)
+            {
+                continue;
+            }
+            let source = validation::scalar_case_constructor(&checked.typed, subject.expression)
+                .ok_or(LoweringError::Unsupported(
+                    "computed case lost its constructor",
+                ))?;
+            slots.push(reserve(
+                checked,
+                subject.expression,
+                &source,
+                types,
+                place_id(allocate_dense(next_place)?),
+            )?);
         }
-        let source = validation::scalar_case_constructor(&checked.typed, subject.expression)
-            .ok_or(LoweringError::Unsupported(
-                "computed case lost its constructor",
-            ))?;
-        slots.push(reserve(
-            checked,
-            subject.expression,
-            &source,
-            types,
-            place_id(allocate_dense(next_place)?),
-        )?);
     }
     Ok(slots)
 }
@@ -256,11 +251,7 @@ pub(crate) fn type_roots(
         .collect::<Vec<_>>();
     let mut types = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
-        if let CheckedScalarComputationKind::CaseMembership {
-            subject: CheckedScalarComputationStructuralArgument::Case(subject),
-            ..
-        } = &plans.nodes.get(handle).kind
-        {
+        for subject in constructions(checked, &plans.nodes.get(handle).kind)? {
             let identity = checked
                 .normalized_type_identity(subject.type_reference)
                 .into_string();
@@ -270,6 +261,38 @@ pub(crate) fn type_roots(
         }
     }
     Ok(types)
+}
+
+/// Constructors share one namespace whether observed locally or passed owned.
+fn constructions<'a>(
+    checked: &'a CheckedTrees,
+    node: &'a CheckedScalarComputationKind,
+) -> Result<Vec<&'a CheckedScalarCaseConstruction>, LoweringError> {
+    match node {
+        CheckedScalarComputationKind::CaseMembership {
+            subject: CheckedScalarComputationStructuralArgument::Case(subject),
+            ..
+        } => Ok(vec![subject]),
+        CheckedScalarComputationKind::Call {
+            structural_arguments,
+            ..
+        } => Ok(checked
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments
+            .span(*structural_arguments)
+            .ok_or(LoweringError::Unsupported(
+                "computed case call has stale structural arguments",
+            ))?
+            .iter()
+            .filter_map(|argument| match argument {
+                CheckedScalarComputationStructuralArgument::Case(subject) => Some(subject),
+                _ => None,
+            })
+            .collect()),
+        _ => Ok(Vec::new()),
+    }
 }
 
 impl Expansion<'_> {

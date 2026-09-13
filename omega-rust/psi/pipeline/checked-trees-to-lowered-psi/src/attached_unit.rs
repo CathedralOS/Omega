@@ -3844,7 +3844,13 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                 .ok_or(LoweringError::Unsupported(
                     "scalar completion has no checked contract",
                 ))?;
-            crate::scalar_contracts::clauses(contract.closed_scalar_values.ensures(), &namespace)?
+            let refined = crate::scalar_contracts::with_result_range(
+                checked,
+                plan.state,
+                scalar_parameters.len(),
+                &contract.closed_scalar_values,
+            )?;
+            crate::scalar_contracts::clauses(refined.ensures(), &namespace)?
                 .into_iter()
                 .map(|proposition| {
                     Ok(ContractClause {

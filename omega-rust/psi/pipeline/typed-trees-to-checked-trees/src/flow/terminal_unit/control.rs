@@ -1134,12 +1134,12 @@ pub(super) fn build_checked_machine_with(
                         | typed_trees::signature::SignatureContractKind::Ensures
                 ) || contract.binding.is_some()
             })
-            || matches!(
+            || (matches!(
                 program
                     .type_reference_table
                     .type_reference(state.return_type),
                 TypeReferenceNode::Constrained { .. }
-            ))
+            ) && validation::closed_scalar_result_range(program, state.return_type).is_none()))
     {
         return None;
     }

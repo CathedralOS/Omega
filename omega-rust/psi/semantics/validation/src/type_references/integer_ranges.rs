@@ -11,6 +11,53 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+/// Describe a closed scalar output refinement without granting its proposition.
+/// Consumers must publish the corresponding result guarantee and prove every
+/// returning path. Other qualifications cannot disappear behind a range query.
+pub fn closed_scalar_result_range(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(
+    typed_trees::types::PrimitiveType,
+    numerics::literals::IntegerLiteral,
+    numerics::literals::IntegerLiteral,
+)> {
+    let mut current = reference;
+    let mut count = 0usize;
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(current)
+    {
+        let declared = program.type_reference_table.constraints(*constraints);
+        if declared.len() != constraints.len() {
+            return None;
+        }
+        for constraint in declared {
+            if !matches!(constraint, TypeConstraintNode::Range { .. }) {
+                return None;
+            }
+            count = count.checked_add(1)?;
+        }
+        current = *base_type;
+    }
+    if count != 1 {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(reference)?;
+    let (_, [minimum, maximum], inclusive) = declared_integer_range(program, reference)?;
+    let minimum = closed_integer_range_bound(program, minimum)?;
+    let maximum = closed_integer_range_maximum(program, maximum, inclusive)?;
+    if minimum > maximum {
+        return None;
+    }
+    Some((
+        primitive,
+        crate::land_integer_value(&minimum, primitive)?,
+        crate::land_integer_value(&maximum, primitive)?,
+    ))
+}
+
 /// The exact integer carrier and single authored range, without intersecting
 /// multiple declarations or converting symbolic endpoints to guessed values.
 pub fn declared_integer_range(

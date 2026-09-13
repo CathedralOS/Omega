@@ -242,7 +242,8 @@ pub use traits::{
 };
 pub use type_references::normalize_open_index_expressions;
 pub use type_references::{
-    closed_integer_range_bound, closed_integer_range_maximum, declared_integer_range,
+    closed_integer_range_bound, closed_integer_range_maximum, closed_scalar_result_range,
+    declared_integer_range,
 };
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;

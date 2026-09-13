@@ -599,6 +599,23 @@ common-field sums remain outside that native layout route. Direct constructions
 and immutable locals use the ordinary structural-value sequence described above,
 with scalar operands evaluated once and membership observing the completed owner.
 
+Ordinary scalar completion retains ordered guarded returns, including an explicit
+fallback or exhaustive observations of one closed sum. Source replay checks the
+complete authored suffix, guard order, selected return expressions, and nominal
+coverage. The final exhaustive case is still observed; coverage does not replace
+it with an authored wildcard. These bodies use existing Terminal conditionals,
+not a separate sum evaluator. A single closed integer result range becomes a
+normal-return guarantee proved at every exit; callers consume the emitted
+guarantee, not the source annotation alone. Named successor transfers retain
+their separate control-flow admission checks.
+
+Mixed ordinary calls can establish a complete owned scalar case beside scalar
+arguments and borrowed local receivers. Case fields participate in the same
+authored operand order, with one atomic establishment before the call. Independent
+replay retains constructor, nominal type, field, and actual/formal identities.
+Shared whole-case receivers preserve that established value; this does not admit
+mutable case loans or payload projections.
+
 Ordinary Unit helpers retain borrowed `self` when checked scalar operands read
 its fields, including through computed arguments. Attachment metadata cannot
 supply the referent. Helpers without runtime receiver reads keep their existing

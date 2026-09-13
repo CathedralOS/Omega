@@ -544,6 +544,9 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     &mut computations,
                 )?
             }
+            CheckedScalarStateTerminator::Guarded { .. } => {
+                return unsupported("ordered scalar exits require an ordinary completion body");
+            }
             CheckedScalarStateTerminator::Jump(successor) => {
                 if successor.is_continuation {
                     return unsupported(

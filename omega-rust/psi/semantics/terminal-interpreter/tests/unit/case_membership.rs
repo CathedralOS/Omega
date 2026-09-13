@@ -130,6 +130,127 @@ fn case_membership_round_trips_both_tags_and_preserves_repeated_reads() {
 }
 
 #[test]
+fn ordinary_case_calls_move_affine_and_preserve_copy_or_shared_payloads() {
+    for multiplicity in [
+        StructuralMultiplicity::Unrestricted,
+        StructuralMultiplicity::Affine,
+    ] {
+        for access in [StructuralAccess::Owned, StructuralAccess::SharedBorrow] {
+            let mut module = observed_constructor(2, 2, multiplicity);
+            let mut callee = module.machines[0].clone();
+            callee.id = machine_id(2);
+            callee.contract.id = contract_id(2);
+            callee.entry = block_id(2);
+            let result = ValueDeclaration {
+                id: value_id(12),
+                scalar_type: ScalarType::Boolean,
+                qualifications: Default::default(),
+            };
+            callee.result = TerminalMachineResult::Scalar(result);
+            callee.structural_parameters = vec![StructuralParameterDeclaration {
+                place: place_id(5),
+                position: 0,
+                is_self: false,
+                structural_type: structural_type_id(1),
+                multiplicity: if access == StructuralAccess::Owned {
+                    multiplicity
+                } else {
+                    StructuralMultiplicity::Unrestricted
+                },
+                access,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            }];
+            callee.structural_places = vec![StructuralPlaceDeclaration {
+                id: place_id(5),
+                kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            }];
+            callee.blocks = vec![Block {
+                id: block_id(2),
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation_id(10),
+                    static_reach_binding: None,
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: value_id(10),
+                        ..result
+                    }),
+                    kind: OperationKind::StructuralCaseMembership {
+                        source: place_id(5),
+                        case: structural_case_id(2),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: edge_id(2),
+                    value: value_id(10),
+                    cleanup_actions: if access == StructuralAccess::Owned
+                        && multiplicity == StructuralMultiplicity::Affine
+                    {
+                        vec![TerminalAffineCleanupAction::DiscardRoot(place_id(5))]
+                    } else {
+                        Vec::new()
+                    },
+                },
+            }];
+            let caller = &mut module.machines[0];
+            caller.blocks[0].operations[2].kind = OperationKind::CallStructuralScalar {
+                callee: machine_id(2),
+                arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument {
+                    place: place_id(1),
+                    path: Vec::new(),
+                    access,
+                }],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            };
+            if access == StructuralAccess::Owned && multiplicity == StructuralMultiplicity::Affine {
+                caller.blocks[0].operations.truncate(3);
+                if let Terminator::Return {
+                    cleanup_actions, ..
+                } = &mut caller.blocks[0].terminator
+                {
+                    cleanup_actions.clear();
+                }
+            }
+            module.machines.push(callee);
+            let measured = interpret_terminal_artifact_measured(
+                &encode_module(&module).expect("complete case call encodes"),
+                &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+                &AdmissionProfile::default(),
+                &[],
+            )
+            .expect("case payload survives exact call transfer");
+            assert_eq!(
+                measured.value(),
+                TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+            );
+            assert_eq!(
+                measured
+                    .usage()
+                    .at(FuelChargeSite::Operation(operation_id(2)))
+                    .unwrap()
+                    .units(),
+                1
+            );
+            assert_eq!(
+                measured
+                    .usage()
+                    .at(FuelChargeSite::Operation(operation_id(3)))
+                    .unwrap()
+                    .units(),
+                1
+            );
+        }
+    }
+}
+
+#[test]
 fn case_membership_does_not_consume_the_returned_case_or_payload() {
     let mut module = observed_constructor(2, 1, StructuralMultiplicity::Affine);
     let machine = &mut module.machines[0];

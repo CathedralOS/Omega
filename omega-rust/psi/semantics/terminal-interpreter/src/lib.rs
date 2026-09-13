@@ -15,6 +15,7 @@ mod byte_sequence_write;
 mod record;
 mod reference;
 mod scalar_array;
+mod scalar_case_arguments;
 mod structural_byte_arrays;
 pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
 pub use structural_byte_arrays::TerminalStructuralByteArrayValue;
@@ -1277,8 +1278,11 @@ impl TerminalExecution {
         let mut structural_values = prepared_arguments.values;
         self.copy_owned_record_arguments(&callee.structural_parameters, &mut structural_values)?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
-        let callee_affine_frontier =
-            bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
+        let callee_affine_frontier = scalar_case_arguments::bind_call_affine_frontier(
+            &callee.structural_parameters,
+            &structural_values,
+            &prepared_arguments.scalar_cases,
+        )?;
         let (remaining_claims, live_claims) = transfer_claims(
             &self.live_claims,
             &self.structural_values,
@@ -1299,15 +1303,11 @@ impl TerminalExecution {
             if parameter.multiplicity == StructuralMultiplicity::Affine
                 && argument.access == StructuralAccess::Owned
             {
-                consume_affine_projection(
-                    &self.structural_types,
-                    &self.structural_values,
-                    &mut caller_affine_frontier,
-                    argument,
-                )?;
+                self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
             }
         }
         let mut caller_structural_values = std::mem::take(&mut self.structural_values);
+        let mut caller_scalar_case_values = std::mem::take(&mut self.scalar_case_values);
         for (argument, _parameter) in structural_arguments
             .iter()
             .zip(&callee.structural_parameters)
@@ -1316,7 +1316,9 @@ impl TerminalExecution {
                     && parameter.multiplicity != StructuralMultiplicity::Unrestricted
             })
         {
-            if caller_structural_values.remove(&argument.place).is_none() {
+            if caller_structural_values.remove(&argument.place).is_none()
+                && caller_scalar_case_values.remove(&argument.place).is_none()
+            {
                 return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                     argument.place,
                 ));
@@ -1327,7 +1329,7 @@ impl TerminalExecution {
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
+            scalar_case_values: caller_scalar_case_values,
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
@@ -1342,6 +1344,7 @@ impl TerminalExecution {
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
         self.scalar_array_values = prepared_arguments.scalar_arrays;
+        self.scalar_case_values = prepared_arguments.scalar_cases;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
         self.dynamic_parameters = dynamic_parameters;
@@ -1374,8 +1377,11 @@ impl TerminalExecution {
         let mut structural_values = prepared_arguments.values;
         self.copy_owned_record_arguments(&callee.structural_parameters, &mut structural_values)?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
-        let callee_affine_frontier =
-            bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
+        let callee_affine_frontier = scalar_case_arguments::bind_call_affine_frontier(
+            &callee.structural_parameters,
+            &structural_values,
+            &prepared_arguments.scalar_cases,
+        )?;
         let (remaining_claims, live_claims) = transfer_claims(
             &self.live_claims,
             &self.structural_values,
@@ -1396,15 +1402,11 @@ impl TerminalExecution {
             if parameter.multiplicity == StructuralMultiplicity::Affine
                 && argument.access == StructuralAccess::Owned
             {
-                consume_affine_projection(
-                    &self.structural_types,
-                    &self.structural_values,
-                    &mut caller_affine_frontier,
-                    argument,
-                )?;
+                self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
             }
         }
         let mut caller_structural_values = std::mem::take(&mut self.structural_values);
+        let mut caller_scalar_case_values = std::mem::take(&mut self.scalar_case_values);
         for (argument, _parameter) in structural_arguments
             .iter()
             .zip(&callee.structural_parameters)
@@ -1413,7 +1415,9 @@ impl TerminalExecution {
                     && parameter.multiplicity != StructuralMultiplicity::Unrestricted
             })
         {
-            if caller_structural_values.remove(&argument.place).is_none() {
+            if caller_structural_values.remove(&argument.place).is_none()
+                && caller_scalar_case_values.remove(&argument.place).is_none()
+            {
                 return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                     argument.place,
                 ));
@@ -1424,7 +1428,7 @@ impl TerminalExecution {
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
+            scalar_case_values: caller_scalar_case_values,
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
@@ -1439,6 +1443,7 @@ impl TerminalExecution {
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
         self.scalar_array_values = prepared_arguments.scalar_arrays;
+        self.scalar_case_values = prepared_arguments.scalar_cases;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
         self.dynamic_parameters = dynamic_parameters;
@@ -1548,8 +1553,11 @@ impl TerminalExecution {
             &structural_values,
         )?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
-        let callee_affine_frontier =
-            bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
+        let callee_affine_frontier = scalar_case_arguments::bind_call_affine_frontier(
+            &callee.structural_parameters,
+            &structural_values,
+            &prepared_arguments.scalar_cases,
+        )?;
         let (remaining_claims, live_claims) = transfer_claims(
             &self.live_claims,
             &self.structural_values,
@@ -1569,12 +1577,7 @@ impl TerminalExecution {
             if parameter.multiplicity == StructuralMultiplicity::Affine
                 && argument.access == StructuralAccess::Owned
             {
-                consume_affine_projection(
-                    &self.structural_types,
-                    &self.structural_values,
-                    &mut caller_affine_frontier,
-                    argument,
-                )?;
+                self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
             }
         }
         let mut caller_structural_values = self.structural_values.clone();
@@ -1586,20 +1589,33 @@ impl TerminalExecution {
                     && parameter.multiplicity != StructuralMultiplicity::Unrestricted
             })
         {
-            if caller_structural_values.remove(&argument.place).is_none() {
+            if caller_structural_values.remove(&argument.place).is_none()
+                && !self.scalar_case_values.contains_key(&argument.place)
+            {
                 return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                     argument.place,
                 ));
             }
         }
 
+        let mut caller_scalar_case_values = std::mem::take(&mut self.scalar_case_values);
+        for (argument, parameter) in structural_arguments
+            .iter()
+            .zip(&callee.structural_parameters)
+        {
+            if argument.path.is_empty()
+                && parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            {
+                caller_scalar_case_values.remove(&argument.place);
+            }
+        }
         self.next_operation += 1;
         self.call_stack.push(SuspendedCall {
             blocks: std::mem::take(&mut self.blocks),
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
+            scalar_case_values: caller_scalar_case_values,
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: remaining_claims,
@@ -1618,6 +1634,7 @@ impl TerminalExecution {
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
         self.scalar_array_values = prepared_arguments.scalar_arrays;
+        self.scalar_case_values = prepared_arguments.scalar_cases;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
         self.dynamic_parameters = BTreeMap::new();
@@ -4590,6 +4607,15 @@ fn bind_affine_frontier(
     parameters: &[StructuralParameterDeclaration],
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
 ) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
+    bind_affine_frontier_types(parameters, |place| {
+        values.get(&place).map(|value| value.structural_type)
+    })
+}
+
+fn bind_affine_frontier_types(
+    parameters: &[StructuralParameterDeclaration],
+    source_type: impl Fn(PlaceId) -> Option<StructuralTypeId>,
+) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
     let mut frontier = BTreeSet::new();
     // Match verifier frontier reconstruction: a borrowed receiver is present
     // in the signature but is never owned by this machine.
@@ -4597,10 +4623,10 @@ fn bind_affine_frontier(
         parameter.multiplicity == StructuralMultiplicity::Affine
             && !(parameter.is_self && parameter.access != StructuralAccess::Owned)
     }) {
-        let value = values.get(&parameter.place).ok_or(
+        let structural_type = source_type(parameter.place).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
         )?;
-        if value.structural_type != parameter.structural_type
+        if structural_type != parameter.structural_type
             || !frontier.insert(StructuralAffineDiscard {
                 place: parameter.place,
                 path: Vec::new(),

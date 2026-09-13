@@ -793,6 +793,29 @@ impl Builder<'_, '_> {
                         self.plans.nodes.get_mut(root).authored_root = *argument;
                         computed_arguments.push(root);
                     } else {
+                        if validation::scalar_case_constructor(self.program, *argument).is_some() {
+                            let case = self.case_construction(*argument)?;
+                            if parameter.is_mutable
+                                || target_machine.supply_mode
+                                    != language_semantics::MachineSupplyMode::CheckedBody
+                                || self.program.normalized_type_identity(case.type_reference)
+                                    != self
+                                        .program
+                                        .normalized_type_identity(parameter.type_reference)
+                                || !validation::has_plain_owned_contents_with_numeric_constraints(
+                                    self.program,
+                                    case.type_reference,
+                                )
+                            {
+                                return None;
+                            }
+                            structural_arguments.push(
+                                checked_trees::CheckedScalarComputationStructuralArgument::Case(
+                                    case,
+                                ),
+                            );
+                            continue;
+                        }
                         if let Some(array) = validation::scalar_array_elements(
                             self.program,
                             self.machine,

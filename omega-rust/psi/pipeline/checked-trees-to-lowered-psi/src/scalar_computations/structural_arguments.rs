@@ -9,6 +9,7 @@ pub(super) fn lower(
     arguments: &[checked_trees::CheckedScalarComputationStructuralArgument],
     bindings: &storage::ScalarBindings,
     arrays: &[arrays::Slot],
+    cases: &[cases::Slot],
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
     if arguments.is_empty() {
         return Ok(Vec::new());
@@ -29,8 +30,45 @@ pub(super) fn lower(
         .zip(target.structural_parameters())
         .map(|(argument, parameter)| {
             let argument = match argument {
-                checked_trees::CheckedScalarComputationStructuralArgument::Case(_) => {
-                    return unsupported("computed case call arguments are not admitted");
+                checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) => {
+                    let slot = cases
+                        .iter()
+                        .find(|slot| slot.expression == subject.expression)
+                        .ok_or(LoweringError::Unsupported(
+                            "computed case has no reserved structural result",
+                        ))?;
+                    let source_parameter = checked
+                        .state_parameters(state)
+                        .get(parameter.position as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "computed case formal position is absent",
+                        ))?;
+                    if parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                        || !matches!(
+                            parameter.multiplicity,
+                            Multiplicity::Affine | Multiplicity::Unrestricted
+                        )
+                        || !parameter.qualifications.is_empty()
+                        || parameter.fused_service_erasure.is_some()
+                        || source_parameter.is_mutable
+                        || checked.type_multiplicity(subject.type_reference)
+                            != parameter.multiplicity
+                        || checked
+                            .normalized_type_identity(subject.type_reference)
+                            .as_str()
+                            != parameter.type_identity
+                        || checked
+                            .normalized_type_identity(source_parameter.type_reference)
+                            .as_str()
+                            != parameter.type_identity
+                    {
+                        return unsupported("computed case differs from its exact owned formal");
+                    }
+                    return Ok(StructuralArgument {
+                        place: slot.place,
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    });
                 }
                 checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) => {
                     argument

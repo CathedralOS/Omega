@@ -99,6 +99,7 @@ pub(super) struct StructuralCallArguments {
     pub(super) values: BTreeMap<PlaceId, TerminalStructuralValue>,
     pub(super) byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     pub(super) scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
+    pub(super) scalar_cases: BTreeMap<PlaceId, TerminalScalarCaseValue>,
 }
 
 impl TerminalExecution {
@@ -121,10 +122,32 @@ impl TerminalExecution {
         // arguments use the existing opaque/borrowed-backing preparation; their
         // filtered positions must never be rebound against the full signature.
         let mut scalar_arrays = BTreeMap::new();
+        let mut scalar_cases = BTreeMap::new();
         let mut opaque_parameters = Vec::new();
         let mut opaque_arguments = Vec::new();
-        for (parameter, argument) in machine.structural_parameters.iter().zip(arguments) {
-            if terminal_semantics::scalar_array_leaf_shape(
+        for (position, (parameter, argument)) in machine
+            .structural_parameters
+            .iter()
+            .zip(arguments)
+            .enumerate()
+        {
+            if self.scalar_case_values.contains_key(&argument.place) {
+                if machine.structural_parameters[..position]
+                    .iter()
+                    .zip(&arguments[..position])
+                    .any(|(prior, actual)| {
+                        actual.place == argument.place
+                            && (prior.multiplicity != StructuralMultiplicity::Unrestricted
+                                || parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+                    })
+                {
+                    return Err(TerminalInterpretError::AffineFrontierMismatch);
+                }
+                let value = self.prepare_scalar_case_argument(machine, parameter, argument)?;
+                if scalar_cases.insert(parameter.place, value).is_some() {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                }
+            } else if terminal_semantics::scalar_array_leaf_shape(
                 self.structural_types.values(),
                 parameter.structural_type,
             )
@@ -181,6 +204,7 @@ impl TerminalExecution {
                 .prepare_boundary_arguments(&opaque_parameters, &opaque_arguments)?
                 .into_call_arguments(&opaque_parameters)?;
             prepared.scalar_arrays = scalar_arrays;
+            prepared.scalar_cases = scalar_cases;
             return Ok(prepared);
         }
         let values = self.resolve_reference_call_arguments(&opaque_arguments)?;
@@ -190,6 +214,7 @@ impl TerminalExecution {
             values: bind_structural_arguments(&opaque_parameters, &values)?,
             byte_sequences,
             scalar_arrays,
+            scalar_cases,
         })
     }
 }

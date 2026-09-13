@@ -9,7 +9,9 @@ use crate::contract_predicates::canonical_equality;
 use crate::contract_predicates::{PredicateTerms, connective};
 
 mod namespace;
+mod result_range;
 mod source;
+pub(crate) use result_range::with_result_range;
 pub(crate) use source::validate_guarantees;
 
 pub(crate) fn clauses(

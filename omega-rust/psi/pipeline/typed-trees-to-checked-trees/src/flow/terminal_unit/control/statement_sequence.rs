@@ -1122,20 +1122,58 @@ pub(in crate::flow::terminal_unit) fn scalar_control(
             )
         })
         .count();
-    let terminator = crate::flow::terminal_scalar::checked_terminator(
-        program,
-        machine,
-        state,
-        &facts.values.scalar_expressions,
-        prefix_count,
-    )?;
+    let mut guarded = facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_tails
+        .iter()
+        .filter(|tail| tail.state == state.symbol);
+    let terminator = if let Some(tail) = guarded.next() {
+        if guarded.next().is_some() {
+            return None;
+        }
+        let arms = facts
+            .flow
+            .terminal_scalar_graphs
+            .guarded_exits
+            .span(tail.arms)?;
+        if arms.first()?.guard_statement_ordinal as usize != prefix_count
+            || !arms.iter().all(|arm| {
+                matches!(
+                    arm.destination,
+                    checked_trees::CheckedScalarBranchDestination::Return { .. }
+                )
+            })
+            || tail.fallback.as_ref().is_some_and(|fallback| {
+                !matches!(
+                    fallback,
+                    checked_trees::CheckedScalarBranchDestination::Return { .. }
+                )
+            })
+        {
+            return None;
+        }
+        checked_trees::CheckedScalarStateTerminator::Guarded {
+            arms: tail.arms,
+            fallback: tail.fallback.clone(),
+        }
+    } else {
+        crate::flow::terminal_scalar::checked_terminator(
+            program,
+            machine,
+            state,
+            &facts.values.scalar_expressions,
+            prefix_count,
+        )?
+    };
     if !matches!(
         &terminator,
-        checked_trees::CheckedScalarStateTerminator::Conditional {
-            when_true: checked_trees::CheckedScalarBranchDestination::Return { .. },
-            when_false: checked_trees::CheckedScalarBranchDestination::Return { .. },
-            ..
-        }
+        checked_trees::CheckedScalarStateTerminator::Guarded { .. }
+            | checked_trees::CheckedScalarStateTerminator::Conditional {
+                when_true: checked_trees::CheckedScalarBranchDestination::Return { .. },
+                when_false: checked_trees::CheckedScalarBranchDestination::Return { .. },
+                ..
+            }
     ) {
         return None;
     }

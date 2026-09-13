@@ -18,6 +18,161 @@ enum BranchForm {
     ExpressionTail,
 }
 
+const ALIGNMENT_GETTER: &str = "
+    data Alignment [copy] { case Byte; case Word; case Dword; case Qword; }
+    machine Alignment::width(&self) -> u64 [1..=8] {
+        transition self {
+            Alignment::Byte -> (1)
+            Alignment::Word -> (2)
+            Alignment::Dword -> (4)
+            Alignment::Qword -> (8)
+        }
+    }
+";
+
+#[test]
+fn borrowed_case_getter_executes_every_refined_return_from_encoded_evidence() {
+    for (case, expected) in [("Byte", 1), ("Word", 2), ("Dword", 4), ("Qword", 8)] {
+        let source = format!(
+            "{ALIGNMENT_GETTER} machine value() -> u64 {{
+                 let alignment: Alignment = Alignment::{case};
+                 let width: u64 [1..=8] = alignment.width();
+                 16u64 / width
+             }}"
+        );
+        let checked = checked_source(&source, BranchForm::Separate);
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "value")
+            .produce_artifact()
+            .expect("borrowed case getter retains its refined result into caller division");
+        let artifact =
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+        drop(checked);
+        let mut without_range = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        let getter = without_range
+            .machines
+            .iter_mut()
+            .find(|machine| {
+                machine.id != without_range.entry && machine.structural_parameters.len() == 1
+            })
+            .expect("borrowed getter");
+        assert!(
+            !getter.contract.ensures.is_empty(),
+            "the declared nonzero range must reach the executable callee contract"
+        );
+        getter.contract.ensures.clear();
+        let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+        assert!(
+            terminal_verifier::verify_module(&without_range, &proof, &AdmissionProfile::default())
+                .is_err(),
+            "caller division cannot borrow a source-only range after callee guarantees disappear"
+        );
+        assert_eq!(
+            interpret_terminal_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &AdmissionProfile::default(),
+                &[],
+            )
+            .unwrap_or_else(|error| panic!("{case}: {error:#?}")),
+            TerminalExecutionResult::Scalar(unsigned(64, 16 / expected)),
+        );
+    }
+}
+
+#[test]
+fn ordered_scalar_returns_execute_the_authored_fallback() {
+    let checked = checked_source(
+        "machine value(input: u64) -> u64 { transition input { 0 -> (1) 1 -> (2) _ -> (3) } }",
+        BranchForm::Separate,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "value")
+        .produce_artifact()
+        .expect("ordered scalar guards with explicit fallback");
+    drop(checked);
+    for (input, expected) in [(0, 1), (1, 2), (2, 3), (u64::MAX, 3)] {
+        assert_eq!(
+            interpret_terminal_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &AdmissionProfile::default(),
+                &[unsigned(64, u128::from(input))]
+            )
+            .unwrap(),
+            TerminalExecutionResult::Scalar(unsigned(64, expected))
+        );
+    }
+}
+
+#[test]
+fn guarded_case_replay_rejects_changed_order_guards_and_final_destination() {
+    let checked = checked_source(ALIGNMENT_GETTER, BranchForm::Separate);
+    let artifact =
+        terminal_production::TerminalProductionRequest::new(&checked, "Alignment::width")
+            .produce_artifact()
+            .expect("complete borrowed case getter before hostile plan edits");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    for (original, outside) in [(1, 0), (8, 9)] {
+        let mut invalid = module.clone();
+        let getter = invalid
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == invalid.entry)
+            .unwrap();
+        let returned = getter.blocks.iter_mut().flat_map(|block| &mut block.operations)
+            .find(|operation| matches!(operation.kind,
+                terminal_psi::OperationKind::IntegerConstant { value: IntegerValue::Unsigned(value) }
+                if value == original)).expect("declared endpoint return");
+        returned.kind = terminal_psi::OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(outside),
+        };
+        assert!(
+            terminal_verifier::verify_module(&invalid, &proof, &AdmissionProfile::default())
+                .is_err(),
+            "a returned value outside the declared range must not retain its proof"
+        );
+    }
+    let getter = checked.machines()[0].symbol;
+    let control = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(getter)
+        .unwrap()
+        .scalar_control
+        .as_ref()
+        .unwrap();
+    let checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } =
+        &control.terminator
+    else {
+        panic!("all authored guards remain explicit");
+    };
+    assert!(fallback.is_none());
+    assert_eq!(arms.count(), 4);
+    for mutation in 0..3 {
+        let mut invalid = checked.clone();
+        let rows = invalid
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .guarded_exits
+            .span_mut(*arms)
+            .unwrap();
+        match mutation {
+            0 => rows.swap(0, 1),
+            1 => rows[1].guard_statement_ordinal = rows[0].guard_statement_ordinal,
+            2 => rows[3].destination = rows[0].destination.clone(),
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&invalid, "Alignment::width")
+                .produce_artifact()
+                .is_err(),
+            "changed ordered-exit custody {mutation} must reject"
+        );
+    }
+}
+
 fn checked_source(source: &str, form: BranchForm) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
