@@ -15,7 +15,8 @@ pub use generic_arguments::{validate_closed_const_argument, validate_exact_const
 pub use open_index_expressions::normalize_open_index_expressions;
 mod integer_ranges;
 pub use integer_ranges::{
-    closed_integer_range_bound, closed_integer_range_maximum, declared_integer_range,
+    closed_integer_range_bound, closed_integer_range_maximum, closed_scalar_result_range,
+    declared_integer_range,
 };
 pub(crate) use open_index_expressions::validate_indexed_qualification_arguments;
 

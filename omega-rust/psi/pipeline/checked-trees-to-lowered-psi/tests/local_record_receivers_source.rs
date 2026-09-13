@@ -10,6 +10,154 @@ const SOURCE: &str = include_str!(concat!(
 ));
 
 #[test]
+fn local_receiver_scalar_and_fresh_case_keep_argument_identity_and_once_only_effects() {
+    let source = r#"
+        boundary trait Sink { machine record(value: u64); }
+        data Mode [copy] { case Narrow; case Wide; }
+        data Region { base: u64; }
+        machine Region::take(&self, value: u64, mode: Mode) -> u64 reaches Sink {
+            Sink::record(self.base);
+            value
+        }
+        data Main {}
+        machine Main::main() reaches Sink {
+            Sink::record(1);
+            let region: Region = Region { base: 10 };
+            let received: u64 = region.take(4, Mode::Wide);
+            Sink::record(received);
+            Sink::record(2);
+        }
+    "#;
+    let payload = source
+        .replace("case Wide;", "case Wide(payload: u64);")
+        .replace("mode: Mode)", "mode: Mode, trailing: u64)")
+        .replace("data Main {}", "machine stamp(value: u64) -> u64 reaches Sink { Sink::record(value); value } data Main {}")
+        .replace("region.take(4, Mode::Wide)", "region.take(stamp(4), Mode::Wide { payload: stamp(3) }, stamp(5))");
+    for (source, expected) in [
+        (source.to_owned(), vec![1, 10, 4, 2]),
+        (source.replace("Mode [copy]", "Mode"), vec![1, 10, 4, 2]),
+        (payload, vec![1, 4, 3, 5, 10, 4, 2]),
+    ] {
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+            .produce_artifact()
+            .expect("mixed call establishes its fresh case before borrowing the local receiver");
+        let owner = checked
+            .data_definitions()
+            .iter()
+            .find(|owner| owner.name.as_str() == "Mode")
+            .unwrap();
+        let other_case = checked
+            .data_members(owner)
+            .iter()
+            .find_map(|member| match member {
+                checked_trees::data::DataMember::Variant(case)
+                    if case.name.as_str() == "Narrow" =>
+                {
+                    Some(case.symbol)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let mut changed = checked.clone();
+        let subject_handle = changed
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments
+            .iter()
+            .find_map(|(handle, argument)| match argument {
+                checked_trees::CheckedScalarComputationStructuralArgument::Case(_) => Some(handle),
+                _ => None,
+            })
+            .expect("retained fresh case argument");
+        let checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) = changed
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments
+            .get_mut(subject_handle)
+        else {
+            panic!("retained fresh case argument");
+        };
+        subject.case = other_case;
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
+                .produce_artifact()
+                .is_err(),
+            "a same-typed case cannot replace the authored argument"
+        );
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        assert_eq!(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .filter(|operation| matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::EstablishScalarCase { .. }
+                ))
+                .count(),
+            1,
+            "fresh case retains a real structural establishment"
+        );
+        let mut execution = TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+        )
+        .unwrap();
+        let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
+        let mut completed = false;
+        for _ in 0..256 {
+            let status = execution.resume(&mut fuel).unwrap();
+            match status {
+                TerminalExecutionStatus::SponsorExhausted(_) => {
+                    assert_eq!(execution.resume(&mut fuel).unwrap(), status);
+                    fuel.replenish(1).unwrap();
+                }
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
+                    completed = true;
+                    break;
+                }
+                other => panic!("mixed argument execution: {other:?}"),
+            }
+        }
+        assert!(completed);
+        let observed = execution
+            .effects()
+            .iter()
+            .map(|effect| {
+                let terminal_interpreter::TerminalEffect::BoundaryCall { arguments, .. } = effect
+                else {
+                    panic!("only Sink recording effects");
+                };
+                let [TerminalScalarValue::Integer { value, .. }] = arguments.as_slice() else {
+                    panic!("one u64 recording argument");
+                };
+                *value
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            observed,
+            expected
+                .into_iter()
+                .map(semantic_vocabulary::IntegerValue::Unsigned)
+                .collect::<Vec<_>>()
+        );
+    }
+}
+
+#[test]
 fn scalar_return_helper_reads_its_established_local_record_across_fuel() {
     let tokens = source_files_to_tokens::Lexer::new(SOURCE)
         .tokenize()

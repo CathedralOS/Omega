@@ -75,6 +75,35 @@ pub struct CheckedScalarGraphPlans {
     pub structural_transfers: arena::Arena<CheckedStructuralControlTransferPlan>,
     pub scalar_arguments: arena::Arena<CheckedStructuralScalarArgumentPlan>,
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
+    /// Ordered exits survive graph-body admission so ordinary Unit bodies use
+    /// the same guard and selected-destination correspondence.
+    pub guarded_exits: arena::Arena<CheckedScalarGuardedExit>,
+    pub guarded_tails: Vec<CheckedScalarGuardedTail>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedScalarGuardedTail {
+    pub state: SymbolHandle,
+    pub arms: arena::HandleSpan<CheckedScalarGuardedExit>,
+    pub fallback: Option<CheckedScalarBranchDestination>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedScalarGuardedExit {
+    pub guard_statement_ordinal: u32,
+    pub destination: CheckedScalarBranchDestination,
+}
+
+impl Default for CheckedScalarGuardedExit {
+    fn default() -> Self {
+        Self {
+            guard_statement_ordinal: 0,
+            destination: CheckedScalarBranchDestination::Return {
+                statement_ordinal: 0,
+                is_continuation: false,
+            },
+        }
+    }
 }
 
 /// One owned mutable primitive seeded from the current state's incoming value.
@@ -176,6 +205,12 @@ pub enum CheckedScalarBindingValue {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarStateTerminator {
+    /// Guards are tested in authored order. No fallback requires independently
+    /// checked exhaustive coverage; the final guarded row remains explicit.
+    Guarded {
+        arms: arena::HandleSpan<CheckedScalarGuardedExit>,
+        fallback: Option<CheckedScalarBranchDestination>,
+    },
     Return {
         statement_ordinal: u32,
     },

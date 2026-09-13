@@ -785,6 +785,21 @@ fn collect(
                 )?;
             }
             for argument in plans.structural_arguments.span(*structural_arguments)? {
+                if let checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) =
+                    argument
+                {
+                    for field in plans.case_fields.span(subject.fields)? {
+                        collect(
+                            facts,
+                            statement,
+                            field.value,
+                            calls,
+                            minimum_call_ordinal,
+                            active,
+                            consumed,
+                        )?;
+                    }
+                }
                 if let checked_trees::CheckedScalarComputationStructuralArgument::Array {
                     elements,
                     ..

@@ -12,6 +12,10 @@ enum Operand {
         slot: arrays::Slot,
         leaves: Vec<Argument>,
     },
+    Case {
+        slot: cases::Slot,
+        fields: Vec<Argument>,
+    },
 }
 
 /// Keep a call with completed scalar expressions in its caller block. Splitting
@@ -177,6 +181,7 @@ impl Expansion<'_> {
             structural,
             site.bindings,
             &self.arrays,
+            &self.cases,
         )?;
         let scalars = plans
             .operands
@@ -229,6 +234,30 @@ impl Expansion<'_> {
                         .map(Argument::Computation)
                         .collect();
                     operands.push(Operand::Array { slot, leaves });
+                }
+                if let CheckedScalarComputationStructuralArgument::Case(subject) = argument {
+                    let slot = self
+                        .cases
+                        .iter()
+                        .find(|slot| slot.expression == subject.expression)
+                        .ok_or(LoweringError::Unsupported(
+                            "computed case has no reserved structural result",
+                        ))?
+                        .clone();
+                    let retained = cases::fields(self.checked, subject)?;
+                    if retained.len() != slot.fields.len()
+                        || retained
+                            .iter()
+                            .zip(&slot.fields)
+                            .any(|(field, (symbol, _, _))| field.symbol != *symbol)
+                    {
+                        return unsupported("computed case field roster changed after reservation");
+                    }
+                    let fields = retained
+                        .iter()
+                        .map(|field| Argument::Computation(field.value))
+                        .collect();
+                    operands.push(Operand::Case { slot, fields });
                 }
                 structural_ordinal += 1;
             } else {
@@ -315,6 +344,43 @@ impl Expansion<'_> {
                         },
                     });
                     self.sequence(leaves, prefix, constructor, site, active)?
+                }
+                Operand::Case { slot, fields } => {
+                    let mut field_types = prefix.clone();
+                    let mut completed_fields = Vec::new();
+                    for (field, (_, identity, scalar_type)) in fields.iter().zip(&slot.fields) {
+                        let qualified_type = self.argument_type(field, site, input_types)?;
+                        if qualified_type != (*scalar_type).into() {
+                            return unsupported(
+                                "computed case field differs from its exact scalar type",
+                            );
+                        }
+                        completed_fields.push((
+                            *identity,
+                            parameter(field_types.len(), qualified_type.clone()),
+                        ));
+                        field_types.push(qualified_type);
+                    }
+                    let constructor = self.push(LoweredScalarBranchState {
+                        parameter_types: field_types,
+                        bindings: Vec::new(),
+                        structural_effects: vec![LoweredScalarEffect::EstablishScalarCase(
+                            cases::Construction {
+                                place: slot.place,
+                                structural_type: slot.structural_type,
+                                multiplicity: slot.multiplicity,
+                                case: slot.case,
+                                fields: completed_fields,
+                            },
+                        )],
+                        terminator: LoweredScalarBranchTerminator::Jump {
+                            trivial_affine_discards: Vec::new(),
+                            target: continuation,
+                            arguments: super::parameters(prefix),
+                            structural_arguments: Vec::new(),
+                        },
+                    });
+                    self.sequence(fields, prefix, constructor, site, active)?
                 }
             };
         }

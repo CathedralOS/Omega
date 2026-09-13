@@ -2,7 +2,7 @@
 
 use super::*;
 
-mod case_membership;
+pub(super) mod case_membership;
 
 #[cfg(test)]
 mod tests;
@@ -217,7 +217,10 @@ fn validate_reads(
 }
 
 /// Guard lowering erases the builtin `subject == true` wrapper, not its subject.
-fn guard_subject(checked: &CheckedTrees, expression: ExpressionHandle) -> ExpressionHandle {
+pub(super) fn guard_subject(
+    checked: &CheckedTrees,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
     let ExpressionNode::Binary(binary) = checked.expression_table.expression(expression) else {
         return expression;
     };

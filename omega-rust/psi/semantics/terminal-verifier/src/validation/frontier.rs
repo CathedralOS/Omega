@@ -1244,6 +1244,17 @@ fn validate_owned_reads(
     for place in reads.filter(|place| {
         super::byte_sequence_subslice::borrowed_result(machine, *place).is_none()
             && super::primitive_storage::local_result(machine, *place).is_none()
+            // Copyable case results have no affine frontier entry. Their exact
+            // producer and dominance are checked by scalar_case::validate_uses;
+            // Shared observations can accompany owned copies of the same
+            // unrestricted value; neither grants mutable or projected access.
+            && !(super::scalar_case::plain_return_source(module, machine, *place)
+                && super::structural_result_contracts::source_signature(machine, *place)
+                    .is_some_and(|source| source.multiplicity == StructuralMultiplicity::Unrestricted)
+                && arguments.iter().any(|argument| argument.place == *place)
+                && arguments.iter().filter(|argument| argument.place == *place).all(|argument|
+                    matches!(argument.access, StructuralAccess::Owned | StructuralAccess::SharedBorrow)
+                        && argument.path.is_empty()))
             && !super::record::result(machine, *place).is_some_and(|result| {
                 result.multiplicity == StructuralMultiplicity::Unrestricted
                     && super::record::plain_return_source(module, machine, *place)

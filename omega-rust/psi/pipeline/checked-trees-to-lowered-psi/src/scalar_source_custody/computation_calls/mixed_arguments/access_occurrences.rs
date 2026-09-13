@@ -48,6 +48,21 @@ pub(crate) fn rejoin(
                         language_core::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
                     },
                 ),
+                ExpressionNode::Name(_) | ExpressionNode::StructLiteral(_)
+                    if validation::scalar_case_constructor(checked, expression).is_some() =>
+                {
+                    let constructor = validation::scalar_case_constructor(checked, expression)
+                        .ok_or(LoweringError::Unsupported(
+                            "computed case lost its source constructor",
+                        ))?;
+                    children.extend(
+                        constructor
+                            .fields
+                            .into_iter()
+                            .map(|(_, expression, _)| expression),
+                    );
+                    (None, BorrowAccessKind::Read)
+                }
                 ExpressionNode::Name(_) => (Some(expression), BorrowAccessKind::Read),
                 ExpressionNode::Member(_) => (Some(expression), BorrowAccessKind::Read),
                 // This follows borrow/accesses/read.rs: a nested call's own

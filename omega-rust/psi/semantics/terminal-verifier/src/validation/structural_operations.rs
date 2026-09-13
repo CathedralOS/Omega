@@ -1379,6 +1379,22 @@ pub(super) fn validate_structural_arguments(
                             let result = super::record::completed_source(module, caller, argument.place)?;
                             Some((result.structural_type, result.multiplicity, StructuralAccess::Owned, &[][..], &[][..]))
                         }
+                        StructuralPlaceKind::OperationResult { .. }
+                            if ordinary_call
+                                && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                                && argument.path.is_empty()
+                                && matches!(argument.access, StructuralAccess::Owned | StructuralAccess::SharedBorrow)
+                                && super::scalar_case::plain_return_source(module, caller, argument.place) =>
+                        {
+                            // Atomic case establishment supplies the same complete
+                            // owned value at calls as at returns. Keep its actual
+                            // multiplicity; frontier replay still requires the
+                            // exact producer to dominate and transfer only once.
+                            super::structural_result_contracts::source_signature(caller, argument.place).map(|source| (
+                                source.structural_type, source.multiplicity, StructuralAccess::Owned,
+                                source.qualifications, source.projected_qualifications,
+                            ))
+                        }
                         StructuralPlaceKind::OperationResult { structural_type, .. }
                             if ordinary_call
                                 && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
@@ -1616,6 +1632,7 @@ pub(super) fn validate_structural_arguments(
             && actual_multiplicity == StructuralMultiplicity::Affine
             && (is_structural_call_result(caller, argument.place)
                 || super::record::plain_return_source(module, caller, argument.place)
+                || super::scalar_case::plain_return_source(module, caller, argument.place)
                 || super::block_views::parameter(caller, argument.place).is_some()
                 || caller
                     .structural_parameters

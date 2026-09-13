@@ -330,7 +330,7 @@ impl TerminalExecution {
         })
     }
 
-    fn owned_result_matches(
+    pub(super) fn owned_result_matches(
         &self,
         place: PlaceId,
         parameter: &StructuralParameterDeclaration,
@@ -381,7 +381,10 @@ impl TerminalExecution {
                 })
     }
 
-    fn owned_block_source(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {
+    pub(super) fn owned_block_source(
+        &self,
+        place: PlaceId,
+    ) -> Option<&StructuralParameterDeclaration> {
         let machine = self.machines.get(&self.current_machine)?;
         let declaration = machine
             .structural_places

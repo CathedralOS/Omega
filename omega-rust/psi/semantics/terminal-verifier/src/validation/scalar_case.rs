@@ -45,6 +45,47 @@ pub(super) fn plain_return_source(
         })
 }
 
+/// Copyable cases need establishment dominance even though the ownership
+/// frontier only tracks affine and linear values. Admission of a complete
+/// result is not evidence that its producer has executed on this path.
+pub(super) fn validate_uses(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    available: &BTreeSet<PlaceId>,
+) -> Result<(), ModuleError> {
+    let arguments = match &operation.kind {
+        OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            structural_arguments,
+            ..
+        } => structural_arguments,
+        _ => return Ok(()),
+    };
+    for argument in arguments {
+        if plain_return_source(module, machine, argument.place)
+            && !available.contains(&argument.place)
+        {
+            return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                operation: operation.id,
+                place: argument.place,
+            });
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn fields<'module>(
     module: &'module TerminalModule,
     machine: &TerminalMachine,

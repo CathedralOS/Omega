@@ -25,15 +25,60 @@ pub(super) fn validate(
         || checked.primitive_type_reference(state.return_type) != Some(control.primitive_type)
         || !checked.machine_contracts(source).is_empty()
         || !checked.state_contracts(state).is_empty()
-        || matches!(
-            checked
-                .type_reference_table
-                .type_reference(state.return_type),
-            checked_trees::types::TypeReferenceNode::Constrained { .. }
-        )
     {
-        return unsupported("ordered scalar control lost its exact plain source signature");
+        return unsupported("ordered scalar control lost its exact source signature");
     }
+    crate::scalar_contracts::with_result_range(
+        checked,
+        machine.state,
+        0,
+        &checked_trees::ClosedScalarValueContractPlan::default(),
+    )?;
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let prefix = match &control.terminator {
+        CheckedScalarStateTerminator::Guarded { arms, fallback } => {
+            crate::scalar_source_custody::guarded_exits::validate(
+                checked,
+                machine.state,
+                *arms,
+                fallback.as_ref(),
+            )?
+        }
+        CheckedScalarStateTerminator::Conditional { .. } => conditional(checked, machine, control)?,
+        _ => return unsupported("ordered scalar completion requires a returning guard tail"),
+    };
+    if !matches!(machine.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete {
+        statement_index, ..
+    }) if *statement_index as usize == statements.len())
+    {
+        return unsupported("ordered scalar completion omitted its final cleanup frontier");
+    }
+    for (statement, node) in statements.iter().enumerate().take(prefix) {
+        if !matches!(
+            node,
+            StatementNode::LocalData(_) | StatementNode::Call(_) | StatementNode::Assignment(_)
+        ) || !machine.operations.iter().any(|operation| {
+            super::super::scalar_arrays::source_statement(operation) == Some(statement as u32)
+        }) {
+            return unsupported("ordered scalar control omitted an authored prefix statement");
+        }
+    }
+    for operation in &machine.operations[..machine.operations.len() - 1] {
+        if super::super::scalar_arrays::source_statement(operation)
+            .is_none_or(|statement| statement as usize >= prefix)
+        {
+            return unsupported("ordered scalar control moved a tail effect into its prefix");
+        }
+    }
+    Ok(())
+}
+
+fn conditional(
+    checked: &CheckedTrees,
+    machine: &CheckedUnitEffectMachinePlan,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
+) -> Result<usize, LoweringError> {
+    let (_, state) = crate::scalar_source_custody::authored_state(checked, machine.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let CheckedScalarStateTerminator::Conditional {
         guard_statement_ordinal,
@@ -106,30 +151,7 @@ pub(super) fn validate(
             return unsupported("ordered scalar return changed its source carrier");
         }
     }
-    if !matches!(machine.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete {
-        statement_index, ..
-    }) if *statement_index as usize == statements.len())
-    {
-        return unsupported("ordered scalar completion omitted its final cleanup frontier");
-    }
-    for (statement, node) in statements.iter().enumerate().take(prefix) {
-        if !matches!(
-            node,
-            StatementNode::LocalData(_) | StatementNode::Call(_) | StatementNode::Assignment(_)
-        ) || !machine.operations.iter().any(|operation| {
-            super::super::scalar_arrays::source_statement(operation) == Some(statement as u32)
-        }) {
-            return unsupported("ordered scalar control omitted an authored prefix statement");
-        }
-    }
-    for operation in &machine.operations[..machine.operations.len() - 1] {
-        if super::super::scalar_arrays::source_statement(operation)
-            .is_none_or(|statement| statement as usize >= prefix)
-        {
-            return unsupported("ordered scalar control moved a tail effect into its prefix");
-        }
-    }
-    Ok(())
+    Ok(prefix)
 }
 
 fn complementary(

@@ -360,13 +360,13 @@ pub(crate) fn validate_computation_calls(
                                 );
                             }
                         }
-                        RejoinedComputationArgument::Array {
+                        RejoinedComputationArgument::Construction {
                             expression,
                             elements,
                         } => {
                             if !scoped_expressions.contains(&expression) {
                                 return unsupported(
-                                    "computed array escaped its authored argument scope",
+                                    "computed construction escaped its authored argument scope",
                                 );
                             }
                             pending.extend(

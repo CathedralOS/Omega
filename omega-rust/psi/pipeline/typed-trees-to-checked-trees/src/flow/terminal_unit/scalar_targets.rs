@@ -303,12 +303,12 @@ pub(super) fn available_target(
                             | SignatureContractKind::Ensures
                     ) || contract.binding.is_some()
                 })
-            || matches!(
+            || (matches!(
                 program
                     .type_reference_table
                     .type_reference(state.return_type),
                 TypeReferenceNode::Constrained { .. }
-            )
+            ) && validation::closed_scalar_result_range(program, state.return_type).is_none())
         {
             return None;
         }

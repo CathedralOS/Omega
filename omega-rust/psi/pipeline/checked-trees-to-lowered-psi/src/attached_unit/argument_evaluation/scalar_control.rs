@@ -24,14 +24,6 @@ impl Evaluation {
             .ok_or(LoweringError::Unsupported(
                 "ordered scalar body has no control completion",
             ))?;
-        let CheckedScalarStateTerminator::Conditional {
-            guard_statement_ordinal,
-            when_true,
-            when_false,
-        } = &control.terminator
-        else {
-            return unsupported("ordered scalar completion requires conditional returns");
-        };
         let bindings = self
             .scalar_bindings
             .clone()
@@ -105,25 +97,92 @@ impl Evaluation {
                 )
             }
         };
-        let true_target = arm(when_true)?;
-        let false_target = arm(when_false)?;
-        let terminator = crate::scalar_graph_lowering::guards::lower(
-            checked,
-            machine.state,
-            *guard_statement_ordinal,
-            &bindings,
-            &source_types,
-            (
-                true_target,
-                crate::scalar_computations::parameters(&source_types),
-            ),
-            (
-                false_target,
-                crate::scalar_computations::parameters(&source_types),
-            ),
-            when_false,
-            &mut expansion,
-        )?;
+        let terminator = match &control.terminator {
+            CheckedScalarStateTerminator::Conditional {
+                guard_statement_ordinal,
+                when_true,
+                when_false,
+            } => {
+                let true_target = arm(when_true)?;
+                let false_target = arm(when_false)?;
+                crate::scalar_graph_lowering::guards::lower(
+                    checked,
+                    machine.state,
+                    *guard_statement_ordinal,
+                    &bindings,
+                    &source_types,
+                    (
+                        true_target,
+                        crate::scalar_computations::parameters(&source_types),
+                    ),
+                    (
+                        false_target,
+                        crate::scalar_computations::parameters(&source_types),
+                    ),
+                    when_false,
+                    &mut expansion,
+                )?
+            }
+            CheckedScalarStateTerminator::Guarded { arms, fallback } => {
+                crate::scalar_source_custody::guarded_exits::validate(
+                    checked,
+                    machine.state,
+                    *arms,
+                    fallback.as_ref(),
+                )?;
+                let arms = checked
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .guarded_exits
+                    .span(*arms)
+                    .ok_or(LoweringError::Unsupported(
+                        "ordered scalar guard roster is stale",
+                    ))?;
+                let targets = arms
+                    .iter()
+                    .map(|guard| arm(&guard.destination))
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
+                let mut next = if let Some(fallback) = fallback {
+                    arm(fallback)?
+                } else {
+                    *targets.last().ok_or(LoweringError::Unsupported(
+                        "ordered scalar guards are empty",
+                    ))?
+                };
+                // Every guard, including the final exhaustive case, is observed
+                // once. Its false continuation is unreachable by the independent
+                // coverage replay above, not an invented implicit fallback.
+                for (guard, target) in arms.iter().zip(targets).rev() {
+                    let terminator = crate::scalar_graph_lowering::guards::evaluate(
+                        checked,
+                        machine.state,
+                        guard.guard_statement_ordinal,
+                        &bindings,
+                        &source_types,
+                        (
+                            target,
+                            crate::scalar_computations::parameters(&source_types),
+                        ),
+                        (next, crate::scalar_computations::parameters(&source_types)),
+                        &mut expansion,
+                    )?;
+                    next = expansion.push(LoweredScalarBranchState {
+                        structural_effects: Vec::new(),
+                        parameter_types: source_types.clone(),
+                        bindings: Vec::new(),
+                        terminator,
+                    });
+                }
+                LoweredScalarBranchTerminator::Jump {
+                    trivial_affine_discards: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    target: next,
+                    arguments: crate::scalar_computations::parameters(&source_types),
+                }
+            }
+            _ => return unsupported("ordered scalar completion requires a guarded return"),
+        };
         let entry = expansion.push(LoweredScalarBranchState {
             structural_parameters: Vec::new(),
             structural_effects: Vec::new(),

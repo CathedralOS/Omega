@@ -91,6 +91,7 @@ impl BoundaryArguments {
             values,
             byte_sequences,
             scalar_arrays: BTreeMap::new(),
+            scalar_cases: BTreeMap::new(),
         })
     }
 
