@@ -12,7 +12,7 @@
 //! cannot bypass that obligation and let later canonicalization erase a runtime
 //! operand. Nonscalar values retain their existing materialization path.
 
-mod lexical_selection;
+pub(super) mod lexical_selection;
 pub(super) mod value;
 
 #[cfg(test)]
@@ -333,7 +333,7 @@ pub(super) fn append_probe(
     }));
 }
 
-fn expression_custody(
+pub(super) fn expression_custody(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

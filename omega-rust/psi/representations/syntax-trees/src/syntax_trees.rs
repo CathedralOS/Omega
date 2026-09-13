@@ -1109,6 +1109,22 @@ impl SyntaxTrees {
             TypeReferenceNode::Unit => self.type_references.insert_unit(),
         };
         let origin = other.type_references.generic_application_origin(handle);
+        if let TypeReferenceNode::Constrained { constraints, .. } =
+            other.type_references.type_reference(handle)
+        {
+            for ordinal in 0..constraints.count() as usize {
+                if let Some(value) = other
+                    .type_references
+                    .integer_range_normalization(handle, ordinal)
+                {
+                    self.type_references.retain_integer_range_normalization(
+                        copied,
+                        ordinal,
+                        value.clone(),
+                    );
+                }
+            }
+        }
         if let Some(normalization) = other.type_references.const_argument_normalization(handle) {
             self.type_references.retain_const_argument_normalization(
                 copied,

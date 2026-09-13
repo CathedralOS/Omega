@@ -1365,8 +1365,17 @@ Owners include
   owner-sensitive operations and open symbolic endpoints remain. Record and case-payload endpoint calls resolve in
   their declaration scope before folding; local bounded record construction and
   field reads retain range obligations through canonical Terminal execution.
-  Replace the range-argument exclusion in `generic_data/arguments.rs` only with exact identity
-  and constrained-shell substitution, not a source-display cache key.
+  Generic-data range arguments retain structured interval observations from
+  `build-time-evaluation/src/range_arguments.rs` and independently replay equality
+  after complete typing; substitution retains the original constrained argument.
+  Finish open/template-dependent and machine-computed argument ranges, type
+  equations and omitted data binders without a source-display identity key.
+  The fixture's `generic_equivalent_bound`, `generic_wide_bound` and
+  `generic_forwarded_bound` check and execute at build time but Terminal still
+  rejects the missing checked scalar control plan. Nongeneric controls reproduce
+  the local record-copy, full-width bounded-field and nested-construction gaps.
+  Connect those shared lowering operations, then require the unchanged functions
+  to execute from canonical Terminal bytes; do not invent generic-specific plans.
 
   Extend remaining named computations through build-time admission, using
   `typed-trees/src/typed_trees/type_system/closed_numeric.rs` and its existing

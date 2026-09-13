@@ -2,17 +2,11 @@
 
 use super::*;
 
-/// A distinguishing slug for each argument -- the Phase-1 gate. `Some` when
-/// EVERY argument is either a plain concrete `Named` type, a recursively
-/// nonzero literal fixed array of one, or a `Named` carrying only nameable
-/// constraints (an arithmetic/carrier domain, `Box<i32 in Wrapping>` /
-/// `Store<u8 in Utf8>`); `None` if any argument is a nested generic, zero or
-/// nonliteral array, slice, reference, or a range-bounded type whose bound is
-/// an expression. The slug is used only to name the
-/// synthetic record -- the SUBSTITUTION points the field at the argument's own
-/// type reference, so a domain constraint on the argument rides along
-/// unchanged. Distinct spellings must slug distinctly (`i32 in Wrapping` vs
-/// `i32 in Saturating`); identical spellings share one instance.
+/// Diagnostic names for admitted closed arguments, not application identity.
+/// Range shells require structured observations from typed numeric evaluation;
+/// this syntax owner never evaluates their bounds. Substitution retains the
+/// original argument type and its constraints. Instance sharing uses the exact
+/// declaration/argument identities below, not matching rendered names.
 pub(in crate::generic_data) fn monomorphizable_argument_slugs(
     syntax: &SyntaxTrees,
     argument_handles: &[TypeReferenceHandle],
@@ -146,9 +140,8 @@ pub(in crate::generic_data) fn exact_synthesized_lifetime_instance(
         })
 }
 
-/// The naming slug for an argument type, or `None` for a shape Phase 1 leaves
-/// to the existing generic path. Plain `Named`, recursively nonzero literal
-/// fixed arrays, and `Named in Domain...` only.
+/// Naming metadata for closed types, arrays, qualifications and observed ranges.
+/// Unsupported or open shapes remain on the ordinary generic path.
 pub(in crate::generic_data) fn type_reference_slug(
     syntax: &SyntaxTrees,
     handle: TypeReferenceHandle,
@@ -185,8 +178,21 @@ pub(in crate::generic_data) fn type_reference_slug(
         } => {
             let base = type_reference_slug(syntax, *base_type)?;
             let mut rendered = Vec::new();
-            for constraint in syntax.tables.type_references.constraints(*constraints) {
-                rendered.push(constraint_slug(constraint)?);
+            for (ordinal, constraint) in syntax
+                .tables
+                .type_references
+                .constraints(*constraints)
+                .iter()
+                .enumerate()
+            {
+                if matches!(constraint, TypeConstraintNode::Range { .. }) {
+                    let range = syntax
+                        .type_references
+                        .integer_range_normalization(handle, ordinal)?;
+                    rendered.push(format!("[{}..={}]", range.minimum, range.maximum));
+                } else {
+                    rendered.push(constraint_slug(constraint)?);
+                }
             }
             if rendered.is_empty() {
                 return Some(base);
@@ -197,8 +203,8 @@ pub(in crate::generic_data) fn type_reference_slug(
     }
 }
 
-/// The naming slug for a constraint, or `None` for a range bound (an expression
-/// -- Phase 3). Only the nameable behaviour/domain tags slug here.
+/// Nameable behavior/domain tags. Ranges need their exact owner observation,
+/// handled by the caller, rather than rendering an arbitrary expression here.
 pub(in crate::generic_data) fn constraint_slug(constraint: &TypeConstraintNode) -> Option<String> {
     match constraint {
         TypeConstraintNode::Named(name) => Some(name.as_str().to_string()),
@@ -341,7 +347,12 @@ pub(super) fn closed_argument_identity(
         } => {
             let base = closed_argument_identity(syntax, selection, *base_type, false)?;
             let mut identities = Vec::new();
-            for constraint in syntax.type_references.constraints(*constraints) {
+            for (ordinal, constraint) in syntax
+                .type_references
+                .constraints(*constraints)
+                .iter()
+                .enumerate()
+            {
                 identities.push(match constraint {
                     TypeConstraintNode::ArithmeticDomain(domain) => {
                         ClosedConstraintIdentity::Arithmetic(*domain)
@@ -394,7 +405,12 @@ pub(super) fn closed_argument_identity(
                             )
                         }
                     }
-                    TypeConstraintNode::Range { .. } => return None,
+                    TypeConstraintNode::Range { .. } => ClosedConstraintIdentity::Range(
+                        syntax
+                            .type_references
+                            .integer_range_normalization(handle, ordinal)?
+                            .clone(),
+                    ),
                 });
             }
             Some(ClosedArgumentIdentity::Constrained(

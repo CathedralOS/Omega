@@ -10,6 +10,7 @@ mod generic_origins;
 mod table;
 
 pub(crate) use arithmetic_results::retain_arithmetic_result_type;
+pub(crate) use generic_origins::validate_range_arguments;
 
 pub(crate) use constraints::lower_element_applicable_constraints;
 use direct::lower_type_reference_handle_with_context;
@@ -74,7 +75,7 @@ pub(super) fn retain_type_reference_selection(
     {
         return Ok(());
     }
-    if let Some(application) = generic_origins::application(source_trees, name, symbol)? {
+    if let Some(application) = generic_origins::application(source_trees, None, name, symbol)? {
         lower_type_reference_handle_with_context(
             source_trees,
             typed_trees,

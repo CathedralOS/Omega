@@ -1,4 +1,11 @@
 //! Independently rejoin a use's application to its shared generated carrier.
+//!
+//! Structural construction retains the original application before its complete
+//! typed context exists. Range equality finishes after symbols and operators are
+//! installed, on both ordinary and seeded paths. Never evaluate a landed bound
+//! using the partially built program: it can lack its carrier or an authored
+//! operator which vetoes builtin arithmetic. Final replay uses original operands,
+//! not the syntax producer's interval observations or its synthetic names.
 
 use super::*;
 use arena::{Handle, HandleSpan};
@@ -8,8 +15,49 @@ use symbols::{SymbolHandle, SymbolKind};
 #[cfg(test)]
 mod tests;
 
+/// Complete the range equality deferred by structural type construction.
+/// Reuse the retained source roster rather than adding a second obligation IR.
+pub(crate) fn validate_range_arguments(
+    source: &resolved::SymbolResolvedTrees,
+    typed: &typed::TypedTrees,
+) -> Result<(), Diagnostic> {
+    if source.tables.types.generic_application_origins.is_empty()
+        || !source
+            .tables
+            .types
+            .constraints
+            .iter()
+            .any(|(_, constraint)| matches!(constraint, TypeConstraint::Range { .. }))
+    {
+        return Ok(());
+    }
+    // Lowering retained source operands needs mutable construction storage.
+    // One private replay copy retains complete operator meaning without adding
+    // duplicate operands or warning occurrences to the published typed program.
+    let mut replay = typed.clone();
+    for (_, origin) in source.tables.types.generic_application_origins.iter() {
+        let instance = source
+            .tables
+            .declarations
+            .child_type_references
+            .get(origin.instance);
+        let (name, symbol) = match instance {
+            TypeReference::Named { name, symbol } => (name, *symbol),
+            TypeReference::Generic(value) => (&value.base_name, value.base_symbol),
+            _ => {
+                return Err(Diagnostic::error(
+                    "generated instance lost its retained type",
+                ));
+            }
+        };
+        application(source, Some(&mut replay), name, symbol)?;
+    }
+    Ok(())
+}
+
 pub(super) fn application<'source>(
     source: &'source resolved::SymbolResolvedTrees,
+    mut typed: Option<&mut typed::TypedTrees>,
     name: &resolved::name::DiagnosticName,
     symbol: SymbolHandle,
 ) -> Result<Option<&'source TypeReference>, Diagnostic> {
@@ -57,6 +105,7 @@ pub(super) fn application<'source>(
         };
         let mut equality = Equality {
             source,
+            typed: typed.as_deref_mut(),
             active: Vec::new(),
             canonical_lifetimes: &definition.lifetime_parameters,
             actual_lifetimes: &arguments.lifetime_arguments,
@@ -67,6 +116,7 @@ pub(super) fn application<'source>(
             || selected.is_some_and(|previous| {
                 let mut exact = Equality {
                     source,
+                    typed: typed.as_deref_mut(),
                     active: Vec::new(),
                     canonical_lifetimes: &[],
                     actual_lifetimes: &[],
@@ -96,14 +146,15 @@ fn mismatch(name: &resolved::name::DiagnosticName) -> Diagnostic {
     .with_source_span(name.source_span())
 }
 
-struct Equality<'source> {
+struct Equality<'source, 'typed> {
     source: &'source resolved::SymbolResolvedTrees,
+    typed: Option<&'typed mut typed::TypedTrees>,
     active: Vec<(Handle<TypeReference>, Handle<TypeReference>)>,
     canonical_lifetimes: &'source [resolved::name::DiagnosticName],
     actual_lifetimes: &'source [resolved::name::DiagnosticName],
 }
 
-impl Equality<'_> {
+impl Equality<'_, '_> {
     fn arguments(
         &mut self,
         left: HandleSpan<TypeReference>,
@@ -274,9 +325,42 @@ impl Equality<'_> {
                     maximum: fourth,
                     end_inclusive: right_inclusive,
                 },
-            ) => first == third && second == fourth && left_inclusive == right_inclusive,
+                // Numeric equality must wait for completed symbols and operators;
+                // validate_range_arguments performs that rejoin before publication.
+            ) => {
+                self.typed.is_none()
+                    || self
+                        .closed_range(*first, *second, *left_inclusive)
+                        .is_some_and(|left| {
+                            Some(left) == self.closed_range(*third, *fourth, *right_inclusive)
+                        })
+            }
             _ => false,
         }
+    }
+
+    // Recompute from each retained application, not from syntax synthesis's
+    // observation or expression-handle equality. Equivalent exclusive/inclusive
+    // spellings must agree, while an invalid landed endpoint cannot be erased
+    // by sharing a previously generated carrier.
+    fn closed_range(
+        &mut self,
+        minimum: resolved::expression::ExpressionHandle,
+        maximum: resolved::expression::ExpressionHandle,
+        end_inclusive: bool,
+    ) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+        let expressions = &self.source.tables.bodies.expressions;
+        let typed = self.typed.as_deref_mut()?;
+        let minimum =
+            crate::expression::lower_expression_handle_from_table(expressions, typed, minimum)
+                .ok()?;
+        let maximum =
+            crate::expression::lower_expression_handle_from_table(expressions, typed, maximum)
+                .ok()?;
+        Some((
+            typed.closed_integer_expression_value(minimum)?,
+            typed.closed_integer_range_endpoint(maximum, end_inclusive)?,
+        ))
     }
 
     // The shared carrier binds regions positionally; the use retains the

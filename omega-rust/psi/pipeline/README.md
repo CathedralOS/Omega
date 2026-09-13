@@ -222,6 +222,18 @@ require exit 70 (the branch confirming `inferred(0) == 256`), not exit 71. A raw
 CLI invocation also needs the ordinary local-package review; the canary uses
 the repository's reviewed-fixture harness, not a package-admission bypass.
 
+Its `RangeValue<T>` applications also exercise closed range identity through
+generic-data synthesis. Pre-resolution typed probes retain structured interval
+observations and original carrier/constant selection; syntax substitution keeps
+the authored constrained type. After full typing, application replay recomputes
+interval equality independently with the same numeric query. Literal and named
+constant range fields reach Terminal execution. The fixture's equivalent-instance
+copy, full-width bounded record field, and nested forwarding examples check and
+execute at build time but still lack a source-independent checked scalar control
+plan for Terminal. The focused `declared_range_inference` canaries preserve those
+examples and nongeneric controls; close their local record copy/construction and
+range-proof lowering rather than adding a generic-specific fallback.
+
 Closed integer endpoints share typed trees' `type_system/closed_numeric.rs`
 through validation's `closed_integer_range_bound` and
 `closed_integer_range_maximum`, inference, declaration/store checking,

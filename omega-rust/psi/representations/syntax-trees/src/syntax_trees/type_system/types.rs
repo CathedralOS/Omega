@@ -13,6 +13,23 @@ pub struct TypeReferenceTable {
     const_argument_normalizations: Arena<RetainedConstArgumentNormalization>,
     const_argument_origins: Arena<ConstArgumentOrigin>,
     const_argument_builtin_operators: Arena<source::SourceSpan>,
+    integer_range_normalizations: Arena<RetainedIntegerRangeNormalization>,
+}
+
+/// Closed interval meaning supplied by typed semantic evaluation. Authored
+/// expressions stay in their constraint and still undergo ordinary checking.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct IntegerRangeNormalization {
+    pub minimum: numerics::bignum::BigInt,
+    pub maximum: numerics::bignum::BigInt,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct RetainedIntegerRangeNormalization {
+    owner: TypeReferenceHandle,
+    constraints: HandleSpan<TypeConstraintNode>,
+    ordinal: usize,
+    value: IntegerRangeNormalization,
 }
 
 /// Exact source custody captured before a selected constant index operand
@@ -62,11 +79,56 @@ impl TypeReferenceTable {
             const_argument_normalizations: Arena::new(),
             const_argument_origins: Arena::new(),
             const_argument_builtin_operators: Arena::new(),
+            integer_range_normalizations: Arena::new(),
         }
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
         self.type_references.insert(type_reference)
+    }
+
+    pub fn integer_range_normalization(
+        &self,
+        owner: TypeReferenceHandle,
+        ordinal: usize,
+    ) -> Option<&IntegerRangeNormalization> {
+        let TypeReferenceNode::Constrained { constraints, .. } = self.type_reference(owner) else {
+            return None;
+        };
+        self.integer_range_normalizations
+            .iter()
+            .find_map(|(_, retained)| {
+                (retained.owner == owner
+                    && retained.constraints == *constraints
+                    && retained.ordinal == ordinal)
+                    .then_some(&retained.value)
+            })
+    }
+
+    /// Retain a value only for this exact immutable constraint occurrence.
+    /// Substituting its bounds requires a fresh observation, not copying this row.
+    pub fn retain_integer_range_normalization(
+        &mut self,
+        owner: TypeReferenceHandle,
+        ordinal: usize,
+        value: IntegerRangeNormalization,
+    ) {
+        let TypeReferenceNode::Constrained { constraints, .. } = *self.type_reference(owner) else {
+            return;
+        };
+        if matches!(
+            self.constraints(constraints).get(ordinal),
+            Some(TypeConstraintNode::Range { .. })
+        ) && self.integer_range_normalization(owner, ordinal).is_none()
+        {
+            self.integer_range_normalizations
+                .insert(RetainedIntegerRangeNormalization {
+                    owner,
+                    constraints,
+                    ordinal,
+                    value,
+                });
+        }
     }
 
     pub fn const_argument_normalization(

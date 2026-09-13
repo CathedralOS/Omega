@@ -258,6 +258,11 @@ pub fn lower_seeded_extension(
     ) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
+    if let Err(error) =
+        crate::type_reference::validate_range_arguments(&source, &lowerer.typed_trees)
+    {
+        return Err((retained, SeededContinuationError::Lowering(error)));
+    }
     if !lowerer
         .typed_trees
         .authored_declaration_selections()
@@ -1435,6 +1440,7 @@ impl Lowerer<'_> {
         normalize_domain_constraints(self.source_trees, &mut trees)?;
         normalize_qualification_casts(self.source_trees, &mut trees)?;
         crate::fixed_byte_array_literals::land_exact_fixed_byte_array_literals(&mut trees)?;
+        crate::type_reference::validate_range_arguments(self.source_trees, &trees)?;
         Ok(trees)
     }
 }
