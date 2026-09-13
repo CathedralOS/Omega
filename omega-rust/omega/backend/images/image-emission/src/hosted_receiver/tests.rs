@@ -1,6 +1,79 @@
 use super::*;
 
 #[test]
+fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leaves() {
+    use semantic_vocabulary::{
+        BoundedIntegerType, IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralFieldId,
+        StructuralTypeId,
+    };
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let root = StructuralTypeId::new(1).unwrap();
+    let child = StructuralTypeId::new(2).unwrap();
+    let field = |field_type| StructuralFieldDeclaration {
+        id: StructuralFieldId::new(1).unwrap(),
+        identity: "value".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type,
+    };
+    let declarations = vec![
+        StructuralTypeDeclaration {
+            id: root,
+            identity: "outer".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![field(StructuralFieldType::Structural(child))],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: child,
+            identity: "inner".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![field(StructuralFieldType::Scalar(ScalarType::Boolean))],
+            },
+        },
+    ];
+    assert!(zero_valid_record_storage(
+        &declarations,
+        root,
+        &mut Vec::new()
+    ));
+    assert!(!zero_valid_record_storage(
+        &declarations[..1],
+        root,
+        &mut Vec::new()
+    ));
+    for field_type in [
+        StructuralFieldType::Structural(root),
+        StructuralFieldType::Erased {
+            type_identity: "unestablished-service".into(),
+        },
+        StructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                IntegerValue::Signed(1),
+                IntegerValue::Signed(9),
+            )
+            .unwrap(),
+        ),
+    ] {
+        let mut changed = declarations.clone();
+        changed[1].shape = StructuralTypeShape::Record {
+            fields: vec![field(field_type)],
+        };
+        assert!(!zero_valid_record_storage(&changed, root, &mut Vec::new()));
+    }
+    let mut duplicated = declarations.clone();
+    duplicated.push(declarations[1].clone());
+    assert!(!zero_valid_record_storage(
+        &duplicated,
+        root,
+        &mut Vec::new()
+    ));
+}
+
+#[test]
 fn hosted_receiver_accepts_only_canonical_borrowed_pointer_placement() {
     use calling_conventions::{
         CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, ValueLocation,

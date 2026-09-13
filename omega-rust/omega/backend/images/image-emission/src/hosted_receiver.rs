@@ -406,17 +406,11 @@ fn receiver_layout(
                     if integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
                         || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0)) => {}
                 StructuralFieldType::Structural(structural_type)
-                    if terminal_semantics::scalar_array_leaf_shape(
-                        target.graph.structural_types.iter(),
+                    if zero_valid_record_storage(
+                        &target.graph.structural_types,
                         structural_type,
-                    )
-                    .is_some_and(|(scalar, _)| {
-                        matches!(
-                            scalar,
-                            semantic_vocabulary::ScalarType::Boolean
-                                | semantic_vocabulary::ScalarType::Integer(_)
-                        )
-                    }) => {}
+                        &mut vec![parameter.structural_type],
+                    ) => {}
                 _ => return Err(invalid()),
             }
         }
@@ -428,6 +422,51 @@ fn receiver_layout(
         u64::from(native.shape.byte_size),
         u64::from(native.shape.alignment),
     ))
+}
+
+fn zero_valid_record_storage(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+) -> bool {
+    use semantic_vocabulary::{IntegerValue, ScalarType};
+    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+    if visiting.contains(&structural_type) {
+        return false;
+    }
+    let mut matches = declarations
+        .iter()
+        .filter(|declaration| declaration.id == structural_type);
+    let Some(declaration) = matches.next() else {
+        return false;
+    };
+    if matches.next().is_some() {
+        return false;
+    }
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return terminal_semantics::scalar_array_leaf_shape(declarations.iter(), structural_type)
+            .is_some_and(|(scalar, _)| {
+                matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_))
+            });
+    };
+    visiting.push(structural_type);
+    let valid = fields.iter().all(|field| {
+        !field.relevance.is_erased()
+            && match field.field_type {
+                StructuralFieldType::Scalar(ScalarType::Boolean | ScalarType::Integer(_)) => true,
+                StructuralFieldType::BoundedInteger(integer) => {
+                    integer.contains(IntegerValue::Signed(0))
+                        || integer.contains(IntegerValue::Unsigned(0))
+                }
+                StructuralFieldType::Structural(child) => {
+                    zero_valid_record_storage(declarations, child, visiting)
+                }
+                // No nested service occurrence is established by this bridge.
+                _ => false,
+            }
+    });
+    visiting.pop();
+    valid
 }
 
 /// The bridge supplies an address in x0, not an eight-byte receiver value.

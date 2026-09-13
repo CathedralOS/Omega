@@ -238,6 +238,7 @@ fn provider_specialization_and_service_custody(with_receiver: bool) {
                     value: parameter.value,
                     scalar_type: parameter.scalar_type,
                 },
+                path: Vec::new(),
                 source: PlaceId::new(1).unwrap(),
                 field: value_field,
             },

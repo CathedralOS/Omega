@@ -195,6 +195,7 @@ fn owned_arrival_field_read_requires_the_matching_native_graph() {
             value: value(3),
             scalar_type: ScalarType::Integer(u64_type()),
         },
+        path: Vec::new(),
         source: plan.functions[0].block_entries[1].structural_parameters[0].place,
         field: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
     };

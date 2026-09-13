@@ -143,7 +143,7 @@ fn integer_structural_field_identity_binds_every_payload() {
         mutate(&mut changed.functions[0].blocks[0].nodes[1].operation);
         recompute_psi_optimization_unit_identity(&changed)
     };
-    let mutations: [fn(&mut AbstractOperation); 5] = [
+    let mutations: [fn(&mut AbstractOperation); 6] = [
         |operation| match operation {
             AbstractOperation::IntegerStructuralField { psi_operation, .. } => {
                 *psi_operation = id(93, OperationId::new)
@@ -172,6 +172,14 @@ fn integer_structural_field_identity_binds_every_payload() {
         |operation| match operation {
             AbstractOperation::IntegerStructuralField { field, .. } => {
                 *field = id(96, StructuralFieldId::new)
+            }
+            _ => unreachable!(),
+        },
+        |operation| match operation {
+            AbstractOperation::IntegerStructuralField { path, .. } => {
+                path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                    id(1, StructuralFieldId::new),
+                ));
             }
             _ => unreachable!(),
         },

@@ -268,7 +268,9 @@ pub(super) fn build(
                                 || argument
                                     .source_structural_result_binding_ordinal()
                                     .is_some())
-                                && argument.access == CheckedStructuralAccess::MutableBorrow)
+                                && matches!(argument.access,
+                                    CheckedStructuralAccess::SharedBorrow
+                                        | CheckedStructuralAccess::MutableBorrow))
                             // The statement sequencer already rejoins a local
                             // receiver to its completed producer and exact loan.
                             // State ownership, not parameter spelling, governs
@@ -321,9 +323,7 @@ pub(super) fn build(
                             } if call == coordinate
                         )
                     }) => {}
-                _ => {
-                    return None;
-                }
+                _ => return None,
             }
         }
         let ordinal = u32::try_from(terminator_index).ok()?;

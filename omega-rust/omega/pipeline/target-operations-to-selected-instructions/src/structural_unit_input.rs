@@ -117,11 +117,12 @@ pub(crate) fn accepts_borrowed_parameters(
         // The operation reader separately rejoins each readable field and result.
         let shared_record = semantic.access == StructuralAccess::SharedBorrow
             && matches!(declaration.shape, StructuralTypeShape::Record { .. });
-        if (parameters.len() > 1 && !primitive && !shared_record)
-            || result_shape.is_some()
-                && !shared_record
-                && declaration.shape != StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
-                && !matches!(declaration.shape,
+        // Each borrowed parameter retains its own exact referent and placement;
+        // neighboring inputs do not change the admissibility of that pointer.
+        if result_shape.is_some()
+            && !shared_record
+            && declaration.shape != StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
+            && !matches!(declaration.shape,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                     if integer.carrier() == IntegerCarrier::Fixed
                         && [8, 16, 32, 64].contains(&integer.bits()))

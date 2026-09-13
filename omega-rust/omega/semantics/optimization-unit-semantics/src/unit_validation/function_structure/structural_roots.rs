@@ -202,13 +202,27 @@ pub(crate) fn validate_structural_root_operations(
                         );
                     }
                 }
-                O::BooleanStructuralField { source, field, .. } => {
+                O::BooleanStructuralField {
+                    source,
+                    path,
+                    field,
+                    ..
+                } => {
                     // Root catalogs and dominance are checked before this pass;
                     // current ownership separately checks live, whole owned inputs.
-                    let valid = readable_field_type(function, *source).is_some_and(|identity| {
-                        direct_relevant_scalar_field(structural_types, identity, *field)
-                            == Some(ScalarType::Boolean)
-                    });
+                    let valid = readable_field_type(function, *source)
+                        .and_then(|root| {
+                            terminal_semantics::record_field_carrier(
+                                structural_types.values().copied(),
+                                root,
+                                path,
+                            )
+                        })
+                        .is_some_and(|carrier| {
+                            let identity = carrier.structural_type;
+                            direct_relevant_scalar_field(structural_types, identity, *field)
+                                == Some(ScalarType::Boolean)
+                        });
                     if !valid {
                         return Err(
                             OptimizationUnitValidationError::InvalidBooleanStructuralField {
@@ -222,14 +236,24 @@ pub(crate) fn validate_structural_root_operations(
                 O::IntegerStructuralField {
                     result,
                     source,
+                    path,
                     field,
                     ..
                 } => {
                     let valid = matches!(result.scalar_type, ScalarType::Integer(_))
-                        && readable_field_type(function, *source).is_some_and(|identity| {
-                            direct_relevant_scalar_field(structural_types, identity, *field)
-                                == Some(result.scalar_type)
-                        });
+                        && readable_field_type(function, *source)
+                            .and_then(|root| {
+                                terminal_semantics::record_field_carrier(
+                                    structural_types.values().copied(),
+                                    root,
+                                    path,
+                                )
+                            })
+                            .is_some_and(|carrier| {
+                                let identity = carrier.structural_type;
+                                direct_relevant_scalar_field(structural_types, identity, *field)
+                                    == Some(result.scalar_type)
+                            });
                     if !valid {
                         return Err(
                             OptimizationUnitValidationError::InvalidIntegerStructuralField {

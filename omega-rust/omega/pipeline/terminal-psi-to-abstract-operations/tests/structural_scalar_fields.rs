@@ -258,7 +258,7 @@ fn lower(
 }
 
 #[test]
-fn canonical_nested_scalar_reads_reject_before_losing_the_carrier_path() {
+fn canonical_nested_scalar_reads_retain_the_carrier_path() {
     for scalar_type in [integer_type(), ScalarType::Boolean] {
         let mut module = structural_scalar_field_module();
         let mut machine = module.machines.pop().unwrap();
@@ -297,16 +297,42 @@ fn canonical_nested_scalar_reads_reject_before_losing_the_carrier_path() {
                 field,
             }
         };
-        let identity = operation.id;
         module.machines = vec![machine];
-        // `lower` first encodes and independently verifies the nested read.
-        // Native rejection must name its missing path carrier, not flatten it.
-        assert!(matches!(
-            lower(&module),
-            Err(ArtifactLoweringError::Lowering(
-                terminal_psi_to_abstract_operations::LoweringError::UnsupportedNestedStructuralFieldRead(actual)
-            )) if actual == identity
-        ));
+        let plan = lower(&module).expect("verified nested field read lowers");
+        let retained = match &plan.functions[0].operations[0] {
+            AbstractOperation::IntegerStructuralField { path, .. }
+            | AbstractOperation::BooleanStructuralField { path, .. } => path,
+            other => panic!("expected field read, got {other:?}"),
+        };
+        assert_eq!(
+            retained,
+            &[semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                field
+            )]
+        );
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &plan,
+            terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        )
+        .expect("nested field unit constructs");
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        for replacement in [
+            Vec::new(),
+            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                id::<StructuralFieldId>(99),
+            )],
+            vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(0)],
+        ] {
+            let mut changed = unit.clone();
+            match &mut changed.functions[0].blocks[0].nodes[0].operation {
+                AbstractOperation::IntegerStructuralField { path, .. }
+                | AbstractOperation::BooleanStructuralField { path, .. } => *path = replacement,
+                _ => unreachable!(),
+            }
+            changed.identity =
+                optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+            assert!(optimization_unit_semantics::validate_psi_optimization_unit(&changed).is_err());
+        }
     }
 }
 
@@ -485,12 +511,14 @@ fn retains_exact_store_and_integer_field_read_custody() {
         psi_operation,
         result,
         source,
+        path,
         field,
     } = read
     else {
         unreachable!()
     };
     assert_eq!(*psi_operation, id::<OperationId>(4));
+    assert!(path.is_empty());
     assert_eq!(result.value, id::<ValueId>(4));
     assert_eq!(result.scalar_type, integer_type());
     assert_eq!(*source, realization.structural_parameters[0].place);

@@ -200,6 +200,7 @@ pub(super) fn structural_scalar_fields_plan() -> AbstractOperationPlan {
                         value: read_value,
                         scalar_type,
                     },
+                    path: Vec::new(),
                     source: structural_parameter.place,
                     field,
                 },

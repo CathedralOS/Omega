@@ -523,19 +523,24 @@ pub(crate) fn store(
     None
 }
 
-/// Exact direct-field geometry. Callers independently reconstruct readable root
+/// Exact field-only carrier geometry. Callers independently reconstruct readable root
 /// custody and availability; this helper does not grant access to storage.
 pub(crate) fn field_read(
     structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
     field: StructuralFieldId,
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u8)> {
-    if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_)) {
+    if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_))
+        || !path
+            .iter()
+            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+    {
         return None;
     }
     plain_record_shape(structural_type, declarations)?;
-    store(structural_type, &[], field, scalar, declarations)
+    store(structural_type, path, field, scalar, declarations)
 }
 
 #[cfg(test)]
@@ -580,7 +585,7 @@ mod tests {
             assert_eq!(shape(root, &declarations), Some(expected));
             assert_eq!(plain_record_shape(root, &declarations), Some(expected));
             assert_eq!(store(root, &[], erased, scalar, &declarations), None);
-            assert_eq!(field_read(root, erased, scalar, &declarations), None);
+            assert_eq!(field_read(root, &[], erased, scalar, &declarations), None);
             assert_eq!(
                 project(
                     root,
@@ -595,7 +600,7 @@ mod tests {
                     Some((0, 4))
                 );
                 assert_eq!(
-                    field_read(root, runtime, scalar, &declarations),
+                    field_read(root, &[], runtime, scalar, &declarations),
                     Some((0, 4))
                 );
             }

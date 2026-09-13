@@ -3,6 +3,7 @@ use super::{build_structural_scalar_field_store_sequence, frame};
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
 mod arithmetic_policies;
+mod borrowed_records;
 mod computations;
 
 #[test]

@@ -98,10 +98,13 @@ rejoin cleanup and rebinding. Claims, qualifications, projected transfers, and
 linear arrivals remain outside this bounded admission. Plain owned payloads use
 the ordinary native graph. Integer and Boolean record-field observations retain
 their actual parameter, construction-result, or block-arrival place; current
-ownership and dominance checks reject unavailable sources. Field identity and
-scalar type are reconstructed from that source's exact declaration. Native
-local and block-arrival reads use the existing structural home and primitive
-load path; broader projected reads and structural call transport remain separate
+ownership and dominance checks reject unavailable sources. Field-only carrier
+paths retain canonical declaration-local IDs through the abstract graph.
+Independent native and image replay reconstruct each child declaration and
+offset from the original root; the same leaf ID in another record cannot replace
+that path. Direct reads use an empty path. Native local and block-arrival reads
+use the existing structural home and primitive load path. Indexed/case carriers,
+bounded integer leaves and broader structural call transport remain separate
 consumer dependencies.
 
 Initialized primitive locals retain their exact operation-result place and typed

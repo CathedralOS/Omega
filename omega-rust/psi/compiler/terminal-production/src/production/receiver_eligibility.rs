@@ -119,7 +119,7 @@ pub(super) fn derive(
     let StructuralTypeShape::Record { fields } = &structural_type.shape else {
         return None;
     };
-    // Scalar fields and fixed primitive arrays need no initialization program.
+    // Plain records and fixed primitive arrays need no initialization program.
     // Array eligibility follows its complete semantic element chain, including
     // empty dimensions; a zero byte count never excuses an invalid element.
     // Erased qualification establishment remains an independent installed
@@ -131,13 +131,11 @@ pub(super) fn derive(
             | StructuralFieldType::BoundedInteger(_)
             | StructuralFieldType::IeeeFloat(_)
             | StructuralFieldType::Erased { .. } => false,
-            StructuralFieldType::Structural(structural_type) => {
-                terminal_semantics::scalar_array_leaf_shape(
-                    module.structural_types.iter(),
-                    structural_type,
-                )
-                .is_none()
-            }
+            StructuralFieldType::Structural(structural_type) => !zero_valid_record_storage(
+                &module.structural_types,
+                structural_type,
+                &mut vec![parameter.structural_type],
+            ),
             _ => true,
         })
     {
@@ -151,6 +149,47 @@ pub(super) fn derive(
         terminal_self: parameter.place,
         terminal_receiver_type: parameter.structural_type,
     })
+}
+
+fn zero_valid_record_storage(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+    visiting: &mut Vec<StructuralTypeId>,
+) -> bool {
+    if visiting.contains(&structural_type) {
+        return false;
+    }
+    let mut matches = declarations
+        .iter()
+        .filter(|declaration| declaration.id == structural_type);
+    let Some(declaration) = matches.next() else {
+        return false;
+    };
+    if matches.next().is_some() {
+        return false;
+    }
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return terminal_semantics::scalar_array_leaf_shape(declarations.iter(), structural_type)
+            .is_some();
+    };
+    visiting.push(structural_type);
+    let valid = fields.iter().all(|field| {
+        !field.relevance.is_erased()
+            && match field.field_type {
+                StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => true,
+                StructuralFieldType::BoundedInteger(integer) => {
+                    integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
+                        || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0))
+                }
+                StructuralFieldType::Structural(child) => {
+                    zero_valid_record_storage(declarations, child, visiting)
+                }
+                // Only the top-level receiver joins erased service establishment.
+                StructuralFieldType::Erased { .. } | StructuralFieldType::ByteSequence(_) => false,
+            }
+    });
+    visiting.pop();
+    valid
 }
 
 #[cfg(test)]
@@ -171,6 +210,60 @@ mod tests {
 
     const SOURCE: &str =
         "data Main { value: i32; } machine Main::run(&mut self) { self.value = 7; }";
+
+    #[test]
+    fn nested_receiver_storage_requires_complete_zero_valid_records() {
+        let checked = check_source(
+            "data Counter { value: i32; bytes: [u8; 4]; } data Pair { first: Counter; second: Counter; } data Main { value: i32; pair: Pair; } machine Main::run(&mut self) { self.value = 7; }",
+        );
+        let produced = TerminalProductionRequest::new(&checked, "Main::run")
+            .produce_program_entry([7; 32])
+            .unwrap();
+        assert!(produced.receipt().receiver_eligibility().is_some());
+        let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        let selection =
+            checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run").unwrap();
+        let counter = module
+            .structural_types
+            .iter()
+            .position(|declaration| declaration.identity == "named(name(Counter))")
+            .unwrap();
+        for corruption in 0..4 {
+            let mut changed = module.clone();
+            let counter_id = changed.structural_types[counter].id;
+            if corruption == 0 {
+                changed.structural_types.remove(counter);
+            } else {
+                let StructuralTypeShape::Record { fields } =
+                    &mut changed.structural_types[counter].shape
+                else {
+                    panic!("record");
+                };
+                fields[0].field_type = match corruption {
+                    1 => StructuralFieldType::Structural(counter_id),
+                    2 => StructuralFieldType::Erased {
+                        type_identity: "nested-service".into(),
+                    },
+                    _ => StructuralFieldType::BoundedInteger(
+                        semantic_vocabulary::BoundedIntegerType::new(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Signed,
+                                32,
+                            )
+                            .unwrap(),
+                            semantic_vocabulary::IntegerValue::Signed(1),
+                            semantic_vocabulary::IntegerValue::Signed(9),
+                        )
+                        .unwrap(),
+                    ),
+                };
+            }
+            assert!(
+                derive(&checked, selection, &changed).is_none(),
+                "corruption {corruption}"
+            );
+        }
+    }
 
     #[test]
     fn receiver_array_eligibility_checks_the_complete_element_chain() {
@@ -260,6 +353,8 @@ mod tests {
             "data Main { value: i32 [1..=9]; } machine Main::run(&mut self) { self.value = 7; }",
             "data Main { value: i32; values: [i32 [1..=9]; 2]; } machine Main::run(&mut self) { self.value = 7; }",
             "data Child { value: i32; } machine Child::drop(&mut self) {} data Main { value: i32; values: [Child; 2]; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Child { value: i32; } machine Child::drop(&mut self) {} data Pair { child: Child; } data Main { value: i32; pair: Pair; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Child { value: i32 [1..=9]; } data Pair { child: Child; } data Main { value: i32; pair: Pair; } machine Main::run(&mut self) { self.value = 7; }",
         ] {
             let checked = check_source(source);
             let selection =

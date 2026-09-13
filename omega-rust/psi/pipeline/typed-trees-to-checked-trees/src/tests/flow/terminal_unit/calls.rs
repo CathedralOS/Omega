@@ -2219,47 +2219,84 @@ fn retains_scalar_parameter_beside_projected_write_only_argument() {
 }
 
 #[test]
-fn write_only_common_field_subloan_does_not_bypass_ordinary_call_shape() {
-    for (name, source) in [
-        (
-            "multiple structural parameters",
-            r#"
-                data Leaf [copy] { value: u16; }
-                data Outer [copy] { leaf: Leaf; sibling: Leaf; }
-                data Sink {}
-                machine Sink::fill(destination: &write Leaf, other: &write Leaf) {}
-                data Root {}
-                machine Root::forward(left: &write Outer, right: &write Outer) {
-                    Sink::fill(&write left.leaf, &write right.leaf);
-                }
-            "#,
-        ),
-        (
-            "caller local",
-            r#"
-                data Leaf [copy] { value: u16; }
-                data Outer [copy] { leaf: Leaf; }
-                data Sink {}
-                machine Sink::fill(destination: &write Leaf) {}
-                data Root {}
-                machine Root::forward(outer: &write Outer) {
-                    let local: Leaf = Leaf { value: 1 };
-                    Sink::fill(&write local);
-                }
-            "#,
-        ),
-    ] {
-        let checked = checked(source);
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .for_machine(machine_named(&checked, "Root::forward"))
-                .is_none(),
-            "{name} unexpectedly bypassed the exact one-parameter projected-call referee"
+fn write_only_common_field_subloans_retain_independent_roots() {
+    let source = r#"
+        data Leaf [copy] { value: u16; }
+        data Outer [copy] { leaf: Leaf; sibling: Leaf; }
+        data Sink {}
+        machine Sink::fill(destination: &write Leaf, other: &write Leaf) {}
+        data Root {}
+        machine Root::forward(left: &write Outer, right: &write Outer) {
+            Sink::fill(&write left.leaf, &write right.leaf);
+        }
+    "#;
+    let checked = checked(source);
+    let forward = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("disjoint projected write-only arguments compose");
+    let [
+        CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::Complete {
+            statement_index: 1, ..
+        },
+    ] = forward.operations.as_slice()
+    else {
+        panic!("one call retaining both projected loans followed by ordinary completion");
+    };
+    assert_eq!(structural_arguments.len(), 2);
+    for (position, argument) in structural_arguments.iter().enumerate() {
+        assert_eq!(argument.source_parameter_index(), Some(position as u32));
+        assert_eq!(
+            argument.access,
+            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+        );
+        assert_eq!(
+            argument.path,
+            vec![CheckedUnitStructuralPathSegment::Field("leaf".into())]
         );
     }
+
+    let overlapping = source.replace("&write right.leaf", "&write left.leaf");
+    let tokens = Lexer::new(&overlapping).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    assert!(
+        lower_typed_trees(typed).is_err(),
+        "overlapping exclusive arguments must reject"
+    );
+}
+
+#[test]
+fn write_only_common_field_subloan_does_not_authorize_an_unretained_local() {
+    let checked = checked(
+        r#"
+        data Leaf [copy] { value: u16; }
+        data Outer [copy] { leaf: Leaf; }
+        data Sink {}
+        machine Sink::fill(destination: &write Leaf) {}
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            let local: Leaf = Leaf { value: 1 };
+            Sink::fill(&write local);
+        }
+    "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "Root::forward"))
+            .is_none(),
+        "parameter projection support does not manufacture local storage custody"
+    );
 }
 
 #[test]

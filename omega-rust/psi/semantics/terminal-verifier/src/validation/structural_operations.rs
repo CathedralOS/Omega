@@ -269,12 +269,22 @@ pub(super) fn validate_unit_operation_static(
                 !argument.path.is_empty()
                     && !super::references::is_reference_projection(module, machine, argument)
             });
-            let exact_exclusive_projection = matches!(
-                (structural_arguments.as_slice(), callee.structural_parameters.as_slice()),
-                ([argument], [parameter])
-                    if is_unrestricted_write_only_subloan(module, machine, parameter, argument)
-                        || is_unrestricted_mutable_subloan(machine, parameter, argument)
-            );
+            // Independent borrowed projections retain each root's authority;
+            // sibling argument counts do not create residual owned custody.
+            let ordinary_borrowed_projections = structural_arguments.len()
+                == callee.structural_parameters.len()
+                && structural_arguments
+                    .iter()
+                    .zip(&callee.structural_parameters)
+                    .all(|(argument, parameter)| {
+                        argument.path.is_empty()
+                            || super::references::is_reference_projection(module, machine, argument)
+                            || is_unrestricted_write_only_subloan(
+                                module, machine, parameter, argument,
+                            )
+                            || is_unrestricted_shared_subloan(machine, parameter, argument)
+                            || is_unrestricted_mutable_subloan(machine, parameter, argument)
+                    });
             let result_projection = structural_arguments.iter().any(|argument| {
                 argument.access == StructuralAccess::Owned
                     && !argument.path.is_empty()
@@ -294,10 +304,9 @@ pub(super) fn validate_unit_operation_static(
                             .any(|candidate| candidate.id == operation.id)
                 });
             if projected
-                && ((machine.result != TerminalMachineResult::Unit && !exact_exclusive_projection)
-                    || (!machine.parameters.is_empty()
-                        && !exact_exclusive_projection
-                        && !scalar_result_continuation)
+                && !ordinary_borrowed_projections
+                && ((machine.result != TerminalMachineResult::Unit)
+                    || (!machine.parameters.is_empty() && !scalar_result_continuation)
                     || (!result_projection && machine.structural_parameters.len() != 1)
                     || structural_arguments.len() != 1
                     || callee.structural_parameters.len() != 1)
@@ -360,18 +369,28 @@ pub(super) fn validate_unit_operation_static(
             }
             validate_unit_call_contract_places(callee, operation.id)?;
             if projected {
-                let projected_parameter = callee.structural_parameters[0].place;
-                if unit_call_contract_propositions(callee).any(|proposition| {
-                    propositions::proposition_content_roots(proposition)
-                        .contains(&projected_parameter)
-                }) {
-                    return Err(
-                        ModuleError::ProjectedUnitCallContractUsesStructuralParameter {
-                            operation: operation.id,
-                            callee: callee.id,
-                            place: projected_parameter,
-                        },
-                    );
+                for (argument, parameter) in structural_arguments
+                    .iter()
+                    .zip(&callee.structural_parameters)
+                {
+                    if argument.path.is_empty()
+                        || super::references::is_reference_projection(module, machine, argument)
+                    {
+                        continue;
+                    }
+                    let projected_parameter = parameter.place;
+                    if unit_call_contract_propositions(callee).any(|proposition| {
+                        propositions::proposition_content_roots(proposition)
+                            .contains(&projected_parameter)
+                    }) {
+                        return Err(
+                            ModuleError::ProjectedUnitCallContractUsesStructuralParameter {
+                                operation: operation.id,
+                                callee: callee.id,
+                                place: projected_parameter,
+                            },
+                        );
+                    }
                 }
             }
             validate_service_reach(

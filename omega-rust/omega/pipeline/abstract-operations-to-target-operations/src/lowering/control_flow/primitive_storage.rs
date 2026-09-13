@@ -80,17 +80,19 @@ pub(super) fn lower(
     let (identity, lowered) = match operation {
         AbstractOperation::IntegerStructuralField { .. }
         | AbstractOperation::BooleanStructuralField { .. } => {
-            let (psi_operation, result, place, field) = match operation {
+            let (psi_operation, result, place, path, field) = match operation {
                 AbstractOperation::IntegerStructuralField {
                     psi_operation,
                     result,
                     source,
+                    path,
                     field,
-                } => (*psi_operation, *result, *source, *field),
+                } => (*psi_operation, *result, *source, path, *field),
                 AbstractOperation::BooleanStructuralField {
                     psi_operation,
                     result,
                     source,
+                    path,
                     field,
                 } => (
                     *psi_operation,
@@ -99,6 +101,7 @@ pub(super) fn lower(
                         scalar_type: ScalarType::Boolean,
                     },
                     *source,
+                    path,
                     *field,
                 ),
                 _ => return Err(invalid()),
@@ -131,7 +134,31 @@ pub(super) fn lower(
                 }
                 (source.structural_type, source.access)
             };
-            if !types.get(&structural_type).is_some_and(|declaration|
+            let mut carrier = structural_type;
+            let mut runtime_path = Vec::with_capacity(path.len());
+            for segment in path {
+                let semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) = segment
+                else {
+                    return Err(invalid());
+                };
+                let StructuralTypeShape::Record { fields } =
+                    &types.get(&carrier).ok_or_else(invalid)?.shape
+                else {
+                    return Err(invalid());
+                };
+                let selected = fields
+                    .iter()
+                    .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())
+                    .ok_or_else(invalid)?;
+                let StructuralFieldType::Structural(child) = selected.field_type else {
+                    return Err(invalid());
+                };
+                runtime_path.push(terminal_psi::StructuralPathSegment::Field(
+                    selected.identity.clone(),
+                ));
+                carrier = child;
+            }
+            if !types.get(&carrier).is_some_and(|declaration|
                 matches!(&declaration.shape, StructuralTypeShape::Record { fields }
                     if fields.iter().any(|candidate| candidate.id == field && !candidate.relevance.is_erased()
                         && !matches!(candidate.field_type, StructuralFieldType::BoundedInteger(_))
@@ -148,7 +175,7 @@ pub(super) fn lower(
                     source: terminal_psi::StructuralArgument {
                         place,
                         access,
-                        path: Vec::new(),
+                        path: runtime_path,
                     },
                     field,
                 },

@@ -65,11 +65,8 @@ pub(in crate::lowering) fn lower_field_store(
         .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ))?;
-    if function.structural_parameters.len() != 1 {
-        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        ));
-    }
+    // The retained destination and its exact parameter placement select the
+    // write. Additional borrowed inputs do not change that storage authority.
     let (source, field_byte_size) = match value.scalar_type {
         ScalarType::Integer(integer_type) => {
             let known_value = scalar_values
