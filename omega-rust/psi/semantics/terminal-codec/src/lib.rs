@@ -1647,7 +1647,11 @@ fn validate_operation_foundation(
             returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
-        } => {
+        } if operation
+            .result
+            .structural()
+            .is_none_or(|result| result.multiplicity != StructuralMultiplicity::Linear) =>
+        {
             let Some(callee) = module
                 .machines
                 .iter()
@@ -1716,8 +1720,29 @@ fn validate_operation_foundation(
             returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
-            selected_evidence,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            ..
         } => {
+            let arguments = match &operation.kind {
+                OperationKind::CallStructuralWithScalarArguments { arguments, .. } => {
+                    arguments.as_slice()
+                }
+                _ => &[],
+            };
+            let selected_evidence = match &operation.kind {
+                OperationKind::CallStructural {
+                    selected_evidence, ..
+                } => selected_evidence.as_slice(),
+                _ => &[],
+            };
             let Some(callee) = module
                 .machines
                 .iter()
@@ -1760,7 +1785,7 @@ fn validate_operation_foundation(
                     && claim_transfers.is_empty()
                     && returned_claim_transfers.is_empty()
                     && requirement_obligations.len() == callee.contract.requires.len();
-            if !callee.parameters.is_empty()
+            if arguments.len() != callee.parameters.len()
                 || structural_arguments.len() != callee.structural_parameters.len()
                 || (!selected_evidence.is_empty() && !exact_payloadless)
                 || (!exact_payloadless
@@ -2472,7 +2497,11 @@ fn validate_claim_indices(
                     .flat_map(|block| &block.operations)
                     .find_map(|operation| {
                         if operation.id != producer
-                            || !matches!(operation.kind, OperationKind::CallStructural { .. })
+                            || !matches!(
+                                operation.kind,
+                                OperationKind::CallStructural { .. }
+                                    | OperationKind::CallStructuralWithScalarArguments { .. }
+                            )
                         {
                             return None;
                         }

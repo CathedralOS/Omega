@@ -119,7 +119,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
                 for (call_ordinal, site) in
                     nested_structural_call_sites(program, flow, machine, state, statement_index)
                 {
-                    if let Some(arguments) = lower_boundary_call_arguments(
+                    if let Some(arguments) = lower_call_arguments(
                         program,
                         operators,
                         state,
@@ -131,7 +131,6 @@ pub(crate) fn retain_nested_structural_call_arguments(
                         &parameter_types,
                         &locals,
                         exact_integer_casts,
-                        true,
                     ) {
                         retain_call_arguments(
                             arguments,

@@ -365,6 +365,11 @@ pub(super) fn validate_structural_frontier(
                 structural_arguments,
                 claim_transfers,
                 ..
+            }
+            | OperationKind::CallStructuralWithScalarArguments {
+                structural_arguments,
+                claim_transfers,
+                ..
             } = &operation.kind
             {
                 for transfer in claim_transfers {

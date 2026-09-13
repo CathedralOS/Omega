@@ -292,10 +292,10 @@ pub(super) fn emit_structural(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let kind = if result.multiplicity == Multiplicity::Linear {
-        if !prepared.arguments.is_empty() {
-            return unsupported("linear structural calls require retained scalar-operand support");
-        }
+    // Scalar values and structural custody are separate operand namespaces,
+    // not different ownership rules. Keep the scalar-free encoding unchanged;
+    // mixed calls retain the same checked claim and content correspondence.
+    let kind = if result.multiplicity == Multiplicity::Linear && prepared.arguments.is_empty() {
         OperationKind::CallStructural {
             callee,
             structural_arguments: prepared.structural_arguments,

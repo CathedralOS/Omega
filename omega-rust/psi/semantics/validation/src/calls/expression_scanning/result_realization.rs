@@ -72,7 +72,7 @@ pub(crate) fn report_nested_call_in_local_initializer(
 /// Result destinations handled by the ordinary checked statement sequence.
 /// Typing and ordinary call validation still own result, argument and contract
 /// compatibility; this predicate does not supply those semantic judgments.
-/// Scalar and plain structural results use the authored statement sequence.
+/// Scalar and owned structural results use the authored statement sequence.
 /// Structural ownership and cleanup are checked by that sequence's producer.
 pub fn unit_result_initializer_call_is_supported(
     program: &TypedTrees,
@@ -83,7 +83,7 @@ pub fn unit_result_initializer_call_is_supported(
         return false;
     };
     if !(unit_type(program, state.return_type)
-        || crate::is_closed_primitive_array_type(program, state.return_type))
+        || ordinary_structural_result_type(program, state.return_type))
         || !program.expression_table.expression_is_valid(value)
     {
         return false;
@@ -162,10 +162,7 @@ fn ordinary_structural_initializer(
     value: ExpressionHandle,
     result_type: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    if !((program.type_multiplicity(result_type) == language_semantics::Multiplicity::Affine
-        && crate::has_plain_owned_contents(program, result_type))
-        || crate::is_closed_primitive_array_type(program, result_type))
-    {
+    if !ordinary_structural_result_type(program, result_type) {
         return false;
     }
     let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
@@ -179,10 +176,31 @@ fn ordinary_structural_initializer(
                     && program
                         .primitive_type_reference(target.return_type)
                         .is_none()
-                    && (crate::has_plain_owned_contents(program, target.return_type)
-                        || crate::is_closed_primitive_array_type(program, target.return_type))
+                    && ordinary_structural_result_type(program, target.return_type)
             })
     })
+}
+
+/// The same statement sequence owns these results in Unit and structural-return
+/// bodies. Classifying a linear destination does not establish its claims:
+/// ordinary call/return custody must still reconstruct the exact input lineage.
+/// Reference destinations reject here; boundary results retain their existing
+/// target admission and separate custody validation.
+fn ordinary_structural_result_type(
+    program: &TypedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    match program.type_multiplicity(reference) {
+        language_semantics::Multiplicity::Linear => {
+            crate::structural_result_qualifications(program, reference).is_ok()
+        }
+        language_semantics::Multiplicity::Affine => {
+            crate::has_plain_owned_contents(program, reference)
+        }
+        language_semantics::Multiplicity::Unrestricted => {
+            crate::is_closed_primitive_array_type(program, reference)
+        }
+    }
 }
 
 fn initializer_target_is_supported(
