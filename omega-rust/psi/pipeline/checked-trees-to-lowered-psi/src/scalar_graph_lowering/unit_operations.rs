@@ -11,6 +11,17 @@ pub(super) struct Prepared {
     pub(super) call: LoweredUnitCall,
 }
 
+pub(super) fn statement_index(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Result<u32, LoweringError> {
+    match operation {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+            Ok(result.statement_index)
+        }
+        _ => Ok(coordinate(operation)?.statement_index),
+    }
+}
+
 pub(super) fn coordinate(
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<CheckedUnitCallCoordinate, LoweringError> {

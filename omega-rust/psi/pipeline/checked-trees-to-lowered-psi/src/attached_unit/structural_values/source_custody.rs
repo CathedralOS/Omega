@@ -845,7 +845,7 @@ fn local_value_provenance(
     }
 }
 
-fn validate_local_ownership(
+pub(crate) fn validate_local_ownership(
     checked: &CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,

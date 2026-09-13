@@ -173,30 +173,47 @@ impl emission::Emission<'_, '_, '_> {
         }
         self.values.truncate(source_count);
         initialized.sort_by_key(|(position, _)| *position);
-        let operation = self.operations.allocate();
         let place = place_id(allocate_dense(self.next_place)?);
-        self.temporary_places.push(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: operation,
-                structural_type: self.structural_type,
-            },
-        });
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            id: operation,
-            result: OperationResult::Structural(StructuralOperationResult {
-                place,
-                structural_type: self.structural_type,
-                multiplicity: self.multiplicity,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
-            kind: OperationKind::EstablishRecord {
-                fields: initialized.into_iter().map(|(_, field)| field).collect(),
-            },
-        });
+        self.temporary_places.push(emit_completed(
+            place,
+            self.structural_type,
+            self.multiplicity,
+            initialized.into_iter().map(|(_, field)| field).collect(),
+            self.operations,
+        ));
         Ok(place)
+    }
+}
+
+/// Commit completed, declaration-ordered fields. Both structural statement
+/// evaluation and scalar graphs use this operation; operand evaluation and
+/// source custody remain with their shared scalar/structural semantic owners.
+pub(crate) fn emit_completed(
+    place: PlaceId,
+    structural_type: StructuralTypeId,
+    multiplicity: StructuralMultiplicity,
+    fields: Vec<terminal_psi::RecordFieldInitializer>,
+    operations: &mut OperationBuffer,
+) -> StructuralPlaceDeclaration {
+    let operation = operations.allocate();
+    operations.push(Operation {
+        static_reach_binding: None,
+        id: operation,
+        result: OperationResult::Structural(StructuralOperationResult {
+            place,
+            structural_type,
+            multiplicity,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishRecord { fields },
+    });
+    StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation,
+            structural_type,
+        },
     }
 }

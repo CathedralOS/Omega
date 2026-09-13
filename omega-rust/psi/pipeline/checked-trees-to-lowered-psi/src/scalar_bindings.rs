@@ -23,6 +23,31 @@ pub(super) struct ScalarBindings {
 }
 
 impl ScalarBindings {
+    /// Make the completed whole result visible to subsequent computations.
+    pub(crate) fn establish_structural_local(
+        &mut self,
+        symbol: symbols::SymbolHandle,
+        place: PlaceId,
+    ) -> Result<(), LoweringError> {
+        if !symbol.is_valid()
+            || self
+                .structural_locals
+                .iter()
+                .any(|(candidate, _)| *candidate == symbol)
+        {
+            return unsupported("structural local has invalid or repeated identity");
+        }
+        self.structural_locals.push((
+            symbol,
+            StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            },
+        ));
+        Ok(())
+    }
+
     /// Borrow the established referent, not a copy of its scalar field values.
     /// Source replay checks the declaration and loan occurrence; this join binds
     /// that source to the current activation's exact local or parameter place.

@@ -1,4 +1,6 @@
-//! Prepare scalar bindings and writes, retaining completed values across computations.
+//! Sequence scalar bindings, writes, calls and structural locals at their exact
+//! authored statements. Each effect completes before the following binding;
+//! backward continuation assembly never publishes an initializer prematurely.
 
 use super::*;
 
@@ -12,15 +14,20 @@ pub(super) struct Prepared {
 
 enum PendingStep {
     Value(PendingComputation),
-    Unit(PendingUnitCall),
+    Effect(PendingEffect),
 }
 
-struct PendingUnitCall {
+struct PendingEffect {
     parameter_types: Vec<QualifiedScalarType>,
     bindings: Vec<LoweredScalarBinding>,
     value_types: Vec<QualifiedScalarType>,
     scalar_bindings: storage::ScalarBindings,
-    prepared: unit_operations::Prepared,
+    prepared: PreparedOperation,
+}
+
+enum PreparedOperation {
+    Unit(unit_operations::Prepared),
+    Structural(structural_values::Prepared),
 }
 
 struct PendingComputation {
@@ -50,6 +57,7 @@ pub(super) fn prepare(
     structural_parameters: &[StructuralParameterDeclaration],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
     structural_types: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
 ) -> Result<Prepared, LoweringError> {
     let (source_machine, source_state) = source_custody::authored_state(checked, state.state)?;
     let authored_prefix = checked
@@ -100,6 +108,21 @@ pub(super) fn prepare(
                     );
                 }
             }
+            checked_trees::statement::StatementNode::LocalData(local)
+                if checked
+                    .primitive_type_reference(local.type_reference)
+                    .is_none() =>
+            {
+                let operation = unit_rows.next().ok_or(LoweringError::Unsupported(
+                    "scalar graph lost an authored structural local",
+                ))?;
+                if !matches!(operation, checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } if result.statement_index == ordinal)
+                {
+                    return unsupported(
+                        "scalar graph structural local moved from its authored statement",
+                    );
+                }
+            }
             _ => {
                 if binding_rows
                     .next()
@@ -143,27 +166,31 @@ pub(super) fn prepare(
     let mut units = state.unit_operations.iter().peekable();
     for binding in &state.bindings {
         while units.peek().is_some_and(|operation| {
-            unit_operations::coordinate(operation)
-                .is_ok_and(|coordinate| coordinate.statement_index < binding.statement_ordinal)
+            unit_operations::statement_index(operation)
+                .is_ok_and(|statement| statement < binding.statement_ordinal)
         }) {
             let operation = units.next().expect("peeked Unit operation exists");
-            let coordinate = unit_operations::coordinate(operation)?;
+            let statement = unit_operations::statement_index(operation)?;
             scalar_bindings = scalar_bindings.with_primitive_storage(
-                &primitive_locals::storage_before(primitive_locals, coordinate.statement_index),
+                &primitive_locals::storage_before(primitive_locals, statement),
             );
-            let prepared = unit_operations::prepare(
+            let source_bindings = scalar_bindings.clone();
+            let prepared = prepare_operation(
                 checked,
+                qualifications,
                 machine,
                 state,
                 operation,
-                &scalar_bindings,
+                &mut scalar_bindings,
                 &value_types,
+                structural_types,
+                next_place,
             )?;
-            prefixes.push(PendingStep::Unit(PendingUnitCall {
+            prefixes.push(PendingStep::Effect(PendingEffect {
                 parameter_types,
                 bindings: std::mem::take(&mut bindings),
                 value_types: value_types.clone(),
-                scalar_bindings: scalar_bindings.clone(),
+                scalar_bindings: source_bindings,
                 prepared,
             }));
             parameter_types = value_types.clone();
@@ -397,23 +424,27 @@ pub(super) fn prepare(
         value_types.push(binding_type);
     }
     for operation in units {
-        let coordinate = unit_operations::coordinate(operation)?;
+        let statement = unit_operations::statement_index(operation)?;
         scalar_bindings = scalar_bindings.with_primitive_storage(
-            &primitive_locals::storage_before(primitive_locals, coordinate.statement_index),
+            &primitive_locals::storage_before(primitive_locals, statement),
         );
-        let prepared = unit_operations::prepare(
+        let source_bindings = scalar_bindings.clone();
+        let prepared = prepare_operation(
             checked,
+            qualifications,
             machine,
             state,
             operation,
-            &scalar_bindings,
+            &mut scalar_bindings,
             &value_types,
+            structural_types,
+            next_place,
         )?;
-        prefixes.push(PendingStep::Unit(PendingUnitCall {
+        prefixes.push(PendingStep::Effect(PendingEffect {
             parameter_types,
             bindings: std::mem::take(&mut bindings),
             value_types: value_types.clone(),
-            scalar_bindings: scalar_bindings.clone(),
+            scalar_bindings: source_bindings,
             prepared,
         }));
         parameter_types = value_types.clone();
@@ -429,6 +460,46 @@ pub(super) fn prepare(
         bindings,
         prefixes,
     })
+}
+
+fn prepare_operation(
+    checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
+    machine: symbols::SymbolHandle,
+    state: &checked_trees::CheckedScalarStateGraph,
+    operation: &checked_trees::CheckedUnitEffectOperationPlan,
+    bindings: &mut storage::ScalarBindings,
+    value_types: &[QualifiedScalarType],
+    types: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
+) -> Result<PreparedOperation, LoweringError> {
+    if matches!(
+        operation,
+        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+    ) {
+        let prepared = structural_values::prepare(
+            checked,
+            qualifications,
+            machine,
+            state.state,
+            operation,
+            bindings,
+            value_types,
+            types,
+            next_place,
+        )?;
+        bindings.establish_structural_local(prepared.symbol, prepared.place)?;
+        Ok(PreparedOperation::Structural(prepared))
+    } else {
+        Ok(PreparedOperation::Unit(unit_operations::prepare(
+            checked,
+            machine,
+            state,
+            operation,
+            bindings,
+            value_types,
+        )?))
+    }
 }
 
 impl Prepared {
@@ -449,16 +520,38 @@ impl Prepared {
         for step in self.prefixes.into_iter().rev() {
             let prefix = match step {
                 PendingStep::Value(prefix) => prefix,
-                PendingStep::Unit(prefix) => {
+                PendingStep::Effect(prefix) => {
                     let target = computations.push(continuation);
+                    let prepared = match prefix.prepared {
+                        PreparedOperation::Unit(prepared) => prepared,
+                        PreparedOperation::Structural(prepared) => {
+                            let target = prepared.finish(
+                                state,
+                                &prefix.scalar_bindings,
+                                &prefix.value_types,
+                                target,
+                                computations,
+                            )?;
+                            continuation = LoweredScalarBranchState {
+                                parameter_types: prefix.parameter_types,
+                                bindings: prefix.bindings,
+                                structural_effects: Vec::new(),
+                                terminator: LoweredScalarBranchTerminator::Jump {
+                                    target,
+                                    arguments: computations::parameters(&prefix.value_types),
+                                    structural_arguments: Vec::new(),
+                                    trivial_affine_discards: Vec::new(),
+                                },
+                            };
+                            continue;
+                        }
+                    };
                     let mut argument_types = prefix.value_types.clone();
-                    argument_types.extend_from_slice(&prefix.prepared.argument_types);
+                    argument_types.extend_from_slice(&prepared.argument_types);
                     let call_block = computations.push(LoweredScalarBranchState {
                         parameter_types: argument_types,
                         bindings: Vec::new(),
-                        structural_effects: vec![LoweredScalarEffect::CallUnit(
-                            prefix.prepared.call,
-                        )],
+                        structural_effects: vec![LoweredScalarEffect::CallUnit(prepared.call)],
                         terminator: LoweredScalarBranchTerminator::Jump {
                             trivial_affine_discards: Vec::new(),
                             target,
@@ -468,9 +561,9 @@ impl Prepared {
                     });
                     let target = computations.call_arguments(
                         state,
-                        prefix.prepared.coordinate,
+                        prepared.coordinate,
                         false,
-                        &prefix.prepared.arguments,
+                        &prepared.arguments,
                         0,
                         &prefix.scalar_bindings,
                         &prefix.value_types,

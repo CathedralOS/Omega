@@ -6,6 +6,108 @@ use checked_trees::{
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
+/// This operation slice establishes fresh records; structural calls, ownership
+/// transfers, references and selected structural results keep their existing
+/// owners until their custody joins scalar graph emission. Scalar operands are
+/// ordinary computations, not a literal-only constructor shortcut.
+pub(super) fn fresh_record_root<'plans>(
+    program: &TypedTrees,
+    plans: &'plans checked_trees::CheckedStructuralValuePlans,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    ordinal: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<&'plans checked_trees::CheckedStructuralValueRoot> {
+    let root = plans.root_at(state, ordinal)?;
+    if local.is_mutable
+        || root.machine != machine
+        || root.expression != local.initial_value
+        || root.type_reference != local.type_reference
+    {
+        return None;
+    }
+    let mut pending = vec![root.root];
+    let mut visited = Vec::new();
+    while let Some(handle) = pending.pop() {
+        if !plans.nodes.is_valid(handle) || visited.contains(&handle) {
+            return None;
+        }
+        visited.push(handle);
+        let node = plans.nodes.get(handle);
+        if !program
+            .expression_table
+            .expression_is_valid(node.expression)
+        {
+            return None;
+        }
+        let checked_trees::CheckedStructuralValueKind::Record { fields, .. } = &node.kind else {
+            return None;
+        };
+        for field in plans.record_fields.span(*fields)? {
+            if let checked_trees::CheckedStructuralRecordFieldValue::Structural(child) = field.value
+            {
+                pending.push(child);
+            }
+        }
+    }
+    Some(root)
+}
+
+pub(super) fn retain_record_locals(
+    program: &TypedTrees,
+    plans: &checked_trees::CheckedStructuralValuePlans,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
+) -> Option<()> {
+    use typed_trees::statement::StatementNode;
+    for (ordinal, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take_while(|statement| {
+            matches!(
+                statement,
+                StatementNode::LocalData(_) | StatementNode::Assignment(_) | StatementNode::Call(_)
+            )
+        })
+        .enumerate()
+    {
+        let StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        if program
+            .primitive_type_reference(local.type_reference)
+            .is_some()
+        {
+            continue;
+        }
+        fresh_record_root(
+            program,
+            plans,
+            machine.symbol,
+            state.symbol,
+            u32::try_from(ordinal).ok()?,
+            local,
+        )?;
+        for shape in
+            super::super::terminal_unit::scalar_graph_record_shapes(program, local.type_reference)?
+        {
+            if let Some(existing) = shapes
+                .iter()
+                .find(|existing| existing.identity == shape.identity)
+            {
+                if existing != &shape {
+                    return None;
+                }
+            } else {
+                shapes.push(shape);
+            }
+        }
+    }
+    Some(())
+}
+
 pub(super) fn retain_shapes(
     program: &TypedTrees,
     plans: &CheckedScalarComputationPlans,

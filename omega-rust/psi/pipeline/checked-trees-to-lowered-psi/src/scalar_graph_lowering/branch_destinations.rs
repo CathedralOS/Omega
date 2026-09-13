@@ -84,6 +84,15 @@ pub(super) fn lower_destination(
             let target = return_sink.ok_or(LoweringError::Unsupported(
                 "checked scalar branch return has no prepared return destination",
             ))?;
+            let target = structural_values::exit_target(
+                checked,
+                source_state,
+                scalar_bindings,
+                &[result_type],
+                &mut Vec::new(),
+                target,
+                computations,
+            )?;
             if let Some(entry) = computations.return_value(
                 source_state,
                 *statement_ordinal,

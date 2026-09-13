@@ -10,7 +10,7 @@ use super::*;
 
 mod emission;
 mod locals;
-mod record;
+pub(crate) mod record;
 pub(crate) mod source_custody;
 
 pub(crate) use emission::emit;

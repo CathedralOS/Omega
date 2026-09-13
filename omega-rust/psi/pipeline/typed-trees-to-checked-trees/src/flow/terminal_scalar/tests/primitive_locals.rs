@@ -175,7 +175,8 @@ fn orphan_computations_do_not_create_local_places() {
         build_checked_scalar_graph_plans(
             &checked,
             &checked.facts.values.scalar_expressions,
-            &computations
+            &computations,
+            &checked.facts.values.structural_values,
         ),
         checked.facts.flow.terminal_scalar_graphs
     );
@@ -243,6 +244,7 @@ fn borrowed_local_rejects_missing_or_mismatched_initializer_facts() {
             &checked,
             &expressions,
             &checked.facts.values.scalar_computations,
+            &checked.facts.values.structural_values,
         );
         assert!(
             plans.for_machine(machine.symbol).is_none(),
@@ -283,6 +285,7 @@ fn borrowed_local_rejects_mismatched_computed_initializer() {
             &checked,
             &checked.facts.values.scalar_expressions,
             &computations,
+            &checked.facts.values.structural_values,
         );
         assert!(
             plans.for_machine(machine.symbol).is_none(),
@@ -375,6 +378,7 @@ fn borrowed_local_demand_rejects_wrong_referent_or_type() {
             &checked,
             &checked.facts.values.scalar_expressions,
             &computations,
+            &checked.facts.values.structural_values,
         );
         assert!(
             plans.for_machine(machine.symbol).is_none(),

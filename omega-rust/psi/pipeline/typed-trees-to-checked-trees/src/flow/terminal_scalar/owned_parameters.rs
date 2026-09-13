@@ -208,10 +208,30 @@ pub(super) fn validate(
     }
     let mut actual_discards = Vec::new();
     let mut actual_transfers = Vec::new();
+    // Graph discovery has already retained every fresh record in this prefix.
+    // Its Establish/StateExit ledger belongs to unit_operations::record_ownership,
+    // which must succeed before the completed graph is published. Keep that
+    // local provenance separate from this whole-parameter transfer audit; an
+    // unknown root still reaches the checks below and rejects.
+    let local_roots = statements[..prefix_end]
+        .iter()
+        .filter_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local)
+                if !local.is_mutable
+                    && program
+                        .primitive_type_reference(local.type_reference)
+                        .is_none() =>
+            {
+                Some(facts::PlaceRoot::Symbol(local.symbol))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     for (_, event) in ownership.permissions.iter().filter(|(_, event)| {
         event.machine_symbol == machine
             && event.state_symbol == state.symbol
             && event.access == PermissionAccess::Owned
+            && !local_roots.contains(&event.root)
     }) {
         if event.claim_identity != PermissionClaimIdentity::Unknown
             || event.provenance != PermissionProvenance::Unknown

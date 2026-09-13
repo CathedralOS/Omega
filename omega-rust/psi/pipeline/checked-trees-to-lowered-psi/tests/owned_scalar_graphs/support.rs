@@ -9,7 +9,7 @@ use terminal_psi::{
     OperationKind, StructuralAccess, StructuralMultiplicity, StructuralTypeShape, TerminalModule,
 };
 
-pub fn publish(source: &str, entry: &str) -> (CheckedTrees, TerminalModule, Vec<u8>, Vec<u8>) {
+pub fn check(source: &str) -> CheckedTrees {
     let mut sources = source::SourceMap::default();
     let source_id = sources
         .add(std::path::PathBuf::from("main.omg"), source.to_owned())
@@ -27,10 +27,13 @@ pub fn publish(source: &str, entry: &str) -> (CheckedTrees, TerminalModule, Vec<
     .expect("resolve with source map");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type owned scalar graph");
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
-            panic!("check owned scalar graph: {diagnostics:#?}\n{source}")
-        });
+    typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
+        panic!("check owned scalar graph: {diagnostics:#?}\n{source}")
+    })
+}
+
+pub fn publish(source: &str, entry: &str) -> (CheckedTrees, TerminalModule, Vec<u8>, Vec<u8>) {
+    let checked = check(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
         .unwrap_or_else(|error| panic!("lower owned scalar graph {entry}: {error:?}\n{source}"));
     let debug = lowered

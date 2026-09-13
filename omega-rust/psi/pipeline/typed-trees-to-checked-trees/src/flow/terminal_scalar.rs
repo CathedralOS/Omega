@@ -77,6 +77,7 @@ pub(crate) fn build_checked_scalar_graph_plans(
     program: &TypedTrees,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
+    structural_values: &checked_trees::CheckedStructuralValuePlans,
 ) -> CheckedScalarGraphPlans {
     let mut parameter_storage = arena::Arena::default();
     let mut structural_types = std::collections::BTreeMap::new();
@@ -89,6 +90,7 @@ pub(crate) fn build_checked_scalar_graph_plans(
                 machine,
                 expressions,
                 computations,
+                structural_values,
                 &mut parameter_storage,
                 &mut structural_types,
             )
@@ -182,6 +184,7 @@ fn build_machine_graph(
     machine: &typed_trees::machine::Machine,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
+    structural_values: &checked_trees::CheckedStructuralValuePlans,
     parameter_storage: &mut arena::Arena<CheckedScalarParameterStorage>,
     structural_types: &mut std::collections::BTreeMap<
         String,
@@ -248,6 +251,13 @@ fn build_machine_graph(
                 .map(|parameter| parameter.primitive_type)
                 .collect();
             constructions::retain_shapes(program, computations, state.symbol, &mut shapes)?;
+            constructions::retain_record_locals(
+                program,
+                structural_values,
+                machine,
+                state,
+                &mut shapes,
+            )?;
             let storage = parameters
                 .iter()
                 .enumerate()
@@ -419,7 +429,9 @@ fn checked_statement_bindings(
         statements[..binding_count]
             .iter()
             .enumerate()
-            .filter(|(_, statement)| !matches!(statement, StatementNode::Call(_)))
+            .filter(|(_, statement)| !matches!(statement, StatementNode::Call(_))
+                && !(unit_calls && matches!(statement, StatementNode::LocalData(local)
+                    if program.primitive_type_reference(local.type_reference).is_none())))
             .map(|(statement_index, statement)| {
                 use checked_trees::CheckedScalarBindingDestination;
                 match statement {
@@ -435,7 +447,8 @@ fn checked_statement_bindings(
                             checked_trees::CheckedScalarExpressionRole::StorageInitializer
                         } else {
                             let preceding_immutable_count = statements[..statement_index].iter().filter(|statement| {
-                                matches!(statement, StatementNode::LocalData(local) if !local.is_mutable)
+                                matches!(statement, StatementNode::LocalData(local) if !local.is_mutable
+                                    && program.primitive_type_reference(local.type_reference).is_some())
                             }).count();
                             checked_trees::CheckedScalarExpressionRole::LocalInitializer {
                                 binding_ordinal: u32::try_from(preceding_immutable_count).ok()?,

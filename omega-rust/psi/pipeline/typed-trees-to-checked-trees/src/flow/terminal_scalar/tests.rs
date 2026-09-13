@@ -2,6 +2,7 @@ use super::*;
 
 mod cyclic_owned;
 mod primitive_locals;
+mod record_locals;
 
 fn crash_source(cause: &str, guard: &str, prefix: &str) -> checked_trees::CheckedTrees {
     let source = format!(

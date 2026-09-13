@@ -498,6 +498,7 @@ struct LoweredScalarBranchState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredScalarEffect {
+    EstablishRecord(scalar_graph_lowering::structural_values::Construction),
     EstablishScalarArray(LoweredScalarArrayConstruction),
     EstablishScalarCase(scalar_computations::cases::Construction),
     CallUnit(LoweredUnitCall),

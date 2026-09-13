@@ -1,4 +1,6 @@
-//! Complete ordinary Unit calls after the source graph and ownership ledger exist.
+//! Complete ordered effects after the source graph and ownership ledger exist.
+//! Fresh records keep their exact value roots and edge-owned disposal; scalar
+//! observations do not turn the record into a scalar binding or move its owner.
 
 use checked_trees::{CheckFacts, CheckedUnitEffectOperationPlan};
 use typed_trees::{TypedTrees, statement::StatementNode};
@@ -34,13 +36,68 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                             flow.machine_symbol == graph.machine && flow.state_symbol == state.state
                         })?;
                     let calls = facts.flow.control.calls.span(flow.calls)?;
+                    let mut structural_count = 0_u32;
                     program
                         .statement_table
                         .statements(source.statement_nodes)
                         .iter()
                         .enumerate()
-                        .filter(|(_, statement)| matches!(statement, StatementNode::Call(_)))
-                        .map(|(ordinal, _)| {
+                        .take_while(|(_, statement)| {
+                            matches!(
+                                statement,
+                                StatementNode::LocalData(_)
+                                    | StatementNode::Assignment(_)
+                                    | StatementNode::Call(_)
+                            )
+                        })
+                        .filter(|(_, statement)| {
+                            matches!(statement, StatementNode::Call(_))
+                                || matches!(statement, StatementNode::LocalData(local)
+                                if program.primitive_type_reference(local.type_reference).is_none())
+                        })
+                        .map(|(ordinal, statement)| {
+                            if let StatementNode::LocalData(local) = statement {
+                                let ordinal = u32::try_from(ordinal).ok()?;
+                                let root = super::constructions::fresh_record_root(
+                                    program,
+                                    &facts.values.structural_values,
+                                    machine.symbol,
+                                    state.state,
+                                    ordinal,
+                                    local,
+                                )?;
+                                super::super::terminal_unit::scalar_graph_record_shapes(
+                                    program,
+                                    local.type_reference,
+                                )?;
+                                record_ownership(
+                                    program,
+                                    facts,
+                                    machine.symbol,
+                                    state.state,
+                                    ordinal,
+                                    local,
+                                )?;
+                                let result =
+                                    checked_trees::CheckedUnitStructuralResultBindingPlan {
+                                        statement_index: ordinal,
+                                        binding_ordinal: structural_count,
+                                        type_identity: program
+                                            .normalized_type_identity(local.type_reference)
+                                            .into_string(),
+                                        multiplicity: program
+                                            .type_multiplicity(local.type_reference),
+                                    };
+                                structural_count = structural_count.checked_add(1)?;
+                                return Some(
+                                    CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                        result,
+                                        value: root.root,
+                                        calls: Vec::new(),
+                                        discard_result_on_return: false,
+                                    },
+                                );
+                            }
                             let mut exact = calls.iter().filter(|call| {
                                 call.statement_index == ordinal && call.call_ordinal == 0
                             });
@@ -93,6 +150,72 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
             }
             true
         });
+}
+
+/// Fresh affine locals in this graph remain whole until its selected exit.
+/// Transfers or call consumption need their own final-live-state join; never
+/// turn a lexical StateExit receipt into unconditional disposal after a move.
+fn record_ownership(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    ordinal: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<()> {
+    use language_semantics::{
+        Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+        PermissionEventSource, PermissionProvenance,
+    };
+    let events = || {
+        facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .map(|(_, event)| event)
+            .filter(|event| {
+                event.machine_symbol == machine
+                    && event.state_symbol == state
+                    && event.root == facts::PlaceRoot::Symbol(local.symbol)
+            })
+    };
+    let multiplicity = program.type_multiplicity(local.type_reference);
+    if multiplicity == Multiplicity::Unrestricted {
+        return events().next().is_none().then_some(());
+    }
+    if multiplicity != Multiplicity::Affine || events().count() != 2 {
+        return None;
+    }
+    let establishment = PermissionEventSource::Statement {
+        statement_index: ordinal as usize,
+    };
+    let provenance = PermissionProvenance::Established {
+        machine_symbol: machine,
+        state_symbol: state,
+        source: establishment,
+    };
+    for (kind, source) in [
+        (PermissionEventKind::Establish, establishment),
+        (
+            PermissionEventKind::AffineDrop,
+            PermissionEventSource::StateExit,
+        ),
+    ] {
+        let mut matching = events().filter(|event| event.kind == kind && event.source == source);
+        let event = matching.next()?;
+        if matching.next().is_some()
+            || event.multiplicity != multiplicity
+            || event.access != PermissionAccess::Owned
+            || event.claim_identity != PermissionClaimIdentity::Unknown
+            || event.provenance != provenance
+            || event.obligation_live
+            || !event.segments.is_empty()
+        {
+            return None;
+        }
+    }
+    Some(())
 }
 
 // The scalar emitter has no contract-substitution or service machinery. Keep
