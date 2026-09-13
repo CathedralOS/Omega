@@ -390,18 +390,7 @@ pub(crate) fn retain_private_cache_directory(
     let directory = parent
         .open_dir_nofollow(name)
         .map_err(|error| cache_custody_invalid(kind, path, error.to_string()))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        directory
-            .try_clone()
-            .map_err(|error| io_error(path, error))?
-            .into_std_file()
-            .set_permissions(std::fs::Permissions::from_mode(0o700))
-            .map_err(|error| io_error(path, error))?;
-    }
-    let opened = directory
+    let mut opened = directory
         .dir_metadata()
         .map_err(|error| io_error(path, error))?;
     if !classified.is_dir() || !same_capability_file_identity(&classified, &opened) {
@@ -411,6 +400,27 @@ pub(crate) fn retain_private_cache_directory(
             "private cache directory changed while being retained",
         ));
     }
+    #[cfg(unix)]
+    {
+        use cap_std::fs::PermissionsExt;
+
+        parent
+            .set_permissions(name, cap_std::fs::Permissions::from_mode(0o700))
+            .map_err(|error| io_error(path, error))?;
+        let retained = parent
+            .symlink_metadata(name)
+            .map_err(|error| io_error(path, error))?;
+        if !same_capability_file_identity(&retained, &opened) {
+            return Err(cache_custody_invalid(
+                kind,
+                path,
+                "private cache directory changed while being retained",
+            ));
+        }
+    }
+    opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
     verify_capability_cache_node_owner_and_mode(kind, path, &opened)?;
     #[cfg(unix)]
     {
