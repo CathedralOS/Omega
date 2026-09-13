@@ -961,6 +961,13 @@ Owners include
   erased-stripped layout across remaining carriers. Erased terms remain in
   semantic/proof identity but contribute no runtime storage, tags, ABI
   transfer, or execution. Runtime use and any layout-dependent erasure reject.
+  Resume: `[erased]` parses only on data fields and case payload fields
+  (`tokens-to-syntax-trees/src/parser/data.rs`); every runtime use of those
+  two carriers rejects in `validation/src/relevance/`, layout strips them, and
+  synthesized `Equatable` now skips them. Next acceptance: decide whether the
+  spec's binding-occurrence wording requires `[erased]` on parameters and
+  locals (`parser/state.rs`); if so, admit them with the same relevance walk
+  and a fail canary for a runtime read.
 
 ## P4 - ABI, borrowing, and callbacks
 
