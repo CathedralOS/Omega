@@ -440,6 +440,150 @@ fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
 }
 
 #[test]
+fn serialized_replay_record_reproduces_the_full_admitted_activation() {
+    let profile = target::TargetProfile::WindowsX64;
+    let project = Project::new("serialized-replay");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write("input.txt", "input\n");
+    project.write(
+        "build.omg",
+        &format!(
+            r#"machine build(builder: &mut Build) {{
+    builder.application("build-facet-serialized-replay");
+    let input: BuildPath = builder.source.resolve("input.txt");
+    let input_descriptor: i32 = builder.source.open(input, 0);
+    let mut input_bytes: [u8; 6];
+    let input_count: i64 = builder.source.read(input_descriptor, &mut input_bytes, 6);
+    let input_close: i32 = builder.source.close(input_descriptor);
+
+    let generated: BuildPath = builder.output.resolve("generated.omg");
+    let output_descriptor: i32 = builder.output.create(generated, 438);
+    let output_count: i64 = builder.output.write(
+        output_descriptor,
+        "data ReplayGenerated {{ base: Main; }}\n"
+    );
+    let output_close: i32 = builder.output.close(output_descriptor);
+    builder.output.include_source(generated);
+}}
+"#,
+        ),
+    );
+
+    let session = std::env::temp_dir().join(format!(
+        "omega-build-facet-serialized-replay-session-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&session);
+    std::fs::create_dir(&session).expect("create serialized-replay build session");
+    let session = std::fs::canonicalize(session).expect("canonicalize serialized-replay session");
+    let sponsor = FilesystemSponsor::new(&session).expect("create serialized-replay sponsor");
+    let build_dir = session.join("output");
+    let bound_build_dir = sponsor
+        .bind_path(&build_dir)
+        .expect("bind serialized-replay output root");
+    let prepared_build_dir = sponsor
+        .prepare_create_directory(&bound_build_dir)
+        .expect("prepare serialized-replay output root");
+    std::fs::create_dir(&build_dir).expect("create serialized-replay output root");
+    prepared_build_dir
+        .commit()
+        .expect("commit serialized-replay output root");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let inputs = package_inputs(&project.root);
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir),
+        package_inputs: Some(inputs.clone()),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect("admitted build activation executes and appends generated source");
+    assert!(
+        checked
+            .typed
+            .data_definitions()
+            .iter()
+            .any(|definition| definition.name.as_str() == "ReplayGenerated"),
+        "generated source joins the final checked program"
+    );
+
+    // The activation's review-only record is canonical bytes: serialize it,
+    // recover it, and replay the complete activation with no staged output or
+    // sponsor authority. The replayed run must reach the identical result.
+    let summary = checked
+        .build_observation_summary()
+        .expect("admitted activation retains observation custody");
+    assert!(
+        summary.filesystem_replay_verdict().is_complete(),
+        "primary activation must complete its internal verifier replay"
+    );
+    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
+    let record = build_evaluation::capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("capture the verified replay record")
+        .expect("a complete receipted activation issues a replay record");
+    let canonical = record.canonical_bytes().to_vec();
+    let recovered =
+        build_evaluation::recover_review_only_build_filesystem_replay_record(&canonical, limits)
+            .expect("serialized replay record recovers");
+
+    let replayed = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        replay_record: Some(recovered.clone()),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect("serialized replay reproduces the full activation without host output staging");
+    assert!(
+        replayed
+            .typed
+            .data_definitions()
+            .iter()
+            .any(|definition| definition.name.as_str() == "ReplayGenerated"),
+        "replayed generated source joins the final checked program"
+    );
+    assert_eq!(
+        replayed
+            .package_generated_source_bundle()
+            .expect("replayed activation retains its generated-source bundle")
+            .sources(),
+        checked
+            .package_generated_source_bundle()
+            .expect("primary activation retains its generated-source bundle")
+            .sources(),
+    );
+    assert_eq!(
+        replayed.source_consumption_commitment(),
+        checked.source_consumption_commitment(),
+        "replayed activation consumes the identical authored and generated source"
+    );
+    assert!(
+        replayed
+            .build_observation_summary()
+            .expect("replayed activation retains observation custody")
+            .filesystem_replay_verdict()
+            .is_complete(),
+        "the replayed activation is itself a complete receipted run"
+    );
+
+    // Source drift after the record was issued must reject before the admitted
+    // build replays under a stale authority snapshot.
+    set_canonical_source_tree_permissions(&project.root, false);
+    project.write("input.txt", "drift\n");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let drifted = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&project.root)),
+        replay_record: Some(recovered),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect_err("a stale replay record must reject drifted source custody");
+    assert!(
+        drifted.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not match the current canonical Source metadata identity")),
+        "unexpected drift diagnostics: {drifted:#?}"
+    );
+    let _ = std::fs::remove_dir_all(session);
+}
+
+#[test]
 fn generated_source_replays_direct_dependency_authority_after_the_checkpoint() {
     let profile = target::TargetProfile::host();
     let project = Project::new("generated-authority-replay");
