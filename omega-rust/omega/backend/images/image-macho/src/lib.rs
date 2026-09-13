@@ -94,6 +94,8 @@ mod layout;
 mod load_commands;
 mod plan;
 mod rebases;
+#[cfg(test)]
+mod tests;
 
 use code_signature::macho_ad_hoc_code_signature;
 use entry::macho_entry_text_offset;
@@ -152,6 +154,7 @@ pub fn emit_macho_aarch64_executable(
             &mut bytes,
             plan.data_offset,
             image.memory.data.len(),
+            plan.bss_address,
             image.memory.bss_size,
             plan.data_vm_size,
             image.memory.bss_alignment,

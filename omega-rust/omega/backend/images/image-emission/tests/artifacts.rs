@@ -455,6 +455,9 @@ fn hosted_exit_process_object_validation_replays_exact_scalar_and_trap_bytes() {
 #[path = "artifacts/hosted_exit_runtime.rs"]
 mod hosted_exit_runtime;
 
+#[path = "artifacts/macho_storage.rs"]
+mod macho_storage;
+
 #[derive(Debug)]
 struct WriteExitProvider(u64);
 

@@ -70,6 +70,7 @@ pub(crate) fn write_macho_executable_data_segment(
     bytes: &mut Vec<u8>,
     data_offset: usize,
     data_size: usize,
+    bss_address: u64,
     bss_size: usize,
     data_vm_size: u64,
     bss_alignment: usize,
@@ -104,7 +105,10 @@ pub(crate) fn write_macho_executable_data_segment(
         write_macho_executable_data_section(bytes, data_offset, data_size);
     }
     if bss_size > 0 {
-        write_macho_executable_bss_section(bytes, data_offset + data_size, bss_size, bss_alignment);
+        // The VM plan aligns BSS independently of the initialized file bytes.
+        // Relocations use that same address; recomputing the raw data end here
+        // would describe a different range to the loader and image readers.
+        write_macho_executable_bss_section(bytes, bss_address, bss_size, bss_alignment);
     }
 }
 
@@ -160,13 +164,13 @@ fn write_macho_executable_data_section(bytes: &mut Vec<u8>, data_offset: usize, 
 
 fn write_macho_executable_bss_section(
     bytes: &mut Vec<u8>,
-    bss_address_offset: usize,
+    bss_address: u64,
     bss_size: usize,
     bss_alignment: usize,
 ) {
     write_fixed_string_16(bytes, "__bss");
     write_fixed_string_16(bytes, "__DATA");
-    write_u64(bytes, MACHO_EXECUTABLE_BASE + bss_address_offset as u64);
+    write_u64(bytes, bss_address);
     write_u64(
         bytes,
         u64::try_from(bss_size).expect("Mach-O bss section size overflow"),

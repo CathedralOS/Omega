@@ -536,8 +536,9 @@ Owners include
   `native-realization/src/realization/native_artifact.rs`. Targetless checks select
   no entry; deployment cannot substitute a semantic machine for a physical adapter.
 
-  First join the authored hosted contract and its source/package/application
-  identities through the selected slot. The macOS contract is
+  Close one executable hosted bridge, including the authored contract and its
+  source/package/application identities through the selected slot, rather than
+  landing another metadata-only calling-plan milestone. The macOS contract is
   `source/library/std/targets/macos_arm64/entry.omg`; its physical arrival and
   `ProgramStorageEntry` are distinct applications. Provider-module imports do
   not load that contract automatically. The `calling_policy_plans macos_entry`
@@ -546,6 +547,16 @@ Owners include
   occurrence/epoch, then construct a ZII-valid receiver, pass its single
   activation loan, and account for normal cleanup. A writable section, prepared
   input, or C caller supplying a receiver pointer is not that bridge.
+
+  For macOS, use loader-backed RW/NX zero-fill storage with explicit disjoint
+  receiver, private-stack and saved-continuation ranges. Switch stacks before
+  any generated spill or call, and restore the physical continuation without
+  touching its suspended stack. Bind the actual loader correspondence and
+  installed occurrence; compose final application/bridge/provider demand and
+  any admitted signal/callback occupancy. Neither `LC_MAIN.stacksize` nor an
+  unexplained reserve proves remaining arrival-stack capacity. These target
+  implementation choices are engineering work under the settled entry contract,
+  not an owner blocker merely because the adapter is absent.
 
   Acceptance: execute an authored receiver entry as a published process with no
   test-supplied `self`. Reject redirected continuation/receiver identities,
