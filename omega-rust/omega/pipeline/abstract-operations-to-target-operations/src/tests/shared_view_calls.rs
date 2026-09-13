@@ -93,7 +93,7 @@ fn fixture() -> AbstractOperationPlan {
 }
 
 #[test]
-fn scalar_graph_rejects_unimplemented_shared_view_call_transport() {
+fn scalar_graph_lowers_shared_view_call_transport() {
     let source = fixture();
     for target in [
         NativeTarget::linux_x64(),
@@ -101,12 +101,25 @@ fn scalar_graph_rejects_unimplemented_shared_view_call_transport() {
         NativeTarget::windows_x64(),
         NativeTarget::macos_arm64(),
     ] {
-        assert!(lower_to_target_operations(&source, target).is_err());
+        let lowered = lower_to_target_operations(&source, target).unwrap();
+        let caller = &lowered.functions[0];
+        let placement = caller.graph.parameters[0].placement.clone();
+        for operation in &caller.graph.blocks[0].operations[..2] {
+            let target_operations::TargetUnitOperation::StructuralScalarCall { arguments, .. } =
+                operation
+            else {
+                panic!("shared-view call");
+            };
+            assert_eq!(
+                arguments[0].source,
+                target_operations::TargetStructuralArgumentSource::Placement(placement.clone())
+            );
+        }
     }
 }
 
 #[test]
-fn scalar_graph_rejects_unimplemented_literal_descriptor_calls() {
+fn scalar_graph_lowers_literal_descriptor_calls() {
     let mut source = fixture();
     let literal_type = source.structural_types[0].clone();
     let caller = &mut source.functions[0];
@@ -132,7 +145,25 @@ fn scalar_graph_rejects_unimplemented_literal_descriptor_calls() {
         NativeTarget::windows_x64(),
         NativeTarget::macos_arm64(),
     ] {
-        assert!(lower_to_target_operations(&source, target).is_err());
+        let lowered = lower_to_target_operations(&source, target).unwrap();
+        let operations = &lowered.functions[0].graph.blocks[0].operations;
+        assert!(matches!(
+            operations[0],
+            target_operations::TargetUnitOperation::EstablishByteSequenceLiteral { .. }
+        ));
+        for operation in &operations[1..3] {
+            let target_operations::TargetUnitOperation::StructuralScalarCall { arguments, .. } =
+                operation
+            else {
+                panic!("literal view call");
+            };
+            assert_eq!(
+                arguments[0].source,
+                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                    psi_operation: OperationId::new(10).unwrap(),
+                }
+            );
+        }
     }
     let producer = source.functions[0].operations.remove(0);
     source.functions[0].operations.insert(2, producer);

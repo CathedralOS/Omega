@@ -58,11 +58,6 @@ pub(super) fn validate(
             if graph.call_plan != expected
                 || graph.scalar_parameters != abi.scalar_parameters
                 || graph.parameters != abi.structural_parameters
-                || (!super::super::unobserved_owned::body(optimized)
-                    && graph
-                        .blocks
-                        .iter()
-                        .any(|block| !block.structural_parameters.is_empty()))
             {
                 return Err(invalid);
             }
@@ -74,7 +69,8 @@ pub(super) fn validate(
             if graph.call_plan != expected
                 || graph.scalar_parameters != abi.parameters
                 || !graph.parameters.is_empty()
-                || !super::super::primitive_locals::roster(optimized)
+                || !(super::super::primitive_locals::roster(optimized)
+                    || super::super::literals::roster(optimized))
                 || graph
                     .blocks
                     .iter()

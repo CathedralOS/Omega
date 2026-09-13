@@ -145,18 +145,23 @@ fn byte_view_block_transfers_preserve_selected_pointer_and_bounds_through_calls(
 fn assert_mixed_result_publication_boundary(
     text: machine_emission::StagedOptimizedFixedFrameTextSection,
 ) {
-    // Mixed-result expression/call publication remains outside the admitted
-    // ordinary control-graph route. Unit block-view tests publish completely.
+    // Mixed scalar results publish through the ordinary control graph: the
+    // complete object/image/installation chain joins every transferred view.
     let source = std::sync::Arc::new(
         object_file::stage_optimized_relocation_free_object_container(text).unwrap(),
     );
-    match image_emission::build_function_fragment_object_artifact(source) {
-        Err(image_emission::FunctionFragmentObjectArtifactError::Unsupported(
-            "mixed scalar publication requires an ordinary control graph",
-        )) => {}
-        Err(error) => panic!("unexpected mixed-result publication boundary: {error:?}"),
-        Ok(_) => panic!("mixed-result expression/call publication unexpectedly accepted"),
-    }
+    let object = image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
+    image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
+    let image = image_emission::emit_executable_image(&object, 3).unwrap();
+    image_emission::validate_executable_image(&object, &image).unwrap();
+    let record = image_emission::build_installation_record(
+        &image,
+        semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
+    )
+    .unwrap();
+    let encoded = image_emission::encode_installation_record(&record).unwrap();
+    let decoded = image_emission::decode_installation_record(&encoded).unwrap();
+    image_emission::validate_installation_record(&decoded, &image).unwrap();
 }
 
 fn assert_contents(bytes: &[u8], entry_offset: usize) {
