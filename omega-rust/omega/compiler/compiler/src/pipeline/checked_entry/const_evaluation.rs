@@ -160,6 +160,3 @@ impl SelectedConstEvaluation {
         )
     }
 }
-
-#[cfg(test)]
-mod tests;

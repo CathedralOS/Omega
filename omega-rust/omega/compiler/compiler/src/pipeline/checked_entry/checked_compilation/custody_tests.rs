@@ -1,5 +1,6 @@
-use super::*;
+use super::super::const_evaluation::SelectedConstEvaluation;
 use crate::CheckedCompileRequest;
+use checked_trees::CheckedProviderPlanCommitment;
 use std::{
     fs,
     sync::atomic::{AtomicU64, Ordering},
@@ -33,13 +34,52 @@ data Main { bytes:[u8;length()]; }
 "#;
 
 #[test]
+fn checked_identity_includes_intent_and_cloned_program_mutation_is_isolated() {
+    let checked = compile("const ANSWER: u32 = 42;");
+    let mut changed = checked.clone();
+    assert!(std::sync::Arc::ptr_eq(
+        &checked.execution.settled.program,
+        &changed.execution.settled.program,
+    ));
+    assert_eq!(checked, changed);
+    changed.execution.application_intent = match checked.application_intent() {
+        Some(_) => None,
+        None => Some(build_evaluation::HostedApplicationIntent::Gui),
+    };
+    assert_eq!(changed.subsystem(), checked.subsystem());
+    assert_ne!(
+        changed, checked,
+        "checked identity must retain application intent"
+    );
+
+    let mut projected = checked.clone();
+    projected.typed = typed_trees::TypedTrees::default();
+    assert!(!std::sync::Arc::ptr_eq(
+        &checked.execution.settled.program,
+        &projected.execution.settled.program,
+    ));
+    assert_ne!(
+        &*projected, &*checked,
+        "review scratch must detach before mutation"
+    );
+
+    let mut extracted = checked.clone().into_program();
+    assert_eq!(&extracted, &*checked);
+    extracted.typed = typed_trees::TypedTrees::default();
+    assert_ne!(
+        &extracted, &*checked,
+        "raw-tree corruption must not mutate retained evidence"
+    );
+}
+
+#[test]
 fn selected_float_fold_replays_exact_provider_operator_and_operand_custody() {
     let checked = compile(SOURCE);
-    let custody = &checked.const_evaluation;
+    let custody = &checked.execution.const_evaluation;
     assert_eq!(custody.folds.len(), 1);
     assert!(custody.operators.len() >= 2);
     let replay = |candidate: &SelectedConstEvaluation| {
-        candidate.validate(&checked.program, &checked.selected_provider_plans, None)
+        candidate.validate(&checked, checked.selected_provider_plans(), None)
     };
     assert!(replay(custody).is_ok());
     let mut wrong_provider = custody.clone();
@@ -68,12 +108,12 @@ fn selected_float_fold_replays_exact_provider_operator_and_operand_custody() {
     duplicate_origin.operators.push(substituted);
     assert!(
         build_time_evaluation::validate_selected_operators(
-            &checked.program.typed,
+            &checked.typed,
             &duplicate_origin.operators
         )
         .is_err()
     );
-    let mut wrong_type = checked.program.clone();
+    let mut wrong_type = checked.clone().into_program();
     let owner = wrong_type
         .typed
         .data_definitions()
@@ -92,7 +132,7 @@ fn selected_float_fold_replays_exact_provider_operator_and_operand_custody() {
     field.type_reference = typed_trees::types::TypeReferenceHandle::invalid();
     assert!(
         custody
-            .validate(&wrong_type, &checked.selected_provider_plans, None)
+            .validate(&wrong_type, checked.selected_provider_plans(), None)
             .is_err()
     );
 }

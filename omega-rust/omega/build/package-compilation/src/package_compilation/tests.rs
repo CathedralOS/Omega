@@ -515,7 +515,7 @@ fn source_input_projection_binds_names_roots_metadata_and_edges() {
 }
 
 #[test]
-fn compiler_captured_canonical_metadata_rejects_late_same_length_content_drift() {
+fn compiler_captured_metadata_rejects_same_length_drift_at_input_and_evidence_boundaries() {
     let tree = TempTree::new();
     let root = tree.package("root");
     fs::write(root.join("undeclared.omg"), b"source").expect("write undeclared source");
@@ -532,7 +532,7 @@ fn compiler_captured_canonical_metadata_rejects_late_same_length_content_drift()
     let binding = PackageSourceBinding::new(identity(1), "root", root.clone())
         .with_canonical_source_metadata()
         .expect("compiler captures canonical metadata");
-    let inputs = PackageCompilationInputs::new_package(identity(1), vec![binding], vec![])
+    let inputs = PackageCompilationInputs::new_package(identity(1), vec![binding.clone()], vec![])
         .expect("input construction independently recaptures canonical metadata");
     #[cfg(unix)]
     {
@@ -554,6 +554,8 @@ fn compiler_captured_canonical_metadata_rejects_late_same_length_content_drift()
         .expect("reseal source file");
     }
 
+    PackageCompilationInputs::new_package(identity(1), vec![binding], vec![])
+        .expect_err("input construction must reject a stale compiler-captured snapshot");
     let diagnostics = inputs
         .validate_canonical_source_metadata()
         .expect_err("late content drift must invalidate compiler-captured metadata");

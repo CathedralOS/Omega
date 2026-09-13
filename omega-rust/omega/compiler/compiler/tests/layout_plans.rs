@@ -246,7 +246,8 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
         package_inputs: Some(package_inputs_with_standard_library(&canary)),
         ..CheckedCompileRequest::new(&canary, None)
     })
-    .expect("plan-laid canary should compile");
+    .expect("plan-laid canary should compile")
+    .into_program();
 
     // The pipeline recorded the validated plan on the typed trees.
     assert_eq!(checked.typed.plan_laid_layouts.len(), 1);
@@ -456,7 +457,8 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
         package_inputs: Some(package_inputs_for_source(&canary, 0x51)),
         ..CheckedCompileRequest::new(&canary, None)
     })
-    .expect("private callback-slot layout canary should compile");
+    .expect("private callback-slot layout canary should compile")
+    .into_program();
 
     let layout_index = checked
         .typed
@@ -555,7 +557,8 @@ fn target_closure_proves_one_inline_named_field_then_one_private_callback_slot()
         package_inputs: Some(package_inputs_for_source(&canary, 0x52)),
         ..CheckedCompileRequest::new(&canary, None)
     })
-    .expect("private callback-slot layout canary should compile");
+    .expect("private callback-slot layout canary should compile")
+    .into_program();
     let child = checked
         .typed
         .plan_laid_layouts
@@ -666,7 +669,8 @@ fn target_closed_private_callback_slot_rejects_geometry_mutations() {
         package_inputs: Some(package_inputs_for_source(&canary, 0x56)),
         ..CheckedCompileRequest::new(&canary, None)
     })
-    .expect("private callback-slot layout canary should compile");
+    .expect("private callback-slot layout canary should compile")
+    .into_program();
     let layout_index = checked
         .typed
         .plan_laid_layouts
@@ -2698,7 +2702,8 @@ machine Main::main(&mut self) { }
 "#,
     );
     let mut checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
-        .expect("stored integer policy should compile");
+        .expect("stored integer policy should compile")
+        .into_program();
     let report = compute_layout_plan(&checked.typed, "ForeignIntegers::plan", "PortableStat")
         .expect("both stored integer ranges fit their semantic carriers");
 
@@ -2840,7 +2845,8 @@ fn integer_at_retains_total_write_evidence_for_a_bounded_carrier() {
         package_inputs: Some(package_inputs_with_standard_library(&canary)),
         ..CheckedCompileRequest::new(&canary, None)
     })
-    .expect("total-write canary should typecheck");
+    .expect("total-write canary should typecheck")
+    .into_program();
     let recorded_index = checked
         .typed
         .plan_laid_layouts

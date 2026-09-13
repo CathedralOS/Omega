@@ -21,6 +21,16 @@ Checked-only consumers supply one `CheckedCompileRequest` to `compile_to_checked
 Package inputs, build staging, session sponsors and replay evidence are request
 data, not alternate compilation entrypoints. The request enters the same prepared
 source continuation used by production and target batches.
+The [checked entrance](src/pipeline/checked_entry.rs) shows the lifecycle:
+[admit and execute the build, then continue generated source](src/pipeline/checked_entry/build_continuation.rs),
+[check selected execution](src/pipeline/checked_entry/execution_settlement.rs),
+then [seal the result against current source custody](src/pipeline/checked_entry/checked_compilation.rs).
+The result retains the selected-execution settlement intact. Clones share program
+storage until mutation; review instantiation still uses mutable clones as scratch.
+Such mutation does not reseal evidence, and downstream reconstruction remains
+mandatory. `into_program` consumes the result and discards its compilation
+evidence; compiler malformed-tree tests use that raw representation.
+
 Candidate discovery can supply `CheckedCompileRequest::prepared_source_output`
 to retain an opaque `PreparedCheckedSource`, then consume it with a fresh request.
 The output slot is cleared before validation and published only on success.
