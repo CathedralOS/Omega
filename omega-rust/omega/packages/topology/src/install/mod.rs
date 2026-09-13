@@ -51,6 +51,7 @@ use crate::model::{EndpointKey, Identity, InstanceName, PlanInstance};
 use crate::verify::CheckedPlan;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::sync::Arc;
 
 /// Installer-issued identity of one physical pipe end. `EndpointId(0)` is
 /// the reserved absence state; issued ids start at 1.
@@ -95,10 +96,10 @@ pub struct AdmittedArtifact {
 /// What the supervisor hands the installer, independent of any candidate
 /// plan: the currently authorized request commitment, the installation
 /// occurrence, and the admitted executables in canonical instance order.
-/// The request is data; this authorization is the linear authority that
-/// permits one activation transition.
+/// This is copyable owner intent, not activation authority. Only the
+/// supervisor's lifecycle can issue an [`InstallationAuthorization`].
 #[derive(Debug, Clone)]
-pub struct InstallationAuthorization {
+pub struct InstallationRequest {
     /// Commitment of the request the owner currently authorizes. A checked
     /// plan answering any other request — including a correctly formed but
     /// superseded one — rejects.
@@ -110,10 +111,89 @@ pub struct InstallationAuthorization {
     pub artifacts: Vec<AdmittedArtifact>,
 }
 
+/// Supervisor-owned issuance state for one installation lifecycle. Keep this
+/// same value for the lifetime of the supervised installation, including
+/// retirement and failed cleanup. Creating another value creates a different
+/// authority domain, whose tokens cannot activate through this lifecycle.
+/// This state is local to the provider; it is not a global registry or durable
+/// recovery protocol.
+#[derive(Debug, Default)]
+pub struct InstallationLifecycle {
+    identity: Arc<()>,
+    last_issued: Option<u64>,
+}
+
+impl InstallationLifecycle {
+    /// Issue current owner intent independently of a candidate plan. Occurrences
+    /// must increase strictly, including after failed preparation or disarm.
+    /// Issuing fresh intent supersedes any older token not yet activated.
+    pub fn authorize(
+        &mut self,
+        request: InstallationRequest,
+    ) -> Result<InstallationAuthorization, InstallationRejection> {
+        if let Some(last_issued) = self.last_issued
+            && request.occurrence <= last_issued
+        {
+            return Err(InstallationRejection::ReplayedOccurrence {
+                last_issued,
+                requested: request.occurrence,
+            });
+        }
+        self.last_issued = Some(request.occurrence);
+        Ok(InstallationAuthorization {
+            owner: Arc::clone(&self.identity),
+            request,
+        })
+    }
+
+    fn check_authorization(
+        &self,
+        authorization: &InstallationAuthorization,
+    ) -> Result<(), InstallationRejection> {
+        if !Arc::ptr_eq(&self.identity, &authorization.owner) {
+            return Err(InstallationRejection::ForeignLifecycle);
+        }
+        if self.last_issued != Some(authorization.request.occurrence) {
+            return Err(InstallationRejection::SupersededAuthorization);
+        }
+        Ok(())
+    }
+}
+
+/// Opaque, non-clonable authority for one activation, issued only by the
+/// supervisor's [`InstallationLifecycle`]. Copying request fields cannot
+/// reconstruct this token. Preparation and activation consume its custody.
+///
+/// ```compile_fail
+/// use topology_plan::install::InstallationAuthorization;
+/// fn duplicate(authorization: InstallationAuthorization) {
+///     let replay = authorization.clone();
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use topology_plan::install::{InstallationAuthorization, InstallationRequest};
+/// use std::sync::Arc;
+/// fn forge(request: InstallationRequest) -> InstallationAuthorization {
+///     InstallationAuthorization { owner: Arc::new(()), request }
+/// }
+/// ```
+#[derive(Debug)]
+pub struct InstallationAuthorization {
+    owner: Arc<()>,
+    request: InstallationRequest,
+}
+
 /// Why an installation is rejected before activation. These are admission
 /// failures, not policy verdicts.
 #[derive(Debug)]
 pub enum InstallationRejection {
+    /// This lifecycle already issued the occurrence or a newer one.
+    ReplayedOccurrence { last_issued: u64, requested: u64 },
+    /// The token belongs to a different supervisor lifecycle.
+    ForeignLifecycle,
+    /// The owner supplied newer intent after this token was issued.
+    SupersededAuthorization,
     /// The checked plan answers a request other than the currently
     /// authorized one — a stale or foreign authorization.
     UnauthorizedRequest { expected: Identity, found: Identity },
@@ -131,6 +211,19 @@ pub enum InstallationRejection {
 impl fmt::Display for InstallationRejection {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ReplayedOccurrence {
+                last_issued,
+                requested,
+            } => write!(
+                formatter,
+                "installation occurrence {requested} does not follow issued occurrence {last_issued}"
+            ),
+            Self::ForeignLifecycle => {
+                formatter.write_str("authorization belongs to another installation lifecycle")
+            }
+            Self::SupersededAuthorization => {
+                formatter.write_str("authorization was superseded by newer owner intent")
+            }
             Self::UnauthorizedRequest { .. } => formatter.write_str(
                 "the plan answers a request that is not the current installation authorization",
             ),
@@ -240,8 +333,7 @@ struct RouteRecord {
 /// needing custody evidence use `disarm`.
 pub struct PreparedInstallation<A: PipeAdapter> {
     checked: CheckedPlan,
-    occurrence: u64,
-    artifacts: Vec<AdmittedArtifact>,
+    authorization: InstallationAuthorization,
     /// Per-instance assigned ends, canonical instance order.
     assigned: Vec<Vec<EndpointAssignment<A::Endpoint>>>,
     /// Every issued end, in `EndpointId` order.
@@ -253,7 +345,7 @@ impl<A: PipeAdapter> fmt::Debug for PreparedInstallation<A> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("PreparedInstallation")
-            .field("occurrence", &self.occurrence)
+            .field("occurrence", &self.authorization.request.occurrence)
             .field("routes", &self.routes.len())
             .finish()
     }
@@ -274,30 +366,27 @@ pub fn prepare_installation<A: PipeAdapter>(
     authorization: InstallationAuthorization,
     mut adapter: A,
 ) -> Result<PreparedInstallation<A>, PrepareError<A>> {
-    if checked.plan.request_commitment != authorization.expected_request {
+    let request = &authorization.request;
+    if checked.plan.request_commitment != request.expected_request {
         return Err(PrepareError::Rejected {
             rejection: InstallationRejection::UnauthorizedRequest {
-                expected: authorization.expected_request,
+                expected: request.expected_request,
                 found: checked.plan.request_commitment,
             },
             leaked: Vec::new(),
         });
     }
     let instances = checked.graph.instances();
-    if authorization.artifacts.len() != instances.len() {
+    if request.artifacts.len() != instances.len() {
         return Err(PrepareError::Rejected {
             rejection: InstallationRejection::ArtifactCount {
                 expected: instances.len(),
-                found: authorization.artifacts.len(),
+                found: request.artifacts.len(),
             },
             leaked: Vec::new(),
         });
     }
-    for (index, (artifact, instance)) in authorization
-        .artifacts
-        .iter()
-        .zip(instances.iter())
-        .enumerate()
+    for (index, (artifact, instance)) in request.artifacts.iter().zip(instances.iter()).enumerate()
     {
         if artifact.artifact == [0u8; 32] {
             return Err(PrepareError::Rejected {
@@ -401,8 +490,7 @@ pub fn prepare_installation<A: PipeAdapter>(
 
     Ok(PreparedInstallation {
         checked,
-        occurrence: authorization.occurrence,
-        artifacts: authorization.artifacts,
+        authorization,
         assigned,
         routes,
         adapter,
@@ -460,6 +548,20 @@ pub trait ProcessSupervisor {
     type Member;
     type Error: fmt::Debug + fmt::Display;
 
+    /// The stable lifecycle that issues this supervisor's owner-authorized
+    /// installation tokens. Expose only a shared view at the installation
+    /// boundary: callers cannot replace/reset the lifecycle through this API.
+    /// The provider's owner-authorized path alone obtains mutable issuance
+    /// access. Failed attempts require fresh intent and a new occurrence.
+    ///
+    /// ```compile_fail
+    /// use topology_plan::install::{InstallationLifecycle, ProcessSupervisor};
+    /// fn reset<S: ProcessSupervisor>(supervisor: &mut S) {
+    ///     *supervisor.installation_lifecycle() = InstallationLifecycle::default();
+    /// }
+    /// ```
+    fn installation_lifecycle(&self) -> &InstallationLifecycle;
+
     /// Admit `artifact` for `instance` and install exactly `endpoints` — no
     /// inherited handles, no substitutes. The member is prepared but must
     /// not run application code until the gate opens. The echo reports the
@@ -489,6 +591,9 @@ pub trait ProcessSupervisor {
 /// What failed at the gate.
 #[derive(Debug)]
 pub enum ActivationCause<Error> {
+    /// The gate refused foreign or superseded lifecycle authority before
+    /// preparing any member.
+    Authorization(InstallationRejection),
     /// The supervisor reported this failure from preparation or an entry
     /// gate.
     Supervisor(Error),
@@ -503,7 +608,8 @@ pub enum ActivationCause<Error> {
 /// installer-custody ends whose close failed. No receipt is ever produced
 /// for a partial roster.
 pub struct ActivationFailure<S: ProcessSupervisor> {
-    /// Instance whose preparation, echo check, or entry gate failed.
+    /// Instance whose preparation, echo check, or entry gate failed; zero
+    /// when `cause` is a roster-wide authorization refusal.
     pub instance: u32,
     pub cause: ActivationCause<S::Error>,
     /// Members that could not be released — still under supervision.
@@ -527,6 +633,7 @@ impl<S: ProcessSupervisor> fmt::Debug for ActivationFailure<S> {
 impl<S: ProcessSupervisor> fmt::Display for ActivationFailure<S> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.cause {
+            ActivationCause::Authorization(rejection) => write!(formatter, "{rejection}"),
             ActivationCause::Supervisor(error) => write!(
                 formatter,
                 "member {} failed under the supervisor: {error}",
@@ -710,13 +817,25 @@ impl<A: PipeAdapter> PreparedInstallation<A> {
     where
         S: ProcessSupervisor<Endpoint = A::Endpoint>,
     {
+        if let Err(rejection) = supervisor
+            .installation_lifecycle()
+            .check_authorization(&self.authorization)
+        {
+            let leaked = drain_assigned(&mut self.adapter, &mut self.assigned);
+            return Err(ActivationFailure {
+                instance: 0,
+                cause: ActivationCause::Authorization(rejection),
+                retained: Vec::new(),
+                leaked,
+            });
+        }
         let count = self.checked.graph.instances().len();
         let mut members: Vec<S::Member> = Vec::with_capacity(count);
 
         // Pass 1: admit every member. No entry opens in this pass.
         for index in 0..count {
             let endpoints = std::mem::take(&mut self.assigned[index]);
-            let artifact = &self.artifacts[index];
+            let artifact = &self.authorization.request.artifacts[index];
             let instance = &self.checked.graph.instances()[index];
             let echo = match supervisor.prepare_member(instance, artifact, endpoints) {
                 Ok(echo) => echo,
@@ -759,8 +878,10 @@ impl<A: PipeAdapter> PreparedInstallation<A> {
 
         let receipt = InstallationReceipt {
             plan: self.checked.subject,
-            occurrence: self.occurrence,
+            occurrence: self.authorization.request.occurrence,
             artifacts: self
+                .authorization
+                .request
                 .artifacts
                 .iter()
                 .map(|artifact| artifact.artifact)
@@ -1040,6 +1161,13 @@ impl<A: PipeAdapter, Member> InstalledTopology<A, Member> {
 
 /// Why a replacement did not produce a new generation.
 pub enum ReplacementFailure<A: PipeAdapter, S: ProcessSupervisor<Endpoint = A::Endpoint>> {
+    /// The replacement no longer has current owner authority. No member of
+    /// the old generation was stopped; both old and pending custody return.
+    Authorization {
+        rejection: InstallationRejection,
+        old: InstalledTopology<A, S::Member>,
+        pending_new: PreparedInstallation<A>,
+    },
     /// The old generation could not fully release: the new generation was
     /// never activated and is returned still pending so the caller can
     /// `disarm` it. The old installation remains the authority.
@@ -1060,6 +1188,10 @@ where
 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Authorization { rejection, .. } => formatter
+                .debug_tuple("Authorization")
+                .field(rejection)
+                .finish(),
             Self::OldGeneration { retained, .. } => formatter
                 .debug_struct("OldGeneration")
                 .field("retained", &retained.len())
@@ -1087,6 +1219,16 @@ where
     A: PipeAdapter,
     S: ProcessSupervisor<Endpoint = A::Endpoint>,
 {
+    if let Err(rejection) = supervisor
+        .installation_lifecycle()
+        .check_authorization(&new.authorization)
+    {
+        return Err(ReplacementFailure::Authorization {
+            rejection,
+            old,
+            pending_new: new,
+        });
+    }
     if let Err(retained) = old.quiesce(supervisor) {
         return Err(ReplacementFailure::OldGeneration {
             retained,

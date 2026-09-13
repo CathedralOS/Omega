@@ -34,3 +34,22 @@ gating application entry on complete admitted coverage. Correspondingly, a
 verified plan is evidence for the installer's own recheck, never a reusable
 authorization — and a receipt is evidence for one installation occurrence,
 not the next.
+
+Installation intent is the copyable `InstallationRequest`; it is not a live
+capability. The supervisor retains one `InstallationLifecycle` and uses
+`authorize` to issue an opaque, non-clonable `InstallationAuthorization`
+independently of the candidate plan. Occurrences increase strictly within that
+lifecycle, including after preparation failure, disarm, failed activation, and
+retirement. A fresh issuance supersedes older pending intent. Preparation owns
+the token until activation checks its issuing lifecycle and current occurrence;
+replacement performs that check before stopping the old installation. Failed
+replacement preflight returns both the unchanged old installation and pending
+endpoint custody.
+
+This local issuance state has no global registry or persistence protocol. The
+supervisor remains responsible for retaining its lifecycle, admitting executable
+closure, and establishing actual process confinement, endpoint delivery, and
+startup gating. A fresh lifecycle cannot stand in for the same supervisor's
+current authority. These reference tests do not establish the contract's
+three-process payment installation: its real executable/component admission and
+OS-backed supervisor remain required.

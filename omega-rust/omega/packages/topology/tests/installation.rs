@@ -122,14 +122,17 @@ impl PipeAdapter for SimAdapter {
 }
 
 /// One endpoint a member actually holds.
+#[derive(Debug)]
 struct SimEnd<E> {
     id: EndpointId,
     binding: u32,
     role: ChannelEnd,
     token: u64,
+    #[cfg_attr(not(unix), allow(dead_code))]
     handle: E,
 }
 
+#[derive(Debug)]
 struct SimMember<E> {
     instance: u32,
     entered: bool,
@@ -144,6 +147,7 @@ impl<E> SimMember<E> {
             .expect("member holds this channel end")
     }
 
+    #[cfg(unix)]
     fn end_mut(&mut self, binding: u32, role: ChannelEnd) -> &mut SimEnd<E> {
         self.ends
             .iter_mut()
@@ -153,6 +157,7 @@ impl<E> SimMember<E> {
 }
 
 struct SimSupervisor<E: PhysicalToken> {
+    lifecycle: InstallationLifecycle,
     log: Vec<String>,
     /// Instance index whose preparation fails.
     fail_prepare: Option<u32>,
@@ -169,6 +174,7 @@ struct SimSupervisor<E: PhysicalToken> {
 impl<E: PhysicalToken> SimSupervisor<E> {
     fn new() -> Self {
         Self {
+            lifecycle: InstallationLifecycle::default(),
             log: Vec::new(),
             fail_prepare: None,
             fail_gate: None,
@@ -183,6 +189,10 @@ impl<E: PhysicalToken> ProcessSupervisor for SimSupervisor<E> {
     type Endpoint = E;
     type Member = SimMember<E>;
     type Error = SimError;
+
+    fn installation_lifecycle(&self) -> &InstallationLifecycle {
+        &self.lifecycle
+    }
 
     fn prepare_member(
         &mut self,
@@ -267,8 +277,8 @@ fn checked_payment_plan() -> (CheckedPlan, Vec<u8>, Vec<u8>) {
     (checked, request_bytes, plan_bytes)
 }
 
-fn payment_authorization(request_bytes: &[u8], occurrence: u64) -> InstallationAuthorization {
-    InstallationAuthorization {
+fn payment_installation_request(request_bytes: &[u8], occurrence: u64) -> InstallationRequest {
+    InstallationRequest {
         expected_request: request_commitment(request_bytes),
         occurrence,
         artifacts: vec![
@@ -291,16 +301,226 @@ fn payment_authorization(request_bytes: &[u8], occurrence: u64) -> InstallationA
 // ---- authorization and coverage -----------------------------------------
 
 #[test]
+fn installation_authorization_cannot_activate_twice() {
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let request = payment_installation_request(&request_bytes, 7);
+    let duplicate = request.clone();
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
+    let authorization = supervisor
+        .lifecycle
+        .authorize(request)
+        .expect("first authorization");
+    let installed = prepare_installation(checked, authorization, SimAdapter::new())
+        .expect("first preparation")
+        .activate(&mut supervisor)
+        .expect("first activation");
+    assert!(matches!(
+        supervisor.lifecycle.authorize(duplicate),
+        Err(InstallationRejection::ReplayedOccurrence {
+            last_issued: 7,
+            requested: 7
+        })
+    ));
+    assert_eq!(installed.receipt().occurrence, 7);
+    assert_eq!(supervisor.log.len(), 6, "no duplicate preparation or entry");
+    assert!(
+        matches!(
+            supervisor
+                .lifecycle
+                .authorize(payment_installation_request(&request_bytes, 7)),
+            Err(InstallationRejection::ReplayedOccurrence { .. })
+        ),
+        "reconstructing every request field does not reconstruct authority"
+    );
+    installed
+        .quiesce(&mut supervisor)
+        .expect("retirement releases the roster");
+    assert!(
+        matches!(
+            supervisor
+                .lifecycle
+                .authorize(payment_installation_request(&request_bytes, 7)),
+            Err(InstallationRejection::ReplayedOccurrence { .. })
+        ),
+        "retirement does not reset issuance history"
+    );
+    let (checked, _, _) = checked_payment_plan();
+    let fresh = supervisor
+        .lifecycle
+        .authorize(payment_installation_request(&request_bytes, 8))
+        .expect("fresh owner intent issues a distinct generation");
+    let installed = prepare_installation(checked, fresh, SimAdapter::new())
+        .expect("new preparation")
+        .activate(&mut supervisor)
+        .expect("new activation");
+    assert_eq!(installed.receipt().occurrence, 8);
+    installed.quiesce(&mut supervisor).expect("new retirement");
+}
+
+#[test]
+fn foreign_lifecycle_cannot_reconstruct_supervisor_authority() {
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
+    let mut foreign = InstallationLifecycle::default();
+    let forged = foreign
+        .authorize(payment_installation_request(&request_bytes, 7))
+        .expect("another lifecycle can only issue its own authority");
+    let prepared = prepare_installation(checked, forged, SimAdapter::new()).expect("plan agrees");
+    let failure = prepared
+        .activate(&mut supervisor)
+        .expect_err("foreign authority rejects");
+    assert!(matches!(
+        failure.cause,
+        ActivationCause::Authorization(InstallationRejection::ForeignLifecycle)
+    ));
+    assert!(failure.leaked.is_empty());
+    assert!(failure.retained.is_empty());
+    assert!(supervisor.log.is_empty(), "no member preparation or entry");
+    supervisor
+        .lifecycle
+        .authorize(payment_installation_request(&request_bytes, 7))
+        .expect("foreign rejection did not consume local authority");
+}
+
+#[test]
+fn superseded_authorization_rejects_and_reports_unclean_endpoint_custody() {
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
+    let authorization = supervisor
+        .lifecycle
+        .authorize(payment_installation_request(&request_bytes, 1))
+        .expect("original authorization");
+    let mut adapter = SimAdapter::new();
+    adapter.fail_close.insert(101);
+    let prepared =
+        prepare_installation(checked, authorization, adapter).expect("pending placement");
+    let _new = supervisor
+        .lifecycle
+        .authorize(payment_installation_request(&request_bytes, 2))
+        .expect("new current intent");
+    let failure = prepared
+        .activate(&mut supervisor)
+        .expect_err("superseded authority rejects");
+    assert!(matches!(
+        failure.cause,
+        ActivationCause::Authorization(InstallationRejection::SupersededAuthorization)
+    ));
+    assert_eq!(failure.leaked, vec![EndpointId(2)]);
+    assert!(failure.retained.is_empty());
+    assert!(supervisor.log.is_empty());
+}
+
+#[test]
+fn disarm_and_failed_preparation_do_not_reissue_consumed_authority() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
+    for occurrence in [1, 2] {
+        let (checked, request_bytes, _) = checked_payment_plan();
+        let request = payment_installation_request(&request_bytes, occurrence);
+        let authorization = supervisor
+            .lifecycle
+            .authorize(request.clone())
+            .expect("fresh intent");
+        let mut adapter = SimAdapter::new();
+        if occurrence == 2 {
+            adapter.fail_at_pair = Some(1);
+        }
+        match prepare_installation(checked, authorization, adapter) {
+            Ok(prepared) => prepared.disarm().expect("pending custody released"),
+            Err(PrepareError::Adapter { leaked, .. }) => assert!(leaked.is_empty()),
+            other => panic!("unexpected preparation: {other:?}"),
+        }
+        assert!(matches!(
+            supervisor.lifecycle.authorize(request),
+            Err(InstallationRejection::ReplayedOccurrence { .. })
+        ));
+    }
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let authorization = supervisor
+        .lifecycle
+        .authorize(payment_installation_request(&request_bytes, 3))
+        .expect("fresh intent after cleanup");
+    let installed = prepare_installation(checked, authorization, SimAdapter::new())
+        .expect("prepares")
+        .activate(&mut supervisor)
+        .expect("activates after earlier cleanup");
+    installed.quiesce(&mut supervisor).expect("retired");
+}
+
+#[test]
+fn occurrence_exhaustion_rejects_without_wrapping() {
+    let (_, request_bytes, _) = checked_payment_plan();
+    let mut lifecycle = InstallationLifecycle::default();
+    let _last = lifecycle
+        .authorize(payment_installation_request(&request_bytes, u64::MAX))
+        .expect("last occurrence");
+    for occurrence in [0, 1, u64::MAX] {
+        assert!(matches!(
+            lifecycle.authorize(payment_installation_request(&request_bytes, occurrence)),
+            Err(InstallationRejection::ReplayedOccurrence { .. })
+        ));
+    }
+}
+
+#[test]
+fn activation_failure_keeps_issuance_spent_through_retained_cleanup() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let request = payment_installation_request(&request_bytes, 1);
+    let authorization = supervisor
+        .lifecycle
+        .authorize(request.clone())
+        .expect("initial intent");
+    let prepared =
+        prepare_installation(checked, authorization, SimAdapter::new()).expect("prepares");
+    supervisor.fail_gate = Some(1);
+    supervisor.quiesce_fail.insert(0);
+    let failure = prepared
+        .activate(&mut supervisor)
+        .expect_err("entry and cleanup fail");
+    assert_eq!(failure.retained.len(), 1);
+    assert!(failure.leaked.is_empty());
+    assert!(matches!(
+        supervisor.lifecycle.authorize(request.clone()),
+        Err(InstallationRejection::ReplayedOccurrence { .. })
+    ));
+    supervisor.fail_gate = None;
+    supervisor.quiesce_fail.clear();
+    for retained in failure.retained {
+        supervisor
+            .quiesce_member(retained.member)
+            .expect("retained supervision releases");
+    }
+    assert!(matches!(
+        supervisor.lifecycle.authorize(request),
+        Err(InstallationRejection::ReplayedOccurrence { .. })
+    ));
+    let (checked, _, _) = checked_payment_plan();
+    let authorization = supervisor
+        .lifecycle
+        .authorize(payment_installation_request(&request_bytes, 2))
+        .expect("fresh intent after cleanup");
+    let installed = prepare_installation(checked, authorization, SimAdapter::new())
+        .expect("fresh preparation")
+        .activate(&mut supervisor)
+        .expect("fresh activation");
+    assert_eq!(installed.receipt().occurrence, 2);
+    installed.quiesce(&mut supervisor).expect("retirement");
+}
+
+#[test]
 fn golden_payment_installation_activates_and_receipts() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
     let subject = checked.subject;
     let prepared = prepare_installation(
         checked,
-        payment_authorization(&request_bytes, 7),
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 7))
+            .expect("owner authorization"),
         SimAdapter::new(),
     )
     .expect("preparation admits the payment plan");
-    let mut supervisor = SimSupervisor::new();
     let installed = prepared
         .activate(&mut supervisor)
         .expect("activation opens the complete roster");
@@ -360,11 +580,20 @@ fn golden_payment_installation_activates_and_receipts() {
 
 #[test]
 fn a_stale_authorization_rejects_before_any_endpoint() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, _, _) = checked_payment_plan();
-    let mut authorization = payment_authorization(&encode_request(&payment_request()).unwrap(), 1);
+    let mut authorization =
+        payment_installation_request(&encode_request(&payment_request()).unwrap(), 1);
     authorization.expected_request = identity(0xEE);
     let adapter = SimAdapter::new();
-    match prepare_installation(checked, authorization, adapter) {
+    match prepare_installation(
+        checked,
+        supervisor
+            .lifecycle
+            .authorize(authorization)
+            .expect("owner authorization"),
+        adapter,
+    ) {
         Err(PrepareError::Rejected {
             rejection: InstallationRejection::UnauthorizedRequest { .. },
             leaked,
@@ -375,11 +604,19 @@ fn a_stale_authorization_rejects_before_any_endpoint() {
 
 #[test]
 fn artifact_mismatches_reject_before_any_endpoint() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
     // Wrong count.
-    let mut authorization = payment_authorization(&request_bytes, 1);
+    let mut authorization = payment_installation_request(&request_bytes, 1);
     authorization.artifacts.pop();
-    match prepare_installation(checked, authorization, SimAdapter::new()) {
+    match prepare_installation(
+        checked,
+        supervisor
+            .lifecycle
+            .authorize(authorization)
+            .expect("owner authorization"),
+        SimAdapter::new(),
+    ) {
         Err(PrepareError::Rejected {
             rejection: InstallationRejection::ArtifactCount { .. },
             ..
@@ -389,9 +626,16 @@ fn artifact_mismatches_reject_before_any_endpoint() {
 
     // A different component subject than the roster requires.
     let (checked, request_bytes, _) = checked_payment_plan();
-    let mut authorization = payment_authorization(&request_bytes, 1);
+    let mut authorization = payment_installation_request(&request_bytes, 2);
     authorization.artifacts[2].component_subject = identity(0x34);
-    match prepare_installation(checked, authorization, SimAdapter::new()) {
+    match prepare_installation(
+        checked,
+        supervisor
+            .lifecycle
+            .authorize(authorization)
+            .expect("owner authorization"),
+        SimAdapter::new(),
+    ) {
         Err(PrepareError::Rejected {
             rejection: InstallationRejection::ArtifactMismatch { instance },
             ..
@@ -404,10 +648,18 @@ fn artifact_mismatches_reject_before_any_endpoint() {
 
 #[test]
 fn adapter_failure_mid_preparation_cleans_custody() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
     let mut adapter = SimAdapter::new();
     adapter.fail_at_pair = Some(1);
-    match prepare_installation(checked, payment_authorization(&request_bytes, 1), adapter) {
+    match prepare_installation(
+        checked,
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 1))
+            .expect("owner authorization"),
+        adapter,
+    ) {
         Err(PrepareError::Adapter {
             binding,
             error: _,
@@ -423,11 +675,19 @@ fn adapter_failure_mid_preparation_cleans_custody() {
 
 #[test]
 fn uncleanable_close_reports_leaked_custody() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
     let mut adapter = SimAdapter::new();
     adapter.fail_at_pair = Some(1);
     adapter.fail_close.insert(101);
-    match prepare_installation(checked, payment_authorization(&request_bytes, 1), adapter) {
+    match prepare_installation(
+        checked,
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 1))
+            .expect("owner authorization"),
+        adapter,
+    ) {
         Err(PrepareError::Adapter { leaked, .. }) => {
             assert_eq!(leaked, vec![EndpointId(2)]);
         }
@@ -437,10 +697,18 @@ fn uncleanable_close_reports_leaked_custody() {
 
 #[test]
 fn a_colliding_endpoint_token_rejects_as_substitution() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
     let mut adapter = SimAdapter::new();
     adapter.collide = true;
-    match prepare_installation(checked, payment_authorization(&request_bytes, 1), adapter) {
+    match prepare_installation(
+        checked,
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 1))
+            .expect("owner authorization"),
+        adapter,
+    ) {
         Err(PrepareError::Rejected {
             rejection: InstallationRejection::EndpointTokenCollision { binding },
             leaked,
@@ -454,10 +722,18 @@ fn a_colliding_endpoint_token_rejects_as_substitution() {
 
 #[test]
 fn disarm_releases_every_assigned_end() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
     let adapter = SimAdapter::new();
-    let prepared = prepare_installation(checked, payment_authorization(&request_bytes, 1), adapter)
-        .expect("preparation admits");
+    let prepared = prepare_installation(
+        checked,
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 1))
+            .expect("owner authorization"),
+        adapter,
+    )
+    .expect("preparation admits");
     prepared.disarm().expect("all ends released");
 }
 
@@ -465,14 +741,17 @@ fn disarm_releases_every_assigned_end() {
 
 #[test]
 fn member_failure_quiesces_prepared_roster_without_receipt() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
     let prepared = prepare_installation(
         checked,
-        payment_authorization(&request_bytes, 1),
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 1))
+            .expect("owner authorization"),
         SimAdapter::new(),
     )
     .expect("preparation admits");
-    let mut supervisor = SimSupervisor::new();
     supervisor.fail_prepare = Some(1);
     match prepared.activate(&mut supervisor) {
         Err(failure) => {
@@ -496,14 +775,17 @@ fn member_failure_quiesces_prepared_roster_without_receipt() {
 
 #[test]
 fn entry_gate_failure_rolls_back_the_whole_roster() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
     let prepared = prepare_installation(
         checked,
-        payment_authorization(&request_bytes, 1),
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 1))
+            .expect("owner authorization"),
         SimAdapter::new(),
     )
     .expect("preparation admits");
-    let mut supervisor = SimSupervisor::new();
     supervisor.fail_gate = Some(2);
     match prepared.activate(&mut supervisor) {
         Err(failure) => {
@@ -532,14 +814,17 @@ fn entry_gate_failure_rolls_back_the_whole_roster() {
 
 #[test]
 fn quiesce_failure_retains_supervision_without_receipt() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
     let prepared = prepare_installation(
         checked,
-        payment_authorization(&request_bytes, 1),
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 1))
+            .expect("owner authorization"),
         SimAdapter::new(),
     )
     .expect("preparation admits");
-    let mut supervisor = SimSupervisor::new();
     supervisor.fail_gate = Some(1);
     supervisor.quiesce_fail.insert(0);
     match prepared.activate(&mut supervisor) {
@@ -555,14 +840,17 @@ fn quiesce_failure_retains_supervision_without_receipt() {
 
 #[test]
 fn a_substituted_mapping_refuses_at_the_gate() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
     let prepared = prepare_installation(
         checked,
-        payment_authorization(&request_bytes, 1),
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 1))
+            .expect("owner authorization"),
         SimAdapter::new(),
     )
     .expect("preparation admits");
-    let mut supervisor = SimSupervisor::new();
     // authorization installs a foreign physical end and honestly says so.
     supervisor.substitute = Some((1, 0xDEAD));
     match prepared.activate(&mut supervisor) {
@@ -585,14 +873,17 @@ fn installed_payment() -> (
     InstalledTopology<SimAdapter, SimMember<SimEndpoint>>,
     SimSupervisor<SimEndpoint>,
 ) {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
     let prepared = prepare_installation(
         checked,
-        payment_authorization(&request_bytes, 1),
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 1))
+            .expect("owner authorization"),
         SimAdapter::new(),
     )
     .expect("preparation admits");
-    let mut supervisor = SimSupervisor::new();
     let installed = prepared
         .activate(&mut supervisor)
         .expect("activation admits");
@@ -690,12 +981,46 @@ fn outstanding_request_and_closed_binding_rules_hold() {
 // ---- replacement ---------------------------------------------------------
 
 #[test]
+fn superseded_replacement_returns_old_and_pending_custody_before_stopping() {
+    let (old, mut supervisor) = installed_payment();
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let authorization = supervisor
+        .lifecycle
+        .authorize(payment_installation_request(&request_bytes, 2))
+        .expect("replacement intent");
+    let prepared = prepare_installation(checked, authorization, SimAdapter::new())
+        .expect("replacement prepares");
+    let _newer = supervisor
+        .lifecycle
+        .authorize(payment_installation_request(&request_bytes, 3))
+        .expect("newer intent");
+    match replace_installation(old, prepared, &mut supervisor) {
+        Err(ReplacementFailure::Authorization {
+            rejection: InstallationRejection::SupersededAuthorization,
+            old,
+            pending_new,
+        }) => {
+            assert_eq!(supervisor.log.len(), 6, "old generation was not stopped");
+            assert!(old.members().iter().all(|member| member.entered));
+            assert_eq!(old.receipt().occurrence, 1);
+            pending_new.disarm().expect("pending custody released");
+            old.quiesce(&mut supervisor)
+                .expect("old custody released explicitly");
+        }
+        other => panic!("replacement must preserve old custody: {other:?}"),
+    }
+}
+
+#[test]
 fn replacement_quiesces_the_old_generation_first() {
     let (old, mut supervisor) = installed_payment();
     let (checked, request_bytes, _) = checked_payment_plan();
     let prepared = prepare_installation(
         checked,
-        payment_authorization(&request_bytes, 2),
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 2))
+            .expect("owner authorization"),
         SimAdapter::new(),
     )
     .expect("new generation prepares");
@@ -724,7 +1049,10 @@ fn replacement_keeps_the_old_generation_when_it_cannot_release() {
     let (checked, request_bytes, _) = checked_payment_plan();
     let prepared = prepare_installation(
         checked,
-        payment_authorization(&request_bytes, 2),
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 2))
+            .expect("owner authorization"),
         SimAdapter::new(),
     )
     .expect("new generation prepares");
@@ -798,15 +1126,18 @@ fn host_pipe_pairs_are_private_and_directed() {
 #[cfg(unix)]
 #[test]
 fn a_full_installation_flows_over_real_private_pipes() {
+    let mut supervisor = SimSupervisor::<StdPipeEnd>::new();
     use std::io::{Read, Write};
     let (checked, request_bytes, _) = checked_payment_plan();
     let prepared = prepare_installation(
         checked,
-        payment_authorization(&request_bytes, 1),
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 1))
+            .expect("owner authorization"),
         StdPipeAdapter,
     )
     .expect("preparation admits real pipes");
-    let mut supervisor = SimSupervisor::<StdPipeEnd>::new();
     let mut installed = prepared
         .activate(&mut supervisor)
         .expect("activation admits real pipes");
