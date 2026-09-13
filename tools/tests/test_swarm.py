@@ -189,6 +189,101 @@ class SwarmTests(unittest.TestCase):
             "Probe-only slot",
             prompt_path.read_text(encoding="utf-8"))
 
+    def test_route_crates_marks_reachable_and_unreachable(self):
+        metadata = {
+            "workspace_members": ["omega-id", "reachable-id", "unreachable-id"],
+            "packages": [
+                {"id": "omega-id", "name": "omega",
+                 "manifest_path": str(self.repository / "omega" / "Cargo.toml")},
+                {"id": "reachable-id", "name": "reachable",
+                 "manifest_path": str(self.repository / "reachable" / "Cargo.toml")},
+                {"id": "unreachable-id", "name": "unreachable",
+                 "manifest_path": str(self.repository / "unreachable" / "Cargo.toml")},
+            ],
+            "resolve": {
+                "nodes": [
+                    {"id": "omega-id", "deps": [{"pkg": "reachable-id"}]},
+                    {"id": "reachable-id", "deps": []},
+                    {"id": "unreachable-id", "deps": []},
+                ],
+            },
+        }
+        result = mock.Mock(returncode=0, stdout=json.dumps(metadata))
+        with mock.patch.object(self.module.subprocess, "run", return_value=result):
+            crates = self.module.route_crates(self.repository)
+        self.assertEqual(crates["omega"],
+                         {"name": "omega", "on_route": True})
+        self.assertEqual(crates["reachable"],
+                         {"name": "reachable", "on_route": True})
+        self.assertEqual(crates["unreachable"],
+                         {"name": "unreachable", "on_route": False})
+
+    def test_plan_refuses_off_route_crate_unless_probe_only(self):
+        (self.repository / "src" / "one" / "Cargo.toml").write_text(
+            "[package]\nname = \"one\"\nversion = \"0.1.0\"\n", encoding="utf-8")
+        manifest_path = self.root / "wave.json"
+        record = manifest()
+        manifest_path.write_text(json.dumps(record), encoding="utf-8")
+        route = {"src/one": {"name": "one", "on_route": False}}
+        with mock.patch.object(self.module, "route_crates", return_value=route):
+            with self.assertRaisesRegex(self.module.SwarmError, "not on the omega route"):
+                self.module.command_plan(
+                    mock.Mock(manifest=str(manifest_path),
+                              skip_host_gates=True, skip_route_check=False),
+                    self.repository)
+        prompt_path = (self.module.build_directory(self.repository, "w9")
+                       / "prompts" / "alpha.md")
+        self.assertFalse(prompt_path.exists())
+
+        record["sessions"][0]["probe_only"] = True
+        manifest_path.write_text(json.dumps(record), encoding="utf-8")
+        with mock.patch.object(self.module, "route_crates", return_value=route), \
+                mock.patch.object(self.module, "emit") as emitted:
+            self.assertEqual(self.module.command_plan(
+                mock.Mock(manifest=str(manifest_path),
+                          skip_host_gates=True, skip_route_check=False),
+                self.repository), 0)
+            planned = emitted.call_args.args[0]["sessions"][0]
+        freshness = {line["path"]: line for line in planned["freshness"]}
+        self.assertFalse(freshness["src/one"]["on_route"])
+        self.assertEqual(freshness["src/one"]["crate_name"], "one")
+
+    def test_plan_skip_route_check_records_skipped(self):
+        (self.repository / "src" / "one" / "Cargo.toml").write_text(
+            "[package]\nname = \"one\"\nversion = \"0.1.0\"\n", encoding="utf-8")
+        manifest_path = self.root / "wave.json"
+        manifest_path.write_text(json.dumps(manifest()), encoding="utf-8")
+        with mock.patch.object(self.module, "route_crates") as route, \
+                mock.patch.object(self.module, "emit") as emitted:
+            self.assertEqual(self.module.command_plan(
+                mock.Mock(manifest=str(manifest_path),
+                          skip_host_gates=True, skip_route_check=True),
+                self.repository), 0)
+            route.assert_not_called()
+            planned = emitted.call_args.args[0]["sessions"][0]
+        freshness = {line["path"]: line for line in planned["freshness"]}
+        self.assertEqual(freshness["src/one"]["on_route"], "skipped")
+        self.assertEqual(freshness["TASKS.md"]["on_route"], "skipped")
+
+    def test_plan_with_unavailable_cargo_records_unknown(self):
+        (self.repository / "src" / "one" / "Cargo.toml").write_text(
+            "[package]\nname = \"one\"\nversion = \"0.1.0\"\n", encoding="utf-8")
+        with mock.patch.object(self.module.subprocess, "run",
+                               side_effect=FileNotFoundError("cargo")):
+            self.assertIsNone(self.module.route_crates(self.repository))
+        manifest_path = self.root / "wave.json"
+        manifest_path.write_text(json.dumps(manifest()), encoding="utf-8")
+        with mock.patch.object(self.module, "route_crates",
+                               return_value=None):
+            with mock.patch.object(self.module, "emit") as emitted:
+                self.assertEqual(self.module.command_plan(
+                    mock.Mock(manifest=str(manifest_path),
+                              skip_host_gates=True, skip_route_check=False),
+                    self.repository), 0)
+                planned = emitted.call_args.args[0]["sessions"][0]
+        freshness = {line["path"]: line for line in planned["freshness"]}
+        self.assertEqual(freshness["src/one"]["on_route"], "unknown")
+
     def test_launch_dry_run_skips_gates_and_skip_flag(self):
         record = manifest({"host_gates": ["exit 3"]})
         manifest_path = self.root / "wave.json"

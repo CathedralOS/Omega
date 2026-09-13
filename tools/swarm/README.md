@@ -39,11 +39,12 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
 
 1. Write a manifest (see `manifest.schema.json`; `waves/wave-1.json` is the
    worked example).
-2. `plan --manifest <file>` — validates the manifest, runs `host_gates`,
-   probes owning-path freshness (including each path's crate), renders one
-   prompt per session to `build/swarm/<wave>/prompts/`, and prints the exact
-   request bodies. Review the prompts. Use `--skip-host-gates` when the
-   coordinator deliberately does not run them.
+2. `plan --manifest <file>` — validates the manifest, runs `host_gates` and
+   the omega-route check, probes owning-path freshness (including each path's
+   crate), renders one prompt per session to `build/swarm/<wave>/prompts/`, and
+   prints the exact request bodies. Review the prompts. Use
+   `--skip-host-gates` or `--skip-route-check` when the coordinator deliberately
+   does not run those checks.
 3. `launch --manifest <file>` — creates one session per entry and records
    `receipts.json`. A name with an existing receipt is skipped; pass
    `--relaunch <name>` to recreate just that session. `--dry-run` prints the
@@ -63,6 +64,10 @@ Pick items that are:
   `TASKS_OPTIMIZER.md`), with the item present as `**<item>.**`.
 - each item's acceptance gates exit 0 on Linux; declare them in `host_gates`
   because `plan` runs them and refuses the wave otherwise,
+- an optimizer item's owning path must be the `X-to-X` stage crate at the
+  item's representation level, and that crate must exist and be on the `omega`
+  route; if the stage does not exist the slot is `probe_only` or dropped
+  (wave-3 miss: `EXACT-MACHINE-SIMPLIFICATIONS`),
 - a slot whose slice may not be one crate is declared `probe_only`, so a
   `verification_only` result is planned rather than counted as a miss.
 
