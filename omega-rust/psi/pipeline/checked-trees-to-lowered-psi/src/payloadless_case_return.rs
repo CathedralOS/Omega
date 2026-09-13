@@ -54,6 +54,7 @@ pub(super) fn lower_payloadless_case_return_machine(
         structural_parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: machine_result_place,
             structural_type: result_type,
             multiplicity: StructuralMultiplicity::Unrestricted,

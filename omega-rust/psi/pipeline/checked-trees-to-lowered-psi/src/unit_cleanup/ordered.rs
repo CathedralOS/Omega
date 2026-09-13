@@ -459,7 +459,8 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                     StructuralTypeShape::Record { fields } => {
                         fields.iter().find(|field| field.identity == field_identity)
                     }
-                    StructuralTypeShape::PrimitiveScalar(_)
+                    StructuralTypeShape::Reference { .. }
+                    | StructuralTypeShape::PrimitiveScalar(_)
                     | StructuralTypeShape::ByteSequence(_)
                     | StructuralTypeShape::FixedArray { .. }
                     | StructuralTypeShape::Sum { .. }

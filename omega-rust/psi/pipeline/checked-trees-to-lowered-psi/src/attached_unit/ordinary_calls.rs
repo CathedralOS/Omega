@@ -146,34 +146,36 @@ pub(super) fn prepare(
         } else {
             Vec::new()
         };
-    let substitutions = target
-        .parameters
-        .iter()
-        .zip(&terminal_arguments)
-        .map(|(parameter, argument)| {
-            Ok((
-                parameter.place,
-                (
-                    argument.place,
-                    if call_byte_places.contains(&argument.place) {
-                        // Transfer validation already required the exact whole
-                        // immutable byte view. Its canonical path has no segments.
-                        Vec::new()
-                    } else {
-                        structural_crash_route_argument_prefix(
-                            argument,
-                            parameters,
-                            local_places,
-                            structural_result_places,
-                            structural_types,
-                            primitive_local_places,
-                        )?
-                    },
-                ),
-            ))
-        })
-        .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
-    substitute_structural_crash_route_roots(&mut crash_continuations, &substitutions)?;
+    if !crash_continuations.is_empty() {
+        let substitutions = target
+            .parameters
+            .iter()
+            .zip(&terminal_arguments)
+            .map(|(parameter, argument)| {
+                Ok((
+                    parameter.place,
+                    (
+                        argument.place,
+                        if call_byte_places.contains(&argument.place) {
+                            // Transfer validation already required the exact whole
+                            // immutable byte view. Its canonical path has no segments.
+                            Vec::new()
+                        } else {
+                            structural_crash_route_argument_prefix(
+                                argument,
+                                parameters,
+                                local_places,
+                                structural_result_places,
+                                structural_types,
+                                primitive_local_places,
+                            )?
+                        },
+                    ),
+                ))
+            })
+            .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
+        substitute_structural_crash_route_roots(&mut crash_continuations, &substitutions)?;
+    }
     let requirement_obligations = target_runtime_requirements
         .iter()
         .map(|_| {

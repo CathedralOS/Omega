@@ -110,6 +110,7 @@ pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPath
     encode_len(bytes, path.len());
     for segment in path {
         match segment {
+            StructuralPathSegment::Referent => bytes.push(3),
             StructuralPathSegment::Field(identity) => {
                 bytes.push(1);
                 encode_string(bytes, identity);
@@ -182,6 +183,11 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     bytes.extend_from_slice(&declaration.id.get().to_le_bytes());
     encode_string(bytes, &declaration.identity);
     match &declaration.shape {
+        StructuralTypeShape::Reference { referent, access } => {
+            bytes.push(7);
+            bytes.extend_from_slice(&referent.get().to_le_bytes());
+            encode_access(bytes, *access);
+        }
         StructuralTypeShape::PrimitiveScalar(scalar_type) => {
             bytes.push(6);
             encode_scalar_type(bytes, *scalar_type);

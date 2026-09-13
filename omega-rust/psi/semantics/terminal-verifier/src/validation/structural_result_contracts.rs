@@ -122,6 +122,7 @@ pub(super) fn has_plain_owned_shape(module: &TerminalModule, root: StructuralTyp
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
             ) => true,
             StructuralTypeShape::ByteSequence(_) => false,
+            StructuralTypeShape::Reference { .. } => false,
             StructuralTypeShape::Record { fields } => fields.iter().all(&mut field_is_owned),
             StructuralTypeShape::Sum { cases } => cases
                 .iter()

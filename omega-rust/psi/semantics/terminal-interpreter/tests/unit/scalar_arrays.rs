@@ -34,6 +34,7 @@ fn fixture(
     });
     let machine = &mut module.machines[0];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: place_id(2),
         structural_type: structural_type_id(1),
         multiplicity: StructuralMultiplicity::Unrestricted,

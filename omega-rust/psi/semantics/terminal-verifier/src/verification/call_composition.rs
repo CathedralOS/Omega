@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 
 use proof_admission::{Obligation, ObligationClass};
 use semantic_vocabulary::{
-    MachineId, Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, ValueId,
+    CanonicalStructuralPathSegment, MachineId, PlaceId, Proposition, ScalarTerm, ScalarType,
+    StructuralCaseSubject, ValueId,
 };
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, StructuralArgument, TerminalMachine, TerminalModule,
@@ -106,23 +107,8 @@ pub(super) fn compose_call_operation(
                 .get(callee)
                 .copied()
                 .expect("validated unit-call target exists");
-            let structural_substitutions = callee
-                .structural_parameters
-                .iter()
-                .zip(structural_arguments)
-                .map(|(parameter, argument)| {
-                    (
-                        parameter.place,
-                        (
-                            argument.place,
-                            crate::validation::structural_argument_canonical_prefix(
-                                module, machine, argument,
-                            )
-                            .expect("validated structural argument has a canonical path"),
-                        ),
-                    )
-                })
-                .collect::<BTreeMap<_, _>>();
+            let structural_substitutions =
+                structural_contract_substitutions(module, machine, callee, structural_arguments)?;
             let value_substitutions = callee
                 .parameters
                 .iter()
@@ -161,7 +147,7 @@ pub(super) fn compose_call_operation(
                     canonical_certificate: false,
                 });
             }
-            invalidate_mutated_arguments(axioms, structural_arguments);
+            invalidate_mutated_arguments(machine, axioms, structural_arguments);
             for guarantee in &callee.contract.ensures {
                 push_unique(axioms, substitute(&guarantee.proposition));
             }
@@ -191,7 +177,7 @@ pub(super) fn compose_call_operation(
                 value_types,
                 axioms,
                 operation_obligations,
-            );
+            )?;
         }
         (
             CallResultRule::ScalarCalleeResult,
@@ -269,7 +255,7 @@ pub(super) fn compose_call_operation(
                 value_types,
                 axioms,
                 operation_obligations,
-            );
+            )?;
         }
         (
             CallResultRule::ScalarCalleeResult,
@@ -345,23 +331,8 @@ pub(super) fn compose_call_operation(
                 .result
                 .structural()
                 .expect("validated structural-call target has a structural result");
-            let mut substitutions = callee
-                .structural_parameters
-                .iter()
-                .zip(structural_arguments)
-                .map(|(parameter, argument)| {
-                    (
-                        parameter.place,
-                        (
-                            argument.place,
-                            crate::validation::structural_argument_canonical_prefix(
-                                module, machine, argument,
-                            )
-                            .expect("validated structural argument has a canonical path"),
-                        ),
-                    )
-                })
-                .collect::<BTreeMap<_, _>>();
+            let mut substitutions =
+                structural_contract_substitutions(module, machine, callee, structural_arguments)?;
             substitutions.insert(callee_result.place, (call_result.place, Vec::new()));
             let scalar_substitutions = callee
                 .parameters
@@ -407,7 +378,7 @@ pub(super) fn compose_call_operation(
                     canonical_certificate: false,
                 });
             }
-            invalidate_mutated_arguments(axioms, structural_arguments);
+            invalidate_mutated_arguments(machine, axioms, structural_arguments);
             for guarantee in &callee.contract.ensures {
                 push_unique(axioms, instantiate(&guarantee.proposition));
             }
@@ -441,7 +412,7 @@ pub(super) fn compose_call_operation(
                 ..
             },
         ) => {
-            invalidate_mutated_arguments(axioms, structural_arguments);
+            invalidate_mutated_arguments(machine, axioms, structural_arguments);
         }
         _ => {
             return Err(ModuleError::OperationSemanticSchema(
@@ -466,24 +437,9 @@ fn compose_structural_scalar_call(
     value_types: &BTreeMap<ValueId, ScalarType>,
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
-) {
-    let structural_substitutions = callee
-        .structural_parameters
-        .iter()
-        .zip(structural_arguments)
-        .map(|(parameter, argument)| {
-            (
-                parameter.place,
-                (
-                    argument.place,
-                    crate::validation::structural_argument_canonical_prefix(
-                        module, machine, argument,
-                    )
-                    .expect("validated structural argument has a canonical path"),
-                ),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
+) -> Result<(), ModuleError> {
+    let structural_substitutions =
+        structural_contract_substitutions(module, machine, callee, structural_arguments)?;
     let mut value_substitutions = callee
         .parameters
         .iter()
@@ -527,10 +483,72 @@ fn compose_structural_scalar_call(
             canonical_certificate: false,
         });
     }
-    invalidate_mutated_arguments(axioms, structural_arguments);
+    invalidate_mutated_arguments(machine, axioms, structural_arguments);
     for guarantee in &callee.contract.ensures {
         push_unique(axioms, substitute(&guarantee.proposition));
     }
+    Ok(())
+}
+
+/// Borrowed referents have no owned-field spelling in the proposition algebra.
+/// Omit an unused binder only after checking the complete published contract;
+/// a contract that actually needs the missing projection remains unsupported.
+fn structural_contract_substitutions(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    callee: &TerminalMachine,
+    arguments: &[StructuralArgument],
+) -> Result<BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>, ModuleError> {
+    let mut substitutions = BTreeMap::new();
+    for (parameter, argument) in callee.structural_parameters.iter().zip(arguments) {
+        if let Some(prefix) =
+            crate::validation::structural_argument_canonical_prefix(module, caller, argument)
+        {
+            substitutions.insert(parameter.place, (argument.place, prefix));
+            continue;
+        }
+        let observed = callee
+            .contract
+            .requires
+            .iter()
+            .chain(
+                callee
+                    .contract
+                    .ensures
+                    .iter()
+                    .map(|clause| &clause.proposition),
+            )
+            .chain(
+                callee
+                    .contract
+                    .outcome_specific_ensures
+                    .iter()
+                    .map(|clause| &clause.proposition),
+            )
+            .chain(
+                callee
+                    .contract
+                    .crash_routes
+                    .iter()
+                    .flat_map(|bucket| &bucket.alternatives)
+                    .filter_map(|guard| match guard {
+                        terminal_psi::CrashRouteGuard::Truth => None,
+                        terminal_psi::CrashRouteGuard::Predicate(predicate) => {
+                            Some(predicate.proposition())
+                        }
+                    }),
+            )
+            .any(|proposition| {
+                crate::validation::proposition_observes_places(proposition, &[parameter.place])
+            });
+        if argument.path != [terminal_psi::StructuralPathSegment::Referent] || observed {
+            return Err(ModuleError::InvalidReferenceCustody {
+                machine: caller.id,
+                reason: "callee contract requires an unsupported reference projection",
+            });
+        }
+    }
+    Ok(substitutions)
 }
 
 fn value_term(value: ValueId, value_types: &BTreeMap<ValueId, ScalarType>) -> ScalarTerm {
@@ -550,8 +568,12 @@ fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {
 
 /// Requirements use the pre-call state; only guarantees may describe a
 /// mutable argument after completion. No callee write-frame summary is assumed.
-fn invalidate_mutated_arguments(axioms: &mut Vec<Proposition>, arguments: &[StructuralArgument]) {
-    let written = arguments
+fn invalidate_mutated_arguments(
+    machine: &TerminalMachine,
+    axioms: &mut Vec<Proposition>,
+    arguments: &[StructuralArgument],
+) {
+    let mut written = arguments
         .iter()
         .filter(|argument| {
             matches!(
@@ -561,6 +583,20 @@ fn invalidate_mutated_arguments(axioms: &mut Vec<Proposition>, arguments: &[Stru
         })
         .map(|argument| argument.place)
         .collect::<Vec<_>>();
+    if arguments.iter().any(|argument| {
+        argument
+            .path
+            .contains(&terminal_psi::StructuralPathSegment::Referent)
+            && matches!(
+                argument.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            )
+    }) {
+        // The carrier ID is not its referent. Until this proof consumer uses
+        // the reconstructed loan frontier, retain no possibly aliased storage
+        // observation. Immutable scalar snapshot equalities remain unchanged.
+        written.extend(machine.structural_places.iter().map(|place| place.id));
+    }
     // An owned argument may be changed by its recipient too. Forget current
     // field observations without erasing separately versioned content evidence.
     let consumed = arguments

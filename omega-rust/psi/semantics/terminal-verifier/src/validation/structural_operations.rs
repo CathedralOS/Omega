@@ -173,10 +173,24 @@ pub(super) fn validate_unit_operation_static(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     operation: &terminal_psi::Operation,
 ) -> Result<(), ModuleError> {
+    if super::references::validate_call(module, machine, machines, operation)? {
+        return Ok(());
+    }
     if validate_primitive_structural_call(module, machine, machines, operation)? {
         return Ok(());
     }
     match &operation.kind {
+        OperationKind::EstablishReference { source } => {
+            super::references::validate_establishment(module, machine, operation, source)?;
+        }
+        OperationKind::ReleaseReference { source } => {
+            if super::references::carrier_type(module, machine, *source).is_none() {
+                return Err(super::references::invalid(
+                    machine,
+                    "release source is not a reference carrier",
+                ));
+            }
+        }
         OperationKind::EstablishScalarArray { .. } => {
             super::scalar_array::shape(module, machine, operation)?;
         }
@@ -251,9 +265,9 @@ pub(super) fn validate_unit_operation_static(
                         .unwrap_or_default() as u32,
                 });
             }
-            let projected = structural_arguments
-                .iter()
-                .any(|argument| !argument.path.is_empty());
+            let projected = structural_arguments.iter().any(|argument| {
+                !argument.path.is_empty() && argument.path != [StructuralPathSegment::Referent]
+            });
             let exact_exclusive_projection = matches!(
                 (structural_arguments.as_slice(), callee.structural_parameters.as_slice()),
                 ([argument], [parameter])
@@ -1113,7 +1127,7 @@ fn validate_primitive_structural_call(
 /// residual sibling subtree in recursive reverse declaration order. This
 /// partition is checked independently of producer facts before the ownership
 /// walk relies on the path-sensitive terminator.
-fn validate_unit_call_contract_places(
+pub(super) fn validate_unit_call_contract_places(
     callee: &TerminalMachine,
     operation: OperationId,
 ) -> Result<(), ModuleError> {
@@ -1286,6 +1300,27 @@ pub(super) fn validate_structural_arguments(
         });
     }
     for (index, (argument, expected)) in arguments.iter().zip(expected).enumerate() {
+        if argument.path == [StructuralPathSegment::Referent] {
+            if matches!(call_kind, Some(OperationKind::BoundaryCall { .. })) {
+                return Err(super::references::invalid(
+                    caller,
+                    "reference projections at host boundaries are not yet supported",
+                ));
+            }
+            if super::references::source_type(module, caller, argument)
+                != Some(expected.structural_type)
+                || argument.access != expected.access
+                || expected.multiplicity != StructuralMultiplicity::Unrestricted
+                || !expected.qualifications.is_empty()
+                || !expected.projected_qualifications.is_empty()
+            {
+                return Err(super::references::invalid(
+                    caller,
+                    "reference argument does not match its exact primitive parameter",
+                ));
+            }
+            continue;
+        }
         let Some((
             actual_type,
             actual_multiplicity,
@@ -1741,6 +1776,8 @@ fn is_admitted_unit_call_argument_path(
     argument: &StructuralArgument,
 ) -> bool {
     argument.path.is_empty()
+        || (argument.path == [StructuralPathSegment::Referent]
+            && super::references::source_type(module, caller, argument).is_some())
         || is_nonempty_field_path(&argument.path)
         || is_literal_indexed_field_path(&argument.path)
         || is_direct_literal_index_path(&argument.path)
@@ -1788,6 +1825,7 @@ fn is_material_write_only_type(module: &TerminalModule, structural_type: Structu
             }
             StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
             StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::Sum { .. }
             | StructuralTypeShape::Mixed { .. } => return false,
         }
@@ -1905,7 +1943,7 @@ fn is_completed_record_loan(
         })
 }
 
-fn validate_unit_call_claim_transfers(
+pub(super) fn validate_unit_call_claim_transfers(
     module: &TerminalModule,
     caller: &TerminalMachine,
     callee: &TerminalMachine,
@@ -1924,6 +1962,18 @@ fn validate_unit_call_claim_transfers(
                 .iter()
                 .filter(|claim| claim.input == parameter.place)
                 .collect::<Vec<_>>();
+            // A reference carrier's affine permission is not a projected
+            // ownership claim on the primitive referent passed to this call.
+            let claim_free_reference = argument.path == [StructuralPathSegment::Referent]
+                && super::references::source_type(module, caller, argument)
+                    == Some(parameter.structural_type)
+                && parameter.access == argument.access
+                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                && callee_claims.is_empty()
+                && caller
+                    .entry_claims
+                    .iter()
+                    .all(|claim| claim.input != argument.place);
             let claim_free_unrestricted_write_only_field =
                 is_unrestricted_write_only_subloan(module, caller, parameter, argument)
                     && callee_claims.is_empty()
@@ -1966,6 +2016,7 @@ fn validate_unit_call_claim_transfers(
             if !(is_completed_record_loan(module, caller, parameter, argument)
                 && callee_claims.is_empty())
                 && !claim_free_unrestricted_write_only_field
+                && !claim_free_reference
                 && !claim_free_unrestricted_shared_field
                 && !claim_free_unrestricted_mutable_field
                 && !claim_free_direct_affine
@@ -2225,7 +2276,7 @@ fn claim_input(
         })
 }
 
-fn validate_unit_call_crash_continuations(
+pub(super) fn validate_unit_call_crash_continuations(
     module: &TerminalModule,
     caller: &TerminalMachine,
     callee: &TerminalMachine,
@@ -2358,6 +2409,7 @@ pub(crate) fn structural_argument_canonical_prefix(
     let mut prefix = Vec::with_capacity(argument.path.len());
     for (position, segment) in argument.path.iter().enumerate() {
         match segment {
+            StructuralPathSegment::Referent => return None,
             StructuralPathSegment::Field(identity) => {
                 let field = module
                     .structural_types
@@ -2371,6 +2423,7 @@ pub(crate) fn structural_argument_canonical_prefix(
                             })
                         }
                         StructuralTypeShape::PrimitiveScalar(_)
+                        | StructuralTypeShape::Reference { .. }
                         | StructuralTypeShape::ByteSequence(_)
                         | StructuralTypeShape::FixedArray { .. }
                         | StructuralTypeShape::Sum { .. } => None,

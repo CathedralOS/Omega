@@ -12,6 +12,13 @@ pub struct StructuralTypeDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralTypeShape {
+    /// A permission carrier retaining the original referent, not an owned copy
+    /// of its storage. Owning or moving this value transfers the loan only;
+    /// projection through `Referent` must independently respect borrowed access.
+    Reference {
+        referent: StructuralTypeId,
+        access: crate::StructuralAccess,
+    },
     /// One whole primitive scalar held behind structural ownership/borrowing
     /// custody. This is a semantic referent shape, not a native layout claim.
     PrimitiveScalar(ScalarType),

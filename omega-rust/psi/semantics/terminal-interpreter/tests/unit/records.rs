@@ -421,6 +421,7 @@ fn repeated_child_call_results_keep_independent_completed_storage() {
         },
     ];
     construct.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: place_id(21),
         structural_type: structural_type_id(1),
         multiplicity: StructuralMultiplicity::Affine,

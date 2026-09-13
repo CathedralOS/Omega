@@ -167,7 +167,10 @@ pub(crate) fn validate_structural(
             )?)
             .into_string()
             != result.type_identity
-        || checked.type_multiplicity(local.type_reference) != result.multiplicity
+        || validation::reference_result_custody::result_multiplicity(
+            &checked.typed,
+            local.type_reference,
+        ) != result.multiplicity
     {
         return unsupported("boundary structural result disagrees with its authored local");
     }

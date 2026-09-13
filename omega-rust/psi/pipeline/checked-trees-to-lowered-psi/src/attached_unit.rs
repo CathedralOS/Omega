@@ -23,6 +23,7 @@ mod parameters;
 pub(crate) mod primitive_locals;
 mod provider_attachments;
 mod providers;
+mod reference_results;
 pub(crate) mod scalar_arrays;
 mod scalar_boundaries;
 mod scalar_completion;
@@ -446,6 +447,7 @@ fn assemble_unit_closure(
             );
         }
         validate_unit_operation_sequence(checked, machine)?;
+        reference_results::validate_releases(checked, machine)?;
         // The nominal-cleanup owner validates a synthetic empty completion for
         // its entry, then installs the actual scalar result and full contract.
         // Ordinary entries and every transitive helper retain authored results.
@@ -489,6 +491,10 @@ fn assemble_unit_closure(
                         operation,
                     )?;
                 }
+                CheckedUnitEffectOperationPlan::EstablishReference { .. } => {
+                    reference_results::validate_establishment(checked, machine, operation)?;
+                }
+                CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {}
                 CheckedUnitEffectOperationPlan::EstablishScalarArray {
                     source,
                     result,
@@ -1860,6 +1866,42 @@ fn assemble_unit_closure(
                     ));
                     primitive_local_places.push(local);
                     continue;
+                }
+                CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
+                    if result.binding_ordinal as usize != structural_result_places.len() {
+                        return unsupported("reference result binding is not dense");
+                    }
+                    let arguments = parameters::lower_structural_arguments(
+                        std::slice::from_ref(source),
+                        parameters,
+                        &local_places,
+                        &structural_result_places,
+                        &[],
+                        &primitive_local_places,
+                    )?;
+                    let declaration = reference_results::emit(
+                        result,
+                        arguments[0].clone(),
+                        &type_ids,
+                        &mut next_place,
+                        &mut operations,
+                    )?;
+                    structural_result_places.push((declaration, false));
+                    continue;
+                }
+                CheckedUnitEffectOperationPlan::ReleaseReference {
+                    binding_ordinal, ..
+                } => {
+                    let source = structural_result_places
+                        .get(*binding_ordinal as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "released reference result is absent",
+                        ))?
+                        .0
+                        .id;
+                    OperationKind::ReleaseReference {
+                        source: evaluation.current_structural_place(source),
+                    }
                 }
                 CheckedUnitEffectOperationPlan::EstablishScalarArray {
                     source,
@@ -3646,6 +3688,24 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         },
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
+                        reference_sources: result
+                            .reference_sources
+                            .iter()
+                            .map(|reference| {
+                                let arguments = parameters::lower_structural_arguments(
+                                    std::slice::from_ref(&reference.source),
+                                    parameters,
+                                    &[],
+                                    &[],
+                                    &[],
+                                    &[],
+                                )?;
+                                Ok(terminal_psi::StructuralReferenceResultSource {
+                                    path: parameters::lower_structural_path(&reference.path),
+                                    source: arguments[0].clone(),
+                                })
+                            })
+                            .collect::<Result<Vec<_>, LoweringError>>()?,
                     },
                 ))
             })

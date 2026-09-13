@@ -1492,11 +1492,16 @@ Owners include
   Remove the nested-call gate only when those result uses have real producers;
   a correct declared type or source origin alone does not realize a value.
   Resume at the checked/Terminal representation seam, not another evaluator
-  source-shape gate: `terminal-psi`'s `StructuralFieldType` still has no stored
-  reference field, and structural result custody does not retain an executable
-  reference's original referent/access relationship. Existing result homes and
-  projection paths should carry that relationship through encoding, verification,
-  and interpretation. `checked-interpreter/tests/projected_results.rs` exercises
+  source-shape gate: extend the whole mutable primitive reference carrier to
+  stored-reference aggregates, projected result sources, and their recursive
+  loan custody. The root-carrier seam is exercised by `cargo nextest run -p
+  checked-trees-to-lowered-psi --test reference_result_source --no-fail-fast`
+  (macOS ARM64): a helper returns the caller's reference, a later call mutates
+  its original backing, and encoded Terminal verification and fuel-resuming
+  interpretation preserve that loan until its checked release. This is not
+  stored-reference or native acceptance. Existing result homes and projection
+  paths should carry the remaining relationship without a parallel planner.
+  `checked-interpreter/tests/projected_results.rs` exercises
   the shared evaluator separately, including source-loan alias identity and
   once-only projection effects; run `cargo nextest run -p checked-interpreter
   --test projected_results --no-fail-fast` (macOS ARM64). This does not establish

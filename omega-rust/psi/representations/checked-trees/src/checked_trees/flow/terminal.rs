@@ -11,7 +11,7 @@ use crate::{
 };
 
 mod structural_return;
-pub use structural_return::CheckedUnitStructuralReturnPlan;
+pub use structural_return::{CheckedReferenceResultSourcePlan, CheckedUnitStructuralReturnPlan};
 
 /// Stable machine identities and names used to select the bootstrap terminal
 /// producer without reopening the typed machine table.
@@ -1070,6 +1070,11 @@ pub struct CheckedUnitStructuralTypePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralTypeShape {
+    /// An owned reference carrier, distinct from the borrowed referent shape.
+    Reference {
+        referent_identity: String,
+        access: CheckedStructuralAccess,
+    },
     /// One whole primitive referent carried through structural custody. This
     /// is distinct from a by-value scalar parameter: the place remains the
     /// identity of an existing live value across an exclusive borrow.
@@ -1222,6 +1227,7 @@ pub struct CheckedUnitStructuralParameterPlan {
 pub enum CheckedUnitStructuralPathSegment {
     Field(String),
     FixedIndex(u64),
+    Referent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1492,6 +1498,9 @@ pub struct CheckedUnitClaimTransferPlan {
 /// an independently checked unqualified, claim-free result.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralCallCustodyPlan {
+    /// Exact source loan carried by a root reference result. A zero handle
+    /// means this call establishes no reference-result resource.
+    pub reference_loan: arena::Handle<crate::BorrowLoanFact>,
     pub result_qualifications: Vec<SemanticDomainId>,
     pub claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     pub returned_claim_transfers: Vec<CheckedStructuralReturnedClaimTransferPlan>,
@@ -1599,6 +1608,15 @@ pub enum CheckedPrimitiveStoreDestination {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
+    EstablishReference {
+        result: CheckedUnitStructuralResultBindingPlan,
+        source: CheckedUnitStructuralArgumentPlan,
+    },
+    ReleaseReference {
+        statement_index: u32,
+        binding_ordinal: u32,
+        loan: arena::Handle<crate::BorrowLoanFact>,
+    },
     /// Establish a fresh structural expression in the shared result namespace.
     /// Selected arms transfer one new owner into the expression continuation.
     EstablishStructuralValue {

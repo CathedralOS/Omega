@@ -358,6 +358,11 @@ pub(super) fn encode_structural_type(
     bytes.id(declaration.id);
     bytes.string(&declaration.identity);
     match &declaration.shape {
+        StructuralTypeShape::Reference { referent, access } => {
+            bytes.u8(7);
+            bytes.id(*referent);
+            encode_access(bytes, *access);
+        }
         StructuralTypeShape::PrimitiveScalar(scalar_type) => {
             bytes.u8(6);
             encode_scalar_type(bytes, *scalar_type);

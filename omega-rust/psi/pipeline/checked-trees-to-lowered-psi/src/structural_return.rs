@@ -207,6 +207,7 @@ pub(super) fn lower_structural_return_machine(
         structural_parameters: parameters,
         ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: result_place,
             structural_type: lookup_type_id(&type_ids, &plan.result.type_identity)?,
             multiplicity: StructuralMultiplicity::Linear,

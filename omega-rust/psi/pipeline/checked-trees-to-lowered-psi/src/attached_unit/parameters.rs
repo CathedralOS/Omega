@@ -646,6 +646,13 @@ pub(crate) fn validate_transfer_shape(
                         | checked_trees::CheckedStructuralAccess::MutableBorrow
                 ) && record_projection_type(structural_types, structural_type, &argument.path)
                     == Some(lookup_type_id(type_ids, &argument.type_identity)?);
+            let reference_borrow = argument.path == [CheckedUnitStructuralPathSegment::Referent]
+                && argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                && structural_types.iter().any(|declaration| {
+                    declaration.id == structural_type
+                        && matches!(declaration.shape, StructuralTypeShape::Reference { referent, access: StructuralAccess::MutableBorrow }
+                            if type_ids.iter().any(|(identity, id)| identity == &argument.type_identity && *id == referent))
+                });
             let unrestricted_array = target.multiplicity == Multiplicity::Unrestricted
                 && argument.access == checked_trees::CheckedStructuralAccess::Owned
                 && argument.path.is_empty()
@@ -659,11 +666,13 @@ pub(crate) fn validate_transfer_shape(
                 });
             if (!argument.path.is_empty()
                 && argument.access != checked_trees::CheckedStructuralAccess::Owned
-                && !record_borrow)
+                && !record_borrow
+                && !reference_borrow)
                 || argument.type_identity != target.type_identity
                 || (argument.path.is_empty()
                     && structural_type != lookup_type_id(type_ids, &argument.type_identity)?)
                 || (!record_borrow
+                    && !reference_borrow
                     && !matches!(
                         argument.access,
                         checked_trees::CheckedStructuralAccess::Owned
@@ -673,6 +682,7 @@ pub(crate) fn validate_transfer_shape(
                 || target.multiplicity
                     != if unrestricted_array
                         || record_borrow
+                        || reference_borrow
                         || argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
                     {
                         Multiplicity::Unrestricted
@@ -987,6 +997,7 @@ pub(crate) fn lower_structural_path(
 ) -> Vec<StructuralPathSegment> {
     path.iter()
         .map(|segment| match segment {
+            CheckedUnitStructuralPathSegment::Referent => StructuralPathSegment::Referent,
             CheckedUnitStructuralPathSegment::Field(identity) => {
                 StructuralPathSegment::Field(identity.clone())
             }

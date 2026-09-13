@@ -889,7 +889,8 @@ pub(super) fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTyp
                     )
                 )
         }),
-        CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+        CheckedUnitStructuralTypeShape::Reference { .. }
+        | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
         | CheckedUnitStructuralTypeShape::ByteSequence(_)
         | CheckedUnitStructuralTypeShape::FixedArray { .. }
         | CheckedUnitStructuralTypeShape::Sum { .. }

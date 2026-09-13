@@ -873,6 +873,7 @@ fn selected_case_payload_observation_expires_at_mixed_structural_result_call() {
     let structural_type = StructuralTypeId::new(1).unwrap();
     let callee = &mut module.machines[1];
     callee.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: PlaceId::new(4).unwrap(),
         structural_type,
         multiplicity: StructuralMultiplicity::Affine,

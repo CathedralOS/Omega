@@ -27,6 +27,9 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::EstablishReference { .. } | OperationKind::ReleaseReference { .. } => {
+            Err(LoweringError::UnsupportedReferenceCustody(operation.id))
+        }
         OperationKind::StructuralCaseMembership { source, case } => {
             let result = operation
                 .result

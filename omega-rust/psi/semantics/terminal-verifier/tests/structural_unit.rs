@@ -46,6 +46,9 @@ mod parameter_returns;
 #[path = "structural_unit/primitive_snapshots.rs"]
 mod primitive_snapshots;
 
+#[path = "structural_unit/reference_results.rs"]
+mod reference_results;
+
 #[test]
 fn unused_provider_attachment_verifies_without_roots_calls_or_codec() {
     let mut module = unused_provider_attachment_module();
@@ -2292,6 +2295,7 @@ fn projected_linear_move_cannot_return_its_partial_ancestor() {
     let mut module = two_element_projected_unit_call_module();
     let result_place = place_id(4);
     module.machines[0].result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: result_place,
         structural_type: structural_type_id(3),
         multiplicity: StructuralMultiplicity::Linear,

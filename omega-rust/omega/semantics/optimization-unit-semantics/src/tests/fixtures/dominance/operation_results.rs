@@ -232,6 +232,7 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
                 structural_parameters: vec![parameter(caller_input)],
                 result: AbstractFunctionResult::Structural(
                     terminal_psi::StructuralResultDeclaration {
+                        reference_sources: Vec::new(),
                         place: caller_result,
                         structural_type,
                         multiplicity: terminal_psi::StructuralMultiplicity::Linear,
@@ -252,6 +253,7 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
                 structural_parameters: vec![parameter(callee_input)],
                 result: AbstractFunctionResult::Structural(
                     terminal_psi::StructuralResultDeclaration {
+                        reference_sources: Vec::new(),
                         place: callee_result,
                         structural_type,
                         multiplicity: terminal_psi::StructuralMultiplicity::Linear,

@@ -70,6 +70,7 @@ fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
     encode_len(bytes, path.len());
     for segment in path {
         match segment {
+            StructuralPathSegment::Referent => bytes.push(3),
             StructuralPathSegment::Field(name) => {
                 bytes.push(1);
                 encode_len(bytes, name.len());

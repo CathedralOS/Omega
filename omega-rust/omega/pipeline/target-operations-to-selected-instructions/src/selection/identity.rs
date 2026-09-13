@@ -44,7 +44,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v38\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v39\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -372,6 +372,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
         encode_len(bytes, binding.semantic.argument.path.len());
         for segment in &binding.semantic.argument.path {
             match segment {
+                terminal_psi::StructuralPathSegment::Referent => bytes.push(2),
                 terminal_psi::StructuralPathSegment::Field(field) => {
                     bytes.push(0);
                     encode_len(bytes, field.len());

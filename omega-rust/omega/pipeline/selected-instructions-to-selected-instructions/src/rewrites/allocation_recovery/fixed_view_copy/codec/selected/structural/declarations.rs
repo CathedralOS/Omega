@@ -46,6 +46,11 @@ pub(super) fn encode_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDecla
     bytes.extend_from_slice(&declaration.id.get().to_le_bytes());
     encode_string(bytes, &declaration.identity);
     match &declaration.shape {
+        StructuralTypeShape::Reference { referent, access } => {
+            bytes.push(7);
+            bytes.extend_from_slice(&referent.get().to_le_bytes());
+            encode_access(bytes, *access);
+        }
         StructuralTypeShape::PrimitiveScalar(scalar) => {
             bytes.push(6);
             encode_scalar(bytes, *scalar);
@@ -81,6 +86,10 @@ pub(super) fn decode_type(
     let id = decode_id(cursor, StructuralTypeId::new)?;
     let identity = decode_string(cursor)?;
     let shape = match cursor.byte()? {
+        7 => StructuralTypeShape::Reference {
+            referent: decode_id(cursor, StructuralTypeId::new)?,
+            access: decode_access(cursor)?,
+        },
         1 => StructuralTypeShape::ByteSequence(decode_byte_sequence_carrier(cursor)?),
         2 => StructuralTypeShape::Record {
             fields: decode_fields(cursor)?,
@@ -472,6 +481,7 @@ pub(super) fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
                 bytes.push(2);
                 bytes.extend_from_slice(&value.to_le_bytes());
             }
+            StructuralPathSegment::Referent => bytes.push(3),
         }
     }
 }
@@ -485,6 +495,7 @@ pub(super) fn decode_path(
         path.push(match cursor.byte()? {
             1 => StructuralPathSegment::Field(decode_string(cursor)?),
             2 => StructuralPathSegment::FixedIndex(cursor.u64()?),
+            3 => StructuralPathSegment::Referent,
             tag => return Err(FixedViewCopyDecodeError::UnknownStructuralPathSegment(tag)),
         });
     }

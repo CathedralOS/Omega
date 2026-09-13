@@ -59,6 +59,7 @@ fn record_call_unit(access: StructuralAccess, projected: bool) -> PsiOptimizatio
             },
         });
     maker.result = AbstractFunctionResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: id(953, PlaceId::new),
         structural_type: parent,
         multiplicity: StructuralMultiplicity::Affine,

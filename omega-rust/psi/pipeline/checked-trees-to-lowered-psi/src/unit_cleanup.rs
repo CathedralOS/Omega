@@ -433,7 +433,8 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
                 .find(|declaration| declaration.id == cleanup_type)
                 .and_then(|declaration| match &declaration.shape {
                     StructuralTypeShape::Record { fields } => Some(fields),
-                    StructuralTypeShape::PrimitiveScalar(_)
+                    StructuralTypeShape::Reference { .. }
+                    | StructuralTypeShape::PrimitiveScalar(_)
                     | StructuralTypeShape::ByteSequence(_)
                     | StructuralTypeShape::FixedArray { .. }
                     | StructuralTypeShape::Sum { .. }
@@ -735,7 +736,8 @@ fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> 
                     )
                 )
         }),
-        CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+        CheckedUnitStructuralTypeShape::Reference { .. }
+        | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
         | CheckedUnitStructuralTypeShape::ByteSequence(_)
         | CheckedUnitStructuralTypeShape::FixedArray { .. }
         | CheckedUnitStructuralTypeShape::Sum { .. }

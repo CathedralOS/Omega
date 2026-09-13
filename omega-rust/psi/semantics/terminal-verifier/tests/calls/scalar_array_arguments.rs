@@ -26,6 +26,7 @@ fn array_call(dimensions: &[u64]) -> TerminalModule {
         machine.contract.requires.clear();
         machine.contract.ensures.clear();
         machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: place_id(9 + machine.id.get()),
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Unrestricted,

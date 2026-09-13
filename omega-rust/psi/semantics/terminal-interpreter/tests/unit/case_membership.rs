@@ -134,6 +134,7 @@ fn case_membership_does_not_consume_the_returned_case_or_payload() {
     let mut module = observed_constructor(2, 1, StructuralMultiplicity::Affine);
     let machine = &mut module.machines[0];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: place_id(2),
         structural_type: structural_type_id(1),
         multiplicity: StructuralMultiplicity::Affine,

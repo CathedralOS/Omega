@@ -75,6 +75,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                reference_sources: Vec::new(),
                 place: result_place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -157,6 +158,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
         structural_parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: place_id(94),
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,

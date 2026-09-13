@@ -40,6 +40,7 @@ pub(super) fn block_home(
     }
     // Arrival changes the establishment identity, not the concrete value layout.
     let result = terminal_psi::StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: declaration.place,
         structural_type: declaration.structural_type,
         multiplicity: declaration.multiplicity,
@@ -118,6 +119,7 @@ pub(super) fn home(
         ));
     }
     let declaration = terminal_psi::StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: result.place,
         structural_type: result.structural_type,
         multiplicity: result.multiplicity,

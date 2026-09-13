@@ -243,6 +243,7 @@ fn build_unit(
         );
         identity.result =
             AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {
+                reference_sources: Vec::new(),
                 place: producer_result,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Affine,

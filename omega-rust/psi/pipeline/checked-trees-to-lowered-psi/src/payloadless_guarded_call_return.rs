@@ -81,6 +81,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
         published_service_ceiling: Vec::new(),
         parameters: Vec::new(),
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: place_id(2),
             structural_type: result_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -171,6 +172,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                reference_sources: Vec::new(),
                 place: place_id(6),
                 structural_type: result_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,

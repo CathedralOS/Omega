@@ -213,6 +213,7 @@ pub(super) fn lower_claim_free_affine_return_machines(
             structural_parameters,
             ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                reference_sources: Vec::new(),
                 place: result_place,
                 structural_type: result_type,
                 multiplicity: StructuralMultiplicity::Affine,

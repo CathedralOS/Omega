@@ -301,6 +301,7 @@ fn encode_structural_result(
         && result.caller_result_placement == result.callee_result_placement;
     if (!claim_bearing_linear && !claim_free_affine)
         || (result.result_home.is_some() && !claim_free_affine)
+        || !result.function_result.reference_sources.is_empty()
     {
         return Err(InstallationError::InvalidInternalUnitCall(machine));
     }
@@ -674,6 +675,7 @@ fn decode_structural_result(
             return Ok(Some(InternalStructuralCallResult {
                 operation_result,
                 function_result: StructuralResultDeclaration {
+                    reference_sources: Vec::new(),
                     place: function_place,
                     structural_type: function_type,
                     multiplicity: StructuralMultiplicity::Affine,
@@ -744,6 +746,7 @@ fn decode_structural_result(
             }],
         },
         function_result: StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: function_place,
             structural_type: function_type,
             multiplicity: StructuralMultiplicity::Linear,
@@ -861,6 +864,7 @@ mod tests {
                 claims: Vec::new(),
             },
             function_result: StructuralResultDeclaration {
+                reference_sources: Vec::new(),
                 place: PlaceId::new(3).unwrap(),
                 structural_type,
                 multiplicity: StructuralMultiplicity::Affine,
@@ -873,6 +877,28 @@ mod tests {
             callee_result_placement: placement,
             result_home: None,
         }
+    }
+
+    #[test]
+    fn native_internal_call_rejects_reference_source_correspondence() {
+        let machine = MachineId::new(1).unwrap();
+        let mut result = affine_result();
+        result.function_result.reference_sources.push(
+            terminal_psi::StructuralReferenceResultSource {
+                path: Vec::new(),
+                source: StructuralArgument {
+                    place: PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::MutableBorrow,
+                },
+            },
+        );
+        let mut bytes = Vec::new();
+        assert_eq!(
+            encode_structural_result(&mut bytes, machine, Some(&result)),
+            Err(InstallationError::InvalidInternalUnitCall(machine))
+        );
+        assert!(bytes.is_empty());
     }
 
     #[test]

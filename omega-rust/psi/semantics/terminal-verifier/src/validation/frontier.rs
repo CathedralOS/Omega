@@ -34,6 +34,7 @@ pub struct VerifiedStructuralOwnershipFrontier {
     claims: Vec<VerifiedLiveClaim>,
     owned_places: Vec<VerifiedOwnedStructuralPlace>,
     partial_custody: Vec<VerifiedPartialStructuralCustody>,
+    references: Vec<super::references::LiveReference>,
 }
 
 impl VerifiedStructuralOwnershipFrontier {
@@ -117,6 +118,7 @@ struct LiveClaim {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StructuralOwnershipFrontier {
+    references: Vec<super::references::LiveReference>,
     // Claims carry proof-visible custody identity. Owned places independently
     // enforce by-value affine/linear use even when no linear claim row exists.
     claims: BTreeMap<ClaimId, LiveClaim>,
@@ -134,6 +136,7 @@ struct StructuralOwnershipFrontier {
 impl StructuralOwnershipFrontier {
     fn snapshot(&self) -> VerifiedStructuralOwnershipFrontier {
         VerifiedStructuralOwnershipFrontier {
+            references: self.references.clone(),
             claims: self
                 .claims
                 .iter()
@@ -211,6 +214,7 @@ pub(super) fn validate_structural_frontier(
         });
     }
     let entry = StructuralOwnershipFrontier {
+        references: Vec::new(),
         claims,
         owned_places: machine
             .structural_parameters
@@ -250,6 +254,9 @@ pub(super) fn validate_structural_frontier(
             .any(|candidate| candidate.owned_places != frontier.owned_places)
             || frontiers
                 .iter()
+                .any(|candidate| candidate.references != frontier.references)
+            || frontiers
+                .iter()
                 .any(|candidate| candidate.partial_custody_paths != frontier.partial_custody_paths)
         {
             return Err(ModuleError::OwnedStructuralFrontierJoinMismatch(block_id));
@@ -265,6 +272,13 @@ pub(super) fn validate_structural_frontier(
             snapshots
                 .operation_entries
                 .insert(operation.id, frontier.snapshot());
+            super::references::apply_operation(
+                module,
+                machine,
+                machines,
+                operation,
+                &mut frontier.references,
+            )?;
             validate_owned_reads(module, machine, operation, &frontier)?;
             if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind
                 && frontier
@@ -278,6 +292,7 @@ pub(super) fn validate_structural_frontier(
                 });
             }
             let consumed_places = match &operation.kind {
+                OperationKind::ReleaseReference { source } => vec![*source],
                 OperationKind::EstablishRecord { fields } => fields
                     .iter()
                     .filter_map(|field| {
@@ -539,6 +554,21 @@ pub(super) fn validate_structural_frontier(
         for edge in block.terminator.edges() {
             snapshots.edge_entries.insert(edge, frontier.snapshot());
         }
+        // Every successful exit closes its remaining loans. The ordinary
+        // ownership checks below independently validate the complete roster.
+        let closing = match &block.terminator {
+            Terminator::ReturnUnitPartialAffine {
+                trivial_affine_discards,
+                ..
+            } => Some(trivial_affine_discards.clone()),
+            Terminator::ReturnUnitNominalAffine { .. } => Some(Vec::new()),
+            _ => None,
+        };
+        if let Some(discards) = closing {
+            let mut remaining = frontier.references.clone();
+            release_reference_discards(machine, &mut remaining, &discards)?;
+            require_no_references(machine, &remaining)?;
+        }
         match &block.terminator {
             Terminator::Jump {
                 edge,
@@ -690,6 +720,12 @@ pub(super) fn validate_structural_frontier(
                         block: block.id,
                     });
                 }
+                release_reference_discards(
+                    machine,
+                    &mut frontier.references,
+                    trivial_affine_discards,
+                )?;
+                require_no_references(machine, &frontier.references)?;
                 if let Some((claim, _)) = frontier
                     .claims
                     .iter()
@@ -837,6 +873,12 @@ pub(super) fn validate_structural_frontier(
                 trivial_affine_discards,
                 ..
             } => {
+                let reference_return = super::references::transfer_return(
+                    module,
+                    machine,
+                    *source,
+                    &mut frontier.references,
+                )?;
                 if frontier.partial_custody_paths.contains_key(source) {
                     return Err(ModuleError::StructuralReturnSourcePartiallyMoved {
                         machine: machine.id,
@@ -953,6 +995,7 @@ pub(super) fn validate_structural_frontier(
                         result.structural_type,
                     );
                 if (returned_claims.is_empty()
+                    && !reference_return
                     && !exact_payloadless_claim_free_return
                     && !exact_affine_parameter_return
                     && !plain_owned_block_return
@@ -988,6 +1031,12 @@ pub(super) fn validate_structural_frontier(
                         block: block.id,
                     });
                 }
+                release_reference_discards(
+                    machine,
+                    &mut frontier.references,
+                    trivial_affine_discards,
+                )?;
+                require_no_references(machine, &frontier.references)?;
                 if let Some(claim) = frontier.claims.keys().next() {
                     return Err(ModuleError::LiveClaimAtStructuralReturn {
                         machine: machine.id,
@@ -1232,6 +1281,36 @@ fn validate_owned_reads(
     Ok(())
 }
 
+fn release_reference_discards(
+    machine: &TerminalMachine,
+    references: &mut Vec<super::references::LiveReference>,
+    discards: &[PlaceId],
+) -> Result<(), ModuleError> {
+    for place in discards {
+        if references
+            .iter()
+            .any(|reference| reference.carrier == *place)
+        {
+            super::references::release(machine, references, *place)?;
+        }
+    }
+    Ok(())
+}
+
+fn require_no_references(
+    machine: &TerminalMachine,
+    references: &[super::references::LiveReference],
+) -> Result<(), ModuleError> {
+    if references.is_empty() {
+        Ok(())
+    } else {
+        Err(super::references::invalid(
+            machine,
+            "normal completion leaves reference custody unaccounted for",
+        ))
+    }
+}
+
 fn require_snapshot_match(
     block: BlockId,
     expected: &VerifiedStructuralOwnershipFrontier,
@@ -1242,6 +1321,7 @@ fn require_snapshot_match(
     }
     if candidate.owned_places != expected.owned_places
         || candidate.partial_custody != expected.partial_custody
+        || candidate.references != expected.references
     {
         return Err(ModuleError::OwnedStructuralFrontierJoinMismatch(block));
     }
@@ -1329,6 +1409,7 @@ fn validate_scalar_cleanup_actions(
     for place in expected_trivial_affine_discards(machine, parameter_order, &frontier) {
         if !super::scalar_case::plain_return_source(module, machine, place)
             && super::record::completed_source(module, machine, place).is_none()
+            && super::references::carrier_type(module, machine, place).is_none()
         {
             continue;
         }
@@ -1336,6 +1417,13 @@ fn validate_scalar_cleanup_actions(
             || actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place))
         {
             return Err(mismatch());
+        }
+        if frontier
+            .references
+            .iter()
+            .any(|reference| reference.carrier == place)
+        {
+            super::references::release(machine, &mut frontier.references, place)?;
         }
         frontier.owned_places.remove(&place);
     }
@@ -1417,6 +1505,7 @@ fn validate_scalar_cleanup_actions(
     // The frontier also records available copies. They may remain after a
     // scalar return; only affine/linear custody requires explicit discharge.
     if actions.next().is_some()
+        || !frontier.references.is_empty()
         || frontier
             .owned_places
             .values()
@@ -1546,6 +1635,13 @@ fn apply_edge_trivial_affine_discards(
         return Err(ModuleError::EdgeAffineDiscardsInvalid { edge });
     }
     for place in discards {
+        if frontier
+            .references
+            .iter()
+            .any(|reference| reference.carrier == *place)
+        {
+            super::references::release(machine, &mut frontier.references, *place)?;
+        }
         frontier.owned_places.remove(place);
     }
     Ok(())
@@ -1606,6 +1702,7 @@ mod tests {
 
     fn empty_snapshot() -> VerifiedStructuralOwnershipFrontier {
         VerifiedStructuralOwnershipFrontier {
+            references: Vec::new(),
             claims: Vec::new(),
             owned_places: Vec::new(),
             partial_custody: Vec::new(),

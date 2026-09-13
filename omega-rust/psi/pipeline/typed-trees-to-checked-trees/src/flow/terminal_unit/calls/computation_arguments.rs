@@ -162,6 +162,7 @@ pub(crate) fn structural_computation_argument(
         call,
         &place,
         target_access,
+        arena::Handle::invalid(),
     )?;
     if access != target_access {
         return None;
@@ -409,6 +410,7 @@ fn shared_record_argument(
         call,
         place,
         CheckedStructuralAccess::SharedBorrow,
+        arena::Handle::invalid(),
     )? != CheckedStructuralAccess::SharedBorrow
     {
         return None;
@@ -670,6 +672,7 @@ pub(super) fn primitive_local_argument(
         call,
         place,
         target_access,
+        arena::Handle::invalid(),
     )?;
     let type_identity = base_type_identity(program, target_type, &[])?;
     if !place.segments.is_empty()

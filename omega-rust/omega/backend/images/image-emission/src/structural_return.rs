@@ -40,6 +40,7 @@ pub(super) fn has_claim_free_affine_identity_custody(returned: &StructuralReturn
         && returned.source.projected_qualifications.is_empty()
         && returned.result.qualifications.is_empty()
         && returned.result.projected_qualifications.is_empty()
+        && returned.result.reference_sources.is_empty()
         && returned.returned_claims.is_empty()
         && returned.trivial_affine_locals.is_empty()
         && returned.trivial_affine_discards.is_empty()
@@ -99,6 +100,7 @@ pub(super) fn validate_structural_return_record(
         && returned.returned_claims.len() == 1;
     let exact_claim_free_affine = has_claim_free_affine_identity_custody(returned);
     if returned.code_offset != 0
+        || !returned.result.reference_sources.is_empty()
         || end != bytes.len()
         || returned.byte_count == 0
         || semantic_code_attribution.len() != returned.trivial_affine_locals.len() + 1

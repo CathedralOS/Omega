@@ -120,6 +120,8 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::StructuralCaseMembership { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishReference { .. }
+        | O::ReleaseReference { .. }
         | O::PortWrite { .. } => {}
         O::EstablishScalarCase { fields, .. } => {
             values.extend(fields.iter().map(|field| field.value));
@@ -267,6 +269,7 @@ mod tests {
                 structural_parameters: Vec::new(),
                 ranked_scc: None,
                 result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                    reference_sources: Vec::new(),
                     place: result_place,
                     structural_type: array_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,

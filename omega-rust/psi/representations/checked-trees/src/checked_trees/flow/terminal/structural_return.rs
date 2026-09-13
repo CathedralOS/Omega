@@ -10,6 +10,13 @@ pub struct CheckedUnitStructuralReturnPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
     pub type_identity: String,
     pub multiplicity: Multiplicity,
+    pub reference_sources: Vec<CheckedReferenceResultSourcePlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedReferenceResultSourcePlan {
+    pub path: Vec<super::CheckedUnitStructuralPathSegment>,
+    pub source: super::CheckedUnitStructuralArgumentPlan,
 }
 
 impl From<CheckedUnitStructuralResultBindingPlan> for CheckedUnitStructuralReturnPlan {
@@ -20,6 +27,7 @@ impl From<CheckedUnitStructuralResultBindingPlan> for CheckedUnitStructuralRetur
             },
             type_identity: binding.type_identity,
             multiplicity: binding.multiplicity,
+            reference_sources: Vec::new(),
         }
     }
 }

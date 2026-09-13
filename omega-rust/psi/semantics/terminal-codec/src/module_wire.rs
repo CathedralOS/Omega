@@ -135,6 +135,7 @@ fn encode_suspension_call_plan(
                             writer.u8(2);
                             writer.u64(*index);
                         }
+                        terminal_psi::StructuralPathSegment::Referent => writer.u8(3),
                     }
                 }
             }
@@ -249,6 +250,7 @@ fn decode_suspension_call_plan(
                     2 => Ok(terminal_psi::StructuralPathSegment::FixedIndex(
                         reader.u64()?,
                     )),
+                    3 => Ok(terminal_psi::StructuralPathSegment::Referent),
                     tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
                 })?,
             },

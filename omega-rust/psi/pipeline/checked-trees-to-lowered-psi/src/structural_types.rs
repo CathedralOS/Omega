@@ -2,6 +2,17 @@
 
 use super::*;
 
+fn reference_access(
+    access: checked_trees::CheckedStructuralAccess,
+) -> Result<StructuralAccess, LoweringError> {
+    match access {
+        checked_trees::CheckedStructuralAccess::MutableBorrow => {
+            Ok(StructuralAccess::MutableBorrow)
+        }
+        _ => unsupported("stored reference access is outside retained mutable custody"),
+    }
+}
+
 pub(super) fn terminal_structural_field_type(
     primitive: PrimitiveType,
 ) -> Result<StructuralFieldType, LoweringError> {
@@ -121,6 +132,11 @@ pub(super) fn retain_additional_structural_types(
         }
         active.push(identity.to_owned());
         match &plan.shape {
+            CheckedUnitStructuralTypeShape::Reference {
+                referent_identity, ..
+            } => {
+                collect(plans, referent_identity, active, selected)?;
+            }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
             CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
             CheckedUnitStructuralTypeShape::Record { fields } => {
@@ -213,7 +229,8 @@ pub(super) fn retain_additional_structural_types(
                 .iter()
                 .chain(cases.iter().flat_map(|case| case.fields.iter()))
                 .collect(),
-            StructuralTypeShape::PrimitiveScalar(_)
+            StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::FixedArray { .. } => Vec::new(),
         })
@@ -230,7 +247,8 @@ pub(super) fn retain_additional_structural_types(
         .flat_map(|declaration| match &declaration.shape {
             StructuralTypeShape::Sum { cases } => cases.as_slice(),
             StructuralTypeShape::Mixed { cases, .. } => cases.as_slice(),
-            StructuralTypeShape::PrimitiveScalar(_)
+            StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Record { .. }
             | StructuralTypeShape::FixedArray { .. } => &[],
@@ -248,6 +266,13 @@ pub(super) fn retain_additional_structural_types(
             .find(|plan| plan.identity == identity)
             .expect("selected scalar structural type was validated");
         let shape = match &plan.shape {
+            CheckedUnitStructuralTypeShape::Reference {
+                referent_identity,
+                access,
+            } => StructuralTypeShape::Reference {
+                referent: lookup_type_id(&type_ids, referent_identity)?,
+                access: reference_access(*access)?,
+            },
             CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive) => {
                 StructuralTypeShape::PrimitiveScalar(terminal_scalar_type(*primitive)?)
             }
@@ -425,6 +450,12 @@ pub(super) fn lower_structural_type_plans(
         .into_iter()
         .map(|plan| {
             let shape = match &plan.shape {
+                CheckedUnitStructuralTypeShape::Reference { referent_identity, access } => {
+                    StructuralTypeShape::Reference {
+                        referent: lookup_type_id(&type_ids, referent_identity)?,
+                        access: reference_access(*access)?,
+                    }
+                }
                 CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive) => {
                     StructuralTypeShape::PrimitiveScalar(terminal_scalar_type(*primitive)?)
                 }

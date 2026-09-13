@@ -1,6 +1,29 @@
 use super::*;
 
 #[test]
+fn reference_type_and_referent_path_round_trip_without_erasing_custody() {
+    let declaration = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(7).unwrap(),
+        identity: "test::Reference".into(),
+        shape: StructuralTypeShape::Reference {
+            referent: StructuralTypeId::new(3).unwrap(),
+            access: StructuralAccess::MutableBorrow,
+        },
+    };
+    let mut bytes = Vec::new();
+    encode_type(&mut bytes, &declaration);
+    let mut cursor = Cursor::new(&bytes);
+    assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
+    assert_eq!(cursor.remaining(), 0);
+    let path = vec![StructuralPathSegment::Referent];
+    let mut bytes = Vec::new();
+    encode_path(&mut bytes, &path);
+    let mut cursor = Cursor::new(&bytes);
+    assert_eq!(decode_path(&mut cursor).unwrap(), path);
+    assert_eq!(cursor.remaining(), 0);
+}
+
+#[test]
 fn block_parameter_place_round_trip_retains_exact_tag_block_and_position() {
     for (block, position) in [(1, 0), (2, 0), (1, 1), (u64::MAX, u32::MAX)] {
         let place = StructuralPlaceDeclaration {

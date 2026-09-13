@@ -133,6 +133,17 @@ impl OperationResult {
 /// reconstructs its exact result-term axiom.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Establish a reference permission carrier for the exact captured source.
+    /// The result owns the loan, not the referent; establishment suspends the
+    /// overlapping parent access until the carrier is released or transferred.
+    EstablishReference {
+        source: StructuralArgument,
+    },
+    /// End an established reference carrier after all descendants have ended.
+    /// This restores parent access without disposing of referent storage.
+    ReleaseReference {
+        source: PlaceId,
+    },
     /// Atomically establish an owned, unrestricted fixed array whose recursive
     /// elements end in a primitive scalar. Operands are the complete scalar
     /// leaf roster in outer-index-first order; the result type retains every

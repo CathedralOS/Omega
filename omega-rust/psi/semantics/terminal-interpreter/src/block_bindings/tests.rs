@@ -10,6 +10,9 @@ use terminal_psi::{
 #[path = "tests/owned.rs"]
 mod owned;
 
+#[path = "tests/reference_cleanup.rs"]
+mod reference_cleanup;
+
 fn view_argument(place: u64) -> StructuralArgument {
     StructuralArgument {
         place: PlaceId::new(place).unwrap(),
@@ -131,6 +134,7 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         ]),
         structural_values,
         structural_primitive_storage: BTreeMap::new(),
+        reference_referents: BTreeMap::new(),
         structural_primitive_entry_places: BTreeMap::new(),
         local_structural_identities:
             crate::primitive_storage::LocalStructuralIdentities::with_reserved_identities([

@@ -216,19 +216,20 @@ pub(super) fn validate_content_entry_claims(
             .iter()
             .find(|claim| claim.claim == binding.claim)
             && (structural_claim.input != binding.input.root
-                || binding.input.segments
+                || Some(binding.input.segments.clone())
                     != structural_claim
                         .path
                         .iter()
                         .map(|segment| match segment {
-                            StructuralPathSegment::Field(identity) => {
-                                semantic_vocabulary::ContentPlaceSegment::Field(identity.clone())
-                            }
+                            StructuralPathSegment::Field(identity) => Some(
+                                semantic_vocabulary::ContentPlaceSegment::Field(identity.clone()),
+                            ),
                             StructuralPathSegment::FixedIndex(index) => {
-                                semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index)
+                                Some(semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index))
                             }
+                            StructuralPathSegment::Referent => None,
                         })
-                        .collect::<Vec<_>>())
+                        .collect::<Option<Vec<_>>>())
         {
             return Err(ModuleError::ContentEntryClaimStructuralBindingMismatch(
                 binding.claim,
@@ -802,18 +803,22 @@ fn partition_substitutions_match_arguments(
         let Some(argument) = structural_arguments.get(argument_index) else {
             return false;
         };
-        let mut expected_segments = argument
+        let Some(mut expected_segments) = argument
             .path
             .iter()
             .map(|segment| match segment {
-                StructuralPathSegment::Field(identity) => {
-                    semantic_vocabulary::ContentPlaceSegment::Field(identity.clone())
-                }
+                StructuralPathSegment::Field(identity) => Some(
+                    semantic_vocabulary::ContentPlaceSegment::Field(identity.clone()),
+                ),
                 StructuralPathSegment::FixedIndex(index) => {
-                    semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index)
+                    Some(semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index))
                 }
+                StructuralPathSegment::Referent => None,
             })
-            .collect::<Vec<_>>();
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
         expected_segments.extend(substitution.source.segments.iter().cloned());
         substitution.target.version == substitution.source.version
             && substitution.target.root == argument.place

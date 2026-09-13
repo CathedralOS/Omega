@@ -577,6 +577,7 @@ pub(super) fn valid_nominal_cleanup_requirements(
         .and_then(|declaration| match &declaration.shape {
             StructuralTypeShape::Record { fields } => Some(fields),
             StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::FixedArray { .. }
             | StructuralTypeShape::Sum { .. }

@@ -124,7 +124,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 94;
+const FORMAT_MARKER: u16 = 95;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -280,6 +280,15 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
 
     for declaration in &module.structural_types {
         match &declaration.shape {
+            StructuralTypeShape::Reference { referent, access } => {
+                if !has_structural_type(module, *referent)
+                    || *access == terminal_psi::StructuralAccess::Owned
+                {
+                    return malformed(
+                        "reference type requires a known referent and borrowed access",
+                    );
+                }
+            }
             StructuralTypeShape::PrimitiveScalar(_) => {}
             StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView) => {}
             StructuralTypeShape::ByteSequence(_) => {
@@ -527,6 +536,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
             return malformed("machine has an unknown attachment type");
         }
         validate_structural_parameters(module, &machine.structural_parameters)?;
+        structural_result_wire::validate_reference_sources(module, machine)?;
         for block in &machine.blocks {
             validate_structural_parameters(module, &block.structural_parameters)?;
             if block.id == machine.entry && !block.structural_parameters.is_empty() {
@@ -847,6 +857,12 @@ fn validate_structural_path(
             return malformed("structural path has an unknown structural type");
         };
         structural_type = match (segment, &declaration.shape) {
+            (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
+                *referent
+            }
+            (StructuralPathSegment::Referent, _) | (_, StructuralTypeShape::Reference { .. }) => {
+                return malformed("referent projection requires a reference carrier");
+            }
             (
                 StructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
@@ -936,6 +952,44 @@ fn validate_operation_foundation(
     operation: &Operation,
 ) -> Result<(), CodecError> {
     match &operation.kind {
+        OperationKind::EstablishReference { source } => {
+            let Some(result) = operation.result.structural() else {
+                return malformed("reference establishment requires a structural result");
+            };
+            let Some(StructuralTypeShape::Reference { referent, access }) = module
+                .structural_types
+                .iter()
+                .find(|row| row.id == result.structural_type)
+                .map(|row| &row.shape)
+            else {
+                return malformed("reference establishment requires a reference carrier type");
+            };
+            let Some(source_type) = structural_place_type(machine, source.place) else {
+                return malformed("reference establishment source is unknown");
+            };
+            if result.multiplicity != StructuralMultiplicity::Affine
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+                || *access != source.access
+                || source.access == terminal_psi::StructuralAccess::Owned
+                || validate_structural_path(module, source_type, &source.path)? != *referent
+            {
+                return malformed("reference establishment has inconsistent custody");
+            }
+        }
+        OperationKind::ReleaseReference { source } => {
+            if operation.result != OperationResult::Unit
+                || !structural_place_type(machine, *source).is_some_and(|source_type| {
+                    module.structural_types.iter().any(|row| {
+                        row.id == source_type
+                            && matches!(row.shape, StructuralTypeShape::Reference { .. })
+                    })
+                })
+            {
+                return malformed("reference release requires a reference carrier and Unit result");
+            }
+        }
         OperationKind::StructuralByteSequenceFieldStore {
             destination,
             path,
@@ -1676,7 +1730,7 @@ fn validate_operation_foundation(
                 || !actual_result.claims.is_empty()
                 || !claim_transfers.is_empty()
                 || !returned_claim_transfers.is_empty()
-                || if is_plain_primitive_structural_call(module, actual_result, callee) {
+                || if is_claim_free_structural_call(module, actual_result, callee) {
                     requirement_obligations.len() != callee.contract.requires.len()
                 } else {
                     !requirement_obligations.is_empty() || !crash_continuations.is_empty()
@@ -1779,17 +1833,16 @@ fn validate_operation_foundation(
                 && expected_result.qualifications.is_empty()
                 && actual_result.claims.is_empty()
                 && callee_exact_payloadless_return(callee);
-            let plain_primitive_result =
-                is_plain_primitive_structural_call(module, actual_result, callee)
-                    && selected_evidence.is_empty()
-                    && claim_transfers.is_empty()
-                    && returned_claim_transfers.is_empty()
-                    && requirement_obligations.len() == callee.contract.requires.len();
+            let claim_free_result = is_claim_free_structural_call(module, actual_result, callee)
+                && selected_evidence.is_empty()
+                && claim_transfers.is_empty()
+                && returned_claim_transfers.is_empty()
+                && requirement_obligations.len() == callee.contract.requires.len();
             if arguments.len() != callee.parameters.len()
                 || structural_arguments.len() != callee.structural_parameters.len()
                 || (!selected_evidence.is_empty() && !exact_payloadless)
                 || (!exact_payloadless
-                    && !plain_primitive_result
+                    && !claim_free_result
                     && (structural_arguments.len() != 1 || callee.structural_parameters.len() != 1))
                 || actual_result.structural_type != expected_result.structural_type
                 || actual_result.multiplicity != expected_result.multiplicity
@@ -1833,7 +1886,7 @@ fn validate_operation_foundation(
             if exact_payloadless {
                 return Ok(());
             }
-            if plain_primitive_result {
+            if claim_free_result {
                 return validate_structural_arguments(
                     module,
                     machine,
@@ -2140,10 +2193,11 @@ fn validate_operation_foundation(
     Ok(())
 }
 
-// Primitive aggregate results use the same exact call signature. Arrays carry
-// no claims or qualifications, even when their payload is empty; the verifier
-// still checks the callee and result availability independently.
-fn is_plain_primitive_structural_call(
+// Claim-free results share the ordinary exact call signature. A reference
+// carrier still owes loan custody: the independent verifier reconstructs its
+// source mapping and lifetime instead of treating an empty claim roster as
+// permission to discard or duplicate the referent.
+fn is_claim_free_structural_call(
     module: &TerminalModule,
     result: &terminal_psi::StructuralOperationResult,
     callee: &TerminalMachine,
@@ -2160,6 +2214,9 @@ fn is_plain_primitive_structural_call(
         && (module.structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
                 && match &declaration.shape {
+                    StructuralTypeShape::Reference { .. } => {
+                        result.multiplicity == StructuralMultiplicity::Affine
+                    }
                     StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
                         case.fields.iter().all(|field| {
                             !field.relevance.is_erased() && field.field_type.scalar_type().is_some()
@@ -2553,7 +2610,11 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             .find(|declaration| declaration.id == id)
             .expect("structural field targets were validated before graph traversal");
         match &declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+            // A reference does not inline its referent storage. The target's
+            // existence was checked above; following it here invents a by-value cycle.
+            StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_) => {}
             StructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let StructuralFieldType::Structural(target) = &field.field_type {
@@ -2748,6 +2809,7 @@ fn encode_structural_path(
                 writer.u8(2);
                 writer.u64(*index);
             }
+            StructuralPathSegment::Referent => writer.u8(3),
         }
     }
     Ok(())
@@ -2900,6 +2962,7 @@ fn decode_structural_path(
             reader.string("structural path field")?,
         )),
         2 => Ok(StructuralPathSegment::FixedIndex(reader.u64()?)),
+        3 => Ok(StructuralPathSegment::Referent),
         tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
     })
 }

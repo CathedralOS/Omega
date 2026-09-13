@@ -84,6 +84,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                reference_sources: Vec::new(),
                 place: result_place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Linear,
@@ -150,6 +151,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     assert_eq!(
         function.result,
         AbstractFunctionResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: result_place,
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,

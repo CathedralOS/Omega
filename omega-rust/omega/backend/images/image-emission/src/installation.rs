@@ -2712,6 +2712,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         let exact_claim_free_affine =
             crate::structural_return::has_claim_free_affine_identity_custody(returned);
         if previous_return.is_some_and(|previous| previous >= installed.machine)
+            || !returned.result.reference_sources.is_empty()
             || returned.code_offset != 0
             || returned.byte_count != function.byte_count
             || returned.source.position != 0
@@ -4608,6 +4609,7 @@ fn validate_installed_dynamic_conformance(
 fn is_partial_cleanup_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
     !path.is_empty()
         && path.iter().all(|segment| match segment {
+            terminal_psi::StructuralPathSegment::Referent => false,
             terminal_psi::StructuralPathSegment::Field(identity) => !identity.is_empty(),
             terminal_psi::StructuralPathSegment::FixedIndex(_) => true,
         })
@@ -4849,6 +4851,9 @@ fn encode_structural_types(
         push_u64(bytes, declaration.id.get());
         encode_identity(bytes, &declaration.identity)?;
         match &declaration.shape {
+            terminal_psi::StructuralTypeShape::Reference { .. } => {
+                return Err(InstallationError::UnsupportedStructuralReturnShape);
+            }
             terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 bytes.extend_from_slice(&[6, 0, 0, 0]);
                 boundary_result_scalar_codec::encode_boundary_result_scalar_type(
@@ -5530,6 +5535,61 @@ mod resource_tests {
             &invalid_alignment,
             &functions
         ));
+    }
+
+    #[test]
+    fn native_reference_shapes_and_projections_reject_without_layout_authority() {
+        let primitive = StructuralTypeId::new(1).unwrap();
+        let reference = StructuralTypeId::new(2).unwrap();
+        let declarations = vec![
+            terminal_psi::StructuralTypeDeclaration {
+                id: primitive,
+                identity: "Boolean".into(),
+                shape: terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                    semantic_vocabulary::ScalarType::Boolean,
+                ),
+            },
+            terminal_psi::StructuralTypeDeclaration {
+                id: reference,
+                identity: "MutableBooleanReference".into(),
+                shape: terminal_psi::StructuralTypeShape::Reference {
+                    referent: primitive,
+                    access: terminal_psi::StructuralAccess::MutableBorrow,
+                },
+            },
+        ];
+        assert_eq!(
+            encode_structural_types(&mut Vec::new(), &declarations),
+            Err(InstallationError::UnsupportedStructuralReturnShape)
+        );
+        assert_eq!(
+            crate::structural_condition_layout::replay_structural_value_shape(
+                reference,
+                &declarations,
+            ),
+            None
+        );
+        let path = vec![terminal_psi::StructuralPathSegment::Referent];
+        assert_eq!(
+            crate::structural_condition_layout::replay_structural_projection(
+                reference,
+                &path,
+                &declarations,
+            ),
+            None
+        );
+        assert!(!is_partial_cleanup_path(&path));
+        assert_eq!(
+            structural_argument_codec::encode_structural_argument(
+                &mut Vec::new(),
+                &terminal_psi::StructuralArgument {
+                    place: PlaceId::new(1).unwrap(),
+                    path,
+                    access: terminal_psi::StructuralAccess::MutableBorrow,
+                },
+            ),
+            Err(InstallationError::UnsupportedStructuralReturnShape)
+        );
     }
 
     #[test]

@@ -105,6 +105,7 @@ fn produced_partial_module(ordinary: bool, nested: bool) -> TerminalModule {
             },
         ];
         identity.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: place_id(5),
             structural_type: root_type,
             multiplicity: StructuralMultiplicity::Affine,

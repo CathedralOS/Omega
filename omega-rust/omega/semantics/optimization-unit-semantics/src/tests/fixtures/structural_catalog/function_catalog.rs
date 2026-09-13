@@ -61,6 +61,7 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
                 structural_parameters: vec![parameter(caller_input)],
                 result: AbstractFunctionResult::Structural(
                     terminal_psi::StructuralResultDeclaration {
+                        reference_sources: Vec::new(),
                         place: caller_result,
                         structural_type,
                         multiplicity: terminal_psi::StructuralMultiplicity::Linear,
@@ -128,6 +129,7 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
                 structural_parameters: vec![parameter(callee_input)],
                 result: AbstractFunctionResult::Structural(
                     terminal_psi::StructuralResultDeclaration {
+                        reference_sources: Vec::new(),
                         place: callee_result,
                         structural_type,
                         multiplicity: terminal_psi::StructuralMultiplicity::Linear,

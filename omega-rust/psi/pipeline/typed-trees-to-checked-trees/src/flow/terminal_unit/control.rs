@@ -1093,6 +1093,7 @@ pub(super) fn build_checked_machine_with(
                 })
             });
     if !is_unit(program, state.return_type)
+        && super::reference_results::parts(program, state.return_type).is_none()
         && !validation::is_closed_primitive_array_type(program, state.return_type)
         && !validation::has_plain_owned_contents_with_numeric_constraints(
             program,
@@ -1493,6 +1494,7 @@ pub(super) fn build_checked_machine_with(
                     matches!(
                         operation,
                         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                            | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                     )
                 })
             })
@@ -1837,6 +1839,8 @@ pub(super) fn build_checked_machine_with(
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+            | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+            | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
@@ -2242,6 +2246,14 @@ pub(super) fn checked_structural_result_type(
     result_type: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<CheckedUnitStructuralResultBindingPlan> {
+    if super::reference_results::parts(program, result_type).is_some() {
+        return Some(CheckedUnitStructuralResultBindingPlan {
+            statement_index: 0,
+            binding_ordinal: 0,
+            type_identity: shapes.add_reference_type(result_type, binders)?,
+            multiplicity: Multiplicity::Affine,
+        });
+    }
     let multiplicity = crate::checks::type_multiplicity(program, result_type);
     let qualifications = parameter_qualifications(program, shapes, result_type, binders)?;
     if is_unit(program, result_type)

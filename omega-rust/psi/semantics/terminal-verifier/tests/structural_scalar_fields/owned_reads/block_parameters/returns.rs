@@ -6,6 +6,7 @@ fn returning() -> TerminalModule {
     let parameter = &machine.blocks[1].structural_parameters[0];
     let returned = parameter.place;
     machine.result = TerminalMachineResult::Structural(terminal_psi::StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: id::<PlaceId>(90),
         structural_type: parameter.structural_type,
         multiplicity: parameter.multiplicity,

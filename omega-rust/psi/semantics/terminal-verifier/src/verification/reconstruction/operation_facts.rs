@@ -250,6 +250,8 @@ pub(super) fn append_operation(
         | OperationKind::IeeeFloatCompare { .. }
         | OperationKind::StoreDynamicDescriptor { .. } => Ok(()),
         OperationKind::WriteOnlyPrimitiveStore { .. }
+        | OperationKind::EstablishReference { .. }
+        | OperationKind::ReleaseReference { .. }
         | OperationKind::EstablishPrimitiveLocal { .. }
         | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::StructuralScalarFieldStore { .. }

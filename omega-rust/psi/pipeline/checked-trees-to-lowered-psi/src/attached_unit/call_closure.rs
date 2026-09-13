@@ -205,7 +205,8 @@ pub(super) fn validate_unit_operation_sequence(
                     call_ordinal: 0,
                 }
             }
-            CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
+            CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
                     call_ordinal: 0,
@@ -221,6 +222,7 @@ pub(super) fn validate_unit_operation_sequence(
                 }
                 continue;
             }
+            CheckedUnitEffectOperationPlan::ReleaseReference { .. } => continue,
             CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
                 statement_index,
                 declaration_ordinal,
@@ -383,6 +385,7 @@ pub(super) fn validate_unit_operation_sequence(
         | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } = operation
         {
             if result.binding_ordinal != next_structural_binding {

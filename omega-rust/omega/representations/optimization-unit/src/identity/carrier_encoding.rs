@@ -125,6 +125,7 @@ pub(super) fn encode_structural_path_segment(
             bytes.u8(2);
             bytes.u64(*index);
         }
+        StructuralPathSegment::Referent => bytes.u8(3),
     }
 }
 

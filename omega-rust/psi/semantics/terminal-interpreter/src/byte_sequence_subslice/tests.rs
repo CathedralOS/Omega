@@ -147,6 +147,7 @@ fn execution() -> (TerminalExecution, Operation) {
             },
         )]),
         structural_primitive_storage: BTreeMap::new(),
+        reference_referents: BTreeMap::new(),
         structural_primitive_entry_places: BTreeMap::new(),
         local_structural_identities:
             crate::primitive_storage::LocalStructuralIdentities::with_reserved_identities([
