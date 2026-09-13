@@ -140,3 +140,133 @@ fn array_defined_before_selection_remains_available_after_join() {
         .expect("array availability survives both successor paths");
     }
 }
+
+fn guarded_mixed_call() -> TerminalModule {
+    let mut module = selected_call(&[2]);
+    let callee = &mut module.machines[1];
+    callee.parameters.push(boolean_declaration(value_id(91)));
+    callee.contract.requires = vec![Proposition::Equal(
+        boolean_value(91),
+        ScalarTerm::boolean(true),
+    )];
+    let call = &mut module.machines[0].blocks[1].operations[1];
+    let OperationKind::CallStructural {
+        callee,
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        crash_continuations,
+        ..
+    } = call.kind.clone()
+    else {
+        panic!("array-returning call")
+    };
+    call.kind = OperationKind::CallStructuralWithScalarArguments {
+        callee,
+        arguments: vec![value_id(90)],
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        requirement_obligations: vec![obligation_id(1)],
+        crash_continuations,
+    };
+    module
+}
+
+fn guarded_call_evidence(module: &TerminalModule, argument: u64) -> ProofBundle {
+    let reconstructed = reconstruct_terminal_obligations(module).expect("formed guarded call");
+    let [site] = reconstructed.obligations() else {
+        panic!("one callee requirement")
+    };
+    assert!(
+        site.requirements.is_empty(),
+        "the caller has no entry assumption"
+    );
+    assert_eq!(
+        site.obligation.proposition,
+        Proposition::Equal(boolean_value(argument), ScalarTerm::boolean(true)),
+        "the callee formal substitutes the caller's branch condition"
+    );
+    let premise = site
+        .semantic_axioms
+        .iter()
+        .position(|axiom| axiom == &site.obligation.proposition)
+        .expect("selected true edge establishes the mixed call requirement");
+    ProofBundle {
+        evidence: vec![semantic_axiom_evidence(
+            obligation_id(1),
+            site.obligation.proposition.clone(),
+            premise,
+            1,
+        )],
+        ..ProofBundle::default()
+    }
+}
+
+#[test]
+fn mixed_structural_call_replays_its_selected_branch_requirement() {
+    for forwarded in [false, true] {
+        let mut module = guarded_mixed_call();
+        if forwarded {
+            let caller = &mut module.machines[0];
+            let Terminator::Conditional { when_true, .. } = &mut caller.blocks[0].terminator else {
+                panic!("selected call")
+            };
+            when_true.arguments.push(value_id(90));
+            caller.blocks[1]
+                .parameters
+                .push(boolean_declaration(value_id(92)));
+            let OperationKind::CallStructuralWithScalarArguments { arguments, .. } =
+                &mut caller.blocks[1].operations[1].kind
+            else {
+                panic!("mixed call")
+            };
+            arguments[0] = value_id(92);
+        }
+        for reverse_blocks in [false, true] {
+            if reverse_blocks {
+                module.machines[0].blocks.reverse();
+            }
+            let evidence = guarded_call_evidence(&module, if forwarded { 92 } else { 90 });
+            let verified = verify_module(&module, &evidence, &AdmissionProfile::default())
+                .expect("mixed structural call uses the independently reconstructed selected edge");
+            assert_eq!(verified.accepted_facts().len(), 1);
+        }
+    }
+}
+
+#[test]
+fn mixed_structural_call_cannot_replay_a_fact_from_the_other_arm_or_before_a_join() {
+    let original = guarded_mixed_call();
+    let evidence = guarded_call_evidence(&original, 90);
+    for after_join in [false, true] {
+        let mut module = original.clone();
+        let caller = &mut module.machines[0];
+        if after_join {
+            let call = caller.blocks[1].operations.pop().unwrap();
+            let constructor = caller.blocks[1].operations.pop().unwrap();
+            caller.blocks[0].operations.push(constructor);
+            caller.blocks[3].operations.push(call);
+        } else {
+            let Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                panic!("selected call")
+            };
+            std::mem::swap(&mut when_true.target, &mut when_false.target);
+        }
+        validate_module(&module).expect("the negative control is structurally well formed");
+        let reconstructed = reconstruct_terminal_obligations(&module).unwrap();
+        let [site] = reconstructed.obligations() else {
+            panic!("one callee requirement")
+        };
+        assert!(!site.semantic_axioms.contains(&site.obligation.proposition));
+        assert!(
+            verify_module(&module, &evidence, &AdmissionProfile::default()).is_err(),
+            "selected-edge evidence must not apply after_join={after_join}"
+        );
+    }
+}

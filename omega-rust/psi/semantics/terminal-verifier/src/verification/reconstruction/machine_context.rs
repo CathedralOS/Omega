@@ -1,4 +1,8 @@
 //! Immutable typed indexes used while reconstructing one terminal machine.
+//!
+//! Path-fact selection is a work filter, not an admission rule. Every call form
+//! whose requirements can use a selected edge must enable the same successor
+//! substitution and all-predecessor intersection, regardless of its result form.
 
 use std::collections::BTreeMap;
 
@@ -31,6 +35,7 @@ impl<'a> MachineReconstructionContext<'a> {
                         | OperationKind::CallStructuralScalar { .. }
                         | OperationKind::CallDynamicScalar { .. }
                         | OperationKind::CallStructural { .. }
+                        | OperationKind::CallStructuralWithScalarArguments { .. }
                         | OperationKind::IntegerExactCast { .. }
                         | OperationKind::ExactIntegerShiftLeft { .. }
                         | OperationKind::ExactIntegerShiftRight { .. }
