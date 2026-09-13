@@ -1,4 +1,5 @@
 use super::*;
+use crate::review::SemanticBindingReview;
 
 #[test]
 #[cfg_attr(
@@ -138,14 +139,16 @@ invokes console;
         assert!(closure.source_requests().dependencies().next().is_none());
     }
 
-    let baseline_reviews = compile_resolved_package_candidate_reviews(
+    let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &compiler_workspace,
+        SemanticBindingReview::Discover,
     )
     .expect("compile baseline package evidence");
-    let candidate_reviews = compile_resolved_package_candidate_reviews(
+    let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &compiler_workspace,
+        SemanticBindingReview::Discover,
     )
     .expect("compile candidate package evidence");
     let baseline = baseline_reviews

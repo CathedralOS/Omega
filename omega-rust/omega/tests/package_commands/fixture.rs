@@ -1,4 +1,5 @@
 use package_manager::lock::{PackageLock, PackageLockRecoveryLimits};
+use package_manager::review::SemanticBindingReview;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -102,9 +103,10 @@ impl Fixture {
             PackageSourceClosureLimits::default(),
         )
         .expect("resolve current fixture sources for a fresh audit");
-        package_manager::review::compile_resolved_package_candidate_reviews(
+        package_manager::review::compile_resolved_package_reviews(
             &closure.for_exact_target(target),
             &self.path("fresh-audit-build"),
+            SemanticBindingReview::Discover,
         )
         .expect("compile current fixture sources for a fresh audit")
     }

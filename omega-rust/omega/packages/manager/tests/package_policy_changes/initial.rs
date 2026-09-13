@@ -1,5 +1,6 @@
 use super::*;
 use package_manager::declarations::BuildDeclarationKind;
+use package_manager::review::SemanticBindingReview;
 use package_manager::review::{PackagePolicyChangeError, ReviewOnlyRootRoleContract};
 
 #[test]
@@ -126,9 +127,10 @@ fn exact_target_and_current_candidate_source_associations_are_not_policy_deltas(
     source(&tree, "pub const VALUE: u64 = 7;\n", "");
     let (closure, reviews) = candidate(&tree, "exact");
     let lock = lock_from_reviews(&closure, &reviews);
-    let linux = compile_resolved_package_candidate_reviews(
+    let linux = compile_resolved_package_reviews(
         &closure.for_exact_target(TargetProfile::LinuxArm64),
         &tree.path("linux-build"),
+        SemanticBindingReview::Discover,
     )
     .unwrap();
     assert!(matches!(

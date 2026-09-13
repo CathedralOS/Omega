@@ -22,14 +22,13 @@ use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
 };
 use package_manager::resolution::package_compilation_inputs;
+use package_manager::review::SemanticBindingReview;
 use package_manager::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
     ConsumerScopedSemanticBindingReviewInput, FreshPackageRootPolicyError,
     ReviewOnlyCapabilityConflictLimits, bind_fresh_package_root_policy,
     compare_review_only_initial_capabilities, compile_resolved_package_candidate_for_production,
-    compile_resolved_package_candidate_for_production_with_semantic_bindings,
-    compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
-    compile_resolved_package_reviews_with_semantic_bindings,
+    compile_resolved_package_reviews,
 };
 use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceResolverStorage,
@@ -274,6 +273,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
     let preliminary = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &temporary.0.join("preliminary-build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile Console candidate without consumer authority");
     let root_key = closure.graph().root().clone();
@@ -329,25 +329,17 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
             .expect("absent package lineage"),
     );
     assert!(matches!(
-        compile_resolved_package_reviews_with_semantic_bindings(
-            &closure.for_exact_target(target::TargetProfile::LinuxX64),
-            &temporary.0.join("absent-consumer-build"),
-            &[ConsumerScopedSemanticBindingReviewInput::new(
+        compile_resolved_package_reviews(&closure.for_exact_target(target::TargetProfile::LinuxX64), &temporary.0.join("absent-consumer-build"), SemanticBindingReview::Explicit(&[ConsumerScopedSemanticBindingReviewInput::new(
                 absent_consumer.clone(),
                 binding.clone(),
-            )],
-        ),
+            )])),
         Err(CompileResolvedPackageReviewsError::SemanticBindingConsumerAbsent {
             consumer,
             role: AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         }) if consumer == absent_consumer
     ));
     assert!(matches!(
-        compile_resolved_package_reviews_with_semantic_bindings(
-            &closure.for_exact_target(target::TargetProfile::LinuxX64),
-            &temporary.0.join("duplicate-binding-build"),
-            &[binding_input.clone(), binding_input.clone()],
-        ),
+        compile_resolved_package_reviews(&closure.for_exact_target(target::TargetProfile::LinuxX64), &temporary.0.join("duplicate-binding-build"), SemanticBindingReview::Explicit(&[binding_input.clone(), binding_input.clone()])),
         Err(
             CompileResolvedPackageReviewsError::DuplicateConsumerSemanticBindingRole {
                 consumer,
@@ -356,13 +348,12 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         ) if consumer == root_key
     ));
 
-    let production_candidate =
-        compile_resolved_package_candidate_for_production_with_semantic_bindings(
-            &closure.for_exact_target(target::TargetProfile::LinuxX64),
-            &temporary.0.join("accepted-build"),
-            std::slice::from_ref(&binding_input),
-        )
-        .expect("compile exact consumer-bound Console review with explicit terminal permission");
+    let production_candidate = compile_resolved_package_candidate_for_production(
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
+        &temporary.0.join("accepted-build"),
+        SemanticBindingReview::Explicit(std::slice::from_ref(&binding_input)),
+    )
+    .expect("compile exact consumer-bound Console review with explicit terminal permission");
     assert_eq!(production_candidate.root(), &root_key);
     assert_eq!(
         production_candidate.root_role(),
@@ -529,13 +520,12 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve source-only permission change");
-    let source_only_candidate =
-        compile_resolved_package_candidate_for_production_with_semantic_bindings(
-            &source_only_closure.for_exact_target(target::TargetProfile::LinuxX64),
-            &temporary.0.join("source-only-review"),
-            std::slice::from_ref(&binding_input),
-        )
-        .expect("reconstruct permissions after source-only change");
+    let source_only_candidate = compile_resolved_package_candidate_for_production(
+        &source_only_closure.for_exact_target(target::TargetProfile::LinuxX64),
+        &temporary.0.join("source-only-review"),
+        SemanticBindingReview::Explicit(std::slice::from_ref(&binding_input)),
+    )
+    .expect("reconstruct permissions after source-only change");
     let source_only_reviews = source_only_candidate.reviews();
     for original in reviews.reviews() {
         let current = source_only_reviews
@@ -903,9 +893,10 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve ordinary Windows Console closure");
-    let windows_reviews = compile_resolved_package_candidate_reviews(
+    let windows_reviews = compile_resolved_package_reviews(
         &windows_closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.0.join("windows-build"),
+        SemanticBindingReview::Discover,
     )
     .expect("bind target-independent Console semantics on Windows");
     let windows_root = windows_reviews
@@ -945,6 +936,7 @@ fn retained_production_discovery_reaches_fresh_final_acceptance() {
     let preliminary = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &temporary.0.join("preliminary-build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("independent preliminary review");
     let root_key = closure.graph().root().clone();
@@ -954,6 +946,7 @@ fn retained_production_discovery_reaches_fresh_final_acceptance() {
     let discovered = compile_resolved_package_candidate_for_production(
         &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &temporary.0.join("discovered-production"),
+        SemanticBindingReview::Discover,
     )
     .expect("production candidate rechecks discovered semantics from retained preparation");
     let discovered_root = discovered.reviews().review(&root_key).unwrap();

@@ -1,4 +1,5 @@
 use super::*;
+use package_manager::review::SemanticBindingReview;
 
 struct BuildOnlyFixture {
     root: PathBuf,
@@ -56,6 +57,7 @@ fn build_only_dependency_receives_its_own_source_bound_review() {
     let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &fixture.root.join("review"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("review authored build-only dependency");
     assert_eq!(reviews.reviews().len(), 2);
@@ -98,6 +100,7 @@ fn build_only_review_does_not_supply_missing_imports_or_hide_invalid_main() {
         let result = compile_resolved_package_reviews(
             &closure.for_exact_target(target::TargetProfile::WindowsX64),
             &fixture.root.join("review"),
+            SemanticBindingReview::Explicit(&[]),
         );
         assert!(
             matches!(

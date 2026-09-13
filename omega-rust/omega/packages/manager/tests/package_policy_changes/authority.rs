@@ -2,9 +2,9 @@ use super::*;
 use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
+use package_manager::review::SemanticBindingReview;
 use package_manager::review::{
-    ConsumerScopedSemanticBindingReviewInput,
-    compile_resolved_package_reviews_with_semantic_bindings,
+    ConsumerScopedSemanticBindingReviewInput, compile_resolved_package_reviews,
 };
 
 const FILESYSTEM: &str = r#"pub boundary trait FilesystemHost {
@@ -25,9 +25,12 @@ fn with_permission(
 ) -> (ResolvedPackageSourceClosure, CompilerIssuedPackageReviewSet) {
     let closure = resolve(tree, label);
     let target = closure.for_exact_target(TARGET);
-    let preliminary =
-        compile_resolved_package_reviews(&target, &tree.path(&format!("{label}-preliminary")))
-            .unwrap();
+    let preliminary = compile_resolved_package_reviews(
+        &target,
+        &tree.path(&format!("{label}-preliminary")),
+        SemanticBindingReview::Explicit(&[]),
+    )
+    .unwrap();
     let review = preliminary.review(closure.graph().root()).unwrap();
     let [candidate] = review.semantic_binding_candidates() else {
         panic!("one exact checked filesystem service candidate");
@@ -44,13 +47,13 @@ fn with_permission(
             TerminalAuthorityDisposition::from_classes(classes.iter().copied()),
         )])
         .unwrap();
-    let reviews = compile_resolved_package_reviews_with_semantic_bindings(
+    let reviews = compile_resolved_package_reviews(
         &target,
         &tree.path(&format!("{label}-final")),
-        &[ConsumerScopedSemanticBindingReviewInput::new(
+        SemanticBindingReview::Explicit(&[ConsumerScopedSemanticBindingReviewInput::new(
             closure.graph().root().clone(),
             binding,
-        )],
+        )]),
     )
     .unwrap();
     (closure, reviews)

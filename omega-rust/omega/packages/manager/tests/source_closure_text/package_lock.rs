@@ -5,6 +5,7 @@ use package_manager::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock, PackageLockError,
     PackageLockRecoveryLimits, PackageLockTarget,
 };
+use package_manager::review::SemanticBindingReview;
 use package_manager::review::compile_resolved_package_reviews;
 
 #[path = "package_lock/owners.rs"]
@@ -16,7 +17,12 @@ fn complete_diamond_lock_recovers_without_any_old_source_or_compiler_state() {
         let tree = TempTree::new();
         let closure = resolve_diamond(&tree, "package");
         let target = closure.for_exact_target(TargetProfile::WindowsX64);
-        let reviews = compile_resolved_package_reviews(&target, &tree.path("build")).unwrap();
+        let reviews = compile_resolved_package_reviews(
+            &target,
+            &tree.path("build"),
+            SemanticBindingReview::Explicit(&[]),
+        )
+        .unwrap();
         let source = subject_for(&closure, TargetProfile::WindowsX64);
         let baselines = source
             .packages()

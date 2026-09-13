@@ -4,7 +4,8 @@ use package_evidence::{encoding::PackagePolicyRecoveryLimits, record::PackagePol
 use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
 };
-use package_manager::review::compile_resolved_package_candidate_reviews;
+use package_manager::review::SemanticBindingReview;
+use package_manager::review::compile_resolved_package_reviews;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -99,9 +100,10 @@ fn exact_package_and_target_policies_recover_without_the_source_or_review_set() 
     .expect("resolve two exact package sources");
     let mut retained = Vec::new();
     for target in [TargetProfile::WindowsX64, TargetProfile::LinuxX64] {
-        let reviews = compile_resolved_package_candidate_reviews(
+        let reviews = compile_resolved_package_reviews(
             &sources.for_exact_target(target),
             &tree.path("build"),
+            SemanticBindingReview::Discover,
         )
         .expect("compile final package candidate policies");
         assert_eq!(reviews.reviews().len(), 2);

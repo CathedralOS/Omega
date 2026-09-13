@@ -1,4 +1,5 @@
 use super::*;
+use package_manager::review::SemanticBindingReview;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -75,7 +76,9 @@ pub(super) fn capture_lock(
     build: &Path,
 ) -> (PackageLock, PackageRootSourceRequest) {
     let target = closure.for_exact_target(TARGET);
-    let reviews = compile_resolved_package_reviews(&target, build).unwrap();
+    let reviews =
+        compile_resolved_package_reviews(&target, build, SemanticBindingReview::Explicit(&[]))
+            .unwrap();
     let subject = CanonicalSourceClosureSubject::from_resolved(
         &target,
         CanonicalSourceClosureSubjectLimits::default(),

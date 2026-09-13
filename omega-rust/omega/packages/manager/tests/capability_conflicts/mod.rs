@@ -13,9 +13,9 @@ use package_manager::review::{
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
     ReviewOnlyRootPolicyRecordError, ReviewOnlyRootPolicyRecordLimits,
     ReviewOnlyRootPolicyResolutionError, compare_review_only_capabilities,
-    compare_review_only_initial_capabilities, compile_resolved_package_candidate_reviews,
-    compile_resolved_package_reviews, recover_review_only_root_policy_resolution,
-    resolve_review_only_root_policy_decisions, triage_initial_install, triage_review_update,
+    compare_review_only_initial_capabilities, compile_resolved_package_reviews,
+    recover_review_only_root_policy_resolution, resolve_review_only_root_policy_decisions,
+    triage_initial_install, triage_review_update,
 };
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeSet;

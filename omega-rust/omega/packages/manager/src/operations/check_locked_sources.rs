@@ -1,13 +1,14 @@
 //! Fresh compiler findings for a recovered graph, beside its accepted policy.
 
+use crate::review::SemanticBindingReview;
+
 use super::{LockedSourceRecoveryOptions, RecoverLockedSourcesError, recover_locked_sources};
 use crate::declarations::PackageKey;
 use crate::lock::{PackageLock, PackageLockTarget};
 use crate::resolution::graph::{PackageRootSourceRequest, ResolvedPackageSourceClosure};
 use crate::review::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet,
-    LockedPolicyComparisonError, compare_locked_package_policies,
-    compile_resolved_package_candidate_reviews,
+    LockedPolicyComparisonError, compare_locked_package_policies, compile_resolved_package_reviews,
 };
 use package_source::SourceResolverStorage;
 use std::fmt;
@@ -122,9 +123,10 @@ pub fn check_locked_sources<'lock>(
     let accepted = lock
         .target(target)
         .expect("successful locked recovery selected this exact retained target");
-    let reviews = compile_resolved_package_candidate_reviews(
+    let reviews = compile_resolved_package_reviews(
         &source_closure.for_exact_target(target),
         build_root,
+        SemanticBindingReview::Discover,
     )
     .map_err(CheckLockedSourcesError::Compilation)?;
     let changed_policies = compare_locked_package_policies(accepted, &reviews)

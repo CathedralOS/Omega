@@ -1,5 +1,6 @@
 use super::*;
 use crate::resolution::graph::resolve_external_local_project_closure_with_storage;
+use crate::review::SemanticBindingReview;
 
 pub(super) struct Project(pub(super) PathBuf);
 
@@ -55,7 +56,12 @@ impl Project {
 
     pub(super) fn lock_closure(&self, closure: &ResolvedPackageSourceClosure) -> PackageLock {
         let target = closure.for_exact_target(TargetProfile::host());
-        let reviews = compile_resolved_package_reviews(&target, &self.0.join("review")).unwrap();
+        let reviews = compile_resolved_package_reviews(
+            &target,
+            &self.0.join("review"),
+            SemanticBindingReview::Explicit(&[]),
+        )
+        .unwrap();
         let subject = CanonicalSourceClosureSubject::from_resolved(
             &target,
             CanonicalSourceClosureSubjectLimits::default(),

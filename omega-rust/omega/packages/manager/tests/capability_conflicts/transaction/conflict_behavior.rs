@@ -1,5 +1,6 @@
 use super::fixture::ExactCompilerRowScenario;
 use super::*;
+use package_manager::review::SemanticBindingReview;
 
 pub(super) fn assert_comparison_limits_and_risk_classes(
     scenario: &ExactCompilerRowScenario,
@@ -169,6 +170,7 @@ pub machine add_u64(left: u64, right: u64) -> u64 {
     let representation_reviews = compile_resolved_package_reviews(
         &representation_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &scenario.build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile representation-TCB review");
     let representation_conflicts = compare_review_only_capabilities(
@@ -249,9 +251,10 @@ reaches FilesystemHost
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve dangerous-slack candidate");
-    let dangerous_slack_reviews = compile_resolved_package_candidate_reviews(
+    let dangerous_slack_reviews = compile_resolved_package_reviews(
         &dangerous_slack_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &scenario.build_root,
+        SemanticBindingReview::Discover,
     )
     .expect("compile dangerous-slack review");
     let dangerous_slack_conflicts = compare_review_only_capabilities(

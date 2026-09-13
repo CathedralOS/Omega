@@ -13,8 +13,7 @@ use package_manager::resolution::graph::{
 use package_manager::resolution::package_compilation_inputs;
 use package_manager::review::{
     CompilerIssuedPackageReviewSet, PackagePolicyChangeKind, PackagePolicyChangeLimits,
-    compare_package_policy_changes, compile_resolved_package_candidate_reviews,
-    compile_resolved_package_reviews,
+    compare_package_policy_changes, compile_resolved_package_reviews,
 };
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;

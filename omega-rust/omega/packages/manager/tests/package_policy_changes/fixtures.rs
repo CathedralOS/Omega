@@ -1,4 +1,5 @@
 use super::*;
+use package_manager::review::SemanticBindingReview;
 
 pub(super) fn resolve(tree: &Tree, label: &str) -> ResolvedPackageSourceClosure {
     let storage = tree.storage(&format!("{label}-cache"));
@@ -17,9 +18,10 @@ pub(super) fn candidate(
     label: &str,
 ) -> (ResolvedPackageSourceClosure, CompilerIssuedPackageReviewSet) {
     let closure = resolve(tree, label);
-    let reviews = compile_resolved_package_candidate_reviews(
+    let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(TARGET),
         &tree.path(&format!("{label}-build")),
+        SemanticBindingReview::Discover,
     )
     .unwrap();
     (closure, reviews)

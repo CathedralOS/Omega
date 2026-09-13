@@ -1,4 +1,5 @@
 use super::*;
+use package_manager::review::SemanticBindingReview;
 
 #[test]
 fn public_const_changes_render_as_blocking_review_conflicts() {
@@ -20,6 +21,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public const baseline");
 
@@ -35,6 +37,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public const candidate");
 
@@ -110,6 +113,7 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public operator baseline");
 
@@ -128,6 +132,7 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public operator candidate");
 
@@ -183,6 +188,7 @@ fn public_callable_parameter_changes_render_exact_parameter_locations() {
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public callable parameter baseline");
 
@@ -198,6 +204,7 @@ fn public_callable_parameter_changes_render_exact_parameter_locations() {
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public callable parameter candidate");
 
@@ -300,6 +307,7 @@ fn callable_changes_render_exact_checked_body_call_locations() {
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile body-call baseline");
 
@@ -315,6 +323,7 @@ fn callable_changes_render_exact_checked_body_call_locations() {
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile body-call candidate");
 
@@ -379,6 +388,7 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public conformance baseline");
 
@@ -394,6 +404,7 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public conformance candidate");
 
@@ -457,6 +468,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public trait requirement baseline");
 
@@ -472,6 +484,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public trait requirement candidate");
 
@@ -541,6 +554,7 @@ pub trait Child: {parent} {{ }}
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public-trait baseline");
 
@@ -556,6 +570,7 @@ pub trait Child: {parent} {{ }}
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public-trait candidate");
 
@@ -610,6 +625,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public data baseline");
 
@@ -625,6 +641,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public data candidate");
 
