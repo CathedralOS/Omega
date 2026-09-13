@@ -234,6 +234,11 @@ pub(super) fn check_statement_borrows(
 ///
 /// This reuses the existing loan-overlap engine, so it inherits the disjoint
 /// subslice/element precision and stays conservative when a window is unknown.
+/// A named same-machine jump is different from a returning call: its successor
+/// writes happen after source-state scope exit. Replayed local-loan closure can
+/// discharge that conflict when no argument carries a loan into the successor.
+/// Guard/argument calls, carried references and reborrow lineages keep their
+/// existing checks; a syntactic jump alone is not release evidence.
 fn check_call_mutation_borrows(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -255,6 +260,9 @@ fn check_call_mutation_borrows(
             continue;
         }
 
+        let exiting_source =
+            source_exiting_without_carried_borrows(program, state_flow, borrow_call);
+
         // The loans live *at* the call are the entry constraints of the flow
         // statement the call belongs to.
         let Some(statement) = facts
@@ -273,6 +281,11 @@ fn check_call_mutation_borrows(
             .borrow_loan_constraints(statement.entry_constraints)
         {
             let loan = facts.borrow.loans.get(loan_handle);
+            if exiting_source.is_some_and(|state| {
+                local_loan_ends_before_successor(program, facts, state_flow, state, loan_handle)
+            }) {
+                continue;
+            }
             for mutated_place in &mutated_places {
                 if canonical_place_loan_compatibility(program, mutated_place, loan, &facts.borrow)
                     .non_interfering
@@ -297,4 +310,90 @@ fn check_call_mutation_borrows(
             }
         }
     }
+}
+
+/// A named jump enters another state only after the caller's local scope ends.
+/// Calls in its guard or arguments are ordinary pre-exit calls. Keep carried
+/// loans out of this judgment: their successor use needs its own correspondence.
+fn source_exiting_without_carried_borrows<'program>(
+    program: &'program typed_trees::TypedTrees,
+    flow: &FlowStateFact,
+    call: &checked_trees::BorrowCallFact,
+) -> Option<&'program typed_trees::state::State> {
+    let source = find_state_in_machine(program, flow.machine_symbol, flow.state_symbol)?;
+    let target = find_state_in_machine(program, flow.machine_symbol, call.target_symbol)?;
+    let site = crate::semantic_calls::find_call_site(
+        program,
+        flow.machine_symbol,
+        flow.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    let crate::semantic_calls::CallSite::TransitionNamed { path, .. } = &site else {
+        return None;
+    };
+    // A local state name has no explicit receiver; its head is the target
+    // symbol, not a borrowed receiver alias.
+    if path.members.count() != 1 || path.head_symbol != target.symbol {
+        return None;
+    }
+    let machine = crate::lookup::machine_by_symbol(program, flow.machine_symbol)?;
+    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let parameters = program.state_parameters(target);
+    let mut positional = parameters.iter().filter(|parameter| !parameter.is_self);
+    for argument in arguments {
+        let parameter = positional.next()?;
+        let actual =
+            validation::expression_result_type_reference(program, machine, source, *argument)?;
+        for reference in [parameter.type_reference, actual] {
+            // Use the closed lifetime frontier, not the discovery-only owner
+            // paths query: an unknown type is not evidence of absent loans.
+            if !crate::borrow::view_link::substituted_result_is_view_free(program, reference, &[]) {
+                return None;
+            }
+        }
+    }
+    positional.next().is_none().then_some(source)
+}
+
+fn local_loan_ends_before_successor(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    flow: &FlowStateFact,
+    source: &typed_trees::state::State,
+    loan_handle: arena::Handle<checked_trees::BorrowLoanFact>,
+) -> bool {
+    let loan = facts.borrow.loans.get(loan_handle);
+    if loan.lineage != checked_trees::BorrowLoanLineage::DirectRoot
+        || !program
+            .statement_table
+            .statements(source.statement_nodes)
+            .iter()
+            .any(|statement| {
+                matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
+                if local.symbol == loan.owner_symbol && matches!(
+                    program.type_reference_table.type_reference(local.type_reference),
+                    typed_trees::types::TypeReferenceNode::Reference { .. }
+                ))
+            })
+    {
+        return false;
+    }
+    // Resource replay precedes this check. Match its exact state-exit closure,
+    // not merely a syntactic reference local or a guessed last-use index.
+    facts
+        .borrow
+        .direct_loan_resources
+        .iter()
+        .any(|(_, resource)| {
+            resource.loan == loan_handle
+                && resource.machine_symbol == flow.machine_symbol
+                && resource.state_symbol == flow.state_symbol
+                && resource.parent_lifetime.root_symbol == loan.root_symbol
+                && resource.weakening_reason == checked_trees::FlowBorrowWeakeningReason::StateExit
+                && resource.weakening_source
+                    == checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: source.statement_nodes.count() as usize,
+                    }
+        })
 }

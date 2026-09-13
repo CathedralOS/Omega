@@ -4,9 +4,9 @@ use crate::type_reference::lower_type_reference_handle;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCastExpression,
-    TableIndexedExpression, TableMembershipExpression, TableNamePath, TableRangeExpression,
-    TableUnaryExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableBorrowExpression,
+    TableCastExpression, TableIndexedExpression, TableMembershipExpression, TableNamePath,
+    TableRangeExpression, TableUnaryExpression,
 };
 use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::statement::{
@@ -682,7 +682,12 @@ fn rewrite_children(
             );
         }
         ExpressionNode::Membership(membership) => {
-            let value = hoist_child(lowerer, membership.value, hoisted, mode);
+            let value = if is_runtime_indexed_read(lowerer, membership.value) {
+                let observed = borrow_membership_subject(lowerer, membership.value);
+                hoist_into_temp(lowerer, observed, hoisted)
+            } else {
+                hoist_child(lowerer, membership.value, hoisted, mode)
+            };
             set_expression(
                 lowerer,
                 expression,
@@ -1895,6 +1900,21 @@ fn lower_statement_expressions(
     Ok(span)
 }
 
+/// Capture a membership place for observation without extracting its value.
+/// The ordinary borrow preserves address evaluation and loan checking; an
+/// owned snapshot would illegally move an affine element out of its array.
+fn borrow_membership_subject(lowerer: &mut Lowerer, subject: ExpressionHandle) -> ExpressionHandle {
+    lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .insert(ExpressionNode::Borrow(TableBorrowExpression {
+            target: subject,
+            access: language_semantics::ReferenceAccess::Shared,
+        }))
+}
+
 /// Hoists a runtime-indexed ENUM-VARIANT MATCH subject into a SINGLE shared temp so every arm of
 /// the match tests one plain local. A match `transition self.grid[self.i] { Cell::Wall -> .. }`
 /// lowers (in the parser) to one `When(subject is Variant)` -- an `ExpressionNode::Membership` --
@@ -1902,10 +1922,10 @@ fn lower_statement_expressions(
 /// each arm's subject (as the comparison hoist does for `Binary` guards) would mint a DISTINCT temp
 /// per arm, and the exhaustiveness checker -- which groups the arms by a shared subject -- would then
 /// report "match does not cover Variant". Instead this keys a memo on the shared syntax subject
-/// handle: the FIRST arm mints `let __hoist_N = self.grid[self.i]` and records the name; the siblings
+/// handle: the FIRST arm mints `let __hoist_N = &self.grid[self.i]` and records the name; the siblings
 /// reuse it. All arms end up testing `__hoist_N`, so exhaustiveness still groups them, and the temp
-/// is a plain local with a correct offset (a raw runtime-indexed guard subject silently reads
-/// element 0). Const-index / field / string-slice subjects are not runtime-indexed and are left
+/// retains the original element's address rather than a copied affine value.
+/// Const-index / field / string-slice subjects are not runtime-indexed and are left
 /// untouched.
 fn hoist_membership_match_subject(
     lowerer: &mut Lowerer,
@@ -1940,7 +1960,7 @@ fn hoist_membership_match_subject(
     let subject_key = syntax_membership.value.arena_index();
 
     // Reuse the sibling arm's temp if the first arm already minted one; otherwise mint it here and
-    // emit the single `let __hoist_N = <subject>;` (reusing this arm's lowered indexed read as the
+    // emit the single `let __hoist_N = &<subject>;` (reusing this arm's lowered indexed read as the
     // initializer -- later arms' lowered reads are simply left orphaned).
     let name = match lowerer.match_subject_temp(subject_key) {
         Some(existing) => DiagnosticName::generated(existing),
@@ -1973,12 +1993,13 @@ fn hoist_membership_match_subject(
             let fresh = lowerer.next_hoist_name();
             lowerer.record_match_subject_temp(subject_key, fresh.clone());
             let name = DiagnosticName::generated(fresh);
+            let observed = borrow_membership_subject(lowerer, membership.value);
             hoisted.push(Statement::LocalData(LocalData {
                 symbol: SymbolHandle::invalid(),
                 name: name.clone(),
                 storage: LocalDataStorage {
                     type_reference: TypeReference::Unit,
-                    initial_value: membership.value,
+                    initial_value: observed,
                     is_mutable: false,
                     type_is_inferred: true,
                 },
