@@ -232,6 +232,7 @@ fn plain_aggregate(
                     StructuralFieldType::IeeeFloat(format) => {
                         scalar_shape(ScalarType::IeeeFloat(format)).is_some()
                     }
+                    StructuralFieldType::Erased { .. } => true,
                     _ => false,
                 }
         }),
@@ -377,7 +378,10 @@ fn shape_inner(
         StructuralTypeShape::Record { fields } => {
             let mut bytes = 0;
             let mut alignment = 1;
-            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+            for field in fields.iter().filter(|field| {
+                !field.relevance.is_erased()
+                    && !matches!(field.field_type, StructuralFieldType::Erased { .. })
+            }) {
                 let field_shape = field_shape(&field.field_type, declarations, active)?;
                 alignment = alignment.max(field_shape.alignment);
                 bytes = align(bytes, field_shape.alignment)?
@@ -446,7 +450,10 @@ pub(crate) fn project(
             (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
                 let mut field_offset = 0;
                 let mut found = None;
-                for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                for field in fields.iter().filter(|field| {
+                    !field.relevance.is_erased()
+                        && !matches!(field.field_type, StructuralFieldType::Erased { .. })
+                }) {
                     let layout = field_shape(&field.field_type, declarations, &mut Vec::new())?;
                     field_offset = align(field_offset, layout.alignment)?;
                     if field.identity == *identity {
@@ -487,7 +494,10 @@ pub(crate) fn store(
         return None;
     };
     let mut offset = 0;
-    for candidate in fields.iter().filter(|field| !field.relevance.is_erased()) {
+    for candidate in fields.iter().filter(|field| {
+        !field.relevance.is_erased()
+            && !matches!(field.field_type, StructuralFieldType::Erased { .. })
+    }) {
         let layout = field_shape(&candidate.field_type, declarations, &mut Vec::new())?;
         offset = align(offset, layout.alignment)?;
         if candidate.id == field {
@@ -526,4 +536,69 @@ pub(crate) fn field_read(
     }
     plain_record_shape(structural_type, declarations)?;
     store(structural_type, &[], field, scalar, declarations)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relevant_erased_record_carriers_have_geometry_but_no_field_access() {
+        let root = StructuralTypeId::new(1).unwrap();
+        let erased = StructuralFieldId::new(1).unwrap();
+        let runtime = StructuralFieldId::new(2).unwrap();
+        let scalar = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+                .unwrap(),
+        );
+        for with_scalar in [false, true] {
+            let mut fields = vec![terminal_psi::StructuralFieldDeclaration {
+                id: erased,
+                identity: "service".into(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Erased {
+                    type_identity: "FusedService".into(),
+                },
+            }];
+            if with_scalar {
+                fields.push(terminal_psi::StructuralFieldDeclaration {
+                    id: runtime,
+                    identity: "value".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(scalar),
+                });
+            }
+            let declarations = [StructuralTypeDeclaration {
+                id: root,
+                identity: "Receiver".into(),
+                shape: StructuralTypeShape::Record { fields },
+            }];
+            let expected = ValueShape::integer(
+                if with_scalar { 4 } else { 0 },
+                if with_scalar { 4 } else { 1 },
+            );
+            assert_eq!(shape(root, &declarations), Some(expected));
+            assert_eq!(plain_record_shape(root, &declarations), Some(expected));
+            assert_eq!(store(root, &[], erased, scalar, &declarations), None);
+            assert_eq!(field_read(root, erased, scalar, &declarations), None);
+            assert_eq!(
+                project(
+                    root,
+                    &[StructuralPathSegment::Field("service".into())],
+                    &declarations
+                ),
+                None
+            );
+            if with_scalar {
+                assert_eq!(
+                    store(root, &[], runtime, scalar, &declarations),
+                    Some((0, 4))
+                );
+                assert_eq!(
+                    field_read(root, runtime, scalar, &declarations),
+                    Some((0, 4))
+                );
+            }
+        }
+    }
 }

@@ -72,13 +72,14 @@ pub(crate) fn structural_shape(
                 LoweringError::UnsupportedStructuralByteSequence(structural_type),
             ),
             StructuralTypeShape::Record { fields } => {
-                if fields.is_empty() {
-                    return Ok(ValueShape::integer(0, 1));
-                }
                 let mut byte_size = 0_u32;
                 let mut alignment = 1_u16;
                 for field in fields {
-                    if field.relevance.is_erased() {
+                    // Authored relevance and physical carrier erasure are
+                    // independent: a Fused service remains semantically relevant.
+                    if field.relevance.is_erased()
+                        || matches!(field.field_type, StructuralFieldType::Erased { .. })
+                    {
                         continue;
                     }
                     let field_shape = structural_field_shape(
@@ -97,9 +98,6 @@ pub(crate) fn structural_shape(
                 }
                 byte_size = checked_align_up_u32(byte_size, u32::from(alignment))
                     .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-                if byte_size == 0 {
-                    return Err(LoweringError::EmptyStructuralType(structural_type));
-                }
                 let byte_size = u16::try_from(byte_size)
                     .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?;
                 Ok(ValueShape::integer(byte_size, alignment))

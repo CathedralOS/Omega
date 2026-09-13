@@ -576,7 +576,7 @@ pub fn evaluate_call_plan(
             .parameters
             .iter()
             .copied()
-            .filter(|shape| shape.byte_size != 0)
+            .filter(|shape| shape.byte_size != 0 || shape.class == ValueClass::BorrowedReference)
             .collect(),
         result: signature.result.filter(|shape| shape.byte_size != 0),
     };
@@ -593,7 +593,7 @@ pub fn evaluate_call_plan(
         .iter()
         .copied()
         .map(|shape| {
-            if shape.byte_size == 0 {
+            if shape.byte_size == 0 && shape.class != ValueClass::BorrowedReference {
                 ValuePlacement {
                     shape,
                     locations: Vec::new(),
@@ -982,17 +982,17 @@ fn validate_signature_shapes(
                 "call-signature values need power-of-two alignment".into(),
             ));
         }
-        if shape.byte_size == 0 && (shape.class != ValueClass::Integer || shape.alignment != 1) {
+        // A borrowed shape measures its referent, not its runtime pointer.
+        // Only by-value empties are erased from the physical signature.
+        if shape.byte_size == 0
+            && shape.class != ValueClass::BorrowedReference
+            && (shape.class != ValueClass::Integer || shape.alignment != 1)
+        {
             return Err(PlanDiagnostic(
                 "zero-sized call values must use the canonical integer-class shape".into(),
             ));
         }
         match shape.class {
-            ValueClass::BorrowedReference if shape.byte_size == 0 => {
-                return Err(PlanDiagnostic(
-                    "borrowed-reference call values need a nonempty referent".into(),
-                ));
-            }
             ValueClass::Integer
                 if shape.byte_size > 8
                     && policy != CallingPolicy::Aapcs64
@@ -1312,7 +1312,9 @@ fn validate_value_placement(
             }
         };
         let end = usize::from(value_byte_offset) + usize::from(byte_size);
-        if byte_size == 0 || end > covered.len() {
+        if (byte_size == 0 && placement.shape.class != ValueClass::BorrowedReference)
+            || end > covered.len()
+        {
             return Err(PlanDiagnostic(format!(
                 "value {value_index} placement exceeds its declared shape"
             )));
@@ -3584,6 +3586,77 @@ mod tests {
                 },
             )
             .expect("borrowed-reference plan validates");
+        }
+    }
+
+    #[test]
+    fn zero_byte_referents_retain_pointer_abi_and_reject_erased_pointer_evidence() {
+        for policy in [
+            CallingPolicy::MicrosoftX64,
+            CallingPolicy::SystemVAMD64,
+            CallingPolicy::Aapcs64,
+        ] {
+            let signature = CallSignature {
+                parameters: vec![
+                    ValueShape::integer(0, 1),
+                    ValueShape::borrowed_reference(0, 1),
+                    ValueShape::integer(8, 8),
+                ],
+                result: None,
+            };
+            let plan =
+                evaluate_call_plan(policy, &signature).expect("empty referent still needs pointer");
+            assert!(plan.parameters[0].locations.is_empty());
+            assert!(matches!(
+                plan.parameters[1].locations.as_slice(),
+                [ValueLocation::Indirect {
+                    copy_stack_byte_offset: None,
+                    byte_size: 0,
+                    alignment: 1,
+                    ..
+                }]
+            ));
+            assert!(!plan.parameters[2].locations.is_empty());
+            let nonempty = evaluate_call_plan(
+                policy,
+                &CallSignature {
+                    parameters: vec![
+                        ValueShape::borrowed_reference(4, 4),
+                        ValueShape::integer(8, 8),
+                    ],
+                    result: None,
+                },
+            )
+            .unwrap();
+            assert_eq!(
+                plan.parameters[2], nonempty.parameters[1],
+                "empty referent consumes the same pointer slot"
+            );
+            let mut missing_pointer = plan.clone();
+            missing_pointer.parameters[1].locations.clear();
+            assert!(validate_call_plan(&missing_pointer, &signature).is_err());
+            let mut copied = plan.clone();
+            let ValueLocation::Indirect {
+                copy_stack_byte_offset,
+                ..
+            } = &mut copied.parameters[1].locations[0]
+            else {
+                panic!("pointer placement")
+            };
+            *copy_stack_byte_offset = Some(0);
+            assert!(validate_call_plan(&copied, &signature).is_err());
+            for invalid in [ValueShape::integer(0, 8), ValueShape::float(0)] {
+                assert!(
+                    evaluate_call_plan(
+                        policy,
+                        &CallSignature {
+                            parameters: vec![invalid],
+                            result: None
+                        }
+                    )
+                    .is_err()
+                );
+            }
         }
     }
 

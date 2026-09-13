@@ -67,7 +67,10 @@ pub(super) fn project_fields(
         };
         let mut local_offset = 0_u32;
         let mut selected = None;
-        for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+        for field in fields.iter().filter(|field| {
+            !field.relevance.is_erased()
+                && !matches!(field.field_type, StructuralFieldType::Erased { .. })
+        }) {
             let shape = field_shape(&field.field_type, &indexed, &mut cache, &mut active)?;
             local_offset = align(local_offset, u32::from(shape.alignment))?;
             if field.identity == *identity {
@@ -113,7 +116,10 @@ fn shape(
         StructuralTypeShape::Record { fields } => {
             let mut byte_size = 0_u32;
             let mut alignment = 1_u16;
-            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+            for field in fields.iter().filter(|field| {
+                !field.relevance.is_erased()
+                    && !matches!(field.field_type, StructuralFieldType::Erased { .. })
+            }) {
                 let field_shape = field_shape(&field.field_type, declarations, cache, active)?;
                 alignment = alignment.max(field_shape.alignment);
                 byte_size = align(byte_size, u32::from(field_shape.alignment))?;
