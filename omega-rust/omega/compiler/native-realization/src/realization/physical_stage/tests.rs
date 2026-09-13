@@ -60,7 +60,7 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
                 .produce_program_entry(signature.identity().bytes())
                 .unwrap()
                 .into_parts();
-        let native = crate::realize_native_artifact(
+        let outcome = crate::realize_native_artifact(
             artifact,
             crate::NativeRealizationRequest {
                 checked_scope: Some(&scope),
@@ -82,10 +82,28 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
                 native_callbacks: &[],
                 callback_thunks: &[],
             },
-        )
-        .unwrap_or_else(|errors| panic!("{target_profile:?}: {errors:?}"))
-        .into_direct()
-        .expect("direct image requested");
+        );
+        if target_profile == target::TargetProfile::MacosArm64 {
+            // macOS ARM64 declares its two-surface `MacosApplication`
+            // contract on the target slot, so native realization must fail
+            // closed when the settlement lost the exact paired
+            // semantic/physical calling plans a real selection produces.
+            let error = outcome.expect_err(
+                "MacosArm64 ProgramEntry settlement without paired calling plans must reject",
+            );
+            assert!(
+                error.diagnostics().iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("paired semantic/physical calling-plan custody")),
+                "unexpected diagnostics: {:?}",
+                error.diagnostics(),
+            );
+            continue;
+        }
+        let native = outcome
+            .unwrap_or_else(|errors| panic!("{target_profile:?}: {errors:?}"))
+            .into_direct()
+            .expect("direct image requested");
         assert!(matches!(
             native.physical_evidence_scope(),
             native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)

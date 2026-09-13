@@ -120,6 +120,7 @@ pub enum ProgramEntryReceiverProvisioning {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramEntryCallingConvention {
     MicrosoftX64,
+    Aapcs64,
 }
 
 /// Closed identity of a toolchain-owned physical-entry contract package.
@@ -127,18 +128,30 @@ pub enum ProgramEntryCallingConvention {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramEntryPhysicalContractPackage {
     UefiX64,
+    MacosArm64,
 }
 
 impl ProgramEntryPhysicalContractPackage {
     pub const fn manifest_identity(self) -> &'static str {
         match self {
             Self::UefiX64 => "omega::language::std::targets::uefi_x86_64::entry",
+            Self::MacosArm64 => "omega::language::std::targets::macos_arm64::entry",
         }
     }
 
     pub const fn package_relative_source(self) -> &'static str {
         match self {
             Self::UefiX64 => "targets/uefi_x86_64/entry.omg",
+            Self::MacosArm64 => "targets/macos_arm64/entry.omg",
+        }
+    }
+
+    /// Diagnostic spelling of the contract this package owns. Identity still
+    /// comes from the closed variant and manifest identity, never this name.
+    pub const fn contract_name(self) -> &'static str {
+        match self {
+            Self::UefiX64 => "UEFI",
+            Self::MacosArm64 => "macOS ARM64",
         }
     }
 }
@@ -377,6 +390,22 @@ impl TargetProfile {
                 Some(ProgramEntryPhysicalContractPackage::UefiX64),
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
+            ),
+            // The macOS ARM64 hosted bridge retains two authored entry
+            // surfaces in toolchain custody: `MacosPhysicalEntry::enter` is
+            // the physical process arrival and `ProgramStorageEntry::enter`
+            // is the semantic continuation it must adapter-map into. The
+            // source-visible application stays `HostedApplication` with no
+            // authored storage parameters; the two internal roots are
+            // provisioned by the bridge, never hosted arguments.
+            Self::MacosArm64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("MacosApplication"),
+                Some("MacosPhysicalEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::MacosArm64),
+                Some(ProgramEntryCallingConvention::Aapcs64),
+                Some(ProgramEntryCallingConvention::Aapcs64),
             ),
             _ => (
                 ProgramEntrySchema::HostedApplication,

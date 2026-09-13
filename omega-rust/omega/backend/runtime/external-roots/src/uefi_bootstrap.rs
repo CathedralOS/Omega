@@ -946,8 +946,8 @@ impl UefiApplicationBootstrapSameStackBudgetPlan {
             && self.phase_lease == readiness.arrival.system_table.phase_lease.lease
             && self.phase_generation == readiness.arrival.system_table.phase_lease.generation
             && self.physical_calling_plan_commitment == readiness.physical_calling_plan_commitment
-            && &self.target_entry_stack_guarantee
-                == readiness.arrival.physical_contract.guaranteed_entry_stack()
+            && readiness.arrival.physical_contract.guaranteed_entry_stack()
+                == Some(&self.target_entry_stack_guarantee)
     }
 }
 
@@ -1011,9 +1011,13 @@ fn plan_uefi_application_bootstrap_same_stack_budget_inner(
             "UEFI same-stack planning physical calling-plan commitment drifted".into(),
         ));
     }
-    let guarantee = readiness.arrival.physical_contract.guaranteed_entry_stack();
+    let Some(guarantee) = readiness.arrival.physical_contract.guaranteed_entry_stack() else {
+        return Err(ExternalRootDiagnostic(
+            "UEFI same-stack planning lost the exact contract's numeric stack guarantee".into(),
+        ));
+    };
     if !guarantee.matches_exact_uefi_x64_entry_stack_guarantee()
-        || guarantee.application()
+        || Some(guarantee.application())
             != readiness
                 .arrival
                 .physical_contract

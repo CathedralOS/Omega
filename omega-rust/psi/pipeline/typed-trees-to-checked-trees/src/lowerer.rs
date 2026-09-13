@@ -6,6 +6,10 @@ use checked_trees::CheckedTrees;
 /// These are distinct checking checkpoints, not freely combinable permissions.
 #[derive(Clone, Copy)]
 enum CheckingMode {
+    /// Strictly finalized checking retained for callers that must reject
+    /// toolchain late bindings; standalone and package routes currently both
+    /// settle toolchain-owned selections at build-time evaluation.
+    #[allow(dead_code)]
     Complete,
     PreliminaryPackage,
     SettledPackage,
@@ -28,9 +32,14 @@ pub(crate) fn lower_typed_trees(
     selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    // Toolchain-owned sources keep the same late-binding tolerance as the
+    // package route: closed toolchain content (bundled core/std and any
+    // seeded target contract) may defer authored selections to build-time
+    // evaluation, while authored (non-toolchain) sources remain strictly
+    // finalized here.
     lower_typed_trees_with_policy(
         program,
-        CheckingMode::Complete,
+        CheckingMode::SettledPackage,
         selected_generic_operator_providers,
         opaque_property_receipts,
     )

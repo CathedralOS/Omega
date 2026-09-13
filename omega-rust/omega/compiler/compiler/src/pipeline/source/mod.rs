@@ -4,4 +4,4 @@ pub mod source_storage;
 
 pub use import_queue::ImportQueue;
 pub use source_file::SourceFile;
-pub use source_storage::SourceStorage;
+pub use source_storage::{SourceStorage, ToolchainContractCustody};

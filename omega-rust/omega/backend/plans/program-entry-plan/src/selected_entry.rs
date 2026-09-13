@@ -20,10 +20,24 @@ impl SelectedProgramStorageEntryPlan {
         schema: effects::provider_plan::ServiceSchema,
         requirement_identity: String,
     ) -> Result<Self, ProgramStorageEntryDiagnostic> {
+        // The semantic continuation is `ProgramStorageEntry::enter` under
+        // every admitted entry contract. Where its two roots become visible
+        // is fixed by the slot's declared shape: a freestanding
+        // `ProgramStorageApplication` exposes them as authored parameters,
+        // while a hosted `HostedApplication` keeps them as internal bridge
+        // inputs and exposes no source-visible parameters. Any other shape
+        // pairing is drift, not a third contract.
+        let declares_exact_continuation = match slot.schema {
+            target::ProgramEntrySchema::ProgramStorageApplication => {
+                slot.visible_parameters
+                    == target::ProgramEntryVisibleParameters::ImageAndInitialStorage
+            }
+            target::ProgramEntrySchema::HostedApplication => {
+                slot.visible_parameters == target::ProgramEntryVisibleParameters::None
+            }
+        };
         if slot != slot.owner.program_entry_slot()
-            || slot.schema != target::ProgramEntrySchema::ProgramStorageApplication
-            || slot.visible_parameters
-                != target::ProgramEntryVisibleParameters::ImageAndInitialStorage
+            || !declares_exact_continuation
             || slot.semantic_arrival_requirement
                 != format!("{PROGRAM_STORAGE_ENTRY_OWNER}::{PROGRAM_STORAGE_ENTRY_METHOD}")
         {

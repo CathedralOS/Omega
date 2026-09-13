@@ -1191,15 +1191,17 @@ fn compile_assembled_checked_child(
     // no storage root. Authored bindings remain available in the evaluated
     // build configuration, but only an exact target selection may activate one
     // for interpreter or production execution.
+    let program_entry_binding_role = selected_target_profile
+        .map(|profile| profile.program_entry_slot())
+        .and_then(|slot| slot.physical_contract_package)
+        .map(crate::pipeline::build_config::program_entry_semantic_binding_role);
     let mut selected_program_entry = crate::pipeline::build_config::select_compiler_program_entry(
         &typed,
         &build_config,
         selected_target_profile,
         &boundary_calling_plan_realizations,
         package_inputs.and_then(|inputs| {
-            inputs.accepted_semantic_binding(
-                package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry,
-            )
+            program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
         }),
     )?;
     let super::provider_selection::CheckedProviderSelection {
@@ -1301,10 +1303,8 @@ fn compile_assembled_checked_child(
                     package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
                 )
             }),
-            accepted_uefi_binding: package_inputs.and_then(|inputs| {
-                inputs.accepted_semantic_binding(
-                    package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry,
-                )
+            accepted_entry_binding: package_inputs.and_then(|inputs| {
+                program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
             }),
         },
     )?;

@@ -24,6 +24,11 @@ pub enum AcceptedSemanticBindingRole {
     /// ABI; this binding chooses the ordinary package nominal that realizes
     /// that schema without granting the package general toolchain provenance.
     UefiX64ProgramEntry,
+    /// Exact package-owned macOS ARM64 application schema selected by the
+    /// target's physical-entry consumer. The dyld arrival ABI remains
+    /// target-fixed; this binding chooses the ordinary package nominal that
+    /// realizes that schema without granting toolchain provenance.
+    MacosArm64ProgramEntry,
 }
 
 /// Consumer-policy acceptance of one exact package-owned semantic surface.
@@ -85,6 +90,7 @@ impl AcceptedSemanticBinding {
             role,
             AcceptedSemanticBindingRole::FilesystemHostService
                 | AcceptedSemanticBindingRole::UefiX64ProgramEntry
+                | AcceptedSemanticBindingRole::MacosArm64ProgramEntry
         ) {
             return Err("accepted semantic role requires a selected provider plan");
         }
@@ -171,16 +177,20 @@ impl AcceptedSemanticBinding {
 
 /// Derive the exact schema commitment owned by one accepted semantic role.
 ///
-/// UEFI target calling-plan applications are independently selected, replayed,
-/// and retained by the target entry contract. Omitting those two derived
-/// fields here lets semantic-only candidate review and target compilation bind
-/// the same authored nominal/schema without creating a second ABI authority.
+/// Target calling-plan applications are independently selected, replayed, and
+/// retained by the target entry contract. Omitting those two derived fields
+/// here lets semantic-only candidate review and target compilation bind the
+/// same authored nominal/schema without creating a second ABI authority.
 #[doc(hidden)]
 pub fn accepted_service_schema_digest(
     role: AcceptedSemanticBindingRole,
     schema: &effects::provider_plan::ServiceSchema,
 ) -> ServiceSchemaDigest {
-    if role != AcceptedSemanticBindingRole::UefiX64ProgramEntry {
+    if !matches!(
+        role,
+        AcceptedSemanticBindingRole::UefiX64ProgramEntry
+            | AcceptedSemanticBindingRole::MacosArm64ProgramEntry
+    ) {
         return schema.identity_digest();
     }
     let mut semantic = schema.clone();

@@ -430,7 +430,7 @@ pub fn select_compiler_program_entry(
     config: &BuildConfig,
     selected_profile: Option<target::TargetProfile>,
     realizations: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
-    accepted_uefi_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+    accepted_entry_binding: Option<&package_compilation::AcceptedSemanticBinding>,
 ) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
     let Some(selected) = selected_program_entry_machine(config, selected_profile)? else {
         return Ok(None);
@@ -440,7 +440,7 @@ pub fn select_compiler_program_entry(
         typed,
         selected,
         realizations,
-        accepted_uefi_binding,
+        accepted_entry_binding,
     )?;
     Ok(Some(SelectedCompilerProgramEntry::new(
         source_signature,
@@ -452,7 +452,7 @@ pub fn validate_selected_program_entry_calling_plan(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
     realizations: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
-    accepted_uefi_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+    accepted_entry_binding: Option<&package_compilation::AcceptedSemanticBinding>,
 ) -> Result<Option<SelectedProgramEntryCallingPlans>, Vec<Diagnostic>> {
     let (
         Some(schema_name),
@@ -564,6 +564,9 @@ pub fn validate_selected_program_entry_calling_plan(
         target::ProgramEntryCallingConvention::MicrosoftX64 => {
             calling_conventions::CallingPolicy::MicrosoftX64
         }
+        target::ProgramEntryCallingConvention::Aapcs64 => {
+            calling_conventions::CallingPolicy::Aapcs64
+        }
     };
     if physical_realization.boundary_entry_plan.call.policy != expected_physical {
         return Err(vec![Diagnostic::error(format!(
@@ -577,6 +580,9 @@ pub fn validate_selected_program_entry_calling_plan(
     let expected_semantic = match semantic_convention {
         target::ProgramEntryCallingConvention::MicrosoftX64 => {
             calling_conventions::CallingPolicy::MicrosoftX64
+        }
+        target::ProgramEntryCallingConvention::Aapcs64 => {
+            calling_conventions::CallingPolicy::Aapcs64
         }
     };
     if semantic_realization.boundary_entry_plan.call.policy != expected_semantic {
@@ -601,7 +607,7 @@ pub fn validate_selected_program_entry_calling_plan(
         schema.symbol,
         &service_schema,
         &physical,
-        accepted_uefi_binding,
+        accepted_entry_binding,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     let storage_entry = program_entry_plan::SelectedProgramStorageEntryPlan::from_target_slot(
@@ -694,10 +700,10 @@ fn target_owned_physical_contract_source(
             contract.requirement_identity,
         )));
     }
+    let expected_role = program_entry_semantic_binding_role(expected_package);
     match accepted_binding {
         Some(binding) => {
-            let exact_package_binding = binding.role()
-                == package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry
+            let exact_package_binding = binding.role() == expected_role
                 && binding.selected_provider_plan_digest().is_none()
                 && source_file.package_identity == Some(binding.package())
                 && schema_source_file.package_identity == Some(binding.package())
@@ -710,7 +716,7 @@ fn target_owned_physical_contract_source(
                 ) == binding.normalized_schema_digest();
             if !exact_package_binding {
                 return Err(Diagnostic::error(format!(
-                    "target physical entry schema `{}` does not match the exact accepted UEFI package binding",
+                    "target physical entry schema `{}` does not match the exact accepted {expected_role:?} package binding",
                     typed.symbols.display_path(schema, "::"),
                 )));
             }
@@ -723,11 +729,13 @@ fn target_owned_physical_contract_source(
                         expected_package.package_relative_source(),
                     ))
                 && package_source_digest
-                    == program_entry_plan::exact_uefi_x64_physical_contract_package_source_digest();
+                    == exact_bundled_physical_contract_package_source_digest(expected_package);
             if !exact_bundled_source {
                 return Err(Diagnostic::error(format!(
-                    "target physical entry requirement and schema `{}` require either the exact bundled UEFI contract or one accepted package-owned UEFI binding, not `{}`",
+                    "target physical entry requirement and schema `{}` require either the exact bundled {} contract or one accepted package-owned {} binding, not `{}`",
                     contract.requirement_identity,
+                    expected_package.contract_name(),
+                    expected_package.contract_name(),
                     source_file.path.display(),
                 )));
             }
@@ -744,10 +752,39 @@ fn target_owned_physical_contract_source(
     })
 }
 
+/// Accepted-binding role that admits one ordinary package's copy of the
+/// target-owned physical entry contract for this consumer.
+pub fn program_entry_semantic_binding_role(
+    package: target::ProgramEntryPhysicalContractPackage,
+) -> package_compilation::AcceptedSemanticBindingRole {
+    match package {
+        target::ProgramEntryPhysicalContractPackage::UefiX64 => {
+            package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry
+        }
+        target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
+            package_compilation::AcceptedSemanticBindingRole::MacosArm64ProgramEntry
+        }
+    }
+}
+
+/// Bundled-toolchain digest expected for one closed contract package.
+fn exact_bundled_physical_contract_package_source_digest(
+    package: target::ProgramEntryPhysicalContractPackage,
+) -> program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest {
+    match package {
+        target::ProgramEntryPhysicalContractPackage::UefiX64 => {
+            program_entry_plan::exact_uefi_x64_physical_contract_package_source_digest()
+        }
+        target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
+            program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest()
+        }
+    }
+}
+
 fn physical_contract_package_source_report_fingerprint(identity: &[u8], source: &[u8]) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
     for bytes in [
-        b"omega.uefi-physical-package.v1".as_slice(),
+        b"omega.program-entry-physical-package.v1".as_slice(),
         identity,
         source,
     ] {

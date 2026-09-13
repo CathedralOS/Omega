@@ -447,6 +447,13 @@ fn expression_occurrence_violation(
     None
 }
 
+/// Confinement of a late-bound `CheckedOperator` occurrence is vacuous when
+/// the operand-filtered candidate set is empty: `resolve_spelling_for_operands`
+/// is the single use-site resolution authority, so no authored operator
+/// declaration can be selected for this expression. The checked stage then
+/// resolves the occurrence to builtin meaning (the enclosing admission walk
+/// already proved builtin meaning for binary nodes) or rejects the program on
+/// its own; either way no foreign package authority is consumed.
 fn unresolved_operator_candidates_are_confined(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -456,17 +463,16 @@ fn unresolved_operator_candidates_are_confined(
     let candidates = typed_trees_to_checked_trees::typed_operator_authored_selection_candidates(
         program, expression,
     );
-    !candidates.is_empty()
-        && candidates.into_iter().all(|candidate| {
-            require_selection(
-                program,
-                requester,
-                package_for_symbol(program, candidate),
-                authority,
-                "candidate for an unresolved build-time operator selection",
-            )
-            .is_none()
-        })
+    candidates.into_iter().all(|candidate| {
+        require_selection(
+            program,
+            requester,
+            package_for_symbol(program, candidate),
+            authority,
+            "candidate for an unresolved build-time operator selection",
+        )
+        .is_none()
+    })
 }
 
 fn unresolved_spelling_is_confined(
@@ -794,6 +800,70 @@ mod tests {
                 typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedCall,
             ),
             None
+        );
+    }
+
+    struct UnconsultedAuthority;
+
+    impl BuildTimeSelectionAuthority for UnconsultedAuthority {
+        fn allows_declaration_selection(
+            &self,
+            _requester: PackageKeyIdentity,
+            _owner: PackageKeyIdentity,
+        ) -> bool {
+            panic!("an empty candidate set cannot consume declaration-selection authority");
+        }
+
+        fn package_label(&self, identity: PackageKeyIdentity) -> String {
+            format!("package-{identity:?}")
+        }
+    }
+
+    // A spelled operator whose authored declarations cannot match the actual
+    // operands resolves to builtin meaning: the operand-filtered candidate set
+    // is empty, so the late-bound `CheckedOperator` occurrence is vacuously
+    // confined no matter who requests it and the authority is never consulted.
+    #[test]
+    fn builtin_only_operator_occurrence_is_vacuously_confined() {
+        let typed = typed_from_source(
+            r#"
+                data Math {}
+
+                boundary operator < Math::less(left: f32, right: f32) -> bool;
+
+                machine probe(value: u64) -> bool {
+                    transition { _ -> (value < 256) }
+                }
+            "#,
+        );
+        let (expression, _) = typed
+            .expression_table
+            .iter_expressions()
+            .find(|(_, node)| {
+                matches!(
+                    node,
+                    ExpressionNode::Binary(binary)
+                        if binary.operator == typed_trees::expression::BinaryOperator::Less
+                )
+            })
+            .expect("builtin integer comparison expression");
+        assert!(
+            typed_trees_to_checked_trees::typed_operator_authored_selection_candidates(
+                &typed, expression,
+            )
+            .is_empty(),
+            "no authored `<` declaration accepts u64 operands"
+        );
+        assert!(unresolved_operator_candidates_are_confined(
+            &typed,
+            expression,
+            PackageCustody::UnownedUser,
+            &UnconsultedAuthority,
+        ));
+        assert_eq!(
+            expression_occurrence_violation(&typed, expression, Some(&UnconsultedAuthority)),
+            None,
+            "builtin-only occurrence consumes no declaration-selection authority"
         );
     }
 }

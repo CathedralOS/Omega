@@ -219,7 +219,26 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
             let replayed_artifact =
                 terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
                     .unwrap();
-            let native = crate::realize_native_artifact(replayed_artifact, complete_request)
+            let native_outcome =
+                crate::realize_native_artifact(replayed_artifact, complete_request);
+            if target_profile == target::TargetProfile::MacosArm64 {
+                // macOS ARM64 declares its two-surface `MacosApplication`
+                // contract on the target slot, so native realization must
+                // fail closed when the settlement lost the exact paired
+                // semantic/physical calling plans a real selection produces.
+                let error = native_outcome.expect_err(
+                    "MacosArm64 ProgramEntry settlement without paired calling plans must reject",
+                );
+                assert!(
+                    error.diagnostics().iter().any(|diagnostic| diagnostic
+                        .message
+                        .contains("paired semantic/physical calling-plan custody")),
+                    "unexpected diagnostics: {:?}",
+                    error.diagnostics(),
+                );
+                continue;
+            }
+            let native = native_outcome
                 .unwrap()
                 .into_direct()
                 .expect("direct image requested");

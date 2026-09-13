@@ -42,6 +42,7 @@ pub fn resolve_accepted_service_binding(
         binding.role(),
         package_compilation::AcceptedSemanticBindingRole::FilesystemHostService
             | package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry
+            | package_compilation::AcceptedSemanticBindingRole::MacosArm64ProgramEntry
     ) || binding.selected_provider_plan_digest().is_some()
     {
         return Err(Diagnostic::error(format!(

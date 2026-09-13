@@ -281,12 +281,14 @@ fn append_dependency_generated_sources_to_storage(
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
             parse_sources(lexed, &mut source_storage.syntax_trees)
         })?;
+        let contract_custody = source_storage.toolchain_contract_custody();
         let discovered = discover_imports_with_packages(
             &parsed,
             &source_storage.syntax_trees,
             package_inputs,
             Some(package),
             &mut source_storage.resolved_imports,
+            &contract_custody,
         )?;
         imports.enqueue(discovered)?;
         extend_source_storage(source_storage, parsed)?;
@@ -345,7 +347,9 @@ fn load_pending_imports(
     while imports.has_pending() {
         let frontier = imports.take_frontier();
         let frontier = match package_inputs {
-            Some(package_inputs) => validate_package_source_frontier(frontier, package_inputs)?,
+            Some(package_inputs) => {
+                validate_package_source_frontier(frontier, package_inputs, source_storage)?
+            }
             None => frontier,
         };
         let first_source_id = source_storage.next_source_id();
@@ -356,6 +360,7 @@ fn load_pending_imports(
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
             parse_sources(lexed, &mut source_storage.syntax_trees)
         })?;
+        let contract_custody = source_storage.toolchain_contract_custody();
         let discovered_imports = match package_inputs {
             Some(package_inputs) => discover_imports_with_packages(
                 &parsed,
@@ -363,6 +368,7 @@ fn load_pending_imports(
                 package_inputs,
                 None,
                 &mut source_storage.resolved_imports,
+                &contract_custody,
             )?,
             None => discover_imports(
                 &parsed,
@@ -379,9 +385,109 @@ fn load_pending_imports(
     Ok(())
 }
 
+/// One seeded hosted physical entry contract: the contract file, the root its
+/// authored imports close inside, and whether that root is a closed toolchain
+/// subtree. The bundled fallback owns an entire closed subtree so its
+/// transitive `use` closure keeps toolchain custody; a reconciled package
+/// supplier only loans the contract file itself, whose ordinary imports still
+/// resolve through that package's custody.
+pub(super) struct HostedEntryContractSeed {
+    pub(super) source: PathBuf,
+    pub(super) root: PathBuf,
+    pub(super) closed_subtree: bool,
+}
+
+/// The hosted physical entry contract is closed toolchain-owned target
+/// definition, never an authored dependency: the selected profile's contract
+/// package must join compilation even when no authored `use` names it. The
+/// seed defers until after authored imports resolve so an explicitly imported
+/// contract copy keeps its own package custody and accepted-binding
+/// requirement. Freestanding (`ProgramStorageApplication`) profiles keep
+/// authored-import semantics and are never seeded.
+fn hosted_entry_contract_seed(
+    target_name: Option<&str>,
+    package_inputs: Option<&PackageCompilationInputs>,
+    source_storage: &SourceStorage,
+) -> Option<HostedEntryContractSeed> {
+    // Targetless checking owns no exact profile: `from_omega_target_name`
+    // would resolve `None` to the host and silently seed platform content.
+    let target_name = target_name?;
+    let profile = target::TargetProfile::from_omega_target_name(Some(target_name)).ok()?;
+    let slot = profile.program_entry_slot();
+    if slot.schema != target::ProgramEntrySchema::HostedApplication {
+        return None;
+    }
+    let contract_package = slot.physical_contract_package?;
+    let relative_source = contract_package.package_relative_source();
+    let already_loaded = source_storage
+        .files
+        .iter()
+        .any(|(_, file)| file.path.ends_with(relative_source));
+    if already_loaded {
+        return None;
+    }
+    match package_inputs {
+        // Standalone custody is the byte-exact bundled toolchain contract.
+        None => {
+            let contract_root = crate::pipeline::frontend::bundled_omega_root().join("std");
+            Some(HostedEntryContractSeed {
+                source: contract_root.join(relative_source),
+                root: contract_root,
+                closed_subtree: true,
+            })
+        }
+        // Package-aware compilation loads the contract from inside the
+        // reconciled dependency closure so the file clears the package
+        // source frontier; registration then asserts the same toolchain
+        // custody the bundled arm replays byte-exact. A consumer's accepted
+        // binding names the supplying package when more than one qualifies.
+        // When no package in the closure carries the contract and no accepted
+        // binding claims a supplier, the bundled toolchain copy is the same
+        // closed target definition the slot vocabulary already names.
+        Some(inputs) => {
+            let accepted_role = crate::pipeline::build_config::program_entry_semantic_binding_role(
+                contract_package,
+            );
+            let accepted_package = inputs
+                .accepted_semantic_binding(accepted_role)
+                .map(|binding| binding.package());
+            let mut suppliers = inputs
+                .packages()
+                .filter(|(_, root)| root.join(relative_source).is_file())
+                .collect::<Vec<_>>();
+            suppliers.sort_by_key(|(identity, _)| *identity);
+            let supplier = match suppliers.as_slice() {
+                [single] => Some(*single),
+                _ => suppliers
+                    .iter()
+                    .find(|(identity, _)| Some(*identity) == accepted_package)
+                    .copied(),
+            };
+            supplier
+                .map(|(_, root)| HostedEntryContractSeed {
+                    source: root.join(relative_source),
+                    root: root.to_path_buf(),
+                    closed_subtree: false,
+                })
+                .or_else(|| {
+                    (suppliers.is_empty() && accepted_package.is_none()).then(|| {
+                        let contract_root =
+                            crate::pipeline::frontend::bundled_omega_root().join("std");
+                        HostedEntryContractSeed {
+                            source: contract_root.join(relative_source),
+                            root: contract_root,
+                            closed_subtree: true,
+                        }
+                    })
+                })
+        }
+    }
+}
+
 fn validate_package_source_frontier(
     frontier: Vec<PathBuf>,
     package_inputs: &PackageCompilationInputs,
+    source_storage: &SourceStorage,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
     let toolchain_root = crate::pipeline::frontend::bundled_core_root();
     let mut validated = Vec::with_capacity(frontier.len());
@@ -398,7 +504,9 @@ fn validate_package_source_frontier(
                 continue;
             }
         };
-        if canonical.starts_with(&toolchain_root) {
+        if canonical.starts_with(&toolchain_root)
+            || source_storage.is_toolchain_contract_source(&canonical)
+        {
             validated.push(canonical);
             continue;
         }
