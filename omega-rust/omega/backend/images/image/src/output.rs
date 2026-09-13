@@ -9,7 +9,10 @@ macro_rules! image_evidence_digest {
         pub struct $name([u8; 32]);
 
         impl $name {
-            pub(crate) const fn from_digest(digest: [u8; 32]) -> Self {
+            /// Reconstruct the strong digest carried by checked custody
+            /// evidence so an independent receiver can recompute the same
+            /// commitment without the producing image.
+            pub const fn from_digest(digest: [u8; 32]) -> Self {
                 Self(digest)
             }
 

@@ -142,6 +142,9 @@ pub(crate) fn compile_project(arguments: CompileArguments) {
                     println!("optimizer rollback: {receipt}");
                 }
                 println!("published native output to {}", path.display());
+                for pair in published.pcc_publications() {
+                    println!("published {pair}");
+                }
             }
             Err(error) => {
                 eprintln!("{error}");

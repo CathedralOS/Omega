@@ -398,6 +398,7 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "program-entry-plan",
+ "proof-admission",
  "semantic-vocabulary",
  "sha2",
  "target",

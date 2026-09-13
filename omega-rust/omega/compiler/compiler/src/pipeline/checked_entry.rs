@@ -25,6 +25,7 @@ pub struct CheckedCompilation {
     source_file_count: usize,
     subsystem: u16,
     application_intent: Option<build_evaluation::HostedApplicationIntent>,
+    pcc_requests: build_evaluation::PccRequests,
     package_subject: Option<package_compilation::PackageCompilationSubject>,
     resolved_semantic_bindings: Vec<selected_dispatch::ResolvedAcceptedSemanticBinding>,
     base_source_consumption_commitment: Option<super::PackageSourceConsumptionCommitment>,
@@ -71,6 +72,7 @@ impl PartialEq for CheckedCompilation {
             && self.source_file_count == other.source_file_count
             && self.subsystem == other.subsystem
             && self.application_intent == other.application_intent
+            && self.pcc_requests == other.pcc_requests
             && self.package_subject == other.package_subject
             && self.resolved_semantic_bindings == other.resolved_semantic_bindings
             && self.base_source_consumption_commitment == other.base_source_consumption_commitment
@@ -133,6 +135,12 @@ impl CheckedCompilation {
     /// Exact image subsystem selected by the owning build configuration.
     pub const fn subsystem(&self) -> u16 {
         self.subsystem
+    }
+
+    /// The two independent optional proof-product requests retained from the
+    /// authoritative build machine. Off by default; they never change checking.
+    pub const fn pcc_requests(&self) -> build_evaluation::PccRequests {
+        self.pcc_requests
     }
 
     /// Reconciled root package identity for package-aware compilation.
@@ -1342,6 +1350,7 @@ fn compile_assembled_checked_child(
         source_file_count,
         subsystem,
         application_intent,
+        pcc_requests: build_config.pcc,
         package_subject,
         resolved_semantic_bindings: selected_execution_settlement.resolved_semantic_bindings,
         base_source_consumption_commitment: package_authority_verdict

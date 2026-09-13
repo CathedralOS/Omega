@@ -3170,8 +3170,9 @@ fn final_image_symbol_authority_binds_exact_entry_and_data_rows() {
     let publication = std::fs::read_to_string(&publication_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", publication_path.display()));
     assert!(
-        publication
-            .contains("digest.update(artifact.image().final_image_symbol_digest().as_bytes());"),
+        publication.contains("artifact.image().final_image_symbol_digest()")
+            && publication.contains("final_image_symbol_digest: image::FinalImageSymbolDigest",)
+            && publication.contains("digest.update(final_image_symbol_digest.as_bytes());"),
         "native publication certificates must bind the exact final-image symbol evidence",
     );
 }

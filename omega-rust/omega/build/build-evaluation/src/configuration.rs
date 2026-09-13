@@ -45,6 +45,32 @@ pub struct BuildConfig {
     /// machine. The binding names an exact source machine; no entry discovery
     /// or naming convention participates once a binding is present.
     pub root_bindings: Vec<RootBinding>,
+    /// Optional proof-carrying product requests
+    /// (wiki/spec/proofs/publication.md). Both flags are independent and
+    /// default to false; they request adjacent `.proof` sidecars beside the
+    /// ordinary artifacts and never weaken ordinary checking or select a
+    /// different pipeline.
+    pub pcc: PccRequests,
+}
+
+/// The two independent optional proof-product selections retained from
+/// normalized Build. Each requests the matching artifact/`.proof` companion
+/// pair at publication; neither grants receiving authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PccRequests {
+    /// Publish the Psi artifact beside a `.proof` companion. A Psi request
+    /// retains the Psi artifact even during source-to-native compilation.
+    pub psi: bool,
+    /// Publish the native artifact beside a standalone `.proof` companion.
+    /// A stop that excludes native production cannot satisfy this request.
+    pub native: bool,
+}
+
+impl PccRequests {
+    /// True when either optional proof product was requested.
+    pub const fn any(self) -> bool {
+        self.psi || self.native
+    }
 }
 
 /// Portable presentation requested by the authored Console or Gui case.
@@ -69,6 +95,7 @@ impl Default for BuildConfig {
             opaque_representation_selections: Vec::new(),
             wire_compatibility_demands: Vec::new(),
             root_bindings: Vec::new(),
+            pcc: PccRequests::default(),
         }
     }
 }
@@ -191,6 +218,30 @@ pub(super) fn extract_build_config(
         other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
     };
 
+    // An authored Build that predates the PCC surface carries no `pcc`
+    // field; omission means false for both independent requests.
+    let pcc = match field("pcc") {
+        Ok(BuildTimeValue::Struct { fields, .. }) => {
+            let flag = |name: &str| -> Result<bool, String> {
+                match fields
+                    .iter()
+                    .find(|(field, _)| field == name)
+                    .map(|(_, value)| value)
+                {
+                    Some(BuildTimeValue::Bool(value)) => Ok(*value),
+                    Some(other) => Err(format!("Build.pcc.{name} is not a bool: {other:?}")),
+                    None => Ok(false),
+                }
+            };
+            PccRequests {
+                psi: flag("psi")?,
+                native: flag("native")?,
+            }
+        }
+        Ok(other) => return Err(format!("Build.pcc is not a Pcc struct: {other:?}")),
+        Err(_) => PccRequests::default(),
+    };
+
     let (optimizations, optimization_report) = optimization_admission.extract(build)?;
 
     Ok((
@@ -205,6 +256,7 @@ pub(super) fn extract_build_config(
             opaque_representation_selections: Vec::new(),
             wire_compatibility_demands: Vec::new(),
             root_bindings: Vec::new(),
+            pcc,
         },
         optimization_report,
     ))

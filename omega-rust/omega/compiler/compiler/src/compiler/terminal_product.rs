@@ -11,6 +11,7 @@ pub(super) fn compile_report(
     profile: &proof_admission::AdmissionProfile,
     rollback: &crate::OptimizationRollback,
 ) -> Result<crate::CompileReport, Vec<Diagnostic>> {
+    let pcc_requests = checked.pcc_requests();
     let production_subject = crate::pipeline::reporting::project_production_subject(&checked)?;
     let source_file_count = checked.source_file_count();
     let rollback = rollback.settle(checked.optimization_selections());
@@ -22,6 +23,7 @@ pub(super) fn compile_report(
         production_subject,
     )
     .and_then(|report| report.with_terminal_optimization_rollback(rollback.into_receipt()))
+    .map(|report| report.with_pcc_context(pcc_requests, profile.clone()))
     .map_err(|message| vec![Diagnostic::error(message)])
 }
 
