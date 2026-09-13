@@ -150,12 +150,6 @@ pub(super) fn validate_type_constraints_node(
                     )));
                     continue;
                 }
-                if !primitive_type.accepts_integer_literal() && !end_inclusive {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{owner} uses an exclusive floating range; strict floating range evidence is not yet implemented",
-                    )));
-                    continue;
-                }
                 match (
                     crate::closed_integer_range_bound(program, *minimum),
                     crate::closed_integer_range_maximum(program, *maximum, *end_inclusive),
@@ -169,9 +163,9 @@ pub(super) fn validate_type_constraints_node(
                     // read, a call): the range would silently behave UNBOUNDED --
                     // every store "passes" a constraint the declaration claims.
                     // Constant expressions (`[0 - 1..=40]`) fold above; anything
-                    // else is rejected rather than lied about. FLOAT ranges keep
-                    // their own literal path (the proof side reads them as
-                    // FloatRange), so they are exempt here.
+                    // else is rejected rather than lied about. FLOAT ranges use
+                    // their own literal proof path, so integer endpoint
+                    // evaluation does not decide their validity here.
                     //
                     // EXCEPTION (R1a, dependent ranges): a STATE PARAMETER may
                     // carry a literal minimum with a `self.<field> [+/- k]`
