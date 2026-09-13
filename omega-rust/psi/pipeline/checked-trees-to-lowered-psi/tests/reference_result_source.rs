@@ -60,6 +60,37 @@ fn reference_result_composes_with_an_ordinary_call_before_return() {
 }
 
 #[test]
+fn stored_reference_result_still_requires_terminal_custody() {
+    let source = "data View { body: &mut i32; }
+        machine make_view(value: &mut i32) -> View { View { body: value } }
+        machine replace(value: &mut i32) { value = 29; }
+        machine exercise(value: &mut i32) -> i32 {
+            let held: View = make_view(value);
+            replace(held.body);
+            value
+        }";
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(source))
+        .unwrap_or_else(|diagnostics| panic!("stored-reference checking: {diagnostics:#?}"));
+    // Source forwarding is legal, but type correctness must not substitute for
+    // the missing aggregate leaf transfers in independently verified Terminal.
+    // Replace this fence with execute(&artifact, 1) when those transfers exist.
+    let error = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_artifact()
+        .expect_err("stored-reference transport still needs a real Terminal producer");
+    assert!(
+        matches!(
+            error,
+            terminal_production::TerminalArtifactProductionError::Lowering(
+                checked_trees_to_lowered_psi::LoweringError::Unsupported(
+                    "machine has no source-independent checked scalar control plan"
+                )
+            )
+        ),
+        "{error:?}"
+    );
+}
+
+#[test]
 fn reference_result_rejects_conflicting_access_before_last_use() {
     let program = typed(
         "machine relay(value: &mut i32) -> &mut i32 { value }

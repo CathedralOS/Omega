@@ -115,7 +115,10 @@ fn expression_type(
         .then_some(reference)
 }
 
-fn has_retained_builtin_index_meaning(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+pub(crate) fn has_retained_builtin_index_meaning(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
     use typed_trees::{AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget};
 

@@ -649,7 +649,10 @@ fn declared_reference_access(
     }
 }
 
-/// Forward only the actual current-state binding's declared access.
+/// Forward the selected reference permission, not the mutability of its slot.
+/// An owned aggregate can carry an exclusive reference without a mutable local
+/// binding. Every enclosing reference still limits access: reading that same
+/// leaf through a shared aggregate cannot recover its exclusive permission.
 fn argument_forwards_mutable_reference(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -660,7 +663,25 @@ fn argument_forwards_mutable_reference(
     let Some(state) = current_state else {
         return false;
     };
-    let ExpressionNode::Name(path) = program.expression_table.expression(argument) else {
+    if !crate::places::place_has_builtin_coordinates(
+        program,
+        current_machine,
+        current_state,
+        argument,
+    ) {
+        return false;
+    }
+    let mut root = argument;
+    loop {
+        let receiver = match program.expression_table.expression(root) {
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Indexed(indexed) => indexed.collection,
+            ExpressionNode::Name(_) => break,
+            _ => return false,
+        };
+        root = receiver;
+    }
+    let ExpressionNode::Name(path) = program.expression_table.expression(root) else {
         return false;
     };
     let [name] = program.expression_table.name_path_members(path.members) else {
@@ -669,16 +690,22 @@ fn argument_forwards_mutable_reference(
     if path.head_symbol != path.symbol {
         return false;
     }
-    crate::locals::state_binding_type(
+    let Some(binding_type) = crate::locals::state_binding_type(
         program,
         current_machine,
         state,
         writable_roots.statements,
         path.symbol,
         name.as_str(),
+    ) else {
+        return false;
+    };
+    crate::expression_types::place_forwards_mutable_reference(
+        program,
+        argument,
+        path.symbol,
+        binding_type,
     )
-    .and_then(|reference| declared_reference_access(program, reference))
-        == Some(language_semantics::ReferenceAccess::Mutable)
 }
 
 pub(crate) fn resolved_call_result_type(
@@ -856,13 +883,9 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
         // A mutable owned binding can replace its private value; only the
         // declared reference access grants mutation of caller storage.
         if expected_access == Some(language_semantics::ReferenceAccess::Mutable) && !is_mutable {
-            // Not spelled `&mut ...`. The only legitimate remaining shape is
-            // a FORWARD: a bare name that is itself already a `&mut`
-            // reference (a `&mut` parameter passed onward, or a local bound
-            // to a `&mut` borrow). Anything else lends IMMUTABLE access to a
-            // parameter that may write through it -- the borrow-safety hole
-            // this arm used to skip silently (the unenforced write segfaulted
-            // natively).
+            // A bare or projected stored reference can forward its existing
+            // permission. Owned scalar storage and mutability of a binding
+            // alone cannot supply a borrow; enclosing access still applies.
             if !argument_forwards_mutable_reference(
                 program,
                 current_machine,
@@ -878,8 +901,8 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
                     target_name,
                     program.display_type_reference_with_constraints(parameter.type_reference),
                 )));
+                continue;
             }
-            continue;
         }
 
         if expected_access == Some(language_semantics::ReferenceAccess::Shared)

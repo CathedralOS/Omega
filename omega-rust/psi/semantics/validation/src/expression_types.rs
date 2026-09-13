@@ -21,6 +21,7 @@ pub use match_dispatch::validate_match_dispatch;
 pub use match_dispatch::{fresh_payloadless_case, is_fresh_payloadless_structural_value};
 pub use result_type::expression_result_type_reference;
 mod reference_values;
+pub(crate) use reference_values::place_forwards_mutable_reference;
 mod result_type;
 mod shape_validation;
 mod value_classification;
@@ -118,14 +119,23 @@ pub fn argument_matches_type_reference_handle(
                     && program.normalized_type_identity(*actual_referee) == program.normalized_type_identity(*referee));
     }
 
-    if matches!(
-        program.expression_table.expression(argument),
-        ExpressionNode::Member(_)
-    ) && matches!(
-        program.type_reference_table.type_reference(type_reference),
-        TypeReferenceNode::Reference { .. }
-    ) {
-        return reference_values::member_matches_reference(program, argument, type_reference);
+    // An element projection selects a stored value; a range constructs a view
+    // and retains the existing slice-matching path below.
+    let selects_stored_value = match program.expression_table.expression(argument) {
+        ExpressionNode::Member(_) => true,
+        ExpressionNode::Indexed(indexed) => !matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Range(_)
+        ),
+        _ => false,
+    };
+    if selects_stored_value
+        && matches!(
+            program.type_reference_table.type_reference(type_reference),
+            TypeReferenceNode::Reference { .. }
+        )
+    {
+        return reference_values::projected_matches_reference(program, argument, type_reference);
     }
 
     // A reference already stored in a named parameter/local is a value of its

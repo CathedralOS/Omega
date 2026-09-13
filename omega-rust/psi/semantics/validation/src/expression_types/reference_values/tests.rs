@@ -39,7 +39,7 @@ fn generic_array_views_compare_selected_elements_not_the_data_telescope() {
         "data Box<Element> { values: [Element; 2]; } machine inspect<Value>(value: Box<Value>, expected: &[Value]) { value.values; }",
     );
     let expression = member(&program, "value.values");
-    assert!(member_matches_reference(
+    assert!(projected_matches_reference(
         &program,
         expression,
         expected(&program)
@@ -63,7 +63,7 @@ fn generic_array_views_compare_selected_elements_not_the_data_telescope() {
             lifetime: None,
         });
     assert!(
-        !member_matches_reference(&program, expression, wrong),
+        !projected_matches_reference(&program, expression, wrong),
         "the data declaration's Element is not the caller's Value"
     );
 }
@@ -116,7 +116,7 @@ fn substituted_reference_field_attenuates_mutable_only_to_shared() {
             .type_reference_table
             .substitute_node(receiver, receiver_node);
         assert_eq!(
-            member_matches_reference(
+            projected_matches_reference(
                 &program,
                 member(&program, "value.value"),
                 expected(&program)
@@ -132,11 +132,171 @@ fn repeated_generic_telescope_projection_remains_explicitly_unsupported() {
         "data Box<Element> { value: Element; } machine inspect<Value>(value: Box<Box<Value>>, expected: &Value) { value.value.value; }",
     );
     assert!(
-        !member_matches_reference(
+        !projected_matches_reference(
             &program,
             member(&program, "value.value.value"),
             expected(&program)
         ),
         "re-entry needs scoped argument views, not an overwritten flat binding"
     );
+}
+
+#[test]
+fn indexed_reference_leaf_requires_builtin_meaning_and_exact_referee() {
+    for (operator, accepted) in [
+        ("", true),
+        (
+            "operator [] Indexing::index(values: &[u8; 2], index: u64) -> u8;",
+            true,
+        ),
+        (
+            "boundary operator [] Indexing::index(values: &[View], index: u64) -> View;",
+            false,
+        ),
+    ] {
+        let program = typed(&format!(
+            "data View {{ body: &mut i32; }} data Indexing {{}} {operator}
+             machine inspect(values: [View; 1], index: u64, expected: &mut i32) {{ values[index].body; }}"
+        ));
+        let expression = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, node)| matches!(node, ExpressionNode::Member(_)).then_some(handle))
+            .expect("indexed member");
+        assert_eq!(
+            projected_matches_reference(&program, expression, expected(&program)),
+            accepted,
+            "{operator}"
+        );
+    }
+    let mut program = typed(
+        "machine inspect(values: [u32; 1], index: u64, expected: &mut i32) { values[index]; }",
+    );
+    let array = program.state_parameters(&program.machine_states(&program.machines()[0])[0])[0]
+        .type_reference;
+    let mut array_node = program.type_reference_table.type_reference(array).clone();
+    let TypeReferenceNode::FixedArray { element_type, .. } = &mut array_node else {
+        panic!("array");
+    };
+    *element_type = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: *element_type,
+            access: ReferenceAccess::Mutable,
+            lifetime: None,
+        });
+    program
+        .type_reference_table
+        .substitute_node(array, array_node);
+    let expression = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| matches!(node, ExpressionNode::Indexed(_)).then_some(handle))
+        .expect("index");
+    assert!(!projected_matches_reference(
+        &program,
+        expression,
+        expected(&program)
+    ));
+}
+
+#[test]
+fn forwarding_checks_prefix_permissions_separately_from_leaf_type() {
+    for (prefix, accepted) in [
+        ("View", true),
+        ("&mut View", true),
+        ("&View", false),
+        ("&write View", false),
+    ] {
+        let program = typed(&format!(
+            "data View {{ body: &mut i32; }} machine inspect(value: {prefix}, expected: &mut i32) {{ value.body; }}"
+        ));
+        let expression = member(&program, "value.body");
+        let parameters =
+            program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+        let root = parameters
+            .iter()
+            .find(|parameter| parameter.name.as_str() == "value")
+            .expect("root");
+        assert!(
+            projected_matches_reference(&program, expression, expected(&program)),
+            "type alone does not authorize forwarding"
+        );
+        assert_eq!(
+            place_forwards_mutable_reference(
+                &program,
+                expression,
+                root.symbol,
+                root.type_reference
+            ),
+            accepted,
+            "{prefix}"
+        );
+        let foreign_root = parameters
+            .iter()
+            .find(|parameter| parameter.name.as_str() == "expected")
+            .expect("foreign root");
+        assert!(!place_forwards_mutable_reference(
+            &program,
+            expression,
+            foreign_root.symbol,
+            root.type_reference
+        ));
+    }
+}
+
+#[test]
+fn selected_field_rejects_foreign_nominal_member_identity() {
+    let mut program = typed(
+        "data View { body: &mut i32; } data Other { body: &mut i32; }
+         machine inspect(value: View, expected: &mut i32) { value.body; }",
+    );
+    let expression = member(&program, "value.body");
+    let foreign_symbol = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Other")
+        .and_then(|data| {
+            program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees::data::DataMember::Field(field) => Some(field.symbol),
+                    _ => None,
+                })
+        })
+        .expect("foreign field");
+    let mut forged = program.expression_table.expression(expression).clone();
+    let ExpressionNode::Member(member) = &mut forged else {
+        panic!("member");
+    };
+    member.member_symbol = foreign_symbol;
+    let forged = program.expression_table.insert(forged);
+    assert!(!projected_matches_reference(
+        &program,
+        forged,
+        expected(&program)
+    ));
+}
+
+#[test]
+fn generic_index_cannot_select_builtin_meaning_from_unsubstituted_elements() {
+    let program = typed(
+        "data View { body: &mut i32; } data Box<Element> { values: [Element; 1]; }
+         operator [] index(values: &[View], index: u64) -> View;
+         machine inspect(boxed: Box<View>, index: u64, expected: &mut i32) { boxed.values[index].body; }",
+    );
+    let expression = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            matches!(node, ExpressionNode::Member(member) if member.member.as_str() == "body")
+                .then_some(handle)
+        })
+        .expect("indexed body");
+    assert!(!projected_matches_reference(
+        &program,
+        expression,
+        expected(&program)
+    ));
 }
