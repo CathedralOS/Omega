@@ -25,7 +25,7 @@ src/
 │   ├── request.rs      validate transport, locator, revision, and endpoint
 │   ├── cache/          create, verify, repair, and invalidate retained stores
 │   ├── executable/     freeze operator-selected Git before package input
-│   ├── commands/       construct and run bounded Git commands
+│   ├── git_command.rs  run bounded Git commands; owns policy and capture
 │   ├── objects/        verify commit/tree/blob object graphs and identities
 │   │   └── batch/         bounded transfer, exact protocol, and request custody
 │   ├── resolution/     acquire, verify, materialize, and issue custody
@@ -38,6 +38,11 @@ src/
 
 Native process lifecycle, concrete resource limits, and bounded duplex capture
 live in [`bounded-process`](../../../tooling/bounded-process/README.md).
+`git/git_command.rs` owns the launch sequence for ordinary calls, blob batches,
+and exact-object probes. Callers supply arguments, stdin, and stdout bounds;
+the owner applies command policy, counts the launch, bounds capture, and checks
+the shared resolution budget. Batch callers retain protocol interpretation and
+cache custody. A failed Git exit never becomes an object-absence response.
 The peer [`execution/`](../execution/README.md) crate owns resolver-specific
 executable and phase/root preparation. Acquisition retains no executable identity,
 command/completion provenance, platform-guarantee row, or fetch receipt.

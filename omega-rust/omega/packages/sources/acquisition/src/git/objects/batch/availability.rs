@@ -9,17 +9,12 @@ mod tests;
 use super::PendingGitBatchRequest;
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::commands::capture::{
-    ResolverCommandInput, run_command_bounded_with_stdin_and_budget,
-};
-use crate::git::commands::command::sealed_git_command;
-use crate::git::commands::reconciliation::{
-    reconcile_git_cache_operation_result, reconcile_git_command_result,
-};
 use crate::git::executable::executor::GitExecutor;
+use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
+use crate::git::git_command::{GitCommandCapture, run_git_output};
 use crate::git::objects::identity::{git_object_algorithm, git_object_invalid};
-use crate::limits::GIT_STDERR_LIMIT;
 use crate::tree::filesystem::io_error;
+use bounded_process::BoundedProcessInput;
 use resolver_execution::ResolverExecutionPhase;
 use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
@@ -101,24 +96,17 @@ fn execute(
     oid: &str,
     request: File,
 ) -> Result<ExactGitObjectAvailability, SourceResolveError> {
-    let mut command = sealed_git_command(
+    let output = run_git_output(
         executor,
         repository.path(),
         ResolverExecutionPhase::RepositoryInspection,
+        ["cat-file", "--batch-check"],
+        GitCommandCapture {
+            operation: OPERATION,
+            input: BoundedProcessInput::File(request),
+            stdout_limit: MAXIMUM_RESPONSE_BYTES,
+        },
     )?;
-    let deadline = executor.begin_launch()?;
-    command.args(["cat-file", "--batch-check"]);
-    let result = run_command_bounded_with_stdin_and_budget(
-        command,
-        ResolverCommandInput::File(request),
-        OPERATION,
-        MAXIMUM_RESPONSE_BYTES,
-        GIT_STDERR_LIMIT,
-        deadline.duration(),
-        executor.captured_output_budget.clone(),
-    )
-    .map_err(|error| deadline.project_error(error));
-    let output = reconcile_git_command_result(result, executor.verify_budget())?;
     let availability = protocol::response(
         oid,
         output.status.success(),

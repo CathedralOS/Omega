@@ -1,6 +1,5 @@
 //! Bounded command execution and request lifecycle orchestration.
 
-use std::ffi::OsStr;
 use std::fs::File;
 #[cfg(test)]
 use std::fs::OpenOptions;
@@ -13,19 +12,15 @@ use resolver_execution::ResolverExecutionPhase;
 
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::commands::capture::{
-    ResolverCommandInput, run_command_bounded_with_stdin_and_budget,
-};
-use crate::git::commands::command::sealed_git_command;
-use crate::git::commands::reconciliation::{
-    reconcile_git_cache_operation_result, reconcile_git_command_result,
-};
 use crate::git::executable::executor::GitExecutor;
+use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
+use crate::git::git_command::{GitCommandCapture, run_git_output};
 use crate::git::objects::{GitTreeEntry, GitTreeEntryKind};
+use crate::limits::LocalSourceLimits;
 #[cfg(test)]
 use crate::limits::STAGING_SEQUENCE;
-use crate::limits::{GIT_STDERR_LIMIT, LocalSourceLimits};
 use crate::tree::filesystem::io_error;
+use bounded_process::BoundedProcessInput;
 
 #[cfg(test)]
 use super::custody::TemporaryFileGuard;
@@ -145,24 +140,17 @@ fn execute_git_blob_batch(
     entries: &mut [GitTreeEntry],
     stdout_limit: usize,
 ) -> Result<(), SourceResolveError> {
-    let mut command = sealed_git_command(
+    let output = run_git_output(
         executor,
         repository,
         ResolverExecutionPhase::RepositoryInspection,
+        ["cat-file", "--batch"],
+        GitCommandCapture {
+            operation: "cat-file --batch",
+            input: BoundedProcessInput::File(request),
+            stdout_limit,
+        },
     )?;
-    let deadline = executor.begin_launch()?;
-    command.args([OsStr::new("cat-file"), OsStr::new("--batch")]);
-    let result = run_command_bounded_with_stdin_and_budget(
-        command,
-        ResolverCommandInput::File(request),
-        "cat-file --batch",
-        stdout_limit,
-        GIT_STDERR_LIMIT,
-        deadline.duration(),
-        executor.captured_output_budget.clone(),
-    )
-    .map_err(|error| deadline.project_error(error));
-    let output = reconcile_git_command_result(result, executor.verify_budget())?;
     if !output.status.success() {
         return Err(SourceResolveError::Git {
             operation: "cat-file --batch".to_owned(),

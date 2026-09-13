@@ -8,15 +8,7 @@ use bounded_process::{
     run_bounded_process,
 };
 use resolver_execution::ResolverPreparedExecution;
-use std::fs::File;
 use std::time::Duration;
-
-pub(crate) type BoundedCommandOutput = BoundedProcessOutput;
-
-pub(crate) enum ResolverCommandInput {
-    Null,
-    File(File),
-}
 
 #[cfg(test)]
 pub(crate) fn run_command_bounded(
@@ -25,7 +17,7 @@ pub(crate) fn run_command_bounded(
     stdout_limit: usize,
     stderr_limit: usize,
     timeout: Duration,
-) -> Result<BoundedCommandOutput, SourceResolveError> {
+) -> Result<BoundedProcessOutput, SourceResolveError> {
     run_command_bounded_with_budget(
         command,
         operation,
@@ -36,6 +28,7 @@ pub(crate) fn run_command_bounded(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn run_command_bounded_with_budget(
     command: ResolverPreparedExecution,
     operation: &str,
@@ -43,10 +36,10 @@ pub(crate) fn run_command_bounded_with_budget(
     stderr_limit: usize,
     timeout: Duration,
     captured_output_budget: GitCapturedOutputBudget,
-) -> Result<BoundedCommandOutput, SourceResolveError> {
-    run_command_bounded_with_stdin_and_budget(
+) -> Result<BoundedProcessOutput, SourceResolveError> {
+    run_command_capture(
         command,
-        ResolverCommandInput::Null,
+        BoundedProcessInput::Null,
         operation,
         stdout_limit,
         stderr_limit,
@@ -55,15 +48,15 @@ pub(crate) fn run_command_bounded_with_budget(
     )
 }
 
-pub(crate) fn run_command_bounded_with_stdin_and_budget(
+pub(super) fn run_command_capture(
     command: ResolverPreparedExecution,
-    input: ResolverCommandInput,
+    input: BoundedProcessInput,
     operation: &str,
     stdout_limit: usize,
     stderr_limit: usize,
     timeout: Duration,
     captured_output_budget: GitCapturedOutputBudget,
-) -> Result<BoundedCommandOutput, SourceResolveError> {
+) -> Result<BoundedProcessOutput, SourceResolveError> {
     let limits = BoundedCaptureLimits::new(
         stdout_limit,
         stderr_limit,
@@ -71,10 +64,6 @@ pub(crate) fn run_command_bounded_with_stdin_and_budget(
         GIT_COMMAND_CLEANUP_TIMEOUT,
         PROCESS_POLL_INTERVAL,
     );
-    let input = match input {
-        ResolverCommandInput::Null => BoundedProcessInput::Null,
-        ResolverCommandInput::File(file) => BoundedProcessInput::File(file),
-    };
     run_bounded_process(command, input, limits, captured_output_budget)
         .map_err(|error| project_error(operation, error))
 }

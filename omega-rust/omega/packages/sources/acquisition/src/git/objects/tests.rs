@@ -2,8 +2,8 @@ use super::{
     authentication::*, batch::*, identity::*, inspection::*, model::*, projection::*, tree::*,
 };
 use crate::error::SourceResolveError;
-use crate::git::commands::invocation::*;
 use crate::git::executable::executor::test_system_git_executor;
+use crate::git::git_command::*;
 use crate::git::request::GitExecutionTransport;
 use crate::git::snapshot::preflight_git_snapshot;
 use crate::identity::GitObjectIdAlgorithm;
