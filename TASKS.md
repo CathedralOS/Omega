@@ -1598,16 +1598,29 @@ Owners include
   path; canonical template identity encodes the kind distinctly (`V`, tag 5),
   review-evidence codecs carry `Value` as tag 4 in both public and review
   signature records, and conformance/callable-kind matching pairs `Value`
-  only with `Value`. A runtime argument rejects in monomorphization's
-  authored-argument validation with "dynamic realization of value generic
-  arguments is not yet supported", pinned by
-  `tests/omega/pass/generics/value_generic_static_specialization` and
-  `tests/omega/fail/generics/value_generic_runtime_argument`. Next
-  acceptance: the one-body dynamic realization — admit a runtime value
-  argument into a `Value` binder by carrying it as an ordinary runtime
-  subject through checked facts, lowered Psi and Terminal production, so one
-  dynamic machine body serves distinct runtime counts without per-value code
-  generation.
+  only with `Value`. The monomorphization slice landed at `b81c62f6fcb`
+  (macOS x86-64): a single-segment machine argument naming a caller local
+  or parameter resolves against exact lexical scope (state parameters,
+  then preceding let declarations, nearest match) in
+  `syntax-trees-to-symbol-resolved-trees`, so authored StaticArgument
+  selections finalize. Candidate/call-selection state carries
+  `runtime_value_bindings` beside the static tuple; the specialization
+  stays keyed on the static carrier, gains a trailing ordinary parameter
+  per runtime-bound `Value` slot in telescope order, and each call site
+  appends the caller's exact subject as a regular argument, including
+  forwarded subjects through nested generic callers. Static applications
+  keep const substitution and share one template with runtime
+  applications; `const` binders still reject runtime inputs; a
+  runtime-bound slot in a static type/layout/index/contract/const
+  position rejects explicitly. Gates: 27 monomorphization tests (6 new
+  `runtime_value_tests`), 469 symbol-resolution/typed-lowering tests,
+  `tests/omega/pass/generics/value_generic_runtime_argument` plus the
+  `const_generic_runtime_argument` and
+  `value_generic_runtime_static_bound` rejections. Next acceptance:
+  interpreter/native replay retaining the same captured subject through
+  lowered Psi and Terminal production (reassigned sources,
+  equality-guarded proofs, indexed scalar fields), then module-owned
+  forms.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Implement
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
