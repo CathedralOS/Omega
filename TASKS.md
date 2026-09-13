@@ -1029,9 +1029,12 @@ Owners include
   Terminal Psi.
 
 - **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete [representation agreement](wiki/spec/build/opaque_representations.md) at
-  independently compiled by-value exchanges. Rejoin consumer demands to exact
-  producer opaque/conformance/carrier declarations and immutable source;
-  enforce strong selected-application equality at actual exchanges. Finish
+  independently compiled by-value exchanges. Dependency-first review compilation
+  now rejoins each consumer's actual foreign opaque uses to the producer review's
+  own declaration and opaque/conformance/carrier availability rows
+  (`PackagePolicyRepresentation::rejoin_foreign_demands`); remaining: join those
+  rows to the producer's immutable source instance and enforce strong
+  selected-application equality at actual exchanges. Finish
   physical movement and lifecycle planning, including transitive
   inert-carrier proof and multiplicity checks. Equal size/alignment or compact
   fingerprints cannot establish agreement.
