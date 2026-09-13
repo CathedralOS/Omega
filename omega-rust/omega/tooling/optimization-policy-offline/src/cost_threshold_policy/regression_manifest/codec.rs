@@ -6,7 +6,7 @@ use crate::{
 use super::{
     identity::OfflinePolicyRegressionManifestIdentity, model::OfflinePolicyRegressionManifest,
 };
-use crate::reference_policy::codec::{Cursor, decode_summary, encode_summary};
+use crate::cost_threshold_policy::codec::{Cursor, decode_summary, encode_summary};
 
 const MAGIC: &[u8; 8] = b"OMGORM\0\0";
 const VERSION: u32 = 1;

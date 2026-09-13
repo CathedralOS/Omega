@@ -5,6 +5,14 @@ decisions. It does not run the compiler, an external model, or another process.
 The public [optimization contract](../../../../wiki/spec/build/optimizations.md)
 separates policy ranking from semantic and publication authority.
 
+Start at [cost_threshold_policy.rs](src/cost_threshold_policy.rs) for the library:
+it fits and replays the trained model, then validates, evaluates, and replays a
+held-out report. [training.rs](src/cost_threshold_policy/training.rs) and
+[evaluation.rs](src/cost_threshold_policy/evaluation.rs) own the algorithms;
+their `replay.rs` children independently check the results. The
+[CLI entrypoint](src/bin/optimization-policy-offline/main.rs) owns command dispatch,
+input loading, and output publication through its command handlers.
+
 ## Commands
 
 From the repository root on Windows or macOS, use
@@ -38,7 +46,7 @@ identity-bound recorded-action label. Whole source identities are partitioned
 deterministically into training, evaluation, and regression; downstream tools
 must not create a second feature schema or split individual records across them.
 
-[CostThresholdV1](src/reference_policy/mod.rs) fits one signed threshold against
+[CostThresholdV1](src/cost_threshold_policy.rs) fits one signed threshold against
 recorded-action agreement. Inference chooses the canonical minimum legal
 candidate below that threshold or the supported model-free skip. Independent
 replay checks training and evaluation, binding algorithm, split, model, and
@@ -46,7 +54,7 @@ report identities through strict codecs. Confusion counts, exact chosen-candidat
 agreement, and the checked-i128 sum of selected predicted costs measure label
 agreement, not runtime, size, compile-time, or semantic quality.
 
-The [regression manifest](src/reference_policy/regression_manifest/mod.rs)
+The [regression manifest](src/cost_threshold_policy/regression_manifest.rs)
 binds corpus, model, algorithm, regression split, expected report, and complete
 exact summary. Validation recomputes the report before comparing any expected
 field. Neither its receipt nor a successful corpus/model check grants optimizer

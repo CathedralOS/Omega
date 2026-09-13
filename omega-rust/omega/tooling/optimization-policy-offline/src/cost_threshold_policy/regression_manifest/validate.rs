@@ -1,9 +1,9 @@
 use crate::{OfflinePolicySplit, ValidatedOfflinePolicyCorpus};
 
 use super::{identity, model::OfflinePolicyRegressionManifest};
-use crate::reference_policy::{
+use crate::cost_threshold_policy::{
     CostThresholdV1Model, OfflinePolicyReferenceError, cost_threshold_v1_algorithm_identity,
-    evaluation, offline_policy_split_identity,
+    evaluate_cost_threshold_v1, offline_policy_split_identity,
 };
 
 pub(super) fn validate(
@@ -27,7 +27,7 @@ pub(super) fn validate(
     {
         return Err(OfflinePolicyReferenceError::WrongRegressionSplit);
     }
-    let report = evaluation::evaluate(corpus, model, OfflinePolicySplit::Regression)?;
+    let report = evaluate_cost_threshold_v1(corpus, model, OfflinePolicySplit::Regression)?;
     if manifest.expected_report != report.identity() {
         return Err(OfflinePolicyReferenceError::RegressionReportMismatch);
     }

@@ -1,8 +1,12 @@
+//! Predict a held-out split and summarize agreement with its recorded decisions.
+
+pub(super) mod replay;
+
 use optimization_core::ExternalDecisionAction;
 
 use crate::{OfflinePolicyDecisionExample, OfflinePolicySplit, ValidatedOfflinePolicyCorpus};
 
-use super::super::{
+use super::{
     identity::{OfflinePolicyReportIdentity, offline_policy_split_identity, report_identity},
     inference::predict,
     model::{
@@ -11,7 +15,17 @@ use super::super::{
     },
 };
 
-pub(super) fn compute(
+/// Recheck both model custody and the complete decoded report.
+pub(super) fn validate(
+    report: &OfflinePolicyEvaluationReport,
+    corpus: &ValidatedOfflinePolicyCorpus,
+    model: &CostThresholdV1Model,
+) -> Result<(), OfflinePolicyReferenceError> {
+    super::training::replay::validate(model, corpus)?;
+    replay::validate(report, corpus, model)
+}
+
+pub(super) fn predict_split(
     corpus: &ValidatedOfflinePolicyCorpus,
     model: &CostThresholdV1Model,
     split: OfflinePolicySplit,

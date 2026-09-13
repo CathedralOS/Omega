@@ -15,7 +15,8 @@ use crate::ValidatedOfflinePolicyCorpus;
 
 use super::{CostThresholdV1Model, OfflinePolicyReferenceError};
 
-pub(super) fn create(
+/// Create a regression baseline and check it against an independently recomputed report.
+pub fn create(
     corpus: &ValidatedOfflinePolicyCorpus,
     model: &CostThresholdV1Model,
 ) -> Result<OfflinePolicyRegressionManifest, OfflinePolicyReferenceError> {
@@ -24,7 +25,8 @@ pub(super) fn create(
     Ok(manifest)
 }
 
-pub(super) fn decode(
+/// Admit an existing regression baseline without changing its expected results.
+pub fn decode(
     encoded: &[u8],
     corpus: &ValidatedOfflinePolicyCorpus,
     model: &CostThresholdV1Model,

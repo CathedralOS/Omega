@@ -11,7 +11,7 @@ use super::super::{
     training::replay::{replay_prediction, replay_summary},
 };
 
-pub(super) fn validate(
+pub(in crate::cost_threshold_policy) fn validate(
     report: &OfflinePolicyEvaluationReport,
     corpus: &ValidatedOfflinePolicyCorpus,
     model: &CostThresholdV1Model,

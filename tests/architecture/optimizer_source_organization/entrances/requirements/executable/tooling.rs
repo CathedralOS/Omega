@@ -22,19 +22,19 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn admit_external_decision_logs",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/tooling/optimization-policy-offline/src/reference_policy/mod.rs",
+        path: "omega-rust/omega/tooling/optimization-policy-offline/src/cost_threshold_policy.rs",
         coordination_marker: "pub fn train_cost_threshold_v1",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/tooling/optimization-policy-offline/src/reference_policy/training/mod.rs",
-        coordination_marker: "pub(super) fn train",
+        path: "omega-rust/omega/tooling/optimization-policy-offline/src/cost_threshold_policy/training.rs",
+        coordination_marker: "pub(super) fn fit_threshold",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/tooling/optimization-policy-offline/src/reference_policy/evaluation/mod.rs",
-        coordination_marker: "pub(super) fn evaluate",
+        path: "omega-rust/omega/tooling/optimization-policy-offline/src/cost_threshold_policy/evaluation.rs",
+        coordination_marker: "pub(super) fn predict_split",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/tooling/optimization-policy-offline/src/reference_policy/regression_manifest/mod.rs",
-        coordination_marker: "pub(super) fn create",
+        path: "omega-rust/omega/tooling/optimization-policy-offline/src/cost_threshold_policy/regression_manifest.rs",
+        coordination_marker: "pub fn create",
     },
 ];

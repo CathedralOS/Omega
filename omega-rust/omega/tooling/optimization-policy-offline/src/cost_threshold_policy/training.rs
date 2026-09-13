@@ -1,8 +1,12 @@
+//! Fit the deterministic threshold against recorded training decisions.
+
+pub(super) mod replay;
+
 use optimization_core::ExternalDecisionAction;
 
 use crate::{OfflinePolicyDecisionExample, OfflinePolicySplit, ValidatedOfflinePolicyCorpus};
 
-use super::super::{
+use super::{
     identity::{
         OfflinePolicyModelIdentity, cost_threshold_v1_algorithm_identity, model_identity,
         offline_policy_split_identity,
@@ -14,7 +18,7 @@ use super::super::{
     },
 };
 
-pub(super) fn compute(
+pub(super) fn fit_threshold(
     corpus: &ValidatedOfflinePolicyCorpus,
 ) -> Result<CostThresholdV1Model, OfflinePolicyReferenceError> {
     let examples = corpus
