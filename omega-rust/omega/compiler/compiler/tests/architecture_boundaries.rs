@@ -568,7 +568,7 @@ fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
         "checked orchestration must retain generated syntax as an explicit continuation input"
     );
     assert!(
-        checked_entry.contains("pre_check.evaluate_extension(&muttyped"),
+        checked_entry.contains("pre_check.evaluate_extension_or_defer(&muttyped"),
         "each generated unit must consume its matching post-typing continuation"
     );
     assert!(

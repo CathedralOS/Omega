@@ -235,7 +235,9 @@ impl FilesystemMetadataLayout {
                 (FilesystemMetadataField::Blocks512, 64, 64),
                 (FilesystemMetadataField::PreferredBlockSize, 56, 32),
             ]
-        } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        } else if cfg!(target_os = "macos") {
+            // Darwin's LP64 `struct stat` is arch-independent: x86_64 and
+            // aarch64 share this layout and the same 144-byte record.
             vec![
                 (FilesystemMetadataField::Device, 0, 32),
                 (FilesystemMetadataField::Mode, 4, 16),
