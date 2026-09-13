@@ -92,6 +92,7 @@ mod entry;
 mod imports;
 mod layout;
 mod load_commands;
+mod loader_mapping;
 mod plan;
 mod rebases;
 #[cfg(test)]
@@ -111,6 +112,7 @@ use load_commands::{
     write_macho_load_dylinker_command, write_macho_main_command, write_macho_pagezero_segment,
     write_macho_uuid_command,
 };
+pub use loader_mapping::validate_macho_aarch64_loader_mapping;
 use plan::plan_macho_image;
 use rebases::macho_rebase_info;
 
@@ -205,6 +207,14 @@ pub fn emit_macho_aarch64_executable(
     let code_signature = macho_ad_hoc_code_signature(&bytes, plan.text_file_size);
     debug_assert_eq!(code_signature.len(), plan.code_signature_size);
     bytes.extend(code_signature);
+
+    validate_macho_aarch64_loader_mapping(
+        &bytes,
+        layout,
+        &image.memory.text,
+        &image.memory.data,
+        image.memory.bss_size,
+    )?;
 
     Ok(ExecutableImageOutput {
         final_image_layout: layout,

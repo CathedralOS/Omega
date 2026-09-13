@@ -95,20 +95,23 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   --no-fail-fast -E 'test(entry_and_abi::hosted_receiver)'` executes a canonical
   Bound receiver with retained scalar mutation (`A`, exit 0) and distinct process
   exit (`A`, exit 37), and rejects missing establishment and corrupted object
-  binding. This establishes execution feasibility, not native admission closure
-  or unchanged Squalr acceptance. Keep the bridge checkpoint unpublished while
-  the actual loader/root occurrence is absent. Its selected source, physical
-  contract, service rows and geometry do not supply installed authority.
+  binding. This establishes execution feasibility, not complete bridge checking
+  or unchanged Squalr acceptance. Keep the bridge checkpoint unpublished until
+  its conditional loader/bridge obligations are independently checked.
 
-  Next implement the actual macOS loader/provider connection, not another
-  metadata ledger: admit loaded code and RW/NX zero-fill backing under one
-  occurrence, then derive the receiver/private-stack/continuation partitions and
-  activation loan. `image-emission/src/installed_artifact.rs` deliberately
-  excludes BSS from its compiler-section projection, so its current
-  `bind_installed_artifact` join cannot establish this backing. Reuse
-  `executable-installation` and `external-roots` admission/epoch custody, but do
-  not construct provider authority from compiler-authored facts. Existing
-  `install_validated` callers are tests, not a connected macOS loader provider.
+  `image-macho/src/loader_mapping.rs` independently checks pre-fixup segment
+  mapping, retained file payloads and zero-fill backing during ordinary image
+  replay; it does not establish the dynamic fixup or receiver-grant obligations.
+  Next retain the exact target loader/bootstrap premises and prove that, for
+  each conforming future process installation, loaded code and RW/NX zero-fill
+  backing share that occurrence and the receiver/private-stack/continuation
+  partitions and activation loan are valid. Loader bind/rebase writes must not
+  escape their admitted destinations or invalidate zero initialization. The
+  [native product contract](wiki/spec/build/component_publication.md#products-and-authority)
+  does not require a live `InstalledCode` or Rust supervisor before compiling
+  an ordinary executable. Actual installation/epoch custody remains necessary
+  for an installed-runnable claim; a conditional image check cannot create it.
+  Do not route artifact production through a fabricated runtime ledger.
   This is implementation work under the entry and
   [service binding contract](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md#service-bindings),
   not an unanswered language decision.
@@ -646,8 +649,10 @@ Owners include
   For macOS, use loader-backed RW/NX zero-fill storage with explicit disjoint
   receiver, private-stack and saved-continuation ranges. Switch stacks before
   any generated spill or call, and restore the physical continuation without
-  touching its suspended stack. Bind the actual loader correspondence and
-  installed occurrence; compose final application/bridge/provider demand and
+  touching its suspended stack. Prove loader correspondence and occurrence-local
+  partitioning under the exact target loading contract; actual occurrence custody
+  belongs to installation, not compilation of the ordinary native product.
+  Compose final application/bridge/provider demand and
   any admitted signal/callback occupancy. Neither `LC_MAIN.stacksize` nor an
   unexplained reserve proves remaining arrival-stack capacity. These target
   implementation choices are engineering work under the settled entry contract,
