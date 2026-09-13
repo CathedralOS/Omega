@@ -63,6 +63,7 @@ fn keys() -> SelectedConstraintKeys {
         subtract_i64_immediate: instruction(8),
         compare_i64_zero: instruction(5),
         compare_i64: instruction(15),
+        compare_i64_immediate: instruction(17),
         conditional_branch: instruction(6),
         jump: instruction(16),
         return_float: Vec::new(),

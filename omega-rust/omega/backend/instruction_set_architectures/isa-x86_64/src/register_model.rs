@@ -341,6 +341,12 @@ pub const X86_64_COMPARE_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 8,
 };
+/// One-input i64 comparison against the encoded unsigned immediate. The
+/// operand is read and RFLAGS is defined, matching `cmp r64, imm32`.
+pub const X86_64_COMPARE_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 10,
+};
 
 /// Unconditional relative control without a condition-register dependency.
 pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
@@ -354,7 +360,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 59] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 60] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -463,6 +469,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 59] = [
     X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_COMPARE_I64,
     X86_64_JUMP,
+    X86_64_COMPARE_I64_IMMEDIATE,
     X86_64_LOAD64,
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,
@@ -1035,6 +1042,14 @@ pub fn x86_64_register_constraint_catalog(
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
             ],
+            implicit_uses: Vec::new(),
+            implicit_defs: view("rflags").units.clone(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(19),
+            key: X86_64_COMPARE_I64_IMMEDIATE,
+            operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
             implicit_uses: Vec::new(),
             implicit_defs: view("rflags").units.clone(),
             clobbers: Vec::new(),

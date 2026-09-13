@@ -127,6 +127,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
         SelectedInstructionKind::ReturnUnit => 9,
         SelectedInstructionKind::CompareI64 => 10,
+        SelectedInstructionKind::CompareI64Immediate { .. } => 53,
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
         SelectedInstructionKind::CallScalar { .. } => 12,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
@@ -183,6 +184,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::HostedWriteByteI32 { slot }
         | SelectedInstructionKind::HostedReadByte { slot } => slot.encode_identity(bytes),
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
+        SelectedInstructionKind::CompareI64Immediate { immediate } => {
+            encode_integer(bytes, immediate)
+        }
         SelectedInstructionKind::ExactAddI64 {
             obligation,
             accepted_fact,
@@ -385,6 +389,9 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         },
         9 => SelectedInstructionKind::ReturnUnit,
         10 => SelectedInstructionKind::CompareI64,
+        53 => SelectedInstructionKind::CompareI64Immediate {
+            immediate: decode_integer(cursor)?,
+        },
         11 => SelectedInstructionKind::ConditionalBranchU64LessThan,
         12 => SelectedInstructionKind::CallScalar {
             callee: decode_id(cursor, MachineId::new)?,

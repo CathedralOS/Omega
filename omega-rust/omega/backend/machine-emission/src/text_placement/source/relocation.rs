@@ -119,6 +119,7 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::Store64
                 | MachineAlternativeFamily::FrameAddress
                 | MachineAlternativeFamily::CompareI64
+                | MachineAlternativeFamily::CompareI64Immediate
                 | MachineAlternativeFamily::MaterializeI64
                 | MachineAlternativeFamily::CopyI64
                 | MachineAlternativeFamily::BitwiseAndI64

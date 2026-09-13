@@ -554,6 +554,9 @@ fn family_and_operand_count(
 ) -> Result<(MachineAlternativeFamily, usize), Aarch64SelectedFormEncodingError> {
     Ok(match kind {
         SelectedInstructionKind::CompareI64Zero => (MachineAlternativeFamily::CompareI64Zero, 1),
+        SelectedInstructionKind::CompareI64Immediate { .. } => {
+            (MachineAlternativeFamily::CompareI64Immediate, 1)
+        }
         SelectedInstructionKind::CompareI64 => (MachineAlternativeFamily::CompareI64, 2),
         SelectedInstructionKind::MaterializeI64 { .. } => {
             (MachineAlternativeFamily::MaterializeI64, 1)
@@ -770,6 +773,12 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::CompareI64Zero => {
             words.push(0xf100_001f | (u32::from(registers[0]) << 5));
+        }
+        SelectedInstructionKind::CompareI64Immediate { immediate } => {
+            // `cmp xN, #imm12` is `subs xzr, xN, #imm12` with LSL #0.
+            words.push(
+                0xf100_001f | (u32::from(u12(immediate)?) << 10) | (u32::from(registers[0]) << 5),
+            );
         }
         SelectedInstructionKind::CompareI64 => {
             words.push(
@@ -995,6 +1004,10 @@ enum DecodedWord {
     CompareZero {
         source: u8,
     },
+    CompareImmediate {
+        source: u8,
+        immediate: u16,
+    },
     Compare {
         left: u8,
         right: u8,
@@ -1114,6 +1127,12 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
     if word & 0xffff_fc1f == 0xf100_001f {
         return Ok(DecodedWord::CompareZero {
             source: ((word >> 5) & 0x1f) as u8,
+        });
+    }
+    if word & 0xffc0_001f == 0xf100_001f {
+        return Ok(DecodedWord::CompareImmediate {
+            source: ((word >> 5) & 0x1f) as u8,
+            immediate: ((word >> 10) & 0xfff) as u16,
         });
     }
     if word & 0xffe0_fc1f == 0xeb00_001f {
@@ -1251,6 +1270,23 @@ fn validate_decoded(
             decoded
                 == [DecodedWord::CompareZero {
                     source: registers[0],
+                }]
+        }
+        SelectedInstructionKind::CompareI64Immediate { immediate } => {
+            let immediate = u12(immediate)?;
+            // `subs xzr, xN, #0` is the shared machine form: the decoder
+            // reports it as `CompareZero`, so a zero immediate validates
+            // through that canonical word.
+            decoded
+                == [if immediate == 0 {
+                    DecodedWord::CompareZero {
+                        source: registers[0],
+                    }
+                } else {
+                    DecodedWord::CompareImmediate {
+                        source: registers[0],
+                        immediate,
+                    }
                 }]
         }
         SelectedInstructionKind::CompareI64 => {
@@ -1453,7 +1489,8 @@ fn footprint(
         | SelectedInstructionKind::SignExtendI16
         | SelectedInstructionKind::SignExtendI32
         | SelectedInstructionKind::ZeroExtendU32 => (vec![operands[0]], vec![operands[1]], false),
-        SelectedInstructionKind::CompareI64Zero => (vec![operands[0]], vec![], true),
+        SelectedInstructionKind::CompareI64Zero
+        | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![operands[0]], vec![], true),
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
         SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::BitwiseAndI64
@@ -1554,6 +1591,7 @@ fn footprint(
                 | SelectedInstructionKind::SignExtendI32
                 | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::CompareI64Zero
+                | SelectedInstructionKind::CompareI64Immediate { .. }
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
                 SelectedInstructionKind::CompareI64 => vec![0, 1],
@@ -1586,6 +1624,7 @@ fn footprint(
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64Zero => vec![],
+                SelectedInstructionKind::CompareI64Immediate { .. } => vec![],
                 SelectedInstructionKind::CompareI64 => vec![],
                 _ => unreachable!("control forms handled separately"),
             },
@@ -2228,6 +2267,83 @@ mod tests {
         assert!(compare.footprint().register_writes.is_empty());
         assert!(compare.footprint().writes_nzcv);
         assert_eq!(compare.footprint().encoded.external_operand_reads, [0, 1]);
+    }
+
+    #[test]
+    fn compare_i64_immediate_is_subs_xzr_imm12_with_exact_footprint() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let x3 = physical.model().view_named("x3").unwrap().id;
+        let x12 = physical.model().view_named("x12").unwrap().id;
+        let alternative = alternative(MachineAlternativeFamily::CompareI64Immediate);
+        for (operand, immediate, expected) in [
+            (x3, 5, [0x7f, 0x14, 0x00, 0xf1]),
+            (x3, 4095, [0x7f, 0xfc, 0x3f, 0xf1]),
+            (x12, 4095, [0x9f, 0xfd, 0x3f, 0xf1]),
+        ] {
+            let kind = SelectedInstructionKind::CompareI64Immediate {
+                immediate: IntegerValue::Unsigned(immediate),
+            };
+            let encoded =
+                encode_aarch64_selected_form(&physical, kind, alternative, &[operand]).unwrap();
+            assert_eq!(encoded.bytes(), expected);
+            assert_eq!(encoded.footprint().register_reads, [operand]);
+            assert!(encoded.footprint().register_writes.is_empty());
+            assert!(encoded.footprint().writes_nzcv);
+            assert_eq!(encoded.footprint().encoded.external_operand_reads, [0]);
+            assert!(
+                encoded
+                    .footprint()
+                    .encoded
+                    .external_operand_writes
+                    .is_empty()
+            );
+            assert!(!encoded.footprint().encoded.implicit_unit_defs.is_empty());
+            assert!(
+                validate_aarch64_selected_form_encoding(
+                    &physical,
+                    kind,
+                    alternative,
+                    &[operand],
+                    encoded.bytes()
+                )
+                .is_ok()
+            );
+            for mask in [1_u32, 1 << 5, 1 << 10, 1 << 22, 1 << 30] {
+                let word = u32::from_le_bytes(encoded.bytes().try_into().unwrap());
+                let corrupted = (word ^ mask).to_le_bytes();
+                assert!(
+                    validate_aarch64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        alternative,
+                        &[operand],
+                        &corrupted
+                    )
+                    .is_err()
+                );
+            }
+        }
+        // `subs xzr, xN, #0` decodes as the shared `CompareZero` word; the
+        // zero immediate still validates for this kind.
+        let zero = SelectedInstructionKind::CompareI64Immediate {
+            immediate: IntegerValue::Unsigned(0),
+        };
+        let encoded = encode_aarch64_selected_form(&physical, zero, alternative, &[x3]).unwrap();
+        assert_eq!(encoded.bytes(), [0x7f, 0x00, 0x00, 0xf1]);
+        assert!(
+            validate_aarch64_selected_form_encoding(
+                &physical,
+                zero,
+                alternative,
+                &[x3],
+                encoded.bytes()
+            )
+            .is_ok()
+        );
+        for immediate in [IntegerValue::Unsigned(4096), IntegerValue::Signed(-1)] {
+            let kind = SelectedInstructionKind::CompareI64Immediate { immediate };
+            assert!(encode_aarch64_selected_form(&physical, kind, alternative, &[x3]).is_err());
+        }
     }
 
     #[test]

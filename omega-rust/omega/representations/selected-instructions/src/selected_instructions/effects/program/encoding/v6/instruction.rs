@@ -209,6 +209,9 @@ fn decode_kind(
         },
         9 => SelectedInstructionKind::ReturnUnit,
         10 => SelectedInstructionKind::CompareI64,
+        53 => SelectedInstructionKind::CompareI64Immediate {
+            immediate: decode_integer(cursor)?,
+        },
         11 => SelectedInstructionKind::ConditionalBranchU64LessThan,
         12 if allow_i64_less_than => SelectedInstructionKind::ConditionalBranchI64LessThan,
         14 if allow_jump => SelectedInstructionKind::Jump,
@@ -382,6 +385,7 @@ fn decode_alternative_for_version(
         8 => MachineAlternativeFamily::ExactSubtractI64Immediate,
         9 => MachineAlternativeFamily::ReturnUnit,
         10 => MachineAlternativeFamily::CompareI64,
+        53 => MachineAlternativeFamily::CompareI64Immediate,
         11 => MachineAlternativeFamily::ConditionalBranchU64LessThan,
         12 if allow_i64_less_than => MachineAlternativeFamily::ConditionalBranchI64LessThan,
         13 if allow_scalar_call => MachineAlternativeFamily::CallScalar,

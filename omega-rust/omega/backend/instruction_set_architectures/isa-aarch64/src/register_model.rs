@@ -260,6 +260,12 @@ pub const AARCH64_COMPARE_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 8,
 };
+/// One-input i64 comparison against the encoded U12 immediate. The operand is
+/// read and NZCV is defined, matching `subs xzr, xN, #imm12`.
+pub const AARCH64_COMPARE_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 18,
+};
 
 /// Unconditional relative control without a condition-register dependency.
 pub const AARCH64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
@@ -326,7 +332,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 76] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 77] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -494,6 +500,7 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 76] = [
     AARCH64_STORE,
     AARCH64_ADDRESS_OFFSET,
     AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32,
+    AARCH64_COMPARE_I64_IMMEDIATE,
     AARCH64_FLOAT32_TO_BITS,
     AARCH64_FLOAT64_TO_BITS,
     AARCH64_BITS_TO_FLOAT32,
@@ -1109,6 +1116,14 @@ pub fn aarch64_register_constraint_catalog(
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
             ],
+            implicit_uses: Vec::new(),
+            implicit_defs: view("nzcv").units.clone(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(18),
+            key: AARCH64_COMPARE_I64_IMMEDIATE,
+            operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
             implicit_uses: Vec::new(),
             implicit_defs: view("nzcv").units.clone(),
             clobbers: Vec::new(),

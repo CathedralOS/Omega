@@ -52,6 +52,7 @@ pub enum MachineSemanticKind {
     ReturnScalar,
     ReturnUnit,
     CompareI64,
+    CompareI64Immediate,
     ConditionalBranchU64LessThan,
     ConditionalBranchI64LessThan,
     CallScalar,
@@ -79,7 +80,7 @@ pub enum MachineSemanticKind {
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 53] = [
+    pub const ALL: [Self; 54] = [
         Self::BitwiseAndI64,
         Self::BitwiseXorI64,
         Self::CallAggregate,
@@ -109,6 +110,7 @@ impl MachineSemanticKind {
         Self::ReturnScalar,
         Self::ReturnUnit,
         Self::CompareI64,
+        Self::CompareI64Immediate,
         Self::ConditionalBranchU64LessThan,
         Self::ConditionalBranchI64LessThan,
         Self::CallScalar,
@@ -167,6 +169,7 @@ pub enum MachineAlternativeFamily {
     ReturnScalar,
     ReturnUnit,
     CompareI64,
+    CompareI64Immediate,
     ConditionalBranchU64LessThan,
     ConditionalBranchI64LessThan,
     CallScalar,
@@ -230,6 +233,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ReturnScalar => Self::ReturnScalar,
             MachineSemanticKind::ReturnUnit => Self::ReturnUnit,
             MachineSemanticKind::CompareI64 => Self::CompareI64,
+            MachineSemanticKind::CompareI64Immediate => Self::CompareI64Immediate,
             MachineSemanticKind::ConditionalBranchU64LessThan => Self::ConditionalBranchU64LessThan,
             MachineSemanticKind::ConditionalBranchI64LessThan => Self::ConditionalBranchI64LessThan,
             MachineSemanticKind::CallScalar => Self::CallScalar,
