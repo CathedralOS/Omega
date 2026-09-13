@@ -7,7 +7,7 @@ use crate::pipeline::source::{ImportQueue, SourceStorage};
 use crate::pipeline::stage::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use crate::pipeline::timing::CompileTimings;
 use diagnostics::Diagnostic;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
@@ -100,7 +100,7 @@ pub(super) fn retain_generated_syntax_extension(
     let mut units = Vec::with_capacity(generated_sources.len());
     let mut retained = Vec::with_capacity(generated_sources.len());
     // Included paths have already been validated by staged-output custody.
-    // Retain their owners while collision checks borrow paths from both strata.
+    // Retain their owners while collision checks borrow generated paths.
     let logical_paths = generated_sources
         .iter()
         .map(|generated| {
@@ -114,17 +114,36 @@ pub(super) fn retain_generated_syntax_extension(
             logical_path
         })
         .collect::<Vec<_>>();
-    let collisions = if logical_paths.is_empty() {
-        Vec::new()
-    } else {
-        let mut loaded_paths = base_sources
-            .files()
-            .map(|existing| existing.path.as_path())
-            .collect::<HashSet<_>>();
-        logical_paths
-            .iter()
-            .map(|path| !loaded_paths.insert(path.as_path()))
-            .collect::<Vec<_>>()
+    let collisions = match logical_paths.as_slice() {
+        [] => Vec::new(),
+        [logical_path] => vec![
+            base_sources
+                .files()
+                .any(|existing| existing.path == *logical_path),
+        ],
+        _ => {
+            // Index only the requested extension, not every retained base file.
+            // Later duplicates are already collisions; base matches need mark
+            // only the first authored occurrence of each generated path.
+            let mut generated_positions = HashMap::with_capacity(logical_paths.len());
+            let mut collisions = vec![false; logical_paths.len()];
+            for (position, logical_path) in logical_paths.iter().enumerate() {
+                match generated_positions.entry(logical_path.as_path()) {
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        entry.insert(position);
+                    }
+                    std::collections::hash_map::Entry::Occupied(_) => {
+                        collisions[position] = true;
+                    }
+                }
+            }
+            for existing in base_sources.files() {
+                if let Some(&position) = generated_positions.get(existing.path.as_path()) {
+                    collisions[position] = true;
+                }
+            }
+            collisions
+        }
     };
     for ((generated, logical_path), collides) in
         generated_sources.iter().zip(logical_paths).zip(collisions)
@@ -702,6 +721,104 @@ mod tests {
             .expect("explicit generated source selection")
             .pop()
             .expect("one selected source")
+    }
+
+    fn generated_collision_base(root: &Path, count: usize) -> Arc<source::SourceMap> {
+        let mut sources = source::SourceMap::default();
+        for position in 0..count {
+            sources.add(
+                root.join(format!(".omega/generated/base-{position}.omg")),
+                String::new(),
+            );
+        }
+        Arc::new(sources)
+    }
+
+    #[test]
+    fn generated_source_collisions_empty_extension_preserves_large_base() {
+        let root = Path::new("collision-package");
+        let base = generated_collision_base(root, 1024);
+        let extension = retain_generated_syntax_extension(&base, root, None, &[])
+            .expect("empty extension does not introduce a collision");
+        assert!(extension.units.is_empty());
+        assert!(extension.generated_source_custody.is_empty());
+        assert_eq!(extension.sources.as_ref(), base.as_ref());
+    }
+
+    #[test]
+    fn generated_source_collisions_singleton_checks_large_base_and_appends_new_path() {
+        let root = Path::new("collision-package");
+        let base = generated_collision_base(root, 1024);
+        for path in ["base-0.omg", "base-1023.omg"] {
+            let generated = [generated_source(path.as_bytes(), b"data Generated {}")];
+            let diagnostics = retain_generated_syntax_extension(&base, root, None, &generated)
+                .err()
+                .expect("singleton must check both ends of the base");
+            assert!(diagnostics[0].message.contains(path));
+            assert!(
+                diagnostics[0]
+                    .message
+                    .contains("collides with an existing source")
+            );
+        }
+        let generated = [generated_source(b"new.omg", b"data Generated {}")];
+        let extension = retain_generated_syntax_extension(&base, root, None, &generated)
+            .expect("singleton absent from the base remains a new source");
+        assert_eq!(extension.units.len(), 1);
+        assert_eq!(extension.units[0].source_id, source::SourceId(1024));
+        assert_eq!(extension.sources.len(), 1025);
+        assert_eq!(base.len(), 1024);
+    }
+
+    #[test]
+    fn generated_source_collisions_many_new_paths_preserve_order_after_large_base() {
+        let root = Path::new("collision-package");
+        let base = generated_collision_base(root, 1024);
+        let generated = (0..64)
+            .rev()
+            .map(|position| {
+                generated_source(
+                    format!("new-{position}.omg").as_bytes(),
+                    b"data Generated {}",
+                )
+            })
+            .collect::<Vec<_>>();
+        let extension = retain_generated_syntax_extension(&base, root, None, &generated)
+            .expect("all new paths append in authored rather than lookup order");
+        assert_eq!(extension.units.len(), 64);
+        assert_eq!(extension.sources.len(), 1088);
+        for (position, unit) in extension.units.iter().enumerate() {
+            assert_eq!(unit.source_id, source::SourceId(1024 + position));
+            assert_eq!(
+                unit.path,
+                generated_source_logical_path(root, &generated[position]).unwrap()
+            );
+            assert_eq!(
+                extension.generated_source_custody[position].1,
+                generated[position]
+            );
+        }
+        assert_eq!(base.len(), 1024);
+    }
+
+    #[test]
+    fn generated_source_collisions_batch_reports_authored_order_not_base_order() {
+        let root = Path::new("collision-package");
+        let base = generated_collision_base(root, 1024);
+        let generated = [
+            generated_source(b"base-1023.omg", b"data First {}"),
+            generated_source(b"base-0.omg", b"data Second {}"),
+            generated_source(b"base-1023.omg", b"data Duplicate {}"),
+        ];
+        let diagnostics = retain_generated_syntax_extension(&base, root, None, &generated)
+            .err()
+            .expect("first generated occurrence collides even when base scan encounters it last");
+        assert!(diagnostics[0].message.contains("base-1023.omg"));
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("collides with an existing source")
+        );
     }
 
     #[test]
