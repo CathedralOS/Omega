@@ -19,6 +19,11 @@
 //! witness the required shift. A step ceiling bounds normalization so resource
 //! refusal is a typed error, never a false judgment.
 //!
+//! [`certificate`] is the first bridge from an untrusted producer to this
+//! checker: a `MathematicalCertificate` is one complete judgment `Γ ⊢ t : T`
+//! carried as data, and `verify_mathematical_certificate` re-decides it in
+//! full. Its canonical wire form lives in `terminal-codec`.
+//!
 //! Pair formation mirrors the predicative Π rule's level maximum but gates
 //! the strict layer on *both* components: a pair carrying relevant data is
 //! never a subsingleton, while a conjunction of propositions stays a
@@ -35,6 +40,7 @@
 //! by the type and never deletes an untyped `x ↦ f x` shape. Level
 //! variables and universe-polymorphic declarations remain separate steps.
 
+mod certificate;
 mod conversion;
 mod substitution;
 mod term;
@@ -42,6 +48,7 @@ mod term;
 mod tests;
 mod typing;
 
+pub use certificate::{MathematicalCertificate, verify_mathematical_certificate};
 pub use conversion::Budget;
 pub use conversion::{DEFAULT_CONVERSION_STEPS, convertible, weak_head_normalize};
 pub use substitution::{shift, substitute};
