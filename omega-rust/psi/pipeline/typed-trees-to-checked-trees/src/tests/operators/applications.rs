@@ -646,7 +646,7 @@ fn checked_boundary_type_application_ignores_binder_renames() {
 }
 
 #[test]
-fn checked_boundary_first_cohort_rejects_open_type_applications() {
+fn checked_boundary_first_cohort_maps_direct_open_applications_symbolically() {
     let checked = checked_program_from_source(
         r#"
         data Wrapper<Element> { value: Element; }
@@ -668,12 +668,47 @@ fn checked_boundary_first_cohort_rejects_open_type_applications() {
 
     assert_eq!(checked.facts.operators.resolved_uses().count(), 2);
     assert!(checked.facts.operators.boundary_applications.is_empty());
-    assert!(
-        checked
-            .facts
-            .operators
-            .symbolic_boundary_applications
-            .is_empty()
+    let [application] = checked
+        .facts
+        .operators
+        .symbolic_boundary_applications
+        .as_slice()
+    else {
+        panic!("only the directly mapped spelled application stays symbolic")
+    };
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "compare")
+        .expect("generic producer machine");
+    assert_eq!(application.machine_symbol, machine.symbol);
+    let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { .. } =
+        application.site
+    else {
+        panic!("spelled open application keeps its expression use site")
+    };
+    let [
+        checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+            binder_owner,
+            binder_ordinal,
+            binder_symbol,
+            machine_binder_ordinal,
+            machine_binder_symbol,
+        },
+    ] = application.arguments.as_slice()
+    else {
+        panic!("one symbolic type-binder mapping")
+    };
+    assert_eq!(*binder_owner, application.requirement_symbol);
+    assert_eq!(*binder_ordinal, 0);
+    assert_eq!(
+        *binder_symbol,
+        checked.operator_type_parameters(&checked.operators()[0])[0].symbol
+    );
+    assert_eq!(*machine_binder_ordinal, 0);
+    assert_eq!(
+        *machine_binder_symbol,
+        checked.machine_type_parameters(machine)[0].symbol
     );
 }
 

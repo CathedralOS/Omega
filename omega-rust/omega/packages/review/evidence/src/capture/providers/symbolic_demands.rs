@@ -123,14 +123,11 @@ pub(crate) fn project_boundary_application_demands(
                 "symbolic boundary application use does not belong to its producer callable",
             )]);
         }
+        let use_kind =
+            symbolic_demand_authored_use_kind(compilation, expression, origin, operator)?;
         let location = canonical_source_span_location(
             compilation,
-            authored_application_source_span(
-                compilation,
-                expression,
-                selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
-                operator.symbol,
-            )?,
+            authored_application_source_span(compilation, expression, use_kind, operator.symbol)?,
             PackageReviewSourceLocationRole::BoundaryApplicationUse,
         )?;
         if location.owner != PackageReviewSourceLocationOwner::Package(package) {
@@ -174,6 +171,70 @@ pub(crate) fn project_boundary_application_demands(
         sources.push(PackageReviewCanonicalRowSource::authored(demand.locations));
     }
     Ok(ProjectedBoundaryApplicationDemands { rows, sources })
+}
+
+/// Re-derive whether one symbolic demand's use site is an authored named
+/// call or an authored spelled token, from the checked use rosters alone.
+/// The demand row itself stays site-only; exactly one exact checked use
+/// must carry the requirement at that site or the producer export fails
+/// closed.
+fn symbolic_demand_authored_use_kind(
+    compilation: &CheckedCompilation,
+    expression: typed_trees::expression::ExpressionHandle,
+    origin: checked_trees::CheckedValueOrigin,
+    operator: &typed_trees::operator::OperatorDefinition,
+) -> Result<selected_dispatch::CheckedOperatorAuthoredUseKind, Vec<Diagnostic>> {
+    let requirement = operator.symbol;
+    let mut kinds = Vec::new();
+    if compilation
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .any(|(_, operator_use)| {
+            operator_use.expression == expression
+                && operator_use.origin == origin
+                && operator_use.selected_operator_symbol == requirement
+        })
+    {
+        kinds.push(selected_dispatch::CheckedOperatorAuthoredUseKind::Named);
+    }
+    kinds.extend(
+        compilation
+            .facts
+            .operators
+            .uses
+            .iter()
+            .filter_map(|(_, operator_use)| {
+                (operator_use.expression == expression
+                    && operator_use.occurrence
+                        == checked_trees::CheckedOperatorOccurrence::Expression
+                    && operator_use.origin == origin
+                    && operator_use.selected_operator_symbol == requirement
+                    && operator_use.status
+                        == checked_trees::CheckedOperatorResolutionStatus::Resolved
+                    && operator.spelling == Some(operator_use.spelling)
+                    && compilation
+                        .facts
+                        .operators
+                        .selected_candidate(operator_use)
+                        .is_some_and(|candidate| {
+                            candidate.operator_symbol == requirement && candidate.is_boundary
+                        }))
+                .then_some(
+                    selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(
+                        operator_use.spelling,
+                    ),
+                )
+            }),
+    );
+    kinds.dedup();
+    let [kind] = kinds.as_slice() else {
+        return Err(vec![Diagnostic::error(
+            "symbolic boundary application does not rejoin exactly one exact authored use",
+        )]);
+    };
+    Ok(*kind)
 }
 
 fn demand_key(
