@@ -371,6 +371,11 @@ pub(super) fn parse_state_parameter<'tokens, 'source>(
         }
 
         let (name, input) = input.take_identifier()?;
+        // `[erased]` is spec-legal on any authored binding occurrence; the
+        // signature parameter node cannot retain relevance yet, so the
+        // bracket fails closed here rather than parsing and dropping.
+        let ((), input) =
+            crate::parser::data::parse_unsupported_binding_relevance_brackets(input, "parameter")?;
         let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
         let (type_reference, borrowed_mutable, input) =
             parse_parameter_type_reference(syntax_trees, input)?;
@@ -407,6 +412,9 @@ pub(super) fn parse_state_parameter<'tokens, 'source>(
     }
 
     let (name, input) = input.take_identifier()?;
+    // Same binding-occurrence contract as the `&name` arm above.
+    let ((), input) =
+        crate::parser::data::parse_unsupported_binding_relevance_brackets(input, "parameter")?;
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (type_reference, borrowed_mutable, input) =
         parse_parameter_type_reference(syntax_trees, input)?;

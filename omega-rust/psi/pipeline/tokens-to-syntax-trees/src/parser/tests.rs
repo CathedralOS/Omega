@@ -1283,6 +1283,69 @@ fn rejects_unknown_or_duplicate_field_relevance_properties() {
 }
 
 #[test]
+fn fences_erased_relevance_on_signature_parameters_and_locals() {
+    // `[erased]` is spec-legal on any authored binding occurrence, not only
+    // data members; signature and local binding nodes carry no relevance
+    // slot yet, so these sites admit the bracket grammar and fail closed
+    // (PROOF-RELEVANCE-MIGRATION).
+    for (source, expected) in [
+        (
+            "machine m(x [erased]: i32) {}",
+            "`[erased]` on a parameter is not implemented yet",
+        ),
+        (
+            "machine m(&x [erased]: i32) {}",
+            "`[erased]` on a parameter is not implemented yet",
+        ),
+        (
+            "machine m(const x [erased]: i32) {}",
+            "`[erased]` on a parameter is not implemented yet",
+        ),
+        (
+            "machine m(x [copy]: i32) {}",
+            "unknown parameter binding property `copy`",
+        ),
+        (
+            "machine m(x [erased, erased]: i32) {}",
+            "duplicate binding property `erased`",
+        ),
+        (
+            "data Main { v: i32; } machine Main::main(&mut self) { let x [erased]: i32 = 0; }",
+            "`[erased]` on a local is not implemented yet",
+        ),
+        (
+            "data Main { v: i32; } machine Main::main(&mut self) { let mut x [erased]: i32 = 0; }",
+            "`[erased]` on a local is not implemented yet",
+        ),
+        (
+            "data Main { v: i32; } machine Main::main(&mut self) { let x [bogus]: i32 = 0; }",
+            "unknown local binding property `bogus`",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error =
+            parse_syntax_trees(&tokens).expect_err("unsupported binding relevance must reject");
+        assert!(error.message.contains(expected), "{}", error.message);
+    }
+}
+
+#[test]
+fn empty_binding_brackets_stay_relevant_on_signature_parameters_and_locals() {
+    // Consistent with data fields, `[]` is a legal no-op binding bracket.
+    for source in [
+        "machine m(x []: i32) {}",
+        "data Main { v: i32; } machine Main::main(&mut self) { let x []: i32 = 0; }",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        parse_syntax_trees(&tokens).expect("empty binding brackets parse as relevant");
+    }
+}
+
+#[test]
 fn parses_zero_value_of_nested_generic_type_without_spacing_closes() {
     let source = r#"
         data Optional<T> {

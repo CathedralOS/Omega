@@ -556,7 +556,7 @@ fn parse_data_member<'tokens, 'source>(
         None
     };
     let (field_name, next) = input.take_identifier()?;
-    let (relevance, next) = parse_field_relevance_brackets(next)?;
+    let (relevance, next) = parse_binding_relevance_brackets(next, "data-field")?;
     input = next;
 
     if input.at_punctuation(PunctuationKind::Colon) {
@@ -696,7 +696,7 @@ fn parse_case_payload_fields<'tokens, 'source>(
             None
         };
         let (field_name, next) = input.take_identifier()?;
-        let (relevance, next) = parse_field_relevance_brackets(next)?;
+        let (relevance, next) = parse_binding_relevance_brackets(next, "data-field")?;
         input = next.take_punctuation(PunctuationKind::Colon, ":")?;
         // Case payloads may also carry borrows (decision 15 stage 2).
         let (type_reference, next) =
@@ -744,12 +744,19 @@ fn parse_case_payload_fields<'tokens, 'source>(
     Ok(((payload, retired_identities), input))
 }
 
-/// Parse the closed property set that attaches to one data-field binding.
+/// Parse the closed property set that attaches to one authored binding
+/// occurrence's name: `proof [erased]: Evidence` marks only `proof`, never
+/// `Evidence` itself.
 ///
+/// `[erased]` marks a binding occurrence, not a data-member kind
+/// (wiki/spec/proofs/contracts.md#explicit-erased-bindings), so every
+/// `name [properties]: Type` binding site shares this grammar. `site` names
+/// the binding kind in diagnostics (`data-field`, `parameter`, `local`).
 /// Binding properties are intentionally distinct from data/type properties:
-/// `proof [erased]: Evidence` marks only `proof`, never `Evidence` itself.
-pub(super) fn parse_field_relevance_brackets<'tokens, 'source>(
+/// `[copy]`/`[linear]`/`[carry(...)]` are type claims, not binding claims.
+pub(super) fn parse_binding_relevance_brackets<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    site: &str,
 ) -> ParseResult<'tokens, 'source, language_core::BindingRelevance> {
     if !input.at_punctuation(PunctuationKind::LeftBracket) {
         return Ok((language_core::BindingRelevance::Relevant, input));
@@ -771,7 +778,7 @@ pub(super) fn parse_field_relevance_brackets<'tokens, 'source>(
             }
             other => {
                 return Err(next.error_here(format!(
-                    "unknown data-field binding property `{other}`; declared binding properties are `erased`"
+                    "unknown {site} binding property `{other}`; declared binding properties are `erased`"
                 )));
             }
         }
@@ -785,6 +792,23 @@ pub(super) fn parse_field_relevance_brackets<'tokens, 'source>(
 
     let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
     Ok((relevance, input))
+}
+
+/// Parse binding brackets at a site whose binding node cannot retain
+/// `BindingRelevance` yet (signature parameters, `let` locals). Only
+/// `DataField` carries relevance today, so the marker admits the bracket
+/// grammar for uniform property diagnostics and then fails closed:
+/// parse-and-drop would silently charge runtime storage for a proof-side
+/// binding. Retire this fence once those nodes retain relevance end to end.
+pub(super) fn parse_unsupported_binding_relevance_brackets<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+    site: &str,
+) -> ParseResult<'tokens, 'source, ()> {
+    let (relevance, input) = parse_binding_relevance_brackets(input, site)?;
+    if relevance.is_erased() {
+        return Err(input.error_here(format!("`[erased]` on a {site} is not implemented yet")));
+    }
+    Ok(((), input))
 }
 
 #[derive(Default)]

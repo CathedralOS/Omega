@@ -7,6 +7,13 @@
 //! checked bodies. The full semantic tree remains intact for proofs and
 //! ownership; native lowering later strips erased literal fields from its
 //! private runtime expression graph and attached-machine storage/topology.
+//!
+//! The spec scopes `[erased]` to any authored binding occurrence, not only
+//! data members: signature parameters and `let` locals are binding
+//! occurrences too, so the parser admits the same bracket grammar there and
+//! currently fails closed — their binding nodes carry no `BindingRelevance`
+//! slot yet. Once they do, this walk needs the same runtime-use rejection
+//! for reads of those parameter and local symbols.
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
