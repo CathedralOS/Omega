@@ -908,7 +908,12 @@ pub(in crate::flow::terminal_unit) fn build(
             calls,
             discard_result_on_return: false,
         });
-        Some(result.into())
+        let mut returned: CheckedUnitStructuralReturnPlan = result.into();
+        if super::super::reference_results::is_reference_record(program, state.return_type) {
+            returned.reference_sources =
+                super::super::reference_results::returned_record_sources(program, state)?;
+        }
+        Some(returned)
     } else if let Some(binding) = returned_call {
         Some(binding.into())
     } else if let Some(result) = returned_parameter(
@@ -968,6 +973,7 @@ pub(in crate::flow::terminal_unit) fn build(
         None
     };
     if let Some(result) = &mut structural_result
+        && super::super::reference_results::parts(program, state.return_type).is_some()
         && let [reference] = result.reference_sources.as_slice()
     {
         let binding = CheckedUnitStructuralResultBindingPlan {

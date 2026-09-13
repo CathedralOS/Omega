@@ -561,6 +561,30 @@ pub fn reconstruct_structural_call_custody(
         if !result_qualifications.is_empty() || !transfers.is_empty() {
             return Err("claim-bearing structural call has no returned claim frontier");
         }
+        if crate::reference_result_custody::is_reference_record(program, destination.return_type) {
+            let Some(typed_trees::statement::StatementNode::LocalData(local)) = program
+                .statement_table
+                .statements(source_state.statement_nodes)
+                .get(call.statement_index)
+            else {
+                return Err("reference record call has no retained local destination");
+            };
+            if local.initial_value != call.authored_expression
+                || program.normalized_type_identity(local.type_reference)
+                    != program.normalized_type_identity(destination.return_type)
+                || crate::reference_result_custody::local_record_loans(
+                    program,
+                    facts,
+                    caller_machine,
+                    source_state,
+                    u32::try_from(call.statement_index)
+                        .map_err(|_| "reference record call index exceeds u32")?,
+                )
+                .is_none()
+            {
+                return Err("reference record result has no exact captured leaf loans");
+            }
+        }
         let reference_loan =
             if crate::reference_result_custody::parts(program, destination.return_type).is_some() {
                 crate::reference_result_custody::result_loan(

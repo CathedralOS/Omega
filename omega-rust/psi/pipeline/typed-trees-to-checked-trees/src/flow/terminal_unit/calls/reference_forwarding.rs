@@ -9,7 +9,7 @@ pub(super) fn preserves_mutable_referent(
     borrow_call: &checked_trees::BorrowCallFact,
     call: &checked_trees::FlowCallFact,
     source_symbol: SymbolHandle,
-    returned_loan: arena::Handle<checked_trees::BorrowLoanFact>,
+    returned_loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
 ) -> bool {
     exact_mutable_referent(
         program,
@@ -18,7 +18,7 @@ pub(super) fn preserves_mutable_referent(
         borrow_call,
         call,
         source_symbol,
-        returned_loan,
+        returned_loans,
     )
     .is_some()
 }
@@ -30,7 +30,7 @@ fn exact_mutable_referent(
     borrow_call: &checked_trees::BorrowCallFact,
     call: &checked_trees::FlowCallFact,
     source_symbol: SymbolHandle,
-    returned_loan: arena::Handle<checked_trees::BorrowLoanFact>,
+    returned_loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
 ) -> Option<()> {
     let state = crate::find_state_in_machine(
         program,
@@ -133,7 +133,7 @@ fn exact_mutable_referent(
             // The exact reconstructed result loan begins with this call's
             // successful return. It is not a preexisting descendant blocking
             // the ingress borrow that produces it. Every other live loan is.
-            handle != returned_loan
+            !returned_loans.contains(&handle)
                 && loan.statement_index <= call.statement_index
                 && loan.last_use_statement_index >= call.statement_index
                 && (loan.root_symbol == source_symbol

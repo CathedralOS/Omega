@@ -82,6 +82,11 @@ pub(crate) fn validate_cleanup(
                             result,
                             discard_result_on_return,
                             ..
+                        }
+                        | CheckedUnitEffectOperationPlan::StructuralCall {
+                            result,
+                            discard_result_on_return,
+                            ..
                         } if result.binding_ordinal == binding => {
                             Some((result, *discard_result_on_return))
                         }

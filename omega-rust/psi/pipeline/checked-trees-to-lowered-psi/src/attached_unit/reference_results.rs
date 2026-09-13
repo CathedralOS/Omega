@@ -159,15 +159,42 @@ pub(super) fn validate_consumer(
     let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
         return Ok(false);
     };
-    if let Some(CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }) = caller.operations.iter().find(|operation|
-        matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } if result.binding_ordinal == binding_ordinal)) {
-        let (machine, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
-        let Some(reference) = validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression) else { return Ok(false); };
-        if validation::reference_result_custody::parts(&checked.typed, reference).is_none() { return Ok(false); }
-        let expected = validation::reference_result_custody::record_argument(&checked.typed, &checked.facts, caller.machine, state,
-            coordinate.statement_index, expression, result, reference)
-            .ok_or(LoweringError::Unsupported("record reference consumer has no exact live source"))?;
-        if expected != *argument || argument.type_identity != parameter.type_identity || argument.access != parameter.access {
+    let (machine, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
+    let record_result = caller.operations.iter().find_map(|operation| match operation {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+        | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+            if result.binding_ordinal == binding_ordinal => Some(result),
+        _ => None,
+    }).filter(|result| {
+        matches!(checked.statement_table.statements(state.statement_nodes).get(result.statement_index as usize),
+            Some(StatementNode::LocalData(local)) if validation::reference_result_custody::is_reference_record(&checked.typed, local.type_reference))
+    });
+    if let Some(result) = record_result {
+        let Some(reference) =
+            validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression)
+        else {
+            return Ok(false);
+        };
+        if validation::reference_result_custody::parts(&checked.typed, reference).is_none() {
+            return Ok(false);
+        }
+        let expected = validation::reference_result_custody::record_argument(
+            &checked.typed,
+            &checked.facts,
+            caller.machine,
+            state,
+            coordinate.statement_index,
+            expression,
+            result,
+            reference,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "record reference consumer has no exact live source",
+        ))?;
+        if expected != *argument
+            || argument.type_identity != parameter.type_identity
+            || argument.access != parameter.access
+        {
             return unsupported("record reference consumer changed type or access");
         }
         return Ok(true);

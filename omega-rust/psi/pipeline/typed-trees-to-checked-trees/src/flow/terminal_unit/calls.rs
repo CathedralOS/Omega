@@ -1082,6 +1082,7 @@ pub(in crate::flow) fn build_call_operation(
             })
             && transfers.is_empty()
             && (reference_loan.is_valid()
+                || super::reference_results::is_reference_record(program, target_state.return_type)
                 || (matches!(
                     result.multiplicity,
                     Multiplicity::Affine | Multiplicity::Unrestricted
@@ -2628,7 +2629,7 @@ fn exact_structural_argument_access(
     place: &crate::flow::CanonicalPlace,
     target_access: CheckedStructuralAccess,
 ) -> Option<CheckedStructuralAccess> {
-    let returned_loan = crate::find_state(program, state)
+    let returned_loans = crate::find_state(program, state)
         .and_then(|source_state| {
             let StatementNode::LocalData(local) = program
                 .statement_table
@@ -2637,6 +2638,19 @@ fn exact_structural_argument_access(
             else {
                 return None;
             };
+            if super::reference_results::is_reference_record(program, local.type_reference) {
+                if call.authored_expression != local.initial_value {
+                    return None;
+                }
+                return super::reference_results::local_record_loans(
+                    program,
+                    facts,
+                    machine,
+                    source_state,
+                    u32::try_from(call.statement_index).ok()?,
+                )
+                .map(|loans| loans.into_iter().map(|(_, loan)| loan).collect::<Vec<_>>());
+            }
             let result = CheckedUnitStructuralResultBindingPlan {
                 statement_index: u32::try_from(call.statement_index).ok()?,
                 binding_ordinal: 0,
@@ -2653,8 +2667,9 @@ fn exact_structural_argument_access(
                 call,
                 &result,
             )
+            .map(|loan| vec![loan])
         })
-        .unwrap_or_else(arena::Handle::invalid);
+        .unwrap_or_default();
     exact_structural_borrow_access(
         program,
         &facts.borrow,
@@ -2663,7 +2678,7 @@ fn exact_structural_argument_access(
         call,
         place,
         target_access,
-        returned_loan,
+        &returned_loans,
     )
 }
 
@@ -2675,7 +2690,7 @@ fn exact_structural_borrow_access(
     call: &checked_trees::FlowCallFact,
     place: &crate::flow::CanonicalPlace,
     target_access: CheckedStructuralAccess,
-    returned_loan: arena::Handle<checked_trees::BorrowLoanFact>,
+    returned_loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
 ) -> Option<CheckedStructuralAccess> {
     if target_access == CheckedStructuralAccess::Owned {
         return Some(CheckedStructuralAccess::Owned);
@@ -2726,7 +2741,7 @@ fn exact_structural_borrow_access(
             borrow_call,
             call,
             root_symbol,
-            returned_loan,
+            returned_loans,
         )
     {
         return Some(CheckedStructuralAccess::MutableBorrow);

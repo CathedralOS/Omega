@@ -119,6 +119,41 @@ pub fn construction_sources(
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
+    construction_sources_with_calls(
+        program,
+        state,
+        expression,
+        reference,
+        &mut vec![state.symbol],
+    )
+}
+
+/// Completion and call substitution share one returned-leaf origin query.
+/// Earlier ordinary statements do not change which authored value is returned.
+pub fn returned_record_sources(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
+    if !is_reference_record(program, state.return_type) {
+        return None;
+    }
+    let StatementNode::Expression(expression) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .last()?
+    else {
+        return None;
+    };
+    construction_sources(program, state, *expression, state.return_type)
+}
+
+fn construction_sources_with_calls(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+    reference: TypeReferenceHandle,
+    active_calls: &mut Vec<SymbolHandle>,
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     if parts(program, reference).is_some() {
         return Some(vec![checked_trees::CheckedReferenceResultSourcePlan {
             path: Vec::new(),
@@ -131,6 +166,90 @@ pub fn construction_sources(
     if !is_reference_record(program, reference) {
         return None;
     }
+    if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
+        let machine = program.machines().iter().find(|machine| {
+            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                && program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == call.target_symbol)
+        })?;
+        let [destination] = program.machine_states(machine) else {
+            return None;
+        };
+        if active_calls.contains(&destination.symbol)
+            || program.normalized_type_identity(destination.return_type)
+                != program.normalized_type_identity(reference)
+        {
+            return None;
+        }
+        let parameters = program.state_parameters(destination);
+        let arguments = program.expression_table.expression_handles(call.arguments);
+        if parameters.len() != arguments.len()
+            || parameters
+                .iter()
+                .any(|parameter| parameter.is_self || parameter.is_const)
+        {
+            return None;
+        }
+        let StatementNode::Expression(returned) = program
+            .statement_table
+            .statements(destination.statement_nodes)
+            .last()?
+        else {
+            return None;
+        };
+        active_calls.push(destination.symbol);
+        let sources = construction_sources_with_calls(
+            program,
+            destination,
+            *returned,
+            destination.return_type,
+            active_calls,
+        )?;
+        active_calls.pop();
+        sources
+            .into_iter()
+            .map(|mut source| {
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
+                } = source.source.source
+                else {
+                    return None;
+                };
+                if !source.source.path.is_empty() {
+                    return None;
+                }
+                let (position, parameter) = parameters
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, parameter)| {
+                        program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_none()
+                    })
+                    .nth(parameter_index as usize)?;
+                source.source = initializer_source(
+                    program,
+                    state,
+                    *arguments.get(position)?,
+                    parameter.type_reference,
+                )?;
+                Some(source)
+            })
+            .collect()
+    } else {
+        record_construction_sources(program, state, expression, reference, active_calls)
+    }
+}
+
+fn record_construction_sources(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+    reference: TypeReferenceHandle,
+    active_calls: &mut Vec<SymbolHandle>,
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(reference)
     else {
@@ -164,9 +283,13 @@ pub fn construction_sources(
         if matching.next().is_some() {
             return None;
         }
-        for mut source in
-            construction_sources(program, state, initializer.value, field.type_reference)?
-        {
+        for mut source in construction_sources_with_calls(
+            program,
+            state,
+            initializer.value,
+            field.type_reference,
+            active_calls,
+        )? {
             source.path.insert(
                 0,
                 checked_trees::CheckedUnitStructuralPathSegment::Field(

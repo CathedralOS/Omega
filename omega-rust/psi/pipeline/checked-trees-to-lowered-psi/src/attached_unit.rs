@@ -3713,7 +3713,13 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                                     source: arguments[0].clone(),
                                 })
                             })
-                            .collect::<Result<Vec<_>, LoweringError>>()?,
+                            .collect::<Result<Vec<_>, LoweringError>>()
+                            .map(|mut sources| {
+                                // Wire maps use canonical path order, independently
+                                // of authored construction and reverse cleanup order.
+                                sources.sort_by(|left, right| left.path.cmp(&right.path));
+                                sources
+                            })?,
                     },
                 ))
             })

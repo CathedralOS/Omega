@@ -1104,6 +1104,7 @@ pub(super) fn build_checked_machine_with(
             });
     if !is_unit(program, state.return_type)
         && super::reference_results::parts(program, state.return_type).is_none()
+        && !super::reference_results::is_reference_record(program, state.return_type)
         && !validation::is_closed_primitive_array_type(program, state.return_type)
         && !validation::has_plain_owned_contents_with_numeric_constraints(
             program,
@@ -1456,7 +1457,8 @@ pub(super) fn build_checked_machine_with(
             return None;
         }
         // Primitive structural places belong to the checked store/call closure,
-        // including stores retained by the shared statement sequence. One exact
+        // including stores and returned reference leaves retained by the shared
+        // statement sequence. One exact
         // empty write-only sink also remains a projected forwarding target.
         let carries_primitive = structural_parameters.iter().any(|parameter| {
             shapes
@@ -1500,13 +1502,17 @@ pub(super) fn build_checked_machine_with(
         if carries_primitive
             && source_calls.is_empty()
             && !statement_sequence.as_ref().is_some_and(|sequence| {
-                sequence.operations.iter().any(|operation| {
-                    matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                            | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                    )
-                })
+                sequence
+                    .structural_result
+                    .as_ref()
+                    .is_some_and(|result| !result.reference_sources.is_empty())
+                    || sequence.operations.iter().any(|operation| {
+                        matches!(
+                            operation,
+                            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                                | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                        )
+                    })
             })
             && !exact_write_only_primitive_sink
             && !exact_shared_primitive_observer
@@ -2274,7 +2280,8 @@ pub(super) fn checked_structural_result_type(
             && (!(validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 result_type,
-            ) || validation::is_closed_primitive_array_type(program, result_type))
+            ) || validation::is_closed_primitive_array_type(program, result_type)
+                || super::reference_results::is_reference_record(program, result_type))
                 || !qualifications.is_empty()))
     {
         return None;

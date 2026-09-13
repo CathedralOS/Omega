@@ -572,9 +572,15 @@ that carrier; whole-record cleanup at the common last-use boundary restores the
 original backing for subsequent access. This path uses ordinary call and
 statement sequencing, with no record-specific execution operation. The
 `reference_result_source` tests verify canonical bytes and caller-visible writes
-through fuel suspension. Source production of reference-bearing helper results
-still needs its exact returned-leaf origin maps; aggregate parameters, partial
-carrier disposal, and native reference storage remain separate dependencies.
+through fuel suspension. Ordinary helpers also return these records from mutable
+primitive formal inputs. Callee completion and caller substitution share an
+exact returned-leaf origin query; independent lowering rejoins that map and the
+actual producer, call occurrence, and captured result loans. Origin reconstruction
+does not execute preceding effects or replace ordinary statement sequencing.
+Structural source ordinals rejoin full formal positions before selecting actual
+arguments, and emitted maps use canonical path order. Reference-bearing aggregate
+parameters, partial carrier disposal, and native reference storage remain separate
+dependencies.
 
 Whole borrowed sum parameters support runtime `in` observations through ordinary
 scalar completion, including Boolean locals and Boolean composition. Checked
