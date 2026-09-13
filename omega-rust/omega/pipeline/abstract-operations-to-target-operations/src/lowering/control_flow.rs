@@ -191,6 +191,7 @@ pub(super) fn lower(
                 result: abstract_operations::AbstractBoundaryResult::Structural(result),
                 ..
             } => Some(result.place),
+            AbstractOperation::EstablishByteSequenceLiteral { place, .. } => Some(place.id),
             _ => None,
         };
         if established.is_some_and(|place| !places.insert(place)) {

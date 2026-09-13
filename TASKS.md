@@ -1026,6 +1026,18 @@ Owners include
   checking or a copied frame home. Run both Linux target runtime legs when
   available and record unavailable hosts.
 
+  Borrowed byte-view call transport now composes through the ordinary control
+  graph: shared views arrive from established literal/subslice producers,
+  shared block parameters, or the incoming machine parameter, byte-sequence
+  literal establishment lowers in `control_flow/operations.rs`, scalar-ABI
+  callers admit literal place rosters, mixed-ABI callers admit borrowed block
+  structural parameters, and installation records publish internal Unit calls
+  in physical text order rather than source block-roster order. On macOS ARM64
+  `mbx nextest run -p omega-native-differential-test --test terminal_byte_views`
+  passes 107/107 at the published revision; both Linux legs were not run.
+  Remaining acceptance is unchanged: `&write` projected aggregates, early loan
+  closure, escaping carriers, dynamic indexes, and computed IEEE stores.
+
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
   through call argument preparation and native validation/replay. Extend the

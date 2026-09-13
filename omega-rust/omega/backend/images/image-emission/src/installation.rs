@@ -821,19 +821,7 @@ where
                     })
             })
             .collect(),
-        internal_unit_calls: image
-            .functions()
-            .iter()
-            .flat_map(|function| {
-                function.internal_unit_calls.iter().cloned().map(|custody| {
-                    InstalledInternalUnitCall {
-                        machine: function.machine,
-                        text_offset: function.text_offset + custody.code_offset,
-                        custody,
-                    }
-                })
-            })
-            .collect(),
+        internal_unit_calls: installed_internal_unit_calls(image),
         internal_unit_scalar_calls: image
             .functions()
             .iter()
@@ -1225,10 +1213,13 @@ pub fn validate_installation_record(
         || !internal_unit_calls_match_object(
             &record.internal_unit_calls,
             image.functions().iter().flat_map(|function| {
-                function
-                    .internal_unit_calls
-                    .iter()
-                    .map(|custody| (function.machine, function.text_offset, custody))
+                // The record retains physical text order while the object's
+                // roster follows the selected source block order.
+                let mut calls: Vec<_> = function.internal_unit_calls.iter().collect();
+                calls.sort_by_key(|custody| custody.code_offset);
+                calls
+                    .into_iter()
+                    .map(move |custody| (function.machine, function.text_offset, custody))
             }),
         )
         || record.internal_unit_scalar_calls
@@ -1323,6 +1314,24 @@ fn internal_unit_calls_match_object<'call>(
         }
     }
     installed.next().is_none()
+}
+
+// Selected calls follow the source block roster while physical layout may
+// reorder blocks; the published record retains physical call order.
+fn installed_internal_unit_calls(image: &ExecutableImage) -> Vec<InstalledInternalUnitCall> {
+    image
+        .functions()
+        .iter()
+        .flat_map(|function| {
+            let mut calls = function.internal_unit_calls.to_vec();
+            calls.sort_by_key(|custody| custody.code_offset);
+            calls.into_iter().map(|custody| InstalledInternalUnitCall {
+                machine: function.machine,
+                text_offset: function.text_offset + custody.code_offset,
+                custody,
+            })
+        })
+        .collect()
 }
 
 fn installed_image_sections(image: &ExecutableImage) -> InstalledImageSections {

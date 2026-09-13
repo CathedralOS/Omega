@@ -263,6 +263,42 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        AbstractOperation::EstablishByteSequenceLiteral {
+            psi_operation,
+            place,
+            structural_type,
+            bytes,
+        } => {
+            let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+            if !matches!(
+                place.kind,
+                semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                    structural_type: declared,
+                    ..
+                } if declared == structural_type.id
+            ) || !matches!(
+                structural_type.shape,
+                StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
+            ) || structural_types.get(&structural_type.id).copied() != Some(structural_type)
+            {
+                return Err(invalid());
+            }
+            if live
+                .views
+                .insert(place.id, (*psi_operation, structural_type.id))
+                .is_some()
+            {
+                return Err(invalid());
+            }
+            operations.push(TargetUnitOperation::EstablishByteSequenceLiteral {
+                psi_operation: *psi_operation,
+                place: *place,
+                structural_type: structural_type.clone(),
+                bytes: bytes.clone(),
+            });
+            provenance.operations.push(*psi_operation);
+            Ok(())
+        }
         AbstractOperation::StructuralScalarFieldStore { .. } => {
             crate::lowering::unit::lower_field_store(
                 operation,

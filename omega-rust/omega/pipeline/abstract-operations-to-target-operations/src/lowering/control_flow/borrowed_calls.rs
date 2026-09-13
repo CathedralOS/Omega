@@ -120,6 +120,17 @@ pub(super) fn lower(
                     types,
                 );
             }
+            if crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types) {
+                return self::byte_argument(
+                    argument,
+                    declaration,
+                    destination,
+                    function,
+                    prepared,
+                    live,
+                    types,
+                );
+            }
             self::argument(
                 argument,
                 declaration,
@@ -211,6 +222,93 @@ pub(super) fn argument(
         }
         (source.structural_type, source.placement.clone().into())
     };
+    if identity != declaration.structural_type {
+        return Err(invalid());
+    }
+    Ok(TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: Vec::new(),
+        root_structural_type: identity,
+        structural_type: identity,
+        shape: destination.shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        source,
+        destination: destination.placement.clone(),
+    })
+}
+
+/// Borrowed byte views keep their exact descriptor source through ordinary
+/// calls: an established literal or subslice producer, a borrowed block
+/// parameter, or the caller's own machine parameter. Shared views may arrive
+/// from all three; exclusive views stay on their incoming machine parameter,
+/// matching the legalized replay's receiving contract.
+#[allow(clippy::too_many_arguments)]
+fn byte_argument(
+    argument: &terminal_psi::StructuralArgument,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    destination: &TargetStructuralParameter,
+    function: &AbstractFunction,
+    prepared: &PreparedFunctionSignature,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+) -> Result<TargetStructuralArgument, LoweringError> {
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let shared = argument.access == StructuralAccess::SharedBorrow;
+    if !argument.path.is_empty()
+        || argument.access != declaration.access
+        || !crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)
+        || destination.shape != ValueShape::borrowed_reference(16, 8)
+    {
+        return Err(invalid());
+    }
+    let (identity, source) =
+        if shared && let Some((producer, structural_type)) = live.views.get(&argument.place) {
+            (
+                *structural_type,
+                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                    psi_operation: *producer,
+                },
+            )
+        } else if shared && live.block_views.contains(&argument.place) {
+            let (entry, parameter) = function
+                .block_entries
+                .iter()
+                .find_map(|entry| {
+                    entry
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == argument.place)
+                        .map(|parameter| (entry, parameter))
+                })
+                .ok_or_else(invalid)?;
+            if parameter.access != StructuralAccess::SharedBorrow {
+                return Err(invalid());
+            }
+            (
+                parameter.structural_type,
+                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    block: entry.block,
+                    place: parameter.place,
+                },
+            )
+        } else {
+            let source = prepared
+                .parameters
+                .iter()
+                .find(|source| source.place == argument.place)
+                .ok_or_else(invalid)?;
+            if source.access != argument.access
+                || source.multiplicity != declaration.multiplicity
+                || !source.projected_qualifications.is_empty()
+                || source.shape != destination.shape
+            {
+                return Err(invalid());
+            }
+            (source.structural_type, source.placement.clone().into())
+        };
     if identity != declaration.structural_type {
         return Err(invalid());
     }
