@@ -158,6 +158,15 @@ It uses one preliminary compiler review only to discover supported
 package-owned semantic surfaces, then recompiles with exact consumer-scoped
 bindings. Only that final review may proceed to conflicts and admission; the
 discovery pass is neither policy nor evidence that an audit occurred.
+The two passes share per-package immutable parse checkpoints, not checked reviews.
+Discovery requests a source-output slot on the ordinary `CheckedCompileRequest`;
+the compiler clears it before validation and publishes preparation only on success.
+The final pass consumes each checkpoint only after fresh source-custody checks
+and exact compiler-input matching. It still assembles current dependency-generated
+sources, executes builds, checks bindings, and accounts for its own disposable
+session. Retaining a checkpoint copies parsed storage for the discovery child;
+the final child can consume that storage. This avoids repeated base discovery,
+lexing and parsing, not final checking or all source copying.
 Each returned package review also exposes borrowed access to its complete typed
 `PackagePolicyBaseline`, projected from that same final checked source and
 target. The closure retains at most 64 MiB in aggregate canonical policy

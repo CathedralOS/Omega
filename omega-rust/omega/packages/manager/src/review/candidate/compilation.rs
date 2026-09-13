@@ -6,6 +6,8 @@
 
 mod checked_root;
 mod session_accounting;
+#[cfg(test)]
+mod tests;
 
 pub(crate) use checked_root::compile_resolved_package_candidate_for_check;
 
@@ -64,15 +66,23 @@ pub fn compile_resolved_package_candidate_reviews(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    let preliminary = compile_resolved_package_reviews(target_closure, build_root)?;
+    let mut prepared_sources = vec![None; target_closure.source_closure().graph().packages().len()];
+    let preliminary = compile_review_pass(
+        target_closure,
+        build_root,
+        &[],
+        PackageSourcePreparation::Retain(&mut prepared_sources),
+    )?;
     let semantic_binding_inputs = candidate_semantic_binding_inputs(&preliminary)?;
     if semantic_binding_inputs.is_empty() {
         return Ok(preliminary);
     }
-    compile_resolved_package_reviews_with_semantic_bindings(
+    drop(preliminary);
+    compile_review_pass(
         target_closure,
         build_root,
         &semantic_binding_inputs,
+        PackageSourcePreparation::Consume(&mut prepared_sources),
     )
 }
 
@@ -82,19 +92,23 @@ pub fn compile_resolved_package_candidate_for_production(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
-    let preliminary = compile_resolved_package_candidate_for_production_with_semantic_bindings(
+    let mut prepared_sources = vec![None; target_closure.source_closure().graph().packages().len()];
+    let preliminary = compile_production_review_pass(
         target_closure,
         build_root,
         &[],
+        PackageSourcePreparation::Retain(&mut prepared_sources),
     )?;
     let semantic_binding_inputs = candidate_semantic_binding_inputs(preliminary.reviews())?;
     if semantic_binding_inputs.is_empty() {
         return Ok(preliminary);
     }
-    compile_resolved_package_candidate_for_production_with_semantic_bindings(
+    drop(preliminary);
+    compile_production_review_pass(
         target_closure,
         build_root,
         &semantic_binding_inputs,
+        PackageSourcePreparation::Consume(&mut prepared_sources),
     )
 }
 
@@ -104,6 +118,20 @@ pub fn compile_resolved_package_candidate_for_production_with_semantic_bindings(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
     semantic_binding_inputs: &[ConsumerScopedSemanticBindingReviewInput],
+) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
+    compile_production_review_pass(
+        target_closure,
+        build_root,
+        semantic_binding_inputs,
+        PackageSourcePreparation::Independent,
+    )
+}
+
+fn compile_production_review_pass(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    build_root: &Path,
+    semantic_binding_inputs: &[ConsumerScopedSemanticBindingReviewInput],
+    source_preparation: PackageSourcePreparation<'_>,
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let root = closure.graph().root().clone();
@@ -124,6 +152,7 @@ pub fn compile_resolved_package_candidate_for_production_with_semantic_bindings(
         build_root,
         &root_path,
         semantic_binding_inputs,
+        source_preparation,
     )?;
     Ok(ReviewedPackageProductionCandidate {
         reviews,
@@ -146,6 +175,20 @@ pub fn compile_resolved_package_reviews_with_semantic_bindings(
     build_root: &Path,
     semantic_binding_inputs: &[ConsumerScopedSemanticBindingReviewInput],
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
+    compile_review_pass(
+        target_closure,
+        build_root,
+        semantic_binding_inputs,
+        PackageSourcePreparation::Independent,
+    )
+}
+
+fn compile_review_pass(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    build_root: &Path,
+    semantic_binding_inputs: &[ConsumerScopedSemanticBindingReviewInput],
+    source_preparation: PackageSourcePreparation<'_>,
+) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let semantic_bindings_by_consumer =
         semantic_bindings_by_consumer(closure, semantic_binding_inputs)?;
@@ -157,6 +200,7 @@ pub fn compile_resolved_package_reviews_with_semantic_bindings(
         build_session.evaluation_sponsor(),
         &semantic_bindings_by_consumer,
         None,
+        source_preparation,
     );
     build_session
         .dispose(result)
@@ -165,7 +209,16 @@ pub fn compile_resolved_package_reviews_with_semantic_bindings(
 
 struct CompiledPackageReviews {
     reviews: CompilerIssuedPackageReviewSet,
-    checked_root: Option<compiler::CheckedCompilation>,
+    checked_root: Option<Box<compiler::CheckedCompilation>>,
+}
+
+/// Slots follow the resolver's package positions and live only across the two
+/// passes of one candidate. Completed reviews and session authority never enter
+/// these slots. Final compilation consumes each checkpoint after custody checks.
+enum PackageSourcePreparation<'a> {
+    Independent,
+    Retain(&'a mut [Option<compiler::PreparedCheckedSource>]),
+    Consume(&'a mut [Option<compiler::PreparedCheckedSource>]),
 }
 
 fn compile_resolved_package_reviews_in_session(
@@ -175,6 +228,7 @@ fn compile_resolved_package_reviews_in_session(
     evaluation_sponsor: &BuildEvaluationSponsor,
     semantic_bindings_by_consumer: &BTreeMap<PackageKey, Vec<AcceptedSemanticBinding>>,
     retained_root_entry: Option<&Path>,
+    mut source_preparation: PackageSourcePreparation<'_>,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let target = target_closure.target_profile().target_name();
@@ -269,7 +323,7 @@ fn compile_resolved_package_reviews_in_session(
         } else {
             &default_entry
         };
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let request = CheckedCompileRequest {
             build_dir: Some(
                 package_build_root(build_session_root, &key, custody.resolution()).to_owned(),
             ),
@@ -277,7 +331,23 @@ fn compile_resolved_package_reviews_in_session(
             filesystem_sponsor: Some(filesystem_sponsor.clone()),
             evaluation_sponsor: Some(evaluation_sponsor.clone()),
             ..CheckedCompileRequest::new(entry, Some(target))
-        })
+        };
+        let position = closure
+            .graph()
+            .package_position(&key)
+            .expect("reviewed package belongs to the validated graph");
+        let checked = match &mut source_preparation {
+            PackageSourcePreparation::Independent => compile_to_checked(request),
+            PackageSourcePreparation::Retain(prepared_sources) => {
+                let mut request = request;
+                request.prepared_source_output = Some(&mut prepared_sources[position]);
+                compile_to_checked(request)
+            }
+            PackageSourcePreparation::Consume(prepared_sources) => prepared_sources[position]
+                .take()
+                .expect("successful discovery retained every package's source preparation")
+                .compile_to_checked(request),
+        }
         .map_err(
             |diagnostics| CompileResolvedPackageReviewsError::Compilation {
                 package: key.clone(),
@@ -397,7 +467,7 @@ fn compile_resolved_package_reviews_in_session(
             comparison_rows,
         });
         if retained_root_entry.is_some() && &key == closure.graph().root() {
-            checked_root = Some(checked);
+            checked_root = Some(Box::new(checked));
         }
     }
     verify_build_session_accounting(&reviews, evaluation_sponsor)?;

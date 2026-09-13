@@ -26,7 +26,7 @@ use package_manager::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
     ConsumerScopedSemanticBindingReviewInput, FreshPackageRootPolicyError,
     ReviewOnlyCapabilityConflictLimits, bind_fresh_package_root_policy,
-    compare_review_only_initial_capabilities,
+    compare_review_only_initial_capabilities, compile_resolved_package_candidate_for_production,
     compile_resolved_package_candidate_for_production_with_semantic_bindings,
     compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
     compile_resolved_package_reviews_with_semantic_bindings,
@@ -188,8 +188,11 @@ fn assert_accepted_native_report_custody(
     assert!(native_manifest.matches_native_artifact(&terminal_native));
 }
 
-#[test]
-fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
+fn console_binding_fixture() -> (
+    TemporaryTree,
+    PathBuf,
+    package_manager::resolution::graph::ResolvedPackageSourceClosure,
+) {
     let temporary = TemporaryTree::new();
     let application = temporary.package("application");
     let console = temporary.package("console");
@@ -262,6 +265,12 @@ invokes console;
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve ordinary Console closure");
+    (temporary, application, closure)
+}
+
+#[test]
+fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
+    let (temporary, application, closure) = console_binding_fixture();
     let preliminary = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &temporary.0.join("preliminary-build"),
@@ -928,4 +937,62 @@ invokes console;
                 != Some(PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32)),
         "semantic recognition must not mint Linux physical execution on Windows",
     );
+}
+
+#[test]
+fn retained_production_discovery_reaches_fresh_final_acceptance() {
+    let (temporary, _application, closure) = console_binding_fixture();
+    let preliminary = compile_resolved_package_reviews(
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
+        &temporary.0.join("preliminary-build"),
+    )
+    .expect("independent preliminary review");
+    let root_key = closure.graph().root().clone();
+    let root_candidate = preliminary.review(&root_key).unwrap();
+    // Candidate discovery must feed a fresh binding-dependent final pass, even
+    // when its immutable parsed source frontier is retained between sessions.
+    let discovered = compile_resolved_package_candidate_for_production(
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
+        &temporary.0.join("discovered-production"),
+    )
+    .expect("production candidate rechecks discovered semantics from retained preparation");
+    let discovered_root = discovered.reviews().review(&root_key).unwrap();
+    assert_eq!(discovered_root.semantic_bindings().len(), 1);
+    assert_eq!(
+        discovered_root.semantic_bindings()[0].role(),
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32
+    );
+    assert!(
+        !discovered_root
+            .projection()
+            .dangerous_authorities()
+            .is_empty()
+    );
+    assert_eq!(
+        discovered_root.source_consumption_commitment(),
+        root_candidate.source_consumption_commitment()
+    );
+    assert!(
+        fs::read_dir(temporary.0.join("discovered-production"))
+            .unwrap()
+            .next()
+            .is_none()
+    );
+    let discovered_policy = accepted_policy_fixture::accepted_policy(
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
+        discovered.reviews(),
+    );
+    let discovered_evidence = accept_ordinary_closure_evidence(
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
+        discovered.reviews(),
+        CanonicalPackageReconstructionQuestionLimits::default(),
+        ReviewOnlyCapabilityConflictLimits::default(),
+        Some(&discovered_policy),
+    )
+    .expect("fresh acceptance consumes the binding-dependent final candidate review");
+    assert_eq!(
+        discovered_evidence.packages().len(),
+        closure.graph().packages().len()
+    );
+    drop(discovered);
 }

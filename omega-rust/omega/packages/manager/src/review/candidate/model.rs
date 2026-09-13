@@ -151,7 +151,9 @@ pub struct ReviewedPackageProductionCandidate {
     pub(super) root_path: PathBuf,
     pub(super) root_role: package_compilation::BuildDeclarationKind,
     pub(super) target_profile: target::TargetProfile,
-    pub(super) checked_root: compiler::CheckedCompilation,
+    // The large checked product moves through review/session coordination by
+    // ownership, without reserving its full inline storage in every call frame.
+    pub(super) checked_root: Box<compiler::CheckedCompilation>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -198,6 +200,6 @@ impl ReviewedPackageProductionCandidate {
         PathBuf,
         compiler::CheckedCompilation,
     ) {
-        (self.reviews, self.root_path, self.checked_root)
+        (self.reviews, self.root_path, *self.checked_root)
     }
 }

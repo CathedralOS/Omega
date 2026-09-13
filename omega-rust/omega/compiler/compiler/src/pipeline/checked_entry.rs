@@ -525,10 +525,10 @@ impl std::ops::DerefMut for CheckedCompilation {
     }
 }
 
-/// Owned inputs for checked-Psi compilation, without native publication authority.
+/// Inputs for checked-Psi compilation, without native publication authority.
 /// All requests use the same source identity, package admission, replay, and
 /// sponsored build execution checks.
-pub struct CheckedCompileRequest {
+pub struct CheckedCompileRequest<'a> {
     /// Physical source entrypoint.
     pub root_path: std::path::PathBuf,
     /// Explicit target selection; `None` preserves targetless semantic checking.
@@ -544,9 +544,13 @@ pub struct CheckedCompileRequest {
     /// Compiler-owned replay whose authored inputs and complete event stream must match.
     /// Replaying this record grants no host filesystem authority.
     pub replay_record: Option<super::ReviewOnlyBuildFilesystemReplayRecord>,
+    /// Optional destination for target-independent source preparation. Cleared
+    /// before validation and populated only after successful checking. Retention
+    /// copies parsed storage for this child; a later child can consume the result.
+    pub prepared_source_output: Option<&'a mut Option<PreparedCheckedSource>>,
 }
 
-impl CheckedCompileRequest {
+impl<'a> CheckedCompileRequest<'a> {
     /// Select source and optional target without package, sponsor, or replay inputs.
     pub fn new(root_path: &Path, target_name: Option<&str>) -> Self {
         Self {
@@ -557,7 +561,32 @@ impl CheckedCompileRequest {
             filesystem_sponsor: None,
             evaluation_sponsor: None,
             replay_record: None,
+            prepared_source_output: None,
         }
+    }
+
+    // Keep the caller's borrowed output on its thread; only owned compilation
+    // inputs cross the compiler worker's static lifetime boundary.
+    fn into_worker_request(
+        self,
+    ) -> (
+        CheckedCompileRequest<'static>,
+        Option<&'a mut Option<PreparedCheckedSource>>,
+    ) {
+        let output = self.prepared_source_output;
+        (
+            CheckedCompileRequest {
+                root_path: self.root_path,
+                target_name: self.target_name,
+                package_inputs: self.package_inputs,
+                build_dir: self.build_dir,
+                filesystem_sponsor: self.filesystem_sponsor,
+                evaluation_sponsor: self.evaluation_sponsor,
+                replay_record: self.replay_record,
+                prepared_source_output: None,
+            },
+            output,
+        )
     }
 }
 
@@ -571,7 +600,7 @@ impl CheckedCompileRequest {
 /// Clones share parsed storage; consuming the sole checkpoint moves that storage
 /// into its child instead of copying the syntax trees.
 #[derive(Clone)]
-pub(crate) struct PreparedCheckedSource {
+pub struct PreparedCheckedSource {
     root_path: std::path::PathBuf,
     source_checkpoint: ImmutableSourceParseCheckpoint,
     shared_timings: CompileTimings,
@@ -601,6 +630,40 @@ impl CheckedChildExecution<'_> {
 }
 
 impl PreparedCheckedSource {
+    /// Check another child from this immutable source frontier. Target attachments,
+    /// build sponsors and output custody come exclusively from the new request.
+    pub fn compile_to_checked(
+        self,
+        request: CheckedCompileRequest<'_>,
+    ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+        compile_checked_request(request, Some(self))
+    }
+
+    fn compile_request(
+        self,
+        request: CheckedCompileRequest<'_>,
+    ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+        if request.root_path != self.root_path {
+            return Err(vec![Diagnostic::error(
+                "checked child compilation root does not match its prepared source checkpoint",
+            )]);
+        }
+        let selected_target_profile = request
+            .target_name
+            .as_deref()
+            .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
+            .transpose()
+            .map_err(|diagnostic| vec![diagnostic])?;
+        self.compile_child_with_replay(CheckedChildExecution {
+            selected_target_profile,
+            package_inputs: request.package_inputs.as_ref(),
+            build_dir: request.build_dir.as_deref(),
+            filesystem_sponsor: request.filesystem_sponsor,
+            evaluation_sponsor: request.evaluation_sponsor,
+            replay_record: request.replay_record.as_ref(),
+        })
+    }
+
     pub(crate) fn prepare(
         root_path: &Path,
         package_sources: Option<
@@ -683,31 +746,47 @@ impl PreparedCheckedSource {
 /// Returns checked semantics and selected build evidence, without backend lowering
 /// or native output. Build execution may stage generated sources in its admitted root.
 pub fn compile_to_checked(
-    request: CheckedCompileRequest,
+    request: CheckedCompileRequest<'_>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    crate::compiler::execution::run_on_compile_thread(move || {
-        let selected_target_profile = request
-            .target_name
-            .as_deref()
-            .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
-            .transpose()
-            .map_err(|diagnostic| vec![diagnostic])?;
-        let prepared = PreparedCheckedSource::prepare(
-            &request.root_path,
+    compile_checked_request(request, None)
+}
+
+fn compile_checked_request(
+    request: CheckedCompileRequest<'_>,
+    prepared: Option<PreparedCheckedSource>,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    let (request, mut source_output) = request.into_worker_request();
+    if let Some(output) = source_output.as_deref_mut() {
+        *output = None;
+    }
+    let retain_source = source_output.is_some();
+    let (checked, retained_source) =
+        crate::compiler::execution::run_on_compile_thread(move || {
+            // Validate target selection before loading source, including fresh requests.
             request
-                .package_inputs
-                .as_ref()
-                .map(PackageCompilationInputs::source_inputs),
-        )?;
-        prepared.compile_child_with_replay(CheckedChildExecution {
-            selected_target_profile,
-            package_inputs: request.package_inputs.as_ref(),
-            build_dir: request.build_dir.as_deref(),
-            filesystem_sponsor: request.filesystem_sponsor,
-            evaluation_sponsor: request.evaluation_sponsor,
-            replay_record: request.replay_record.as_ref(),
-        })
-    })
+                .target_name
+                .as_deref()
+                .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
+                .transpose()
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let prepared = match prepared {
+                Some(prepared) => prepared,
+                None => PreparedCheckedSource::prepare(
+                    &request.root_path,
+                    request
+                        .package_inputs
+                        .as_ref()
+                        .map(PackageCompilationInputs::source_inputs),
+                )?,
+            };
+            let retained_source = retain_source.then(|| prepared.clone());
+            let checked = prepared.compile_request(request)?;
+            Ok((checked, retained_source))
+        })?;
+    if let Some(output) = source_output {
+        *output = retained_source;
+    }
+    Ok(checked)
 }
 
 struct CheckedFrontend {
@@ -1579,5 +1658,84 @@ machine Main::main(&mut self) -> i32 reaches Switch {
             lost_intent, windows,
             "checked identity must retain application intent"
         );
+    }
+
+    #[test]
+    fn retained_checked_request_preserves_identity_and_rejects_foreign_inputs() {
+        let fixture = PreparedFixture::new();
+        let request = || super::CheckedCompileRequest::new(&fixture.main, Some("windows_x86_64"));
+        let standalone = super::compile_to_checked(request()).expect("independent checked child");
+        let mut retained = None;
+        let discovery = super::compile_to_checked(super::CheckedCompileRequest {
+            prepared_source_output: Some(&mut retained),
+            ..request()
+        })
+        .expect("retain discovery source preparation");
+        let prepared = retained.expect("successful checked request publishes preparation");
+        assert_eq!(discovery, standalone);
+
+        let mut foreign_root = request();
+        foreign_root.root_path = fixture.root.join("different.omg");
+        let diagnostics = prepared
+            .clone()
+            .compile_to_checked(foreign_root)
+            .expect_err("a retained frontier belongs to its original entry");
+        assert!(diagnostics[0].message.contains("root does not match"));
+
+        let mut failed_output = Some(prepared.clone());
+        let invalid_target = super::compile_to_checked(super::CheckedCompileRequest {
+            target_name: Some("not-an-omega-target".to_owned()),
+            prepared_source_output: Some(&mut failed_output),
+            ..request()
+        });
+        assert!(invalid_target.is_err());
+        assert!(
+            failed_output.is_none(),
+            "failed validation clears old output"
+        );
+
+        failed_output = Some(prepared.clone());
+        let missing_source = super::compile_to_checked(super::CheckedCompileRequest {
+            root_path: fixture.root.join("missing.omg"),
+            prepared_source_output: Some(&mut failed_output),
+            ..request()
+        });
+        assert!(missing_source.is_err());
+        assert!(
+            failed_output.is_none(),
+            "failed compilation clears old output"
+        );
+
+        let identity = semantic_vocabulary::PackageKeyIdentity::from_digest([9; 32]).unwrap();
+        let mut foreign_inputs = request();
+        foreign_inputs.package_inputs = Some(
+            package_compilation::PackageCompilationInputs::new_package(
+                identity,
+                vec![package_compilation::PackageSourceBinding::new(
+                    identity,
+                    "different-source-inputs",
+                    fixture.root.clone(),
+                )],
+                vec![],
+            )
+            .unwrap(),
+        );
+        let diagnostics = prepared
+            .clone()
+            .compile_to_checked(foreign_inputs)
+            .expect_err("a valid but foreign source projection cannot replace retained inputs");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("source inputs do not match")
+        );
+
+        let checked = prepared
+            .compile_to_checked(request())
+            .expect("consume retained frontier");
+        assert_eq!(checked, standalone);
+        checked
+            .verify_current_source_consumption()
+            .expect("fresh checked source custody");
     }
 }
