@@ -28,6 +28,8 @@ checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 flow-effects = { path = "../../../psi/representations/flow-effects" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 layout-plans = { path = "../../../psi/foundation/layout-plans" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
