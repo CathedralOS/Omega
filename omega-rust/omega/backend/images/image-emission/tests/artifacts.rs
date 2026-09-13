@@ -1,11 +1,13 @@
+use function_identity::{MachineFunctionIdentity, StateKey};
 use image_emission::{
     INSTALLATION_FORMAT_MARKER, InstallationError, ObjectError,
     build_admitted_x86_fma_object_artifact, build_feature_required_x86_fma_object_artifact,
     build_installation_record, build_installation_record_with_evidence,
     build_installation_record_with_provider_executions,
     build_installation_record_with_selected_provider_plans_and_evidence, build_object_artifact,
-    can_emit_executable_image, decode_installation_record, derive_installation_stack_demand,
-    derive_stack_demand, derive_unit_stack_demand, emit_executable_image, emit_object_container,
+    build_object_artifact_with_private_functions, can_emit_executable_image,
+    decode_installation_record, derive_installation_stack_demand, derive_stack_demand,
+    derive_unit_stack_demand, emit_executable_image, emit_object_container,
     encode_installation_record, installation_fingerprint, validate_installation_record,
 };
 use installation_evidence::{ComponentProgressAcceptanceEvidence, ProviderExecutionEvidence};
@@ -24,6 +26,7 @@ use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ProfileDecisionId,
     ServiceId, StructuralTypeId,
 };
+use symbols::SymbolHandle;
 use target::{
     AdmittedX86ScalarFmaProvider, NativeTarget, TargetProfile, X86DeploymentFeatures,
     X86FeatureRequirement, X86ScalarFmaDifferentialReceipt, X86ScalarFmaSlot, X86TargetFeature,
@@ -1373,6 +1376,191 @@ fn installation_boundary_settlement_rejects_every_one_field_substitution() {
     assert_eq!(
         encode_installation_record(&reordered),
         Err(InstallationError::NonCanonicalBoundarySettlementOrder)
+    );
+}
+
+/// Every representable field of an installed compiler-private callback row is
+/// an authenticated custody axis: a one-field substitution either cannot
+/// encode canonically or still encodes, recomputes a distinct installation
+/// fingerprint, and independent replay against the unchanged image rejects it.
+#[test]
+fn installation_private_function_row_rejects_every_one_field_substitution() {
+    let plan = callback_private_plan();
+    let artifact =
+        build_object_artifact_with_private_functions(&plan).expect("callback private artifact");
+    let image = emit_executable_image(&artifact, 3).expect("callback private image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(53).expect("profile"))
+        .expect("callback private installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let [authentic] = record.private_functions() else {
+        panic!("callback fixture retains one private row");
+    };
+    let text_offset = authentic.text_offset;
+    let byte_count = authentic.byte_count;
+    assert_eq!(authentic.machine, machine_id(97));
+    assert_eq!(authentic.source_psi, identity());
+    assert!(
+        authentic
+            .identity
+            .callback_thunk_placement_index()
+            .is_some()
+    );
+
+    type ReplayMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstalledCompilerPrivateFunction)>,
+    );
+    // Semantic identities no canonical record-shape join pins: the substituted
+    // row still encodes and decodes, so rejection is the recomputed identity
+    // and the independent image replay.
+    let still_encodes: Vec<ReplayMutation> = vec![
+        (
+            "identity::continuation",
+            Box::new(|row| {
+                row.identity = MachineFunctionIdentity::callback_thunk(
+                    StateKey {
+                        machine: SymbolHandle::from_parts(15, 2),
+                        state: SymbolHandle::from_parts(13, 3),
+                        segment_index: 0,
+                    },
+                    0,
+                )
+                .expect("substituted callback thunk identity");
+            }),
+        ),
+        (
+            "identity::placement_index",
+            Box::new(|row| {
+                row.identity = MachineFunctionIdentity::callback_thunk(
+                    row.identity.associated_source_continuation(),
+                    3,
+                )
+                .expect("substituted placement index");
+            }),
+        ),
+        (
+            "source_psi::program_fingerprint",
+            Box::new(|row| {
+                row.source_psi.program_fingerprint = SemanticFingerprint::from_bytes([7; 32]);
+            }),
+        ),
+        (
+            "machine",
+            Box::new(|row| {
+                row.machine = machine_id(98);
+            }),
+        ),
+        (
+            "scalar_abi::parameters::value",
+            Box::new(|row| {
+                row.scalar_abi.parameters[0].value =
+                    semantic_vocabulary::ValueId::new(41).expect("substituted parameter value");
+            }),
+        ),
+        (
+            "scalar_abi::result::value",
+            Box::new(|row| {
+                row.scalar_abi.result.value =
+                    semantic_vocabulary::ValueId::new(43).expect("substituted result value");
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes {
+        let mut changed = record.clone();
+        mutate(&mut changed.private_functions_mut_for_test()[0]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted row encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted row decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted row"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted row"
+        );
+    }
+
+    type RejectedMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstalledCompilerPrivateFunction)>,
+        InstallationError,
+    );
+    // Canonical record-shape joins reject every other one-field substitution
+    // at encoding, before any identity or replay could accept it.
+    let rejected: Vec<RejectedMutation> = vec![
+        (
+            "identity::source_kind",
+            Box::new(|row| {
+                row.identity =
+                    MachineFunctionIdentity::source(row.identity.associated_source_continuation());
+            }),
+            InstallationError::InvalidCompilerPrivateFunction,
+        ),
+        (
+            "text_offset",
+            Box::new(move |row| {
+                row.text_offset = text_offset + 1;
+            }),
+            InstallationError::InvalidCompilerPrivateFunction,
+        ),
+        (
+            "byte_count::empty",
+            Box::new(|row| {
+                row.byte_count = 0;
+            }),
+            InstallationError::InvalidCompilerPrivateFunction,
+        ),
+        (
+            "byte_count::extended",
+            Box::new(move |row| {
+                row.byte_count = byte_count + 1;
+            }),
+            InstallationError::InvalidImageSectionLayout,
+        ),
+        (
+            "scalar_abi::parameters::placement",
+            Box::new(|row| {
+                row.scalar_abi.parameters[0].placement = row.scalar_abi.result.placement.clone();
+            }),
+            InstallationError::InvalidCompilerPrivateFunction,
+        ),
+        (
+            "scalar_abi::result::collision",
+            Box::new(|row| {
+                row.scalar_abi.result.value = row.scalar_abi.parameters[0].value;
+            }),
+            InstallationError::InvalidCompilerPrivateFunction,
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed.private_functions_mut_for_test()[0]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: canonical encoding rejects the substitution"
+        );
+    }
+
+    // Roster-level custody: dropping the row leaves its text bytes unaccounted,
+    // so the canonical section join rejects it at encoding.
+    let mut dropped_row = record.clone();
+    dropped_row.private_functions_mut_for_test().pop();
+    assert_eq!(
+        encode_installation_record(&dropped_row),
+        Err(InstallationError::InvalidImageSectionLayout)
     );
 }
 
@@ -4146,6 +4334,56 @@ fn two_function_plan() -> MachineCodePlan {
                 structural_return: None,
             },
         ],
+    }
+}
+
+fn callback_private_plan() -> machine_code::MachineCodePlanWithPrivateFunctions {
+    let target = NativeTarget::linux_x64();
+    let scalar_type = semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .expect("u64"),
+    );
+    let shape = ValueShape::integer(8, 8);
+    let call_plan = calling_conventions::evaluate_call_plan(
+        calling_conventions::CallingPolicy::native_for_target(target),
+        &calling_conventions::CallSignature {
+            parameters: vec![shape],
+            result: Some(shape),
+        },
+    )
+    .expect("one-u64 callback ABI");
+    let mut function = two_function_plan().functions.remove(0);
+    function.machine = machine_id(97);
+    function.scalar_abi = Some(target_operations::ScalarFunctionAbi {
+        parameters: vec![target_operations::ScalarAbiValue {
+            value: semantic_vocabulary::ValueId::new(19).expect("parameter value"),
+            scalar_type,
+            placement: call_plan.parameters[0].clone(),
+        }],
+        result: target_operations::ScalarAbiValue {
+            value: semantic_vocabulary::ValueId::new(23).expect("result value"),
+            scalar_type,
+            placement: call_plan.result.clone().expect("result placement"),
+        },
+        call_plan,
+    });
+    function.bytes = vec![0x48, 0x89, 0xf8, 0xc3];
+    machine_code::MachineCodePlanWithPrivateFunctions {
+        plan: two_function_plan(),
+        private_functions: vec![machine_code::CompilerPrivateMachineCodeFunction {
+            identity: MachineFunctionIdentity::callback_thunk(
+                StateKey {
+                    machine: SymbolHandle::from_parts(11, 2),
+                    state: SymbolHandle::from_parts(13, 3),
+                    segment_index: 0,
+                },
+                0,
+            )
+            .expect("callback thunk identity"),
+            private_symbol: "__omega_test_callback_thunk".into(),
+            source_psi: identity(),
+            function,
+        }],
     }
 }
 

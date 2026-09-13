@@ -272,6 +272,11 @@ impl InstallationRecord {
         &mut self.boundary_settlements
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn private_functions_mut_for_test(&mut self) -> &mut Vec<InstalledCompilerPrivateFunction> {
+        &mut self.private_functions
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
