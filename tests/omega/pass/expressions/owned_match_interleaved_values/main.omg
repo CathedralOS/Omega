@@ -1,0 +1,18 @@
+data Choice {
+    case Empty;
+    case Some(value: u32);
+}
+
+data Marker { tag: u64; }
+
+machine choose(selected: bool, tag: u64) -> bool {
+    let left: Choice = Choice::Some { value: 37 };
+    let marker: Marker = Marker { tag: tag };
+    let right: Choice = Choice::Empty;
+    let result: Choice = match selected {
+        true -> left,
+        false -> right
+    };
+    let observed: bool = result in Choice::Some;
+    marker.tag == tag && observed
+}
