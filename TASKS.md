@@ -1409,7 +1409,7 @@ Owners include
   reads also need canonical carrier paths and bounded leaf types retained through
   abstract operations, layout, instruction selection and independent replay;
   `terminal-psi-to-abstract-operations` explicitly rejects nested paths today.
-  Resume command: `cargo nextest run -p compiler --test
+  Resume evidence at `bce7007d08`: `cargo nextest run -p compiler --test
   canary_suite -E 'test(declared_range_inference)' --no-fail-fast` exercises the
   reviewed fixture and this boundary on macOS AArch64; it does not establish
   native execution.
