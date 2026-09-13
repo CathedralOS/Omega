@@ -66,18 +66,11 @@ pub(crate) fn validate_with_const_resolution_mode(
     // Generic method cloning selects attachments by exact carrier declaration
     // in their source context. Same-leaf module carriers need no spelling fence;
     // the common synthesis owner retains its ordinary eligibility restrictions.
+    // Trait defaults and conformances join by the same exact source selection:
+    // a module-owned template and a same-spelled sibling never share identity,
+    // and generated references carry the selected owner's logical path.
     for item in syntax.root_items() {
         let unsupported = match item {
-            Item::Trait(definition)
-                if module_sources.contains(&definition.name.source_span().source_id) =>
-            {
-                Some((&definition.name, "module-owned traits require namespace-aware trait default normalization"))
-            }
-            Item::Conformance(definition)
-                if module_sources.contains(&definition.trait_name.source_span().source_id) =>
-            {
-                Some((&definition.trait_name, "module-owned conformances require namespace-aware trait default normalization"))
-            }
             Item::Domain(definition)
                 if module_sources.contains(&definition.name.source_span().source_id) =>
             {
@@ -442,30 +435,113 @@ mod tests {
     }
 
     #[test]
-    fn module_traits_reject_before_default_template_names_are_indexed() {
+    fn module_trait_defaults_join_the_exact_selected_template() {
         let mut syntax = parse(&[
-            "module first; trait Service { machine run(); }",
-            "module second; trait Service { machine stop(); }",
+            "module first; trait Service { machine run(&mut self) { } } data Worker {} first_membership: Worker satisfies Service;",
+            "module second; trait Service { machine stop(&mut self) { } } data Worker {}",
         ]);
-        assert!(
-            crate::synthesize_trait_defaults(&mut syntax)
-                .expect_err("trait templates need exact namespace owners")[0]
-                .message
-                .contains("trait default normalization")
+        crate::synthesize_trait_defaults(&mut syntax)
+            .expect("same-spelled module traits keep their own default templates");
+        let mut machines = syntax
+            .root_items()
+            .filter_map(|item| match item {
+                Item::Machine(machine) => Some((
+                    machine.name.as_str().to_string(),
+                    machine
+                        .attached_data
+                        .as_ref()
+                        .map(|attached| attached.source_span().source_id),
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        machines.sort_by(|left, right| left.0.cmp(&right.0));
+        assert_eq!(
+            machines,
+            [("first::Worker::run".to_string(), Some(SourceId(0)))],
+            "only the declaring module's template attaches to its own carrier: {machines:?}"
         );
     }
 
     #[test]
-    fn module_conformances_cannot_select_a_default_template_by_leaf_name() {
+    fn module_closed_conformance_rows_keep_the_exact_declaring_path() {
+        use syntax_trees::item::{ConformanceBody, ConformanceMember};
         let mut syntax = parse(&[
-            "trait Service { machine run(); }",
-            "module implementation; data Worker {} WorkerService: Worker satisfies Service {}",
+            "module first; trait Service { machine run(&mut self) { } } data Worker {} membership: Worker satisfies Service {}",
+            "module second; trait Service { machine stop(&mut self) { } }",
         ]);
+        crate::synthesize_trait_defaults(&mut syntax)
+            .expect("a module conformance selects the same-module trait");
+        let conformance = syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Conformance(conformance) => Some(conformance),
+                _ => None,
+            })
+            .expect("one conformance");
+        let ConformanceBody::Closed { members } = &conformance.body else {
+            panic!("closed conformance retained");
+        };
+        let [
+            ConformanceMember::TraitDefault {
+                declaring_trait,
+                requirement_ordinal,
+                machine,
+            },
+        ] = syntax.items.conformance_members(*members)
+        else {
+            panic!("exactly one synthesized default row");
+        };
+        assert_eq!(declaring_trait.as_str(), "first::Service");
+        assert_eq!(*requirement_ordinal, 0);
+        assert_eq!(machine.name.as_str(), "run");
+        assert_eq!(
+            machine
+                .attached_data
+                .as_ref()
+                .map(|attached| attached.as_str()),
+            Some("Worker")
+        );
+    }
+
+    #[test]
+    fn ambiguous_imported_traits_synthesize_no_default() {
+        let mut syntax = parse(&[
+            "module first; pub trait Service { machine run(&mut self) { } }",
+            "module second; pub trait Service { machine stop(&mut self) { } }",
+            "use first::Service; use second::Service; data Worker {} membership: Worker satisfies Service;",
+        ]);
+        crate::synthesize_trait_defaults(&mut syntax)
+            .expect("an ambiguous authored trait defers to resolution diagnostics");
         assert!(
-            crate::synthesize_trait_defaults(&mut syntax)
-                .expect_err("conformance normalization needs exact namespace owners")[0]
-                .message
-                .contains("module-owned conformances")
+            !syntax
+                .root_items()
+                .any(|item| matches!(item, Item::Machine(_))),
+            "no default is synthesized from an ambiguous trait name"
+        );
+    }
+
+    #[test]
+    fn module_attached_machines_override_only_their_own_carrier() {
+        let mut syntax = parse(&[
+            "trait Service { machine run(&mut self) { } }",
+            "module first; data Worker {} machine Worker::run(&mut self) { } first_membership: Worker satisfies Service;",
+            "module second; data Worker {} second_membership: Worker satisfies Service;",
+        ]);
+        crate::synthesize_trait_defaults(&mut syntax)
+            .expect("carrier identity is exact across same-spelled modules");
+        let mut names = syntax
+            .root_items()
+            .filter_map(|item| match item {
+                Item::Machine(machine) => Some(machine.name.as_str().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        names.sort();
+        assert_eq!(
+            names,
+            ["Worker::run", "second::Worker::run"],
+            "the authored override suppresses only its own carrier's default: {names:?}"
         );
     }
 

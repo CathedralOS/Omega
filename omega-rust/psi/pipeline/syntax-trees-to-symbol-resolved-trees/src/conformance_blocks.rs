@@ -580,9 +580,18 @@ fn normalize_one(
             .iter()
             .filter(|instance| {
                 let requirement = *instance;
+                // A declaring-trait qualifier may spell the declaration's
+                // exact logical path (synthesized rows always do) as well as
+                // the authored leaf; the leaf match stays for compatibility
+                // but the path match is what distinguishes same-spelled
+                // module owners.
                 requirement.requirement_name == authored.requirement_name
                     && (authored.declaring_trait_name.as_str().is_empty()
-                        || requirement.declaring_trait_name == authored.declaring_trait_name)
+                        || requirement.declaring_trait_name == authored.declaring_trait_name
+                        || program
+                            .symbols
+                            .display_path(requirement.declaring_trait, "::")
+                            == authored.declaring_trait_name.as_str())
                     && authored
                         .provisional_requirement_ordinal
                         .is_none_or(|ordinal| requirement.ordinal == ordinal)
