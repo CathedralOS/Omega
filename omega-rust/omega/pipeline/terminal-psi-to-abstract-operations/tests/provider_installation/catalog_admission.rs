@@ -4,10 +4,9 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::encode_proof_bundle;
 use terminal_codec::{
     build_terminal_obligation_ledger, current_terminal_trust_graph, encode_module,
-    encode_terminal_obligation_ledger, semantic_fingerprint,
+    encode_proof_bundle, encode_terminal_obligation_ledger, semantic_fingerprint,
 };
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
@@ -17,10 +16,10 @@ use terminal_interpreter::{
 use terminal_psi::{
     Operation, OperationKind, OperationResult, ProviderSignatureParameter, StructuralMultiplicity,
 };
-use terminal_psi_to_abstract_operations::SelectedProviderAdapter;
 use terminal_psi_to_abstract_operations::{
-    ProviderInstallationError, admit_provider_installation, lower_artifact_sections,
-    lower_replay_artifact_sections, lower_replay_artifact_sections_for_optimization,
+    ProviderInstallationError, SelectedProviderAdapter, admit_provider_installation,
+    lower_artifact_sections, lower_replay_artifact_sections,
+    lower_replay_artifact_sections_for_optimization,
 };
 use terminal_verifier::{ModuleError, validate_module};
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -352,8 +351,14 @@ fn check_selected_overload_identity(source: &str, provider_machine: &str, wrong_
     let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
     let profile = AdmissionProfile::default();
     let plan = lower_artifact_sections(&semantic, &proof, &profile).unwrap();
-    admit_provider_installation(&plan, &semantic, &proof, &profile, &[selected.clone()])
-        .expect("source-selected overload rejoins its exact emitted candidate");
+    admit_provider_installation(
+        &plan,
+        &semantic,
+        &proof,
+        &profile,
+        std::slice::from_ref(&selected),
+    )
+    .expect("source-selected overload rejoins its exact emitted candidate");
     let candidate = plan
         .provider_candidates
         .iter()
