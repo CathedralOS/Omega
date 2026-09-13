@@ -867,6 +867,13 @@ pub struct CheckedComposedUnitControlStatePlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralCaseReturnPlan {
+    pub statement_ordinal: u32,
+    pub case_identity: String,
+    pub fields: Vec<CheckedScalarCaseFieldPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedComposedUnitControlTerminatorPlan {
     ReturnUnit,
     /// Return a completed result from the ordinary structural value namespace.
@@ -874,9 +881,15 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         result: crate::CheckedUnitStructuralReturnPlan,
     },
     ReturnCase {
-        statement_ordinal: u32,
-        case_identity: String,
-        fields: Vec<CheckedScalarCaseFieldPlan>,
+        result: CheckedStructuralCaseReturnPlan,
+    },
+    /// Guards and coverage belong to the shared source-owned scalar tail roster.
+    /// These construction payloads bind its destinations by exact source coordinate,
+    /// using the same local child storage as the composed plan's other exits.
+    Guarded {
+        arms: arena::HandleSpan<CheckedScalarGuardedExit>,
+        fallback: Option<CheckedScalarBranchDestination>,
+        returns: Vec<CheckedStructuralCaseReturnPlan>,
     },
     Jump {
         successor: CheckedStructuralControlSuccessorPlan,

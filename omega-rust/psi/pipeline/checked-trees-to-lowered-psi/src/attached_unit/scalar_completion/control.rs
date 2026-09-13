@@ -125,7 +125,11 @@ fn conditional(
                 && !fallback.continuation.is_valid()
                 && fallback.exit == TransitionExit::Ordinary
                 && (fallback.guard == TransitionGuardNode::Always
-                    || complementary(checked, machine.state, *guard_statement_ordinal)?)
+                    || crate::scalar_source_custody::guarded_exits::complementary(
+                        checked,
+                        machine.state,
+                        *guard_statement_ordinal,
+                    )?)
         }
         _ => false,
     };
@@ -152,52 +156,4 @@ fn conditional(
         }
     }
     Ok(prefix)
-}
-
-fn complementary(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    ordinal: u32,
-) -> Result<bool, LoweringError> {
-    use checked_trees::{CheckedBooleanExpression as Boolean, CheckedScalarExpression};
-    let guard = |statement| {
-        let (source, expression) = checked
-            .facts
-            .values
-            .scalar_expressions
-            .bound_expression_at(state, statement, CheckedScalarExpressionRole::Guard)
-            .ok_or(LoweringError::Unsupported(
-                "complementary fallback lost its pure source guard",
-            ))?;
-        crate::scalar_source_custody::validate_pure(checked, source, ScalarType::Boolean)?;
-        let CheckedScalarExpression::Boolean(expression) = expression else {
-            return unsupported("complementary fallback guard is not Boolean");
-        };
-        Ok(expression.as_ref())
-    };
-    fn base(mut expression: &Boolean) -> (&Boolean, bool) {
-        let mut polarity = true;
-        loop {
-            match expression {
-                Boolean::Not(operand) => {
-                    expression = operand;
-                    polarity = !polarity;
-                }
-                Boolean::Equal { left, right } => match (left.as_ref(), right.as_ref()) {
-                    (Boolean::Constant(value), operand) | (operand, Boolean::Constant(value)) => {
-                        expression = operand;
-                        polarity = polarity == *value;
-                    }
-                    _ => return (expression, polarity),
-                },
-                _ => return (expression, polarity),
-            }
-        }
-    }
-    let next = ordinal
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported("fallback ordinal overflow"))?;
-    let (left, left_polarity) = base(guard(ordinal)?);
-    let (right, right_polarity) = base(guard(next)?);
-    Ok(left == right && left_polarity != right_polarity)
 }

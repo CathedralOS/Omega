@@ -491,14 +491,14 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
                 )
             }
             StatementNode::LocalData(local)
-                if !local.is_mutable
+                if (!local.is_mutable
                     && (call.statement_index == 0
                         || program
                             .primitive_type_reference(local.type_reference)
-                            .is_some()
-                        || statement_sequence::has_structural_result(
-                            program, facts, owner, statement,
-                        )) =>
+                            .is_some()))
+                    || statement_sequence::has_structural_result(
+                        program, facts, owner, statement,
+                    ) =>
             {
                 if !program
                     .expression_table

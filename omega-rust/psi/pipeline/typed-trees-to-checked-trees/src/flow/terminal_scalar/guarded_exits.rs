@@ -116,16 +116,13 @@ fn tail(
             _ => return None,
         }
     }
-    // Existing binary control retains its established representation. Larger
-    // ladders use this shared roster rather than a source-family body planner.
-    if arms.len() < 2
-        || (arms.len() == 2
-            && fallback.is_none()
-            && guards::complementary(expressions, state.symbol, u32::try_from(prefix).ok()?))
-    {
+    if arms.is_empty() {
         return None;
     }
-    if fallback.is_none() {
+    let complementary_pair = arms.len() == 2
+        && fallback.is_none()
+        && guards::complementary(expressions, state.symbol, u32::try_from(prefix).ok()?);
+    if fallback.is_none() && !complementary_pair {
         if !exact_cases {
             return None;
         }

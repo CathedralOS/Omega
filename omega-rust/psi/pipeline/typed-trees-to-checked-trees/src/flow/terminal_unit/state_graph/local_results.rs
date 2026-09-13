@@ -5,7 +5,7 @@ use super::*;
 /// A state-exit receipt permits disposal only on successors that do not move
 /// this local. Keep the operation's global discard flag false: scalar edge
 /// operands still observe its original home before selected-edge cleanup.
-pub(super) fn permits_edge_disposal(
+pub(super) fn permits_disposal(
     program: &TypedTrees,
     state: &typed_trees::state::State,
     result: &CheckedUnitStructuralResultBindingPlan,
@@ -55,7 +55,9 @@ fn validate(
     {
         return None;
     }
-    let mut has_disposal_edge = false;
+    // A normal Unit return has no successor transfer. It still needs the same
+    // exact lexical disposal receipt as a non-transferring selected edge.
+    let mut has_disposal_edge = successors.is_empty();
     for successor in successors {
         if result.statement_index >= successor.statement_ordinal {
             return None;

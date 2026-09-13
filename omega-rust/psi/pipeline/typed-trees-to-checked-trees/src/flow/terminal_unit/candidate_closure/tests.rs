@@ -77,6 +77,64 @@ fn composed(plan: &CheckedUnitEffectMachinePlan) -> CheckedComposedUnitControlMa
 }
 
 #[test]
+fn complete_unit_body_owns_overlap_before_dependency_closure() {
+    let checked = checked(
+        "boundary trait Sink { machine record(value: u64); }
+         data Packet { value: u64; }
+         machine caller() reaches Sink {
+             let packet: Packet = Packet { value: 7 };
+             Sink::record(packet.value);
+         }",
+    );
+    let caller = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "caller")
+        .unwrap();
+    let effects = &checked.facts.flow.terminal_unit_effects;
+    let mut shapes = ShapeCollector::new(&checked.typed);
+    let graphs = build_checked_composed_unit_control_machines(
+        &checked.typed,
+        &checked.facts,
+        &mut shapes,
+        &effects.boundary_machines,
+    );
+    assert!(
+        graphs.iter().any(|plan| plan.machine == caller.symbol),
+        "normal-return cleanup admits the overlapping graph"
+    );
+    assert_eq!(
+        effects
+            .machines
+            .iter()
+            .filter(|plan| plan.machine == caller.symbol)
+            .count(),
+        1,
+        "the ordinary complete body remains available"
+    );
+    assert!(
+        !effects
+            .composed_machines
+            .iter()
+            .any(|plan| plan.machine == caller.symbol),
+        "builder overlap is resolved before the duplicate-entry guard"
+    );
+    let mut candidates = effects.machines.clone();
+    let ordinary = candidates
+        .iter()
+        .find(|plan| plan.machine == caller.symbol)
+        .unwrap()
+        .clone();
+    let mut duplicate_graph = vec![composed(&ordinary)];
+    compare_reference(&checked, &mut candidates, &mut duplicate_graph);
+    assert!(!candidates.iter().any(|plan| plan.machine == caller.symbol));
+    assert!(
+        duplicate_graph.is_empty(),
+        "forged competing catalog entries still reject"
+    );
+}
+
+#[test]
 fn deep_invalid_chain_and_cycles_close_without_recursive_or_round_replay() {
     const BODY_COUNT: usize = 4096;
     let mut closure =

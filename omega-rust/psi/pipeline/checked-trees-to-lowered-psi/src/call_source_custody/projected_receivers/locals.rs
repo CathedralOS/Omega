@@ -37,14 +37,16 @@ pub(super) fn declaration<'a>(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller_machine: SymbolHandle,
+    caller_state: SymbolHandle,
+    caller_operations: &[CheckedUnitEffectOperationPlan],
     coordinate: CheckedUnitCallCoordinate,
     target_symbol: SymbolHandle,
     target: &CheckedUnitStructuralParameterPlan,
     argument: &CheckedUnitStructuralArgumentPlan,
     source: &ReceiverSource,
 ) -> Result<(), LoweringError> {
-    let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
+    let (_, state) = crate::scalar_source_custody::authored_state(checked, caller_state)?;
     let (ordinal, local) = declaration(
         checked,
         state,
@@ -60,8 +62,7 @@ pub(super) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "local receiver does not name established result storage",
             ))?;
-    let mut producers = caller
-        .operations
+    let mut producers = caller_operations
         .iter()
         .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
@@ -125,7 +126,7 @@ pub(super) fn validate(
         .states
         .iter()
         .map(|(_, state)| state)
-        .find(|state| state.machine_symbol == caller.machine && state.state_symbol == caller.state)
+        .find(|state| state.machine_symbol == caller_machine && state.state_symbol == caller_state)
         .ok_or(LoweringError::Unsupported(
             "local receiver borrow state missing",
         ))?;

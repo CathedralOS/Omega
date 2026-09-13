@@ -421,13 +421,28 @@ pub(crate) fn build_checked_unit_effect_plans(
     // Prefer a complete general state graph when both builders describe the
     // same structural-result body, including a returned parameter or call.
     // Otherwise both catalogs appear to define the same entry and closure
-    // pruning removes the callee and every caller as ambiguous. Scalar
-    // completion still belongs to the ordinary sequence.
+    // pruning removes the callee and every caller as ambiguous. Unit/scalar
+    // completion still belongs to the ordinary sequence when that complete
+    // body exists. Resolve builder overlap before closure, never retry another
+    // body after a selected candidate loses a required dependency.
     candidates.retain(|plan| {
         !(composed_machines
             .iter()
             .any(|graph| graph.machine == plan.machine)
             && plan.structural_result.is_some())
+    });
+    composed_machines.retain(|graph| {
+        !matches!(graph.result, checked_trees::CheckedControlResultPlan::Unit)
+            || !candidates.iter().any(|plan| {
+                plan.machine == graph.machine
+                    && graph
+                        .states
+                        .first()
+                        .is_some_and(|state| state.state == plan.state)
+                    && plan.structural_result.is_none()
+                    && plan.scalar_result.is_none()
+                    && plan.scalar_control.is_none()
+            })
     });
     let dynamic_dispatch =
         build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);

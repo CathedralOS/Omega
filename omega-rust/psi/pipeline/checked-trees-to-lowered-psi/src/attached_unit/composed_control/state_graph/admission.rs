@@ -283,6 +283,9 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
         let terminator_ordinal = super::body::validate(checked, plan.machine, source, state)?;
         let tail = &statements[terminator_ordinal..];
         match (&state.terminator, tail) {
+            (CheckedComposedUnitControlTerminatorPlan::Guarded { .. }, _) => {
+                super::guarded::validate(checked, plan, source, state, terminator_ordinal)?;
+            }
             (CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }, _) => {
                 super::cases::validate(checked, plan, source, state, tail, terminator_ordinal)?;
             }

@@ -195,14 +195,6 @@ pub(super) fn build(
             &[],
             binding_count,
         )?;
-        let scalar_locals = sequence.operations.iter().filter(|operation| matches!(operation,
-            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
-                if matches!(statements.get(result.statement_index as usize), Some(StatementNode::LocalData(_))))).count();
-        if sequence.local_count
-            != binding_count + sequence.structural_local_symbols.len() + scalar_locals
-        {
-            return None;
-        }
         let mut operations = sequence.operations;
         // Named results remain live through successor operand evaluation. The
         // selected edge owns their exact transfer/disposal partition below;
@@ -255,7 +247,10 @@ pub(super) fn build(
                 } if claim_transfers.is_empty()
                     && structural_arguments.iter().all(|argument| {
                         whole_shared_argument(argument)
-                            || (argument.source_parameter_index().is_some()
+                            || ((argument.source_parameter_index().is_some()
+                                || argument
+                                    .source_structural_result_binding_ordinal()
+                                    .is_some())
                                 && argument.access == CheckedStructuralAccess::MutableBorrow)
                     }) => {}
                 CheckedUnitEffectOperationPlan::StructuralCall {
@@ -301,6 +296,8 @@ pub(super) fn build(
             terminator_index,
         ) {
             terminator
+        } else if let Some(terminator) = returns::guarded(program, facts, state, ordinal) {
+            terminator
         } else {
             match &statements[terminator_index..] {
                 [] if result == checked_trees::CheckedControlResultPlan::Unit => {
@@ -330,7 +327,15 @@ pub(super) fn build(
                     if let Some(result) = sequence.structural_result.clone() {
                         CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
                     } else {
-                        returns::constructor(program, facts, state, ordinal, *expression)?
+                        CheckedComposedUnitControlTerminatorPlan::ReturnCase {
+                            result: returns::constructor(
+                                program,
+                                facts,
+                                state,
+                                ordinal,
+                                *expression,
+                            )?,
+                        }
                     }
                 }
                 [StatementNode::Transition(transition)]
@@ -369,6 +374,7 @@ pub(super) fn build(
             terminator,
             CheckedComposedUnitControlTerminatorPlan::Jump { .. }
                 | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+                | CheckedComposedUnitControlTerminatorPlan::ReturnUnit
         ) {
             crate::flow::terminal_cleanup::state_exit_result_locals(program, facts, machine, state)?
         } else {
@@ -385,10 +391,12 @@ pub(super) fn build(
                 edge.transfers.iter().filter(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)).count() == 1
             };
             let consumed = match &terminator {
+                CheckedComposedUnitControlTerminatorPlan::ReturnUnit =>
+                    local_results::permits_disposal(program, state, result, &[], &disposable_locals),
                 CheckedComposedUnitControlTerminatorPlan::Jump { successor } => transferred(successor)
-                    || local_results::permits_edge_disposal(program, state, result, &[successor], &disposable_locals),
+                    || local_results::permits_disposal(program, state, result, &[successor], &disposable_locals),
                 CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, when_false, .. } => (transferred(when_true) && transferred(when_false))
-                    || local_results::permits_edge_disposal(program, state, result, &[when_true, when_false], &disposable_locals),
+                    || local_results::permits_disposal(program, state, result, &[when_true, when_false], &disposable_locals),
                 CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } => matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal) && cases.iter().all(|case| !case.successor.transfers.iter().any(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal))),
                 CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => matches!(returned.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal),
                 _ => false,

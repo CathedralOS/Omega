@@ -313,7 +313,9 @@ fn shared_record_argument(
                 _ => None,
             });
         let local = locals.next()?;
-        if locals.next().is_some() || local.is_mutable || !local.initial_value.is_valid() {
+        // A shared invocation observes the current local home; mutability of
+        // that home does not turn this call-local loan into a copied snapshot.
+        if locals.next().is_some() || !local.initial_value.is_valid() {
             return None;
         }
         (

@@ -813,7 +813,10 @@ pub(crate) fn validate_consumer(
         {
             crate::call_source_custody::projected_receivers::validate(
                 checked,
-                caller,
+                caller.machine,
+                caller.state,
+                &caller.operations,
+                &caller.structural_parameters,
                 operation,
                 target_parameters,
             )?;

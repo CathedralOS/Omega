@@ -5,6 +5,70 @@
 use super::*;
 
 impl Evaluation {
+    /// Guards share the same selective source evaluator as initializers and
+    /// arguments. Selection chooses retained evidence, never a Boolean spelling.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn guard_value(
+        &mut self,
+        checked: &CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        statement: u32,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let role = CheckedScalarExpressionRole::Guard;
+        let mut computations = checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .filter(|root| {
+                root.state == state && root.statement_ordinal == statement && root.role == role
+            });
+        let value = if let Some(root) = computations.next() {
+            if computations.next().is_some() || root.machine != machine {
+                return unsupported("guard computation has no unique source owner");
+            }
+            CheckedCallScalarArgument::Computation(root.root)
+        } else {
+            let (_, value) = checked
+                .facts
+                .values
+                .scalar_expressions
+                .bound_expression_at(state, statement, role)
+                .ok_or(LoweringError::Unsupported(
+                    "guard has no retained source value",
+                ))?;
+            CheckedCallScalarArgument::Pure(value.clone())
+        };
+        let value = self.source_value(
+            checked,
+            machine,
+            state,
+            statement,
+            role,
+            &value,
+            values.len(),
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            calls,
+        )?;
+        if value.scalar_type != ScalarType::Boolean {
+            return unsupported("guard source value is not Boolean");
+        }
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn source_value(
         &mut self,

@@ -615,7 +615,18 @@ pub(super) fn state_exit_result_locals(
                     && event.kind == PermissionEventKind::Transfer
             })
             .count();
-        if edge_count == 0 || retained_transfers != transfer_count {
+        // A normal Unit completion retires the same exact lexical remainder
+        // without transferring it to a successor. Other zero-edge shapes do
+        // not acquire disposal authority from the absence of a transition.
+        let normal_unit_return = matches!(
+            program
+                .type_reference_table
+                .type_reference(state.return_type),
+            typed_trees::types::TypeReferenceNode::Unit
+        ) && !statements
+            .iter()
+            .any(|statement| matches!(statement, StatementNode::Transition(_)));
+        if (edge_count == 0 && !normal_unit_return) || retained_transfers != transfer_count {
             return None;
         }
         if permissions.permissions.iter().any(|(_, event)| {

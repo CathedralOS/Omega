@@ -101,11 +101,12 @@ pub(super) fn validate(
             ))?;
             if locals.next().is_some()
                 || ordinal >= statement as usize
-                || local.is_mutable
                 || !table.expression_is_valid(local.initial_value)
             {
-                return unsupported("record operand has no preceding immutable establishment");
+                return unsupported("record operand has no exact prior establishment");
             }
+            // The loan rejoins the current original backing, not an immutable
+            // snapshot of the initializer's scalar fields.
             local.type_reference
         }
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {

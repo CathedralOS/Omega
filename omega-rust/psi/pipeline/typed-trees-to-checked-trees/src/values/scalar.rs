@@ -171,7 +171,13 @@ pub(crate) fn build_checked_scalar_expression_plans(
                 }
                 match statement {
                     StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-                        if !local.is_mutable
+                        // Structural call results establish their own operation
+                        // place even when the local later lends mutable access.
+                        // Their scalar operands still need exact source rows.
+                        if (!local.is_mutable
+                            || program
+                                .primitive_type_reference(local.type_reference)
+                                .is_none())
                             && let ExpressionNode::Call(call) =
                                 program.expression_table.expression(local.initial_value)
                             && let Some(arguments) = lower_call_arguments(
