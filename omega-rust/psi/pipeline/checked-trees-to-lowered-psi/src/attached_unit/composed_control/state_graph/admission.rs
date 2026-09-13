@@ -105,7 +105,7 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
         return unsupported("Unit graph state identity, contract, or custody drifted");
     }
     for (source, state) in source_states.iter().zip(&plan.states) {
-        crate::attached_unit::claims::validate_whole_entry_claims(
+        crate::attached_unit::claims::validate_entry_claims(
             checked,
             plan.machine,
             source,
@@ -148,6 +148,18 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
             let source = source_parameters.get(parameter.position as usize).ok_or(
                 LoweringError::Unsupported("Unit graph view parameter position is invalid"),
             )?;
+            if validation::structural_result_projected_qualifications(
+                &checked.typed,
+                source.type_reference,
+            )
+            .ok()
+            .as_ref()
+                != Some(&parameter.projected_qualifications)
+            {
+                return unsupported(
+                    "Unit graph projected parameter qualifications differ from source",
+                );
+            }
             if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
                 if source.is_self
                     || source.is_const

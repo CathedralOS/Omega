@@ -1581,10 +1581,11 @@ Owners include
   owns residual cleanup. Replace remaining flat guarded-call hoisting with the
   same evaluation graph, not another source-order family.
 
-  Preserve whole-result claim and content lineage through ordinary call chains
-  using `effects/structural_callback_reach` as the regression. Extend that same
-  producer/consumer join to projected or freshly established returned claims,
-  multiple transferred linear claims and their mixed scalar/structural operands;
+  Extend the ordinary producer/consumer join in
+  `effects/structural_callback_reach` to extracted projections, freshly
+  established returned claims and claims from distinct owned inputs, including
+  mixed scalar/structural operands. Returning a whole fixed array with several
+  indexed claims is the regression baseline in `projected.omg`;
   matching claim identities cannot substitute for checked content guarantees.
 
   Complete caller-specific saved-argument and result facts: nonliteral contract

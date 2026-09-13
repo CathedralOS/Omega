@@ -230,6 +230,7 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
         multiplicity: Multiplicity::Affine,
         access: checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
         fused_service_erasure: None,
     };
     checked.facts.flow.terminal_structural_unit_controls =
@@ -308,6 +309,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
         multiplicity: Multiplicity::Affine,
         access: checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
         fused_service_erasure: None,
     };
     let leaf = |state| checked_trees::CheckedStructuralUnitControlStatePlan {
@@ -475,6 +477,7 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
         multiplicity: Multiplicity::Affine,
         access: checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
         fused_service_erasure: None,
     };
     let CheckedStructuralUnitControlTerminatorPlan::Conditional { when_true, .. } =
@@ -570,6 +573,7 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
         multiplicity: Multiplicity::Affine,
         access: checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
         fused_service_erasure: None,
     };
     plan.states[0]

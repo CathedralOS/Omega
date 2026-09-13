@@ -53,6 +53,7 @@ pub(crate) fn validate_linear_result_consumer(
     let producer = &operations[producer_index];
     let CheckedUnitEffectOperationPlan::StructuralCall {
         coordinate: producer_coordinate,
+        target_state: producer_target_state,
         result,
         custody: produced,
         ..
@@ -80,6 +81,16 @@ pub(crate) fn validate_linear_result_consumer(
     }
     super::validate_custody(checked, machine, state, producer)?;
     super::validate_custody(checked, machine, state, operation)?;
+    let (_, producer_state) =
+        crate::scalar_source_custody::authored_state(checked, *producer_target_state)?;
+    let projected_qualifications = validation::structural_result_projected_qualifications(
+        &checked.typed,
+        producer_state.return_type,
+    )
+    .map_err(LoweringError::Unsupported)?;
+    if parameter.projected_qualifications != projected_qualifications {
+        return unsupported("linear result operand changes its projected qualification row");
+    }
     crate::call_source_custody::initializers::validate_structural(
         checked,
         machine,
@@ -99,6 +110,12 @@ pub(crate) fn validate_linear_result_consumer(
         || validation::structural_result_qualifications(&checked.typed, local.type_reference)
             .map_err(LoweringError::Unsupported)?
             != produced.result_qualifications
+        || validation::structural_result_projected_qualifications(
+            &checked.typed,
+            local.type_reference,
+        )
+        .map_err(LoweringError::Unsupported)?
+            != projected_qualifications
     {
         return unsupported("linear result local changes its producing qualification row");
     }
@@ -123,9 +140,22 @@ pub(crate) fn validate_linear_result_consumer(
         .iter()
         .filter(|transfer| transfer.argument_index as usize == argument_index)
         .collect::<Vec<_>>();
-    if transfers.len() != 1
-        || produced.returned_claim_transfers.len() != 1
-        || transfers[0].claim_identity != produced.returned_claim_transfers[0].caller_claim
+    // Claim identities survive the move, and each identity keeps its relative
+    // path below the whole owner. Equal counts or equal aggregate types cannot
+    // authorize exchanging two sibling claims between successive calls. Shared
+    // custody replay above independently establishes canonical path order.
+    if transfers.is_empty()
+        || transfers.len() != produced.returned_claim_transfers.len()
+        || transfers.len() != custody.returned_claim_transfers.len()
+        || transfers
+            .iter()
+            .zip(&produced.returned_claim_transfers)
+            .zip(&custody.returned_claim_transfers)
+            .any(|((transfer, returned), continued)| {
+                transfer.claim_identity != returned.caller_claim
+                    || transfer.claim_identity != continued.caller_claim
+                    || returned.path != continued.path
+            })
     {
         return unsupported("linear result operand changes the returned input claim lineage");
     }

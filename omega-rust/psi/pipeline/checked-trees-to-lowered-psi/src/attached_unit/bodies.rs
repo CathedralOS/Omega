@@ -48,6 +48,7 @@ impl<'a> UnitBody<'a> {
                             type_identity: result.type_identity.clone(),
                             multiplicity: result.multiplicity,
                             qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
                         },
                     )
                 },

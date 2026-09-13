@@ -192,6 +192,8 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
                 && (source.type_identity != target.type_identity
                     || source.multiplicity != target.multiplicity))
             || source.qualifications != target.qualifications
+            || (argument.path.is_empty()
+                && source.projected_qualifications != target.projected_qualifications)
         {
             return unsupported("composed Unit structural call authority drifted");
         }

@@ -32,6 +32,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
     )?;
     let content_entry_claims = crate::content_conservation::lower_whole_content_entry_claims(
         checked,
+        &catalogs.structural_types,
         &entry.structural_parameters,
         &parameters,
         &entry.entry_claims,

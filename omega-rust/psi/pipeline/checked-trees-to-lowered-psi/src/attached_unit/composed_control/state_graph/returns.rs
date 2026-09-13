@@ -28,6 +28,13 @@ pub(super) fn signature_matches(
                 == result.type_identity
                 && checked.type_multiplicity(source.return_type) == result.multiplicity
                 && validation::structural_result_qualifications(&checked.typed, source.return_type).ok().as_ref() == Some(&result.qualifications)
+                && validation::structural_result_projected_qualifications(
+                    &checked.typed,
+                    source.return_type,
+                )
+                .ok()
+                .as_ref()
+                    == Some(&result.projected_qualifications)
                 // Plain storage classification excludes linear roots by design.
                 // Their admission instead requires exact entry/call/return claims.
                 && (result.multiplicity == Multiplicity::Linear || validation::has_plain_owned_contents_with_numeric_constraints(
@@ -328,7 +335,11 @@ pub(super) fn result(
                 .iter()
                 .map(|domain| lookup_domain_id(&catalogs.domain_ids, *domain))
                 .collect::<Result<Vec<_>, _>>()?,
-            projected_qualifications: Vec::new(),
+            projected_qualifications:
+                crate::attached_unit::parameters::lower_projected_qualifications(
+                    &result.projected_qualifications,
+                    &catalogs.domain_ids,
+                )?,
         },
     ))
 }

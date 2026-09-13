@@ -3006,6 +3006,7 @@ pub(super) fn free_fused_service_scalar_signature(
             multiplicity,
             access,
             qualifications,
+            projected_qualifications: Vec::new(),
             fused_service_erasure: Some(fused_service_erasure),
         });
     }
@@ -3207,6 +3208,12 @@ fn structural_signature_with_partial_affine(
             multiplicity,
             access,
             qualifications,
+            projected_qualifications: projected_parameter_qualifications(
+                program,
+                shapes,
+                parameter.type_reference,
+                binders,
+            )?,
             fused_service_erasure,
         });
     }
@@ -3325,6 +3332,12 @@ fn scalar_and_structural_parameters(
             },
             access: structural_access_for_type_reference(program, parameter.type_reference)?,
             qualifications,
+            projected_qualifications: projected_parameter_qualifications(
+                program,
+                shapes,
+                parameter.type_reference,
+                binders,
+            )?,
             fused_service_erasure: None,
         });
     }

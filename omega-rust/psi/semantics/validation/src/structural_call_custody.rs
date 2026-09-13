@@ -8,8 +8,9 @@
 
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralCallCustodyPlan,
-    CheckedStructuralReturnedClaimTransferPlan, CheckedUnitClaimTransferPlan,
-    CheckedUnitEffectOperationPlan, FlowClaimOutcomeSource,
+    CheckedStructuralPathQualification, CheckedStructuralReturnedClaimTransferPlan,
+    CheckedUnitClaimTransferPlan, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+    FlowClaimOutcomeEntryFact, FlowClaimOutcomeSource,
 };
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
@@ -125,6 +126,332 @@ pub fn structural_result_qualifications(
     Ok(qualifications)
 }
 
+/// Reconstruct exact nested domain rows from a source structural type. Root
+/// constraints remain owned by `structural_result_qualifications`; this route
+/// only emits nonempty fixed-index paths and rejects malformed spans.
+pub fn structural_result_projected_qualifications(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Result<Vec<CheckedStructuralPathQualification>, &'static str> {
+    fn collect(
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+        is_root: bool,
+        path: &mut Vec<CheckedUnitStructuralPathSegment>,
+        output: &mut Vec<CheckedStructuralPathQualification>,
+    ) -> Result<(), &'static str> {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                collect(program, *referee, is_root, path, output)
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let retained = program.type_reference_table.constraints(*constraints);
+                if retained.len() != constraints.len() {
+                    return Err("projected qualification span is stale");
+                }
+                for constraint in retained {
+                    let TypeConstraintNode::Domain(domain) = constraint else {
+                        continue;
+                    };
+                    if !domain.semantic_id.is_valid() {
+                        return Err("projected qualification has no exact identity");
+                    }
+                    if !is_root || !path.is_empty() {
+                        output.push(CheckedStructuralPathQualification {
+                            path: path.clone(),
+                            domain: domain.semantic_id,
+                        });
+                    }
+                }
+                collect(program, *base_type, is_root, path, output)
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
+                    return Err("projected qualification array length is not literal");
+                };
+                let mut element_rows = Vec::new();
+                collect(
+                    program,
+                    *element_type,
+                    false,
+                    &mut Vec::new(),
+                    &mut element_rows,
+                )?;
+                if element_rows.is_empty() {
+                    return Ok(());
+                }
+                output
+                    .try_reserve(
+                        element_rows
+                            .len()
+                            .checked_mul(*length)
+                            .ok_or("projected qualification count overflow")?,
+                    )
+                    .map_err(|_| "projected qualification storage exhausted")?;
+                for index in 0..*length {
+                    let index = u64::try_from(index)
+                        .map_err(|_| "projected qualification index overflow")?;
+                    for row in &element_rows {
+                        let mut qualified = row.clone();
+                        qualified
+                            .path
+                            .insert(0, CheckedUnitStructuralPathSegment::FixedIndex(index));
+                        output.push(qualified);
+                    }
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+    let mut output = Vec::new();
+    collect(program, type_reference, true, &mut Vec::new(), &mut output)?;
+    output.sort_by(|left, right| {
+        left.path
+            .cmp(&right.path)
+            .then(left.domain.0.cmp(&right.domain.0))
+    });
+    output.dedup();
+    Ok(output)
+}
+
+/// Replays a complete identity-preserving return of one whole owned parameter.
+/// Other parameters may be consumed separately, but every output must continue
+/// this parameter's exact entry path and every entry claim below it must return.
+/// The source ownership analysis supplies the outcome theorem; this join checks
+/// its exact custody, rather than inferring a theorem from matching carriers.
+pub fn reconstruct_structural_parameter_return_claims(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    parameter: SymbolHandle,
+) -> Result<
+    Vec<(
+        PermissionClaimIdentity,
+        Vec<CheckedUnitStructuralPathSegment>,
+    )>,
+    &'static str,
+> {
+    let owner = program
+        .machines()
+        .iter()
+        .find(|owner| owner.symbol == machine)
+        .ok_or("structural returned claim has no exact machine")?;
+    let destination = program
+        .machine_states(owner)
+        .iter()
+        .find(|candidate| candidate.symbol == state)
+        .ok_or("structural returned claim has no exact state")?;
+    let mut parameters = program
+        .state_parameters(destination)
+        .iter()
+        .filter(|candidate| candidate.symbol == parameter);
+    let source = parameters
+        .next()
+        .ok_or("structural claim outcome names an absent parameter")?;
+    if parameters.next().is_some()
+        || owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        || source.is_self
+        || source.is_mutable
+        || source.is_const
+        || program.type_multiplicity(destination.return_type) != Multiplicity::Linear
+        || program.normalized_type_identity(source.type_reference)
+            != program.normalized_type_identity(destination.return_type)
+    {
+        return Err("structural returned claim differs from its exact whole input contract");
+    }
+    structural_result_qualifications(program, source.type_reference)?;
+    structural_result_qualifications(program, destination.return_type)?;
+    let outcomes = returned_claim_outcomes(facts, machine, state)?;
+    if outcomes.is_empty() {
+        return Err("structural callee has no returned claims");
+    }
+    let mut paths = Vec::with_capacity(outcomes.len());
+    for outcome in outcomes {
+        let FlowClaimOutcomeSource::Input {
+            parameter_symbol,
+            segments,
+        } = outcome.source
+        else {
+            return Err("structural returned claim does not continue an input");
+        };
+        if parameter_symbol != parameter {
+            return Err("structural returned claims do not continue the same whole input");
+        }
+        let input_segments = retained_claim_segments(facts, segments)?;
+        let output_segments = retained_claim_segments(facts, outcome.output_segments)?;
+        let input_path = structural_claim_path(program, source.type_reference, input_segments)?;
+        let output_path = structural_claim_path(program, destination.return_type, output_segments)?;
+        if input_path != output_path {
+            return Err("structural returned claim changes its typed input path");
+        }
+        paths.push(output_path);
+    }
+    paths.sort();
+    for pair in paths.windows(2) {
+        if pair[1].starts_with(&pair[0]) {
+            return Err("structural returned claim paths duplicate or overlap");
+        }
+    }
+    let mut entries = Vec::with_capacity(paths.len());
+    for (_, event) in facts.flow.ownership.permissions.iter() {
+        if event.machine_symbol != machine
+            || event.state_symbol != state
+            || event.source != PermissionEventSource::StateEntry
+            || event.kind != PermissionEventKind::Establish
+            || event.root != facts::PlaceRoot::Symbol(parameter)
+            || event.multiplicity != Multiplicity::Linear
+            || !event.obligation_live
+        {
+            continue;
+        }
+        if event.access != PermissionAccess::Owned
+            || event.claim_identity == PermissionClaimIdentity::Unknown
+            || entries
+                .iter()
+                .any(|(identity, _)| *identity == event.claim_identity)
+        {
+            return Err("structural returned claim has ambiguous entry custody");
+        }
+        let segments = retained_claim_segments(facts, event.segments)?;
+        entries.push((
+            event.claim_identity,
+            structural_claim_path(program, source.type_reference, segments)?,
+        ));
+    }
+    entries.sort_by(|left, right| left.1.cmp(&right.1));
+    if entries.len() != paths.len()
+        || entries
+            .iter()
+            .zip(&paths)
+            .any(|((_, entry_path), output_path)| entry_path != output_path)
+    {
+        return Err("structural returned claims differ from the complete input frontier");
+    }
+    Ok(entries)
+}
+
+fn returned_claim_outcomes(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+) -> Result<&[FlowClaimOutcomeEntryFact], &'static str> {
+    let mut outcomes = facts
+        .flow
+        .ownership
+        .claim_outcome_maps
+        .iter()
+        .map(|(_, map)| map)
+        .filter(|map| map.machine_symbol == machine && map.state_symbol == state);
+    let outcome = outcomes
+        .next()
+        .ok_or("structural callee has no exact claim outcome")?;
+    if outcomes.next().is_some() {
+        return Err("structural callee has ambiguous claim outcomes");
+    }
+    let entries = facts
+        .flow
+        .ownership
+        .claim_outcome_entries
+        .span_or_empty(outcome.entries);
+    if entries.len() != outcome.entries.len() {
+        return Err("structural claim outcome span is stale");
+    }
+    Ok(entries)
+}
+
+fn retained_claim_segments(
+    facts: &CheckFacts,
+    span: arena::HandleSpan<facts::PlaceSegment>,
+) -> Result<&[facts::PlaceSegment], &'static str> {
+    let segments = facts.flow.ownership.segments.span_or_empty(span);
+    if segments.len() != span.len() {
+        return Err("structural claim path span is stale");
+    }
+    Ok(segments)
+}
+
+/// Resolve each semantic segment against its actual carrier before erasing
+/// source handles. Numeric field identities and literal indexes are retained;
+/// spelling alone never selects a field from another declaration.
+pub fn structural_claim_path(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Result<Vec<CheckedUnitStructuralPathSegment>, &'static str> {
+    let mut path = Vec::with_capacity(segments.len());
+    for segment in segments {
+        structural_result_qualifications(program, reference)?;
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(reference)
+        {
+            reference = *base_type;
+        }
+        match (
+            segment,
+            program.type_reference_table.type_reference(reference),
+        ) {
+            (
+                facts::PlaceSegment::Field { symbol },
+                TypeReferenceNode::Named { symbol: owner, .. },
+            ) => {
+                let definition = program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.symbol == *owner)
+                    .ok_or("structural claim field has no exact data owner")?;
+                let field = program
+                    .data_members(definition)
+                    .iter()
+                    .find_map(|member| {
+                        let typed_trees::data::DataMember::Field(field) = member else {
+                            return None;
+                        };
+                        (field.symbol == *symbol).then_some(field)
+                    })
+                    .ok_or("structural claim field differs from its typed owner")?;
+                if field.relevance != language_core::BindingRelevance::Relevant {
+                    return Err("structural claim traverses an erased field");
+                }
+                path.push(CheckedUnitStructuralPathSegment::Field(
+                    field
+                        .identity
+                        .map(|identity| format!("#{identity}"))
+                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                ));
+                reference = field.type_reference;
+            }
+            (
+                facts::PlaceSegment::FixedIndex { index },
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                },
+            ) if *index < *length => {
+                path.push(CheckedUnitStructuralPathSegment::FixedIndex(
+                    u64::try_from(*index).map_err(|_| "structural claim index exceeds u64")?,
+                ));
+                reference = *element_type;
+            }
+            _ => return Err("structural claim has an unsupported or mistyped path"),
+        }
+    }
+    structural_result_qualifications(program, reference)?;
+    if program.primitive_type_reference(reference).is_some()
+        || program.type_multiplicity(reference) != Multiplicity::Linear
+    {
+        return Err("structural claim path does not select linear structural custody");
+    }
+    Ok(path)
+}
+
 /// Ignores the recorded custody and reconstructs it from the exact call facts.
 /// Existing operand/source validation still checks every value binding and
 /// projection; this replay owns the claim correspondence, not call sequencing.
@@ -195,16 +522,14 @@ pub fn reconstruct_structural_call_custody(
     if states.next().is_some() {
         return Err("structural call has ambiguous semantic states");
     }
-    let mut calls = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state.calls)
-        .iter()
-        .filter(|call| {
-            call.statement_index == coordinate.statement_index as usize
-                && call.call_ordinal == coordinate.call_ordinal as usize
-        });
+    let retained_calls = facts.flow.control.calls.span_or_empty(state.calls);
+    if retained_calls.len() != state.calls.len() {
+        return Err("structural call semantic occurrence span is stale");
+    }
+    let mut calls = retained_calls.iter().filter(|call| {
+        call.statement_index == coordinate.statement_index as usize
+            && call.call_ordinal == coordinate.call_ordinal as usize
+    });
     let call = calls
         .next()
         .ok_or("structural call has no exact semantic occurrence")?;
@@ -256,54 +581,32 @@ pub fn reconstruct_structural_call_custody(
         });
     }
 
-    // Whole-result forwarding has one input-origin output. Projected outputs
-    // and established results need their actual paths/issuance theory, not a
-    // guessed relationship based on the callee's complete entry claim roster.
-    let mut outcomes = facts
-        .flow
-        .ownership
-        .claim_outcome_maps
-        .iter()
-        .map(|(_, map)| map)
-        .filter(|map| map.machine_symbol == *target_machine && map.state_symbol == *target_state);
-    let outcome = outcomes
-        .next()
-        .ok_or("structural callee has no exact claim outcome")?;
-    if outcomes.next().is_some() {
-        return Err("structural callee has ambiguous claim outcomes");
-    }
-    let [returned] = facts
-        .flow
-        .ownership
-        .claim_outcome_entries
-        .span_or_empty(outcome.entries)
-    else {
-        return Err("structural call requires one whole returned claim");
-    };
+    // A whole owner may contain several disjoint claims. The outcome map and
+    // entry frontier must agree on their complete identity-preserving path set;
+    // source transfers then instantiate that set at this exact call occurrence.
+    let outcomes = returned_claim_outcomes(facts, *target_machine, *target_state)?;
+    let returned = outcomes
+        .first()
+        .ok_or("structural callee has no returned claims")?;
     let FlowClaimOutcomeSource::Input {
-        parameter_symbol,
-        segments,
+        parameter_symbol, ..
     } = returned.source
     else {
         return Err("structural returned claim does not continue an input");
     };
-    if !segments.is_empty() || !returned.output_segments.is_empty() {
-        return Err("structural call does not retain projected returned-claim paths");
-    }
+    let returned_claims = reconstruct_structural_parameter_return_claims(
+        program,
+        facts,
+        *target_machine,
+        *target_state,
+        parameter_symbol,
+    )?;
     let parameters = program.state_parameters(destination);
     let parameter_position = parameters
         .iter()
         .position(|parameter| parameter.symbol == parameter_symbol)
         .ok_or("structural claim outcome names an absent parameter")?;
     let parameter = &parameters[parameter_position];
-    if parameter.is_self
-        || parameter.is_mutable
-        || parameter.is_const
-        || program.normalized_type_identity(parameter.type_reference)
-            != program.normalized_type_identity(destination.return_type)
-    {
-        return Err("structural returned claim differs from its exact whole input contract");
-    }
     let argument_position = parameters[..parameter_position]
         .iter()
         .filter(|parameter| {
@@ -364,51 +667,49 @@ pub fn reconstruct_structural_call_custody(
     {
         return Err("structural returned claim source is projected");
     }
-    let [transfer] = transfers.as_slice() else {
-        return Err("structural returned claim requires one exact input transfer");
-    };
-    if transfer.root != facts::PlaceRoot::Symbol(path.symbol)
-        || !transfer.segments.is_empty()
-        || transfer.claim_identity == PermissionClaimIdentity::Unknown
-    {
-        return Err("structural returned claim source differs from its transferred lineage");
+    if transfers.len() != returned_claims.len() {
+        return Err("structural returned claims differ from the complete input transfer set");
     }
-    let mut entries = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .map(|(_, event)| event)
-        .filter(|event| {
-            event.machine_symbol == *target_machine
-                && event.state_symbol == *target_state
-                && event.source == PermissionEventSource::StateEntry
-                && event.kind == PermissionEventKind::Establish
-                && event.access == PermissionAccess::Owned
-                && event.multiplicity == Multiplicity::Linear
-                && event.obligation_live
-                && event.root == facts::PlaceRoot::Symbol(parameter_symbol)
-        });
-    let entry = entries
-        .next()
-        .ok_or("structural returned claim has no exact callee entry")?;
-    if entries.next().is_some()
-        || !entry.segments.is_empty()
-        || entry.claim_identity == PermissionClaimIdentity::Unknown
-    {
-        return Err("structural returned claim has ambiguous or projected entry custody");
+    let mut transferred_claims = Vec::with_capacity(transfers.len());
+    for transfer in transfers {
+        if transfer.root != facts::PlaceRoot::Symbol(path.symbol)
+            || transfer.claim_identity == PermissionClaimIdentity::Unknown
+            || transferred_claims
+                .iter()
+                .any(|(identity, _)| *identity == transfer.claim_identity)
+        {
+            return Err("structural returned claim source differs from its transferred lineage");
+        }
+        let segments = retained_claim_segments(facts, transfer.segments)?;
+        let transfer_path = structural_claim_path(program, parameter.type_reference, segments)?;
+        transferred_claims.push((transfer.claim_identity, transfer_path));
     }
-    Ok(CheckedStructuralCallCustodyPlan {
+    transferred_claims.sort_by(|left, right| left.1.cmp(&right.1));
+    let argument_index =
+        u32::try_from(argument_position).map_err(|_| "structural argument position exceeds u32")?;
+    let mut custody = CheckedStructuralCallCustodyPlan {
         reference_loan: arena::Handle::invalid(),
         result_qualifications,
-        claim_transfers: vec![CheckedUnitClaimTransferPlan {
-            claim_identity: transfer.claim_identity,
-            argument_index: u32::try_from(argument_position)
-                .map_err(|_| "structural argument position exceeds u32")?,
-        }],
-        returned_claim_transfers: vec![CheckedStructuralReturnedClaimTransferPlan {
-            callee_claim: entry.claim_identity,
-            caller_claim: transfer.claim_identity,
-        }],
-    })
+        claim_transfers: Vec::with_capacity(returned_claims.len()),
+        returned_claim_transfers: Vec::with_capacity(returned_claims.len()),
+    };
+    for ((callee_claim, returned_path), (caller_claim, transfer_path)) in
+        returned_claims.into_iter().zip(transferred_claims)
+    {
+        if returned_path != transfer_path {
+            return Err("structural returned claim path differs from its source transfer");
+        }
+        custody.claim_transfers.push(CheckedUnitClaimTransferPlan {
+            claim_identity: caller_claim,
+            argument_index,
+        });
+        custody
+            .returned_claim_transfers
+            .push(CheckedStructuralReturnedClaimTransferPlan {
+                callee_claim,
+                caller_claim,
+                path: returned_path,
+            });
+    }
+    Ok(custody)
 }

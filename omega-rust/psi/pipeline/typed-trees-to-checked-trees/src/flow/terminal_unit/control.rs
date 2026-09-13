@@ -841,6 +841,15 @@ pub(super) fn build_static_boundary_requirements(
                     supported = false;
                     break;
                 };
+                let Some(projected_qualifications) = projected_parameter_qualifications(
+                    program,
+                    shapes,
+                    parameter.type_reference,
+                    &[],
+                ) else {
+                    supported = false;
+                    break;
+                };
                 structural_parameters.push(CheckedUnitStructuralParameterPlan {
                     position: source_position,
                     is_self: false,
@@ -851,6 +860,7 @@ pub(super) fn build_static_boundary_requirements(
                     ),
                     access,
                     qualifications,
+                    projected_qualifications,
                     fused_service_erasure: None,
                 });
             }

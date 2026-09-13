@@ -96,7 +96,8 @@ impl Evaluation {
             || produced.multiplicity != multiplicity
             || (multiplicity != StructuralMultiplicity::Linear
                 && !produced.qualifications.is_empty())
-            || !produced.projected_qualifications.is_empty()
+            || (multiplicity != StructuralMultiplicity::Linear
+                && !produced.projected_qualifications.is_empty())
             || (multiplicity != StructuralMultiplicity::Linear && !produced.claims.is_empty())
         {
             return unsupported("structural result registration changed its exact custody");

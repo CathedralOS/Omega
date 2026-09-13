@@ -46,8 +46,22 @@ verified normal-return identity guarantee, not a matching claim ID. Stale and
 future result places and missing content guarantees reject in module validation,
 independently of proof-bundle identity.
 
-Projected or freshly established returned claims and multiple transferred
-linear claims require further implementation. Native execution is not established
+`projected.omg` carries a whole `[Region in Owned; 2]` through the same callback,
+named local, mixed scalar/structural call and ordinary forward:
+
+```sh
+cargo run -p omega -- --check tests/omega/pass/effects/structural_callback_reach/projected.omg
+cargo run -p omega -- inspect-terminal --machine Main::demand tests/omega/pass/effects/structural_callback_reach/projected.omg
+cargo nextest run -p checked-trees-to-lowered-psi --test structural_return_source --no-fail-fast --no-tests fail -E 'test(projected_)'
+```
+
+Each indexed claim keeps its entry identity, qualification and content path.
+The source-free tests vary the array length through one, two and three claims;
+they reject changed semantic input/output paths, entry/transfer identity swaps,
+incomplete claim sets, invalid result paths, dropped qualifications and missing
+callee content guarantees. This forwards a whole aggregate; it does not extract
+an indexed result or establish fresh claims. Those cases and returning claims
+from distinct owned inputs require further implementation. Native execution is not established
 by these source-free interpreter checks.
 These checks do not establish generic PCC or independently authenticated original
 contract projections.

@@ -7,7 +7,7 @@ pub(super) struct LoweredUnitClaims {
     pub(super) source_claims: Vec<(PermissionClaimIdentity, ClaimId)>,
 }
 
-pub(super) fn validate_whole_entry_claims(
+pub(super) fn validate_entry_claims(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: &checked_trees::state::State,
@@ -48,7 +48,6 @@ pub(super) fn validate_whole_entry_claims(
                 "structural graph entry claim source missing",
             ))?;
         if parameter.multiplicity != Multiplicity::Linear
-            || !claim.path.is_empty()
             || claim.carry != CarryPolicy::STRICT
             || claims
                 .iter()
@@ -60,7 +59,25 @@ pub(super) fn validate_whole_entry_claims(
                 .filter(|event| {
                     event.claim_identity == claim.claim_identity
                         && event.root == facts::PlaceRoot::Symbol(source.symbol)
-                        && event.segments.is_empty()
+                        && checked
+                            .facts
+                            .flow
+                            .ownership
+                            .segments
+                            .span_or_empty(event.segments)
+                            .len()
+                            == event.segments.len()
+                        && validation::structural_claim_path(
+                            &checked.typed,
+                            source.type_reference,
+                            checked
+                                .facts
+                                .flow
+                                .ownership
+                                .segments
+                                .span_or_empty(event.segments),
+                        )
+                        .is_ok_and(|path| path == claim.path)
                 })
                 .count()
                 != 1
@@ -68,7 +85,7 @@ pub(super) fn validate_whole_entry_claims(
                 policy.claim_identity == claim.claim_identity && policy.effective != claim.carry
             })
         {
-            return unsupported("structural graph entry claim changed its whole source custody");
+            return unsupported("structural graph entry claim changed its source custody");
         }
     }
     Ok(())

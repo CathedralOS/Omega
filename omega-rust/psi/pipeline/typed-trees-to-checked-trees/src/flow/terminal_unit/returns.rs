@@ -205,6 +205,7 @@ fn build_claim_free_affine_structural_return_machine(
             type_identity: result_type_identity,
             multiplicity: Multiplicity::Affine,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         },
         return_statement_ordinal: 0,
     })
@@ -360,6 +361,12 @@ fn build_payloadless_case_return_machine(
             type_identity: result_type_identity,
             multiplicity: Multiplicity::Unrestricted,
             qualifications: result_qualifications,
+            projected_qualifications: projected_parameter_qualifications(
+                program,
+                shapes,
+                state.return_type,
+                &binders,
+            )?,
         },
         returned_case_identity,
     })
@@ -859,6 +866,7 @@ fn build_payloadless_guarded_call_return_machine(
             type_identity: result_type_identity,
             multiplicity: Multiplicity::Unrestricted,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         },
         call: CheckedUnitCallCoordinate {
             statement_index: 0,
@@ -1162,6 +1170,12 @@ pub(super) fn build_structural_return_machine(
             type_identity: result_type_identity,
             multiplicity: Multiplicity::Linear,
             qualifications: result_qualifications,
+            projected_qualifications: projected_parameter_qualifications(
+                program,
+                shapes,
+                state.return_type,
+                &binders,
+            )?,
         },
         trivial_affine_local_discard_ordinals: trivial_affine_locals
             .iter()
@@ -1428,6 +1442,12 @@ fn build_trait_operator_scalar_return_machine(
                 multiplicity,
                 access: CheckedStructuralAccess::Owned,
                 qualifications,
+                projected_qualifications: projected_parameter_qualifications(
+                    program,
+                    shapes,
+                    parameter.type_reference,
+                    &binders,
+                )?,
                 fused_service_erasure: None,
             })
         })

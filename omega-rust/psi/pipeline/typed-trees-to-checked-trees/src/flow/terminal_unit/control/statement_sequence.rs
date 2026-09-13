@@ -80,32 +80,23 @@ fn returned_parameter(
         return None;
     }
     if parameter.multiplicity == Multiplicity::Linear {
-        let mut outcomes = facts
-            .flow
-            .ownership
-            .claim_outcome_maps
+        let returned = validation::reconstruct_structural_parameter_return_claims(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            source.symbol,
+        )
+        .ok()?;
+        let mut input = entry_claims
             .iter()
-            .map(|(_, outcome)| outcome)
-            .filter(|outcome| {
-                outcome.machine_symbol == machine.symbol && outcome.state_symbol == state.symbol
-            });
-        let outcome = outcomes.next()?;
-        if outcomes.next().is_some() {
-            return None;
-        }
-        let [returned] = facts
-            .flow
-            .ownership
-            .claim_outcome_entries
-            .span_or_empty(outcome.entries)
-        else {
-            return None;
-        };
-        if !matches!(returned.source, checked_trees::FlowClaimOutcomeSource::Input { parameter_symbol, segments }
-            if parameter_symbol == source.symbol && segments.is_empty())
-            || !returned.output_segments.is_empty()
-            || !matches!(entry_claims, [claim] if claim.parameter_index as usize == parameter_index && claim.path.is_empty())
-        {
+            .filter(|claim| claim.parameter_index as usize == parameter_index)
+            .map(|claim| (claim.claim_identity, claim.path.clone()))
+            .collect::<Vec<_>>();
+        input.sort_by(|left, right| left.1.cmp(&right.1));
+        // Completion and ordinary calls share one input-origin correspondence;
+        // matching paths alone cannot replace the exact checked claim identities.
+        if input != returned {
             return None;
         }
     }

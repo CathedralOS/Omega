@@ -75,8 +75,9 @@ pub mod reference_result_custody;
 mod struct_literals;
 mod structural_call_custody;
 pub use structural_call_custody::{
-    reconstruct_structural_call_custody, structural_result_qualifications,
-    structural_state_contracts_are_parameter_qualifications,
+    reconstruct_structural_call_custody, reconstruct_structural_parameter_return_claims,
+    structural_claim_path, structural_result_projected_qualifications,
+    structural_result_qualifications, structural_state_contracts_are_parameter_qualifications,
 };
 mod symbols;
 mod traits;

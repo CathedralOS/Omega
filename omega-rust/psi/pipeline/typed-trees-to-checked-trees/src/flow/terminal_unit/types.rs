@@ -1,6 +1,7 @@
 //! Structural type, shape, claim, and return-custody helpers.
 
 use super::*;
+use checked_trees::CheckedStructuralPathQualification;
 
 #[path = "types/scalar_fields.rs"]
 mod scalar_fields;
@@ -514,6 +515,66 @@ pub(super) fn parameter_qualifications(
     Some(output)
 }
 
+/// Collect domain constraints below a structural root without treating them
+/// as root qualifications. Fixed-array indexes are the canonical source path
+/// for each occurrence; unsupported dynamic shapes remain absent from plans.
+pub(super) fn projected_parameter_qualifications(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    type_reference: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+) -> Option<Vec<CheckedStructuralPathQualification>> {
+    fn collect(
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        shapes: &mut ShapeCollector<'_>,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<()> {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                collect(program, *referee, shapes, binders)
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    let TypeConstraintNode::Domain(domain) = constraint else {
+                        continue;
+                    };
+                    if !domain.semantic_id.is_valid() {
+                        return None;
+                    }
+                    shapes.add_domain(domain.semantic_id, *base_type, binders)?;
+                }
+                collect(program, *base_type, shapes, binders)
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
+                    return None;
+                };
+                if *length != 0 {
+                    collect(program, *element_type, shapes, binders)?;
+                }
+                Some(())
+            }
+            TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::Unit
+            | TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::DynamicTrait { .. } => Some(()),
+        }
+    }
+    let output =
+        validation::structural_result_projected_qualifications(program, type_reference).ok()?;
+    collect(program, type_reference, shapes, binders)?;
+    Some(output)
+}
+
 fn type_domain_semantic_id(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -958,6 +1019,11 @@ fn partial_affine_source_contents_are_owned(
     if !reference.is_valid() {
         return false;
     }
+    if let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        return partial_affine_source_contents_are_owned(program, *base_type, visited);
+    }
     // Range and policy constraints do not give primitive fields cleanup or
     // reference access. This classifier peels constraints but rejects references.
     if program.primitive_type_reference(reference).is_some() {
@@ -1318,6 +1384,17 @@ impl<'program> ShapeCollector<'program> {
                 self.is_unrestricted_material_record(*element_type);
             let unrestricted_nested_primitive_array_element =
                 self.is_literal_array_of_unrestricted_primitive(*element_type);
+            // Domain membership is carried separately at each indexed place.
+            // Peel only constraints for this owned-carrier classification;
+            // a reference still cannot become an owned linear element.
+            let mut element_carrier = *element_type;
+            while let TypeReferenceNode::Constrained { base_type, .. } = self
+                .program
+                .type_reference_table
+                .type_reference(element_carrier)
+            {
+                element_carrier = *base_type;
+            }
             if (*length == 0
                 && !validation::is_closed_primitive_array_type(self.program, type_reference))
                 || (!plain_owned_array
@@ -1326,7 +1403,7 @@ impl<'program> ShapeCollector<'program> {
                         || (!matches!(
                             self.program
                                 .type_reference_table
-                                .type_reference(*element_type),
+                                .type_reference(element_carrier),
                             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
                         ) && !unrestricted_primitive_element
                             && !unrestricted_nested_primitive_array_element)

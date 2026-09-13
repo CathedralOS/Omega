@@ -122,6 +122,7 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
             results: &operations.structural_values,
             domains: domain_ids,
             claims: claim_bindings,
+            target_entry_claims: target_entry.entry_claims,
         }),
     )?;
     let structural_arguments = lower_structural_arguments(

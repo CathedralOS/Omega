@@ -1,0 +1,33 @@
+use omega::language::core::content;
+
+data ByteUnit {}
+
+data Region [linear] { length: u64; }
+domain Region::Owned;
+machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+satisfies Content<CountedQuantity<ByteUnit>>::project
+{ CountedQuantity { magnitude: embed(region.length) as Nat } }
+
+trait RegionsForward {
+    machine call(regions: [Region in Region::Owned; 2]) -> [Region in Region::Owned; 2];
+}
+
+data Main {}
+machine Main::forward(regions: [Region in Owned; 2]) -> [Region in Owned; 2]
+satisfies RegionsForward::call
+{ regions }
+
+machine Main::with_marker(marker: u64, regions: [Region in Owned; 2]) -> [Region in Owned; 2]
+{ regions }
+
+machine Main::through_call<machine Selected>(regions: [Region in Owned; 2]) -> [Region in Owned; 2]
+where machine Selected satisfies RegionsForward::call;
+{
+    let forwarded: [Region in Owned; 2] = Selected(regions);
+    let marked: [Region in Owned; 2] = Main::with_marker(7, forwarded);
+    Main::forward(marked)
+}
+
+machine Main::demand(regions: [Region in Owned; 2]) -> [Region in Owned; 2] {
+    Main::through_call<Main::forward>(regions)
+}

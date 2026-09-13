@@ -242,11 +242,22 @@ pub(crate) fn emit_boundary_scalar_return(
     };
     let content_entry_claims = content_conservation::lower_whole_content_entry_claims(
         checked,
+        structural_types,
         &plan.structural_parameters,
         &parameters,
         &plan.entry_claims,
         &claim_bindings,
     )?;
+    // Entry binding does not widen the boundary's existing whole-owner
+    // content admission; projected exits need their partition/replay route.
+    if content_entry_claims
+        .iter()
+        .any(|entry| !entry.input.segments.is_empty())
+    {
+        return unsupported(
+            "bodyless content custody currently requires a whole structural parameter",
+        );
+    }
     let OperationBuffer {
         operations,
         source_calls: source_call_occurrences,

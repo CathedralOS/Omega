@@ -326,6 +326,7 @@ pub(in crate::flow::terminal_unit) fn result(
                     type_identity: shapes.add_type(return_type, &[], &[])?,
                     multiplicity: Multiplicity::Unrestricted,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                 });
             }
             let mut targets = facts
@@ -358,5 +359,6 @@ pub(in crate::flow::terminal_unit) fn result(
             type_identity,
             multiplicity: Multiplicity::Affine,
             qualifications,
+            projected_qualifications: Vec::new(),
         })
 }
