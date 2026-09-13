@@ -29,48 +29,90 @@ pub fn package_compilation_inputs_for(
     closure: &ResolvedPackageSourceClosure,
     root: &crate::declarations::PackageKey,
 ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
-    let reachable = reachable_package_keys(closure, root);
-    let packages = closure
-        .custodies()
-        .iter()
-        .filter(|custody| reachable.contains(custody.key()))
-        .map(|custody| {
-            revalidate_package_source_selection(custody)?;
-            let binding = PackageSourceBinding::new(
-                custody.key().identity(),
-                custody.key().name().as_str(),
-                custody.snapshot_root().to_path_buf(),
-            );
-            if custody.key() == root {
-                binding_with_canonical_source_metadata(custody, binding)
-            } else {
-                Ok(binding)
-            }
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| vec![error])?;
-    let dependencies = closure
-        .graph()
-        .packages()
-        .iter()
-        .filter(|package| reachable.contains(package.source().key()))
-        .flat_map(|package| {
-            package.dependencies().iter().map(|dependency| {
-                PackageDependencyBinding::new(
-                    package.source().key().identity(),
-                    dependency.alias().as_str(),
-                    dependency.target().identity(),
-                )
-            })
-        })
-        .collect();
+    PackageCompilationScope::new(closure, root).compilation_inputs()
+}
 
-    let root_role = if root == closure.graph().root() {
-        closure.root_role()
-    } else {
-        crate::declarations::BuildDeclarationKind::Package
-    };
-    PackageCompilationInputs::new(root.identity(), root_role, packages, dependencies)
+/// One request-local re-rooting of immutable package topology. Reusing the
+/// selection does not retain a filesystem-verification verdict: each consumer
+/// still performs its own required source and compiler-input checks.
+pub(crate) struct PackageCompilationScope<'closure> {
+    closure: &'closure ResolvedPackageSourceClosure,
+    root: &'closure crate::declarations::PackageKey,
+    reachable: BTreeSet<crate::declarations::PackageKey>,
+}
+
+impl<'closure> PackageCompilationScope<'closure> {
+    pub(crate) fn new(
+        closure: &'closure ResolvedPackageSourceClosure,
+        root: &'closure crate::declarations::PackageKey,
+    ) -> Self {
+        Self {
+            closure,
+            root,
+            reachable: reachable_package_keys(closure, root),
+        }
+    }
+
+    pub(crate) fn closure(&self) -> &ResolvedPackageSourceClosure {
+        self.closure
+    }
+
+    pub(crate) fn root(&self) -> &crate::declarations::PackageKey {
+        self.root
+    }
+
+    pub(crate) fn packages(&self) -> &BTreeSet<crate::declarations::PackageKey> {
+        &self.reachable
+    }
+
+    pub(crate) fn compilation_inputs(
+        &self,
+    ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
+        let closure = self.closure;
+        let root = self.root;
+        let reachable = &self.reachable;
+        let packages = closure
+            .custodies()
+            .iter()
+            .filter(|custody| reachable.contains(custody.key()))
+            .map(|custody| {
+                revalidate_package_source_selection(custody)?;
+                let binding = PackageSourceBinding::new(
+                    custody.key().identity(),
+                    custody.key().name().as_str(),
+                    custody.snapshot_root().to_path_buf(),
+                );
+                if custody.key() == root {
+                    binding_with_canonical_source_metadata(custody, binding)
+                } else {
+                    Ok(binding)
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| vec![error])?;
+        let dependencies = closure
+            .graph()
+            .packages()
+            .iter()
+            .filter(|package| reachable.contains(package.source().key()))
+            .flat_map(|package| {
+                package.dependencies().iter().map(|dependency| {
+                    PackageDependencyBinding::new(
+                        package.source().key().identity(),
+                        dependency.alias().as_str(),
+                        dependency.target().identity(),
+                    )
+                })
+            })
+            .collect();
+
+        let root_role = if root == closure.graph().root() {
+            closure.root_role()
+        } else {
+            crate::declarations::BuildDeclarationKind::Package
+        };
+        PackageCompilationInputs::new(root.identity(), root_role, packages, dependencies)
+    }
 }
 
 fn binding_with_canonical_source_metadata(
@@ -108,7 +150,7 @@ fn revalidate_package_source_selection(
     })
 }
 
-pub(crate) fn reachable_package_keys(
+fn reachable_package_keys(
     closure: &ResolvedPackageSourceClosure,
     root: &crate::declarations::PackageKey,
 ) -> BTreeSet<crate::declarations::PackageKey> {
@@ -367,10 +409,13 @@ mod tests {
             |_, _| -> Result<PackageSourceCustody, &'static str> { unreachable!() },
         )
         .expect("resolve root-only closure");
+        let scope = PackageCompilationScope::new(&closure, closure.graph().root());
+        scope.compilation_inputs().expect("initial source custody");
         std::fs::remove_dir(&root_path).expect("remove source root after reconciliation");
 
-        let errors = package_compilation_inputs(&closure)
-            .expect_err("compiler handoff must reject drifted source custody");
+        let errors = scope
+            .compilation_inputs()
+            .expect_err("retaining topology must not retain a source verification verdict");
         assert!(errors.iter().any(|error| matches!(
             error,
             PackageCompilationInputError::InvalidSourceRoot { .. }
@@ -380,10 +425,26 @@ mod tests {
     }
 
     #[test]
-    fn rerooted_handoff_excludes_unreachable_siblings() {
+    fn retained_scope_deduplicates_diamonds_and_excludes_unreachable_siblings() {
         let roots = temp_root("rerooted");
-        let first = custody("arithmetic-kernels", 2, roots.join("first"), vec![]);
-        let second = custody("capability-vault", 3, roots.join("second"), vec![]);
+        let shared = custody("shared", 4, roots.join("shared"), vec![]);
+        let shared_key = shared.key().clone();
+        let shared_request = DependencySourceRequest::Path {
+            explicit_alias: None,
+            location: "shared".to_owned(),
+        };
+        let first = custody(
+            "arithmetic-kernels",
+            2,
+            roots.join("first"),
+            vec![shared_request.clone()],
+        );
+        let second = custody(
+            "capability-vault",
+            3,
+            roots.join("second"),
+            vec![shared_request],
+        );
         let first_key = first.key().clone();
         let root = custody(
             "application",
@@ -408,20 +469,49 @@ mod tests {
                 DependencySourceRequest::Path { location, .. } if location == "second" => {
                     Ok(second.clone())
                 }
+                DependencySourceRequest::Path { location, .. } if location == "shared" => {
+                    Ok(shared.clone())
+                }
                 _ => Err("unexpected request"),
             })
-            .expect("resolve diamond-free sibling closure");
+            .expect("resolve diamond dependency closure");
 
-        let inputs = package_compilation_inputs_for(&closure, &first_key)
-            .expect("leaf package can be compiled as a temporary root");
+        let scope = PackageCompilationScope::new(&closure, &first_key);
+        assert_eq!(
+            scope.packages(),
+            &BTreeSet::from([first_key.clone(), shared_key.clone()])
+        );
+        assert!(std::ptr::eq(scope.closure(), &closure));
+        let inputs = scope
+            .compilation_inputs()
+            .expect("one branch can be compiled as a temporary root");
 
         assert_eq!(inputs.root(), first_key.identity());
-        assert_eq!(inputs.packages().count(), 1);
+        assert_eq!(inputs.packages().count(), 2);
         assert!(inputs.package_root(first_key.identity()).is_some());
         let dependency_closure = inputs.dependency_closure();
         assert_eq!(dependency_closure.root(), first_key.identity());
-        assert_eq!(dependency_closure.packages(), &[first_key.identity()]);
-        assert!(dependency_closure.dependencies().is_empty());
+        assert_eq!(dependency_closure.packages().len(), 2);
+        assert!(
+            dependency_closure
+                .packages()
+                .contains(&shared_key.identity())
+        );
+        assert_eq!(dependency_closure.dependencies().len(), 1);
+
+        let root_scope = PackageCompilationScope::new(&closure, closure.graph().root());
+        assert_eq!(root_scope.packages().len(), 4);
+        let root_inputs = root_scope
+            .compilation_inputs()
+            .expect("shared leaf appears once");
+        assert_eq!(root_inputs.packages().count(), 4);
+        assert_eq!(root_inputs.dependency_closure().dependencies().len(), 4);
+        for (position, node) in closure.graph().packages().iter().enumerate() {
+            assert_eq!(
+                closure.graph().package_position(node.source().key()),
+                Some(position)
+            );
+        }
 
         let _ = std::fs::remove_dir_all(roots);
     }

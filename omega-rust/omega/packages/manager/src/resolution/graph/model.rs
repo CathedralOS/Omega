@@ -200,9 +200,13 @@ impl ResolvedPackageClosure {
     }
 
     pub fn package(&self, key: &PackageKey) -> Option<&ResolvedPackageNode> {
-        self.package_indices
-            .get(key)
-            .map(|index| &self.packages[*index])
+        self.package_position(key)
+            .map(|position| &self.packages[position])
+    }
+
+    /// Dense position in this immutable graph, for request-local side tables.
+    pub(crate) fn package_position(&self, key: &PackageKey) -> Option<usize> {
+        self.package_indices.get(key).copied()
     }
 }
 
