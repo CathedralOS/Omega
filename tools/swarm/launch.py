@@ -307,6 +307,8 @@ def route_check(sessions, freshness_by_name):
         if session.get("probe_only"):
             continue
         for line in freshness_by_name[session["name"]]:
+            if not line["path"].startswith("omega-rust/"):
+                continue
             if line["on_route"] is False:
                 failures.append(
                     f"{session['name']}: owning path {line['path']} is in crate "
@@ -429,7 +431,7 @@ def command_plan(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
     gate_results = host_gate_results(repository, manifest["sessions"],
                                      skip=arguments.skip_host_gates)
-    skip_route_check = getattr(arguments, "skip_route_check", False)
+    skip_route_check = arguments.skip_route_check
     route_data = "skipped" if skip_route_check else route_crates(repository)
     freshness = {
         session["name"]: freshness_probe(repository, session, route_data)
