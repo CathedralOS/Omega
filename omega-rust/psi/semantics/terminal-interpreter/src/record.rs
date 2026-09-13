@@ -41,6 +41,7 @@ impl TerminalExecution {
             path: Vec::new(),
         };
         let mut staged = BTreeMap::new();
+        let mut staged_referents = BTreeMap::new();
         let mut consumed = BTreeSet::new();
         for (binding, declaration) in fields.iter().zip(declarations) {
             if binding.field != declaration.id || declaration.relevance.is_erased() {
@@ -85,6 +86,29 @@ impl TerminalExecution {
                     {
                         return Err(invalid());
                     }
+                    // Move permission descriptors into the new owner's field
+                    // coordinates, retaining their original backing unchanged.
+                    // Stage all fields before consuming any child so a bad
+                    // later operand cannot partially move a loan.
+                    for (carrier, referent) in &self.reference_referents {
+                        if carrier.opaque_identity == child.opaque_identity
+                            && carrier.path.starts_with(&child.path)
+                        {
+                            if !affine {
+                                return Err(invalid());
+                            }
+                            let mut path =
+                                vec![StructuralPathSegment::Field(declaration.identity.clone())];
+                            path.extend_from_slice(&carrier.path[child.path.len()..]);
+                            staged_referents.insert(
+                                StructuralRuntimePlace {
+                                    opaque_identity: value.opaque_identity,
+                                    path,
+                                },
+                                referent.clone(),
+                            );
+                        }
+                    }
                     // Copy exact completed leaf storage into the parent's nested home. The
                     // child retains its independent identity until the entire roster passes.
                     for (field, scalar) in &self.structural_scalar_fields {
@@ -111,6 +135,10 @@ impl TerminalExecution {
         }
         for place in consumed {
             if let Some(child) = self.structural_values.remove(&place) {
+                self.reference_referents.retain(|carrier, _| {
+                    carrier.opaque_identity != child.opaque_identity
+                        || !carrier.path.starts_with(&child.path)
+                });
                 self.structural_scalar_fields.retain(|field, _| {
                     field.parent.opaque_identity != child.opaque_identity
                         || !field.parent.path.starts_with(&child.path)
@@ -119,6 +147,7 @@ impl TerminalExecution {
             remove_affine_root(&mut self.live_affine_frontier, place);
         }
         self.structural_scalar_fields.extend(staged);
+        self.reference_referents.extend(staged_referents);
         self.structural_values.insert(result.place, value);
         if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier.insert(StructuralAffineDiscard {

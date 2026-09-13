@@ -626,3 +626,253 @@ fn reference_result_host_projection_rejects_without_widening_boundary_support() 
     operations.swap(1, 2);
     rejects_custody(&module);
 }
+
+fn stored_reference_argument() -> StructuralArgument {
+    StructuralArgument {
+        place: place_id(3),
+        path: vec!["body".into(), StructuralPathSegment::Referent],
+        access: StructuralAccess::MutableBorrow,
+    }
+}
+
+fn record_reference_module() -> TerminalModule {
+    let mut module = relay_module(false);
+    let field = semantic_vocabulary::StructuralFieldId::new(1).unwrap();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(3),
+        identity: "View".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: field,
+                identity: "body".into(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Structural(structural_type_id(2)),
+            }],
+        },
+    });
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(3),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation_id(5),
+            structural_type: structural_type_id(3),
+        },
+    });
+    caller.blocks[0].operations[0] = establish(1, 2, argument(1, false));
+    let read = caller.blocks[0].operations.pop().unwrap();
+    caller.blocks[0].operations.pop().unwrap();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut caller.blocks[0].operations[1].kind
+    else {
+        panic!("writer call");
+    };
+    structural_arguments[0] = stored_reference_argument();
+    caller.blocks[0].operations.insert(
+        1,
+        Operation {
+            static_reach_binding: None,
+            id: operation_id(5),
+            result: OperationResult::Structural(StructuralOperationResult {
+                place: place_id(3),
+                structural_type: structural_type_id(3),
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishRecord {
+                fields: vec![terminal_psi::RecordFieldInitializer {
+                    field,
+                    value: terminal_psi::RecordFieldValue::Structural(StructuralArgument {
+                        place: place_id(2),
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    }),
+                }],
+            },
+        },
+    );
+    let completion = caller.blocks[0].terminator.clone();
+    caller.blocks[0].terminator = jump(4, 4, vec![place_id(3)]);
+    caller.blocks.push(Block {
+        id: block_id(4),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        operations: vec![read],
+        terminator: completion,
+    });
+    module
+}
+
+#[test]
+fn reference_record_moves_permission_and_restores_root_after_edge_discard() {
+    verify_module(
+        &record_reference_module(),
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("record construction and projection replay reference custody without new evidence");
+}
+
+#[test]
+fn reference_record_rejects_duplicate_child_and_unrestricted_owner() {
+    let mut module = record_reference_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[2].shape else {
+        panic!("record");
+    };
+    let mut second = fields[0].clone();
+    second.id = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
+    second.identity = "other".into();
+    let second_id = second.id;
+    fields.push(second);
+    let OperationKind::EstablishRecord { fields } =
+        &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        panic!("constructor");
+    };
+    let mut duplicate = fields[0].clone();
+    duplicate.field = second_id;
+    fields.push(duplicate);
+    rejects_custody(&module);
+
+    let mut module = record_reference_module();
+    let OperationResult::Structural(result) =
+        &mut module.machines[0].blocks[0].operations[1].result
+    else {
+        panic!("record result");
+    };
+    result.multiplicity = StructuralMultiplicity::Unrestricted;
+    assert!(
+        validate_module(&module).is_err(),
+        "an affine leaf cannot become copyable through its record"
+    );
+}
+
+#[test]
+fn reference_record_rejects_stale_carrier_parent_access_and_untyped_projection() {
+    for change in 0..5 {
+        let mut module = record_reference_module();
+        let caller = &mut module.machines[0];
+        match change {
+            0 => caller.blocks[0].operations.insert(2, release(6, 2)),
+            1 => {
+                let OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } = &mut caller.blocks[0].operations[2].kind
+                else {
+                    panic!("call");
+                };
+                structural_arguments[0] = argument(2, true);
+            }
+            2 => {
+                let read = caller.blocks[1].operations.remove(0);
+                caller.blocks[0].operations.push(read);
+            }
+            3 => {
+                let OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } = &mut caller.blocks[0].operations[2].kind
+                else {
+                    panic!("call");
+                };
+                structural_arguments[0].path[0] = "counterfeit".into();
+            }
+            4 => caller.blocks[0].operations.insert(2, release(6, 3)),
+            _ => unreachable!(),
+        }
+        if change == 3 {
+            assert!(
+                matches!(validate_module(&module), Err(ModuleError::InvalidStructuralArgumentPath { operation, argument_index: 0 }) if operation == operation_id(2))
+            );
+        } else {
+            rejects_custody(&module);
+        }
+    }
+}
+
+#[test]
+fn reference_record_relocation_preserves_child_suspension_and_cleanup_order() {
+    let mut module = record_reference_module();
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(reference_place(4, 6));
+    // Create the child before moving its parent. The parent's stable identity
+    // must still suspend the new record leaf until the child is released.
+    caller.blocks[0]
+        .operations
+        .insert(1, establish(6, 4, argument(2, true)));
+    caller.blocks[0].operations.insert(3, release(7, 4));
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("owned relocation preserves the immediate parent relationship");
+    let mut parent_use = module.clone();
+    parent_use.machines[0].blocks[0].operations.swap(3, 4);
+    rejects_custody(&parent_use);
+
+    // Child survives across the record's discard edge and ends in the next
+    // block. The edge must reject before the original referent can be restored.
+    let caller = &mut module.machines[0];
+    let child_release = caller.blocks[0].operations.remove(3);
+    caller.blocks[0]
+        .operations
+        .pop()
+        .expect("remove suspended-parent writer");
+    caller.blocks[1].operations.insert(0, child_release);
+    rejects_custody(&module);
+}
+
+#[test]
+fn reference_record_rejects_unreplayed_producer_and_interface_custody() {
+    for change in 0..4 {
+        let mut module = record_reference_module();
+        match change {
+            0 => {
+                module.machines[0].blocks[0].operations[1].kind =
+                    OperationKind::EstablishReference {
+                        source: argument(1, false),
+                    }
+            }
+            1 => {
+                module.machines[0].structural_parameters[0].structural_type = structural_type_id(3);
+                module.machines[0].structural_parameters[0].access = StructuralAccess::Owned;
+            }
+            2 => {
+                let TerminalMachineResult::Structural(result) = &mut module.machines[1].result
+                else {
+                    panic!("relay result");
+                };
+                result.structural_type = structural_type_id(3);
+            }
+            3 => {
+                let mut parameter = module.machines[0].structural_parameters[0].clone();
+                parameter.place = place_id(40);
+                parameter.structural_type = structural_type_id(3);
+                module.boundary_machines.push(BoundaryMachineDeclaration {
+                    id: boundary_id(1),
+                    identity: "stored_reference_boundary".into(),
+                    attachment: None,
+                    scalar_parameters: Vec::new(),
+                    structural_parameters: vec![parameter],
+                    result: terminal_psi::BoundaryMachineResult::Unit,
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    program_local_root_introductions: Vec::new(),
+                    content_guarantees: Vec::new(),
+                    fixed_service_reach: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                });
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_module(&module).is_err(),
+            "unsupported custody boundary {change}"
+        );
+    }
+}

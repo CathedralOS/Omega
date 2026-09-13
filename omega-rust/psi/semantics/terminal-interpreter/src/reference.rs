@@ -1,4 +1,9 @@
-//! Owned reference carriers preserve borrowed primitive backing across returns.
+//! Owned reference carriers preserve borrowed primitive backing across moves.
+//!
+//! A descriptor's key names its current owner and record-field path; its value
+//! names the original referent. Record construction relocates only the key.
+//! Disposal removes descriptor subtrees, not the storage they permit access to.
+//! Loan ancestry and disposal order are independently checked before execution.
 
 use super::*;
 use terminal_psi::{Operation, StructuralResultDeclaration};
@@ -11,7 +16,11 @@ pub(super) fn discard_structural_value(
     place: PlaceId,
 ) -> Option<TerminalStructuralValue> {
     let value = values.remove(&place)?;
-    referents.remove(&StructuralRuntimePlace::from(&value));
+    // Carrier paths belong to the discarded owner. Captured backing values
+    // are map payloads, not descendants to dispose along with that owner.
+    referents.retain(|carrier, _| {
+        carrier.opaque_identity != value.opaque_identity || !carrier.path.starts_with(&value.path)
+    });
     Some(value)
 }
 
@@ -62,7 +71,8 @@ impl TerminalExecution {
             .pop()
             .ok_or_else(invalid)?;
         if source.access != StructuralAccess::MutableBorrow
-            || (!source.path.is_empty() && source.path != [StructuralPathSegment::Referent])
+            || (!source.path.is_empty()
+                && source.path.last() != Some(&StructuralPathSegment::Referent))
             || result.multiplicity != StructuralMultiplicity::Affine
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
@@ -145,7 +155,9 @@ impl TerminalExecution {
         arguments
             .iter()
             .map(|argument| {
-                if argument.path != [StructuralPathSegment::Referent] {
+                let Some((StructuralPathSegment::Referent, carrier_path)) =
+                    argument.path.split_last()
+                else {
                     let mut resolved = resolve_structural_arguments(
                         &self.structural_types,
                         &self.structural_values,
@@ -154,26 +166,39 @@ impl TerminalExecution {
                     return resolved
                         .pop()
                         .ok_or(TerminalInterpretError::VerifiedOperationMalformed);
-                }
+                };
                 let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-                let carrier = self
+                let owner = self
                     .structural_values
                     .get(&argument.place)
                     .ok_or_else(invalid)?;
+                // Resolve the carrier's owned field path first. Only the final
+                // Referent crosses into captured storage; it is never an offset
+                // within the record or permission to move that storage.
+                let carrier = resolve_structural_arguments(
+                    &self.structural_types,
+                    &self.structural_values,
+                    &[StructuralArgument {
+                        place: argument.place,
+                        path: carrier_path.to_vec(),
+                        access: StructuralAccess::Owned,
+                    }],
+                )?
+                .pop()
+                .ok_or_else(invalid)?;
                 let referent_type = self.mutable_primitive_referent(carrier.structural_type)?;
                 let referent = self
                     .reference_referents
-                    .get(&StructuralRuntimePlace::from(carrier))
+                    .get(&StructuralRuntimePlace::from(&carrier))
                     .ok_or_else(invalid)?;
                 if argument.access == StructuralAccess::Owned
-                    || !carrier.path.is_empty()
                     || referent.structural_type != referent_type
                     || !self
                         .live_affine_frontier
                         .contains(&StructuralAffineDiscard {
                             place: argument.place,
                             path: Vec::new(),
-                            structural_type: carrier.structural_type,
+                            structural_type: owner.structural_type,
                         })
                 {
                     return Err(invalid());

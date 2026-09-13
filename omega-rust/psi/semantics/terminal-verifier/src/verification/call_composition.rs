@@ -541,7 +541,7 @@ fn structural_contract_substitutions(
             .any(|proposition| {
                 crate::validation::proposition_observes_places(proposition, &[parameter.place])
             });
-        if argument.path != [terminal_psi::StructuralPathSegment::Referent] || observed {
+        if !crate::validation::is_reference_projection(module, caller, argument) || observed {
             return Err(ModuleError::InvalidReferenceCustody {
                 machine: caller.id,
                 reason: "callee contract requires an unsupported reference projection",

@@ -5804,3 +5804,5 @@ fn service_id(raw: u64) -> ServiceId {
 
 #[path = "unit/records.rs"]
 mod records;
+#[path = "unit/reference_records.rs"]
+mod reference_records;

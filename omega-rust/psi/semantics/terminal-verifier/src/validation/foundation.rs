@@ -255,9 +255,13 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             }
         }
     }
-    // Stored reference leaves need recursive loan disposal and carrier paths;
-    // an owned aggregate must not silently acquire unchecked borrowed payload.
+    validate_structural_type_graph(&types)?;
+    // Only record construction currently transfers stored reference custody.
+    // Reject other containers recursively, including a record hidden in them.
     for declaration in &module.structural_types {
+        if matches!(declaration.shape, StructuralTypeShape::Record { .. }) {
+            continue;
+        }
         let children: Vec<StructuralTypeId> = match &declaration.shape {
             StructuralTypeShape::Record { fields } => fields
                 .iter()
@@ -296,15 +300,13 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Reference { .. } => Vec::new(),
         };
-        if children.iter().any(|child| {
-            types.get(child).is_some_and(|declaration| {
-                matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-            })
-        }) {
+        if children
+            .iter()
+            .any(|child| super::references::contains_reference(module, *child))
+        {
             return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
         }
     }
-    validate_structural_type_graph(&types)?;
 
     let mut domains = BTreeMap::new();
     let mut domain_names = BTreeSet::new();
@@ -418,9 +420,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 _ => None,
             })
             .find(|structural_type| {
-                types.get(structural_type).is_some_and(|declaration| {
-                    matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-                })
+                super::references::contains_reference(module, *structural_type)
             });
         if let Some(structural_type) = reference_type {
             // Boundary result signatures do not yet carry reference-source
