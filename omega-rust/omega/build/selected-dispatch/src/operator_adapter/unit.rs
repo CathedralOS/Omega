@@ -144,6 +144,16 @@ pub(super) fn validate_selected_unit_source_shape(
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
 ) -> Result<(), Diagnostic> {
+    // Named operator uses are seeded from their enclosing statement root, so a
+    // call nested below that root carries the statement origin. The retained
+    // value row still records whether this exact expression is nested.
+    let origin = checked
+        .facts
+        .values
+        .expression_values(expression)
+        .map(|(_, value)| value.origin)
+        .find(|origin| matches!(origin, CheckedValueOrigin::NestedExpression { .. }))
+        .unwrap_or(origin);
     if !matches!(origin, CheckedValueOrigin::NestedExpression { .. }) {
         return Ok(());
     }

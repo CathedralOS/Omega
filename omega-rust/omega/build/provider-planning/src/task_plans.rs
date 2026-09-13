@@ -2650,7 +2650,7 @@ mod tests {
                 value
             }
             data Main { runtime: &TaskRuntime; }
-            machine Main::run(&mut self) {
+            machine Main::run(&mut self) reaches TaskRuntime {
                 let job: Job = Job { value: 7 };
                 let task: Task<i32> = self.runtime.start<Worker::run>(job);
                 Task::settle(task);

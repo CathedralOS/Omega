@@ -284,7 +284,6 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     psi_operation,
                     callee,
                     arguments,
-                    requirement_obligations,
                     crash_continuations,
                     ..
                 } => {
@@ -305,7 +304,6 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                             ).count() == 1)
                         && !matches!(body.result, AbstractFunctionResult::Unit)
                         && arguments.len() == body.parameters.len()
-                        && requirement_obligations.is_empty()
                         && crash_continuations.is_empty()
                 }
                 AbstractOperation::CallUnit { psi_operation, .. } => selected.calls.iter().any(|row| row.operation == *psi_operation && row.call.result_placement.is_none()),
