@@ -1,0 +1,250 @@
+//! Mathematical derivation certificates: the untrusted producer's complete
+//! elaborated judgment `Γ ⊢ t : T`.
+//!
+//! A certificate is data, not authority: it carries the claimed context, the
+//! evidence term, and the claimed type, and this module re-decides the whole
+//! judgment through the kernel. There is no producer success flag to trust.
+//! Context bindings are checked for formation under their own prefix before
+//! use — a certificate cannot smuggle a meaningful variable type past the
+//! checker by naming a binding that is not itself a type. The judgment then
+//! runs through `check_type`, so malformed terms, wrong claimed types,
+//! capture-changing substitutions, and exhausted conversion budgets all
+//! reject as typed errors.
+//!
+//! Binding the claimed type to a verifier-reconstructed obligation stays with
+//! the caller, exactly as `accept_certificate` leaves goal reconstruction to
+//! `verify_obligation`: a certificate only ever establishes "this judgment
+//! holds", never "this is the obligation you wanted discharged".
+
+use super::conversion::Budget;
+use super::term::{TermArena, TermHandle};
+use super::typing::{Context, CoreError, check_type, infer_sort};
+
+/// One complete mathematical judgment supplied as producer evidence.
+///
+/// All handles resolve in a single [`TermArena`]; the wire form in
+/// `terminal-codec` is the canonical portable shape. `context` holds binder
+/// types ordered outermost-first — the order [`Context::extend`] consumes —
+/// so `context.last()` is the innermost binding that de Bruijn index 0 names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MathematicalCertificate {
+    pub context: Vec<TermHandle>,
+    /// The elaborated evidence term: fully annotated, so checking never
+    /// searches.
+    pub term: TermHandle,
+    /// The claimed type. The caller decides whether it is the obligation it
+    /// reconstructed; the kernel only decides that `term` inhabits it.
+    pub expected: TermHandle,
+}
+
+/// Re-decide a certificate's claimed judgment `Γ ⊢ t : T`.
+///
+/// Every context binding must itself be a type under the bindings before it
+/// (`infer_sort` under the prefix), which is the formation half of a valid
+/// context that `Context::extend` deliberately does not repeat at each call.
+/// Then `term` is checked against `expected` under the rebuilt context.
+/// Resource exhaustion surfaces as `CoreError::StepCeiling`, never as a
+/// false judgment.
+pub fn verify_mathematical_certificate(
+    arena: &mut TermArena,
+    certificate: &MathematicalCertificate,
+    budget: &mut Budget,
+) -> Result<(), CoreError> {
+    let mut context = Context::empty();
+    for &binding in &certificate.context {
+        infer_sort(arena, &context, binding, budget)?;
+        context = context.extend(binding);
+    }
+    check_type(
+        arena,
+        &context,
+        certificate.term,
+        certificate.expected,
+        budget,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mathematical_core::{DEFAULT_CONVERSION_STEPS, Level, Sort, Term};
+
+    fn budget() -> Budget {
+        Budget::new(DEFAULT_CONVERSION_STEPS)
+    }
+
+    fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
+        arena.insert(Term::Sort(Sort::Type(Level(level))))
+    }
+
+    fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
+        arena.insert(Term::Sort(Sort::Strict(Level(level))))
+    }
+
+    fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
+        arena.insert(Term::Variable(index))
+    }
+
+    fn pi(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
+        arena.insert(Term::Pi { domain, codomain })
+    }
+
+    fn lambda(arena: &mut TermArena, domain: TermHandle, body: TermHandle) -> TermHandle {
+        arena.insert(Term::Lambda { domain, body })
+    }
+
+    /// `λ(A : Type 0). λ(x : A). x` and its type `Π(A : Type 0). Π(x : A). A`.
+    fn polymorphic_identity(arena: &mut TermArena) -> (TermHandle, TermHandle) {
+        let type_zero = type_sort(arena, 0);
+        let bound = variable(arena, 0);
+        let inner = lambda(arena, bound, bound);
+        let identity = lambda(arena, type_zero, inner);
+        let codomain_domain = variable(arena, 0);
+        let codomain_body = variable(arena, 1);
+        let codomain = pi(arena, codomain_domain, codomain_body);
+        let expected = pi(arena, type_zero, codomain);
+        (identity, expected)
+    }
+
+    #[test]
+    fn a_complete_certificate_verifies() {
+        let mut arena = TermArena::new();
+        let (identity, expected) = polymorphic_identity(&mut arena);
+        let certificate = MathematicalCertificate {
+            context: Vec::new(),
+            term: identity,
+            expected,
+        };
+        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+    }
+
+    #[test]
+    fn the_context_is_part_of_the_checked_judgment() {
+        let mut arena = TermArena::new();
+        let type_zero = type_sort(&mut arena, 0);
+        let bound = variable(&mut arena, 0);
+        let certificate = MathematicalCertificate {
+            context: vec![type_zero],
+            term: bound,
+            expected: type_zero,
+        };
+        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+
+        // The same term and type without their context is a different,
+        // unprovable judgment: the variable is unbound.
+        let mut arena = TermArena::new();
+        let type_zero = type_sort(&mut arena, 0);
+        let bound = variable(&mut arena, 0);
+        let certificate = MathematicalCertificate {
+            context: Vec::new(),
+            term: bound,
+            expected: type_zero,
+        };
+        assert_eq!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::UnboundVariable {
+                index: 0,
+                context_depth: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn dependent_context_bindings_check_formation_under_their_prefix() {
+        let mut arena = TermArena::new();
+        // Γ = A : Type 0, x : A. In the full context x's type is `Variable(1)`.
+        let type_zero = type_sort(&mut arena, 0);
+        let bound = variable(&mut arena, 0);
+        let shifted = variable(&mut arena, 1);
+        let certificate = MathematicalCertificate {
+            context: vec![type_zero, bound],
+            term: bound,
+            expected: shifted,
+        };
+        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+
+        // A binding that is not a type under its prefix cannot stand in the
+        // context: `λ(x : Type 0). x` is a term, not a type.
+        let mut arena = TermArena::new();
+        let type_zero = type_sort(&mut arena, 0);
+        let bound = variable(&mut arena, 0);
+        let not_a_type = lambda(&mut arena, type_zero, bound);
+        let certificate = MathematicalCertificate {
+            context: vec![not_a_type],
+            term: bound,
+            expected: type_zero,
+        };
+        assert!(matches!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::NotASort { .. })
+        ));
+    }
+
+    #[test]
+    fn a_tampered_term_or_claimed_type_rejects() {
+        let mut arena = TermArena::new();
+        let (identity, expected) = polymorphic_identity(&mut arena);
+        let type_zero = type_sort(&mut arena, 0);
+
+        // Claiming a different type for the same term rejects:
+        // `Π(A : Type 0). Π(x : A). Type 0` does not return the argument.
+        let bound = variable(&mut arena, 0);
+        let wrong_inner = pi(&mut arena, bound, type_zero);
+        let wrong_expected = pi(&mut arena, type_zero, wrong_inner);
+        let certificate = MathematicalCertificate {
+            context: Vec::new(),
+            term: identity,
+            expected: wrong_expected,
+        };
+        assert!(matches!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::TypeMismatch { .. })
+        ));
+
+        // Claiming the right type for a different term rejects: a bare
+        // variable is unbound in the empty context.
+        let free_variable = variable(&mut arena, 0);
+        let certificate = MathematicalCertificate {
+            context: Vec::new(),
+            term: free_variable,
+            expected,
+        };
+        assert!(matches!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::UnboundVariable { .. })
+        ));
+    }
+
+    #[test]
+    fn strict_sorts_flow_through_the_certificate() {
+        let mut arena = TermArena::new();
+        // Γ = P : Strict 0, x : P. In the full context x's type is
+        // `Variable(1)`; checking `x : P` exercises the strict layer the
+        // certificate carries.
+        let strict_zero = strict_sort(&mut arena, 0);
+        let bound = variable(&mut arena, 0);
+        let shifted = variable(&mut arena, 1);
+        let certificate = MathematicalCertificate {
+            context: vec![strict_zero, bound],
+            term: bound,
+            expected: shifted,
+        };
+        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+
+        // A claimed type that is not a type at all — a lambda — rejects
+        // rather than inheriting any collapse.
+        let mut arena = TermArena::new();
+        let type_zero = type_sort(&mut arena, 0);
+        let bound = variable(&mut arena, 0);
+        let identity_body = lambda(&mut arena, type_zero, bound);
+        let certificate = MathematicalCertificate {
+            context: Vec::new(),
+            term: bound,
+            expected: identity_body,
+        };
+        assert!(matches!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::NotASort { .. })
+        ));
+    }
+}

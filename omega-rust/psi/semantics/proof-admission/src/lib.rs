@@ -57,8 +57,9 @@ pub use integer_shift::{
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
 pub use mathematical_core::{
-    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Level, Sort, Term, TermArena, TermHandle,
-    check_type, convertible, infer_sort, infer_type, shift, substitute, weak_head_normalize,
+    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Level, MathematicalCertificate, Sort,
+    Term, TermArena, TermHandle, check_type, convertible, infer_sort, infer_type, shift,
+    substitute, verify_mathematical_certificate, weak_head_normalize,
 };
 pub use normalization::{
     NormalizationAcceptance, NormalizationCertificate, NormalizationError,

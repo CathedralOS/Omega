@@ -18,6 +18,7 @@ mod debug_map;
 mod dynamic_dispatch_wire;
 mod integer_math_term_wire;
 mod machine_wire;
+mod mathematical_certificate_wire;
 mod module_wire;
 mod obligation_ledger;
 mod optimization_execution;
@@ -58,6 +59,10 @@ pub use debug_map::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
     DebugSourceSpan, DebugSubject, TerminalDebugMap, decode_debug_map, encode_debug_map,
     source_digest, validate_debug_map,
+};
+pub use mathematical_certificate_wire::{
+    DecodedMathematicalCertificate, decode_mathematical_certificate,
+    encode_mathematical_certificate,
 };
 pub use obligation_ledger::{
     TerminalObligationLedger, TerminalObligationLedgerFingerprint,
@@ -3130,6 +3135,7 @@ pub enum CodecError {
     StringTooLong(&'static str),
     InvalidUtf8(&'static str),
     MalformedStructuralFoundation(&'static str),
+    MalformedMathematicalCertificate(&'static str),
     MalformedProposition(PropositionError),
     InvalidModule(ModuleError),
     ObligationLedgerMismatch,
