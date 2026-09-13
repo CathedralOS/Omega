@@ -1506,8 +1506,9 @@ Owners include
   Resume at the checked/Terminal representation seam, not another evaluator
   source-shape gate: extend the whole mutable primitive reference carrier to
   stored-reference aggregates, projected result sources, and their recursive
-  loan custody. `cargo nextest run -p checked-trees-to-lowered-psi --test
-  reference_result_source --no-fail-fast` (macOS ARM64) exercises encoded
+  loan custody. At `6c33b1be5f`, `cargo nextest run -p checked-trees-to-lowered-psi
+  --test reference_result_source --no-fail-fast` (macOS ARM64,
+  `RUST_MIN_STACK=33554432`) exercises encoded
   root-reference custody and retains the stored-reference publication fence:
   `make_view(value)` followed by `replace(held.body)` reaches checked trees but
   has no source-independent checked scalar control plan. Its full-checked
