@@ -616,15 +616,10 @@ pub(in crate::legalization) fn home_layout(
 ) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
     if plan.structural_types.iter().any(|declaration| {
         declaration.id == result.structural_type
-            && matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
-    }) {
-        return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
-            super::scalar_arrays::shape(result, plan)?.2,
-        ));
-    }
-    if plan.structural_types.iter().any(|declaration| {
-        declaration.id == result.structural_type
-            && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }
+            )
     }) {
         if result.multiplicity == StructuralMultiplicity::Linear
             || !result.claims.is_empty()
@@ -634,10 +629,16 @@ pub(in crate::legalization) fn home_layout(
             return Err(LegalizationError::SourceCustodyMismatch);
         }
         return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
-            crate::structural_reference_input::shape(
+            crate::structural_reference_input::primitive_array_shape(
                 result.structural_type,
                 &plan.structural_types,
             )
+            .or_else(|| {
+                crate::structural_reference_input::shape(
+                    result.structural_type,
+                    &plan.structural_types,
+                )
+            })
             .ok_or(LegalizationError::SourceCustodyMismatch)?,
         ));
     }

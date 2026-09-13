@@ -1004,6 +1004,9 @@ pub(super) fn validate_structural_frontier(
                     && !exact_payloadless_claim_free_return
                     && !exact_affine_parameter_return
                     && !plain_owned_block_return
+                    && !super::structural_result_contracts::plain_owned_call_result(
+                        module, machine, *source,
+                    )
                     && !super::scalar_array::plain_return_source(module, machine, *source)
                     && !super::scalar_case::plain_return_source(module, machine, *source)
                     && !super::record::plain_return_source(module, machine, *source))

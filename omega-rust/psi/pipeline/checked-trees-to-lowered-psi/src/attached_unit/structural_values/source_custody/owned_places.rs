@@ -1,4 +1,7 @@
-//! Whole owned child places retain their selected source and existing storage.
+//! Whole owned places retain their selected source, declared carrier and storage.
+//! Carrier syntax is not ownership: fixed arrays and closed generic applications
+//! use the same source/type/transfer checks as named records. The recursive
+//! plain-owned classifier excludes references, qualifications and cleanup hooks.
 use super::*;
 use checked_trees::{CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan};
 
@@ -13,7 +16,7 @@ pub(crate) fn validate(
 ) -> Result<(), LoweringError> {
     let (owner, source_state) = crate::scalar_source_custody::authored_state(checked, state)?;
     let ExpressionNode::Name(name) = checked.expression_table.expression(expression) else {
-        return unsupported("owned record operand lost its source name");
+        return unsupported("owned value operand lost its source name");
     };
     if owner.symbol != machine
         || !name.symbol.is_valid()
@@ -22,7 +25,7 @@ pub(crate) fn validate(
         || !argument.path.is_empty()
         || argument.access != checked_trees::CheckedStructuralAccess::Owned
     {
-        return unsupported("owned record operand changed its whole source access");
+        return unsupported("owned value operand changed its whole source access");
     }
     let source = match argument.source {
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
@@ -37,10 +40,10 @@ pub(crate) fn validate(
                 })
                 .nth(parameter_index as usize)
                 .ok_or(LoweringError::Unsupported(
-                    "owned record operand parameter is missing",
+                    "owned value operand parameter is missing",
                 ))?;
             if parameter.symbol != name.symbol {
-                return unsupported("owned record operand substituted its parameter");
+                return unsupported("owned value operand substituted its parameter");
             }
             parameter.type_reference
         }
@@ -51,7 +54,7 @@ pub(crate) fn validate(
                     .iter()
                     .any(|parameter| parameter.symbol == symbol)
             {
-                return unsupported("owned record operand substituted its local");
+                return unsupported("owned value operand substituted its local");
             }
             let mut locals = checked
                 .statement_table
@@ -65,26 +68,24 @@ pub(crate) fn validate(
                     _ => None,
                 });
             let (index, local) = locals.next().ok_or(LoweringError::Unsupported(
-                "owned record operand local is absent",
+                "owned value operand local is absent",
             ))?;
             if locals.next().is_some()
                 || index >= statement as usize
                 || !local.initial_value.is_valid()
             {
-                return unsupported("owned record operand precedes its unique establishment");
+                return unsupported("owned value operand precedes its unique establishment");
             }
             local.type_reference
         }
-        _ => return unsupported("owned record operand has no ordinary source place"),
+        _ => return unsupported("owned value operand has no ordinary source place"),
     };
-    if !matches!(
-        checked.type_reference_table.type_reference(source),
-        checked_trees::types::TypeReferenceNode::Named { .. }
-    ) || !validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, source)
+    if checked.primitive_type_reference(source).is_some()
+        || !validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, source)
         || checked.normalized_type_identity(source) != checked.normalized_type_identity(expected)
         || checked.normalized_type_identity(source).as_str() != argument.type_identity
     {
-        return unsupported("owned record operand substituted its declared carrier");
+        return unsupported("owned value operand substituted its declared carrier");
     }
     if checked.type_multiplicity(source) == language_semantics::Multiplicity::Affine {
         let ownership = &checked.facts.flow.ownership;
@@ -103,7 +104,7 @@ pub(crate) fn validate(
                         }
             });
         let transfer = transfers.next().ok_or(LoweringError::Unsupported(
-            "owned record operand lost its statement transfer",
+            "owned value operand lost its statement transfer",
         ))?;
         if transfers.next().is_some()
             || transfer.access != language_semantics::PermissionAccess::Owned
@@ -115,7 +116,7 @@ pub(crate) fn validate(
                 .span(transfer.segments)
                 .is_none_or(|path| !path.is_empty())
         {
-            return unsupported("owned record operand changed its whole affine transfer");
+            return unsupported("owned value operand changed its whole affine transfer");
         }
     }
     Ok(())

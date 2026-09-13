@@ -73,6 +73,41 @@ pub(super) fn has_empty_qualification_rosters(
     qualifications.is_empty() && projected.is_empty()
 }
 
+/// Calls establish their exact declared result independently of its aggregate
+/// syntax. Return admission must not demand artificial claims for a plain array
+/// merely because its producer was a call rather than a parameter.
+/// Operation validation checks the callee/result contract; the frontier still
+/// checks that this exact owned result is live and has not been partially moved.
+pub(super) fn plain_owned_call_result(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> bool {
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .any(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. }
+            ) && operation.result.structural().is_some_and(|result| {
+                result.place == source
+                    && matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                    )
+                    && has_empty_qualification_rosters(
+                        &result.qualifications,
+                        &result.projected_qualifications,
+                    )
+                    && result.claims.is_empty()
+                    && has_plain_owned_shape(module, result.structural_type)
+            })
+        })
+}
+
 /// Whole-value transfer is independent of native fragment width. Borrowed byte
 /// views and erased carriers still need their own retained custody contracts.
 pub(super) fn has_plain_owned_shape(module: &TerminalModule, root: StructuralTypeId) -> bool {

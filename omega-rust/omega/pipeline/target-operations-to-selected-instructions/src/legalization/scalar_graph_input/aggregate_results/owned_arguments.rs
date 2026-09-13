@@ -28,16 +28,10 @@ pub(super) fn reconstruct(
     let shape =
         crate::structural_reference_input::parameter_shape(destination, &plan.structural_types)
             .ok_or(invalid.clone())?;
-    let value_shape = crate::structural_reference_input::primitive_array_shape(
+    let value_shape = crate::structural_reference_input::owned_aggregate_shape(
         destination.structural_type,
         &plan.structural_types,
     )
-    .or_else(|| {
-        crate::structural_reference_input::plain_record_shape(
-            destination.structural_type,
-            &plan.structural_types,
-        )
-    })
     .ok_or(invalid.clone())?;
     if shape != value_shape {
         return Err(invalid);

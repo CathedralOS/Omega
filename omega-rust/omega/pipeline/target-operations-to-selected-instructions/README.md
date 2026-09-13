@@ -106,8 +106,14 @@ Construction and receiving replay independently reconstruct these transports.
 The source-to-native control is
 `cargo nextest run -p omega-native-differential-test --test scalar_case_results --no-fail-fast record_reads::parameters`.
 It covers affine/copyable records, distinct stack pointers and payload copies,
-constructed/call-produced inputs, odd-width arrays, and mixed borrowed outputs;
+constructed/call-produced inputs, odd-width arrays, padded record arrays and their
+generic wrappers, and mixed borrowed outputs;
 cross-target publication does not substitute for matching-host execution.
+
+Whole record arrays use the same recursive size/alignment and aggregate homes as
+records. Their call/return transport respects padded element strides and field offsets;
+it does not require primitive leaves or imply support for element construction.
+Independent replay derives the complete layout and argument/result ABI again.
 
 Primitive arrays share that aggregate storage and call/return path without a sum
 tag. [Array input](src/selection/scalar_array_input.rs) reconstructs the declared

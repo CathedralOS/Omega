@@ -1,4 +1,6 @@
-//! Input-only reconstruction of borrowed referent geometry.
+//! Input-only reconstruction of structural storage and borrowed-pointer geometry.
+//! Whole owned aggregates and borrowed referents share recursive payload layout;
+//! their callers independently check access, ownership and exact ABI placement.
 use calling_conventions::{
     IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
@@ -155,11 +157,34 @@ pub(crate) fn plain_record_shape(
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ValueShape> {
-    plain_record(structural_type, declarations, &mut Vec::new()).then_some(())?;
-    shape(structural_type, declarations)
+    declarations
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .filter(|declaration| matches!(declaration.shape, StructuralTypeShape::Record { .. }))?;
+    owned_aggregate_shape(structural_type, declarations)
 }
 
-fn plain_record(
+/// Whole owned records and arrays share recursive payload geometry. This checks
+/// carrier contents, not authority to construct, borrow or dispose the value.
+pub(crate) fn owned_aggregate_shape(
+    structural_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ValueShape> {
+    declarations
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .filter(|declaration| {
+            matches!(
+                declaration.shape,
+                StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }
+            )
+        })?;
+    plain_aggregate(structural_type, declarations, &mut Vec::new()).then_some(())?;
+    primitive_array_shape(structural_type, declarations)
+        .or_else(|| shape(structural_type, declarations))
+}
+
+fn plain_aggregate(
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
     active: &mut Vec<StructuralTypeId>,
@@ -173,26 +198,33 @@ fn plain_record(
     let Some(declaration) = matching.next() else {
         return false;
     };
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return false;
-    };
     if matching.next().is_some() {
         return false;
     }
     active.push(structural_type);
-    let supported = fields.iter().all(|field| {
-        !field.relevance.is_erased()
-            && match field.field_type {
-                StructuralFieldType::Structural(nested) => {
-                    plain_record(nested, declarations, active)
+    let supported = match &declaration.shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => {
+            !matches!(scalar, ScalarType::Integer(integer) if integer.is_address())
+                && scalar_shape(*scalar).is_some()
+        }
+        StructuralTypeShape::FixedArray { element, .. } => {
+            plain_aggregate(*element, declarations, active)
+        }
+        StructuralTypeShape::Record { fields } => fields.iter().all(|field| {
+            !field.relevance.is_erased()
+                && match field.field_type {
+                    StructuralFieldType::Structural(nested) => {
+                        plain_aggregate(nested, declarations, active)
+                    }
+                    StructuralFieldType::Scalar(scalar) => scalar_shape(scalar).is_some(),
+                    StructuralFieldType::IeeeFloat(format) => {
+                        scalar_shape(ScalarType::IeeeFloat(format)).is_some()
+                    }
+                    _ => false,
                 }
-                StructuralFieldType::Scalar(scalar) => scalar_shape(scalar).is_some(),
-                StructuralFieldType::IeeeFloat(format) => {
-                    scalar_shape(ScalarType::IeeeFloat(format)).is_some()
-                }
-                _ => false,
-            }
-    });
+        }),
+        _ => false,
+    };
     active.pop();
     supported
 }

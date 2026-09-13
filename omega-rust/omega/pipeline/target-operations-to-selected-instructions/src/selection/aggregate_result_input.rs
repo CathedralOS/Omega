@@ -145,14 +145,18 @@ pub(super) fn call_result<'a>(
         .iter()
         .find(|declaration| declaration.id == result.structural_type)?;
     let shape = match &declaration.shape {
-        terminal_psi::StructuralTypeShape::Record { .. } => {
-            crate::structural_reference_input::shape(
+        terminal_psi::StructuralTypeShape::Record { .. }
+        | terminal_psi::StructuralTypeShape::FixedArray { .. } => {
+            crate::structural_reference_input::primitive_array_shape(
                 result.structural_type,
                 &source.structural.as_ref()?.structural_types,
-            )?
-        }
-        terminal_psi::StructuralTypeShape::FixedArray { .. } => {
-            super::scalar_array_input::shape(source, result.structural_type)?.2
+            )
+            .or_else(|| {
+                crate::structural_reference_input::shape(
+                    result.structural_type,
+                    &source.structural.as_ref()?.structural_types,
+                )
+            })?
         }
         terminal_psi::StructuralTypeShape::Sum { cases } => {
             let payloads = cases

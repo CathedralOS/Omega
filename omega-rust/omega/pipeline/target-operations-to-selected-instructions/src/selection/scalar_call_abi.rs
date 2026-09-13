@@ -13,15 +13,13 @@ use crate::structural_reference_input::stack_pointer_offset;
 #[cfg(test)]
 mod fixed_array_tests;
 
-/// Records and primitive arrays share whole-value transport, not source identity.
+/// Records and arrays share whole-value transport, not source identity.
 pub(super) fn owned_value_shape(
     source: &LegalizedScalarFunction,
     structural_type: semantic_vocabulary::StructuralTypeId,
 ) -> Option<ValueShape> {
     let types = &source.structural.as_ref()?.structural_types;
-    crate::structural_reference_input::plain_record_shape(structural_type, types).or_else(|| {
-        crate::structural_reference_input::primitive_array_shape(structural_type, types)
-    })
+    crate::structural_reference_input::owned_aggregate_shape(structural_type, types)
 }
 
 /// Incoming scalar slots follow the complete graph ABI; result admission is independent.

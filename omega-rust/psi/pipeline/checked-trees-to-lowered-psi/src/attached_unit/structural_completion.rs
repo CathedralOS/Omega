@@ -203,10 +203,12 @@ pub(super) fn validate(
                 source_parameter.type_reference,
             ) {
                 super::scalar_arrays::validate_shape(checked, source_parameter.type_reference)?;
-            } else if super::structural_values::plain_record(
-                checked,
-                source_parameter.type_reference,
-            ) {
+            } else {
+                // Whole-value return does not inspect a record's fields or
+                // select an array element. Rejoin the declared owned carrier
+                // and exact transfer using the shared place validator; a
+                // Named-only record test would exclude fixed arrays and closed
+                // generic applications with the same ownership obligations.
                 super::structural_values::source_custody::validate_owned_place(
                     checked,
                     machine.machine,
@@ -223,8 +225,6 @@ pub(super) fn validate(
                         access: CheckedStructuralAccess::Owned,
                     },
                 )?;
-            } else {
-                return unsupported("returned parameter has no plain owned storage carrier");
             }
         }
         _ => return unsupported("structural return source is not an owned whole value"),

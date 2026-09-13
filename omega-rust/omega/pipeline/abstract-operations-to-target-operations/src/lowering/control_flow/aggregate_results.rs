@@ -61,24 +61,6 @@ pub(in crate::lowering) fn result_home_layout(
     result: &terminal_psi::StructuralResultDeclaration,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeLayout, LoweringError> {
-    if matches!(
-        types
-            .get(&result.structural_type)
-            .map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::FixedArray { .. })
-    ) {
-        if result.multiplicity != StructuralMultiplicity::Unrestricted
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-        {
-            return Err(LoweringError::UnsupportedStructuralArray(
-                result.structural_type,
-            ));
-        }
-        return Ok(TargetStructuralHomeLayout::Aggregate(
-            super::scalar_arrays::shape(result.structural_type, types)?.2,
-        ));
-    }
     if result.multiplicity == StructuralMultiplicity::Linear
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
@@ -91,8 +73,11 @@ pub(in crate::lowering) fn result_home_layout(
         types
             .get(&result.structural_type)
             .map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::Record { .. })
+        Some(StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. })
     ) {
+        // Whole aggregate transport needs recursive size/alignment, not scalar
+        // leaves. Array construction still checks its element operations, while
+        // parameter and call-result homes retain existing owned record arrays.
         return Ok(TargetStructuralHomeLayout::Aggregate(
             crate::lowering::structural_layout::structural_shape(
                 result.structural_type,
