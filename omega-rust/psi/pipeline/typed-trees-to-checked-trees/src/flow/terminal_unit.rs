@@ -13,9 +13,10 @@ general state_graph.rs route; their current coverage differs, so a failed
 candidate is not permission to omit its unsupported statements.
 
 Local construction is only the first gate. Ordinary and composed entries share
-one availability roster, and we prune both catalogs until no more callers lose
-their dependencies. If A calls B and B calls an unavailable C, B disappears on
-one pass and A can disappear on the next. Checking only A's own statements, or
+one immutable availability roster. We check operations once, then propagate
+unavailable targets through reverse call edges. If A calls B and B calls an
+unavailable C, rejecting B also rejects A without rechecking A's body. Checking
+only A's own statements, or
 pruning each catalog independently, would leave a seemingly complete root with
 an unlowerable transitive call. Scalar calls can borrow an ordinary scalar-result
 body from this same roster; their argument, claim and contract checks still use
@@ -116,6 +117,7 @@ use typed_trees::{
 };
 
 pub(in crate::flow) mod calls;
+mod candidate_closure;
 mod cleanup;
 mod composed_control;
 pub(crate) mod control;
@@ -396,151 +398,13 @@ pub(crate) fn build_checked_unit_effect_plans(
     let dynamic_dispatch =
         build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);
 
-    // Both catalogs contain complete admitted bodies. Resolve ordinary calls
-    // against their joint entry roster, then prune both sides to a fixed point:
-    // an invalid composed leaf must also retire its ordinary upstream callers.
-    loop {
-        let entries = candidates
-            .iter()
-            .map(|plan| (plan.machine, plan.state))
-            .chain(composed_machines.iter().map(|plan| {
-                (
-                    plan.machine,
-                    plan.states
-                        .first()
-                        .map_or(SymbolHandle::invalid(), |state| state.state),
-                )
-            }))
-            .collect::<Vec<_>>();
-        let unique_entries = entries
-            .iter()
-            .filter(|(machine, state)| {
-                machine.is_valid()
-                    && state.is_valid()
-                    && entries
-                        .iter()
-                        .filter(|(candidate, _)| candidate == machine)
-                        .count()
-                        == 1
-            })
-            .copied()
-            .collect::<Vec<_>>();
-        let old_lengths = (candidates.len(), composed_machines.len());
-        // Every scalar call observes the same candidate roster for this pass.
-        // Mutating it during availability checks would make transitive pruning
-        // depend on declaration order; no body copies are needed to retain it.
-        let retained_candidates = candidates
-            .iter()
-            .map(|plan| {
-                if !unique_entries.contains(&(plan.machine, plan.state)) {
-                    return false;
-                }
-                plan.operations
-                    .iter()
-                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                    .all(|operation| {
-                        match operation {
-                    CheckedUnitEffectOperationPlan::CallUnit {
-                        target_machine,
-                        target_state,
-                        ..
-                    } => unique_entries.contains(&(*target_machine, *target_state)),
-                    CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
-                        boundary_symbols.contains(target_machine)
-                    }
-                    CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                        target_machine, ..
-                    } => boundary_symbols.contains(target_machine),
-                    CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        target_machine,
-                        ..
-                    } => boundary_symbols.contains(target_machine),
-                    CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
-                        scalar_targets::is_available(program, facts, &candidates, plan, operation)
-                    }
-                    CheckedUnitEffectOperationPlan::StructuralCall {
-                        target_machine,
-                        target_state,
-                        ..
-                    } => {
-                        unique_entries.contains(&(*target_machine, *target_state))
-                            || facts
-                                .flow
-                                .terminal_structural_returns
-                                .claim_free_affine_for_machine(*target_machine)
-                                .is_some()
-                    }
-                    // Exact realization custody was already joined by selected
-                    // execution before this plan was minted.
-                    CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
-                        ..
-                    } => true,
-                    CheckedUnitEffectOperationPlan::PortWrite { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                    | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                    | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                    | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
-                    | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                    | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                    | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                    | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                    | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-                    | CheckedUnitEffectOperationPlan::Complete { .. } => true,
-                }
-                    })
-            })
-            .collect::<Vec<_>>();
-        let mut retained_candidates = retained_candidates.into_iter();
-        candidates.retain(|_| retained_candidates.next().unwrap_or(false));
-        composed_machines.retain(|plan| {
-            unique_entries
-                .iter()
-                .any(|(machine, _)| *machine == plan.machine)
-                && plan
-                    .states
-                    .iter()
-                    .flat_map(|state| &state.operations)
-                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                    .all(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::CallUnit {
-                            target_machine,
-                            target_state,
-                            ..
-                        }
-                        | CheckedUnitEffectOperationPlan::StructuralCall {
-                            target_machine,
-                            target_state,
-                            ..
-                        } => unique_entries.contains(&(*target_machine, *target_state)),
-                        CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
-                            boundary_symbols.contains(target_machine)
-                        }
-                        CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                            target_machine,
-                            ..
-                        } => boundary_symbols.contains(target_machine),
-                        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
-                        | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                        | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                        | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                        | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => true,
-                        _ => false,
-                    })
-        });
-        if (candidates.len(), composed_machines.len()) == old_lengths {
-            break;
-        }
-    }
+    candidate_closure::retain_available(
+        program,
+        facts,
+        &boundary_symbols,
+        &mut candidates,
+        &mut composed_machines,
+    );
     let mut retained_type_identities = boundary_machines
         .iter()
         .flat_map(|plan| {
