@@ -2075,3 +2075,244 @@ fn placement_range_must_fit_the_materialization() {
 
     assert!(error.0.contains("cannot fit"));
 }
+
+fn data() -> RelocationTarget {
+    RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x1234).expect("nonzero identity"),
+    )
+}
+
+/// A repeated field materializes one `At` placement per element. Every entry
+/// shares the field name and stable member identity; the element index is the
+/// second hop of the field/index path, so the symbolic value selects exactly
+/// one of these placements.
+fn repeated_layout() -> LayoutPlanReport {
+    LayoutPlanReport {
+        schema_report_fingerprint: 1,
+        entries: (0..4)
+            .map(|index| LayoutFieldEntryReport {
+                field: "handlers".into(),
+                member_identity: Some(9),
+                placement: LayoutPlacementReport::At { offset: index * 8 },
+            })
+            .collect(),
+        offsets: Some(vec![0, 8, 16, 24]),
+        size: Some(32),
+        align: 8,
+    }
+}
+
+#[test]
+fn symbolic_index_materialization_assigns_the_exact_element() {
+    let symbolic = SymbolicFieldValue::new_indexed_numbered("handlers", 9, 2, 64, entry())
+        .expect("indexed field");
+    let plan = derive_symbolic_materialization(
+        &repeated_layout(),
+        &[symbolic],
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: None,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+        },
+        |_| None,
+    )
+    .expect("an indexed field/index path derives one element write");
+
+    assert_eq!(plan.actions.len(), 1);
+    let MaterializationAction::RuntimeWriter(write) = &plan.actions[0] else {
+        panic!("an unresolved indexed symbolic derives a runtime writer");
+    };
+    assert_eq!(write.container_byte_offset, 16);
+
+    let writer = plan.derive_post_handoff_writer().expect("writer");
+    let mut bytes = [0xa5_u8; 32];
+    writer
+        .execute(
+            &mut bytes,
+            PlacementSite {
+                base_address: 0,
+                phase: PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: None,
+            },
+            |target| {
+                assert_eq!(target, entry());
+                Some(0x1122_3344_5566_7788)
+            },
+        )
+        .expect("the indexed writer resolves the exact element");
+
+    assert_eq!(&bytes[16..24], &0x1122_3344_5566_7788_u64.to_le_bytes());
+    assert!(
+        bytes[..16]
+            .iter()
+            .chain(&bytes[24..])
+            .all(|byte| *byte == 0xa5),
+        "index materialization writes only the addressed element"
+    );
+}
+
+#[test]
+fn symbolic_index_materialization_resolves_the_exact_element() {
+    let symbolic = SymbolicFieldValue::new_indexed_numbered("handlers", 9, 3, 64, entry())
+        .expect("indexed field");
+    let plan = derive_symbolic_materialization(
+        &repeated_layout(),
+        &[symbolic],
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: None,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+        },
+        |_| Some(0xdead_beef),
+    )
+    .expect("a resolved indexed symbolic produces a resolved write");
+
+    assert_eq!(plan.actions.len(), 1);
+    assert!(matches!(
+        plan.actions[0],
+        MaterializationAction::ResolvedWrite { .. }
+    ));
+    let mut bytes = [0_u8; 32];
+    plan.materialize_resolved_into(&mut bytes)
+        .expect("resolved indexed write materializes");
+    assert_eq!(&bytes[24..32], &0xdead_beef_u64.to_le_bytes());
+    assert!(bytes[..24].iter().all(|byte| *byte == 0));
+}
+
+#[test]
+fn symbolic_index_materialization_uses_loader_native_relocation() {
+    let symbolic = SymbolicFieldValue::new_indexed_numbered("handlers", 9, 1, 64, entry())
+        .expect("indexed field");
+    let plan = derive_symbolic_materialization(
+        &repeated_layout(),
+        &[symbolic],
+        MaterializationContext {
+            consumption: ConsumptionInstant::BeforeOmegaEntry,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
+        },
+        |_| None,
+    )
+    .expect("an indexed whole pointer uses the loader-native relocation");
+
+    assert!(matches!(
+        plan.actions.as_slice(),
+        [MaterializationAction::NativePointerRelocation {
+            field,
+            destination_byte_offset: 8,
+            width_bits: 64,
+            ..
+        }] if field == "handlers"
+    ));
+}
+
+#[test]
+fn symbolic_index_materialization_coexists_across_elements() {
+    let fields = [
+        SymbolicFieldValue::new_indexed_numbered("handlers", 9, 0, 64, entry())
+            .expect("first element"),
+        SymbolicFieldValue::new_indexed_numbered("handlers", 9, 3, 64, data())
+            .expect("last element"),
+    ];
+    let plan = derive_symbolic_materialization(
+        &repeated_layout(),
+        &fields,
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: None,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+        },
+        |_| None,
+    )
+    .expect("distinct element indices are distinct materialization slots");
+
+    let offsets = plan
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => write.container_byte_offset,
+            other => panic!("expected runtime writers, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(offsets, [0, 24]);
+
+    let error = derive_symbolic_materialization(
+        &repeated_layout(),
+        &[
+            fields[0].clone(),
+            SymbolicFieldValue::new_indexed_numbered("handlers", 9, 0, 64, data())
+                .expect("duplicate element"),
+        ],
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: None,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+        },
+        |_| None,
+    )
+    .expect_err("the same field/index slot cannot be supplied twice");
+    assert!(
+        error.0.contains("`handlers`[0] is supplied more than once"),
+        "{}",
+        error.0
+    );
+}
+
+#[test]
+fn symbolic_index_materialization_rejects_before_target_resolution() {
+    let out_of_range = SymbolicFieldValue::new_indexed_numbered("handlers", 9, 4, 64, entry())
+        .expect("indexed field");
+    let mut resolutions = 0;
+    let error = derive_symbolic_materialization(
+        &repeated_layout(),
+        &[out_of_range],
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: None,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+        },
+        |_| {
+            resolutions += 1;
+            None
+        },
+    )
+    .expect_err("an element index beyond the placements must reject");
+    assert!(
+        error
+            .0
+            .contains("index 4 is outside its 4 element placements"),
+        "{}",
+        error.0
+    );
+    assert_eq!(
+        resolutions, 0,
+        "the exact index bound rejects before any target resolution"
+    );
+
+    let fragmented =
+        SymbolicFieldValue::new_indexed("address", 0, 64, entry()).expect("indexed field");
+    let error = derive_symbolic_materialization(
+        &split_layout(),
+        &[fragmented],
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: None,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+        },
+        |_| None,
+    )
+    .expect_err("a fragmented field cannot be addressed by element index");
+    assert!(
+        error.0.contains("fragmented or stored-integer placement"),
+        "{}",
+        error.0
+    );
+}

@@ -3216,3 +3216,117 @@ machine Main::main(&mut self) { }
         "numbered case names and authored order are presentation/runtime-discriminant inputs, not stable schema identity"
     );
 }
+
+#[test]
+fn indexed_symbolic_materialization_preserves_the_exact_element_path() {
+    // One nested field/index case, end to end: `handlers[2]` is a field/index
+    // path into a repeated field. The symbolic value preserves the exact index
+    // until materialization assigns element 2's `At` offset; the post-handoff
+    // writer then realizes that offset without changing which element is
+    // accessed. The bound `index < element count` is checked during derivation,
+    // before any destination byte offset is chosen.
+    let main_path = write_program(
+        "indexed-symbolic-field",
+        r#"
+use omega::language::core::layout;
+
+data DispatchLayout { }
+machine DispatchLayout::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    entries[2] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 16 },
+    };
+    entries[3] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 24 },
+    };
+    Plan { entries: entries, entry_count: 4,
+           size_fixed: 32, size_is_dynamic: false, align: 8 }
+}
+data DispatchTable { handlers: [u64; 4]; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("indexed dispatch table should check");
+    let report = compute_layout_plan(&checked.typed, "DispatchLayout::plan", "DispatchTable")
+        .expect("one element At per fixed-array element should validate");
+    assert_eq!(
+        report
+            .entries
+            .iter()
+            .map(|entry| match entry.placement {
+                LayoutPlacementReport::At { offset } => offset,
+                _ => panic!("a repeated field retains only element At entries"),
+            })
+            .collect::<Vec<_>>(),
+        vec![0, 8, 16, 24]
+    );
+    assert!(
+        report.entries.iter().all(|entry| entry.field == "handlers"),
+        "the repeated field retains one name across element placements"
+    );
+
+    let target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x55aa).expect("normalized entry identity"),
+    );
+    let symbolic = SymbolicFieldValue::new_indexed("handlers", 2, 64, target)
+        .expect("indexed symbolic field/index path");
+    let materialization = derive_symbolic_materialization(
+        &report,
+        &[symbolic],
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect("the indexed field/index path derives one element write");
+    assert_eq!(materialization.actions.len(), 1);
+    let MaterializationAction::RuntimeWriter(write) = &materialization.actions[0] else {
+        panic!("an unresolved indexed symbolic derives a post-handoff writer");
+    };
+    assert_eq!(write.container_byte_offset, 16);
+
+    let writer = materialization
+        .derive_post_handoff_writer()
+        .expect("the element write derives a writer");
+    let mut bytes = [0xa5_u8; 32];
+    writer
+        .execute(
+            &mut bytes,
+            layout_plans::PlacementSite {
+                base_address: 0,
+                phase: layout_plans::PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: None,
+            },
+            |resolved| {
+                assert_eq!(resolved, target);
+                Some(0x1122_3344_5566_7788)
+            },
+        )
+        .expect("the indexed writer resolves the exact element");
+    assert_eq!(&bytes[16..24], &0x1122_3344_5566_7788_u64.to_le_bytes());
+    assert!(
+        bytes[..16]
+            .iter()
+            .chain(&bytes[24..])
+            .all(|byte| *byte == 0xa5),
+        "index materialization writes only the addressed element"
+    );
+}
