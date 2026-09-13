@@ -18,6 +18,9 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     AllocationRecoveryRuleCatalog(
         selected_instructions_to_register_homes::AllocationRecoveryRuleCatalogError,
     ),
+    SelectedLoweringRuleCatalog(
+        selected_instructions_to_selected_instructions::SelectedLoweringRuleCatalogError,
+    ),
     FunctionRelativeLayoutRuleCatalog(
         resolved_layout_to_resolved_layout::FunctionRelativeLayoutCatalogError,
     ),

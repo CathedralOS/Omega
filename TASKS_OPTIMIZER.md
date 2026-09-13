@@ -97,7 +97,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   or role-swapped children; only verified eliminated occurrences need no child.
   General calls depend on `FRAME-LAYOUT` and `GENERAL-CALL-CLOBBERS` below.
   These are native compiler guarantees, independent of package locks or
-  `PackageInstance` construction.
+  `PackageInstance` construction. Landed: one source-reachable
+  selected-lowering operation now carries nonempty physical evidence through
+  the common physical stages to native emission and independent replay —
+  `optimizer_opt_in.rs::
+  selected_lowering_boundary_occurrence_replays_one_exact_physical_child`
+  compiles a package-bound `boundary operator` program under
+  `SelectedIncomingU12CompareImmediate`, replays the artifact, and binds
+  exactly one `OperatorApplicationCoverage` physical child (nonempty
+  machine/object spans, `ResolvedInternalCall` relocation) to the one
+  surviving operator occurrence and the validated projection identity. The
+  same test replays mutated custody: missing, duplicated, role-swapped
+  (operator→boundary), padded-span, and substituted-projection children all
+  reject. Remaining: the verified-eliminated-occurrence child-exemption
+  check and boundary-trait-settlement parents on the optimized route.
 
 - **GENERATED-DIFFERENTIALS.** Extend same-artifact interpreter/native
   differential testing beyond the landed exact-integer lane to float, trap,
@@ -204,10 +217,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `COMPARE_IMMEDIATE_U12` pair rule, the flag-defining/no-`Def` fold action
   (`LiteralFoldAction.result: Option`, codec v4), flag-shape immediate-row
   validation in compute and independent replay, and firing/corruption/replay
-  coverage on both Linux targets. Note: selected-lowering selections still
-  reject at the common physical-staging gate
-  (`UnconsumedPostTerminalPhase(SelectedLowering)`, retired downstream
-  dispatch from `267f5eb205`), identical to the add/subtract families.
+  coverage on both Linux targets. Landed: selected-lowering selections now
+  execute through the common physical stages — the staging gate resolves the
+  exact catalog instead of rejecting the phase
+  (`native-realization/.../physical_pipeline/phase_selections.rs`), and fixed-frame
+  realization binds the completion identity and literal-fold transformation
+  ledger into the expected manifest
+  (`machine-emission/.../assembly/fixed_frame.rs`). Add, subtract, and compare
+  return-only builds replay to `ValidatedOptimizedProjection`, and a
+  boundary-operator program replays one exact physical child.
   Remaining: further families (address-mode folding, extension elimination,
   constant materialization) one exact named family at a time.
 

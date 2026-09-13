@@ -14,12 +14,18 @@ pub(super) fn validate_physical_selections(
         OptimizationExecutionPhase::AbstractOperations,
         OptimizationExecutionPhase::TargetOperations,
         OptimizationExecutionPhase::PreAllocation,
-        OptimizationExecutionPhase::SelectedLowering,
         OptimizationExecutionPhase::PostAllocationMachine,
     ] {
         if !selections.project_phase(phase).is_empty() {
             return Err(OptimizedVerifiedPhysicalPipelineError::UnconsumedPostTerminalPhase(phase));
         }
+    }
+    let selected_lowering = selections.project_phase(OptimizationExecutionPhase::SelectedLowering);
+    if !selected_lowering.is_empty() {
+        selected_instructions_to_selected_instructions::resolve_selected_lowering_rules(
+            &selected_lowering,
+        )
+        .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLoweringRuleCatalog)?;
     }
     selected_instructions_to_register_homes::selected_allocation_recovery_rule(
         &selections.project_phase(OptimizationExecutionPhase::AllocationRecovery),

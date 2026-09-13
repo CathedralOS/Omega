@@ -55,6 +55,19 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
                 receipt.source().source().transformation(),
             )]
         }
+        AllocationEvidence::LiteralFolds(receipt) => receipt
+            .source()
+            .transformations()
+            .iter()
+            .copied()
+            .map(PostAllocationSelectedTransformation::LiteralFold)
+            .collect(),
+        AllocationEvidence::SelectedLowering(receipt) => receipt
+            .source()
+            .iterations()
+            .iter()
+            .map(|iteration| PostAllocationSelectedTransformation::LiteralFold(iteration.fold()))
+            .collect(),
         AllocationEvidence::ActiveResidentRematerialization(receipt) => vec![
             PostAllocationSelectedTransformation::PressureRematerialization(
                 receipt.rematerialization(),
@@ -68,17 +81,27 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
         }
         _ => return Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
     };
+    // A complete named selected-lowering run binds its completion identity and
+    // its exact phase projection. Any other evidence role must present an
+    // empty selected-lowering phase, never a substituted suite.
+    let (expected_lowering_selections, expected_lowering_completion) = match allocation.evidence() {
+        AllocationEvidence::SelectedLowering(receipt) => (
+            receipt.source().selected_lowering_selections(),
+            Some(receipt.source().identity()),
+        ),
+        _ => (OptimizationSelections::default().identity(), None),
+    };
     let pre_physical = allocation
         .target_input()
         .optimized()
         .pre_physical_manifest()
         .record()
         .identity;
-    if !selected_lowering.is_empty()
+    if selected_lowering.identity() != expected_lowering_selections
         || !post_allocation.is_empty()
         || post.pre_physical != pre_physical
         || post.selected_transformations != expected_transformations
-        || post.selected_lowering_completion.is_some()
+        || post.selected_lowering_completion != expected_lowering_completion
         || post.selected != selected
         || machine.machine().receipt().post_allocation_manifest() != post.identity
         || machine.machine().receipt().selected() != selected
@@ -116,7 +139,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
         stage: FunctionRelativeOptimizationRealizationStage::ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1,
         selections: selections.identity(),
         selected_lowering_selections: selected_lowering.identity(),
-        selected_lowering_completion: None,
+        selected_lowering_completion: expected_lowering_completion,
         allocation_recovery_selections: allocation_recovery.identity(),
         post_allocation_machine_selections: post_allocation.identity(),
         function_relative_layout_selections: function_relative.identity(),
