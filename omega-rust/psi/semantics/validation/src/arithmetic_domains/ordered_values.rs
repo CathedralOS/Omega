@@ -307,14 +307,25 @@ fn build_operand(
                 path: place_path(program, expression)?,
             })
         }
-        ExpressionNode::Member(member) if member.case_variant.is_none() => {
+        ExpressionNode::Member(member) => {
             let Operand::Place {
                 root, mut fields, ..
             } = build_operand(program, machine, state, member.receiver, depth + 1)?
             else {
                 return None;
             };
-            let field = if root == machine.symbol {
+            // A case-tagged projection resolves its payload field under that
+            // exact variant on the receiver's declared data (destructure-arm
+            // reads). Untagged members keep the ordinary field lookup.
+            let field = if member.case_variant.is_some() {
+                crate::places::declared_case_projection_field(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )?
+                .symbol
+            } else if root == machine.symbol {
                 crate::exact_self_field(program, machine, expression)?.symbol
             } else {
                 crate::places::declared_member_field_symbol(
