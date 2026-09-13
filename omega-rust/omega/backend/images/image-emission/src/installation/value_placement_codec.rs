@@ -1,4 +1,4 @@
-//! Canonical format-36 value-shape and placement codec.
+//! Canonical value-shape and placement codec for the current installation envelope.
 //!
 //! Owning rows retain their ordering and validation in the installation
 //! parent. This child owns only the exact shape, register, and location bytes.
@@ -297,6 +297,7 @@ pub(super) fn register_tag(register: MachineRegister) -> Result<u8, Installation
         MachineRegister::Aarch64X(7) => Ok(15),
         MachineRegister::X86Xmm(register @ 0..=7) => Ok(16 + register),
         MachineRegister::Aarch64V(register @ 0..=7) => Ok(24 + register),
+        MachineRegister::Aarch64X(8) => Ok(32),
         _ => Err(InstallationError::UnsupportedStructuralReturnRegister(
             register,
         )),
@@ -322,6 +323,7 @@ pub(super) fn decode_register(value: u8) -> Result<MachineRegister, Installation
         15 => Ok(MachineRegister::Aarch64X(7)),
         register @ 16..=23 => Ok(MachineRegister::X86Xmm(register - 16)),
         register @ 24..=31 => Ok(MachineRegister::Aarch64V(register - 24)),
+        32 => Ok(MachineRegister::Aarch64X(8)),
         _ => Err(InstallationError::InvalidStructuralReturnRegister(value)),
     }
 }
@@ -359,6 +361,31 @@ mod tests {
         }
         assert!(register_tag(MachineRegister::X86Xmm(8)).is_err());
         assert!(register_tag(MachineRegister::Aarch64V(8)).is_err());
-        assert!(decode_register(32).is_err());
+        assert!(decode_register(33).is_err());
+    }
+
+    #[test]
+    fn indirect_result_pointer_retains_aarch64_dedicated_register() {
+        let placement = calling_conventions::evaluate_call_plan(
+            calling_conventions::CallingPolicy::Aapcs64,
+            &calling_conventions::CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(24, 8)),
+            },
+        )
+        .unwrap()
+        .result
+        .unwrap();
+        let mut bytes = Vec::new();
+        encode_direct_placement(&mut bytes, &placement).unwrap();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_direct_placement(&mut reader).unwrap(), placement);
+        assert_eq!(reader.remaining(), 0);
+        assert_eq!(register_tag(MachineRegister::Aarch64X(8)), Ok(32));
+        assert_eq!(decode_register(32), Ok(MachineRegister::Aarch64X(8)));
+        assert!(register_tag(MachineRegister::Aarch64X(9)).is_err());
+        for length in 0..bytes.len() {
+            assert!(decode_direct_placement(&mut Reader::new(&bytes[..length])).is_err());
+        }
     }
 }

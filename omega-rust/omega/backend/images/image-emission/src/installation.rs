@@ -28,13 +28,13 @@ mod boundary_result_scalar_codec;
 mod boundary_settlement_codec;
 mod call_site_owner_codec;
 mod completion_custody_codec;
-mod direct_structural;
 mod dynamic_conformance_codec;
 mod fingerprint_codec;
 mod function_affine_cleanup_codec;
 mod function_codec;
 mod function_parameter_codec;
 mod function_stack_codec;
+mod graph_structural;
 mod incoming_structural;
 mod installation_header_codec;
 mod installed_unit_scalar_transport;
@@ -104,7 +104,9 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 95;
+// The current vocabulary includes owned incoming stack pointers and AArch64's
+// dedicated indirect-result register. Earlier envelopes cannot carry those roles.
+pub const INSTALLATION_FORMAT_MARKER: u16 = 96;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -2086,9 +2088,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     != calling_conventions::ValueClass::BorrowedReference
                         })
                 });
-        let direct_structural_roster =
-            direct_structural::function_is_exact(function, record.target);
-        let mixed_structural_roster_is_exact = direct_structural_roster || function
+        let graph_structural_roster = graph_structural::function_is_exact(function, record.target);
+        let mixed_structural_roster_is_exact = graph_structural_roster || function
             .mixed_structural_scalar_abi
             .as_ref()
             .is_none_or(|abi| {
@@ -2122,22 +2123,22 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             || !installed_function_scalar_transport_is_canonical(function, record.target)
             || !structural_call_scalar_result_is_exact
             || !mixed_structural_roster_is_exact
-            || (!direct_structural_roster
+            || (!graph_structural_roster
                 && function.unit_parameters.len() != function.unit_parameter_homes.len())
             || function.unit_body != function.unit_affine_cleanup.is_some()
             || (incoming_structural::has_incoming(function)
                 && !incoming_structural::function_is_exact(record, function))
-            || (!direct_structural_roster
+            || (!graph_structural_roster
                 && borrowed_structural::has_borrowed(function)
                 && !borrowed_structural::function_is_exact(record, function))
-            || (!direct_structural_roster
+            || (!graph_structural_roster
                 && !incoming_structural::has_incoming(function)
                 && !borrowed_structural::has_borrowed(function)
                 && !function.unit_body
                 && !has_scalar_cleanup
                 && (!function.unit_parameters.is_empty()
                     || !function.unit_parameter_homes.is_empty()))
-            || (!direct_structural_roster
+            || (!graph_structural_roster
                 && !unmaterialized_owned
                 && function.scalar_structural_parameters.len()
                     != function.scalar_structural_parameter_homes.len())
@@ -2145,7 +2146,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && function.scalar_control_affine_cleanups.len() < 2)
             || (function.scalar_affine_cleanup.is_some() && has_scalar_control_cleanup)
             || (has_scalar_cleanup && function.unit_body)
-            || (!direct_structural_roster
+            || (!graph_structural_roster
                 && function
                     .scalar_structural_parameters
                     .iter()
@@ -2160,7 +2161,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             || (!has_scalar_custody
                 && (!function.scalar_structural_parameters.is_empty()
                     || !function.scalar_structural_parameter_homes.is_empty()))
-            || (!direct_structural_roster
+            || (!graph_structural_roster
                 && function
                     .unit_parameters
                     .iter()
@@ -5188,7 +5189,7 @@ mod resource_tests {
     };
     use semantic_vocabulary::{EdgeId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
 
-    fn installed_function_with_unit_call() -> InstalledFunction {
+    pub(super) fn installed_function_with_unit_call() -> InstalledFunction {
         InstalledFunction {
             machine: MachineId::new(1).expect("function"),
             attachment: None,
@@ -5242,150 +5243,6 @@ mod resource_tests {
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),
             scalar_structural_parameter_homes: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn direct_structural_roster_retains_exact_borrowed_home_subset() {
-        use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
-        let target = target::NativeTarget::macos_arm64();
-        for owned_bytes in [0, 2] {
-            let mut function = installed_function_with_unit_call();
-            let shapes = [
-                ValueShape::integer(owned_bytes, 1),
-                ValueShape::borrowed_reference(8, 8),
-            ];
-            let plan = evaluate_call_plan(
-                CallingPolicy::native_for_target(target),
-                &CallSignature {
-                    parameters: shapes.to_vec(),
-                    result: Some(shapes[0]),
-                },
-            )
-            .unwrap();
-            function.unit_parameters = shapes
-                .iter()
-                .enumerate()
-                .map(|(position, shape)| machine_code::UnitParameterRecord {
-                    place: PlaceId::new(position as u64 + 1).unwrap(),
-                    structural_type: StructuralTypeId::new(position as u64 + 1).unwrap(),
-                    multiplicity: StructuralMultiplicity::Unrestricted,
-                    access: if position == 0 {
-                        terminal_psi::StructuralAccess::Owned
-                    } else {
-                        terminal_psi::StructuralAccess::SharedBorrow
-                    },
-                    shape: *shape,
-                })
-                .collect();
-            let borrowed = &function.unit_parameters[1];
-            function
-                .unit_parameter_homes
-                .push(machine_code::UnitParameterHomeRecord {
-                    place: borrowed.place,
-                    structural_type: borrowed.structural_type,
-                    multiplicity: borrowed.multiplicity,
-                    access: borrowed.access,
-                    shape: borrowed.shape,
-                    source: plan.parameters[1].clone(),
-                    indirect: true,
-                    location: machine_code::StructuralSourceLocation::IncomingBorrowedPointer {
-                        location: borrowed_structural::pointer_location(&plan.parameters[1])
-                            .unwrap(),
-                    },
-                });
-            function.parameter_abi = Some(machine_code::ParameterFunctionAbiRecord {
-                call_plan: plan,
-                parameters: Vec::new(),
-                entry_register_spills: Vec::new(),
-            });
-            assert!(direct_structural::function_is_exact(&function, target));
-            for mutation in 0..4 {
-                let mut changed = function.clone();
-                match mutation {
-                    0 => changed.unit_parameter_homes.clear(),
-                    1 => changed.unit_parameter_homes[0].place = changed.unit_parameters[0].place,
-                    2 => changed.unit_parameters[0].multiplicity = StructuralMultiplicity::Linear,
-                    _ => changed
-                        .parameter_abi
-                        .as_mut()
-                        .unwrap()
-                        .call_plan
-                        .parameters
-                        .swap(0, 1),
-                }
-                assert!(!direct_structural::function_is_exact(&changed, target));
-            }
-        }
-    }
-
-    #[test]
-    fn direct_owned_roster_preserves_ieee_format_width_and_register_bank() {
-        use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
-        for target in [
-            NativeTarget::linux_x64(),
-            NativeTarget::linux_arm64(),
-            NativeTarget::macos_arm64(),
-        ] {
-            for (format, bytes) in [
-                (IeeeFloatFormat::Binary32, 4),
-                (IeeeFloatFormat::Binary64, 8),
-            ] {
-                let scalar_shape = ValueShape::float(bytes);
-                let owned_shape = ValueShape::integer(16, 8);
-                let plan = evaluate_call_plan(
-                    CallingPolicy::native_for_target(target),
-                    &CallSignature {
-                        parameters: vec![scalar_shape, scalar_shape, owned_shape],
-                        result: Some(owned_shape),
-                    },
-                )
-                .unwrap();
-                let mut function = installed_function_with_unit_call();
-                function.unit_parameters = vec![machine_code::UnitParameterRecord {
-                    place: PlaceId::new(1).unwrap(),
-                    structural_type: StructuralTypeId::new(1).unwrap(),
-                    multiplicity: StructuralMultiplicity::Unrestricted,
-                    access: terminal_psi::StructuralAccess::Owned,
-                    shape: owned_shape,
-                }];
-                function.parameter_abi = Some(machine_code::ParameterFunctionAbiRecord {
-                    parameters: (0..2)
-                        .map(|position| target_operations::ScalarAbiValue {
-                            value: ValueId::new(position as u64 + 1).unwrap(),
-                            scalar_type: ScalarType::IeeeFloat(format),
-                            placement: plan.parameters[position].clone(),
-                        })
-                        .collect(),
-                    call_plan: plan,
-                    entry_register_spills: Vec::new(),
-                });
-                assert!(direct_structural::function_is_exact(&function, target));
-                for mutation in 0..4 {
-                    let mut changed = function.clone();
-                    let abi = changed.parameter_abi.as_mut().unwrap();
-                    match mutation {
-                        0 => {
-                            abi.parameters[0].scalar_type =
-                                ScalarType::IeeeFloat(if format == IeeeFloatFormat::Binary32 {
-                                    IeeeFloatFormat::Binary64
-                                } else {
-                                    IeeeFloatFormat::Binary32
-                                })
-                        }
-                        1 => abi.parameters[0].placement.shape.byte_size = 1,
-                        2 => {
-                            abi.parameters[0].placement.locations =
-                                abi.call_plan.parameters[2].locations.clone()
-                        }
-                        _ => abi.parameters.swap(0, 1),
-                    }
-                    assert!(
-                        !direct_structural::function_is_exact(&changed, target),
-                        "{target:?} mutation {mutation}"
-                    );
-                }
-            }
         }
     }
 
@@ -5677,13 +5534,14 @@ mod resource_tests {
 
     #[test]
     fn previous_installation_marker_is_not_accepted() {
-        let mut bytes = MAGIC.to_vec();
-        let previous_marker = INSTALLATION_FORMAT_MARKER - 1;
-        push_u16(&mut bytes, previous_marker);
-        assert_eq!(
-            decode_installation_record(&bytes),
-            Err(InstallationError::UnsupportedFormatMarker(previous_marker))
-        );
+        for previous_marker in [95, INSTALLATION_FORMAT_MARKER - 1] {
+            let mut bytes = MAGIC.to_vec();
+            push_u16(&mut bytes, previous_marker);
+            assert_eq!(
+                decode_installation_record(&bytes),
+                Err(InstallationError::UnsupportedFormatMarker(previous_marker))
+            );
+        }
     }
 
     #[test]

@@ -31,24 +31,21 @@ pub(in crate::selection) fn entry(
             target: &parameter.target,
         })
         .collect::<Vec<_>>();
-    let legacy_indirect = crate::structural_unit_input::accepts(
+    if !crate::structural_unit_input::accepts_graph(
         &source.call_plan,
         &parameters,
         &signature.structural_types,
-    );
-    if !legacy_indirect
-        && !crate::structural_unit_input::accepts_graph(
-            &source.call_plan,
-            &parameters,
-            &signature.structural_types,
-        )
-    {
+    ) {
         return Err(replay.invalid());
     }
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
+        let owned_pointer = crate::structural_unit_input::owned_indirect_pointer(
+            &parameter.semantic,
+            &parameter.target.placement,
+        );
         if parameter.semantic.access == StructuralAccess::Owned
-            && !legacy_indirect
+            && owned_pointer.is_none()
             && !crate::selection::aggregate_result_input::inline_argument_fragments(
                 &parameter.target.placement,
             )
@@ -162,7 +159,7 @@ pub(in crate::selection) fn entry(
             retain_owned_home(source, parameter, replay)?;
             continue;
         }
-        if !crate::selection::established_view_input::transferred(source, place) && !source.blocks.iter().flat_map(|block|&block.instructions).any(|row| match &row.kind {
+        if owned_pointer.is_none() && !crate::selection::established_view_input::transferred(source, place) && !source.blocks.iter().flat_map(|block|&block.instructions).any(|row| match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source: argument, .. } => argument.place == place,
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
             | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => destination.place == place,
@@ -173,9 +170,18 @@ pub(in crate::selection) fn entry(
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
             LegalizedScalarInstructionKind::Call(call)=>call.arguments.iter().any(|argument|matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place==place)),_=>false,
         }) {continue;}
-        if let Some(abi_stack_byte_offset) =
-            crate::structural_reference_input::stack_pointer_offset(&parameter.target.placement)
-        {
+        // Replay the exact incoming pointer location, not the caller's copy
+        // offset or a same-sized inline value. Access remains independently
+        // reconstructed from the structural declaration and full call plan.
+        let stack_pointer_offset = match owned_pointer {
+            Some(IndirectPointerLocation::Stack {
+                stack_byte_offset, ..
+            }) => Some(stack_byte_offset),
+            _ => {
+                crate::structural_reference_input::stack_pointer_offset(&parameter.target.placement)
+            }
+        };
+        if let Some(abi_stack_byte_offset) = stack_pointer_offset {
             let native_parameter = source
                 .parameters
                 .len()

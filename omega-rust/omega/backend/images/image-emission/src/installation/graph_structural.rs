@@ -1,5 +1,7 @@
-//! Direct owned values omit pointer homes, while borrowed parameters keep theirs.
+//! Graph parameters retain exact value or reference ABI and published pointer homes.
 //! This is record shape only: the mandatory exact image join retains graph replay.
+#[cfg(test)]
+mod tests;
 use super::InstalledFunction;
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueClass, ValueLocation, evaluate_call_plan,
@@ -65,7 +67,7 @@ pub(super) fn function_is_exact(
     let mut shapes = Vec::new();
     for (position, scalar) in scalars.iter().enumerate() {
         // Scalar banks do not depend on whether the accompanying structural
-        // argument is a direct owned value or a borrowed pointer.
+        // argument is an owned value or a borrowed pointer.
         let Some(shape) = super::borrowed_structural::scalar_shape(scalar.scalar_type) else {
             return false;
         };
@@ -97,7 +99,7 @@ pub(super) fn function_is_exact(
         return false;
     }
     let mut remaining_homes = homes.iter();
-    let mut direct = false;
+    let mut owned = false;
     for (position, (parameter, placement)) in parameters
         .iter()
         .zip(&plan.parameters[scalars.len()..])
@@ -111,22 +113,58 @@ pub(super) fn function_is_exact(
             return false;
         }
         if parameter.access == StructuralAccess::Owned {
-            if !matches!(
-                parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            ) || placement.shape.class != ValueClass::Integer
+            if placement.shape.class != ValueClass::Integer
                 || (placement.locations.is_empty()
                     && placement.shape != calling_conventions::ValueShape::integer(0, 1))
-                || !placement.locations.iter().all(|location| {
+                || !(placement.locations.iter().all(|location| {
                     matches!(
                         location,
                         ValueLocation::Register { .. } | ValueLocation::Stack { .. }
                     )
-                })
+                }) || matches!(
+                    placement.locations.as_slice(),
+                    [ValueLocation::Indirect {
+                        copy_stack_byte_offset: Some(_),
+                        ..
+                    }]
+                ))
             {
                 return false;
             }
-            direct = true;
+            // The canonical plan fixes pointer placement, payload extent and
+            // outbound copy storage. Keep published indirect home identity;
+            // graph/source replay separately validates qualification and claims.
+            if let [ValueLocation::Indirect { pointer, .. }] = placement.locations.as_slice() {
+                let Some(home) = remaining_homes.next() else {
+                    return false;
+                };
+                let location = match pointer {
+                    calling_conventions::IndirectPointerLocation::Register(register) => {
+                        StructuralSourceLocation::IncomingIndirectPointer {
+                            register: *register,
+                        }
+                    }
+                    calling_conventions::IndirectPointerLocation::Stack {
+                        stack_byte_offset,
+                        alignment,
+                    } => StructuralSourceLocation::IncomingIndirectStackPointer {
+                        stack_byte_offset: *stack_byte_offset,
+                        alignment: *alignment,
+                    },
+                };
+                if parameter.place != home.place
+                    || parameter.structural_type != home.structural_type
+                    || parameter.access != home.access
+                    || parameter.multiplicity != home.multiplicity
+                    || parameter.shape != home.shape
+                    || home.source != *placement
+                    || !home.indirect
+                    || home.location != location
+                {
+                    return false;
+                }
+            }
+            owned = true;
             continue;
         }
         let Some(home) = remaining_homes.next() else {
@@ -147,5 +185,5 @@ pub(super) fn function_is_exact(
             return false;
         }
     }
-    direct && remaining_homes.next().is_none()
+    owned && remaining_homes.next().is_none()
 }

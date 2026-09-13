@@ -281,7 +281,7 @@ pub(super) fn build_with_environment(
                     }
                     LegalizedScalarInstructionKind::ByteSequenceRead { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
-                        structural::byte_observation(&mut builder, operation)?
+                        structural::byte_observation(source, &mut builder, operation)?
                     }
                     LegalizedScalarInstructionKind::Compare { .. } => {
                         boolean_value::emit_branch_comparison(

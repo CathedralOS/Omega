@@ -288,6 +288,51 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
             )
         };
         validate(&source, &selected).unwrap();
+        // Keep every ABI and projected source row consistent: only the semantic
+        // carrier changes. Equal descriptor-sized record storage grants no byte
+        // observation authority, even when the selected loads still match.
+        let mut record_source = source.clone();
+        record_source
+            .structural
+            .as_mut()
+            .unwrap()
+            .structural_types
+            .make_mut()[0]
+            .shape = terminal_psi::StructuralTypeShape::Record {
+            fields: (1..=2)
+                .map(|ordinal| terminal_psi::StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(ordinal).unwrap(),
+                    identity: format!("field{ordinal}"),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    )),
+                })
+                .collect(),
+        };
+        let signature = record_source.structural.as_ref().unwrap();
+        assert!(crate::structural_unit_input::accepts_graph(
+            &record_source.call_plan,
+            &[crate::structural_unit_input::Parameter {
+                semantic: &signature.parameters[0].semantic,
+                target: &signature.parameters[0].target,
+            }],
+            &signature.structural_types,
+        ));
+        let mut record_selected = selected.clone();
+        record_selected.structural = record_source.structural.clone();
+        assert!(validate(&record_source, &record_selected).is_err());
+        assert!(
+            build(
+                0,
+                &record_source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints()
+            )
+            .is_err()
+        );
         assert!(
             selected
                 .blocks

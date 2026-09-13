@@ -147,7 +147,7 @@ pub(super) fn operation(
         row.kind,
         LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
     ) {
-        byte_views::write(builder, row)?;
+        byte_views::write(source, builder, row)?;
         return Ok(true);
     }
     if matches!(
