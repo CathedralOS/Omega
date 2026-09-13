@@ -239,8 +239,8 @@ fn accepts_cleanup_for_generic_attached_data() {
 }
 
 #[test]
-fn rejects_owned_or_shared_cleanup_receiver() {
-    for receiver in ["self", "&self"] {
+fn rejects_non_mutable_cleanup_receiver() {
+    for receiver in ["self", "&self", "&write self"] {
         rejects(
             &format!("data Wrapper {{ value: i32; }} machine Wrapper::drop({receiver}) {{}}"),
             "must have exactly the receiver `&mut self`",
