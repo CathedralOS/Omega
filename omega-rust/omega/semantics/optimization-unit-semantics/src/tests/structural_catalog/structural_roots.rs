@@ -49,7 +49,7 @@ fn logical_structural_roots_are_unique_beyond_place_identity() {
 }
 
 #[test]
-fn boolean_structural_field_replays_terminal_root_and_cleanup_contract() {
+fn boolean_structural_field_replays_exact_readable_root_and_field() {
     let baseline = boolean_structural_field_unit();
     validate_psi_optimization_unit(&baseline)
         .expect("exact affine readable Boolean observation validates");
@@ -60,15 +60,6 @@ fn boolean_structural_field_replays_terminal_root_and_cleanup_contract() {
             Err(OptimizationUnitValidationError::InvalidBooleanStructuralField { .. })
         ));
     };
-
-    let mut non_entry = baseline.clone();
-    non_entry.entry = id(4_799, MachineId::new);
-    invalid(non_entry);
-
-    let mut unrestricted = baseline.clone();
-    unrestricted.functions[0].structural_parameters[0].multiplicity =
-        terminal_psi::StructuralMultiplicity::Unrestricted;
-    invalid(unrestricted);
 
     let mut write_only = baseline.clone();
     write_only.functions[0].structural_parameters[0].access =
@@ -104,10 +95,6 @@ fn boolean_structural_field_replays_terminal_root_and_cleanup_contract() {
         .push(content_entry_claim(claim, source));
     invalid(content_claimed);
 
-    let mut no_boolean_parameter = baseline.clone();
-    no_boolean_parameter.functions[0].parameters.clear();
-    invalid(no_boolean_parameter);
-
     let mut missing_cleanup = baseline.clone();
     let O::Return {
         cleanup_actions, ..
@@ -116,8 +103,11 @@ fn boolean_structural_field_replays_terminal_root_and_cleanup_contract() {
         panic!("fixture ends in a scalar return")
     };
     cleanup_actions.clear();
-    refresh_node_derivatives(&mut missing_cleanup, 0, 0, 1);
-    invalid(missing_cleanup);
+    refresh_function_derivatives(&mut missing_cleanup, 0);
+    assert!(matches!(
+        validate_psi_optimization_unit(&missing_cleanup),
+        Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
+    ));
 
     let mut wrong_field = baseline.clone();
     let O::BooleanStructuralField { field, .. } =
@@ -170,7 +160,102 @@ fn boolean_structural_field_replays_terminal_root_and_cleanup_contract() {
         .nodes
         .insert(1, second);
     refresh_function_derivatives(&mut differing_observation, 0);
-    invalid(differing_observation);
+    validate_psi_optimization_unit(&differing_observation)
+        .expect("each exact Boolean field is independently readable on an owned record");
+}
+
+#[test]
+fn owned_boolean_fields_compose_without_entry_or_scalar_parameter_restrictions() {
+    for multiplicity in [
+        terminal_psi::StructuralMultiplicity::Affine,
+        terminal_psi::StructuralMultiplicity::Unrestricted,
+    ] {
+        let mut candidate = boolean_structural_field_unit();
+        candidate.entry = candidate.functions[1].machine;
+        let function = &mut candidate.functions[0];
+        function.parameters.clear();
+        function.structural_parameters[0].multiplicity = multiplicity;
+        let O::Return {
+            cleanup_actions, ..
+        } = &mut function.blocks[0].nodes[1].operation
+        else {
+            panic!("fixture ends in a scalar return");
+        };
+        cleanup_actions.clear();
+        if multiplicity == terminal_psi::StructuralMultiplicity::Affine {
+            cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                function.structural_parameters[0].place,
+            ));
+        }
+        refresh_function_derivatives(&mut candidate, 0);
+        validate_psi_optimization_unit(&candidate)
+            .expect("owned Boolean reads use exact roots and ordinary cleanup");
+    }
+}
+
+#[test]
+fn owned_boolean_field_read_rejects_observation_after_transfer() {
+    let mut candidate = boolean_structural_field_unit();
+    let parameter = candidate.functions[0].structural_parameters[0].clone();
+    let source = parameter.place;
+    let callee = candidate.functions[1].machine;
+    let mut call = candidate.functions[0].blocks[0].nodes[0].clone();
+    call.operation = O::CallUnit {
+        psi_operation: id(4_720, OperationId::new),
+        callee,
+        arguments: Vec::new(),
+        structural_arguments: vec![terminal_psi::StructuralArgument {
+            place: source,
+            access: terminal_psi::StructuralAccess::Owned,
+            path: Vec::new(),
+        }],
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let O::Return {
+        cleanup_actions, ..
+    } = &mut candidate.functions[0].blocks[0].nodes[1].operation
+    else {
+        panic!("fixture ends in a scalar return");
+    };
+    cleanup_actions.clear();
+    candidate.functions[0].blocks[0].nodes.insert(1, call);
+
+    let consumer = &mut candidate.functions[1];
+    consumer.attachment = None;
+    consumer.declared_places.insert(source);
+    consumer
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: source,
+            kind: StructuralPlaceKind::Parameter {
+                position: parameter.position,
+                is_self: parameter.is_self,
+            },
+        });
+    consumer.structural_parameters.push(parameter);
+    let O::ReturnUnit {
+        cleanup_actions, ..
+    } = &mut consumer.blocks[0].nodes[0].operation
+    else {
+        panic!("consumer ends in a Unit return");
+    };
+    cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+        source,
+    ));
+    refresh_function_derivatives(&mut candidate, 0);
+    refresh_function_derivatives(&mut candidate, 1);
+    validate_psi_optimization_unit(&candidate)
+        .expect("a Boolean observation before owned transfer remains available afterward");
+
+    candidate.functions[0].blocks[0].nodes.swap(0, 1);
+    refresh_function_derivatives(&mut candidate, 0);
+    assert!(matches!(
+        validate_psi_optimization_unit(&candidate),
+        Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive { place, .. })
+            if place == source
+    ));
 }
 
 fn assert_invalid_direct_realization_observation(mut candidate: PsiOptimizationUnit) {
@@ -361,11 +446,13 @@ fn projected_structural_scalar_field_store_validates_and_rejects_corruption() {
 }
 
 #[test]
-fn direct_realization_boolean_structural_field_rejects_access_corruption() {
+fn direct_realization_boolean_structural_field_requires_readable_access() {
     let mut readable_but_exclusive = direct_realization_boolean_structural_field_unit();
     readable_but_exclusive.functions[0].structural_parameters[0].access =
         terminal_psi::StructuralAccess::MutableBorrow;
-    assert_invalid_direct_realization_observation(readable_but_exclusive);
+    refresh_identity(&mut readable_but_exclusive);
+    validate_psi_optimization_unit(&readable_but_exclusive)
+        .expect("a mutable reference permits an exact Boolean observation");
 
     let mut write_only = direct_realization_boolean_structural_field_unit();
     write_only.functions[0].structural_parameters[0].access =
@@ -374,11 +461,23 @@ fn direct_realization_boolean_structural_field_rejects_access_corruption() {
 }
 
 #[test]
-fn direct_realization_boolean_structural_field_rejects_multiplicity_corruption() {
-    let mut affine = direct_realization_boolean_structural_field_unit();
-    affine.functions[0].structural_parameters[0].multiplicity =
-        terminal_psi::StructuralMultiplicity::Affine;
-    assert_invalid_direct_realization_observation(affine);
+fn direct_realization_boolean_structural_field_rejects_linear_observation() {
+    let mut linear = direct_realization_boolean_structural_field_unit();
+    linear.functions[0].structural_parameters[0].multiplicity =
+        terminal_psi::StructuralMultiplicity::Linear;
+    // A linear parameter without its required entry claim fails the root
+    // catalog before the Boolean field-operation contract is checked.
+    refresh_identity(&mut linear);
+    let result = validate_psi_optimization_unit(&linear);
+    assert!(
+        matches!(
+            result,
+            Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
+                machine: Some(machine),
+            }) if machine == linear.functions[0].machine
+        ),
+        "unclaimed linear parameter must fail its exact root catalog: {result:?}"
+    );
 }
 
 #[test]

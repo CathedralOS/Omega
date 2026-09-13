@@ -91,8 +91,12 @@ replay. Direct reads use the same path for established record locals and owned
 block arrivals: the actual source place is retained rather than relabeled as an
 incoming parameter. Availability and field identity are checked separately from
 physical layout, and each load produces a fresh scalar before later operations.
-By-value record entry parameters still need a readable ABI-home binding for
-this graph path; they are not implicitly borrowed pointers.
+By-value record entry parameters retain their owned value ABI. Selection captures
+their register or inline stack fragments into one activation-local input home
+when field observations or borrowed calls need an address. Whole record returns
+and nested copies then use that current home; entry fragments cannot replace
+bytes changed by a completed mutable borrow. Indirect owned inputs remain an
+explicit transport limit, not implicitly borrowed pointers.
 Source-produced integer getter controls cover direct and call-produced
 locals, tail completion, and nested scalar arguments. Nested record construction
 and mutable local receiver storage remain separate dependencies; shared

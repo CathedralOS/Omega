@@ -14,6 +14,13 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
     cursor: &mut Cursor<'_>,
 ) -> Result<selected_instructions::LocalStorageSlotId, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 4 {
+        return Ok(
+            selected_instructions::LocalStorageSlotId::StructuralParameter {
+                place: decode_id(cursor, PlaceId::new)?,
+            },
+        );
+    }
     if tag == 3 {
         return Ok(
             selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
@@ -252,4 +259,34 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
             });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod local_slot_tests {
+    use super::*;
+
+    #[test]
+    fn owned_entry_slot_decoder_rejects_zero_truncation_and_unknown_tag() {
+        let encoded = [4, 1, 0, 0, 0, 0, 0, 0, 0];
+        let mut cursor = Cursor::new(&encoded);
+        assert_eq!(
+            decode_local_slot(&mut cursor).unwrap(),
+            selected_instructions::LocalStorageSlotId::StructuralParameter {
+                place: PlaceId::new(1).unwrap(),
+            }
+        );
+        assert_eq!(cursor.remaining(), 0);
+        for length in 0..encoded.len() {
+            assert!(decode_local_slot(&mut Cursor::new(&encoded[..length])).is_err());
+        }
+        let mut zero_place = encoded;
+        zero_place[1] = 0;
+        assert!(decode_local_slot(&mut Cursor::new(&zero_place)).is_err());
+        let mut unknown_tag = encoded;
+        unknown_tag[0] = 5;
+        assert_eq!(
+            decode_local_slot(&mut Cursor::new(&unknown_tag)),
+            Err(FixedViewCopyDecodeError::UnknownOption(5))
+        );
+    }
 }

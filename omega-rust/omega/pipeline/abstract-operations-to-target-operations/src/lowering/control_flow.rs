@@ -81,6 +81,7 @@ pub(super) fn lower(
                                         matches!(
                                             declaration.shape,
                                             terminal_psi::StructuralTypeShape::Sum { .. }
+                                                | terminal_psi::StructuralTypeShape::Record { .. }
                                         )
                                     })))
                         && !parameter.is_self))

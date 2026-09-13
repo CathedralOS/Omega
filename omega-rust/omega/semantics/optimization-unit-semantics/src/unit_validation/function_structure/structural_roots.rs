@@ -31,7 +31,6 @@ pub(crate) fn validate_structural_root_uniqueness(
 /// observation invariant still representable after Terminal-to-Omega lowering.
 pub(crate) fn validate_structural_root_operations(
     function: &PsiOptimizationFunction,
-    unit_entry: MachineId,
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let place_kinds = function
@@ -39,16 +38,6 @@ pub(crate) fn validate_structural_root_operations(
         .iter()
         .map(|place| (place.id, place.kind))
         .collect::<BTreeMap<_, _>>();
-    let observations = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .filter_map(|node| match node.operation {
-            O::BooleanStructuralField { source, field, .. } => Some((source, field)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let node_index = u32::try_from(node_index).expect("unit node index fits u32");
@@ -214,69 +203,11 @@ pub(crate) fn validate_structural_root_operations(
                     }
                 }
                 O::BooleanStructuralField { source, field, .. } => {
-                    if function
-                        .structural_parameters
-                        .iter()
-                        .all(|parameter| parameter.place != *source)
-                        && readable_field_type(function, *source).is_some_and(|identity| {
-                            direct_relevant_scalar_field(structural_types, identity, *field)
-                                == Some(ScalarType::Boolean)
-                        })
-                    {
-                        continue;
-                    }
-                    let parameter = function
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| parameter.place == *source);
-                    let valid = parameter.is_some_and(|parameter| {
-                        let affine_entry_observation = function.machine == unit_entry
-                            && parameter.multiplicity
-                                == terminal_psi::StructuralMultiplicity::Affine
-                            && function
-                                .parameters
-                                .iter()
-                                .any(|parameter| parameter.scalar_type == ScalarType::Boolean)
-                            && every_scalar_return_nominally_cleans(function, *source);
-                        let unrestricted_shared_observation = parameter.multiplicity
-                            == terminal_psi::StructuralMultiplicity::Unrestricted
-                            && parameter.access == terminal_psi::StructuralAccess::SharedBorrow;
-
-                        (unrestricted_shared_observation
-                            || (affine_entry_observation
-                                && observations
-                                    .iter()
-                                    .all(|candidate| candidate == &(*source, *field))))
-                            && parameter.qualifications.is_empty()
-                            && parameter.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
-                            && function.content_entry_claims.is_empty()
-                            && function
-                                .entry_claim_declarations
-                                .iter()
-                                .all(|claim| claim.input != *source)
-                            && matches!(
-                                place_kinds.get(source),
-                                Some(StructuralPlaceKind::Parameter { position, is_self })
-                                    if *position == parameter.position
-                                        && *is_self == parameter.is_self
-                            )
-                            && structural_types
-                                .get(&parameter.structural_type)
-                                .is_some_and(|declaration| {
-                                    let terminal_psi::StructuralTypeShape::Record { fields } =
-                                        &declaration.shape
-                                    else {
-                                        return false;
-                                    };
-                                    fields.iter().any(|candidate| {
-                                        candidate.id == *field
-                                            && !candidate.relevance.is_erased()
-                                            && candidate.field_type
-                                                == terminal_psi::StructuralFieldType::Scalar(
-                                                    ScalarType::Boolean,
-                                                )
-                                    })
-                                })
+                    // Root catalogs and dominance are checked before this pass;
+                    // current ownership separately checks live, whole owned inputs.
+                    let valid = readable_field_type(function, *source).is_some_and(|identity| {
+                        direct_relevant_scalar_field(structural_types, identity, *field)
+                            == Some(ScalarType::Boolean)
                     });
                     if !valid {
                         return Err(
@@ -495,37 +426,4 @@ fn readable_field_type(
         return None;
     }
     Some(signature.structural_type)
-}
-
-pub(crate) fn every_scalar_return_nominally_cleans(
-    function: &PsiOptimizationFunction,
-    source: PlaceId,
-) -> bool {
-    let mut saw_return = false;
-    for operation in function
-        .blocks
-        .iter()
-        .filter_map(|block| block.nodes.last().map(|node| &node.operation))
-    {
-        match operation {
-            O::Return {
-                cleanup_actions, ..
-            } => {
-                saw_return = true;
-                if !cleanup_actions.iter().any(|action| {
-                    matches!(
-                        action,
-                        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                            if cleanup.place == source
-                    )
-                }) {
-                    return false;
-                }
-            }
-            O::ReturnUnit { .. } | O::ReturnStructural { .. } => return false,
-            O::Jump { .. } | O::Conditional { .. } | O::Crash { .. } => {}
-            _ => return false,
-        }
-    }
-    saw_return
 }

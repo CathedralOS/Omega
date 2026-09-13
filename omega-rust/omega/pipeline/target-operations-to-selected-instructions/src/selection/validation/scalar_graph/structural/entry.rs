@@ -126,6 +126,7 @@ pub(in crate::selection) fn entry(
                     )?;
                     replay.transport.fragments.push((place, offset, output));
                 }
+                retain_owned_home(source, parameter, replay)?;
                 continue;
             }
             for location in &parameter.target.placement.locations {
@@ -158,6 +159,7 @@ pub(in crate::selection) fn entry(
                 )?;
                 replay.transport.fragments.push((place, offset, output));
             }
+            retain_owned_home(source, parameter, replay)?;
             continue;
         }
         if !crate::selection::established_view_input::transferred(source, place) && !source.blocks.iter().flat_map(|block|&block.instructions).any(|row| match &row.kind {
@@ -256,5 +258,84 @@ pub(in crate::selection) fn entry(
         )?;
         replay.transport.pointers.push((place, output));
     }
+    Ok(())
+}
+
+/// Reconstruct the input home's extent and every write from the declared value
+/// placement. A producer-provided address or partial fragment roster cannot
+/// stand in for the owned input, even when a later field load has a valid width.
+fn retain_owned_home(
+    source: &LegalizedScalarFunction,
+    parameter: &legalized_operations::LegalizedCallUnitParameter,
+    replay: &mut Replay<'_>,
+) -> Result<(), SelectedInstructionError> {
+    let place = parameter.semantic.place;
+    if !crate::selection::record_input::parameter_home_required(source, place) {
+        return Ok(());
+    }
+    let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
+    let shape = parameter.target.shape;
+    replay
+        .transport
+        .local_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: u32::from(shape.byte_size),
+            alignment: shape.alignment,
+        });
+    let pointer = result(replay, place, 0)?;
+    super::super::structural_case::memory(
+        replay,
+        source.entry_block,
+        place,
+        0,
+        u32::from(shape.byte_size),
+        selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot },
+    )?;
+    replay.check_instruction(
+        SelectedInstructionKind::FrameAddress {
+            slot: selected_instructions::FrameStorageSlotId::Local(slot),
+            byte_offset: 0,
+        },
+        replay
+            .constraints
+            .keys
+            .frame_address
+            .ok_or_else(|| replay.invalid())?,
+        &[pointer],
+        &Default::default(),
+    )?;
+    for location in &parameter.target.placement.locations {
+        let (offset, width) = match location {
+            ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            }
+            | ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                ..
+            } => (u32::from(*value_byte_offset), *byte_size),
+            _ => return Err(replay.invalid()),
+        };
+        let value = replay
+            .transport
+            .fragments
+            .iter()
+            .find(|(stored, byte_offset, _)| *stored == place && *byte_offset == offset)
+            .map(|(_, _, value)| *value)
+            .ok_or_else(|| replay.invalid())?;
+        super::super::structural_case::memory(
+            replay,
+            source.entry_block,
+            place,
+            offset,
+            u32::from(width),
+            selected_instructions::SelectedMemoryAccessRole::WritePlace,
+        )?;
+        super::super::aggregate_memory::store(replay, pointer, value, offset, width)?;
+    }
+    replay.transport.pointers.push((place, pointer));
     Ok(())
 }

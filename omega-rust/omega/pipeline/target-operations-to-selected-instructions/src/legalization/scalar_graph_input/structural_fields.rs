@@ -44,13 +44,9 @@ pub(in crate::legalization) fn read(
     {
         return None;
     }
-    // Entry-owned records use inline ABI fragments, not a readable retained
-    // home in this load route. Owned block arrivals do have an established home.
-    if function.structural_parameters.iter().any(|parameter| {
-        parameter.place == place && parameter.access == terminal_psi::StructuralAccess::Owned
-    }) {
-        return None;
-    }
+    // Access belongs to the exact declaration. Owned input observations retain
+    // the value ABI; selection must supply captured value storage, not reinterpret
+    // an incoming value fragment as the address used by a borrowed parameter.
     let (structural_type, access) = if let Some(parameter) = function
         .structural_parameters
         .iter()

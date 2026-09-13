@@ -67,6 +67,18 @@ before subsequent calls or stores. Independent target and selected replay
 reconstructs the field offset and exact-width load from the declaration; a
 same-typed field or later reload cannot substitute for the retained observation.
 
+Owned record input observations use one `StructuralParameter` local slot keyed
+by the exact incoming place. Entry stores every captured register or inline stack
+fragment before authored operations; the ordinary field load then snapshots its
+scalar value. Borrowed calls use that same home, and subsequent whole returns or
+nested copies read its current bytes rather than stale entry fragments. A borrowed
+input still denotes its original referent and is never copied into this slot.
+Inputs used only for whole-value transport retain fragment-only storage. Independent
+replay reconstructs the input slot, extent, writes and every field observation.
+The [source/native parameter cases](../../../../tests/native-differential/tests/scalar_case_results/record_reads/parameters.rs)
+cover full-width values across calls, signed and Boolean subfields, and inline
+stack input capture. Indirect owned input transport remains unsupported.
+
 Primitive arrays share that aggregate storage and call/return path without a sum
 tag. [Array input](src/selection/scalar_array_input.rs) reconstructs the declared
 dimensions and leaf carrier; constructor selection writes each row-major leaf at

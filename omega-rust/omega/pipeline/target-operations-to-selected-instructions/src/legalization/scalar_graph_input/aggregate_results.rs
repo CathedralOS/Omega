@@ -159,31 +159,52 @@ pub(super) fn cleanup(
         let terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) = action else {
             return false;
         };
+        if !discarded.insert(*place) {
+            return false;
+        }
+        if let Some(parameter) = function
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == *place)
+        {
+            // Exact source cleanup and the current ownership frontier are
+            // checked independently. Observing a plain owned input does not
+            // turn its no-code discard into a constructor-result requirement.
+            return parameter.access == terminal_psi::StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Affine
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+                && function
+                    .entry_claim_declarations
+                    .iter()
+                    .all(|claim| claim.input != *place)
+                && function
+                    .content_entry_claims
+                    .iter()
+                    .all(|claim| claim.input.root != *place);
+        }
         // Selection transfers a fresh owner into a block parameter. Its final
         // discard owes the same whole affine cleanup as a direct producer;
         // requiring an operation result here would reject the completed join.
-        discarded.insert(*place)
-            && super::structural_case::source_owner(function, *place).is_ok_and(|owner| match owner
-            {
-                legalized_operations::LegalizedStructuralCaseSource::OperationResult {
-                    result,
-                    ..
-                } => {
-                    result.multiplicity == StructuralMultiplicity::Affine
-                        && result.claims.is_empty()
-                        && result.qualifications.is_empty()
-                        && result.projected_qualifications.is_empty()
-                }
-                legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
-                    declaration,
-                    ..
-                } => {
-                    declaration.multiplicity == StructuralMultiplicity::Affine
-                        && declaration.access == terminal_psi::StructuralAccess::Owned
-                        && declaration.qualifications.is_empty()
-                        && declaration.projected_qualifications.is_empty()
-                }
-            })
+        super::structural_case::source_owner(function, *place).is_ok_and(|owner| match owner {
+            legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                result, ..
+            } => {
+                result.multiplicity == StructuralMultiplicity::Affine
+                    && result.claims.is_empty()
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+            }
+            legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                declaration,
+                ..
+            } => {
+                declaration.multiplicity == StructuralMultiplicity::Affine
+                    && declaration.access == terminal_psi::StructuralAccess::Owned
+                    && declaration.qualifications.is_empty()
+                    && declaration.projected_qualifications.is_empty()
+            }
+        })
     })
 }
 

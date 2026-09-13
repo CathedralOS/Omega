@@ -88,12 +88,25 @@ pub(super) fn establish(
                 if field_shape.byte_size == 0 {
                     continue;
                 }
-                if let Some(parameter) = source.structural.as_ref().and_then(|signature| {
-                    signature
-                        .parameters
-                        .iter()
-                        .find(|parameter| parameter.semantic.place == argument.place)
-                }) {
+                // Once an owned input has addressable storage, later borrows
+                // may update it. Copy its current bytes, not stale entry fragments.
+                if let Some(parameter) = source
+                    .structural
+                    .as_ref()
+                    .and_then(|signature| {
+                        signature
+                            .parameters
+                            .iter()
+                            .find(|parameter| parameter.semantic.place == argument.place)
+                    })
+                    .filter(|_| {
+                        !replay
+                            .transport
+                            .pointers
+                            .iter()
+                            .any(|(place, _)| *place == argument.place)
+                    })
+                {
                     if !crate::selection::aggregate_result_input::inline_argument_fragments(
                         &parameter.target.placement,
                     ) {

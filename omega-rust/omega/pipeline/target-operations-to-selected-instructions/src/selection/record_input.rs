@@ -1,11 +1,42 @@
-//! Reconstruct record geometry from exact field declarations.
+//! Reconstruct record geometry and input storage needs from exact declarations.
 use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
+use semantic_vocabulary::PlaceId;
 use terminal_psi::{
-    RecordFieldValue, StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,
+    RecordFieldValue, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
+    StructuralTypeShape,
 };
+/// Owned record inputs only need addressable storage when an operation observes a
+/// field or lends the original value. Pure whole-value transport keeps its ABI
+/// fragments; a materialized home becomes the value's storage for later uses.
+pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
+    let Some(signature) = &source.structural else {
+        return false;
+    };
+    if !signature.parameters.iter().any(|parameter| {
+        parameter.semantic.place == place
+            && parameter.semantic.access == StructuralAccess::Owned
+            && signature.structural_types.iter().any(|declaration| {
+                declaration.id == parameter.semantic.structural_type
+                    && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+            })
+    }) {
+        return false;
+    }
+    source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
+        match &row.kind {
+            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. } => source.place == place,
+            LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
+                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
+                    if semantic.place == place && semantic.access != StructuralAccess::Owned)
+            }),
+            _ => false,
+        }
+    })
+}
+
 pub(super) fn fields(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
