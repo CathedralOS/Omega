@@ -431,6 +431,32 @@ fn owned_record_parameter_round_trip_uses_independent_input_and_result_abi() {
 }
 
 #[test]
+fn empty_unit_helper_composes_with_owned_record_calls() {
+    let artifact = produce_source(
+        "relay",
+        "data Record { first: u64; second: u64; third: u64; }
+         machine notify() {}
+         machine retain(record: Record) -> Record { record }
+         machine relay(record: Record) -> Record { notify(); retain(record) }",
+    );
+    execute(
+        &artifact,
+        r#"
+        #include <stdint.h>
+        typedef struct { uint64_t first; uint64_t second; uint64_t third; } Record;
+        extern Record omega_entry(Record record);
+        int main(void) {
+            Record record = { UINT64_MAX, UINT64_C(0x123456789abcdef0), UINT64_C(0x8000000000000001) };
+            Record result = omega_entry(record);
+            return result.first == record.first && result.second == record.second
+                && result.third == record.third ? 0 : 1;
+        }
+        "#,
+        true,
+    );
+}
+
+#[test]
 fn owned_record_parameter_forwards_through_an_ordinary_call() {
     let artifact = produce_source(
         "relay",
