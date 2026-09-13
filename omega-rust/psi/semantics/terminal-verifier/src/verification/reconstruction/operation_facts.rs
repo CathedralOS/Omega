@@ -87,9 +87,37 @@ pub(super) fn append_operation(
             | OperationKind::StructuralByteSequenceFieldByteStore { .. }
     ) {
         match crate::validation::structural_field_store_write_path(module, machine, operation) {
-            Some((root, written)) => axioms.retain(|proposition| {
-                !crate::validation::proposition_observes_write(proposition, root, &written)
-            }),
+            Some((root, written)) => {
+                axioms.retain(|proposition| {
+                    !crate::validation::proposition_observes_write(proposition, root, &written)
+                });
+                // A scalar field store fixes the exact leaf it writes: the
+                // field equals the stored value until a covering write
+                // replaces it. Field reads observe the same canonical path,
+                // so later read equations transport this fact back to the
+                // stored value. Only the canonical write path the checked
+                // invalidation just scoped can name the leaf; a store whose
+                // path cannot be resolved forgets the root instead.
+                if let OperationKind::StructuralScalarFieldStore { value, .. } = &operation.kind {
+                    let equation = match value_types.get(value).copied() {
+                        Some(ScalarType::Integer(integer)) => Some(Proposition::Equal(
+                            ScalarTerm::integer_field_path(root, written.clone(), integer),
+                            ScalarTerm::value(*value, ScalarType::Integer(integer)),
+                        )),
+                        Some(ScalarType::Boolean) => Some(Proposition::Equal(
+                            ScalarTerm::boolean_field_path(root, written.clone()),
+                            ScalarTerm::value(*value, ScalarType::Boolean),
+                        )),
+                        // Other stored scalars (IEEE formats) have no field
+                        // term in the vocabulary; the write is still valid,
+                        // it just publishes no local equation.
+                        _ => None,
+                    };
+                    if let Some(equation) = equation {
+                        axioms.push(equation);
+                    }
+                }
+            }
             // A write whose exact path cannot be resolved forgets the root.
             None => {
                 let root = match &operation.kind {

@@ -404,6 +404,68 @@ fn rejects_checked_indexed_store_without_its_record_owner() {
 }
 
 #[test]
+fn stored_scalar_field_values_discharge_later_field_state_obligations() {
+    let checked = checked_source(
+        r#"
+        data Registers { sq: u32 in Wrapping; place: u32 in Wrapping; d: u32 in Wrapping; }
+        machine Registers::divide(&mut self) {
+            self.sq = 4;
+            self.place = 100;
+            self.d = self.sq / self.place;
+        }
+    "#,
+    );
+    let lowered = lower_machine(&checked, "Registers::divide")
+        .expect("the stored field value discharges the nonzero-divisor obligation");
+    terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("field-store module verifies");
+    let obligations =
+        terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
+            .expect("reconstructed operation obligations");
+    let divide = obligations
+        .iter()
+        .find(|site| {
+            matches!(
+                site.obligation.proposition,
+                semantic_vocabulary::Proposition::LessOrEqual(..)
+            )
+        })
+        .expect("the field divisor carries a nonzero obligation");
+    assert!(
+        divide.semantic_axioms.iter().any(|axiom| matches!(
+            axiom,
+            semantic_vocabulary::Proposition::Equal(
+                semantic_vocabulary::ScalarTerm::IntegerField { path, .. },
+                semantic_vocabulary::ScalarTerm::Value { .. },
+            ) if path.len() == 1
+        )),
+        "the reconstructed obligation cites the published field == value equation"
+    );
+}
+
+#[test]
+fn overwritten_scalar_fields_do_not_discharge_later_field_state_obligations() {
+    // The covering write expires the earlier `place == 100` equation, so the
+    // only surviving storage fact is `place == replacement`; the divisor
+    // obligation must still fail rather than transport the stale literal.
+    let checked = checked_source(
+        r#"
+        data Registers { sq: u32 in Wrapping; place: u32 in Wrapping; d: u32 in Wrapping; }
+        machine Registers::divide(&mut self, replacement: u32 in Wrapping) {
+            self.sq = 4;
+            self.place = 100;
+            self.place = replacement;
+            self.d = self.sq / self.place;
+        }
+    "#,
+    );
+    assert!(matches!(
+        lower_machine(&checked, "Registers::divide"),
+        Err(LoweringError::OperationProofUnavailable(_))
+    ));
+}
+
+#[test]
 fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
     let checked = checked_source(RESULT_SOURCE);
     let lowered = lower_machine(&checked, "Root::enter")

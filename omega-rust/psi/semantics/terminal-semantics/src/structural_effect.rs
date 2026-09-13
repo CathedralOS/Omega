@@ -579,6 +579,10 @@ pub enum StructuralEffectObservation {
         destination: PlaceId,
         value: semantic_vocabulary::ValueId,
     },
+    /// Store one defined scalar into one exact relevant field. The verifier
+    /// publishes the local `field == value` equation itself because naming
+    /// the leaf requires the independently resolved canonical write path and
+    /// the stored value's scalar type.
     ScalarFieldStored {
         destination: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
