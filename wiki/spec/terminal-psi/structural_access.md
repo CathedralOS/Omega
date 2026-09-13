@@ -48,10 +48,10 @@ does not end its loan. `ReleaseReference` ends it only after its descendants
 have ended; same-block restoration therefore precedes any renewed parent use.
 Formation, release, and successful return commit only after their fuel charge.
 
-The current executable slice retains whole mutable primitive references through
-ordinary calls and returns. Stored-reference aggregates, reference-valued entry
-parameters or host-entry results, reference projections into host-boundary
-calls, shared/write-only carriers, and native realization remain explicit
+The current executable slice retains whole mutable primitive references and
+record-contained reference leaves through ordinary calls and returns.
+Reference-valued entry parameters or host-entry results, reference projections
+into host-boundary calls, shared/write-only carriers, and native realization remain explicit
 implementation limits. Ordinary calls may temporarily attenuate a mutable
 carrier to shared or write-only access without creating such a carrier. None
 of the unsupported forms gains authority merely because its shape or source
@@ -125,12 +125,15 @@ Each observation costs one logical operation unit, charged before execution.
 roster of declaration-identified field operands. Scalar operands are dominating
 SSA values of the exact field carrier. Bounded integer fields require an
 independently reconstructed inclusive-range obligation. Nested fields consume
-already completed whole owned records of the exact nominal type; affine children
-transfer once, while unrestricted children remain available. An unrestricted
+already completed whole owned records or reference carriers of the exact type;
+affine children transfer once, while unrestricted children remain available. An unrestricted
 parent cannot absorb an affine child.
 
-The admitted records contain only relevant scalar or recursively plain record
-fields and have no claim or qualification rosters. Projected owned child
+The admitted records contain relevant scalar, mutable primitive reference, or
+recursive record fields and have no claim or qualification rosters. Reference
+children transfer their existing permission without copying their referents;
+the complete returned-leaf source map uses canonical path order, independently
+of constructor and cleanup order. Projected owned child
 construction remains unsupported: its residual custody cannot be inferred from
 a whole-value operand. Ordinary borrowed projections retain their access rules.
 
