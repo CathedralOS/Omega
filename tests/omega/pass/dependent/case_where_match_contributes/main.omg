@@ -1,0 +1,25 @@
+// CASE-CONSTRAINTS match-contributed case facts (ch12): under the
+// `Interval::Range` arm the selected case's `where` fact (`lo <= hi`) is a
+// branch-local proposition on the exact subject, so the target state's
+// `requires lo <= hi` proves at arrival with no extra evidence. The
+// destructured bindings rewrite to `self.interval.lo`/`self.interval.hi`,
+// and the contributed fact carries that same canonical identity. The
+// subject is NOT constructed in this state's flow, so construction-fold
+// evidence cannot supply the coupling -- only the arm can.
+data Interval {
+    case Empty;
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+data Main { interval: Interval; }
+machine Main::main(&mut self) {
+    transition self.interval {
+        Interval::Range { lo, hi } -> take(lo, hi)
+        Interval::Empty -> done()
+    }
+    state take(&mut self, lo: u64, hi: u64)
+    requires
+        lo <= hi
+    {
+    }
+    state done(&mut self) { }
+}
