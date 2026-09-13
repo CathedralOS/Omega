@@ -65,6 +65,22 @@ introduce threads or a new executor solely to demonstrate this ownership shape.
 
 ### Eliminate lookup before choosing an index
 
+Bias toward simple contiguous storage and direct scans unless the workload
+justifies preparation. Better lookup big-O alone does not justify building a
+tree, hash table, or sorted copy: count how many queries occur before the data
+is discarded or rebuilt. One scan can beat preparing an index for one query;
+binary search on an already ordered slice needs no search-tree construction.
+For a fixed small key space, explicit slots or a short scan may be the whole
+solution. For batch joins, consider indexing the smaller requested set and
+streaming the larger input, or advancing cursors through existing ordered data.
+
+This is a default, not a ban on indices or a demand to benchmark every choice.
+Growing inputs with repeated heavy lookup can plainly justify an index; do not
+retain quadratic work in the name of simplicity. Where the crossover is unclear,
+compare preparation plus queries on representative workloads before adding size
+thresholds. Do not copy another application's thresholds or create adaptive
+dispatch machinery merely because a crossover must exist.
+
 Trace where the association becomes known and where it is lost. A consumer
 hashing an owner and local position may be reconstructing a relationship the
 producer could retain as a group handle or child span. Consider direct handles,
