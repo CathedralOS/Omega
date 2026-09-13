@@ -266,7 +266,8 @@ pub(super) fn validate_unit_operation_static(
                 });
             }
             let projected = structural_arguments.iter().any(|argument| {
-                !argument.path.is_empty() && argument.path != [StructuralPathSegment::Referent]
+                !argument.path.is_empty()
+                    && !super::references::is_reference_projection(module, machine, argument)
             });
             let exact_exclusive_projection = matches!(
                 (structural_arguments.as_slice(), callee.structural_parameters.as_slice()),
@@ -1300,7 +1301,7 @@ pub(super) fn validate_structural_arguments(
         });
     }
     for (index, (argument, expected)) in arguments.iter().zip(expected).enumerate() {
-        if argument.path == [StructuralPathSegment::Referent] {
+        if argument.path.contains(&StructuralPathSegment::Referent) {
             if matches!(call_kind, Some(OperationKind::BoundaryCall { .. })) {
                 return Err(super::references::invalid(
                     caller,
@@ -1776,8 +1777,7 @@ fn is_admitted_unit_call_argument_path(
     argument: &StructuralArgument,
 ) -> bool {
     argument.path.is_empty()
-        || (argument.path == [StructuralPathSegment::Referent]
-            && super::references::source_type(module, caller, argument).is_some())
+        || super::references::is_reference_projection(module, caller, argument)
         || is_nonempty_field_path(&argument.path)
         || is_literal_indexed_field_path(&argument.path)
         || is_direct_literal_index_path(&argument.path)
@@ -1964,16 +1964,17 @@ pub(super) fn validate_unit_call_claim_transfers(
                 .collect::<Vec<_>>();
             // A reference carrier's affine permission is not a projected
             // ownership claim on the primitive referent passed to this call.
-            let claim_free_reference = argument.path == [StructuralPathSegment::Referent]
-                && super::references::source_type(module, caller, argument)
-                    == Some(parameter.structural_type)
-                && parameter.access == argument.access
-                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                && callee_claims.is_empty()
-                && caller
-                    .entry_claims
-                    .iter()
-                    .all(|claim| claim.input != argument.place);
+            let claim_free_reference =
+                super::references::is_reference_projection(module, caller, argument)
+                    && super::references::source_type(module, caller, argument)
+                        == Some(parameter.structural_type)
+                    && parameter.access == argument.access
+                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && callee_claims.is_empty()
+                    && caller
+                        .entry_claims
+                        .iter()
+                        .all(|claim| claim.input != argument.place);
             let claim_free_unrestricted_write_only_field =
                 is_unrestricted_write_only_subloan(module, caller, parameter, argument)
                     && callee_claims.is_empty()

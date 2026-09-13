@@ -4,11 +4,23 @@ use super::*;
 use terminal_psi::{RecordFieldValue, StructuralFieldDeclaration};
 
 pub(super) fn plain_type(module: &TerminalModule, root: StructuralTypeId) -> bool {
+    record_type(module, root, false)
+}
+
+/// Local construction can relocate checked reference carriers. Keep this
+/// separate from plain payload classification: plain calls and returns do not
+/// thereby acquire recursive reference transfer semantics.
+fn constructible_type(module: &TerminalModule, root: StructuralTypeId) -> bool {
+    record_type(module, root, true)
+}
+
+fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool) -> bool {
     fn visit(
         module: &TerminalModule,
         root: StructuralTypeId,
         active: &mut Vec<StructuralTypeId>,
         complete: &mut BTreeSet<StructuralTypeId>,
+        references: bool,
     ) -> bool {
         if complete.contains(&root) {
             return true;
@@ -34,7 +46,8 @@ pub(super) fn plain_type(module: &TerminalModule, root: StructuralTypeId) -> boo
             field.relevance == terminal_psi::BindingRelevance::Relevant
                 && match field.field_type {
                     StructuralFieldType::Structural(child) => {
-                        visit(module, child, active, complete)
+                        (references && super::references::referent(module, child).is_some())
+                            || visit(module, child, active, complete, references)
                     }
                     _ => field.field_type.scalar_type().is_some(),
                 }
@@ -45,7 +58,13 @@ pub(super) fn plain_type(module: &TerminalModule, root: StructuralTypeId) -> boo
         }
         valid
     }
-    visit(module, root, &mut Vec::new(), &mut BTreeSet::new())
+    visit(
+        module,
+        root,
+        &mut Vec::new(),
+        &mut BTreeSet::new(),
+        references,
+    )
 }
 
 pub(crate) fn fields<'a>(
@@ -70,7 +89,7 @@ pub(crate) fn fields<'a>(
     );
     if !owned
         || !exact_place
-        || !plain_type(module, result.structural_type)
+        || !constructible_type(module, result.structural_type)
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()

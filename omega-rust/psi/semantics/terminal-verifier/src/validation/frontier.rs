@@ -566,7 +566,7 @@ pub(super) fn validate_structural_frontier(
         };
         if let Some(discards) = closing {
             let mut remaining = frontier.references.clone();
-            release_reference_discards(machine, &mut remaining, &discards)?;
+            release_reference_discards(module, machine, &mut remaining, &discards)?;
             require_no_references(machine, &remaining)?;
         }
         match &block.terminator {
@@ -586,6 +586,7 @@ pub(super) fn validate_structural_frontier(
                     residual_affine_discards,
                 )?;
                 apply_edge_trivial_affine_discards(
+                    module,
                     machine,
                     &parameter_order,
                     &mut frontier,
@@ -605,6 +606,7 @@ pub(super) fn validate_structural_frontier(
             } => {
                 let mut true_frontier = frontier.clone();
                 apply_edge_trivial_affine_discards(
+                    module,
                     machine,
                     &parameter_order,
                     &mut true_frontier,
@@ -627,6 +629,7 @@ pub(super) fn validate_structural_frontier(
                         .push(true_frontier);
                 }
                 apply_edge_trivial_affine_discards(
+                    module,
                     machine,
                     &parameter_order,
                     &mut frontier,
@@ -687,6 +690,7 @@ pub(super) fn validate_structural_frontier(
                 for case in cases {
                     let mut case_frontier = frontier.clone();
                     apply_edge_trivial_affine_discards(
+                        module,
                         machine,
                         &parameter_order,
                         &mut case_frontier,
@@ -721,6 +725,7 @@ pub(super) fn validate_structural_frontier(
                     });
                 }
                 release_reference_discards(
+                    module,
                     machine,
                     &mut frontier.references,
                     trivial_affine_discards,
@@ -1032,6 +1037,7 @@ pub(super) fn validate_structural_frontier(
                     });
                 }
                 release_reference_discards(
+                    module,
                     machine,
                     &mut frontier.references,
                     trivial_affine_discards,
@@ -1282,17 +1288,13 @@ fn validate_owned_reads(
 }
 
 fn release_reference_discards(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     references: &mut Vec<super::references::LiveReference>,
     discards: &[PlaceId],
 ) -> Result<(), ModuleError> {
     for place in discards {
-        if references
-            .iter()
-            .any(|reference| reference.carrier == *place)
-        {
-            super::references::release(machine, references, *place)?;
-        }
+        super::references::discard_owned(module, machine, references, *place)?;
     }
     Ok(())
 }
@@ -1410,6 +1412,10 @@ fn validate_scalar_cleanup_actions(
         if !super::scalar_case::plain_return_source(module, machine, place)
             && super::record::completed_source(module, machine, place).is_none()
             && super::references::carrier_type(module, machine, place).is_none()
+            && !frontier
+                .references
+                .iter()
+                .any(|reference| reference.carrier == place)
         {
             continue;
         }
@@ -1418,13 +1424,7 @@ fn validate_scalar_cleanup_actions(
         {
             return Err(mismatch());
         }
-        if frontier
-            .references
-            .iter()
-            .any(|reference| reference.carrier == place)
-        {
-            super::references::release(machine, &mut frontier.references, place)?;
-        }
+        super::references::discard_owned(module, machine, &mut frontier.references, place)?;
         frontier.owned_places.remove(&place);
     }
 
@@ -1612,6 +1612,7 @@ fn expected_trivial_affine_discards(
 }
 
 fn apply_edge_trivial_affine_discards(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     parameter_order: &[&StructuralParameterDeclaration],
     frontier: &mut StructuralOwnershipFrontier,
@@ -1635,13 +1636,7 @@ fn apply_edge_trivial_affine_discards(
         return Err(ModuleError::EdgeAffineDiscardsInvalid { edge });
     }
     for place in discards {
-        if frontier
-            .references
-            .iter()
-            .any(|reference| reference.carrier == *place)
-        {
-            super::references::release(machine, &mut frontier.references, *place)?;
-        }
+        super::references::discard_owned(module, machine, &mut frontier.references, *place)?;
         frontier.owned_places.remove(place);
     }
     Ok(())
