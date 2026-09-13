@@ -339,7 +339,59 @@ pub(super) fn validate_literal_default_domain(
     if data_definition.where_facts.is_empty() {
         return;
     }
-    let type_name = literal.type_name.as_str();
+    fold_literal_facts(
+        program,
+        machine,
+        state,
+        literal,
+        data_definition.where_facts,
+        &format!("data `{}`", literal.type_name.as_str()),
+        "the default domain",
+        "default-domain",
+        diagnostics,
+    );
+}
+
+/// CASE-CONSTRAINTS (ch12 active-case indexed constraint): the SELECTED
+/// case's `where` facts fold over the same literal field valuation -- a case
+/// literal's named fields ARE the payload bindings, and omitted payload
+/// fields read the ZII zero exactly like omitted common fields.
+pub(super) fn validate_literal_case_constraints(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    literal: &TableStructLiteral,
+    case_name: &str,
+    variant: &typed_trees::data::DataVariant,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if variant.where_facts.is_empty() {
+        return;
+    }
+    fold_literal_facts(
+        program,
+        machine,
+        state,
+        literal,
+        variant.where_facts,
+        &format!("data `{}` case `{case_name}`", literal.type_name.as_str()),
+        "the case constraint",
+        "case",
+        diagnostics,
+    );
+}
+
+fn fold_literal_facts(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    literal: &TableStructLiteral,
+    facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
+    subject: &str,
+    fact_label: &str,
+    fact_adjective: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     // Slice 9: each field's value resolves to an INTERVAL -- an integer
     // literal is a point; a place with a declared `[a..=b]` range (a ranged
     // parameter, a range-refined field) contributes its DECLARED interval
@@ -349,21 +401,18 @@ pub(super) fn validate_literal_default_domain(
         let value = value_bounds(program, machine, state, field.value);
         valuation.push((field.name.as_str(), value));
     }
-    for fact in program
-        .proof_facts
-        .span_or_empty(data_definition.where_facts)
-    {
+    for fact in program.proof_facts.span_or_empty(facts) {
         match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
                 match bounds_fold(program, &valuation, *expression) {
                     Truth::True => {}
                     Truth::False => diagnostics.push(Diagnostic::error(format!(
-                        "data `{type_name}` literal violates the default domain: a `where` \
+                        "{subject} literal violates {fact_label}: a `where` \
                          fact evaluates FALSE at this construction (ch12: construction is \
                          the gate)"
                     ))),
                     Truth::Unknown => diagnostics.push(Diagnostic::error(format!(
-                        "data `{type_name}` literal cannot PROVE the default domain: a \
+                        "{subject} literal cannot prove {fact_label}: a \
                          `where`-mentioned field's value is neither a literal nor a \
                          declared-range place whose interval decides the fact -- spell a \
                          literal, or constrain the value's declared range"
@@ -397,7 +446,7 @@ pub(super) fn validate_literal_default_domain(
                 );
                 if !proven {
                     diagnostics.push(Diagnostic::error(format!(
-                        "data `{type_name}` literal cannot prove default-domain fact: \
+                        "{subject} literal cannot prove {fact_adjective} fact: \
                          field `{}` is not known to satisfy domain `{}` at construction",
                         field_name.unwrap_or("<unknown>"),
                         membership_domain_label(program, membership.domain),
@@ -406,7 +455,7 @@ pub(super) fn validate_literal_default_domain(
             }
             typed_trees::domain::ProofFact::Proposition(application) => {
                 diagnostics.push(Diagnostic::error(format!(
-                    "data `{type_name}` literal cannot prove default-domain proposition `{}` at construction",
+                    "{subject} literal cannot prove {fact_adjective} proposition `{}` at construction",
                     application.name.as_str(),
                 )));
             }

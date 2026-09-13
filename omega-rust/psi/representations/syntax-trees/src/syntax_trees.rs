@@ -719,6 +719,7 @@ impl SyntaxTrees {
                     identity: variant.identity,
                     name: variant.name.clone(),
                     payload: this.copy_data_payload_field_span(other, variant.payload),
+                    where_facts: this.copy_domain_fact_span(other, variant.where_facts),
                     retired_payload_identities: variant.retired_payload_identities.clone(),
                 }),
                 DataMember::Retired(identity) => DataMember::Retired(*identity),

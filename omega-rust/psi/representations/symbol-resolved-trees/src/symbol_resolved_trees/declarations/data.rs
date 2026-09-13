@@ -243,5 +243,8 @@ pub struct DataVariant {
     pub name: DiagnosticName,
     /// Named payload fields (`case Say(text: String);`); empty for payload-less cases.
     pub payload: HandleSpan<DataField>,
+    /// Case-local `where` facts proved at construction of this case; empty when
+    /// the case declares none.
+    pub where_facts: HandleSpan<crate::domain::ProofFact>,
     pub retired_payload_identities: Vec<u64>,
 }

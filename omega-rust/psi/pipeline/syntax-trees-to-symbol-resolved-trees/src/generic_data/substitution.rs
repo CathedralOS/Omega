@@ -42,6 +42,10 @@ pub(in crate::generic_data) fn substitute_member(
                     .expect("generic sum payload field count overflow");
             }
             variant.payload = HandleSpan::from_parts(first, count);
+            // Case constraints on generic data are fenced at lowering; an
+            // instance never carries variant facts until synthesis can
+            // substitute them honestly.
+            variant.where_facts = HandleSpan::empty();
             DataMember::Variant(variant)
         }
         DataMember::Retired(identity) => DataMember::Retired(identity),

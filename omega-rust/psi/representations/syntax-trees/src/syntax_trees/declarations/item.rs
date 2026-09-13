@@ -502,6 +502,9 @@ pub struct DataVariant {
     /// empty span. Stored in their own arena so the parent's member span stays
     /// contiguous while a case's payload is parsed.
     pub payload: HandleSpan<DataField>,
+    /// Case-local `where` facts (`case Range(lo: u64, hi: u64) where lo <= hi;`),
+    /// proved at construction of that case. Empty when the case declares none.
+    pub where_facts: HandleSpan<ProofFact>,
     pub retired_payload_identities: Vec<u64>,
 }
 

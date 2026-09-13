@@ -176,6 +176,7 @@ fn variant_snapshot_retains_payload_only_erased_field() {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("Certified"),
             payload: HandleSpan::from_parts(payload, 1),
+            where_facts: HandleSpan::empty(),
             retired_payload_identities: Vec::new(),
         }));
     program.data_definitions.push(DataDefinition {

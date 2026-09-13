@@ -32,7 +32,7 @@ mod tests;
 
 pub(crate) use window_elements::validate_array_window_elements;
 
-use construction_bounds::validate_literal_default_domain;
+use construction_bounds::{validate_literal_case_constraints, validate_literal_default_domain};
 use field_obligations::enforce_construction_field_obligations;
 pub(crate) use field_obligations::{
     construction_field_type, selected_construction_field_type, validate_array_literal_elements,
@@ -531,6 +531,18 @@ fn validate_literal_field_names(
             else {
                 return;
             };
+            // CASE-CONSTRAINTS: the selected case's `where` facts prove at
+            // construction through the same literal fold as the default
+            // domain; only the selected case's fact set is consulted.
+            validate_literal_case_constraints(
+                program,
+                machine,
+                state,
+                literal,
+                case_name.as_str(),
+                variant,
+                diagnostics,
+            );
             // A case literal names the case's PAYLOAD fields, and -- for mixed
             // shapes -- may name COMMON fields alongside them (unnamed common
             // fields zero-initialize; frozen decision 7's construction rule).

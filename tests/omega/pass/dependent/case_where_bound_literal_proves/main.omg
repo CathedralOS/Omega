@@ -1,0 +1,13 @@
+// CASE-CONSTRAINTS slice 1: a case-local `where` (ch12 active-case indexed
+// constraint) is PROVED at construction from the literal's payload values
+// by the same default-domain fold that gates type-wide `where`; the
+// selected case's fact set is the only one consulted.
+data Interval {
+    case Empty;
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+data Main { interval: Interval; }
+machine Main::main(&mut self) {
+    self.interval = Interval::Range { lo: 1, hi: 5 };
+    self.interval = Interval::Empty;
+}
