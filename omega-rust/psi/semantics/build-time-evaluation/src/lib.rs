@@ -13,6 +13,7 @@ mod const_lengths;
 mod layout_plans;
 mod placed_views;
 mod plan_laid;
+mod range_endpoints;
 mod wire_plans;
 
 use std::sync::Arc;
@@ -144,6 +145,7 @@ pub use plan_laid::{
     PlanLaidRecord, compute_plan_laid_layouts, compute_plan_laid_layouts_with_authority,
     desugar_plan_laid_value_types,
 };
+pub use range_endpoints::evaluate_const_range_endpoints_with_authority;
 pub use selected_operators::validate_selected_operators;
 pub use wire_plans::{compute_wire_plans, compute_wire_plans_with_authority};
 
@@ -428,6 +430,7 @@ fn evaluate_pre_check_with_optional_authority(
     wire_schema_frontier: usize,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     evaluate_const_array_lengths_with_authority(typed, selection_authority.clone())?;
+    evaluate_const_range_endpoints_with_authority(typed, selection_authority.clone())?;
     evaluate_const_domain_facts_with_authority(typed, selection_authority.clone())?;
     compute_plan_laid_layouts_with_authority(
         typed,

@@ -222,10 +222,18 @@ fixed-width kernels, preserving carrier checks and integer division/remainder.
 Exact constant points survive full-width unsigned intermediates independently
 of the signed compatibility interval; each operand still lands and each typed
 operation must fit before a later cancellation. The same customer exercises
-inferred bounds 511 and 256 through these wide computations. Named computations,
-open symbolic endpoints, full-width variable compatibility intervals and exact
-type equations remain open; context-free typed evaluation refuses matching selected trait
-operators until the endpoint has direct owner context.
+inferred bounds 511 and 256 through these wide computations.
+
+A named computation endpoint (`u64[0..=limit()]`, a receiver-less zero-argument
+call) folds before checking in `build-time-evaluation/src/range_endpoints.rs`
+through the same `BuildTimeAdmissionPlan` and checked-interpreter route as
+fixed-array lengths, with source invocation custody; the endpoint becomes an
+ordinary literal that inference, declaration checking, proof and layout all
+read. The same customer's `named` machine infers `upper_bound<256>` this way.
+Calls with value arguments, type-scoped machine paths, open symbolic endpoints,
+full-width variable compatibility intervals and exact type equations remain
+open; context-free typed evaluation refuses matching selected trait operators
+until the endpoint has direct owner context.
 
 Exclusive-end normalization is still incorrect. At `dd5c5853d9`, the CLI rejects
 `u64[0..18446744073709551616]` at the parser's i64 limit, accepts an invalid
