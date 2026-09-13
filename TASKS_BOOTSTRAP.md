@@ -269,8 +269,11 @@ prerequisite to every lower-rung milestone.
   against the selected profile, not another isolated capture fast path.
   [Capture's source-level accounting](bootstrap/3_delta/implementation/normalization/README.md#capture-allocation-ownership)
   and the passing full-width case do not constitute a whole-producer bound or
-  checked refinement certificate. Generic overlapping helper batches, earlier
-  checking/lowering, and serialization remain part of that allocation argument.
+  checked refinement certificate. Serialization's publication traversal pairs
+  are now charged to distinct emitted bytes and bounded below the selected
+  pair arena (`8a49b3e011`); generic overlapping helper batches, earlier
+  checking/lowering, normalizer frames/rebuilt nodes, and generic
+  capture-batch merges remain part of that allocation argument.
   The [canonical compiler execution-storage audit](bootstrap/3_delta/implementation/boundary/execution_storage.md)
   bounds its call contexts, lexical rows, and temporary values separately;
   generated-application runtime exhaustion is not compiler-execution exhaustion.
