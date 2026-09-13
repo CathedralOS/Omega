@@ -2820,6 +2820,9 @@ const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
     ("host/runtime_console_exit_i32_status", "linux_x86_64"),
     ("host/runtime_console_exit_i32_status", "linux_arm64"),
     ("host/runtime_console_exit_i32_status", "macos_arm64"),
+    ("host/process_exit_i32_status", "linux_x86_64"),
+    ("host/process_exit_i32_status", "linux_arm64"),
+    ("host/process_exit_i32_status", "macos_arm64"),
     ("filesystem/windows_raw_breadth_exit", "windows_x86_64"),
     ("filesystem/windows_raw_roundtrip_exit", "windows_x86_64"),
     ("host/runtime_user32_key_state_exit", "windows_x86_64"),
@@ -3053,8 +3056,17 @@ fn fixture_accepts_console_input(root_path: &Path) -> bool {
     })
 }
 
+fn fixture_accepts_process_exit(root_path: &Path) -> bool {
+    fs::read_to_string(root_path).is_ok_and(|source| {
+        source.contains("omega_language_std::process_exit") && source.contains(".exit_process(")
+    })
+}
+
 #[path = "support/console_acceptance.rs"]
 mod console_acceptance;
+
+#[path = "support/process_exit_acceptance.rs"]
+mod process_exit_acceptance;
 
 fn reviewed_repository_fixture_package_inputs(
     root_path: &Path,
@@ -3067,10 +3079,12 @@ fn reviewed_repository_fixture_package_inputs(
     let accepts_console_exit = fixture_accepts_console_exit(root_path);
     let accepts_console_output = fixture_accepts_console_output(root_path);
     let accepts_console_input = fixture_accepts_console_input(root_path);
+    let accepts_process_exit = fixture_accepts_process_exit(root_path);
     if !accepts_filesystem
         && !accepts_console_exit
         && !accepts_console_output
         && !accepts_console_input
+        && !accepts_process_exit
     {
         return Ok(Some(package_inputs));
     }
@@ -3102,6 +3116,12 @@ fn reviewed_repository_fixture_package_inputs(
             fixture_package_identity(2),
             accepts_console_output,
             accepts_console_input,
+        )?);
+    }
+    if accepts_process_exit {
+        bindings.push(process_exit_acceptance::candidate_process_exit_binding(
+            &preliminary,
+            fixture_package_identity(2),
         )?);
     }
     package_inputs

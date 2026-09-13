@@ -1291,6 +1291,11 @@ fn compile_assembled_checked_child(
                     package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
                 )
             }),
+            accepted_process_exit_binding: package_inputs.and_then(|inputs| {
+                inputs.accepted_semantic_binding(
+                    package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+                )
+            }),
             accepted_filesystem_binding: package_inputs.and_then(|inputs| {
                 inputs.accepted_semantic_binding(
                     package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,

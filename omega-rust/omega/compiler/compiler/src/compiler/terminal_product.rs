@@ -805,6 +805,9 @@ fn project_compiler_intrinsic_application_realization(
             checked.resolved_semantic_binding(
                 package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
             ),
+            checked.resolved_semantic_binding(
+                package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+            ),
         )
         .map_err(|diagnostic| vec![diagnostic])?;
     let execution = match (derived, **retained_execution) {

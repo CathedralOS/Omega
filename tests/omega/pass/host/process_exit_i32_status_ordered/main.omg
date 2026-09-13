@@ -1,0 +1,51 @@
+// Canonical `ProcessExit::exit_process` behind ordered console output and a
+// conditional helper chain, observed by the checked interpreter.
+//
+// `Main` declares `reaches Console + ProcessExit`: Console grants output
+// authority only, and the terminal outcome still passes through the exact
+// canonical ProcessExit requirement with its exact i32 status. The ordered
+// `write_line` bytes precede the terminal event; the conditional helper
+// states each exit with their own exact status and no continuation runs.
+//
+// This fixture is interpreter-scoped: the transitional native entry envelope
+// admits one provider-backed service carrier per attachment root, so the
+// companion `process_exit_i32_status` fixture carries the native legs.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega_language_std::console;
+
+data Main {
+    console: Console;
+    exit: ProcessExit;
+}
+
+machine dbl(x: i32 [0..=1000]) -> i32 {
+    transition { _ -> (x + x) }
+}
+
+machine pick(x: i32 [0..=1000]) -> i32 {
+    transition x > 50 {
+        true -> (dbl(x))
+        _ -> (x)
+    }
+}
+
+machine Main::main(&mut self)
+reaches
+    Console + ProcessExit
+{
+    let hot: i32 = pick(60);
+    self.console.write_line("process-exit canary");
+    transition hot == 120 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.exit.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.exit.exit_process(1);
+    }
+}

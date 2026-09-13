@@ -16,6 +16,9 @@ mod hosted_read;
 #[path = "providers_float_and_console/hosted_exit.rs"]
 mod hosted_exit;
 
+#[path = "providers_float_and_console/hosted_process_exit.rs"]
+mod hosted_process_exit;
+
 #[path = "../fixture_rosters/providers_float_and_console.rs"]
 pub(super) mod fixture_roster;
 

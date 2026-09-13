@@ -8,6 +8,7 @@ use filesystem;
 use format_lineage;
 use macos_gui;
 use math;
+use process_exit;
 use time;
 use units;
 use wire;
