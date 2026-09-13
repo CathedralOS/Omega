@@ -5,7 +5,8 @@
 
 use diagnostics::Diagnostic;
 
-use super::{ArtifactWriter, PhaseTiming, format_bytes};
+use crate::ArtifactWriter;
+use crate::allocations::AllocationDelta;
 
 impl ArtifactWriter {
     pub fn write_timings(&self, timings: &[PhaseTiming]) -> Result<(), Diagnostic> {
@@ -194,4 +195,28 @@ fn format_signed_bytes(bytes: i128) -> String {
     } else {
         format_bytes(bytes as u64)
     }
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = KIB * 1024.0;
+    const GIB: f64 = MIB * 1024.0;
+
+    let bytes = bytes as f64;
+    if bytes >= GIB {
+        format!("{:.2} GiB", bytes / GIB)
+    } else if bytes >= MIB {
+        format!("{:.2} MiB", bytes / MIB)
+    } else if bytes >= KIB {
+        format!("{:.2} KiB", bytes / KIB)
+    } else {
+        format!("{} B", bytes as u64)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhaseTiming {
+    pub phase: String,
+    pub microseconds: u128,
+    pub allocations: AllocationDelta,
 }

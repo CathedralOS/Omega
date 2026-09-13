@@ -544,7 +544,7 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
             &["fn layout_identity(&self) -> u64"][..],
         ),
         (
-            "omega-rust/omega/tooling/artifacts/src/lib.rs",
+            "omega-rust/omega/tooling/artifacts/src/trust_report.rs",
             &["normalized_foreign_locator_identity"][..],
         ),
         (
@@ -582,7 +582,7 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
 #[test]
 fn trust_tooling_compact_coordinates_retain_strong_evidence_and_report_labels() {
     let root = workspace_root();
-    let carrier_path = root.join("omega-rust/omega/tooling/artifacts/src/lib.rs");
+    let carrier_path = root.join("omega-rust/omega/tooling/artifacts/src/trust_report.rs");
     let report_path = root.join("omega-rust/omega/tooling/artifacts/src/trust_report.rs");
     let carrier = fs::read_to_string(&carrier_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", carrier_path.display()));
