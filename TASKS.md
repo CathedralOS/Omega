@@ -226,7 +226,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |
-  | `cli_mvp` source provider | At `cdf36c74ef`, the macOS native sample probe gets past receiver eligibility and fails checked-provider installation with `SelectedProviderMismatch { boundary: BoundaryMachineId(3) }`. Its canonical Bound Console and 256-byte buffer remain intact. Fix the actual Terminal candidate identity producer as described below; do not shorten selected overload identities or bypass installation. |
+  | `cli_mvp` native call contract | At `4465076234`, the macOS native sample probe gets through receiver eligibility and selected-provider installation, then fails abstract initial validation with `StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(1), node: 4 }`. Keep the canonical Bound Console, two writes and original 256-byte input buffer. Reconcile the call's structural arguments with the independently verified Terminal boundary contract; do not bypass validation. |
   | `print_squares` closure | `58dd5c0482` retains the checked transitive Unit plan and shared byte-field presentation; the probe now stops at `OperationProofUnavailable` for field-state obligations (nonzero divisor, indexed bounds, increment overflow). Psi must let retained evidence name storage observations such as `IntegerField` within the documented invariant scope. **GENERAL-CYCLIC-EXECUTION** owns cyclic completion; **NOMINAL-FIELD-FLOW** owns declared field facts. |
   | Fixed-range Console input/output | Compose the selected source provider and real byte leaves with original receiver storage, exact returned cases/prefix, once-only effects, and cleanup. Use the ordinary graph and provider replay, not the deleted Unit/boundary planner. Windows byte I/O still needs imported-call/fixup/frame custody; Linux runtime evidence requires matching hosts. |
   | Receiver and aggregate operations | Finish shared/indexed projections, owned/local roots, scalar-result receiver calls, nested sum results and whole replacements, including mixed foreign-result assignments. Extend the shared statement sequencer; **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, and **CML4** own the corresponding joins. |
@@ -234,21 +234,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   | `cli/proofs/math_proofs` | Supply ordinary core multiset data and slice extraction, exact selected laws, and structural proof terms for indexed values/subslices. `core/seq.omg` is not a Bag implementation; equal lengths cannot establish equal contents. Preserve the false twin. |
 
   `cli_mvp` resume: macOS ARM64, 2026-09-13, `RUST_MIN_STACK=67108864`,
-  the filtered native sample command above fails in 16.120 seconds at the
-  selected-provider join. `checked-trees-to-lowered-psi/src/attached_unit/providers.rs`
-  currently emits `checked_terminal_machine_name` (a display path) as candidate
-  identity; `provider-planning/src/plans/provenance_replay.rs` selects the
-  normalized overload identity. Use the existing typed declaration's
-  `normalized_machine_overload_identity` in the candidate producer, preserving
-  exact provider/requirement and independent signature/result validation.
-  Regression selection must come independently from the checked ProviderPlan,
-  not copy the candidate identity. Coordinate this narrow edit against current
-  Psi claims. This is an implementation mismatch, not a language decision.
-  The rebuilt debug CLI at the same revision, invoked with `--target macos_arm64
-  --build-dir build/cli-mvp-array-entry samples/cli/basics/cli_mvp/main.omg`,
-  exits 1 earlier at ordinary missing package acceptance (three pending rows).
-  No review decision was accepted. Keep that CLI prerequisite separate from
-  the native sample harness's explicit test-owned policy.
+  the filtered native sample command above reaches the abstract structural-call
+  contract check (16.207 seconds at `4465076234`, including entry/root integration).
+  Selection now joins the source's normalized overload identity, and installation
+  replays verified local byte views/projected loans instead of parameter-only
+  source shapes. Continue at `optimization-unit-semantics/src/unit_validation/
+  operation_contracts/service_calls.rs` and `structural_access.rs`, retaining
+  exact argument, result, borrow and completion custody. This is a required
+  correctness check before optimization, not a request for optimizer tuning.
+  The debug CLI invoked with `--target macos_arm64 --build-dir
+  build/cli-mvp-array-entry samples/cli/basics/cli_mvp/main.omg` exits 1 earlier
+  at ordinary missing package acceptance (three pending rows); that requirement
+  is unchanged. No review decision was accepted. Keep this CLI prerequisite
+  separate from the native sample harness's explicit test-owned policy.
 
   Fixed primitive-array receiver storage now has checked eligibility and image
   replay; the hosted canary provisions 260 bytes and executes its existing scalar
@@ -256,7 +254,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   a valid variation branching on `self.bytes[255] == 0`, then assigning the byte
   in a successor state, loses the checked Main body/attachment before Terminal
   production. **STATE-LOCAL-VALUE-FRONTIER** owns that operation/control join.
-  Keep this limitation distinct from the original sample's provider mismatch;
+  Keep this limitation distinct from the original sample's native call-contract failure;
   neither test-owned acceptance nor the storage canary closes the real CLI route.
 
   **Scope pause:** do not resume helper-by-helper expansion for `print_squares`

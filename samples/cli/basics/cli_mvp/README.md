@@ -82,11 +82,11 @@ findings, not implicit grants. Do not supply blanket acceptance merely to advanc
 the example. Native proof, provider, and receiving-permission checks remain
 independent requirements.
 
-The compiler-library sample test supplies test-owned acceptance and stops later
-at checked-provider installation. The selected plan uses a normalized overload
-identity while the Terminal provider candidate retains a display name; those
-cannot be treated as equal. Fix the candidate's actual producer, preserving
-exact selection and independent signature/result checks. `Main.pause` remains
+The compiler-library sample test supplies test-owned acceptance and gets through
+checked-provider installation. It now stops at the abstract structural-call
+contract check before optimization. Selected overload identities and verified
+local/projected call operands retain their independent installation checks;
+the next representation must preserve those same contracts. `Main.pause` remains
 the original raw fixed array and `read_line` still receives its mutable view.
 Current commands, tested revisions, and the next implementation step remain on
 the execution board; this is not native execution evidence.
