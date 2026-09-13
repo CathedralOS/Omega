@@ -2307,6 +2307,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                                 .map(|claim| claim.parameter_index)
                                 .collect::<Vec<_>>(),
                             &primitive_local_places,
+                            None,
                         )?;
                         OperationKind::CallStructuralScalar {
                             callee,
@@ -2445,6 +2446,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         &structural_types,
                         &[],
                         &primitive_local_places,
+                        None,
                     )?;
                     if scalar_arguments.len() != target.scalar_parameters.len() {
                         return unsupported(
@@ -2573,6 +2575,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         &structural_types,
                         &[],
                         &primitive_local_places,
+                        None,
                     )?;
                     if scalar_arguments.len() != target.scalar_parameters.len() {
                         return unsupported(
@@ -2823,6 +2826,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         &structural_types,
                         &expected_claim_arguments,
                         &primitive_local_places,
+                        None,
                     )?;
                     let (_, boundary, _, target_scalar_parameters) = lowered_boundary_parameters
                         .iter()
@@ -2937,6 +2941,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         &structural_types,
                         &expected_claim_arguments,
                         &primitive_local_places,
+                        None,
                     )?;
                     let (_, boundary, _, target_scalar_parameters) = lowered_boundary_parameters
                         .iter()
@@ -3112,6 +3117,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         &structural_types,
                         &expected_claim_arguments,
                         &primitive_local_places,
+                        None,
                     )?;
                     let (_, boundary, _, target_scalar_parameters) = lowered_boundary_parameters
                         .iter()

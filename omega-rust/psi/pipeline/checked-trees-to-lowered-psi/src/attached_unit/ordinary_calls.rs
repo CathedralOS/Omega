@@ -91,6 +91,7 @@ pub(super) fn prepare(
             .map(|claim| claim.parameter_index)
             .collect::<Vec<_>>(),
         primitive_local_places,
+        None,
     )?;
     let terminal_arguments = lower_structural_arguments(
         structural_arguments,

@@ -358,6 +358,39 @@ pub(super) fn validate_structural_frontier(
                     );
                 }
             }
+            // Static result metadata binds a claim to one occurrence, not to
+            // its current home. Recheck that exact home before transferring the
+            // live lineage; an earlier or future result cannot stand in for it.
+            if let OperationKind::CallStructural {
+                structural_arguments,
+                claim_transfers,
+                ..
+            } = &operation.kind
+            {
+                for transfer in claim_transfers {
+                    let argument = structural_arguments
+                        .get(transfer.argument_index as usize)
+                        .ok_or(ModuleError::ClaimActionArgumentOutOfRange {
+                            operation: operation.id,
+                            argument_index: transfer.argument_index,
+                        })?;
+                    let claim = frontier.claims.get(&transfer.claim).ok_or(
+                        ModuleError::ClaimNotLiveAtOperation {
+                            operation: operation.id,
+                            claim: transfer.claim,
+                        },
+                    )?;
+                    if claim.input != Some(argument.place)
+                        || !claim.path.starts_with(&argument.path)
+                    {
+                        return Err(ModuleError::ClaimActionPlaceMismatch {
+                            operation: operation.id,
+                            claim: transfer.claim,
+                            argument_index: transfer.argument_index,
+                        });
+                    }
+                }
+            }
             let claims = match &operation.kind {
                 OperationKind::CallUnit {
                     claim_transfers, ..

@@ -1501,13 +1501,19 @@ Owners include
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary evaluation/value transport
   in Psi argument normalization, checked scalar computations, call/result plans
   and Terminal production. Remaining operands include dynamic/borrowed/projected
-  storage, effectful state arguments/returns, structural returned calls and
+  storage, effectful state arguments/returns, wider structural returned calls and
   mixed structural/scalar signatures, including boundary consumers. Materialize
   each value and activate its staged loan at the authored evaluation point.
   Retain exact result owners for shared/mutable/write-only temporary borrows,
   multiple argument producers, self consumers and projected claims; **CML4**
   owns residual cleanup. Replace remaining flat guarded-call hoisting with the
   same evaluation graph, not another source-order family.
+
+  Preserve whole-result claim and content lineage through ordinary call chains
+  using `effects/structural_callback_reach` as the regression. Extend that same
+  producer/consumer join to projected or freshly established returned claims,
+  multiple transferred linear claims and mixed scalar/linear call operands;
+  matching claim identities cannot substitute for checked content guarantees.
 
   Complete caller-specific saved-argument and result facts: nonliteral contract
   arithmetic, borrowed collection lengths, dependent/public-trait results and

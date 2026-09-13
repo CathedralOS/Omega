@@ -833,6 +833,7 @@ pub(super) fn emit_boundary_call_operation(
         structural_types,
         &expected_claim_arguments,
         &[],
+        None,
     )?;
     let arguments = super::super::argument_evaluation::validated_values(
         scalar_values,

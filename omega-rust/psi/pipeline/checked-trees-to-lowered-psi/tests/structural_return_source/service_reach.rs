@@ -25,6 +25,265 @@ const NOMINAL_CALLBACK: &str = r#"
 "#;
 
 #[test]
+fn nominal_linear_callback_result_feeds_an_ordinary_call() {
+    for body in [
+        "let forwarded: Region in Owned = Selected(region); Main::forward(forwarded)",
+        "let marker: u64 = 7; let forwarded: Region in Owned = Selected(region); let returned: Region in Owned = Main::forward(forwarded); returned",
+    ] {
+        let source = NOMINAL_CALLBACK.replace("{ Selected(region) }", &format!("{{ {body} }}"));
+        let checked = checked(&source);
+        let artifact =
+            terminal_production::TerminalProductionRequest::new(&checked, "Main::demand")
+                .produce_artifact()
+                .expect("publish successive calls carrying one qualified linear claim");
+        drop(checked);
+        execute_identity(&artifact, 8);
+        let mut module = decode_module(artifact.semantic_bytes()).expect("reload result handoff");
+        let caller = module
+            .machines
+            .iter_mut()
+            .find(|machine| {
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter(|operation| {
+                        matches!(
+                            operation.kind,
+                            terminal_psi::OperationKind::CallStructural { .. }
+                        )
+                    })
+                    .count()
+                    == 2
+            })
+            .expect("two ordered structural invocations");
+        let calls = caller
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .filter(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::CallStructural { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        let [producer, consumer]: [&mut terminal_psi::Operation; 2] =
+            calls.try_into().expect("two calls");
+        let terminal_psi::OperationResult::Structural(produced) = &producer.result else {
+            unreachable!()
+        };
+        let terminal_psi::OperationResult::Structural(returned) = &consumer.result else {
+            unreachable!()
+        };
+        assert_eq!(produced.qualifications, returned.qualifications);
+        assert_eq!(produced.claims, returned.claims);
+        assert_ne!(produced.place, returned.place);
+        let terminal_psi::OperationKind::CallStructural {
+            structural_arguments,
+            ..
+        } = &mut consumer.kind
+        else {
+            unreachable!()
+        };
+        assert_eq!(structural_arguments[0].place, produced.place);
+        structural_arguments[0].place = caller.structural_parameters[0].place;
+        assert!(
+            terminal_verifier::validate_module(&module).is_err(),
+            "source-free replay must reject moving the consumed input instead of its result"
+        );
+    }
+}
+
+#[test]
+fn nominal_linear_callback_result_cannot_be_moved_twice() {
+    for consumed in ["region", "forwarded"] {
+        let source = NOMINAL_CALLBACK.replace(
+            "{ Selected(region) }",
+            &format!("{{ let forwarded: Region in Owned = Selected(region); let returned: Region in Owned = Main::forward(forwarded); Main::forward({consumed}) }}"),
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        assert!(
+            lower_typed_trees(typed).is_err(),
+            "moving {consumed} twice must reject"
+        );
+    }
+}
+
+#[test]
+fn nominal_linear_callback_result_frontier_rejects_stale_and_future_places() {
+    let source = NOMINAL_CALLBACK.replace(
+        "{ Selected(region) }",
+        "{ let first: Region in Owned = Selected(region); let second: Region in Owned = Main::forward(first); Main::forward(second) }",
+    );
+    let checked = checked(&source);
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::demand")
+        .produce_artifact()
+        .expect("publish three successive calls");
+    drop(checked);
+    execute_identity(&artifact, 10);
+    let module = decode_module(artifact.semantic_bytes()).expect("reload three-call frontier");
+    for mutation in [
+        "stale_result",
+        "own_result",
+        "future_result",
+        "qualification",
+        "claim",
+        "missing_content_guarantee",
+    ] {
+        let mut invalid = module.clone();
+        if mutation == "missing_content_guarantee" {
+            let leaf = invalid
+                .machines
+                .iter_mut()
+                .find(|machine| {
+                    !machine.content_identity_reshuffles.is_empty()
+                        && machine
+                            .blocks
+                            .iter()
+                            .all(|block| block.operations.is_empty())
+                })
+                .expect("identity-forwarding leaf");
+            leaf.content_identity_reshuffles.clear();
+            assert!(
+                terminal_verifier::validate_module(&invalid).is_err(),
+                "claim identity alone cannot replace the callee's content guarantee"
+            );
+            continue;
+        }
+        let caller = invalid
+            .machines
+            .iter_mut()
+            .find(|machine| {
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter(|operation| {
+                        matches!(
+                            operation.kind,
+                            terminal_psi::OperationKind::CallStructural { .. }
+                        )
+                    })
+                    .count()
+                    == 3
+            })
+            .expect("three-call caller");
+        let calls = caller
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .filter(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::CallStructural { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        let [first, second, third]: [&mut terminal_psi::Operation; 3] =
+            calls.try_into().expect("three calls");
+        let first_place = first.result.structural().unwrap().place;
+        let second_place = second.result.structural().unwrap().place;
+        let third_place = third.result.structural().unwrap().place;
+        match mutation {
+            "qualification" | "claim" => {
+                let terminal_psi::OperationResult::Structural(result) = &mut second.result else {
+                    unreachable!()
+                };
+                if mutation == "qualification" {
+                    result.qualifications.clear();
+                } else {
+                    result.claims.clear();
+                }
+            }
+            _ => {
+                let (consumer, source) = match mutation {
+                    "stale_result" => (third, first_place),
+                    "own_result" => (second, second_place),
+                    "future_result" => (second, third_place),
+                    _ => unreachable!(),
+                };
+                let terminal_psi::OperationKind::CallStructural {
+                    structural_arguments,
+                    ..
+                } = &mut consumer.kind
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].place = source;
+            }
+        }
+        assert!(
+            terminal_verifier::validate_module(&invalid).is_err(),
+            "source-free {mutation} must reject"
+        );
+    }
+}
+
+#[test]
+fn nominal_linear_callback_result_rejects_stale_consumer_custody() {
+    let source = NOMINAL_CALLBACK.replace(
+        "{ Selected(region) }",
+        "{ let forwarded: Region in Owned = Selected(region); Main::forward(forwarded) }",
+    );
+    let checked = checked(&source);
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::demand")
+        .produce_artifact()
+        .expect("unmodified result handoff publishes");
+    for mutation in [
+        "moved_parameter",
+        "future_result",
+        "missing_transfer",
+        "missing_return",
+    ] {
+        let mut invalid = checked.clone();
+        let operation = invalid.facts.flow.terminal_unit_effects.composed_machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.states)
+            .flat_map(|state| &mut state.operations)
+            .find(|operation| matches!(operation,
+                checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { structural_arguments, .. }
+                if structural_arguments.iter().any(|argument| argument.source_structural_result_binding_ordinal().is_some())))
+            .expect("ordinary result consumer");
+        let checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
+            structural_arguments,
+            result,
+            custody,
+            ..
+        } = operation
+        else {
+            unreachable!()
+        };
+        match mutation {
+            "moved_parameter" => {
+                structural_arguments[0].source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: 0,
+                    }
+            }
+            "future_result" => {
+                structural_arguments[0].source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    }
+            }
+            "missing_transfer" => custody.claim_transfers.clear(),
+            "missing_return" => custody.returned_claim_transfers.clear(),
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&invalid, "Main::demand")
+                .produce_artifact()
+                .is_err(),
+            "stale consumer {mutation} must reject"
+        );
+    }
+}
+
+#[test]
 fn nominal_linear_callback_publishes_and_executes_with_exact_reach() {
     for prefix in ["", "let marker: u64 = 7;"] {
         let source = NOMINAL_CALLBACK.replace(
@@ -67,7 +326,7 @@ fn nominal_linear_callback_publishes_and_executes_with_exact_reach() {
         assert!(binding.selected_identity.contains("Main::forward"));
         assert!(binding.callee.is_some());
         assert_eq!(application.calls.len(), 1);
-        execute_identity(&artifact);
+        execute_identity(&artifact, 8);
 
         let mut invalid = module.clone();
         let call = invalid
@@ -213,7 +472,7 @@ fn nominal_linear_callback_rejects_changed_source_claim_lineage() {
     }
 }
 
-fn execute_identity(artifact: &terminal_codec::CanonicalTerminalArtifact) {
+fn execute_identity(artifact: &terminal_codec::CanonicalTerminalArtifact, fuel: u64) {
     let module = decode_module(artifact.semantic_bytes()).expect("reload semantics");
     let caller = module
         .machines
@@ -235,7 +494,7 @@ fn execute_identity(artifact: &terminal_codec::CanonicalTerminalArtifact) {
         std::slice::from_ref(&argument),
     )
     .expect("verify and execute without source custody");
-    let mut meter = TerminalFuelMeter::with_allowance(8);
+    let mut meter = TerminalFuelMeter::with_allowance(fuel);
     assert_eq!(
         execution.resume(&mut meter).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
@@ -300,7 +559,7 @@ fn structural_call_retains_generic_callee_reach_after_publication() {
         );
         assert!(application.fixed.is_empty());
         assert!(application.dependencies.is_empty());
-        execute_identity(&artifact);
+        execute_identity(&artifact, 8);
 
         let mut invalid = module.clone();
         let caller = invalid

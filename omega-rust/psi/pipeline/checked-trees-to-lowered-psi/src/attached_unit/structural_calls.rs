@@ -11,6 +11,7 @@ mod continuation;
 mod result_uses;
 mod shared_temporary;
 pub(super) use continuation::validate_cleanup;
+pub(super) use result_uses::validate_linear_result_consumer;
 pub(super) use result_uses::{validate_consumer, validate_usage};
 
 pub(crate) fn validate_custody(
@@ -302,6 +303,7 @@ pub(super) fn emit(
         structural_types,
         &[],
         &[],
+        None,
     )?;
     let scalar_types = target
         .scalar_parameters

@@ -78,11 +78,31 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
         *target_machine,
     )?
     .entry()?;
-    let earlier_results = result_places
-        .iter()
-        .copied()
-        .map(|place| (place, false))
-        .collect::<Vec<_>>();
+    // Binding ordinals belong to this source state, whereas the place catalog
+    // spans the whole emitted machine. Rejoin the current operation registry.
+    let earlier_results = if structural_arguments.iter().any(|argument| {
+        argument
+            .source_structural_result_binding_ordinal()
+            .is_some()
+    }) {
+        operations.structural_values.iter().enumerate().map(|(binding_position, (ordinal, result))| {
+        if *ordinal as usize != binding_position {
+            return unsupported("internal call result binding namespace is stale or duplicated");
+        }
+        let mut declarations = result_places.iter().filter(|place| place.id == result.place);
+        let declaration = declarations.next().ok_or(LoweringError::Unsupported("internal call completed result has no place declaration"))?;
+        if declarations.next().is_some() || !matches!(declaration.kind,
+            StructuralPlaceKind::OperationResult { structural_type, producer }
+                if structural_type == result.structural_type && operations.operations.iter().any(|candidate|
+                    candidate.id == producer && candidate.result.structural() == Some(result)))
+        {
+            return unsupported("internal call result declaration differs from its operation");
+        }
+        Ok((*declaration, false))
+        }).collect::<Result<Vec<_>, LoweringError>>()?
+    } else {
+        Vec::new()
+    };
     validate_transfer_shape(
         structural_arguments,
         custody.map_or(&[], |custody| custody.claim_transfers.as_slice()),
@@ -98,6 +118,11 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
             .map(|claim| claim.parameter_index)
             .collect::<Vec<_>>(),
         &[],
+        Some(crate::attached_unit::parameters::StructuralResultCustody {
+            results: &operations.structural_values,
+            domains: domain_ids,
+            claims: claim_bindings,
+        }),
     )?;
     let structural_arguments = lower_structural_arguments(
         structural_arguments,

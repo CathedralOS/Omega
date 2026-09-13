@@ -1337,6 +1337,16 @@ fn consume_result(
         return None;
     };
     if result.multiplicity != Multiplicity::Affine || !*discard_result_on_return {
+        // Linear results never acquire automatic disposal debt. Moving a
+        // whole result continues its checked call claim frontier; source flow
+        // and independent Terminal replay reject a second use of that claim.
+        if result.multiplicity == Multiplicity::Linear
+            && !*discard_result_on_return
+            && access == CheckedStructuralAccess::Owned
+            && !projected
+        {
+            return Some(());
+        }
         return None;
     }
     match access {
