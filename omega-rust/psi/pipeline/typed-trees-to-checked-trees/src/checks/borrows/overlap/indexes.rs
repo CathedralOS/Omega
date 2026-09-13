@@ -8,7 +8,7 @@ use symbols::SymbolHandle;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NormalizedBound {
     Integer(i64),
-    Symbol(SymbolHandle),
+    Symbol { symbol: SymbolHandle, offset: i64 },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -80,7 +80,12 @@ impl SelectorSnapshotEvaluation<'_> {
             }
             let current_value = current.map(|value| match value {
                 NormalizedBound::Integer(value) => BorrowCompatibilitySelectorValue::Integer(value),
-                NormalizedBound::Symbol(symbol) => BorrowCompatibilitySelectorValue::Symbol(symbol),
+                NormalizedBound::Symbol { symbol, offset: 0 } => {
+                    BorrowCompatibilitySelectorValue::Symbol(symbol)
+                }
+                NormalizedBound::Symbol { symbol, offset } => {
+                    BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset }
+                }
             });
             if row.value != current_value {
                 self.invalid = true;
@@ -93,9 +98,18 @@ impl SelectorSnapshotEvaluation<'_> {
                     Some(NormalizedBound::Integer(value))
                 }
                 Some(BorrowCompatibilitySelectorValue::Symbol(symbol)) if symbol.is_valid() => {
-                    Some(NormalizedBound::Symbol(symbol))
+                    Some(NormalizedBound::Symbol { symbol, offset: 0 })
                 }
                 Some(BorrowCompatibilitySelectorValue::Symbol(_)) => {
+                    self.invalid = true;
+                    None
+                }
+                Some(BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset })
+                    if symbol.is_valid() && offset != 0 =>
+                {
+                    Some(NormalizedBound::Symbol { symbol, offset })
+                }
+                Some(BorrowCompatibilitySelectorValue::SymbolOffset { .. }) => {
                     self.invalid = true;
                     None
                 }
@@ -109,7 +123,12 @@ impl SelectorSnapshotEvaluation<'_> {
             position,
             value: value.map(|value| match value {
                 NormalizedBound::Integer(value) => BorrowCompatibilitySelectorValue::Integer(value),
-                NormalizedBound::Symbol(symbol) => BorrowCompatibilitySelectorValue::Symbol(symbol),
+                NormalizedBound::Symbol { symbol, offset: 0 } => {
+                    BorrowCompatibilitySelectorValue::Symbol(symbol)
+                }
+                NormalizedBound::Symbol { symbol, offset } => {
+                    BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset }
+                }
             }),
         });
         value
@@ -193,7 +212,7 @@ pub(super) fn index_expressions_may_overlap_with_selectors(
                     selectors,
                 ),
                 None => true,
-                Some(NormalizedBound::Symbol(_)) => true,
+                Some(NormalizedBound::Symbol { .. }) => true,
             }
         }
         (ExpressionNode::Integer(left_value), ExpressionNode::Range(right_range)) => {
@@ -210,7 +229,7 @@ pub(super) fn index_expressions_may_overlap_with_selectors(
                     selectors,
                 ),
                 None => true,
-                Some(NormalizedBound::Symbol(_)) => true,
+                Some(NormalizedBound::Symbol { .. }) => true,
             }
         }
         (ExpressionNode::Range(left_range), ExpressionNode::Range(right_range)) => {
@@ -286,7 +305,7 @@ pub(super) fn index_expression_may_overlap_fixed_range_with_selectors(
         })
         .and_then(|value| match value {
             NormalizedBound::Integer(value) => usize::try_from(value).ok(),
-            NormalizedBound::Symbol(_) => None,
+            NormalizedBound::Symbol { .. } => None,
         })
         .is_none_or(|index| start < end && start <= index && index < end)
 }
@@ -349,8 +368,8 @@ fn ranges_may_overlap(
 }
 
 /// A half-open window `[start, end)` with `end <= start` is empty and therefore
-/// overlaps nothing. Exact symbolic identity proves the equality case without
-/// claiming an order between distinct runtime values.
+/// overlaps nothing. Shared-symbol offsets order as mathematical integers;
+/// distinct runtime symbols remain unordered.
 fn range_is_provably_empty(start: Option<NormalizedBound>, end: Option<NormalizedBound>) -> bool {
     matches!((start, end), (Some(start), Some(end)) if bound_is_at_or_before(end, start))
 }
@@ -374,7 +393,16 @@ fn range_integer_bounds(
 fn bound_is_at_or_before(left: NormalizedBound, right: NormalizedBound) -> bool {
     match (left, right) {
         (NormalizedBound::Integer(left), NormalizedBound::Integer(right)) => left <= right,
-        (NormalizedBound::Symbol(left), NormalizedBound::Symbol(right)) => left == right,
+        (
+            NormalizedBound::Symbol {
+                symbol: left_symbol,
+                offset: left_offset,
+            },
+            NormalizedBound::Symbol {
+                symbol: right_symbol,
+                offset: right_offset,
+            },
+        ) => left_symbol == right_symbol && left_offset <= right_offset,
         _ => false,
     }
 }
@@ -387,9 +415,10 @@ fn bound_is_at_or_before(left: NormalizedBound, right: NormalizedBound) -> bool 
 /// without it, `view[0..=3]` would be read as `[0, 3)` and a borrow of element 3
 /// (or window `3..5`) would be mis-classified as disjoint.
 ///
-/// A `b + 1` that overflows `i64` (the `..=i64::MAX` edge) cannot be represented
-/// as an exclusive bound, so the end is reported as unknown (`None`), which the
-/// overlap checks treat conservatively as possibly-overlapping.
+/// A `b + 1` that overflows `i64` (the `..=i64::MAX` edge), including a
+/// symbolic offset, cannot be represented as an exclusive bound, so the end is
+/// reported as unknown (`None`), which the overlap checks treat conservatively
+/// as possibly-overlapping.
 fn exclusive_end_bound(
     program: &typed_trees::TypedTrees,
     range: &TableRangeExpression,
@@ -399,21 +428,15 @@ fn exclusive_end_bound(
     let end = selectors.bound(
         location,
         BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
-        || {
-            let end = normalized_bound(program, range.end)?;
-            if range.end_inclusive {
-                let NormalizedBound::Integer(end) = end else {
-                    return None;
-                };
-                end.checked_add(1).map(NormalizedBound::Integer)
-            } else {
-                Some(end)
-            }
-        },
+        || normalized_bound(program, range.end),
     );
-    if range.end_inclusive && matches!(end, Some(NormalizedBound::Symbol(_))) {
-        selectors.invalid = true;
-        None
+    if range.end_inclusive {
+        match end? {
+            NormalizedBound::Integer(end) => end.checked_add(1).map(NormalizedBound::Integer),
+            NormalizedBound::Symbol { symbol, offset } => offset
+                .checked_add(1)
+                .map(|offset| NormalizedBound::Symbol { symbol, offset }),
+        }
     } else {
         end
     }
@@ -423,18 +446,27 @@ fn normalized_bound(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
+    if let Some(offset) = validation::immutable_integer_bound_symbol_offset(program, expression) {
+        return Some(NormalizedBound::Symbol {
+            symbol: offset.symbol,
+            offset: offset.offset,
+        });
+    }
     let Some(expression) =
         validation::normalize_immutable_integer_bound_expression(program, expression)
     else {
         return validation::immutable_integer_bound_value_symbol(program, expression)
-            .map(NormalizedBound::Symbol);
+            .map(|symbol| NormalizedBound::Symbol { symbol, offset: 0 });
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.value_i64().map(NormalizedBound::Integer),
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             (members.len() == 1 && path.symbol.is_valid() && path.head_symbol == path.symbol)
-                .then_some(NormalizedBound::Symbol(path.symbol))
+                .then_some(NormalizedBound::Symbol {
+                    symbol: path.symbol,
+                    offset: 0,
+                })
         }
         _ => None,
     }
@@ -490,6 +522,33 @@ mod tests {
             )))
     }
 
+    fn exact_integer_type(
+        program: &mut typed_trees::TypedTrees,
+    ) -> typed_trees::types::TypeReferenceHandle {
+        program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated_static("u64"),
+            })
+    }
+
+    fn offset_bound(
+        program: &mut typed_trees::TypedTrees,
+        base: ExpressionHandle,
+        operator: BinaryOperator,
+        offset: i64,
+    ) -> ExpressionHandle {
+        let literal = integer(program, offset);
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: base,
+                operator,
+                right: literal,
+            }))
+    }
+
     fn range_bounds(
         program: &mut typed_trees::TypedTrees,
         start: ExpressionHandle,
@@ -509,6 +568,15 @@ mod tests {
         program: &mut typed_trees::TypedTrees,
         locals: impl IntoIterator<Item = (SymbolHandle, &'static str, ExpressionHandle, bool)>,
     ) {
+        let type_reference = exact_integer_type(program);
+        install_locals_with_type(program, locals, type_reference);
+    }
+
+    fn install_locals_with_type(
+        program: &mut typed_trees::TypedTrees,
+        locals: impl IntoIterator<Item = (SymbolHandle, &'static str, ExpressionHandle, bool)>,
+        type_reference: typed_trees::types::TypeReferenceHandle,
+    ) {
         let mut machine = Machine::default();
         let mut state = State::default();
         for (symbol, name, initial_value, is_mutable) in locals {
@@ -517,6 +585,7 @@ mod tests {
                 StatementNode::LocalData(TableLocalData {
                     symbol,
                     name: Identifier::generated_static(name),
+                    type_reference,
                     initial_value,
                     is_mutable,
                     ..Default::default()
@@ -857,7 +926,7 @@ mod tests {
     }
 
     #[test]
-    fn inclusive_symbolic_end_and_cyclic_aliases_remain_conservative() {
+    fn inclusive_symbolic_end_orders_offsets_and_cyclic_aliases() {
         let mut program = typed_trees::TypedTrees::default();
         let first_to_second = named_bound(&mut program, "second", symbol(9));
         let second_to_first = named_bound(&mut program, "first", symbol(8));
@@ -872,23 +941,211 @@ mod tests {
         let four = integer(&mut program, 4);
         let inclusive_mid = named_bound(&mut program, "mid", symbol(10));
         let adjacent_mid = named_bound(&mut program, "mid", symbol(10));
+        let offset_mid = named_bound(&mut program, "mid", symbol(10));
+        let adjacent_offset = offset_bound(&mut program, offset_mid, BinaryOperator::Add, 1);
         let first = named_bound(&mut program, "first", symbol(8));
         let second = named_bound(&mut program, "second", symbol(9));
         let inclusive_left = range_bounds(&mut program, zero, inclusive_mid, true);
         let adjacent_right = range_bounds(&mut program, adjacent_mid, four, false);
+        let offset_right = range_bounds(&mut program, adjacent_offset, four, false);
         let cyclic_left = range_bounds(&mut program, zero, first, false);
         let cyclic_right = range_bounds(&mut program, second, four, false);
+        let one = integer(&mut program, 1);
+        let mid_initial =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: one,
+                    operator: BinaryOperator::Add,
+                    right: one,
+                }));
+        install_locals(&mut program, [(symbol(10), "mid", mid_initial, false)]);
 
         assert!(index_expressions_may_overlap(
             &program,
             inclusive_left,
             adjacent_right
         ));
+        assert!(!index_expressions_may_overlap(
+            &program,
+            inclusive_left,
+            offset_right
+        ));
         assert!(index_expressions_may_overlap(
             &program,
             cyclic_left,
             cyclic_right
         ));
+    }
+
+    #[test]
+    fn shared_symbol_offsets_order_slice_windows() {
+        let mut program = typed_trees::TypedTrees::default();
+        let mid_symbol = symbol(30);
+        let mid = named_bound(&mut program, "mid", mid_symbol);
+        let mid_plus_one = offset_bound(&mut program, mid, BinaryOperator::Add, 1);
+        let mid_plus_two = offset_bound(&mut program, mid, BinaryOperator::Add, 2);
+        let mid_minus_one = offset_bound(&mut program, mid, BinaryOperator::Subtract, 1);
+        let other = named_bound(&mut program, "other", symbol(31));
+        let other_plus_one = offset_bound(&mut program, other, BinaryOperator::Add, 1);
+        let zero = integer(&mut program, 0);
+        let four = integer(&mut program, 4);
+        let one = integer(&mut program, 1);
+        let mid_initial =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: one,
+                    operator: BinaryOperator::Add,
+                    right: one,
+                }));
+        install_locals(&mut program, [(mid_symbol, "mid", mid_initial, false)]);
+        let mid_range = range_bounds(&mut program, zero, mid, false);
+        let inclusive_mid_range = range_bounds(&mut program, zero, mid, true);
+        let plus_one_range = range_bounds(&mut program, mid_plus_one, four, false);
+        let plus_two_range = range_bounds(&mut program, zero, mid_plus_two, false);
+        let minus_one_range = range_bounds(&mut program, mid_minus_one, four, false);
+        let other_plus_one_range = range_bounds(&mut program, other_plus_one, four, false);
+
+        assert!(!index_expressions_may_overlap(
+            &program,
+            mid_range,
+            plus_one_range
+        ));
+        assert!(!index_expressions_may_overlap(
+            &program,
+            inclusive_mid_range,
+            plus_one_range
+        ));
+        assert!(!index_expressions_may_overlap(
+            &program,
+            plus_one_range,
+            inclusive_mid_range
+        ));
+        assert!(index_expressions_may_overlap(
+            &program,
+            plus_two_range,
+            plus_one_range
+        ));
+        assert!(index_expressions_may_overlap(
+            &program,
+            mid_range,
+            minus_one_range
+        ));
+        let empty = range_bounds(&mut program, mid_plus_one, mid, false);
+        let full = range_bounds(&mut program, zero, four, false);
+        assert!(!index_expressions_may_overlap(&program, empty, full));
+        assert!(index_expressions_may_overlap(
+            &program,
+            mid_range,
+            other_plus_one_range
+        ));
+    }
+
+    #[test]
+    fn shared_symbol_offset_snapshot_preserves_plain_and_shifted_values() {
+        let mut program = typed_trees::TypedTrees::default();
+        let mid_symbol = symbol(32);
+        let mid = named_bound(&mut program, "mid", mid_symbol);
+        let shifted = offset_bound(&mut program, mid, BinaryOperator::Add, 1);
+        let zero = integer(&mut program, 0);
+        let four = integer(&mut program, 4);
+        let one = integer(&mut program, 1);
+        let mid_initial =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: one,
+                    operator: BinaryOperator::Add,
+                    right: one,
+                }));
+        let left = range_bounds(&mut program, zero, mid, false);
+        let right = range_bounds(&mut program, shifted, four, false);
+        install_locals(&mut program, [(mid_symbol, "mid", mid_initial, false)]);
+        let mut selectors = SelectorSnapshotEvaluation::capture();
+        assert!(!index_expressions_may_overlap_with_selectors(
+            &program,
+            left,
+            SelectorLocation {
+                side: BorrowCompatibilityPlaceSide::Forming,
+                segment_index: 0,
+            },
+            right,
+            SelectorLocation {
+                side: BorrowCompatibilityPlaceSide::Active,
+                segment_index: 0,
+            },
+            &mut selectors,
+        ));
+        let snapshot = selectors.finish().expect("captured selector snapshot");
+        assert_eq!(
+            snapshot.iter().map(|row| row.value).collect::<Vec<_>>(),
+            vec![
+                Some(BorrowCompatibilitySelectorValue::Integer(0)),
+                Some(BorrowCompatibilitySelectorValue::Symbol(mid_symbol)),
+                Some(BorrowCompatibilitySelectorValue::SymbolOffset {
+                    symbol: mid_symbol,
+                    offset: 1,
+                }),
+                Some(BorrowCompatibilitySelectorValue::Integer(4)),
+            ]
+        );
+    }
+
+    #[test]
+    fn wrapping_symbol_offset_remains_unknown() {
+        let mut program = typed_trees::TypedTrees::default();
+        let base =
+            program
+                .type_reference_table
+                .insert(typed_trees::types::TypeReferenceNode::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: Identifier::generated_static("u64"),
+                });
+        let constraints = program.type_reference_table.insert_constraints([
+            typed_trees::types::TypeConstraintNode::ArithmeticDomain(
+                numerics::arithmetic::ArithmeticDomain::Wrapping,
+            ),
+        ]);
+        let wrapping = program.type_reference_table.insert(
+            typed_trees::types::TypeReferenceNode::Constrained {
+                base_type: base,
+                constraints,
+            },
+        );
+        let mid_symbol = symbol(33);
+        let mid = named_bound(&mut program, "mid", mid_symbol);
+        let shifted = offset_bound(&mut program, mid, BinaryOperator::Add, 1);
+        let zero = integer(&mut program, 0);
+        let four = integer(&mut program, 4);
+        let mid_initial = integer(&mut program, 2);
+        let left = range_bounds(&mut program, zero, mid, false);
+        let right = range_bounds(&mut program, shifted, four, false);
+        install_locals_with_type(
+            &mut program,
+            [(mid_symbol, "mid", mid_initial, false)],
+            wrapping,
+        );
+        let mut selectors = SelectorSnapshotEvaluation::capture();
+        assert!(index_expressions_may_overlap_with_selectors(
+            &program,
+            left,
+            SelectorLocation {
+                side: BorrowCompatibilityPlaceSide::Forming,
+                segment_index: 0,
+            },
+            right,
+            SelectorLocation {
+                side: BorrowCompatibilityPlaceSide::Active,
+                segment_index: 0,
+            },
+            &mut selectors,
+        ));
+        let snapshot = selectors.finish().expect("captured selector snapshot");
+        assert_eq!(
+            snapshot[2].value, None,
+            "wrapping offsets must remain unknown in selector evidence"
+        );
     }
 
     #[test]

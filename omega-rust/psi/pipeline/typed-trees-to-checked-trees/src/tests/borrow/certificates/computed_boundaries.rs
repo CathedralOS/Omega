@@ -117,6 +117,65 @@ fn assert_adjacency_snapshot(checked: &checked_trees::CheckedTrees, reverse: boo
     );
 }
 
+fn assert_offset_adjacency_snapshot(checked: &mut checked_trees::CheckedTrees) {
+    let certificate = sole_certificate(checked);
+    let mid = local(checked, "mid").symbol;
+    let shifted = Some(BorrowCompatibilitySelectorValue::SymbolOffset {
+        symbol: mid,
+        offset: 1,
+    });
+    let boundary = Some(BorrowCompatibilitySelectorValue::Symbol(mid));
+    assert!(
+        certificate
+            .selector_snapshot
+            .iter()
+            .any(|row| row.value == shifted),
+        "exact shifted boundary must be retained",
+    );
+    assert_eq!(
+        certificate
+            .selector_snapshot
+            .iter()
+            .filter(|row| row.value == boundary)
+            .count(),
+        1,
+        "plain symbolic boundary must be retained",
+    );
+    assert_eq!(
+        certificate
+            .selector_snapshot
+            .iter()
+            .filter(|row| {
+                matches!(
+                    row.value,
+                    Some(BorrowCompatibilitySelectorValue::SymbolOffset { .. })
+                )
+            })
+            .count(),
+        1
+    );
+    assert_eq!(
+        certificate
+            .selector_snapshot
+            .iter()
+            .filter(|row| {
+                matches!(row.value, Some(BorrowCompatibilitySelectorValue::Symbol(_)))
+            })
+            .count(),
+        1
+    );
+    assert!(certificate.conclusion.disjoint);
+    assert!(certificate.conclusion.non_interfering);
+    assert_eq!(
+        certificate.conclusion.containment,
+        checked_trees::CapturedPlaceContainment::None
+    );
+    let before = checked.facts.borrow.compatibility_certificates.clone();
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("offset certificate replay");
+    assert_eq!(checked.facts.borrow.compatibility_certificates, before);
+}
+
 #[test]
 fn computed_binding_and_finite_copies_freeze_the_original_symbol_in_both_orders() {
     for (declarations, left, right) in [
@@ -146,6 +205,85 @@ fn computed_binding_and_finite_copies_freeze_the_original_symbol_in_both_orders(
             assert_eq!(checked.facts.borrow.compatibility_certificates, before);
         }
     }
+}
+
+#[test]
+fn offset_computed_boundary_licenses_adjacent_mutable_loans() {
+    for (left, right) in [
+        ("0..mid", "mid + 1..4"),
+        ("0..=mid", "mid + 1..4"),
+        ("0..mid", "1 + mid..4"),
+    ] {
+        for reverse in [false, true] {
+            let mut checked =
+                checked_source(&split_source("let mid: u64 = 1 + 1;", left, right, reverse));
+            assert_offset_adjacency_snapshot(&mut checked);
+        }
+    }
+}
+
+#[test]
+fn offset_drift_rejects_certificate_replay() {
+    let mut checked = checked_source(&split_source(
+        "let mid: u64 = 1 + 1;",
+        "0..mid",
+        "mid + 1..4",
+        false,
+    ));
+    let certificate = sole_certificate(&checked);
+    let places = [
+        certificate.forming_place.clone(),
+        certificate.active_place.clone(),
+    ];
+    let offset_expression = places
+        .iter()
+        .map(selector)
+        .find_map(|range_selector| {
+            let ExpressionNode::Range(range) =
+                checked.typed.expression_table.expression(range_selector)
+            else {
+                return None;
+            };
+            [range.start, range.end].into_iter().find(|expression| {
+                matches!(
+                    checked.typed.expression_table.expression(*expression),
+                    ExpressionNode::Binary(_)
+                )
+            })
+        })
+        .expect("offset boundary binary expression");
+    let replacement = checked
+        .typed
+        .expression_table
+        .insert(ExpressionNode::Integer(
+            numerics::literals::IntegerLiteral::from_value(2),
+        ));
+    let ExpressionNode::Binary(binary) =
+        checked.typed.expression_table.expression(offset_expression)
+    else {
+        panic!("offset boundary binary expression");
+    };
+    let literal = if matches!(
+        checked.typed.expression_table.expression(binary.left),
+        ExpressionNode::Integer(_)
+    ) {
+        binary.left
+    } else {
+        binary.right
+    };
+    let ExpressionNode::Binary(binary) = checked
+        .typed
+        .expression_table
+        .expression_mut(offset_expression)
+    else {
+        panic!("offset boundary binary expression");
+    };
+    if binary.left == literal {
+        binary.left = replacement;
+    } else {
+        binary.right = replacement;
+    }
+    assert_replay_rejects_snapshot_drift(&mut checked);
 }
 
 #[test]
@@ -240,6 +378,38 @@ fn inclusive_computed_upper_bound_cannot_certify_half_open_adjacency() {
             reverse,
         ));
     }
+}
+
+#[test]
+fn overlapping_offset_boundaries_reject() {
+    for (left, right) in [
+        ("0..mid + 1", "mid..4"),
+        ("0..mid", "mid - 1..4"),
+        ("0..=mid", "mid..4"),
+    ] {
+        for reverse in [false, true] {
+            assert_borrow_conflict(&split_source("let mid: u64 = 1 + 1;", left, right, reverse));
+        }
+    }
+}
+
+#[test]
+fn wrapping_domain_offset_cannot_license_adjacent_mutable_loans() {
+    let diagnostics = rejection(&split_source(
+        "let mid: u64 in Wrapping = 1 + 1;",
+        "0..mid",
+        "mid + 1..4",
+        false,
+    ));
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            (diagnostic.message.contains("creates local borrow")
+                && diagnostic.message.contains("is still active"))
+                || (diagnostic.message.contains("cannot prove subslice range")
+                    && diagnostic.message.contains("within slice length"))
+        }),
+        "wrapping offsets must remain conservative: {diagnostics:#?}"
+    );
 }
 
 #[test]

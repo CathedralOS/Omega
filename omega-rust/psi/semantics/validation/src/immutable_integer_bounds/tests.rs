@@ -5,6 +5,7 @@ use typed_trees::expression::{BinaryOperator, Expression, NamePath, TableBinaryE
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 fn name(
     program: &mut TypedTrees,
@@ -18,6 +19,110 @@ fn name(
             symbol,
             symbol,
         )))
+}
+
+fn integer_type(
+    program: &mut TypedTrees,
+    domain: numerics::arithmetic::ArithmeticDomain,
+) -> typed_trees::types::TypeReferenceHandle {
+    let base = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated_static("u64"),
+        });
+    if domain == numerics::arithmetic::ArithmeticDomain::Exact {
+        base
+    } else {
+        let constraints = program
+            .type_reference_table
+            .insert_constraints([TypeConstraintNode::ArithmeticDomain(domain)]);
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: base,
+                constraints,
+            })
+    }
+}
+
+fn binary(
+    program: &mut TypedTrees,
+    left: ExpressionHandle,
+    operator: BinaryOperator,
+    right: ExpressionHandle,
+) -> ExpressionHandle {
+    program
+        .expression_table
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left,
+            operator,
+            right,
+        }))
+}
+
+fn install_local(
+    program: &mut TypedTrees,
+    state: &mut State,
+    symbol: SymbolHandle,
+    spelling: &'static str,
+    initial_value: ExpressionHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    is_mutable: bool,
+) {
+    program.statement_table.push_statement(
+        &mut state.statement_nodes,
+        StatementNode::LocalData(TableLocalData {
+            symbol,
+            name: Identifier::generated_static(spelling),
+            type_reference,
+            initial_value,
+            is_mutable,
+            ..Default::default()
+        }),
+    );
+}
+
+fn offset_fixture(
+    domain: numerics::arithmetic::ArithmeticDomain,
+    mutable: bool,
+    parameter: bool,
+) -> (TypedTrees, ExpressionHandle, SymbolHandle) {
+    let mut program = TypedTrees::default();
+    let ty = integer_type(&mut program, domain);
+    let base_symbol = SymbolHandle::from_arena_index(20);
+    let base = name(&mut program, "mid", base_symbol);
+    let one = program.expression_table.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(1),
+    ));
+    let expression = binary(&mut program, base, BinaryOperator::Add, one);
+    let mut machine = Machine::default();
+    let mut state = State::default();
+    if parameter {
+        program.push_state_parameter(
+            &mut state,
+            typed_trees::signature::StateParameter {
+                symbol: base_symbol,
+                name: Identifier::generated_static("mid"),
+                type_reference: ty,
+                is_mutable: mutable,
+                ..Default::default()
+            },
+        );
+    } else {
+        install_local(
+            &mut program,
+            &mut state,
+            base_symbol,
+            "mid",
+            one,
+            ty,
+            mutable,
+        );
+    }
+    program.push_machine_state(&mut machine, state);
+    program.push_machine(machine);
+    (program, expression, base_symbol)
 }
 
 #[test]
@@ -188,4 +293,82 @@ fn immutable_copies_of_mutable_sources_are_values_not_static_indexes() {
             assert!(normalize_immutable_integer_bound_to_usize(&program, expression).is_none());
         }
     }
+}
+
+#[test]
+fn immutable_integer_bound_offsets_require_exact_symbolic_bases() {
+    let mut program = TypedTrees::default();
+    let ty = integer_type(&mut program, numerics::arithmetic::ArithmeticDomain::Exact);
+    let mid_symbol = SymbolHandle::from_arena_index(30);
+    let mid = name(&mut program, "mid", mid_symbol);
+    let one = program.expression_table.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(1),
+    ));
+    let expressions = [
+        (binary(&mut program, mid, BinaryOperator::Add, one), 1),
+        (binary(&mut program, one, BinaryOperator::Add, mid), 1),
+        (binary(&mut program, mid, BinaryOperator::Subtract, one), -1),
+    ];
+    let reverse = binary(&mut program, one, BinaryOperator::Subtract, mid);
+    let cut_symbol = SymbolHandle::from_arena_index(31);
+    let cut = name(&mut program, "cut", cut_symbol);
+    let mid_initial = binary(&mut program, one, BinaryOperator::Add, one);
+    let mut machine = Machine::default();
+    let mut state = State::default();
+    install_local(
+        &mut program,
+        &mut state,
+        mid_symbol,
+        "mid",
+        mid_initial,
+        ty,
+        false,
+    );
+    install_local(&mut program, &mut state, cut_symbol, "cut", mid, ty, false);
+    program.push_machine_state(&mut machine, state);
+    program.push_machine(machine);
+    for (expression, offset) in expressions {
+        assert_eq!(
+            immutable_integer_bound_symbol_offset(&program, expression),
+            Some(ImmutableIntegerBoundOffset {
+                symbol: mid_symbol,
+                offset,
+            })
+        );
+    }
+    assert!(immutable_integer_bound_symbol_offset(&program, reverse).is_none());
+    let cut_offset = binary(&mut program, cut, BinaryOperator::Add, one);
+    assert_eq!(
+        immutable_integer_bound_symbol_offset(&program, cut_offset),
+        Some(ImmutableIntegerBoundOffset {
+            symbol: mid_symbol,
+            offset: 1,
+        })
+    );
+}
+
+#[test]
+fn immutable_integer_bound_offsets_reject_wrapping_and_mutable_bases() {
+    for (domain, mutable, parameter) in [
+        (
+            numerics::arithmetic::ArithmeticDomain::Wrapping,
+            false,
+            false,
+        ),
+        (numerics::arithmetic::ArithmeticDomain::Exact, true, false),
+        (numerics::arithmetic::ArithmeticDomain::Exact, true, true),
+    ] {
+        let (program, expression, _) = offset_fixture(domain, mutable, parameter);
+        assert!(immutable_integer_bound_symbol_offset(&program, expression).is_none());
+    }
+}
+
+#[test]
+fn immutable_integer_bound_offsets_accept_exact_parameters() {
+    let (program, expression, symbol) =
+        offset_fixture(numerics::arithmetic::ArithmeticDomain::Exact, false, true);
+    assert_eq!(
+        immutable_integer_bound_symbol_offset(&program, expression),
+        Some(ImmutableIntegerBoundOffset { symbol, offset: 1 })
+    );
 }
