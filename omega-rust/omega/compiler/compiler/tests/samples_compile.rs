@@ -81,6 +81,8 @@ use std::process::{Command, Stdio};
 
 #[path = "support/console_acceptance.rs"]
 mod console_acceptance;
+#[path = "support/macos_entry_acceptance.rs"]
+mod macos_entry_acceptance;
 #[path = "samples_compile/native_acceptance.rs"]
 mod native_acceptance;
 #[path = "samples_compile/unit_closure.rs"]
@@ -195,10 +197,27 @@ fn sample_native_package_inputs(
     root_path: &Path,
     target_name: Option<&str>,
 ) -> Result<PackageCompilationInputs, Vec<diagnostics::Diagnostic>> {
-    let package_inputs = sample_package_inputs(root_path);
+    let mut package_inputs = sample_package_inputs(root_path);
     let standard_library = sample_package_identity(2);
     if package_inputs.package_root(standard_library).is_none() {
         return Ok(package_inputs);
+    }
+    // The physical entry role and Console permissions are distinct fixture
+    // decisions. Accept the checked dependency entry before selecting the
+    // application, then retain it when adding the exact Console plan below.
+    let mut bindings = Vec::new();
+    if target_name.unwrap_or(host_target_name()) == "macos_arm64" {
+        bindings.push(macos_entry_acceptance::candidate_macos_entry_binding(
+            &repo_root().join("source/library/std"),
+            standard_library,
+        )?);
+        package_inputs = package_inputs
+            .with_accepted_semantic_bindings(bindings.clone())
+            .map_err(|errors| {
+                vec![diagnostics::Diagnostic::error(format!(
+                    "cannot accept sample fixture entry binding: {errors:?}"
+                ))]
+            })?;
     }
     let preliminary = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs.clone()),
@@ -230,8 +249,9 @@ fn sample_native_package_inputs(
         true,
         true,
     )?;
+    bindings.push(binding);
     package_inputs
-        .with_accepted_semantic_bindings(vec![binding])
+        .with_accepted_semantic_bindings(bindings)
         .map_err(|errors| {
             vec![diagnostics::Diagnostic::error(format!(
                 "cannot accept sample fixture Console binding: {errors:?}"
@@ -1101,7 +1121,13 @@ fn samples_with_documented_exit_run_correctly() {
             build_dir: Some(build_dir.clone()),
             target_name: Some(host_target_name().to_owned()),
         }) {
-            Err(error) => failures.push(format!("{name}: compile failed: {error:?}")),
+            Err(error) => {
+                failures.push(format!(
+                    "{name}: compile failed: {error:?}; retained observations: {}",
+                    build_dir.display()
+                ));
+                continue;
+            }
             Ok(_) => {
                 // stdin is closed (Stdio::null): a sample that reads input sees EOF
                 // and must still reach its documented deterministic exit.

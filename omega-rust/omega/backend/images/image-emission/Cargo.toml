@@ -38,6 +38,7 @@ isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../psi/semantics/terminal-semantics" }
 terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
 terminal-fixed-fuel = { path = "../../../../psi/semantics/terminal-fixed-fuel" }
 terminal-fuel = { path = "../../../../psi/semantics/terminal-fuel" }

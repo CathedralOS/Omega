@@ -405,6 +405,18 @@ fn receiver_layout(
                 StructuralFieldType::BoundedInteger(integer)
                     if integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
                         || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0)) => {}
+                StructuralFieldType::Structural(structural_type)
+                    if terminal_semantics::scalar_array_leaf_shape(
+                        target.graph.structural_types.iter(),
+                        structural_type,
+                    )
+                    .is_some_and(|(scalar, _)| {
+                        matches!(
+                            scalar,
+                            semantic_vocabulary::ScalarType::Boolean
+                                | semantic_vocabulary::ScalarType::Integer(_)
+                        )
+                    }) => {}
                 _ => return Err(invalid()),
             }
         }

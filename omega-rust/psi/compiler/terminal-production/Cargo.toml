@@ -14,6 +14,7 @@ lowered-psi-to-terminal-psi = { path = "../../pipeline/lowered-psi-to-terminal-p
 optimization = { path = "../../representations/optimization" }
 symbols = { path = "../../foundation/symbols" }
 terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-semantics = { path = "../../semantics/terminal-semantics" }
 terminal-codec = { path = "../../semantics/terminal-codec" }
 validation = { path = "../../semantics/validation" }
 

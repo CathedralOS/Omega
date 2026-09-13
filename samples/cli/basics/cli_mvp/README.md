@@ -57,8 +57,9 @@ Remove-Item Env:OMEGA_SAMPLE_RUNTIME_FILTER
 On macOS use the same test command with the inline environment assignment
 `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp`. This test exercises compilation,
 publication, output, and exit through the compiler library. Its explicit fixture
-policy accepts the exact selected std Console binding and corresponding
-termination/byte-output/byte-input permissions using the existing canary helper.
+policy accepts the checked macOS entry contract separately from the exact
+selected std Console binding and corresponding termination/byte-output/byte-input
+permissions, using the existing canary helpers.
 It does not perform the CLI's local-project package review or change `omega.lock`.
 Checking-only sample probes retain unaccepted package inputs. Keep these results
 separate from the outer command.
@@ -82,13 +83,13 @@ the example. Native proof, provider, and receiving-permission checks remain
 independent requirements.
 
 The compiler-library sample test supplies test-owned acceptance and stops later
-at canonical boundary-argument validation: `Main.pause` is a raw fixed byte array,
-while `read_line` receives a mutable byte view. The source plan retains that
-argument, but the verifier's fixed-array presentation currently applies only to
-ordinary Unit calls. Checked state-graph provider discovery now retains the
-line-reader body; this does not establish the missing boundary loan or native execution.
+at checked-provider installation. The selected plan uses a normalized overload
+identity while the Terminal provider candidate retains a display name; those
+cannot be treated as equal. Fix the candidate's actual producer, preserving
+exact selection and independent signature/result checks. `Main.pause` remains
+the original raw fixed array and `read_line` still receives its mutable view.
 Current commands, tested revisions, and the next implementation step remain on
-the execution board.
+the execution board; this is not native execution evidence.
 
 Use `omega audit packages --project samples/cli/basics/cli_mvp
 --target macos_arm64 --details` to inspect the current macOS package findings;
@@ -107,13 +108,13 @@ native production, and execution.
 
 | Step | Owning code and required result |
 | --- | --- |
-| CLI and package closure | [`command.rs`](../../../../omega-rust/omega/src/command.rs) prepares `build.omg` projects through [`prepare_project.rs`](../../../../omega-rust/omega/packages/manager/src/operations/prepare_project.rs). [`compile_project.rs`](../../../../omega-rust/omega/packages/manager/src/operations/compile_project.rs) reviews the dependency closure and retains its checked root before native production. An error here precedes the sample's Terminal failure. |
+| CLI and package closure | [`main.rs`](../../../../omega-rust/omega/src/main.rs) dispatches package operations through [`package_manager.rs`](../../../../omega-rust/omega/packages/manager/src/package_manager.rs). The shared workflow reviews the dependency closure and retains its checked root before native production. An error here precedes native provider installation. |
 | Source and selection | [`main.omg`](main.omg) imports ordinary std Console. [`build.omg`](build.omg) declares the std path dependency and binds each target's `ProgramEntry` to `Main::main`. The checked frontend resolves types, text/borrow/termination facts, and selected provider calls. |
 | Checked writer body | [`std/console.omg`](../../../../source/library/std/console.omg) implements `ConsoleNativeProvider::write_line(text)` by calling `console_write_bytes(text, true)`. That helper is one five-state slice-ranked machine. Its `emit` state writes a byte and transfers the guarded tail; completion optionally emits newline and returns. |
 | Complete callable closure | [`terminal_unit.rs`](../../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit.rs) builds ordinary/composed bodies and prunes callers whose targets are missing. [`call_closure.rs`](../../../../omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/psi_lowering/attached_unit/call_closure.rs) requires every reached body before lowering. Preserve exact view/scalar state transfers, effect order, and slice-decrease evidence. |
 | Portable execution | [`terminal-production`](../../../../omega-rust/psi/compiler/terminal-production/src/lib.rs) produces the canonical Terminal artifact with source-entry evidence. Codec replay, independent verification, and interpretation must agree on the writer's bytes and continuation. |
 | Native operations | [`operation/routing.rs`](../../../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation/routing.rs) retains byte length, proof-bearing indexed reads, and checked subslices. Ordinary scalar and Unit calls retain descriptors and scalar arguments; block transfers snapshot source descriptors before writing destinations. Natural-cycle lowering and literal descriptor creation remain separate from those transfers; layout alone is not operation support. |
-| Entry storage and providers | [`native_artifact.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/native_artifact.rs) rejects an executable entry retaining unprovisioned `self`. `Main` needs real storage, including its 256-byte buffer, and a loan from the entry bridge. [`compiler_intrinsic.rs`](../../../../omega-rust/omega/build/selected-dispatch/src/compiler_intrinsic.rs) must supply closed identities for the selected Windows output, input, and exit leaves; declarations alone are not native implementations. |
+| Entry storage and providers | [`native_artifact.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/native_artifact.rs) requires exact checked receiver eligibility and Bound establishment. The macOS bridge provisions the receiver, including fixed primitive arrays, under its conditional image-loading contract. [`compiler_intrinsic.rs`](../../../../omega-rust/omega/build/selected-dispatch/src/compiler_intrinsic.rs) must supply closed identities for selected output, input, and exit leaves; declarations alone are not native implementations. |
 | Native image and publication | [`object.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/object.rs) sequences physical lowering and emission. PE image support exists. [`compilation-report`](../../../../omega-rust/omega/compiler/compilation-report/src/lib.rs) validates the retained artifact and requires compiler-text/function evidence before publishing exact bytes. Preserve these gates. |
 
 Terminal transport retains the exact `pause` field and inline capacity when
@@ -150,14 +151,15 @@ The producer's [writer composition notes](../../../../omega-rust/psi/compiler/te
 describe support and acceptance; the [byte-view specification](../../../../wiki/spec/terminal-psi/byte_views.md)
 owns the portable view rules.
 Windows leaf settlement and receiver provisioning remain dependencies. These
-are code-inspected gaps, not claims that this sample has reached each failure.
+are code-inspected gaps, not Windows runtime observations.
 
 `pause` belongs to the provisioned `Main` receiver; this program does not need a
 new source-local array constructor. The entry bridge must establish the receiver
-beneath admitted storage and lend it to the selected machine. Hosted target slots
-currently lack the exact physical arrival/storage contract, and the existing
-receiver-free UEFI ProgramStorage wrapper cannot supply it. Follow
-`ENTRY-CONTENT-ROOTS` before adding receiver bytes or removing the native rejection.
+beneath admitted storage and lend it to the selected machine. The macOS bridge
+retains disjoint receiver, private-stack and continuation partitions under
+conforming loading, exclusive writable-image storage and one-entry-activation
+premises. It does not grant runtime installation authority or establish other
+targets' entry contracts. Follow `ENTRY-CONTENT-ROOTS` for those remaining edges.
 `pause` is a raw fixed array, not UTF-8-qualified storage. The shared line reader
 fills its existing range and reports LF, EOF, or Full with the written count;
 this pause-only caller explicitly discards that result. Zeroed backing alone

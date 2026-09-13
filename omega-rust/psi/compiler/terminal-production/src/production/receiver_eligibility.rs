@@ -119,19 +119,26 @@ pub(super) fn derive(
     let StructuralTypeShape::Record { fields } = &structural_type.shape else {
         return None;
     };
-    // The first bridge supports scalar storage and erased service fields.
+    // Scalar fields and fixed primitive arrays need no initialization program.
+    // Array eligibility follows its complete semantic element chain, including
+    // empty dimensions; a zero byte count never excuses an invalid element.
     // Erased qualification establishment remains an independent installed
     // occurrence obligation; this correspondence supplies no Bound authority.
     if entry.attachment != Some(parameter.structural_type)
         || structural_type.identity != owned_receiver_type_identity
-        || fields.iter().any(|field| {
-            !matches!(
-                field.field_type,
-                StructuralFieldType::Scalar(_)
-                    | StructuralFieldType::BoundedInteger(_)
-                    | StructuralFieldType::IeeeFloat(_)
-                    | StructuralFieldType::Erased { .. }
-            )
+        || fields.iter().any(|field| match field.field_type {
+            StructuralFieldType::Scalar(_)
+            | StructuralFieldType::BoundedInteger(_)
+            | StructuralFieldType::IeeeFloat(_)
+            | StructuralFieldType::Erased { .. } => false,
+            StructuralFieldType::Structural(structural_type) => {
+                terminal_semantics::scalar_array_leaf_shape(
+                    module.structural_types.iter(),
+                    structural_type,
+                )
+                .is_none()
+            }
+            _ => true,
         })
     {
         return None;
@@ -164,6 +171,43 @@ mod tests {
 
     const SOURCE: &str =
         "data Main { value: i32; } machine Main::run(&mut self) { self.value = 7; }";
+
+    #[test]
+    fn receiver_array_eligibility_checks_the_complete_element_chain() {
+        for array in ["[u8; 256]", "[[u16; 3]; 2]", "[u8; 0]"] {
+            let checked = check_source(&format!(
+                "data Main {{ value: i32; values: {array}; }} \
+                 machine Main::run(&mut self) {{ self.value = 7; }}"
+            ));
+            let produced = TerminalProductionRequest::new(&checked, "Main::run")
+                .produce_program_entry([7; 32])
+                .unwrap();
+            assert!(
+                produced.receipt().receiver_eligibility().is_some(),
+                "{array}"
+            );
+            let mut module =
+                terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+            let array = module
+                .structural_types
+                .iter_mut()
+                .find(|declaration| {
+                    matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+                })
+                .unwrap();
+            let StructuralTypeShape::FixedArray { element, .. } = &mut array.shape else {
+                unreachable!();
+            };
+            *element = array.id;
+            let selection =
+                checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run")
+                    .unwrap();
+            assert!(
+                derive(&checked, selection, &module).is_none(),
+                "cyclic elements reject even beneath an empty dimension"
+            );
+        }
+    }
 
     #[test]
     fn source_receiver_eligibility_rejoins_exact_terminal_self() {
@@ -214,6 +258,8 @@ mod tests {
             "data Main { value: i32; } machine Main::drop(&mut self) {} machine Main::run(&mut self) { self.value = 7; }",
             "data Child {} machine Child::drop(&mut self) {} data Main { value: i32; child: Child; } machine Main::run(&mut self) { self.value = 7; }",
             "data Main { value: i32 [1..=9]; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Main { value: i32; values: [i32 [1..=9]; 2]; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Child { value: i32; } machine Child::drop(&mut self) {} data Main { value: i32; values: [Child; 2]; } machine Main::run(&mut self) { self.value = 7; }",
         ] {
             let checked = check_source(source);
             let selection =

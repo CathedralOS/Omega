@@ -27,11 +27,23 @@ fn native_sample_console_acceptance_binds_the_exact_selected_target() {
         let unaccepted = compile_to_checked(CheckedCompileRequest {
             package_inputs: Some(sample_package_inputs(&root)),
             ..CheckedCompileRequest::new(&root, Some(target))
-        })
-        .unwrap();
-        assert_eq!(byte_identity(&unaccepted), None);
+        });
+        if target == "macos_arm64" {
+            let diagnostics =
+                unaccepted.expect_err("an ordinary dependency needs entry acceptance");
+            assert!(diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("accepted package-owned macOS ARM64 binding")
+            }));
+        } else {
+            assert_eq!(byte_identity(&unaccepted.unwrap()), None);
+        }
         let accepted = sample_native_package_inputs(&root, Some(target)).unwrap();
-        assert_eq!(accepted.accepted_semantic_bindings().count(), 1);
+        assert_eq!(
+            accepted.accepted_semantic_bindings().count(),
+            if target == "macos_arm64" { 2 } else { 1 }
+        );
         let checked = compile_to_checked(CheckedCompileRequest {
             package_inputs: Some(accepted),
             ..CheckedCompileRequest::new(&root, Some(target))
