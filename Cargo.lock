@@ -1540,6 +1540,7 @@ dependencies = [
 name = "proof-admission"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "numerics",
  "semantic-vocabulary",
  "terminal-psi",
