@@ -86,10 +86,7 @@ mod pcc;
 mod production_manifest;
 mod terminal_product;
 pub use optimization_rollback::OptimizationRollbackReceipt;
-pub use pcc::{
-    NativePccCustodyEvidence, PccPublicationReceipt, build_native_proof_sidecar,
-    verify_native_proof_sidecar,
-};
+pub use pcc::{PccPublicationReceipt, verify_native_proof_sidecar};
 pub use production_manifest::{
     FinalRealizationEvidenceError, ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject,
@@ -158,10 +155,8 @@ pub fn executable_installation_evidence_digest(
     ExecutableInstallationEvidenceDigest::from_digest(digest.finalize().into())
 }
 
-/// The native publication certificate commitment, computed componentwise so
-/// PCC receivers can recompute it from sidecar-carried custody fields without
-/// holding the retained artifact. Strong typed digests remain the authority;
-/// compact `u64` coordinates stay report-only.
+/// Commit the producer's retained native publication evidence. This local
+/// custody commitment is not a standalone proof of native behavior.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn native_publication_certificate_digest(
     native_artifact_identity: &[u8; 32],
@@ -339,22 +334,6 @@ fn validate_psi_pair(
         terminal_codec::PccVerificationOutcome::Complete(_) => Ok(()),
         outcome => Err(format!(
             "psi proof sidecar failed producer validation: {outcome:?}"
-        )),
-    }
-}
-
-/// Producer-side pair validation for one native executable/companion pair.
-fn validate_native_pair(
-    executable_bytes: &[u8],
-    sidecar: &terminal_codec::PccProofSidecar,
-    admission_profile: &proof_admission::AdmissionProfile,
-) -> Result<(), String> {
-    let policy =
-        terminal_codec::PccReceiverPolicy::for_offered_claim(sidecar, admission_profile.clone());
-    match pcc::verify_native_proof_sidecar(executable_bytes, &sidecar.to_bytes(), &policy) {
-        terminal_codec::PccVerificationOutcome::Complete(_) => Ok(()),
-        outcome => Err(format!(
-            "native proof sidecar failed producer validation: {outcome:?}"
         )),
     }
 }
@@ -643,6 +622,18 @@ impl CompileReport {
                 "native publication requires exactly one retained native artifact".to_owned(),
             );
         }
+        // Do not publish a partial pair or replace existing output when the
+        // requested native assurance has no standalone checking profile.
+        if self.pcc_requests.native {
+            let outcome = terminal_codec::PccVerificationOutcome::Incomplete(
+                terminal_codec::PccIncompleteness::UnsupportedEvidence {
+                    product: terminal_codec::PccProductKind::Native,
+                },
+            );
+            return Err(format!(
+                "native PCC publication is {outcome:?}: standalone native semantics and correspondence evidence are not implemented"
+            ));
+        }
         let artifact = self.retained_native_artifact.as_ref().ok_or_else(|| {
             "native publication requires exactly one retained native artifact".to_owned()
         })?;
@@ -710,28 +701,6 @@ impl CompileReport {
                 artifact_byte_len: psi_bytes.len() as u64,
                 sidecar_path: psi_sidecar_path,
                 sidecar_byte_len: psi_sidecar_bytes.len() as u64,
-            });
-        }
-        if self.pcc_requests.native {
-            let native_sidecar = pcc::build_native_proof_sidecar(
-                artifact,
-                &output.bytes,
-                &self.terminal_admission_profile,
-            )?;
-            let native_sidecar_bytes = native_sidecar.to_bytes();
-            validate_native_pair(
-                &output.bytes,
-                &native_sidecar,
-                &self.terminal_admission_profile,
-            )?;
-            let native_sidecar_path = appended_file_name_path(&output_path, ".proof");
-            publish_exact_file_bytes(&native_sidecar_path, &native_sidecar_bytes)?;
-            pcc_publications.push(PccPublicationReceipt {
-                product: terminal_codec::PccProductKind::Native,
-                artifact_path: output_path.clone(),
-                artifact_byte_len: output.bytes.len() as u64,
-                sidecar_path: native_sidecar_path,
-                sidecar_byte_len: native_sidecar_bytes.len() as u64,
             });
         }
         publish_exact_executable_bytes(&output_path, &output.bytes)?;
