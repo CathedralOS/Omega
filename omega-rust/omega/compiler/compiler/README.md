@@ -81,6 +81,12 @@ when their assertions concern diagnostics, checked results or primary output;
 report-content tests must retain full mode. This is orchestration policy, not
 language semantics.
 
+Canonical source rows append directly into the retained production manifest;
+report assembly does not build a second inventory of individually allocated
+serialized rows. Source-consumption hashing reuses one row buffer. Both routes
+use the package owner's canonical row encoder, preserving the existing byte
+format and identities.
+
 ## Intrinsic settlement conversion
 
 [intrinsic_settlements.rs](src/compiler/intrinsic_settlements.rs) validates all
