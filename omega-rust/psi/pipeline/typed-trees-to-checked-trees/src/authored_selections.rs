@@ -2538,6 +2538,12 @@ pub(crate) fn typed_operator_has_no_authored_selection(
 ) -> bool {
     let node = program.expression_table.expression(expression);
     operator_has_no_authored_spelling_candidate(program, node)
+        // A loaded declaration with the same spelling is not necessarily a
+        // candidate for these operands. Reuse the checked selection query's
+        // primitive/candidate distinction before build-time execution, while
+        // leaving compatible domain operators subject to authored admission.
+        || (matches!(node, ExpressionNode::Binary(_))
+            && expression_is_intrinsic_primitive_without_origin(program, expression))
 }
 
 pub(crate) fn typed_operator_authored_selection_candidates(

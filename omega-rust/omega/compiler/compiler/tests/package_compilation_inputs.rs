@@ -774,6 +774,50 @@ data Main { bytes: [u8; array_length()]; }
 }
 
 #[test]
+fn package_build_time_integer_comparison_ignores_unrelated_float_operators() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"
+use omega::language::core::float_operations;
+machine capacity() -> u64 {
+    let value: u64 = 8;
+    transition value < 256 { true -> 4 _ -> 5 }
+}
+data Main { bytes: [u8; capacity()]; }
+"#,
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .unwrap();
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("integer comparison remains build-time admissible beside float operators");
+    let main = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Main")
+        .unwrap();
+    let [typed_trees::data::DataMember::Field(field)] = checked.data_members(main) else {
+        panic!("Main retains exactly its authored byte array");
+    };
+    assert!(
+        checked
+            .type_reference_table
+            .fixed_array_lengths()
+            .any(|(handle, length)| handle == field.type_reference
+                && *length == typed_trees::types::FixedArrayLength::Literal(4)),
+        "the actual build-time branch must determine the array length"
+    );
+}
+
+#[test]
 fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
     let tree = TempTree::new();
     let root = tree.package("root");
