@@ -523,12 +523,20 @@ checkpoint. Apply the same pause immediately when the required
 customer or downstream contract is absent and work would become speculative.
 This applies across commits, agent handoffs, and automatic goal continuations.
 
-Pauses and blockers apply to the affected task or strategy, not independent work.
-During `advance`, skip already-paused or blocked tasks and continue selecting
-actionable work within the user's allowed scope. Do not present a known pause as
-a delivered advance or ask the user to choose ordinary engineering steps. Retain
-customer continuity while a defensible path remains; switching tasks must not
-restart the paused strategy under a different helper name.
+Pauses apply to a strategy; missing implementation does not make its customer
+unavailable. Before resuming a paused strategy, assess the failed approach and
+state the revised bounded path to customer acceptance. Another isolated helper
+under a new name does not satisfy that assessment. Skip work that genuinely needs
+an unanswered owner decision, unavailable prerequisite, or conflicting active
+assignment, and continue elsewhere within the user's scope. Do not present a
+known pause as a delivered advance or ask the user to choose ordinary engineering
+steps. Retain customer continuity while a defensible path remains.
+
+For unrestricted compiler advancement, prioritize the boards' immediate customer
+outcomes over unrelated cleanup or helper work. A red customer command and a
+repair spanning multiple stages are reasons to investigate, not reasons to pass
+over the task. Name the concrete blocker or active assignment when bypassing an
+otherwise eligible priority. Explicit user assignments still govern selection.
 
 Actual owner language/architecture decisions belong in `OWNER_QUESTIONS.md`, with
 the dependency referenced on the owning task; continue elsewhere while awaiting
@@ -573,6 +581,16 @@ alone is not evidence. Preserve Zac's design authority and the existing
 owner question. Never invent semantics or validation evidence to satisfy a gate.
 
 The coordinator owns dispatch, monitoring, result inspection, and integration.
+Assign one integration owner per customer slice, including its outer acceptance
+command; split independent dependencies only with explicit edit boundaries and a
+handoff back to that owner. Before editing, check available live session assignments
+and recent lane commits, and announce the customer slice and owning paths to the
+coordinator (or in the working conversation for an uncoordinated local session).
+If evidence suggests an overlap, resolve it before editing the shared paths;
+continue read-only investigation or independent work meanwhile. Do not require
+a new global reservation or proof that no unseen session exists. Old wave exclusions and
+idle worktrees are not proof of active ownership. The landing queue serializes
+publication, not development, and does not prevent duplicate implementation.
 Use actual agent tools and returned IDs before reporting workers as launched,
 queued, or running; report tool failures as failures. Distinguish implementation
 completed, verification-only completed, diagnosed blocker, and work continuing.

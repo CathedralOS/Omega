@@ -10,8 +10,9 @@ description: >-
 # Advance the Omega compiler
 
 One invocation delivers a bounded compiler improvement through publication.
-A blocked or paused task does not end an unrestricted invocation: select other
-actionable work. Reconfirming a known blocker is verification-only, not a
+A blocked task or paused strategy does not end an unrestricted invocation.
+Reassess the strategy or select independent actionable work under AGENTS.md.
+Reconfirming a known blocker is verification-only, not a
 completed advance. Follow [AGENTS.md](../../../AGENTS.md) for repository
 ownership, validation, scope checkpoints, board hygiene, and publication.
 
@@ -27,10 +28,16 @@ obligation until acceptance passes, a real dependency blocks it, a scope checkpo
 requires a pause, or the user changes priority. Do not duplicate another session's
 active change or switch to an easier unrelated helper. Without prior continuity,
 choose from `TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`; honor a named
-board. Skip already-blocked or paused tasks during fresh selection. If a selected
-customer becomes blocked or its strategy requires a pause, preserve its resume
-evidence and select independent actionable work within the user's allowed scope.
-Do not resume the paused strategy under another helper name. A named board limits
+board. For unrestricted compiler work, prioritize immediate product closure over
+unrelated cleanup. Missing implementation, a red customer command, and cross-stage
+scope do not make a task unavailable. A paused helper strategy requires the
+AGENTS.md reassessment before resumption, not permanent exclusion of its customer.
+When passing over an eligible priority, name the real decision, prerequisite, or
+active assignment preventing work. Check available live assignments and coordinate
+overlapping paths before editing; an old wave exclusion is not a current claim.
+If no defensible path remains for the customer, preserve its resume evidence and
+select independent actionable work within the user's allowed scope. Do not resume
+the paused strategy under another helper name. A named board limits
 selection to that board; an explicitly named customer limits it to that customer
 and its useful dependencies. State the customer, missing dependencies, and bounded
 acceptance condition.

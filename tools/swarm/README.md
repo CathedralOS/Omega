@@ -55,25 +55,38 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
 
 ## Coordinator selection rules
 
+Prioritize immediate customer outcomes within the requested scope, not the ease
+of producing a helper commit. Give one session the bounded end-to-end slice and
+its application command; several pipeline crates can belong to that one slice.
+Check live assignments with the coordinator before partitioning shared paths.
+An exclusion applies to its wave, not all future work: reassess it when preparing
+a new wave and retain it only for a current conflict or concrete blocker. Do not
+edit a launched wave to reassign its running sessions.
+
 Pick items that are:
 
 - runnable on Linux x86-64 (no Windows/macOS/QEMU acceptance required),
-- non-overlapping: no two sessions share an `owning_paths` entry,
-- not in `exclusions` and not an item a human is actively landing,
+- non-overlapping: review parent/child paths and shared dependencies as well as
+  identical `owning_paths` entries; the launcher's exact-path check is not enough,
+- not in this wave's `exclusions` or another session's active edit assignment,
 - named in a board the launcher knows (`TASKS.md`, `TASKS_BOOTSTRAP.md`,
   `TASKS_OPTIMIZER.md`), with the item present as `**<item>.**`.
-- each item's acceptance gates exit 0 on Linux; declare them in `host_gates`
-  because `plan` runs them and refuses the wave otherwise,
+- ready to attempt on the assigned host: `host_gates` are environment/access and
+  prerequisite checks that must pass before assignment. Keep the expected-red
+  customer reproduction in the board acceptance or `suggested_first_slice`, not
+  in `host_gates`. Acceptance must pass after implementation, not before selection,
 - an optimizer item's owning path must be the `X-to-X` stage crate at the
   item's representation level, and that compiler-tree crate under
   `omega-rust/` must exist and be on the `omega` route; the route check does
   not reject test-harness crates outside `omega-rust/`. If the stage does not
   exist the slot is `probe_only` or dropped (wave-3 miss:
   `EXACT-MACHINE-SIMPLIFICATIONS`),
-- a slot whose slice may not be one crate is declared `probe_only`, so a
-  `verification_only` result is planned rather than counted as a miss.
+- `probe_only` is for an explicitly chosen feasibility investigation, not merely
+  a cross-stage repair or a failing customer. Ordinary implementation slots must
+  attempt the design-backed repair; helper tests alone do not establish closure.
 - `budget_exhausted` requires active implementation of a slice the child still
-  believes is landable; a finding that a slice spans stages is `verification_only`.
+  believes is landable. Diagnose scope honestly, but crossing a crate or stage
+  boundary is not by itself a reason to stop at `verification_only`.
 
 ## Lead-only launch checklist
 
@@ -98,6 +111,9 @@ Before the first wave, a human with org access must:
   crates.io downloads, the registry index, build scripts, and unchanged leaf
   crates; at this repository's commit velocity the first `cargo check` still
   rebuilds most of the workspace. Blueprints rebuild roughly every 24 hours.
-- The launcher holds no ownership. Session collisions with each other are
-  prevented by the manifest; collisions with human work are absorbed by the
-  landing protocol, exactly as for local `advance` invocations.
+- The launcher holds no ownership. The coordinator must reconcile assignments
+  with other active waves and local work before launch and on overlap reports.
+  A manifest partitions only its own sessions, and exact path checks cannot catch
+  every shared dependency. The landing protocol serializes publication; it does
+  not prevent competing implementations. Unknown ownership needs coordination,
+  not an inferred claim from an old manifest or worktree.

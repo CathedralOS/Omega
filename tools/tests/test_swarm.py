@@ -176,14 +176,14 @@ class SwarmTests(unittest.TestCase):
             "Probe-only slot",
             prompt_path.read_text(encoding="utf-8"))
 
-        passing = manifest({"host_gates": ["true"]})
+        passing = manifest({"host_gates": ["exit 0"]})
         manifest_path.write_text(json.dumps(passing), encoding="utf-8")
         with mock.patch.object(self.module, "emit") as emitted:
             self.assertEqual(self.module.command_plan(
                 mock.Mock(manifest=str(manifest_path), skip_host_gates=False),
                 self.repository), 0)
             planned = emitted.call_args.args[0]["sessions"][0]
-        self.assertEqual(planned["host_gates"], [{"command": "true", "exit": 0}])
+        self.assertEqual(planned["host_gates"], [{"command": "exit 0", "exit": 0}])
         self.assertFalse(planned["probe_only"])
         self.assertNotIn(
             "Probe-only slot",
@@ -337,13 +337,16 @@ class SwarmTests(unittest.TestCase):
             self.assertNotIn("{" + field + "}", prompt)
         self.assertIn("ITEM-ONE", prompt)
 
-    def test_prompt_result_vocabulary_distinguishes_oversized_slices(self):
+    def test_prompt_keeps_cross_stage_implementation_actionable(self):
         record = manifest()
         self.validate(record)
         template = TEMPLATE.read_text(encoding="utf-8")
         prompt = self.module.render_prompt(template, record, record["sessions"][0])
-        self.assertIn("is `verification_only`, not `budget_exhausted`", prompt)
+        self.assertIn("do not stop merely at a crate boundary", prompt)
+        self.assertIn("diagnosis is intermediate", prompt)
+        self.assertIn("Rerun its outer command", prompt)
         self.assertIn("only when you were actively implementing", prompt)
+        self.assertNotIn("is `verification_only`, not `budget_exhausted`", prompt)
 
     def test_prompt_owner_label_and_exclusions(self):
         record = manifest()

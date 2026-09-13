@@ -49,6 +49,14 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   then the real supplied-byte scan/filtered-result path. The submodule's TASKS
   owns port work; this board owns compiler blockers exposed by the unchanged app.
 
+  Available for end-to-end integration under the existing design; no owner
+  decision is required to take this work. The pause below rejects isolated helper
+  milestones, not the customer. Coordinate one integration owner for the getter,
+  count caller, and application command, checking live assignments to the shared
+  **MATCH-SELECTIVE-LOWERING** and **STATE-LOCAL-VALUE-FRONTIER** paths before edits.
+  Past swarm exclusions are not standing reservations. Recheck the recorded
+  failure on fresh main, then state the revised integration plan before resuming.
+
   Acceptance: `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <binary>`
   executes the selected application with correct results. Package audit/source
   checking are separate evidence, not the native bar. Current invocation output
