@@ -1,6 +1,26 @@
 use crate::tests::*;
 
-use super::fixture::{call_homes, stage, wide_budget};
+use super::fixture::{call_homes, preserving_call_homes, stage, wide_budget};
+
+fn rejects_dropped_or_substituted_witnessed_unit(source: &StagedOptimizedRegisterHomes) {
+    let canonical = stage(source, wide_budget()).unwrap().plan().clone();
+    let modified_function = canonical
+        .functions
+        .iter()
+        .position(|function| !function.modified_units.is_empty())
+        .unwrap();
+
+    let mut omitted_modifications = canonical.clone();
+    omitted_modifications.functions[modified_function]
+        .modified_units
+        .clear();
+    rejects_noncanonical(source, omitted_modifications);
+
+    let mut unit = canonical.clone();
+    unit.functions[modified_function].modified_units[0].unit =
+        register_model::RegisterUnitId(u16::MAX);
+    rejects_noncanonical(source, unit);
+}
 
 fn rejects_noncanonical(
     source: &StagedOptimizedRegisterHomes,
@@ -89,16 +109,12 @@ fn replay_rejects_every_root_usage_roster_function_unit_and_witness_corruption()
         .position(|function| !function.modified_units.is_empty())
         .unwrap();
 
-    let mut omitted_modifications = canonical.clone();
-    omitted_modifications.functions[modified_function]
-        .modified_units
-        .clear();
-    rejects_noncanonical(&source, omitted_modifications);
-
-    let mut unit = canonical.clone();
-    unit.functions[modified_function].modified_units[0].unit =
-        register_model::RegisterUnitId(u16::MAX);
-    rejects_noncanonical(&source, unit);
+    for source in [
+        call_homes(NativeTarget::linux_x64()),
+        preserving_call_homes(NativeTarget::linux_x64()),
+    ] {
+        rejects_dropped_or_substituted_witnessed_unit(&source);
+    }
 
     let mut witness = canonical.clone();
     witness.functions[modified_function].modified_units[0].witnesses[0] =
