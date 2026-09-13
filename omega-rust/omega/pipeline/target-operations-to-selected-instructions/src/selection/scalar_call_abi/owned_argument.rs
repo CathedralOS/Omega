@@ -1,4 +1,4 @@
-//! Rejoin owned array actuals to their exact incoming fragments or produced home.
+//! Rejoin owned aggregate actuals to exact incoming backing or a produced home.
 use super::*;
 use legalized_operations::LegalizedScalarInstructionKind;
 
@@ -19,8 +19,7 @@ pub(super) fn validate_owned_arguments(
         if semantic.access != StructuralAccess::Owned {
             continue;
         }
-        let (_, _, shape) =
-            crate::selection::scalar_array_input::shape(source, target.structural_type)?;
+        let shape = super::owned_value_shape(source, target.structural_type)?;
         if semantic.access != StructuralAccess::Owned
             || !semantic.path.is_empty()
             || target.place != semantic.place
@@ -32,7 +31,7 @@ pub(super) fn validate_owned_arguments(
             || target.source_byte_offset != 0
             || target.fixed_array_length.is_some()
             || target.element_stride.is_some()
-            || !crate::selection::aggregate_result_input::inline_argument_fragments(
+            || !crate::selection::aggregate_result_input::owned_argument_placement(
                 &target.destination,
             )
         {
@@ -49,6 +48,10 @@ pub(super) fn validate_owned_arguments(
                     .flat_map(|block| &block.instructions)
                     .find(|row| row.operation == psi_operation)?;
                 let result = match &producer.kind {
+                    LegalizedScalarInstructionKind::EstablishRecord { result, .. } => {
+                        crate::selection::record_input::fields(source, producer)?;
+                        result
+                    }
                     LegalizedScalarInstructionKind::EstablishScalarArray { result, .. } => {
                         crate::selection::scalar_array_input::elements(source, producer)?;
                         result
@@ -60,7 +63,7 @@ pub(super) fn validate_owned_arguments(
                 };
                 if result.place != semantic.place
                     || result.structural_type != target.structural_type
-                    || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                     || !result.claims.is_empty()
                     || !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty()
@@ -77,13 +80,13 @@ pub(super) fn validate_owned_arguments(
                     .find(|parameter| parameter.semantic.place == semantic.place)?;
                 if parameter.semantic.access != StructuralAccess::Owned
                     || parameter.semantic.multiplicity
-                        != terminal_psi::StructuralMultiplicity::Unrestricted
+                        == terminal_psi::StructuralMultiplicity::Linear
                     || parameter.semantic.structural_type != target.structural_type
                     || !parameter.semantic.qualifications.is_empty()
                     || !parameter.semantic.projected_qualifications.is_empty()
                     || placement != &parameter.target.placement
                     || placement.shape != shape
-                    || !crate::selection::aggregate_result_input::inline_argument_fragments(
+                    || !crate::selection::aggregate_result_input::owned_argument_placement(
                         placement,
                     )
                 {

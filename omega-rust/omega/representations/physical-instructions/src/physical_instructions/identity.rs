@@ -27,7 +27,7 @@ pub fn post_allocation_machine_identity(
 ) -> PostAllocationMachineIdentity {
     post_allocation_machine_identity_with_domain(
         plan,
-        b"omega.terminal-postallocation-machine.v17\0",
+        b"omega.terminal-postallocation-machine.v18\0",
     )
 }
 
@@ -72,8 +72,7 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
         }
         encode_len(&mut bytes, function.outgoing_arguments.len());
         for slot in &function.outgoing_arguments {
-            bytes.extend_from_slice(&slot.id.operation.get().to_le_bytes());
-            bytes.extend_from_slice(&slot.id.argument_index.to_le_bytes());
+            slot.id.encode_identity(&mut bytes);
             bytes.extend_from_slice(&slot.byte_size.to_le_bytes());
             bytes.extend_from_slice(&slot.alignment.to_le_bytes());
             bytes.extend_from_slice(&slot.abi_stack_byte_offset.to_le_bytes());
@@ -233,7 +232,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
                     bytes.extend_from_slice(&abi_stack_byte_offset.to_le_bytes());
                 }
                 selected_instructions::FrameStorageSlotId::Outgoing(slot) => {
-                    bytes.push(0);
+                    bytes.push(match slot.role {
+                        selected_instructions::OutgoingArgumentSlotRole::Argument => 0,
+                        selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
+                    });
                     bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
                     bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
                 }

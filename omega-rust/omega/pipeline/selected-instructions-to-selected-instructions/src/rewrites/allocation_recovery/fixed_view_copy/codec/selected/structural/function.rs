@@ -46,8 +46,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
 }
 
 fn encode_slot(bytes: &mut Vec<u8>, slot: OutgoingArgumentSlotId) {
-    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
-    bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+    slot.encode_identity(bytes);
 }
 fn decode_slot(
     cursor: &mut Cursor<'_>,
@@ -55,6 +54,11 @@ fn decode_slot(
     Ok(OutgoingArgumentSlotId {
         operation: decode_id(cursor, OperationId::new)?,
         argument_index: cursor.u32()?,
+        role: match cursor.byte()? {
+            0 => selected_instructions::OutgoingArgumentSlotRole::Argument,
+            1 => selected_instructions::OutgoingArgumentSlotRole::ValueCopy,
+            tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+        },
     })
 }
 pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) fn encode_contracts(

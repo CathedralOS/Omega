@@ -377,6 +377,15 @@ locals also feed ordinary calls, including nested call results. Returning a
 parameter retains its exact structural slot, separately from operation-result
 ordinals. Replay checks authored positions and source identities; repeated
 unrestricted actuals do not acquire affine disposal obligations.
+Plain affine and copyable records use this same ordinary-call sequence, including
+parameter forwarding and constructed or call-produced locals. The complete graph
+plan wins over an overlapping straight-line structural plan, so declaration order
+does not erase either the caller or callee from the closure. Source replay rejoins
+the exact authored argument, not merely its type. Structural returns retain the
+source exit's remaining affine disposals, independently checked against the final
+live frontier. The `owned_record_return_source` tests cover source custody and
+fuel pauses; `scalar_case_results::record_reads` covers four-target publication
+and matching-host payload observations.
 Direct array-literal operands retain the enclosing call occurrence and authored
 formal position on their constructor and scalar-element bindings. The shared
 argument schedule interleaves constructors with scalar actuals and nested

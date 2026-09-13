@@ -13,6 +13,17 @@ use crate::structural_reference_input::stack_pointer_offset;
 #[cfg(test)]
 mod fixed_array_tests;
 
+/// Records and primitive arrays share whole-value transport, not source identity.
+pub(super) fn owned_value_shape(
+    source: &LegalizedScalarFunction,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+) -> Option<ValueShape> {
+    let types = &source.structural.as_ref()?.structural_types;
+    crate::structural_reference_input::plain_record_shape(structural_type, types).or_else(|| {
+        crate::structural_reference_input::primitive_array_shape(structural_type, types)
+    })
+}
+
 /// Incoming scalar slots follow the complete graph ABI; result admission is independent.
 pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) -> bool {
     source.call_plan.result.is_none()
@@ -108,7 +119,6 @@ fn placement_register_count(placement: &calling_conventions::ValuePlacement) -> 
                 ValueLocation::Register { .. }
                     | ValueLocation::Indirect {
                         pointer: IndirectPointerLocation::Register(_),
-                        copy_stack_byte_offset: None,
                         ..
                     }
             )
@@ -149,11 +159,17 @@ pub(super) fn unit_key(
         if matches!(&call.arguments[*index], LegalizedScalarArgument::Structural { semantic, .. } if semantic.access == StructuralAccess::Owned)
         {
             for location in &placement.locations {
-                if matches!(location, ValueLocation::Stack { .. }) {
-                    continue;
-                }
-                let ValueLocation::Register { register, .. } = location else {
-                    return None;
+                let register = match location {
+                    ValueLocation::Register { register, .. }
+                    | ValueLocation::Indirect {
+                        pointer: IndirectPointerLocation::Register(register),
+                        ..
+                    } => register,
+                    ValueLocation::Stack { .. }
+                    | ValueLocation::Indirect {
+                        pointer: IndirectPointerLocation::Stack { .. },
+                        ..
+                    } => continue,
                 };
                 views.push(environment.fixed_register_view(*register)?);
             }
@@ -318,11 +334,25 @@ pub(super) fn validate(
             for (fragment, location) in placement
                 .locations
                 .iter()
-                .filter(|location| !matches!(location, ValueLocation::Stack { .. }))
+                .filter(|location| {
+                    matches!(
+                        location,
+                        ValueLocation::Register { .. }
+                            | ValueLocation::Indirect {
+                                pointer: IndirectPointerLocation::Register(_),
+                                ..
+                            }
+                    )
+                })
                 .enumerate()
             {
-                let ValueLocation::Register { register, .. } = location else {
-                    return Err(invalid());
+                let register = match location {
+                    ValueLocation::Register { register, .. }
+                    | ValueLocation::Indirect {
+                        pointer: IndirectPointerLocation::Register(register),
+                        ..
+                    } => register,
+                    _ => return Err(invalid()),
                 };
                 let operand = row.operands.get(start + fragment).ok_or_else(invalid)?;
                 if operand.access != RegisterOperandAccess::Use

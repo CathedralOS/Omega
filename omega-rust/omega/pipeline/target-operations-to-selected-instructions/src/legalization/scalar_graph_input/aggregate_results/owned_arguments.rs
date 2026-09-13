@@ -1,4 +1,4 @@
-//! Owned array actuals rejoin their exact incoming storage or dominating producer.
+//! Owned aggregate actuals rejoin their exact incoming storage or dominating producer.
 use super::*;
 
 pub(super) fn reconstruct(
@@ -18,18 +18,30 @@ pub(super) fn reconstruct(
         .ok_or(invalid.clone())?;
     if !argument.path.is_empty()
         || destination.access != terminal_psi::StructuralAccess::Owned
-        || destination.multiplicity != StructuralMultiplicity::Unrestricted
+        || destination.multiplicity == StructuralMultiplicity::Linear
         || destination.is_self
         || !destination.qualifications.is_empty()
         || !destination.projected_qualifications.is_empty()
     {
         return Err(invalid);
     }
-    let shape = crate::structural_reference_input::primitive_array_shape(
+    let shape =
+        crate::structural_reference_input::parameter_shape(destination, &plan.structural_types)
+            .ok_or(invalid.clone())?;
+    let value_shape = crate::structural_reference_input::primitive_array_shape(
         destination.structural_type,
         &plan.structural_types,
     )
+    .or_else(|| {
+        crate::structural_reference_input::plain_record_shape(
+            destination.structural_type,
+            &plan.structural_types,
+        )
+    })
     .ok_or(invalid.clone())?;
+    if shape != value_shape {
+        return Err(invalid);
+    }
     let source = if let Some(parameter) = caller
         .structural_parameters
         .iter()
@@ -68,7 +80,10 @@ pub(super) fn reconstruct(
     } else {
         let (producer, result) = super::structural_case::source_result(caller, argument.place)?;
         if result.structural_type != destination.structural_type
-            || super::scalar_arrays::shape(result, plan)?.2 != shape
+            || result.multiplicity != destination.multiplicity
+            || !result.claims.is_empty()
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
         {
             return Err(invalid);
         }
@@ -79,6 +94,7 @@ pub(super) fn reconstruct(
                 block.nodes.iter().enumerate().find_map(|(position, node)| {
                     matches!(&node.operation,
                 AbstractOperation::EstablishScalarArray { psi_operation, result: actual, .. }
+                | AbstractOperation::EstablishRecord { psi_operation, result: actual, .. }
                 | AbstractOperation::CallStructural { psi_operation, result: actual, .. }
                 if *psi_operation == producer && actual == result)
                     .then_some((block.id, position))

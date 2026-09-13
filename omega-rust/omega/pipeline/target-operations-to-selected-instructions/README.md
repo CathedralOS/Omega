@@ -96,7 +96,18 @@ calls, nested results, and installation reload. Published pointer homes preserve
 owned versus borrowed identity; the full call plan and independent graph replay
 remain required. Whole-parameter returns consume the same current backing under
 their independently selected result ABI, including hidden result storage.
-General indirect owned call forwarding remains a separate transport limit.
+Ordinary calls forward that current backing through the callee's independently
+selected argument ABI. Indirect arguments copy the exact payload into an outgoing
+`ValueCopy` slot and pass its address in the retained register or `Argument` stack
+slot. The slot roles distinguish the payload from its pointer without inventing
+another argument ordinal. Microsoft x64 payload copies retain 16-byte alignment;
+odd tails use the same exact-width loads/stores as direct aggregate fragments.
+Construction and receiving replay independently reconstruct these transports.
+The source-to-native control is
+`cargo nextest run -p omega-native-differential-test --test scalar_case_results --no-fail-fast record_reads::parameters`.
+It covers affine/copyable records, distinct stack pointers and payload copies,
+constructed/call-produced inputs, odd-width arrays, and mixed borrowed outputs;
+cross-target publication does not substitute for matching-host execution.
 
 Primitive arrays share that aggregate storage and call/return path without a sum
 tag. [Array input](src/selection/scalar_array_input.rs) reconstructs the declared
@@ -133,7 +144,8 @@ no payload slot, address, register, or memory access. Constructor operation/fuel
 provenance prefixes the next instruction in the same block, including a terminator;
 independent replay reconstructs that ordered prefix. Empty-result calls and returns
 reuse physical Unit instructions without changing their structural contracts.
-Indirect owned entry arguments remain an explicit transport limit. Zero physical size never erases the semantic array type. The native differential
+Indirect owned entry arguments retain their incoming value-copy pointer, just
+like records. Zero physical size never erases the semantic array type. The native differential
 `scalar_array_results` target covers full publication and matching-host execution;
 its 17-byte SysV mixed-call case exercises independently verified runtime spills
 through the high-pressure acyclic graph. That case publishes on any development

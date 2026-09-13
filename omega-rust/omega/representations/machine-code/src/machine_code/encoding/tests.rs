@@ -171,6 +171,7 @@ fn encoding_identity_binds_symbolic_role_and_resolved_displacement() {
     // These are raw identity proposals, not admitted instructions or frames.
     let mut program = deferred_program();
     let slot = OutgoingArgumentSlotId {
+        role: selected_instructions::OutgoingArgumentSlotRole::Argument,
         operation: OperationId::new(3).unwrap(),
         argument_index: 0,
     };
@@ -184,6 +185,15 @@ fn encoding_identity_binds_symbolic_role_and_resolved_displacement() {
     let identity = program.recomputed_identity();
     let mut changed = program.clone();
     changed.rows[0].address.as_mut().unwrap().displacement = 48;
+    assert_ne!(changed.recomputed_identity(), identity);
+    changed = program.clone();
+    changed.rows[0].address.as_mut().unwrap().symbolic = PhysicalAddressOperation::Store64 {
+        slot: selected_instructions::FrameStorageSlotId::Outgoing(OutgoingArgumentSlotId {
+            role: selected_instructions::OutgoingArgumentSlotRole::ValueCopy,
+            ..slot
+        }),
+        byte_offset: 8,
+    };
     assert_ne!(changed.recomputed_identity(), identity);
     changed = program.clone();
     changed.rows[0].address.as_mut().unwrap().symbolic = PhysicalAddressOperation::FrameAddress {

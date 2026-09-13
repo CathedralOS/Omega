@@ -28,6 +28,7 @@ pub(super) fn argument_pointer(
     };
     let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let slot = selected_instructions::OutgoingArgumentSlotId {
+        role: selected_instructions::OutgoingArgumentSlotRole::Argument,
         operation: operation.operation,
         argument_index: argument_index.try_into().map_err(|_| invalid())?,
     };

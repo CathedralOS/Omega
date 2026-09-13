@@ -435,20 +435,33 @@ pub(super) fn return_discards(
         }
         drops.push(index);
     }
-    let expected = state
-        .structural_parameters
-        .iter()
-        .enumerate()
-        .rev()
-        .filter(|(_, parameter)| {
-            parameter.access == checked_trees::CheckedStructuralAccess::Owned
-                && parameter.multiplicity == Multiplicity::Affine
-        })
-        .map(|(index, _)| index)
-        .collect::<Vec<_>>();
-    if drops != expected {
-        return unsupported("Unit return parameter cleanup roster drifted");
+    if matches!(
+        state.terminator,
+        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+    ) {
+        // The Unit graph's source plan retains the complete parameter exit
+        // roster before call consumption below. Preserve this admission check;
+        // deleting a source drop is not authority to silently omit cleanup.
+        let expected = state
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .rev()
+            .filter(|(_, parameter)| {
+                parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                    && parameter.multiplicity == Multiplicity::Affine
+            })
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        if drops != expected {
+            return unsupported("Unit return parameter cleanup roster drifted");
+        }
     }
+    // Structural return events instead describe residual custody after the
+    // authored value transfer. Returning a parameter or moving it into a
+    // constructor can remove its exit drop. Source value replay checks those
+    // transfers; Terminal independently requires the remaining live frontier,
+    // including canonical reverse order, before publication.
     for operation in &state.operations {
         let arguments = match operation {
             CheckedUnitEffectOperationPlan::CallUnit {

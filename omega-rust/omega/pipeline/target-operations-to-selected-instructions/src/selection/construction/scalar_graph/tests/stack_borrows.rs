@@ -390,6 +390,7 @@ fn incoming_stack_borrow_replay_retains_native_ordinal_pointer_load_and_fuel() {
                         rows[incoming].kind = SelectedInstructionKind::FrameAddress {
                             slot: FrameStorageSlotId::Outgoing(
                                 selected_instructions::OutgoingArgumentSlotId {
+                                    role: selected_instructions::OutgoingArgumentSlotRole::Argument,
                                     operation: source.blocks[0].instructions[0].operation,
                                     argument_index: 0,
                                 },

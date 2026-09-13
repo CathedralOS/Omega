@@ -1,4 +1,6 @@
-//! Transport an owned array through its exact ABI fragments.
+//! Transport owned aggregate bytes through the independently selected call ABI.
+//! Indirection copies the current value into call-owned backing; forwarding the
+//! input pointer would alias a copyable value with the callee's private storage.
 use super::*;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessRole};
 
@@ -30,7 +32,7 @@ pub(super) fn argument(
         return Ok(Vec::new());
     }
     if target.shape != target.destination.shape
-        || !crate::selection::aggregate_result_input::inline_argument_fragments(&target.destination)
+        || !crate::selection::aggregate_result_input::owned_argument_placement(&target.destination)
     {
         return Err(invalid());
     }
@@ -87,13 +89,25 @@ pub(super) fn argument(
             .find(|(owner, _)| *owner == place)
             .map(|(_, pointer)| *pointer)
     };
-    let outgoing = if let Some(ValueLocation::Stack {
-        stack_byte_offset, ..
-    }) = target.destination.locations.first()
-    {
+    let indirect = crate::selection::aggregate_result_input::indirect_argument(&target.destination);
+    let outgoing_offset =
+        indirect
+            .map(|(_, offset)| offset)
+            .or_else(|| match target.destination.locations.first() {
+                Some(ValueLocation::Stack {
+                    stack_byte_offset, ..
+                }) => Some(*stack_byte_offset),
+                _ => None,
+            });
+    let outgoing = if let Some(stack_byte_offset) = outgoing_offset {
         let slot = selected_instructions::OutgoingArgumentSlotId {
             operation: operation.operation,
             argument_index: argument_index.try_into().map_err(|_| invalid())?,
+            role: if indirect.is_some() {
+                selected_instructions::OutgoingArgumentSlotRole::ValueCopy
+            } else {
+                selected_instructions::OutgoingArgumentSlotRole::Argument
+            },
         };
         if builder
             .transport
@@ -115,6 +129,13 @@ pub(super) fn argument(
                 }
             })
             .fold(target.shape.alignment, u16::max);
+        let alignment = if indirect.is_some()
+            && source.call_plan.policy == calling_conventions::CallingPolicy::MicrosoftX64
+        {
+            alignment.max(16)
+        } else {
+            alignment
+        };
         builder
             .transport
             .slots
@@ -122,7 +143,7 @@ pub(super) fn argument(
                 id: slot,
                 byte_size: u32::from(target.shape.byte_size),
                 alignment,
-                abi_stack_byte_offset: *stack_byte_offset,
+                abi_stack_byte_offset: stack_byte_offset,
             });
         let address = super::structural_case::register(builder, place, 0, 64, false)?;
         outgoing_memory(
@@ -147,21 +168,33 @@ pub(super) fn argument(
         None
     };
     let mut registers = Vec::new();
-    for location in &target.destination.locations {
-        let (value_byte_offset, byte_size) = match location {
-            ValueLocation::Register {
-                value_byte_offset,
-                byte_size,
-                ..
-            }
-            | ValueLocation::Stack {
-                value_byte_offset,
-                byte_size,
-                ..
-            } => (value_byte_offset, byte_size),
-            _ => return Err(invalid()),
-        };
-        let offset = u32::from(*value_byte_offset);
+    let fragments = if indirect.is_some() {
+        (0..target.shape.byte_size)
+            .step_by(8)
+            .map(|offset| (offset, (target.shape.byte_size - offset).min(8)))
+            .collect::<Vec<_>>()
+    } else {
+        target
+            .destination
+            .locations
+            .iter()
+            .map(|location| match location {
+                ValueLocation::Register {
+                    value_byte_offset,
+                    byte_size,
+                    ..
+                }
+                | ValueLocation::Stack {
+                    value_byte_offset,
+                    byte_size,
+                    ..
+                } => Ok((*value_byte_offset, *byte_size)),
+                _ => Err(invalid()),
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    for (value_byte_offset, byte_size) in fragments {
+        let offset = u32::from(value_byte_offset);
         let output = super::structural_case::register(builder, place, offset, 64, false)?;
         if let Some(pointer) = pointer {
             super::structural_case::memory(
@@ -169,10 +202,10 @@ pub(super) fn argument(
                 block,
                 place,
                 offset,
-                u32::from(*byte_size),
+                u32::from(byte_size),
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
-            super::aggregate_memory::load(builder, pointer, output, offset, *byte_size)?;
+            super::aggregate_memory::load(builder, pointer, output, offset, byte_size)?;
         } else {
             let input = builder
                 .transport
@@ -194,12 +227,62 @@ pub(super) fn argument(
                 operation.operation,
                 place,
                 offset,
-                u32::from(*byte_size),
+                u32::from(byte_size),
                 SelectedMemoryAccessRole::WriteOutgoing { slot },
             )?;
-            super::aggregate_memory::store(builder, address, output, offset, *byte_size)?;
+            super::aggregate_memory::store(builder, address, output, offset, byte_size)?;
         } else {
             registers.push(output);
+        }
+    }
+    if let Some((pointer_location, _)) = indirect {
+        let (_, address) = outgoing.ok_or_else(invalid)?;
+        match pointer_location {
+            calling_conventions::IndirectPointerLocation::Register(_) => registers.push(address),
+            calling_conventions::IndirectPointerLocation::Stack {
+                stack_byte_offset,
+                alignment,
+            } => {
+                let slot = selected_instructions::OutgoingArgumentSlotId {
+                    operation: operation.operation,
+                    argument_index: argument_index.try_into().map_err(|_| invalid())?,
+                    role: selected_instructions::OutgoingArgumentSlotRole::Argument,
+                };
+                if builder
+                    .transport
+                    .slots
+                    .iter()
+                    .any(|existing| existing.id == slot)
+                {
+                    return Err(invalid());
+                }
+                builder
+                    .transport
+                    .slots
+                    .push(selected_instructions::SelectedOutgoingArgumentSlot {
+                        id: slot,
+                        byte_size: 8,
+                        alignment,
+                        abi_stack_byte_offset: stack_byte_offset,
+                    });
+                outgoing_memory(
+                    builder,
+                    operation.operation,
+                    place,
+                    0,
+                    8,
+                    SelectedMemoryAccessRole::WriteOutgoing { slot },
+                )?;
+                builder.emit(
+                    SelectedInstructionKind::Store64 {
+                        slot: FrameStorageSlotId::Outgoing(slot),
+                        byte_offset: 0,
+                    },
+                    builder.constraints.keys.store64.ok_or_else(invalid)?,
+                    &[address],
+                    Default::default(),
+                )?;
+            }
         }
     }
     Ok(registers)

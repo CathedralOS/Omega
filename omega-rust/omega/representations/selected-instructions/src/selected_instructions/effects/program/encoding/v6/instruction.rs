@@ -151,11 +151,18 @@ fn decode_kind(
                     parameter_index: cursor.u32()?,
                     abi_stack_byte_offset: cursor.u32()?,
                 },
-                0 => crate::FrameStorageSlotId::Outgoing(crate::OutgoingArgumentSlotId {
-                    operation: OperationId::new(cursor.u64()?)
-                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
-                    argument_index: cursor.u32()?,
-                }),
+                slot_tag @ (0 | 3) => {
+                    crate::FrameStorageSlotId::Outgoing(crate::OutgoingArgumentSlotId {
+                        role: if slot_tag == 0 {
+                            crate::OutgoingArgumentSlotRole::Argument
+                        } else {
+                            crate::OutgoingArgumentSlotRole::ValueCopy
+                        },
+                        operation: OperationId::new(cursor.u64()?)
+                            .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                        argument_index: cursor.u32()?,
+                    })
+                }
                 1 => crate::FrameStorageSlotId::Local(decode_local_storage_slot(cursor)?),
                 _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
             };

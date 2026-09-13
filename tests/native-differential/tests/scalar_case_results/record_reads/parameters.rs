@@ -431,6 +431,167 @@ fn owned_record_parameter_round_trip_uses_independent_input_and_result_abi() {
 }
 
 #[test]
+fn owned_record_parameter_forwards_through_an_ordinary_call() {
+    let artifact = produce_source(
+        "relay",
+        "data Record { first: u64; second: u64; third: u64; }
+         machine retain(record: Record) -> Record { record }
+         machine relay(record: Record) -> Record { retain(record) }",
+    );
+    execute(
+        &artifact,
+        r#"
+        #include <stdint.h>
+        typedef struct { uint64_t first; uint64_t second; uint64_t third; } Record;
+        extern Record omega_entry(Record record);
+        int main(void) {
+            Record record = { UINT64_MAX, UINT64_C(0x123456789abcdef0), UINT64_C(0x8000000000000001) };
+            Record result = omega_entry(record);
+            return result.first == record.first && result.second == record.second
+                && result.third == record.third ? 0 : 1;
+        }
+        "#,
+        true,
+    );
+}
+
+#[test]
+fn owned_record_calls_keep_distinct_stack_pointers_and_payload_copies() {
+    for property in ["", "[copy]"] {
+        let artifact = produce_source(
+            "relay",
+            &format!(
+                "data Record {property} {{ first: u64; second: u64; third: u64; }}
+                 machine combine(first: u64, second: u64, third: u64, fourth: u64,
+                     fifth: u64, sixth: u64, seventh: u64, eighth: u64,
+                     left: Record, right: Record) -> Record {{
+                     Record {{ first: left.first ^ first, second: right.second ^ eighth,
+                         third: left.third ^ right.third }}
+                 }}
+                 machine relay(first: u64, second: u64, third: u64, fourth: u64,
+                     fifth: u64, sixth: u64, seventh: u64, eighth: u64,
+                     left: Record, right: Record) -> Record {{
+                     combine(first, second, third, fourth, fifth, sixth, seventh, eighth, left, right)
+                 }}"
+            ),
+        );
+        execute(
+            &artifact,
+            r#"
+            #include <stdint.h>
+            typedef struct { uint64_t first; uint64_t second; uint64_t third; } Record;
+            extern Record omega_entry(uint64_t first, uint64_t second, uint64_t third,
+                uint64_t fourth, uint64_t fifth, uint64_t sixth, uint64_t seventh,
+                uint64_t eighth, Record left, Record right);
+            int main(void) {
+                Record left = { UINT64_MAX, 101, UINT64_C(0x8000000000000001) };
+                Record right = { 102, UINT64_C(0x123456789abcdef0), UINT64_C(0xabcdef0187654321) };
+                Record result = omega_entry(17, 2, 3, 4, 5, 6, 7, 31, left, right);
+                return result.first == (left.first ^ 17) && result.second == (right.second ^ 31)
+                    && result.third == (left.third ^ right.third) ? 0 : 1;
+            }
+            "#,
+            true,
+        );
+    }
+}
+
+#[test]
+fn constructed_record_call_results_can_be_forwarded_again() {
+    for property in ["", "[copy]"] {
+        let artifact = produce_source(
+            "relay",
+            &format!(
+                "data Record {property} {{ first: u64; second: u64; third: u64; }}
+                 machine retain(record: Record) -> Record {{ record }}
+                 machine relay(payload: u64) -> Record {{
+                     let record: Record = Record {{ first: payload, second: 81985529216486895, third: 18446744073709551615 }};
+                     let forwarded: Record = retain(record);
+                     retain(forwarded)
+                 }}"
+            ),
+        );
+        execute(
+            &artifact,
+            r#"
+            #include <stdint.h>
+            typedef struct { uint64_t first; uint64_t second; uint64_t third; } Record;
+            extern Record omega_entry(uint64_t payload);
+            int main(void) {
+                Record result = omega_entry(UINT64_C(0x8000000000000001));
+                return result.first == UINT64_C(0x8000000000000001)
+                    && result.second == UINT64_C(81985529216486895)
+                    && result.third == UINT64_MAX ? 0 : 1;
+            }
+            "#,
+            true,
+        );
+    }
+}
+
+#[test]
+fn owned_array_calls_share_indirect_transport_and_exact_tail_widths() {
+    for length in [3, 9, 17, 24] {
+        let artifact = produce_source(
+            "relay",
+            &format!(
+                "machine retain(values: [u8;{length}]) -> [u8;{length}] {{ values }}
+                 machine relay(values: [u8;{length}]) -> [u8;{length}] {{ retain(values) }}"
+            ),
+        );
+        execute(
+            &artifact,
+            &format!(
+                "#include <stdint.h>
+                 typedef struct {{ uint8_t bytes[{length}]; }} Value;
+                 extern Value omega_entry(Value values);
+                 int main(void) {{
+                     Value values;
+                     for (unsigned offset = 0; offset < {length}; ++offset) values.bytes[offset] = (uint8_t)(offset * 17 + 193);
+                     Value result = omega_entry(values);
+                     for (unsigned offset = 0; offset < {length}; ++offset)
+                         if (result.bytes[offset] != values.bytes[offset]) return 1;
+                     return 0;
+                 }}"
+            ),
+            true,
+        );
+    }
+}
+
+#[test]
+fn owned_record_arguments_compose_with_scalar_results_and_borrowed_outputs() {
+    for property in ["", "[copy]"] {
+        let artifact = produce_source(
+            "relay",
+            &format!(
+                "data Record {property} {{ first: u64; second: u64; third: u64; }}
+                 machine observe(record: Record, output: &mut u64) -> u64 {{
+                     output = record.second;
+                     record.first ^ record.third
+                 }}
+                 machine relay(record: Record, output: &mut u64) -> u64 {{ observe(record, &mut output) }}"
+            ),
+        );
+        execute(
+            &artifact,
+            r#"
+            #include <stdint.h>
+            typedef struct { uint64_t first; uint64_t second; uint64_t third; } Record;
+            extern uint64_t omega_entry(Record record, uint64_t *output);
+            int main(void) {
+                Record record = { UINT64_MAX, UINT64_C(0x123456789abcdef0), UINT64_C(0x8000000000000001) };
+                uint64_t output = 0;
+                uint64_t result = omega_entry(record, &output);
+                return result == (record.first ^ record.third) && output == record.second ? 0 : 1;
+            }
+            "#,
+            true,
+        );
+    }
+}
+
+#[test]
 fn owned_record_parameter_return_survives_an_observable_call() {
     let artifact = produce_source(
         "retain",

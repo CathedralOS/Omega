@@ -235,7 +235,10 @@ pub(super) fn lower_operation(
                 || (argument.access == StructuralAccess::Owned
                     && function.structural_parameters.iter().any(|parameter| {
                         parameter.place == argument.place
-                            && super::scalar_arrays::is_owned_parameter(parameter, structural_types)
+                            && super::owned_arguments::is_owned_parameter(
+                                parameter,
+                                structural_types,
+                            )
                     }))
         }) =>
         {

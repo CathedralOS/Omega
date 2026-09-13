@@ -124,7 +124,7 @@ fn assert_input_rejoin(authored_uses_result: bool) {
         vec![1]
     };
     let expected = if authored_uses_result {
-        "ordinary structural call source is not an exact authored claim-free affine parameter"
+        "owned call argument changed its authored parameter"
     } else {
         "Unit structural result argument does not rejoin its exact authored local"
     };

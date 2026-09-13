@@ -234,7 +234,9 @@ pub(super) fn operation(
     let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
         return Err(invalid());
     };
-    if call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, target } if semantic.access == StructuralAccess::Owned && crate::selection::scalar_array_input::shape(source, target.structural_type).is_none())) {
+    if call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, target }
+        if semantic.access == StructuralAccess::Owned
+            && crate::selection::scalar_call_abi::owned_value_shape(source, target.structural_type).is_none())) {
         super::unit_call::emit(function, source, row, environment, builder)?;
         return Ok(true);
     }
@@ -282,6 +284,7 @@ pub(super) fn operation(
             return Err(invalid());
         };
         let slot = OutgoingArgumentSlotId {
+            role: selected_instructions::OutgoingArgumentSlotRole::Argument,
             operation: row.operation,
             argument_index: index.try_into().map_err(|_| invalid())?,
         };

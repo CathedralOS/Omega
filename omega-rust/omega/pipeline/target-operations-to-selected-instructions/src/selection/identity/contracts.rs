@@ -5,8 +5,7 @@ fn blob(bytes: &mut Vec<u8>, content: &[u8]) {
     bytes.extend_from_slice(content);
 }
 pub(super) fn slot(bytes: &mut Vec<u8>, slot: OutgoingArgumentSlotId) {
-    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
-    bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+    slot.encode_identity(bytes);
 }
 fn local_slot(bytes: &mut Vec<u8>, slot: selected_instructions::LocalStorageSlotId) {
     slot.encode_identity(bytes);
@@ -22,8 +21,12 @@ pub(super) fn frame_slot(bytes: &mut Vec<u8>, slot: selected_instructions::Frame
             bytes.extend_from_slice(&abi_stack_byte_offset.to_le_bytes());
         }
         selected_instructions::FrameStorageSlotId::Outgoing(value) => {
-            bytes.push(0);
-            self::slot(bytes, value);
+            bytes.push(match value.role {
+                selected_instructions::OutgoingArgumentSlotRole::Argument => 0,
+                selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
+            });
+            bytes.extend_from_slice(&value.operation.get().to_le_bytes());
+            bytes.extend_from_slice(&value.argument_index.to_le_bytes());
         }
         selected_instructions::FrameStorageSlotId::Local(value) => {
             bytes.push(1);
