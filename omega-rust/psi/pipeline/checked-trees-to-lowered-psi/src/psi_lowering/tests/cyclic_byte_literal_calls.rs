@@ -161,11 +161,90 @@ impl TerminalEffectHandler for ByteTrace {
     }
 }
 
-/// `self.place` is replaced every iteration, so the divide's nonzero-divisor
-/// obligation `1 <= self.place` can only be discharged by a cyclic invariant
-/// naming field state. Scalar block invariants admit scalar terms over
-/// machine and block parameters only, so this remains
-/// `OperationProofUnavailable` until storage-observation invariants exist
+/// `self.place` is written once before the cycle and only read inside it, so
+/// the divide's `1 <= self.place` discharges through a retained cyclic
+/// invariant naming the field itself (`IntegerField` over the machine's own
+/// receiver). The verifier independently establishes and preserves the
+/// predicate at every actual arrival; the producer only proposed it.
+#[test]
+fn cyclic_field_divisor_retains_storage_observation_invariant() {
+    let checked = checked_source(
+        r#"
+boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
+data Main { counter: u64 in Wrapping; place: u32 in Wrapping; sq: u32 in Wrapping; d: u32 in Wrapping; }
+machine Main::main(&mut self) reaches Trace {
+    self.counter = 0;
+    self.sq = 81;
+    self.place = 100;
+    transition { _ -> head() }
+    state head(&mut self) {
+        transition self.counter < 3 { true -> digit() _ -> done() }
+    }
+    state digit(&mut self) {
+        self.d = self.sq / self.place;
+        self.counter = self.counter + 1;
+        transition { _ -> head() }
+    }
+    state done(&mut self) { Trace::write("done"); }
+}
+"#,
+    );
+    let lowered =
+        lower_machine(&checked, "Main::main").expect("storage-observation invariant proves");
+    let invariants = &lowered.semantic_module.scalar_block_invariants;
+    assert!(
+        invariants.iter().any(|invariant| {
+            matches!(
+                &invariant.predicate,
+                semantic_vocabulary::Proposition::LessOrEqual(
+                    _,
+                    semantic_vocabulary::ScalarTerm::IntegerField { .. },
+                )
+            )
+        }),
+        "a retained invariant names the field bound: {invariants:?}"
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
+        .expect("cyclic field divisor publishes the portable Terminal artifact");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let [receiver] = entry.structural_parameters.as_slice() else {
+        panic!("persistent receiver survives publication")
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        &[TerminalStructuralValue {
+            opaque_identity: 1,
+            structural_type: receiver.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }],
+    )
+    .expect("canonical artifact reloads and independently verifies");
+    let mut meter = TerminalFuelMeter::with_allowance(1000);
+    let mut trace = ByteTrace::default();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut meter, &mut trace)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(trace.0, [b"done".to_vec()]);
+}
+
+/// `self.place` is replaced every iteration and reaches zero on the last one,
+/// so the divide's nonzero-divisor obligation `1 <= self.place` needs a
+/// guarded-exit invariant such as `counter < 3 -> place >= 1`. Establishing
+/// that lockstep form still needs an integer-bound contradiction the kernel
+/// does not yet express, so this remains `OperationProofUnavailable`
 /// (see TASKS.md GENERAL-CYCLIC-EXECUTION).
 #[test]
 fn cyclic_field_divisor_awaits_storage_observation_invariants() {

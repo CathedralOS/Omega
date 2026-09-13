@@ -268,7 +268,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |
   | `cli_mvp` ordinary CLI and hosted matrix | Finish real project package review with explicit owner acceptance, then run the documented CLI command. The macOS ARM64 compiler-library test already publishes and executes the unchanged source with exact two-line output, EOF and Enter, and exit 0. Establish the same customer behavior on the remaining hosted targets; cross-lowering alone is not runtime evidence. |
-  | `print_squares` closure | `58dd5c0482` retains the checked transitive Unit plan and shared byte-field presentation; the probe now stops at `OperationProofUnavailable` for field-state obligations (nonzero divisor, indexed bounds, increment overflow). Psi must let retained evidence name storage observations such as `IntegerField` within the documented invariant scope. **GENERAL-CYCLIC-EXECUTION** owns cyclic completion; **NOMINAL-FIELD-FLOW** owns declared field facts. |
+  | `print_squares` closure | `58dd5c0482` retains the checked transitive Unit plan and shared byte-field presentation; scalar block invariants now admit `IntegerField`/`BooleanField` storage observations rooted at invocation-lived places, and producer `field_bounds` transports cyclic field-read bounds into proved candidates. The probe still stops at `OperationProofUnavailable` for guarded-exit field obligations (a bound that holds only while the loop guard runs needs a lockstep implication plus an integer-contradiction primitive) and indexed bounds/increment overflow. **GENERAL-CYCLIC-EXECUTION** owns cyclic completion; **NOMINAL-FIELD-FLOW** owns declared field facts. |
   | Fixed-range Console input/output | Compose the selected source provider and real byte leaves with original receiver storage, exact returned cases/prefix, once-only effects, and cleanup. Use the ordinary graph and provider replay, not the deleted Unit/boundary planner. Windows byte I/O still needs imported-call/fixup/frame custody; Linux runtime evidence requires matching hosts. |
   | Receiver and aggregate operations | Finish shared/indexed projections, owned/local roots, scalar-result receiver calls, nested sum results and whole replacements, including mixed foreign-result assignments. Extend the shared statement sequencer; **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, and **CML4** own the corresponding joins. |
   | Text and field proofs | Replace sample-local `Utf8`/compiler-name `valid_utf8` recognition with the [library encoding contract](wiki/spec/language/domains.md#byte-containers-and-encoding-domains). Keep raw bytes and qualify only validated prefixes; no byte-to-character re-encoding, hidden length writeback, or capacity-as-live-length proof. |
@@ -1000,19 +1000,32 @@ Owners include
   transport; a covering write expires the equation, so stale bounds cannot
   leak.
 
-  The remaining probe stop is the genuinely cyclic case: `digit_div`'s
+  Storage-observation invariant scope is now admitted: scalar block
+  invariant predicates may name `IntegerField`/`BooleanField` terms rooted
+  at places alive for the whole invocation — machine structural parameters
+  and the header's own block parameters — through the shared
+  `scalar_block_invariant_scope` telescope used by both module validation
+  and producer candidate checking. The producer's `field_bounds` pass
+  transports an unprovable cyclic field-read bound obligation through the
+  read's exact `value == field` equation into a candidate invariant at
+  every externally entered component header; each candidate is still a
+  proposal, proved independently at every actual arrival before retention.
+  `cyclic_field_divisor_retains_storage_observation_invariant` witnesses
+  the slice end to end: `x / self.place` with `place` initialized before
+  the loop lowers, reload-verifies, and interprets to its `done` trace.
+
+  The remaining probe stop is the guarded-exit lockstep form: `digit_div`'s
   `self.sq / self.place` reads `place` written by a previous iteration, so
-  its `1 <= place` obligation needs a cyclic invariant naming storage
-  observations (`IntegerField`/`BooleanField` terms rooted at the machine's
-  own structural parameters). Scalar block invariants admit scalar terms
-  over machine and block parameters only. Note a plain `place >= 1` at
-  `itoa_loop` is not inductive — the last iteration stores `place = 0`
-  before the guard exits — so producer synthesis must propose the
-  lockstep/disjunctive form (`p < 3 -> place >= 1`, or the `place`/`p`
-  case enumeration); `ImplicationElimination` already exists in the
-  kernel for the arrival proofs. Next slice: storage-observation
-  invariant scope plus that synthesis; indexed byte-field writes also
-  still need composed-Unit closure coverage.
+  its `1 <= place` obligation needs `p < 3 -> IntegerField(place) >= 1`.
+  A plain `place >= 1` at `itoa_loop` is not inductive — the last
+  iteration stores `place = 0` before the guard exits — and establishing
+  the implication form needs an integer-bound contradiction primitive the
+  kernel does not yet express (incompatible bounds cannot produce
+  `Falsehood`, and closed comparisons do not denote to it);
+  `ImplicationElimination` already exists in the kernel for the arrival
+  proofs once such a primitive lands. `cyclic_field_divisor_awaits_storage_observation_invariants`
+  retains the `OperationProofUnavailable` control. Indexed byte-field
+  writes also still need composed-Unit closure coverage.
 
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
   operators, nested structural paths, calls, cycles, execution and package review.

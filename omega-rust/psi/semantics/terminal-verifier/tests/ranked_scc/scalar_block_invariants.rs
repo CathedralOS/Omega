@@ -299,6 +299,24 @@ fn scalar_block_invariant_checks_every_conditional_arrival() {
 }
 
 #[test]
+fn scalar_block_invariant_scope_admits_invocation_places_only() {
+    let mut module = module();
+    // A machine structural parameter lives for the whole invocation, so a
+    // storage observation rooted there is legal invariant scope. Kind-filtered
+    // rejection of operation-local and other-block places is exercised by the
+    // scope unit test; an invalid standalone place fails earlier validation.
+    let parameter_place = add_loop_preserved_affine_parameter(&mut module);
+    module.scalar_block_invariants[0].predicate = Proposition::Equal(
+        ScalarTerm::boolean_field(
+            parameter_place,
+            semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+        ),
+        ScalarTerm::Boolean(true),
+    );
+    validate_module(&module).unwrap();
+}
+
+#[test]
 fn scalar_block_invariants_are_optional_and_first_arrival_bounds_are_not_imported() {
     let mut module = module();
     module.scalar_block_invariants.clear();

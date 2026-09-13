@@ -11,9 +11,11 @@ use semantic_vocabulary::{BlockId, EdgeId, MachineId, ObligationId, Proposition}
 pub struct ScalarBlockInvariant {
     pub machine: MachineId,
     pub header: BlockId,
-    /// One predicate per block, over its scalar parameters and immutable machine
-    /// formals only. Multiple assertions use an ordinary conjunction. Storage
-    /// observations and branch-local identities cannot acquire join scope.
+    /// One predicate per block, over its scalar parameters, immutable machine
+    /// formals, and storage observations rooted at places alive for the whole
+    /// invocation. Multiple assertions use an ordinary conjunction. Places
+    /// owned by one operation or another block and branch-local identities
+    /// cannot acquire join scope.
     pub predicate: Proposition,
     /// Strictly edge-ordered, exhaustive incoming arrivals, including entry.
     pub arrivals: Vec<ScalarBlockInvariantArrival>,
