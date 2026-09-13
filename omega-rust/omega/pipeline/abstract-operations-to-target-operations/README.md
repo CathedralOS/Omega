@@ -60,6 +60,10 @@ from structural declarations and referent layout. Every borrowed access uses
 `BorrowedReference`; only owned values receive shape-selected value placement.
 A staged pointer is not a staged copy of its referent. See the
 [reference contract](../../../../wiki/spec/terminal-psi/structural_access.md).
+Retained call arguments are reconciled against the source place, path, and
+access, the callee declaration's access and type, their reconstructed shape,
+the callee plan row placement, and caller-parameter roots with field-only
+paths' root type and projected byte offset.
 
 Graph operations retain original invocation places, projections and widths.
 Byte views retain their backing pointer, length, checked slice derivation, and

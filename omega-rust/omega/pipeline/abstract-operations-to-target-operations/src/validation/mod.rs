@@ -2,6 +2,7 @@
 //! Independent root, function-roster, signature, and occurrence settlement custody.
 //! Executable graph bodies require the downstream common graph replay.
 mod model;
+mod structural_call_arguments;
 mod structural_shapes;
 mod structural_signatures;
 mod whole_plan;

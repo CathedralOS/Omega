@@ -3,10 +3,10 @@
 
 use super::structural_shapes;
 use abstract_operations::{AbstractFunction, AbstractFunctionResult};
-use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use calling_conventions::{CallPlan, CallSignature, CallingPolicy, evaluate_call_plan};
 use target::NativeTarget;
 use target_operations::{TargetFunction, TargetStructuralParameter};
-use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
+use terminal_psi::StructuralTypeDeclaration;
 
 pub(super) fn validate(
     source: &AbstractFunction,
@@ -51,14 +51,10 @@ fn header(
         .map(|parameter| {
             let referent =
                 structural_shapes::reconstruct(parameter.structural_type, declarations).ok()?;
-            Some(match parameter.access {
-                StructuralAccess::Owned => referent,
-                StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow => {
-                    ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
-                }
-            })
+            Some(structural_shapes::parameter_shape(
+                referent,
+                parameter.access,
+            ))
         })
         .collect::<Option<Vec<_>>>()?;
     let signature = CallSignature {
