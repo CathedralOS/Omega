@@ -66,6 +66,21 @@ pub enum Term {
         function: TermHandle,
         argument: TermHandle,
     },
+    /// A dependent pair type. The codomain lives under the binder.
+    Sigma {
+        domain: TermHandle,
+        codomain: TermHandle,
+    },
+    Pair {
+        first: TermHandle,
+        second: TermHandle,
+    },
+    Fst {
+        pair: TermHandle,
+    },
+    Snd {
+        pair: TermHandle,
+    },
 }
 
 /// Contiguous arena storage for terms. Null handles resolve to `Term::Dummy`.
@@ -132,9 +147,36 @@ impl TermArena {
                     function: right_domain,
                     argument: right_codomain,
                 },
+            )
+            | (
+                Term::Sigma {
+                    domain: left_domain,
+                    codomain: left_codomain,
+                },
+                Term::Sigma {
+                    domain: right_domain,
+                    codomain: right_codomain,
+                },
             ) => {
                 self.structurally_equal(left_domain, right_domain)
                     && self.structurally_equal(left_codomain, right_codomain)
+            }
+            (
+                Term::Pair {
+                    first: left_first,
+                    second: left_second,
+                },
+                Term::Pair {
+                    first: right_first,
+                    second: right_second,
+                },
+            ) => {
+                self.structurally_equal(left_first, right_first)
+                    && self.structurally_equal(left_second, right_second)
+            }
+            (Term::Fst { pair: left }, Term::Fst { pair: right })
+            | (Term::Snd { pair: left }, Term::Snd { pair: right }) => {
+                self.structurally_equal(left, right)
             }
             _ => false,
         }
