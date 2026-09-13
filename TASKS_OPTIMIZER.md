@@ -117,8 +117,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   text/code offsets, byte counts, realization/execution swaps, argument
   rosters, completion custody, native results, the exit row's ordinal, a
   duplicate `psi_operation`, and roster reorder are rejected at encoding as
-  non-canonical; a dropped row is rejected by replay. Remaining: dynamic
-  tables and private callback rows.
+  non-canonical; a dropped row is rejected by replay. Landed: installed
+  compiler-private callback rows
+  (`installation_private_function_row_rejects_every_one_field_substitution`)
+  — callback-thunk continuation and placement index, source-Psi fingerprint,
+  machine, and scalar-ABI parameter/result values are independently
+  representable and rejected by replay; a non-thunk identity kind, text
+  offset, zero/extended byte count, non-canonical ABI placements and value
+  collisions, and a dropped row are rejected at encoding as non-canonical.
+  Remaining: dynamic tables.
 
 ## Psi optimization and loops
 
