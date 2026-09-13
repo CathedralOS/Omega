@@ -24,6 +24,19 @@ of declaration order; cyclic dependencies reject. These value checks do not repl
 ordinary body checking. Nominal/policy qualifications and generic applications remain
 outside this route; surrounding endpoint arithmetic retains ordinary checking.
 
+[Generic range arguments](src/range_arguments.rs) expose closed integer range
+types to the same temporary typed-probe mechanism before generic-data synthesis.
+Original lexical carrier and constant selections must agree with the probe;
+the shared numeric query supplies structured interval observations, never a
+rendered-name identity. Probing the constrained type avoids forcing an anonymous
+exclusive endpoint such as 2^64 to land in u64. Original expressions/end-kind
+remain in syntax, including through copied and forwarded type arguments.
+Completed typing independently recomputes application equality after its full
+symbol/operator context exists; synthesis observations cannot waive that check.
+Open binders, machine-computed range arguments and owner-dependent operations
+still need their complete staging contexts. This route neither executes bodies
+nor proves that every generic record shape has a Terminal lowering.
+
 The public ownership-taking pre-resolution and pre-check conveyors keep these
 Psi phases separate. Omega interposes target machine selection and schedules
 provider-dependent evaluation after the actual provider plans are selected.

@@ -13,6 +13,168 @@ use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
 
 #[test]
+fn integer_range_normalization_copies_with_remapped_constraint_expressions() {
+    use crate::types::{IntegerRangeNormalization, TypeConstraintNode};
+    use numerics::{bignum::BigInt, literals::IntegerLiteral};
+    let mut original = SyntaxTrees::new(Default::default());
+    let base = original
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("u64")));
+    let minimum = original
+        .expressions
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)));
+    let maximum = original
+        .expressions
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(257)));
+    let constraint = original
+        .type_references
+        .append_constraint(TypeConstraintNode::Range {
+            minimum,
+            maximum,
+            end_inclusive: false,
+        });
+    let owner = original
+        .type_references
+        .insert_constrained(base, HandleSpan::from_parts(constraint, 1));
+    let normalized = IntegerRangeNormalization {
+        minimum: BigInt::from_u64(0),
+        maximum: BigInt::from_u64(256),
+    };
+    original
+        .type_references
+        .retain_integer_range_normalization(owner, 0, normalized.clone());
+    let mut copied = SyntaxTrees::new(Default::default());
+    for _ in 0..8 {
+        copied.expressions.insert(ExpressionNode::Boolean(false));
+        copied.type_references.insert(TypeReferenceNode::Unit);
+    }
+    let copied_owner = copied.copy_type_reference_handle(&original, owner);
+    assert_ne!(copied_owner, owner);
+    assert_eq!(
+        copied
+            .type_references
+            .integer_range_normalization(copied_owner, 0),
+        Some(&normalized)
+    );
+    let TypeReferenceNode::Constrained { constraints, .. } =
+        copied.type_references.type_reference(copied_owner)
+    else {
+        panic!("copied constrained type");
+    };
+    let [
+        TypeConstraintNode::Range {
+            minimum: copied_minimum,
+            maximum: copied_maximum,
+            end_inclusive,
+        },
+    ] = copied.type_references.constraints(*constraints)
+    else {
+        panic!("copied range");
+    };
+    assert_ne!(*copied_minimum, minimum);
+    assert_ne!(*copied_maximum, maximum);
+    assert!(!end_inclusive);
+    assert_eq!(
+        copied.expressions.expression(*copied_minimum),
+        original.expressions.expression(minimum)
+    );
+    assert_eq!(
+        copied.expressions.expression(*copied_maximum),
+        original.expressions.expression(maximum)
+    );
+    assert_eq!(
+        original
+            .type_references
+            .integer_range_normalization(owner, 0),
+        Some(&normalized)
+    );
+}
+
+#[test]
+fn integer_range_normalization_rejects_nonrange_owners_and_stale_constraint_spans() {
+    use crate::types::{IntegerRangeNormalization, TypeConstraintNode};
+    let mut syntax = SyntaxTrees::new(Default::default());
+    let base = syntax
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("u64")));
+    let normalized = IntegerRangeNormalization::default();
+    syntax
+        .type_references
+        .retain_integer_range_normalization(base, 0, normalized.clone());
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(base, 0)
+            .is_none()
+    );
+    let constraint = syntax
+        .type_references
+        .append_constraint(TypeConstraintNode::Range {
+            minimum: ExpressionHandle::invalid(),
+            maximum: ExpressionHandle::invalid(),
+            end_inclusive: true,
+        });
+    let constraints = HandleSpan::from_parts(constraint, 1);
+    let owner = syntax.type_references.insert_constrained(base, constraints);
+    let unrelated_owner = syntax.type_references.insert_constrained(base, constraints);
+    syntax
+        .type_references
+        .retain_integer_range_normalization(owner, 0, normalized.clone());
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(unrelated_owner, 0)
+            .is_none()
+    );
+    syntax
+        .type_references
+        .retain_integer_range_normalization(owner, 1, normalized.clone());
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(owner, 1)
+            .is_none()
+    );
+    let replacement =
+        syntax
+            .type_references
+            .append_constraint(TypeConstraintNode::ArithmeticDomain(
+                numerics::arithmetic::ArithmeticDomain::Exact,
+            ));
+    syntax.type_references.replace_type_reference(
+        owner,
+        TypeReferenceNode::Constrained {
+            base_type: base,
+            constraints: HandleSpan::from_parts(replacement, 1),
+        },
+    );
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(owner, 0)
+            .is_none()
+    );
+    syntax
+        .type_references
+        .retain_integer_range_normalization(owner, 0, normalized);
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(owner, 0)
+            .is_none()
+    );
+    syntax
+        .type_references
+        .replace_type_reference(owner, TypeReferenceNode::Unit);
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(owner, 0)
+            .is_none()
+    );
+}
+
+#[test]
 fn constant_initializer_normalization_survives_copy_and_clone() {
     let span =
         |start| source::SourceSpan::new(source::SourceId(3), source::Span::new(start, start + 4));

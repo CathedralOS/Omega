@@ -86,6 +86,7 @@ pub(super) enum ClosedArgumentIdentity {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum ClosedConstraintIdentity {
+    Range(syntax_trees::types::IntegerRangeNormalization),
     Arithmetic(numerics::arithmetic::ArithmeticDomain),
     Declaration(syntax_trees::item::ItemHandle),
     RetainedDeclaration(symbols::SymbolHandle),

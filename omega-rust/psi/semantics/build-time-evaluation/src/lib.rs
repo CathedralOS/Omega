@@ -13,6 +13,7 @@ mod const_lengths;
 mod layout_plans;
 mod placed_views;
 mod plan_laid;
+mod range_arguments;
 mod range_endpoints;
 mod wire_plans;
 
@@ -364,6 +365,12 @@ fn evaluate_pre_resolution_with_optional_sources(
         selection_authority.clone(),
     )?;
     syntax_trees_to_symbol_resolved_trees::synthesize_trait_defaults(&mut syntax_trees)?;
+    let mut syntax_trees = range_arguments::evaluate(
+        syntax_trees,
+        sources.clone(),
+        source_scoped_top_level_bindings,
+        selection_authority.as_deref(),
+    )?;
     let placed_view_records = placed_views::desugar_placed_views_with_optional_sources(
         &mut syntax_trees,
         sources.clone(),

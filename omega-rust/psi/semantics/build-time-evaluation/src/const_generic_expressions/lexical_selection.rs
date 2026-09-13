@@ -7,7 +7,7 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::types::ConstArgumentOrigin;
 
-pub(super) fn retain(
+pub(crate) fn retain(
     syntax: &SyntaxTrees,
     resolved: &SymbolResolvedTrees,
     root: ExpressionHandle,

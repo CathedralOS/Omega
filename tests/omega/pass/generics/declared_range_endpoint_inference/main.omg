@@ -55,6 +55,31 @@ machine bounded_value() -> u64[0..=256] { 256 }
 machine bounded_wide(value: u64[9223372036854775808..=18446744073709551615]) -> u64 { value }
 machine later_limit() -> u64 { 256 }
 data BoundedValue [copy] { value: u64[0..=endpoint(endpoint(256))]; }
+data RangeValue<T [copy]> [copy] { value: T; }
+machine generic_field_bound() -> u64 {
+    let bounded: RangeValue<u64[0..=256]> = RangeValue { value: 0 };
+    upper_bound(bounded.value)
+}
+machine generic_equivalent_bound() -> u64 {
+    let inclusive: RangeValue<u64[0..=256]> = RangeValue { value: 0 };
+    let exclusive: RangeValue<u64[0..257]> = inclusive;
+    let computed: RangeValue<u64[0..=1 / 2 * 512]> = exclusive;
+    upper_bound(computed.value)
+}
+machine generic_wide_bound() -> u64 {
+    let bounded: RangeValue<u64[0..18446744073709551616]> = RangeValue { value: 0 };
+    upper_bound(bounded.value)
+}
+const RANGE_CAPACITY: u64 = 256;
+machine generic_named_bound() -> u64 {
+    let bounded: RangeValue<u64[0..=RANGE_CAPACITY]> = RangeValue { value: 0 };
+    upper_bound(bounded.value)
+}
+data ForwardRange<T [copy]> [copy] { inner: RangeValue<T>; }
+machine generic_forwarded_bound() -> u64 {
+    let bounded: ForwardRange<u64[0..=256]> = ForwardRange { inner: RangeValue { value: 0 } };
+    upper_bound(bounded.inner.value)
+}
 machine field_bound() -> u64 {
     let bounded: BoundedValue = BoundedValue { value: 0 };
     upper_bound(bounded.value)

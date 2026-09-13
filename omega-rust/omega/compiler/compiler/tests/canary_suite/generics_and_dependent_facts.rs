@@ -60,6 +60,8 @@ fn declared_range_inference_returns_the_selected_endpoint() {
         ("constrained_composition", vec![BuildTimeValue::Int(0)], 256),
         ("constrained_wide", vec![BuildTimeValue::Int(0)], -1),
         ("field_bound", vec![], 256),
+        ("generic_field_bound", vec![], 256),
+        ("generic_named_bound", vec![], 256),
         ("field_scoped_exclusive", vec![], 511),
     ] {
         let machine = checked
@@ -135,6 +137,89 @@ fn declared_range_inference_returns_the_selected_endpoint() {
 }
 
 #[test]
+fn declared_range_inference_generic_instances_retain_pending_terminal_boundaries() {
+    let canary = pass_canary("generics/declared_range_endpoint_inference");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("equivalent inclusive, exclusive and arithmetic applications share a carrier");
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed);
+    for (name, expected) in [
+        ("generic_equivalent_bound", 256),
+        ("generic_wide_bound", -1),
+        ("generic_forwarded_bound", 256),
+    ] {
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap();
+        assert_eq!(
+            admission
+                .evaluate_machine_symbol_for_invocation_measured(
+                    &checked.typed,
+                    machine.symbol,
+                    Vec::new(),
+                    build_time_evaluation::BuildTimeInvocationCustody::Symbol(machine.symbol),
+                )
+                .unwrap()
+                .value(),
+            &build_time_evaluation::BuildTimeValue::Int(expected)
+        );
+        let result =
+            terminal_production::TerminalProductionRequest::new(&checked, name).produce_artifact();
+        assert!(
+            matches!(
+                result,
+                Err(terminal_production::TerminalArtifactProductionError::Lowering(_))
+            ),
+            "{result:?}"
+        );
+
+        assert!(format!("{result:?}").contains("source-independent checked scalar control plan"));
+    }
+    // Attribute the remaining Terminal boundary without generic machinery.
+    // Keep the customer intact until local record-copy sequencing is connected.
+    let scratch = unique_no_output_build_dir();
+    fs::create_dir_all(&scratch).unwrap();
+    let path = scratch.join("main.omg");
+    for (name, text) in [
+        (
+            "copied",
+            "data Value [copy] { value: u64; } machine copied() -> u64 { let first: Value = Value { value: 256 }; let second: Value = first; second.value }",
+        ),
+        (
+            "wide",
+            "data Value [copy] { value: u64[0..18446744073709551616]; } machine wide() -> u64 { let bounded: Value = Value { value: 0 }; bounded.value }",
+        ),
+        (
+            "nested",
+            "data Value [copy] { value: u64; } data Outer [copy] { inner: Value; } machine nested() -> u64 { let bounded: Outer = Outer { inner: Value { value: 256 } }; bounded.inner.value }",
+        ),
+    ] {
+        fs::write(&path, text).unwrap();
+        let plain =
+            compile_reviewed_repository_fixture(CheckedCompileRequest::new(&path, None)).unwrap();
+        let plain =
+            terminal_production::TerminalProductionRequest::new(&plain, name).produce_artifact();
+        assert!(
+            matches!(
+                plain,
+                Err(terminal_production::TerminalArtifactProductionError::Lowering(_))
+            ),
+            "{name}: {plain:?}"
+        );
+        assert!(
+            format!("{plain:?}").contains("source-independent checked scalar control plan"),
+            "{name}: {plain:?}"
+        );
+    }
+    fs::remove_dir_all(scratch).unwrap();
+}
+
+#[test]
 fn declared_range_inference_computed_fields_preserve_establishment_checks() {
     let scratch = unique_no_output_build_dir();
     fs::create_dir_all(&scratch).unwrap();
@@ -162,6 +247,27 @@ fn declared_range_inference_computed_fields_preserve_establishment_checks() {
             .any(|diagnostic| diagnostic.message.contains("bound is not a constant")),
         "{diagnostics:?}"
     );
+}
+
+#[test]
+fn declared_range_inference_generic_arguments_preserve_field_and_identity_errors() {
+    for body in [
+        "let bounded: RangeValue<u64[0..=256]> = RangeValue { value: 257 }; bounded.value",
+        "let first: RangeValue<u64[0..=256]> = RangeValue { value: 0 }; let second: RangeValue<u64[0..=257]> = first; second.value",
+    ] {
+        let scratch = unique_no_output_build_dir();
+        fs::create_dir_all(&scratch).unwrap();
+        let path = scratch.join("main.omg");
+        fs::write(&path, format!("data RangeValue<T [copy]> [copy] {{ value: T; }} machine invalid() -> u64 {{ {body} }}")).unwrap();
+        let diagnostics = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &path, None,
+        ))
+        .expect_err(
+            "range specialization cannot waive field establishment or exact application identity",
+        );
+        fs::remove_dir_all(scratch).unwrap();
+        assert!(!diagnostics.is_empty(), "{body}");
+    }
 }
 
 #[test]
