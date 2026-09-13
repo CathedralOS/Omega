@@ -125,6 +125,7 @@ impl Evaluation {
             &mut expansion,
         )?;
         let entry = expansion.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: source_types,
             bindings: Vec::new(),

@@ -489,6 +489,8 @@ struct LoweredCrashExit {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LoweredScalarBranchState {
+    /// Structural edge bindings introduce independent storage homes before effects.
+    structural_parameters: Vec<StructuralParameterDeclaration>,
     parameter_types: Vec<QualifiedScalarType>,
     bindings: Vec<LoweredScalarBinding>,
     /// Effects execute after the scalar prefix, without creating scalar slots.

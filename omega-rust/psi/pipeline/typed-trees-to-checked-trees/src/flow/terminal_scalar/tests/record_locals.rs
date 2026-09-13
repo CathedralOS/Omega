@@ -180,7 +180,7 @@ fn fresh_nested_record_transition_retains_shapes_operations_and_scalar_occurrenc
 }
 
 #[test]
-fn local_record_graph_rejects_whole_place_initializers_until_transfer_custody_joins() {
+fn local_record_graph_retains_whole_copy_initializers() {
     let checked = checked("[copy]", "let copied: Outer = bounded;", "7");
     let machine = checked
         .machines()
@@ -193,8 +193,120 @@ fn local_record_graph_rejects_whole_place_initializers_until_transfer_custody_jo
             .flow
             .terminal_scalar_graphs
             .for_machine(machine.symbol)
-            .is_none()
+            .is_some()
     );
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine.symbol)
+        .unwrap();
+    assert_eq!(graph.states[0].unit_operations.len(), 2);
+    let root = checked
+        .facts
+        .values
+        .structural_values
+        .root_at(graph.states[0].state, 1)
+        .unwrap();
+    assert!(matches!(
+        checked
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get(root.root)
+            .kind,
+        checked_trees::CheckedStructuralValueKind::Place(_)
+    ));
+}
+
+#[test]
+fn local_record_graph_retains_nested_copies_and_fences_affine_moves() {
+    for copy in ["[copy]", ""] {
+        for initializer in ["first", "Outer { inner: child }"] {
+            let checked = check_source(&format!(
+                "data Value {copy} {{ value: u64; }}
+                 data Outer {copy} {{ inner: Value; }}
+                 machine enter() -> u64 {{
+                     let first: Outer = Outer {{ inner: Value {{ value: 9 }} }};
+                     let child: Value = Value {{ value: 7 }};
+                     let copied: Outer = {initializer};
+                     transition true {{
+                         true -> done(copied.inner.value)
+                         _ -> 0
+                     }}
+                     state done(value: u64) {{ value }}
+                 }}"
+            ));
+            let machine = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "enter")
+                .unwrap();
+            assert_eq!(
+                checked
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .for_machine(machine.symbol)
+                    .is_some(),
+                !copy.is_empty(),
+                "{copy}: {initializer}"
+            );
+        }
+    }
+}
+
+#[test]
+fn local_record_copy_rejects_stale_roots_and_changed_access_or_type() {
+    let original = checked("[copy]", "let copied: Outer = bounded;", "7");
+    let machine = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "enter")
+        .unwrap()
+        .symbol;
+    let state = original
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine)
+        .unwrap()
+        .states[0]
+        .state;
+    let root = original
+        .facts
+        .values
+        .structural_values
+        .root_at(state, 1)
+        .unwrap()
+        .root;
+    for corruption in 0..3 {
+        let mut changed = original.clone();
+        let node = changed.facts.values.structural_values.nodes.get_mut(root);
+        if corruption == 0 {
+            node.expression = arena::Handle::invalid();
+        } else {
+            let checked_trees::CheckedStructuralValueKind::Place(argument) = &mut node.kind else {
+                panic!("whole record copy");
+            };
+            if corruption == 1 {
+                argument.access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+            } else {
+                argument.type_identity = "unrelated".to_owned();
+            }
+        }
+        super::super::unit_operations::finalize(&changed.typed, &mut changed.facts);
+        assert!(
+            changed
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(machine)
+                .is_none(),
+            "corrupted copy {corruption}"
+        );
+    }
 }
 
 #[test]

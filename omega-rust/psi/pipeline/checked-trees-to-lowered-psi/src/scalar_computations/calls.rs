@@ -297,6 +297,7 @@ impl Expansion<'_> {
                         leaf_types.push(self.argument_type(leaf, site, input_types)?);
                     }
                     let constructor = self.push(LoweredScalarBranchState {
+                        structural_parameters: Vec::new(),
                         parameter_types: leaf_types.clone(),
                         bindings: Vec::new(),
                         structural_effects: vec![LoweredScalarEffect::EstablishScalarArray(

@@ -510,6 +510,7 @@ impl Prepared {
         computations: &mut computations::Expansion<'_>,
     ) -> Result<LoweredScalarBranchState, LoweringError> {
         let mut continuation = LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: self.parameter_types,
             bindings: self.bindings,
@@ -533,6 +534,7 @@ impl Prepared {
                                 computations,
                             )?;
                             continuation = LoweredScalarBranchState {
+                                structural_parameters: Vec::new(),
                                 parameter_types: prefix.parameter_types,
                                 bindings: prefix.bindings,
                                 structural_effects: Vec::new(),
@@ -549,6 +551,7 @@ impl Prepared {
                     let mut argument_types = prefix.value_types.clone();
                     argument_types.extend_from_slice(&prepared.argument_types);
                     let call_block = computations.push(LoweredScalarBranchState {
+                        structural_parameters: Vec::new(),
                         parameter_types: argument_types,
                         bindings: Vec::new(),
                         structural_effects: vec![LoweredScalarEffect::CallUnit(prepared.call)],
@@ -570,6 +573,7 @@ impl Prepared {
                         call_block,
                     )?;
                     continuation = LoweredScalarBranchState {
+                        structural_parameters: Vec::new(),
                         parameter_types: prefix.parameter_types,
                         bindings: prefix.bindings,
                         structural_effects: Vec::new(),
@@ -588,6 +592,7 @@ impl Prepared {
                 let mut completed_types = prefix.value_types.clone();
                 completed_types.push(prefix.result_type);
                 target = computations.push(LoweredScalarBranchState {
+                    structural_parameters: Vec::new(),
                     structural_effects: Vec::new(),
                     parameter_types: completed_types.clone(),
                     bindings: vec![LoweredScalarBinding::StoredValue {
@@ -620,6 +625,7 @@ impl Prepared {
                     let mut completed_types = prefix.value_types.clone();
                     completed_types.push(prefix.result_type);
                     computations.push(LoweredScalarBranchState {
+                        structural_parameters: Vec::new(),
                         structural_effects: Vec::new(),
                         parameter_types: prefix.value_types.clone(),
                         bindings: vec![LoweredScalarBinding::Expression(expression)],
@@ -633,6 +639,7 @@ impl Prepared {
                 }
             };
             continuation = LoweredScalarBranchState {
+                structural_parameters: Vec::new(),
                 structural_effects: Vec::new(),
                 parameter_types: prefix.parameter_types,
                 bindings: prefix.bindings,

@@ -6,11 +6,11 @@ use checked_trees::{
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-/// This operation slice establishes fresh records; structural calls, ownership
-/// transfers, references and selected structural results keep their existing
-/// owners until their custody joins scalar graph emission. Scalar operands are
-/// ordinary computations, not a literal-only constructor shortcut.
-pub(super) fn fresh_record_root<'plans>(
+/// Fresh records and unrestricted whole-place copies share ordered value
+/// establishment. Structural calls, affine transfers, references and selected
+/// results keep their existing owners until their custody joins scalar graph
+/// emission. Scalar operands are ordinary computations.
+pub(super) fn record_value_root<'plans>(
     program: &TypedTrees,
     plans: &'plans checked_trees::CheckedStructuralValuePlans,
     machine: SymbolHandle,
@@ -26,9 +26,9 @@ pub(super) fn fresh_record_root<'plans>(
     {
         return None;
     }
-    let mut pending = vec![root.root];
+    let mut pending = vec![(root.root, local.type_reference)];
     let mut visited = Vec::new();
-    while let Some(handle) = pending.pop() {
+    while let Some((handle, reference)) = pending.pop() {
         if !plans.nodes.is_valid(handle) || visited.contains(&handle) {
             return None;
         }
@@ -40,14 +40,24 @@ pub(super) fn fresh_record_root<'plans>(
         {
             return None;
         }
-        let checked_trees::CheckedStructuralValueKind::Record { fields, .. } = &node.kind else {
-            return None;
-        };
-        for field in plans.record_fields.span(*fields)? {
-            if let checked_trees::CheckedStructuralRecordFieldValue::Structural(child) = field.value
-            {
-                pending.push(child);
+        match &node.kind {
+            checked_trees::CheckedStructuralValueKind::Record { fields, .. } => {
+                for field in plans.record_fields.span(*fields)? {
+                    if let checked_trees::CheckedStructuralRecordFieldValue::Structural(child) =
+                        field.value
+                    {
+                        pending.push((child, field.type_reference));
+                    }
+                }
             }
+            checked_trees::CheckedStructuralValueKind::Place(argument)
+                if argument.access == checked_trees::CheckedStructuralAccess::Owned
+                    && argument.path.is_empty()
+                    && program.type_multiplicity(reference)
+                        == language_semantics::Multiplicity::Unrestricted
+                    && program.normalized_type_identity(reference).as_str()
+                        == argument.type_identity => {}
+            _ => return None,
         }
     }
     Some(root)
@@ -82,7 +92,7 @@ pub(super) fn retain_record_locals(
         {
             continue;
         }
-        fresh_record_root(
+        record_value_root(
             program,
             plans,
             machine.symbol,

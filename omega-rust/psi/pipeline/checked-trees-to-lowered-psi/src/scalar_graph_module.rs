@@ -1152,6 +1152,22 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         }
     }
     blocks.sort_by_key(|block| block.id);
+    // Structural bindings belong to the original graph block even when scalar
+    // call expansion inserts additional continuations beneath that block.
+    for (position, state) in states.iter().enumerate() {
+        if !state.structural_parameters.is_empty() {
+            let block = blocks
+                .iter_mut()
+                .find(|block| block.id == scalar_source_block(identity_base, position))
+                .ok_or(LoweringError::Unsupported(
+                    "structural binding lost its graph block",
+                ))?;
+            if !block.structural_parameters.is_empty() {
+                return unsupported("structural binding collided with an existing block namespace");
+            }
+            block.structural_parameters = state.structural_parameters.clone();
+        }
+    }
     // parameter_storage -> owned::validate must establish source no-code
     // eligibility before assembly; this pass only completes runtime custody.
     let graph_entry = scalar_source_block(identity_base, 0);
@@ -1298,6 +1314,20 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 },
             },
         )?;
+    }
+    for block in &blocks {
+        for parameter in &block.structural_parameters {
+            merge_content_place_declaration(
+                &mut structural_places,
+                StructuralPlaceDeclaration {
+                    id: parameter.place,
+                    kind: StructuralPlaceKind::BlockParameter {
+                        block: block.id,
+                        position: parameter.position,
+                    },
+                },
+            )?;
+        }
     }
     let entry = if let Some(plan) = loop_plan {
         for parameter in &plan.parameters {

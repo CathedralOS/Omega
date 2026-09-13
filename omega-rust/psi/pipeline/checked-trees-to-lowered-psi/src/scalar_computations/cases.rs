@@ -346,6 +346,7 @@ impl Expansion<'_> {
         let mut outgoing = parameters(input_types);
         outgoing.push(parameter(completed_types.len(), ScalarType::Boolean.into()));
         let observation = self.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             parameter_types: completed_types.clone(),
             bindings: vec![LoweredScalarBinding::Expression(
                 LoweredDirectExpression::Boolean {
@@ -370,6 +371,7 @@ impl Expansion<'_> {
             },
         });
         let constructor = self.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             parameter_types: completed_types.clone(),
             bindings: Vec::new(),
             structural_effects: vec![LoweredScalarEffect::EstablishScalarCase(Construction {
