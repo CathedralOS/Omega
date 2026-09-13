@@ -25,7 +25,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("inventory_lookup: searching a struct table for the item named Shield");
     self.items[0].id = 10;
     self.items[0].name = "Sword";

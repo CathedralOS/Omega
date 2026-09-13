@@ -78,7 +78,7 @@ machine Main::read_at(&mut self, idx: i32) -> i32 {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("array_index_from_call: value-call results drive array-index dispatch (pick -> read_at chains)");
     // Initialize the lookup table.
     self.table[0] = 3;
@@ -141,7 +141,10 @@ machine Main::main(&mut self) {
 
     state compute_result(&mut self, v0: i32, v2: i32, v1: i32) {
         // result = v2 + v1 - v0 - 1 = 60 + 14 - 3 - 1 = 70.
-        let result: i32 = v2 + v1 - v0 - 1;
+        // i64 operands: call results carry no range facts, so exact i32
+        // arithmetic cannot be proven against overflow; widened operands
+        // keep every intermediate result inside i64.
+        let result: i64 = (v2 as i64) + (v1 as i64) - (v0 as i64) - 1;
         transition result == 70 {
             true -> good()
             _ -> bad_result()

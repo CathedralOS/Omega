@@ -31,7 +31,7 @@ data Main {
     score: Counter<i32>;
     flag: Counter<bool>;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.score.record(30);
     self.score.record(12);
     self.flag.record(true);

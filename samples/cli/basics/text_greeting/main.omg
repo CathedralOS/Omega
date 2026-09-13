@@ -27,7 +27,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("text_greeting: builds Hello, Ada! by carrier concatenation");
     self.name = "Ada";
     self.greeting = "Hello, " + self.name + "!";

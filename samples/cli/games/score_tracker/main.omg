@@ -36,7 +36,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("score_tracker: replays score/bonus/reset events for two players");
     self.apply(Event::Score { player: 0, points: 30 });
     self.apply(Event::Score { player: 1, points: 20 });

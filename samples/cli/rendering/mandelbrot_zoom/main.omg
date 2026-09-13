@@ -44,7 +44,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console {
     self.console.write_line("mandelbrot_zoom: 12 animated frames zooming into seahorse valley");
     self.palette = " .:-=+*#";
     self.row = "................................................";

@@ -45,7 +45,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console {
     self.console.write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
     self.arr = [5, 2, 8, 1, 7, 3, 6, 4];
     self.home = "XXX";

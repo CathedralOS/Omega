@@ -31,7 +31,7 @@ data Main {
     command: Command;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("brightness_control: applying a bounded SetLevel command");
     self.brightness = 80;
     self.command = Command::SetLevel { level: 65 };

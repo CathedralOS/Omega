@@ -21,7 +21,7 @@ data Main {
     sum: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("luhn_checksum: validating 79927398713 with the credit-card check-digit rule");
     self.digits = [7, 9, 9, 2, 7, 3, 9, 8, 7, 1, 3];
     self.r = 10;

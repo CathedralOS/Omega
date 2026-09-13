@@ -222,7 +222,7 @@ machine Main::read_slot(&mut self, idx: i32 in Saturating) {
 // ---------------------------------------------------------------------------
 // main: run the scripted sequence, then verify the expected final state.
 // ---------------------------------------------------------------------------
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("generic_ring_buffer: pushes and pops through a fixed 8-slot ring");
     self.push(20);
     self.push(30);

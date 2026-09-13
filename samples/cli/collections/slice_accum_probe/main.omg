@@ -53,7 +53,7 @@ terminates by s -> Slice::Length;
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("slice_accum_probe: tail-recursive accumulation over i32 and struct slices");
     self.ints[0] = 8;
     self.ints[1] = 12;

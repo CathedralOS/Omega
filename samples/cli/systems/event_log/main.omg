@@ -79,7 +79,7 @@ machine Main::apply(&mut self, event: Event) {
     state done(&mut self) {}
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("event_log: case-payload events folding deposits/withdrawals into nested stats");
     self.apply(Event::Deposit { amount: 100 });
     self.apply(Event::Deposit { amount: 50 });

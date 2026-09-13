@@ -26,7 +26,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("print_squares: the squares 1..9 printed as 3-digit decimal text");
     self.out = "XXX";
     self.k = 1;

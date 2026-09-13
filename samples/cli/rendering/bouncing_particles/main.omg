@@ -56,7 +56,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console {
     self.console.write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
     self.ps[0].x = 2;  self.ps[0].y = 2;  self.ps[0].vx = 1;  self.ps[0].vy = 1;
     self.ps[1].x = 17; self.ps[1].y = 3;  self.ps[1].vx = 0 - 1; self.ps[1].vy = 1;

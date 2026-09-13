@@ -75,7 +75,7 @@ machine Main::offset_add(&mut self, n: i32 in Wrapping) -> i32 {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("self_mutation_between_calls: value calls must see freshly mutated self fields");
     // Interleave self mutations with value-call reads.
     self.st.multiplier = 3;

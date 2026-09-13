@@ -22,7 +22,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("vector_distance: |(-3, 4)| = sqrt(dx*dx + dy*dy) = 5");
 
     // Direction-agnostic legs: |dx|, |dy| (a negative delta has the same length).

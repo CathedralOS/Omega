@@ -22,7 +22,7 @@ terminates by n;
         false -> (acc as u64)
     }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let result: u64 = self.fact(5, 1);
     let code: i32 = narrow_u64_to_i32_trapping(result);
     self.console.exit_process(code);

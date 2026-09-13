@@ -48,7 +48,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console {
     self.console.write_line("cellular_automaton: Rule 90 from a single centre cell -- 32 generations draw the Sierpinski triangle");
     self.line = "                                                                ";
     self.chars = " #";

@@ -16,7 +16,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
     self.celsius = 20.0;
     self.fahrenheit = self.celsius * 1.8 + 32.0;

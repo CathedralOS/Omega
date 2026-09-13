@@ -39,7 +39,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("width_mixer: u8, i16, and i32 fields combined through named widening");
     // Set up the sub-width fields.
     self.data.flags = 5;

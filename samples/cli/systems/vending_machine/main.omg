@@ -65,7 +65,7 @@ machine Main::make_change(&self, paid: i32 in Wrapping, price: i32 in Wrapping) 
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // Same callee, two sites in one state: each site keeps ITS call's result.
     self.a = self.price_of(0);
     self.b = self.price_of(1);

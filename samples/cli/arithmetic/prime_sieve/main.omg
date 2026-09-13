@@ -33,7 +33,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("prime_sieve: sieve of Eratosthenes printing the primes below 50");
     self.line = "                                                ";
     self.pos = 0;

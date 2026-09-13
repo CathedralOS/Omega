@@ -37,7 +37,7 @@ data Main {
     meta: [u8; 144];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.dir_mode = 493; // 0o755
 
     // Best-effort clean slate so a re-run is deterministic (ignore the results:

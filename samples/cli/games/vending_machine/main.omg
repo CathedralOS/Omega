@@ -32,7 +32,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("vending_machine: folds insert/insert/press events through a coin register");
     // Three events: insert 50c, insert 25c, press slot 1 (price 75c).
     self.apply(Event::Insert { cents: 50 });

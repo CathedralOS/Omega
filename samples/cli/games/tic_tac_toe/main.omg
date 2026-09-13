@@ -39,7 +39,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("tic_tac_toe: replays a scripted game where X wins the top row");
     // Scripted moves.
     self.play(0, 1);  // X plays cell 0

@@ -40,7 +40,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console {
     self.console.write_line("bouncing_ball_2d: a ball under gravity animated in a 24x12 box for 70 frames");
     self.line = "                        ";
     self.home = "XXX";

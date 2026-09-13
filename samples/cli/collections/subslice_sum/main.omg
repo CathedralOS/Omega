@@ -40,7 +40,7 @@ terminates by s -> Slice::Length;
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("subslice_sum: shrinking-window recursion sums [3, 7, 12, 18, 5, 25]");
     // Initialize the array.
     self.arr[0] = 3;

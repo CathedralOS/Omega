@@ -23,7 +23,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
     self.state.n = 12345;
 

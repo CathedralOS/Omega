@@ -29,7 +29,7 @@ data Main {
     result: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("histogram: counting value frequencies into a fixed-bucket array");
     self.histogram[0] = 0;
     self.histogram[1] = 0;

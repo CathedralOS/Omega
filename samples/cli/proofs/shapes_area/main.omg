@@ -23,7 +23,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("shapes_area: circle + rectangle + triangle areas via value-returning machines");
     // Circle radius 3: r*r = 9, passed as scalar; callee returns 9*3 = 27.
     let rr: i32 in Saturating = 3 * 3;

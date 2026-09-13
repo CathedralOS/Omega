@@ -31,7 +31,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console {
     self.console.write_line("bouncing_console: a ball 'O' bouncing along one console line for 50 timed frames");
     self.line = "                                        ";
     self.cr = "X";

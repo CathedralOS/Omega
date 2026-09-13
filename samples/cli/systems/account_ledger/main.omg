@@ -280,7 +280,7 @@ machine Main::total(&mut self) -> i32 {
 }
 
 // ── case dispatcher: apply a transaction to an account index ──────────────────
-machine Main::apply(&mut self, idx: i32 in Wrapping, tx: Transaction) {
+machine Main::apply(&mut self, idx: i32 in Wrapping, tx: Transaction) reaches Console {
     transition tx {
         Transaction::Deposit { amount } -> check_frozen_dep(idx, amount)
         Transaction::Withdraw { amount } -> check_frozen_wd(idx, amount)
@@ -385,7 +385,7 @@ machine Main::apply(&mut self, idx: i32 in Wrapping, tx: Transaction) {
 }
 
 // ── main: scripted transaction sequence + multi-layer verification ─────────────
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("account_ledger: event-sourced account ledger -- case-payload dispatch, frozen gates, value-call checksums");
     // 10 apply calls.
     self.apply(0, Transaction::Deposit { amount: 100 });

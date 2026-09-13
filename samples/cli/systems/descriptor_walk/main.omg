@@ -22,7 +22,7 @@ data Main {
     descriptor_size: u32 [0..=16];
     total: u32 in Wrapping;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // Descriptor 0: kind 3, pages 10.
     self.buf[0] = 3;
     self.buf[8] = 10;

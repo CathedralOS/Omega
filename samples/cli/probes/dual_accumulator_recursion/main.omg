@@ -64,7 +64,7 @@ terminates by s -> Slice::Length;
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("dual_accumulator_recursion: two recursive reductions over [1..5] -- sum 15 + sum of squares 55");
     // Populate the array: [1, 2, 3, 4, 5]
     self.data[0] = 1;

@@ -103,7 +103,7 @@ machine Main::set_g(&mut self, idx: i32 in Saturating, val: i32 in Saturating) {
     state g3(&mut self, val: i32 in Saturating) { self.canvas.pixels[3].g = val; }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("pixel_canvas: writing r/g channels of 4 pixel structs, then summing them");
     self.set_r(0, 10);
     self.set_g(0, 5);

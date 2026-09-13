@@ -49,7 +49,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console {
     self.console.write_line("ripple_field: 60 frames of concentric diamond ripples shaded per cell");
     self.line = "                              ";
     self.ramp = " .:-=+*#";
