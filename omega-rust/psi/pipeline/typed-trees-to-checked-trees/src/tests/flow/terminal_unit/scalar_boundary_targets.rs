@@ -348,11 +348,8 @@ fn scalar_parameter_range_collector_keeps_unsupported_endpoint_rows() {
         panic!("one authored range")
     };
     *maximum = arena::Handle::invalid();
-    let requirements = crate::values::lower_integer_parameter_range_requirements(
-        &checked.typed,
-        &checked.facts.operators,
-        &machine,
-    );
+    let requirements =
+        crate::values::lower_integer_parameter_range_requirements(&checked.typed, &machine);
     assert_eq!(
         requirements,
         vec![None],

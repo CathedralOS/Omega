@@ -44,14 +44,22 @@ pub(super) fn reconstruct(
                         TypeConstraintNode::ArithmeticDomain(domain) => {
                             non_exact |= *domain != ArithmeticDomain::Exact;
                         }
-                        TypeConstraintNode::Range { minimum, maximum } => {
+                        TypeConstraintNode::Range {
+                            minimum,
+                            maximum,
+                            end_inclusive,
+                        } => {
                             let minimum = i128::from(
                                 validation::closed_integer_range_bound(&checked.typed, *minimum)?
                                     .to_i64()?,
                             );
                             let maximum = i128::from(
-                                validation::closed_integer_range_bound(&checked.typed, *maximum)?
-                                    .to_i64()?,
+                                validation::closed_integer_range_maximum(
+                                    &checked.typed,
+                                    *maximum,
+                                    *end_inclusive,
+                                )?
+                                .to_i64()?,
                             );
                             bounds = Some(match bounds {
                                 Some((prior_minimum, prior_maximum)) => {

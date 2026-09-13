@@ -28,7 +28,9 @@ pub(crate) fn validate_package_type_identity_input_inner(
             validate_package_type_identity_input_inner(program, *base_type, binders, false)?;
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
-                    TypeConstraintNode::Range { minimum, maximum } => {
+                    TypeConstraintNode::Range {
+                        minimum, maximum, ..
+                    } => {
                         validate_package_index_expression(program, *minimum, binders)?;
                         validate_package_index_expression(program, *maximum, binders)?;
                     }

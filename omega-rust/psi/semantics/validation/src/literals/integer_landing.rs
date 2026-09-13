@@ -214,10 +214,9 @@ fn integer_landing_warning(
     )).with_source_span(program.expression_table.source_span(evaluated.fractional_origin)))
 }
 
-pub(crate) fn land_integer_value(
-    value: &BigInt,
-    destination: PrimitiveType,
-) -> Option<IntegerLiteral> {
+/// Land a validated mathematical integer in one exact fixed-width carrier.
+/// This checks representability, not the validity of its source expression.
+pub fn land_integer_value(value: &BigInt, destination: PrimitiveType) -> Option<IntegerLiteral> {
     let landed_type = match destination {
         PrimitiveType::I8 => LandedIntegerType::I8,
         PrimitiveType::I16 => LandedIntegerType::I16,
@@ -256,12 +255,7 @@ pub(crate) fn land_integer_value(
     )
 }
 
-pub(crate) struct AnonymousNumericValue {
-    pub(crate) value: BigRational,
-    /// First authored fractional intermediate, retained even after cancellation.
-    /// A zero handle means every intermediate remained integral.
-    pub(crate) fractional_origin: ExpressionHandle,
-}
+pub(crate) use typed_trees::closed_numeric::AnonymousNumericValue;
 
 pub(crate) fn anonymous_numeric_value(
     program: &TypedTrees,
@@ -317,132 +311,13 @@ fn evaluate_anonymous_value<const ALLOW_DECIMAL_LITERALS: bool>(
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
     builtin: &mut impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<AnonymousNumericValue> {
-    enum Step {
-        Enter(ExpressionHandle),
-        Leave(ExpressionHandle),
-        Binary(ExpressionHandle, BinaryOperator),
-    }
-    let mut pending = vec![Step::Enter(expression)];
-    let mut active = Vec::new();
-    let mut values: Vec<BigRational> = Vec::new();
-    let mut fractional_origin = ExpressionHandle::invalid();
-    while let Some(step) = pending.pop() {
-        match step {
-            Step::Enter(expression) => {
-                if !program.expression_table.expression_is_valid(expression)
-                    || active.contains(&expression)
-                {
-                    return None;
-                }
-                match program.expression_table.expression(expression) {
-                    ExpressionNode::Match(dispatch) => {
-                        let mut selections = selected_arms
-                            .iter()
-                            .filter(|(owner, _)| *owner == expression);
-                        let (_, selected) = selections.next()?;
-                        if selections.any(|(_, other)| other != selected) {
-                            return None;
-                        }
-                        let arms = program.expression_table.match_arms(dispatch.arms);
-                        if arms.len() != dispatch.arms.len()
-                            || !arms.iter().any(|arm| arm.value == *selected)
-                        {
-                            return None;
-                        }
-                        active.push(expression);
-                        pending.push(Step::Leave(expression));
-                        pending.push(Step::Enter(*selected));
-                    }
-                    ExpressionNode::Integer(literal) if literal.landing().is_none() => {
-                        values.push(BigRational::from_integer(literal.value_bignum()?))
-                    }
-                    ExpressionNode::Float(literal)
-                        if ALLOW_DECIMAL_LITERALS && literal.landing().is_none() =>
-                    {
-                        let value = BigRational::from_decimal_str(literal.text())?;
-                        if !fractional_origin.is_valid() && value.to_integer_exact().is_none() {
-                            fractional_origin = expression;
-                        }
-                        values.push(value);
-                    }
-                    ExpressionNode::Binary(binary) if builtin(expression) => {
-                        active.push(expression);
-                        pending.push(Step::Leave(expression));
-                        pending.push(Step::Binary(expression, binary.operator));
-                        pending.push(Step::Enter(binary.right));
-                        pending.push(Step::Enter(binary.left));
-                    }
-                    _ => return None,
-                }
-            }
-            Step::Leave(expression) => {
-                if active.pop() != Some(expression) {
-                    return None;
-                }
-            }
-            Step::Binary(expression, operator) => {
-                let right = values.pop()?;
-                let left = values.pop()?;
-                let value = match operator {
-                    BinaryOperator::Add => left.add(&right),
-                    BinaryOperator::Subtract => left.sub(&right),
-                    BinaryOperator::Multiply => left.mul(&right),
-                    BinaryOperator::Divide => left.div(&right)?,
-                    _ => return None,
-                };
-                if !fractional_origin.is_valid() && value.to_integer_exact().is_none() {
-                    fractional_origin = expression;
-                }
-                values.push(value);
-            }
-        }
-    }
-    (values.len() == 1).then(|| AnonymousNumericValue {
-        value: values.pop().expect("one evaluated anonymous value"),
-        fractional_origin,
-    })
+    typed_trees::closed_numeric::evaluate_anonymous_value::<ALLOW_DECIMAL_LITERALS>(
+        program,
+        expression,
+        selected_arms,
+        builtin,
+    )
 }
 
-pub fn has_anonymous_operator_meaning(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    use language_core::OperatorSpelling;
-    let spelling = match binary.operator {
-        BinaryOperator::Add => OperatorSpelling::Add,
-        BinaryOperator::Subtract => OperatorSpelling::Subtract,
-        BinaryOperator::Multiply => OperatorSpelling::Multiply,
-        BinaryOperator::Divide => OperatorSpelling::Divide,
-        _ => return false,
-    };
-    has_builtin_anonymous_operands(program, expression, spelling)
-}
-
-pub(super) fn has_builtin_anonymous_operands(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    spelling: language_core::OperatorSpelling,
-) -> bool {
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
-        AuthoredDeclarationSelectionLateBinding as LateBinding,
-        AuthoredDeclarationSelectionTarget as Target,
-    };
-    typed_trees::operator::resolve_spelling_for_operands(program, spelling, &[None, None])
-        .is_empty()
-        && program
-            .expression_table
-            .authored_selection_occurrences(expression)
-            .all(|occurrence| {
-                program
-                    .authored_declaration_selections()
-                    .get(occurrence)
-                    .is_some_and(|selection| {
-                        matches!(
-                            selection.target(),
-                            Target::Intrinsic(Intrinsic::BuiltinOperator)
-                                | Target::LateBound(LateBinding::CheckedOperator)
-                        )
-                    })
-            })
-}
+pub use typed_trees::closed_numeric::has_anonymous_operator_meaning;
+pub(super) use typed_trees::closed_numeric::has_builtin_anonymous_operands;

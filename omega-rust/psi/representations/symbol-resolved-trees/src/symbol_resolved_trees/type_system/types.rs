@@ -618,6 +618,7 @@ pub enum TypeConstraint {
     Range {
         minimum: crate::expression::ExpressionHandle,
         maximum: crate::expression::ExpressionHandle,
+        end_inclusive: bool,
     },
     ArithmeticDomain(numerics::arithmetic::ArithmeticDomain),
     /// A declared domain or closed indexed-domain family application.
@@ -636,6 +637,7 @@ pub enum TypeConstraintNode {
     Range {
         minimum: crate::expression::ExpressionHandle,
         maximum: crate::expression::ExpressionHandle,
+        end_inclusive: bool,
     },
     ArithmeticDomain(numerics::arithmetic::ArithmeticDomain),
     /// A declared domain or closed indexed-domain family application.
@@ -659,9 +661,14 @@ impl TypeConstraintNode {
     ) -> Self {
         match constraint {
             TypeConstraint::Named(name) => Self::Named(name.clone()),
-            TypeConstraint::Range { minimum, maximum } => Self::Range {
+            TypeConstraint::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } => Self::Range {
                 minimum: expressions.copy_from(source_expressions, *minimum),
                 maximum: expressions.copy_from(source_expressions, *maximum),
+                end_inclusive: *end_inclusive,
             },
             TypeConstraint::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
             TypeConstraint::Domain(domain) => Self::Domain(DomainConstraintNode {

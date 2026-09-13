@@ -1,6 +1,64 @@
 use super::*;
 
 #[test]
+fn range_end_kind_and_authored_endpoints_survive_tree_copy() {
+    for endpoint in [
+        "10",
+        "18446744073709551616",
+        "-9223372036854775808",
+        "255u8",
+    ] {
+        for (separator, inclusive) in [("..", false), ("..=", true)] {
+            let source = format!("data Limits {{ value: i64 [0{separator}{endpoint}]; }}");
+            let tokens = Lexer::new(&source).tokenize().expect("tokenize range");
+            let parsed = parse_syntax_trees(&tokens).expect("parse authored endpoint");
+            let item = parsed.root_items().next().expect("data item");
+            let mut copied = syntax_trees::SyntaxTrees::default();
+            let copied_item = copied.copy_item_from(&parsed, item);
+            for (trees, item) in [(&parsed, item), (&copied, &copied_item)] {
+                let syntax_trees::item::Item::Data(data) = item else {
+                    panic!("expected data");
+                };
+                let [syntax_trees::item::DataMember::Field(field)] =
+                    trees.items.data_members(data.members)
+                else {
+                    panic!("expected one field");
+                };
+                let TypeReferenceNode::Constrained { constraints, .. } =
+                    trees.type_references.type_reference(field.type_reference)
+                else {
+                    panic!("expected constrained field");
+                };
+                let [
+                    syntax_trees::types::TypeConstraintNode::Range {
+                        minimum,
+                        maximum,
+                        end_inclusive,
+                    },
+                ] = trees.type_references.constraints(*constraints)
+                else {
+                    panic!("expected range");
+                };
+                assert_eq!(*end_inclusive, inclusive);
+                assert_eq!(trees.expressions.display_name(*minimum), "0");
+                let ExpressionNode::Integer(literal) = trees.expressions.expression(*maximum)
+                else {
+                    panic!("authored literal must not become generated arithmetic");
+                };
+                assert_eq!(
+                    literal.value_bignum().unwrap().to_string(),
+                    endpoint.trim_end_matches("u8")
+                );
+                assert_eq!(
+                    literal.landing().map(|landing| landing.landed_type),
+                    (endpoint == "255u8").then_some(numerics::literals::LandedIntegerType::U8)
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn named_proof_constraints_reject_in_scalar_and_slice_type_positions() {
     for type_reference in [
         "i32 [magic]",

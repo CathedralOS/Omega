@@ -254,6 +254,7 @@ pub(super) fn infer_hoist_temp_type(
                     .insert_constraints([typed::types::TypeConstraintNode::Range {
                         minimum,
                         maximum,
+                        end_inclusive: true,
                     }]);
                 return Ok(Some(lowerer.typed_trees.type_reference_table.insert(
                     typed::types::TypeReferenceNode::Constrained {
@@ -654,7 +655,12 @@ fn dependent_exact_range_substituted(
     }
     let data_name = attached_data?;
     constraints.iter().find_map(|constraint| {
-        let TypeConstraint::Range { minimum, maximum } = constraint else {
+        let TypeConstraint::Range {
+            minimum,
+            maximum,
+            end_inclusive,
+        } = constraint
+        else {
             return None;
         };
         let expressions = &source_trees.tables.bodies.expressions;
@@ -666,6 +672,13 @@ fn dependent_exact_range_substituted(
         let field_type = attached_field_type(source_trees, data_name, &field)?;
         let (_, field_high) = declared_exact_range(source_trees, &field_type)?;
         let high = field_high.checked_add(offset)?;
+        // This conservative inference hint does not validate the authored
+        // endpoint. Semantic range normalization checks it after typing.
+        let high = if *end_inclusive {
+            high
+        } else {
+            high.checked_sub(1)?
+        };
         (low <= high).then_some((low, high))
     })
 }
@@ -735,7 +748,11 @@ fn declared_exact_range(
     constraints
         .iter()
         .find_map(|constraint| match constraint {
-            TypeConstraint::Range { minimum, maximum } => {
+            TypeConstraint::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } => {
                 let expressions = &source_trees.tables.bodies.expressions;
                 let low = match expressions.expression(*minimum) {
                     ExpressionNode::Integer(literal) => literal.value_i64()?,
@@ -744,6 +761,13 @@ fn declared_exact_range(
                 let high = match expressions.expression(*maximum) {
                     ExpressionNode::Integer(literal) => literal.value_i64()?,
                     _ => return None,
+                };
+                // Unknown or out-of-carrier hints stay absent; the original
+                // endpoint survives for semantic checking after typing.
+                let high = if *end_inclusive {
+                    high
+                } else {
+                    high.checked_sub(1)?
                 };
                 Some((low, high))
             }
@@ -939,10 +963,20 @@ fn strict_dependent_param_field(
         .constraints
         .span_or_empty(constrained.constraints);
     constraints.iter().find_map(|constraint| {
-        let TypeConstraint::Range { maximum, .. } = constraint else {
+        let TypeConstraint::Range {
+            maximum,
+            end_inclusive,
+            ..
+        } = constraint
+        else {
             return None;
         };
         let (field, offset) = resolved_symbolic_max_bound(expressions, *maximum)?;
+        let offset = if *end_inclusive {
+            offset
+        } else {
+            offset.checked_sub(1)?
+        };
         (offset == -1).then_some(field)
     })
 }

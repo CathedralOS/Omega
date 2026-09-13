@@ -825,7 +825,9 @@ fn count_type_constraint(
                 count_type_reference(argument, type_references, expression_table, counts);
             }
         }
-        TypeConstraint::Range { minimum, maximum } => {
+        TypeConstraint::Range {
+            minimum, maximum, ..
+        } => {
             count_expression_handle(expression_table, *minimum, counts);
             count_expression_handle(expression_table, *maximum, counts);
         }

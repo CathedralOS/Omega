@@ -58,6 +58,14 @@ fn term(
     engine.normalize(expression)
 }
 
+fn inclusive_maximum(value: Polynomial, end_inclusive: bool) -> Polynomial {
+    if end_inclusive {
+        value
+    } else {
+        value.sub(&Polynomial::constant(BigInt::from_i64(1)))
+    }
+}
+
 /// Returns `None` only when there is no symbolic integer range to enforce.
 /// Unsupported values are not interpreted mathematically: executable formation
 /// and ordinary narrowing remain the arithmetic-domain owner's responsibility.
@@ -89,14 +97,18 @@ pub(crate) fn symbolic_range_contains(
     let parameters = program.machine_type_parameters(machine);
     let mut ranges = Vec::new();
     for constraint in program.type_reference_table.constraints(*constraints) {
-        if let TypeConstraintNode::Range { minimum, maximum } = constraint
+        if let TypeConstraintNode::Range {
+            minimum,
+            maximum,
+            end_inclusive,
+        } = constraint
             && [*minimum, *maximum].into_iter().any(|endpoint| {
                 program.machines().iter().any(|owner| {
                     binder(program, program.machine_type_parameters(owner), endpoint).is_some()
                 })
             })
         {
-            ranges.push((*minimum, *maximum));
+            ranges.push((*minimum, *maximum, *end_inclusive));
         }
     }
     let inherited = symbolic_range_contains(program, machine, state, *base_type, value);
@@ -114,7 +126,7 @@ pub(crate) fn symbolic_range_contains(
     else {
         return Some(false);
     };
-    for (minimum, maximum) in ranges {
+    for (minimum, maximum, end_inclusive) in ranges {
         let (Some(minimum), Some(maximum)) = (
             term(program, parameters, &mut engine, minimum),
             term(program, parameters, &mut engine, maximum),
@@ -123,7 +135,7 @@ pub(crate) fn symbolic_range_contains(
         };
         if !contains(
             &engine,
-            &[minimum, maximum],
+            &[minimum, inclusive_maximum(maximum, end_inclusive)],
             &[value_minimum.clone(), value_maximum.clone()],
         ) {
             return Some(false);
@@ -182,6 +194,16 @@ fn scope_engine<'program>(
 }
 
 fn contains(engine: &Engine<'_>, required: &[Polynomial; 2], actual: &[Polynomial; 2]) -> bool {
+    // An explicitly empty interval supplies no possible runtime value, even
+    // when endpoint inequalities alone would make a containment check vacuous.
+    if [required, actual].into_iter().any(|bounds| {
+        bounds[1]
+            .sub(&bounds[0])
+            .constant_value()
+            .is_some_and(|width| width < BigInt::zero())
+    }) {
+        return false;
+    }
     engine.prove_at_least(&actual[0].sub(&required[0]), &BigInt::zero())
         && engine.prove_at_least(&required[1].sub(&actual[1]), &BigInt::zero())
 }
@@ -214,7 +236,7 @@ fn has_const_range(
         TypeReferenceNode::Constrained { base_type, constraints } => {
             program.primitive_type_reference(*base_type).is_some_and(|primitive| primitive.accepts_integer_literal())
                 && (program.type_reference_table.constraints(*constraints).iter().any(|constraint| {
-                    matches!(constraint, TypeConstraintNode::Range { minimum, maximum }
+                    matches!(constraint, TypeConstraintNode::Range { minimum, maximum, .. }
                         if [*minimum, *maximum].into_iter().any(|endpoint| binder(program, parameters, endpoint).is_some()))
                 }) || has_const_range(program, parameters, *base_type))
         }
@@ -250,14 +272,18 @@ fn value_bounds(
             &call.machine_arguments,
             program.expression_table.expression_handles(call.arguments),
         )?;
-        let (_, endpoints) = crate::declared_integer_range(program, entry.return_type)?;
+        let (_, endpoints, end_inclusive) =
+            crate::declared_integer_range(program, entry.return_type)?;
         return Some([
             selected_term(program, engine, machine, endpoints[0], &bindings)?,
-            selected_term(program, engine, machine, endpoints[1], &bindings)?,
+            inclusive_maximum(
+                selected_term(program, engine, machine, endpoints[1], &bindings)?,
+                end_inclusive,
+            ),
         ]);
     }
     let reference = unreferenced(program, value_type(program, machine, state, value)?);
-    if let Some((_, endpoints)) = crate::declared_integer_range(program, reference) {
+    if let Some((_, endpoints, end_inclusive)) = crate::declared_integer_range(program, reference) {
         return Some([
             term(
                 program,
@@ -265,12 +291,15 @@ fn value_bounds(
                 engine,
                 endpoints[0],
             )?,
-            term(
-                program,
-                program.machine_type_parameters(machine),
-                engine,
-                endpoints[1],
-            )?,
+            inclusive_maximum(
+                term(
+                    program,
+                    program.machine_type_parameters(machine),
+                    engine,
+                    endpoints[1],
+                )?,
+                end_inclusive,
+            ),
         ]);
     }
     let (minimum, maximum) =
@@ -569,7 +598,7 @@ fn call_bindings(
                 }
             }
         }
-        let Some((carrier, required)) =
+        let Some((carrier, required, required_end_inclusive)) =
             crate::declared_integer_range(program, unreferenced(program, parameter.type_reference))
         else {
             continue;
@@ -577,7 +606,7 @@ fn call_bindings(
         let Some(actual_type) = value_type(program, caller, state, *argument) else {
             continue;
         };
-        let Some((actual_carrier, actual)) =
+        let Some((actual_carrier, actual, actual_end_inclusive)) =
             crate::declared_integer_range(program, unreferenced(program, actual_type))
         else {
             continue;
@@ -585,7 +614,7 @@ fn call_bindings(
         if carrier != actual_carrier {
             continue;
         }
-        for (required, actual) in required.into_iter().zip(actual) {
+        for (endpoint_index, (required, actual)) in required.into_iter().zip(actual).enumerate() {
             let Some(parameter) =
                 binder(program, program.machine_type_parameters(callee), required)
             else {
@@ -600,6 +629,18 @@ fn call_bindings(
                 engine,
                 actual,
             )?;
+            // Infer the authored binder from equal normalized endpoints; the
+            // exclusive adjustment belongs to proof arithmetic, not its AST.
+            let value = if endpoint_index == 1 {
+                let value = inclusive_maximum(value, actual_end_inclusive);
+                if required_end_inclusive {
+                    value
+                } else {
+                    value.add(&Polynomial::constant(BigInt::from_i64(1)))
+                }
+            } else {
+                value
+            };
             if let Some((_, previous)) = bindings
                 .iter()
                 .find(|(symbol, _)| *symbol == parameter.symbol)
@@ -670,13 +711,16 @@ pub(crate) fn validate_const_range_call(
             ) {
                 continue;
             }
-            let (_, endpoints) = crate::declared_integer_range(
+            let (_, endpoints, end_inclusive) = crate::declared_integer_range(
                 program,
                 unreferenced(program, parameter.type_reference),
             )?;
             let required = [
                 selected_term(program, &mut engine, caller, endpoints[0], &bindings)?,
-                selected_term(program, &mut engine, caller, endpoints[1], &bindings)?,
+                inclusive_maximum(
+                    selected_term(program, &mut engine, caller, endpoints[1], &bindings)?,
+                    end_inclusive,
+                ),
             ];
             let actual = value_bounds(program, caller, state, &mut engine, *argument)?;
             if !contains(&engine, &required, &actual) {

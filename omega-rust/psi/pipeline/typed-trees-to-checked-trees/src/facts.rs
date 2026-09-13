@@ -1345,7 +1345,7 @@ fn build_closed_scalar_value_contract_plan(
         }
     }
     requires.extend(
-        crate::values::lower_integer_parameter_range_requirements(program, operators, machine)
+        crate::values::lower_integer_parameter_range_requirements(program, machine)
             .into_iter()
             .map(|predicate| predicate.map(checked_trees::ClosedScalarContractValue::Predicate)),
     );
@@ -1610,7 +1610,7 @@ fn build_structural_runtime_requirements(
         })
         .collect::<Option<Vec<_>>>()?;
     requirements.extend(
-        crate::values::lower_integer_parameter_range_requirements(program, operators, machine)
+        crate::values::lower_integer_parameter_range_requirements(program, machine)
             .into_iter()
             .collect::<Option<Vec<_>>>()?,
     );

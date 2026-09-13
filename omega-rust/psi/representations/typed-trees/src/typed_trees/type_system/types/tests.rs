@@ -18,6 +18,7 @@ fn qualified_result_lookup_preserves_the_exact_predicate_target() {
     let bounds = types.insert_constraints([TypeConstraintNode::Range {
         minimum: crate::expression::ExpressionHandle::from_parts(1, 0),
         maximum: crate::expression::ExpressionHandle::from_parts(2, 0),
+        end_inclusive: true,
     }]);
     let target = types.insert(TypeReferenceNode::Constrained {
         base_type: base,
@@ -77,6 +78,7 @@ fn arithmetic_result_lookup_requires_exact_carrier_and_policy_only_shape() {
         TypeConstraintNode::Range {
             minimum: crate::expression::ExpressionHandle::invalid(),
             maximum: crate::expression::ExpressionHandle::invalid(),
+            end_inclusive: true,
         },
     ]);
     types.insert(TypeReferenceNode::Constrained {
@@ -170,7 +172,11 @@ fn type_reference_table_stores_typed_constraints_as_expression_handles() {
         symbol: SymbolHandle::invalid(),
         name: Identifier::generated("i32"),
     });
-    let constraints = types.insert_constraints([TypeConstraintNode::Range { minimum, maximum }]);
+    let constraints = types.insert_constraints([TypeConstraintNode::Range {
+        minimum,
+        maximum,
+        end_inclusive: true,
+    }]);
     let root = types.insert(TypeReferenceNode::Constrained {
         base_type,
         constraints,
@@ -182,12 +188,20 @@ fn type_reference_table_stores_typed_constraints_as_expression_handles() {
     let TypeReferenceNode::Constrained { constraints, .. } = types.type_reference(root) else {
         panic!("root type reference should be constrained");
     };
-    let [TypeConstraintNode::Range { minimum, maximum }] = types.constraints(*constraints) else {
+    let [
+        TypeConstraintNode::Range {
+            minimum,
+            maximum,
+            end_inclusive,
+        },
+    ] = types.constraints(*constraints)
+    else {
         panic!("expected one range constraint");
     };
 
     assert!(minimum.is_valid());
     assert!(maximum.is_valid());
+    assert!(*end_inclusive);
     assert_eq!(
         types.display_name_with_constraints(root, &expressions),
         "i32[0..=10]"
@@ -228,7 +242,11 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
         },
     ];
     let constraints = source_types.insert_constraints([
-        TypeConstraintNode::Range { minimum, maximum },
+        TypeConstraintNode::Range {
+            minimum,
+            maximum,
+            end_inclusive: true,
+        },
         TypeConstraintNode::Domain(DomainConstraint {
             name: Identifier::generated("Utf8"),
             arguments: Vec::new(),
@@ -384,6 +402,7 @@ fn type_reference_symbol_remap_reaches_nested_types_and_constraints() {
     let constraints = types.insert_constraints([TypeConstraintNode::Range {
         minimum: subject,
         maximum: subject,
+        end_inclusive: true,
     }]);
     let root = types.insert(TypeReferenceNode::Constrained {
         base_type: generic,

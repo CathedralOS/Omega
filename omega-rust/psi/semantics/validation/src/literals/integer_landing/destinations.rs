@@ -38,7 +38,10 @@ pub(crate) fn anonymous_integer_landing_warnings(program: &TypedTrees) -> Vec<Di
             continue;
         }
         for constraint in program.type_reference_table.constraints(constraints) {
-            if let typed_trees::types::TypeConstraintNode::Range { minimum, maximum } = constraint {
+            if let typed_trees::types::TypeConstraintNode::Range {
+                minimum, maximum, ..
+            } = constraint
+            {
                 for endpoint in [*minimum, *maximum] {
                     if crate::closed_integer_range_bound(program, endpoint).is_none() {
                         continue;

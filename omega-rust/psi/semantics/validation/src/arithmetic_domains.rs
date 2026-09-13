@@ -86,7 +86,6 @@ pub(crate) use guard_narrowing::{
     seed_out_param_ensures,
 };
 pub(crate) use interval::Interval;
-pub(crate) use invariant_bounds::closed_integer_expression_value;
 pub use invariant_bounds::{enforced_integer_type_bounds, immutable_integer_expression_bounds};
 pub use monotonic_update::builtin_monotonic_integer_update_bounds;
 pub use ordered_values::validate_ordered_requirement_call_totality;
@@ -1138,23 +1137,67 @@ pub(crate) fn range_constraint_interval(
         TypeReferenceNode::Reference { referee, .. } => {
             range_constraint_interval(program, *referee)
         }
-        TypeReferenceNode::Constrained { constraints, .. } => program
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => program
             .type_reference_table
             .constraints(*constraints)
             .iter()
-            .find_map(|constraint| match constraint {
-                TypeConstraintNode::Range { minimum, maximum } => Some(Interval {
-                    low: Some(crate::closed_integer_range_bound(program, *minimum)?.to_i64()?),
-                    high: Some(
-                        crate::closed_integer_range_bound(program, *maximum)
-                            .and_then(|value| value.to_i64())
-                            .or_else(|| dependent_maximum_substituted(program, *maximum))?,
-                    ),
-                }),
+            .filter_map(|constraint| match constraint {
+                TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive,
+                } => closed_range_interval(program, *minimum, *maximum, *end_inclusive).or_else(
+                    || {
+                        Some(Interval {
+                            low: Some(
+                                crate::closed_integer_range_bound(program, *minimum)?.to_i64()?,
+                            ),
+                            high: Some(
+                                crate::closed_integer_range_maximum(
+                                    program,
+                                    *maximum,
+                                    *end_inclusive,
+                                )
+                                .and_then(|value| value.to_i64())
+                                .or_else(|| {
+                                    dependent_maximum_substituted(program, *maximum, *end_inclusive)
+                                })?,
+                            ),
+                        })
+                    },
+                ),
                 _ => None,
-            }),
+            })
+            .chain(range_constraint_interval(program, *base_type))
+            .reduce(Interval::intersect),
         _ => None,
     }
+}
+
+fn closed_range_interval(
+    program: &TypedTrees,
+    minimum: ExpressionHandle,
+    maximum: ExpressionHandle,
+    end_inclusive: bool,
+) -> Option<Interval> {
+    let minimum = crate::closed_integer_range_bound(program, minimum)?;
+    let maximum = crate::closed_integer_range_maximum(program, maximum, end_inclusive)?;
+    // A proof-integer predecessor can fall below i64::MIN. Preserve bottom
+    // before projecting into bounded storage: None also means no constraint
+    // to several store-checking callers and must not erase an empty range.
+    if minimum > maximum {
+        return Some(Interval {
+            low: Some(1),
+            high: Some(0),
+        });
+    }
+    Some(Interval {
+        low: Some(minimum.to_i64()?),
+        high: Some(maximum.to_i64()?),
+    })
 }
 
 fn float_range_constraint_interval(
@@ -1170,7 +1213,11 @@ fn float_range_constraint_interval(
             .constraints(*constraints)
             .iter()
             .find_map(|constraint| match constraint {
-                TypeConstraintNode::Range { minimum, maximum } => Some(FloatInterval {
+                // An inclusive enclosure is conservative for source facts,
+                // including a strict authored endpoint.
+                TypeConstraintNode::Range {
+                    minimum, maximum, ..
+                } => Some(FloatInterval {
                     low: Some(float_literal_value(program, *minimum)?),
                     high: Some(float_literal_value(program, *maximum)?),
                 }),
@@ -1222,9 +1269,13 @@ fn float_bound_from(
 fn dependent_maximum_substituted(
     program: &TypedTrees,
     maximum: typed_trees::expression::ExpressionHandle,
+    end_inclusive: bool,
 ) -> Option<i64> {
-    let symbolic =
-        typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, maximum)?;
+    let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
+        &program.expression_table,
+        maximum,
+        end_inclusive,
+    )?;
     let mut resolved: Option<i64> = None;
     for data in program.data_definitions() {
         for member in program.data_members(data) {
@@ -1636,7 +1687,11 @@ pub(crate) fn check_range_containment(
         (Some(high), Some(declared_high)) => high <= declared_high,
         _ => false,
     };
-    if !contained_low || !contained_high {
+    let empty = declared
+        .low
+        .zip(declared.high)
+        .is_some_and(|(low, high)| low > high);
+    if empty || !contained_low || !contained_high {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} stores a value not provably within its declared range: the range is a \
              store-enforced invariant every read trusts (indexes, exact arithmetic), so the \
@@ -1670,16 +1725,20 @@ pub(crate) fn enforced_declared_range_interval(
             }) {
                 return None;
             }
+            // Every shell contributes conjunctively. Taking only the first
+            // range could hide a later empty interval and authorize a store.
             constraints
                 .iter()
-                .find_map(|constraint| match constraint {
-                    TypeConstraintNode::Range { minimum, maximum } => Some(Interval {
-                        low: Some(crate::closed_integer_range_bound(program, *minimum)?.to_i64()?),
-                        high: Some(crate::closed_integer_range_bound(program, *maximum)?.to_i64()?),
-                    }),
+                .filter_map(|constraint| match constraint {
+                    TypeConstraintNode::Range {
+                        minimum,
+                        maximum,
+                        end_inclusive,
+                    } => closed_range_interval(program, *minimum, *maximum, *end_inclusive),
                     _ => None,
                 })
-                .or_else(|| enforced_declared_range_interval(program, *base_type))
+                .chain(enforced_declared_range_interval(program, *base_type))
+                .reduce(Interval::intersect)
         }
         _ => None,
     }

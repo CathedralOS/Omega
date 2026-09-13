@@ -9,7 +9,6 @@
 use super::*;
 use language_core::OperatorSpelling;
 use numerics::bignum::BigInt;
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use symbols::SymbolHandle;
 
 mod fields;
@@ -80,16 +79,6 @@ pub fn immutable_integer_expression_bounds(
     }
     let value = bounds(program, machine.symbol, Some(state), expression)?;
     Some((value.interval.low?, value.interval.high?))
-}
-
-/// Closed endpoints use the same carrier and operand-landing checks without
-/// admitting any parameter, field, or flow-derived value as a static constant.
-pub(crate) fn closed_integer_expression_value(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<BigInt> {
-    let value = bounds(program, SymbolHandle::invalid(), None, expression)?;
-    value.constant_value
 }
 
 /// Retain one-sided carrier bounds when projecting an exact builtin guard.
@@ -184,52 +173,18 @@ fn bounds(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    // Anonymous subtrees retain rational meaning until an operand lands. The
-    // syntax-only integer folder would truncate division and erase landing.
-    if let Some(evaluated) =
-        crate::literals::anonymous_numeric_value(program, expression, &mut |expression| {
-            crate::literals::has_anonymous_operator_meaning(program, expression)
-        })
-    {
+    // Closed arithmetic has one value/selection owner shared with type identity.
+    // A failed closed query does not grant a value to the interval fallback.
+    if let Some(value) = program.closed_integer_value_in(expression, machine) {
         return Some(Bounds::constant(
-            evaluated.value.to_integer_exact()?,
-            None,
-            None,
+            value.value,
+            value.primitive,
+            value.type_reference,
         ));
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => {
-            let interval = literal_interval(literal);
-            let type_reference = if let Some(landing) = literal.landing() {
-                if landing.domain != ArithmeticDomain::Exact {
-                    return None;
-                }
-                Some(crate::operators::landed_integer_literal_type_reference(
-                    program, expression,
-                )?)
-            } else {
-                None
-            };
-            let primitive = match type_reference {
-                Some(reference) => {
-                    let primitive = exact_integer_primitive(program, reference)?;
-                    // The projected u64 ceiling is unbounded in Interval;
-                    // validate its literal payload against the real carrier.
-                    if (primitive == PrimitiveType::U64 && literal.value_u64().is_none())
-                        || !primitive_range(primitive)?.contains(interval)
-                    {
-                        return None;
-                    }
-                    Some(primitive)
-                }
-                None => None,
-            };
-            Some(Bounds::constant(
-                literal.value_bignum()?,
-                primitive,
-                type_reference,
-            ))
-        }
+        // Literal failure in the shared query is final, not a second landing path.
+        ExpressionNode::Integer(_) => None,
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
             let parameter = program
                 .state_parameters(state?)
@@ -292,54 +247,19 @@ fn bounds(
                 return None;
             }
             let primitive = left.primitive.or(right.primitive)?;
-            let integer = IntegerType::new(
-                if primitive.is_signed_integer() {
-                    IntegerSign::Signed
-                } else {
-                    IntegerSign::Unsigned
-                },
-                u16::try_from(integer_bit_width(primitive)?).ok()?,
-            )
-            .ok()?;
-            // Validate each known operand, including beside a variable operand:
-            // the interval's unbounded u64 ceiling cannot check actual landing.
-            let land = |value: &BigInt| {
-                let value = if primitive.is_signed_integer() {
-                    IntegerValue::Signed(i128::from(value.to_i64()?))
-                } else {
-                    IntegerValue::Unsigned(u128::from(value.to_u64()?))
-                };
-                integer.admits(value).then_some(value)
-            };
-            let left_constant = match &left.constant_value {
-                Some(value) => Some(land(value)?),
-                None => None,
-            };
-            let right_constant = match &right.constant_value {
-                Some(value) => Some(land(value)?),
-                None => None,
-            };
+            // A known operand must land even when its peer is a variable.
+            for value in [&left.constant_value, &right.constant_value]
+                .into_iter()
+                .flatten()
+            {
+                typed_trees::closed_numeric::land_integer(value, primitive)?;
+            }
             // Arithmetic results retain the carrier, not operand refinements.
             let mut result_type = left.type_reference.or(right.type_reference)?;
             while let TypeReferenceNode::Constrained { base_type, .. } =
                 program.type_reference_table.type_reference(result_type)
             {
                 result_type = *base_type;
-            }
-            if let (Some(left), Some(right)) = (left_constant, right_constant) {
-                let result = match binary.operator {
-                    BinaryOperator::Add => integer.exact_add(left, right),
-                    BinaryOperator::Subtract => integer.exact_sub(left, right),
-                    BinaryOperator::Multiply => integer.exact_mul(left, right),
-                    BinaryOperator::Divide => integer.exact_div(left, right),
-                    BinaryOperator::Modulo => integer.exact_rem(left, right),
-                    _ => return None,
-                }?;
-                let value = match result {
-                    IntegerValue::Signed(value) => BigInt::from_i128(value),
-                    IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-                };
-                return Some(Bounds::constant(value, Some(primitive), Some(result_type)));
             }
             let carrier = primitive_range(primitive)?;
             // Anonymous operands land at the already-typed operation. A small

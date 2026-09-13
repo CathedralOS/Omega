@@ -13,7 +13,7 @@ use crate::parser::expression::{
 use crate::parser::input::{Input, ParseResult};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+use syntax_trees::expression::{BinaryOperator, ExpressionNode};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::types::{
     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -763,12 +763,10 @@ pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
                 ));
             } else {
                 // Range refinement: `min..=max` (inclusive) or `min..max` (exclusive).
-                // The node stores an INCLUSIVE maximum, so an exclusive bound is
-                // normalised to `max - 1` at parse: a LITERAL bound folds here
-                // (`[0..8]` stores 7); a SYMBOLIC bound (`[0..self.count]`, the
-                // R1 dependent-range surface) synthesizes `max - 1` as a Binary
-                // so every downstream consumer keeps reading an inclusive
-                // maximum unchanged.
+                // Preserve the authored endpoint and boundary kind. Semantic
+                // normalization checks its original arithmetic before taking a
+                // predecessor in proof integers, without a runtime subtraction
+                // or lost literal landing here.
                 let (minimum, rest) =
                     parse_expression_handle_without_struct_literals(syntax_trees, input)?;
                 if rest.at_punctuation(PunctuationKind::DotDotEqual) {
@@ -776,37 +774,21 @@ pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
                     let (maximum, rest) =
                         parse_expression_handle_without_struct_literals(syntax_trees, rest)?;
                     input = rest;
-                    TypeConstraintNode::Range { minimum, maximum }
+                    TypeConstraintNode::Range {
+                        minimum,
+                        maximum,
+                        end_inclusive: true,
+                    }
                 } else if rest.at_punctuation(PunctuationKind::DotDot) {
                     let rest = rest.take_punctuation(PunctuationKind::DotDot, "..")?;
                     let (end_exclusive, rest) =
                         parse_expression_handle_without_struct_literals(syntax_trees, rest)?;
                     input = rest;
-                    let maximum = match syntax_trees.expressions.expression(end_exclusive) {
-                        ExpressionNode::Integer(literal) => {
-                            let Some(value) = literal.value_i64() else {
-                                return Err(input.error_here(
-                                    "exclusive range bound exceeds i64; this position needs a parse-time number",
-                                ));
-                            };
-                            syntax_trees.expressions.insert(ExpressionNode::Integer(
-                                numerics::literals::IntegerLiteral::from_value(value - 1),
-                            ))
-                        }
-                        _ => {
-                            let one = syntax_trees.expressions.insert(ExpressionNode::Integer(
-                                numerics::literals::IntegerLiteral::from_value(1),
-                            ));
-                            syntax_trees.expressions.insert(ExpressionNode::Binary(
-                                TableBinaryExpression {
-                                    left: end_exclusive,
-                                    operator: BinaryOperator::Subtract,
-                                    right: one,
-                                },
-                            ))
-                        }
-                    };
-                    TypeConstraintNode::Range { minimum, maximum }
+                    TypeConstraintNode::Range {
+                        minimum,
+                        maximum: end_exclusive,
+                        end_inclusive: false,
+                    }
                 } else if starts_with_name {
                     return Err(rest.error_here(
                         "named proof constraints in type brackets are retired; use `in Domain` for a declared value domain or express the fact in contracts",

@@ -195,12 +195,17 @@ fn dependent_range_of_type_reference(
             constraints
                 .iter()
                 .find_map(|constraint| match constraint {
-                    typed_trees::types::TypeConstraintNode::Range { minimum, maximum } => {
+                    typed_trees::types::TypeConstraintNode::Range {
+                        minimum,
+                        maximum,
+                        end_inclusive,
+                    } => {
                         let minimum =
                             validation::closed_integer_range_bound(program, *minimum)?.to_i64()?;
-                        let symbolic = typed_trees::dependent_ranges::symbolic_max_bound(
+                        let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
                             &program.expression_table,
                             *maximum,
+                            *end_inclusive,
                         )?;
                         Some((minimum, symbolic))
                     }
@@ -214,39 +219,69 @@ fn dependent_range_of_type_reference(
 
 fn enforced_range_of_type_reference(
     program: &typed_trees::TypedTrees,
-    handle: TypeReferenceHandle,
+    mut handle: TypeReferenceHandle,
 ) -> Option<(i64, i64)> {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            enforced_range_of_type_reference(program, *referee)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let constraints = program.type_reference_table.constraints(*constraints);
-            // Any non-Exact arithmetic domain in the shells kills the invariant.
-            if constraints.iter().any(|constraint| {
-                matches!(
-                    constraint,
-                    typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
-                        if *domain != numerics::arithmetic::ArithmeticDomain::Exact
-                )
-            }) {
-                return None;
+    use numerics::bignum::BigInt;
+    let mut bounds: Option<(BigInt, BigInt)> = None;
+    loop {
+        match program.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::Reference { referee, .. } => handle = *referee,
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let constraints = program.type_reference_table.constraints(*constraints);
+                // Any non-Exact arithmetic domain in the shells kills the invariant.
+                if constraints.iter().any(|constraint| {
+                    matches!(
+                        constraint,
+                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                            if *domain != numerics::arithmetic::ArithmeticDomain::Exact
+                    )
+                }) {
+                    return None;
+                }
+                for constraint in constraints {
+                    let typed_trees::types::TypeConstraintNode::Range {
+                        minimum,
+                        maximum,
+                        end_inclusive,
+                    } = constraint
+                    else {
+                        continue;
+                    };
+                    let Some((minimum, maximum)) = validation::closed_integer_range_bound(
+                        program, *minimum,
+                    )
+                    .zip(validation::closed_integer_range_maximum(
+                        program,
+                        *maximum,
+                        *end_inclusive,
+                    )) else {
+                        // This reader contributes only closed facts. Dependent
+                        // endpoint substitution retains its separate owner.
+                        continue;
+                    };
+                    bounds = Some(match bounds {
+                        Some((prior_minimum, prior_maximum)) => {
+                            (minimum.max(prior_minimum), maximum.min(prior_maximum))
+                        }
+                        None => (minimum, maximum),
+                    });
+                }
+                handle = *base_type;
             }
-            constraints
-                .iter()
-                .find_map(|constraint| match constraint {
-                    typed_trees::types::TypeConstraintNode::Range { minimum, maximum } => Some((
-                        validation::closed_integer_range_bound(program, *minimum)?.to_i64()?,
-                        validation::closed_integer_range_bound(program, *maximum)?.to_i64()?,
-                    )),
-                    _ => None,
-                })
-                .or_else(|| enforced_range_of_type_reference(program, *base_type))
+            _ => break,
         }
-        _ => None,
+    }
+    let (minimum, maximum) = bounds?;
+    // Intersect every closed shell before bounded conversion. A later empty
+    // constraint cannot disappear behind a prior nonempty interval, and an
+    // exclusive signed-minimum predecessor need not fit i64 to prove bottom.
+    if minimum > maximum {
+        Some((1, 0))
+    } else {
+        Some((minimum.to_i64()?, maximum.to_i64()?))
     }
 }
 

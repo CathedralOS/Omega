@@ -267,12 +267,14 @@ impl Equality<'_> {
                 TypeConstraint::Range {
                     minimum: first,
                     maximum: second,
+                    end_inclusive: left_inclusive,
                 },
                 TypeConstraint::Range {
                     minimum: third,
                     maximum: fourth,
+                    end_inclusive: right_inclusive,
                 },
-            ) => first == third && second == fourth,
+            ) => first == third && second == fourth && left_inclusive == right_inclusive,
             _ => false,
         }
     }

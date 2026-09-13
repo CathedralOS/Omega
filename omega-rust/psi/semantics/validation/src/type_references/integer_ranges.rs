@@ -8,7 +8,7 @@
 
 use numerics::bignum::BigInt;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// The exact integer carrier and single authored range, without intersecting
@@ -16,7 +16,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 pub fn declared_integer_range(
     program: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
-) -> Option<(symbols::BuiltinTypeAtom, [ExpressionHandle; 2])> {
+) -> Option<(symbols::BuiltinTypeAtom, [ExpressionHandle; 2], bool)> {
     if program.arithmetic_domain_for_type_reference(type_reference)
         != numerics::arithmetic::ArithmeticDomain::Exact
     {
@@ -29,8 +29,14 @@ pub fn declared_integer_range(
     } = program.type_reference_table.type_reference(type_reference)
     {
         for constraint in program.type_reference_table.constraints(*constraints) {
-            if let TypeConstraintNode::Range { minimum, maximum } = constraint
-                && endpoints.replace([*minimum, *maximum]).is_some()
+            if let TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+                && endpoints
+                    .replace(([*minimum, *maximum], *end_inclusive))
+                    .is_some()
             {
                 return None;
             }
@@ -44,6 +50,7 @@ pub fn declared_integer_range(
     };
     let carrier = program.symbols.builtin_type_atom(*symbol)?;
     use symbols::BuiltinTypeAtom;
+    let (endpoints, end_inclusive) = endpoints?;
     matches!(
         carrier,
         BuiltinTypeAtom::U8
@@ -55,7 +62,7 @@ pub fn declared_integer_range(
             | BuiltinTypeAtom::I32
             | BuiltinTypeAtom::I64
     )
-    .then_some((carrier, endpoints?))
+    .then_some((carrier, endpoints, end_inclusive))
 }
 
 /// Read a closed integer range endpoint without interpreting typed
@@ -65,19 +72,15 @@ pub fn closed_integer_range_bound(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<BigInt> {
-    if !program.expression_table.expression_is_valid(expression) {
-        return None;
-    }
-    if let ExpressionNode::Integer(value) = program.expression_table.expression(expression) {
-        return value.value_bignum();
-    }
-    if let Some(value) = crate::evaluate_anonymous_numeric_expression_with_selected_match_arms(
-        program,
-        expression,
-        &[],
-        |expression| crate::has_anonymous_operator_meaning(program, expression),
-    ) {
-        return value.to_integer_exact();
-    }
-    crate::arithmetic_domains::closed_integer_expression_value(program, expression)
+    program.closed_integer_expression_value(expression)
+}
+
+/// Check the authored upper endpoint before normalizing its boundary kind.
+/// Exclusive predecessor arithmetic never executes in the endpoint's carrier.
+pub fn closed_integer_range_maximum(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    end_inclusive: bool,
+) -> Option<BigInt> {
+    program.closed_integer_range_endpoint(expression, end_inclusive)
 }

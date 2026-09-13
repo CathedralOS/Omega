@@ -209,16 +209,18 @@ execution remains separate: `lower_machine` on the literal `inferred` caller fai
 scalar graph lowering's requirement for exactly one `requires` and one `ensures`
 clause.
 
-Closed anonymous integer endpoints now share validation's
-`closed_integer_range_bound` through inference, declaration/store checking,
+Closed integer endpoints share typed trees' `type_system/closed_numeric.rs`
+through validation's `closed_integer_range_bound` and
+`closed_integer_range_maximum`, inference, declaration/store checking,
 proof, retained entry predicates, scalar field custody, wire decoding and layout.
 It evaluates fractional intermediates exactly before the final integer landing;
 bounded readers convert only that result. The authored roots remain intact for
 operator selection and fractional-origin warnings. Thus `1 / 2 * 512` supplies
 the same bound 256 to inference and to an actual call accepting 256.
 
-Closed builtin typed arithmetic reuses immutable integer analysis and the shared
-fixed-width kernels, preserving carrier checks and integer division/remainder.
+Closed builtin typed arithmetic shares its value query with immutable integer
+analysis and the fixed-width kernels, preserving carrier checks and integer
+division/remainder.
 Exact constant points survive full-width unsigned intermediates independently
 of the signed compatibility interval; each operand still lands and each typed
 operation must fit before a later cancellation. The same customer exercises
@@ -235,22 +237,22 @@ full-width variable compatibility intervals and exact type equations remain
 open; context-free typed evaluation refuses matching selected trait operators
 until the endpoint has direct owner context.
 
-Exclusive-end normalization is still incorrect. At `dd5c5853d9`, the CLI rejects
-`u64[0..18446744073709551616]` at the parser's i64 limit, accepts an invalid
-exclusive `256u8` after erasing its landing, and panics subtracting one from an
-exclusive signed-minimum literal. The parser's literal fold and synthetic
-subtraction are not canonical range normalization. Merely routing all literals
-through the synthetic subtraction fixes those local symptoms but changes
-ordinary type identity: `[0..8]` becomes distinct from `[0..=7]`. The checker test
-`literal_exclusive_and_inclusive_ranges_keep_the_same_type_identity` pins that
-existing equality independently of call inference.
+Exclusive ranges retain the authored endpoint and explicit end-kind through
+parsing, resolution, typing, substitution and snapshots. The shared numeric
+query validates the endpoint before taking its predecessor in proof integers:
+`u64[0..18446744073709551616]` has inclusive maximum `u64::MAX`, but `256u8`
+cannot become a valid endpoint by subtracting one first. Canonical type identity
+uses this same query, so `[0..8]` and `[0..=7]` remain equal. Open endpoints use
+the existing structural binder/context normalizer, not diagnostic spelling;
+direct binder substitutions that close numerically use the same predecessor.
 
-Retain the authored endpoint and explicit end-kind through the representations;
-validate the endpoint before taking its predecessor in proof integers. The
-shared normalizer must also serve canonical type identity without a reverse
-dependency from typed trees to validation. Empty-range declaration/delivery
-handling and symbolic identity belong to the same repair. This requirement is
-on `STRUCTURAL-GENERIC-MATCHING`, not a new surface or owner decision.
+Empty integer declarations remain legal without granting value establishment.
+Bounded readers preserve an empty interval before narrowing BigInt endpoints to
+i64, and store checks intersect all range clauses instead of ignoring a later
+empty clause. Zeroed storage alone is not an established value. Exclusive
+floating ranges currently reject with an explicit implementation diagnostic;
+their strict-order evidence is separate from integer predecessor arithmetic.
+
 `generic_data/arguments.rs` still excludes range-qualified arguments from its
 slug path, and constrained-shell substitution is not general decomposition.
 `STRUCTURAL-GENERIC-MATCHING` tracks migration through source,

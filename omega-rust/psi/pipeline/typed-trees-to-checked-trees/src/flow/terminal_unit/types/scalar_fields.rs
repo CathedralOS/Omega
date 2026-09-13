@@ -24,8 +24,11 @@ pub(super) fn retain_scalar_field(
                         has_non_exact_domain |=
                             *domain != numerics::arithmetic::ArithmeticDomain::Exact;
                     }
-                    if let typed_trees::types::TypeConstraintNode::Range { minimum, maximum } =
-                        constraint
+                    if let typed_trees::types::TypeConstraintNode::Range {
+                        minimum,
+                        maximum,
+                        end_inclusive,
+                    } = constraint
                     {
                         // Use the same closed-expression evaluation as source range
                         // validation. Failure is unsupported, never an unbounded field.
@@ -33,7 +36,12 @@ pub(super) fn retain_scalar_field(
                             validation::closed_integer_range_bound(program, *minimum)?.to_i64()?,
                         );
                         let upper = i128::from(
-                            validation::closed_integer_range_bound(program, *maximum)?.to_i64()?,
+                            validation::closed_integer_range_maximum(
+                                program,
+                                *maximum,
+                                *end_inclusive,
+                            )?
+                            .to_i64()?,
                         );
                         declared_bounds = Some(match declared_bounds {
                             Some((previous_lower, previous_upper)) => {
@@ -155,6 +163,18 @@ mod tests {
                 IntegerValue::Unsigned(12),
                 IntegerValue::Unsigned(12),
             ),
+            (
+                "u8 [0..256]",
+                PrimitiveType::U8,
+                IntegerValue::Unsigned(0),
+                IntegerValue::Unsigned(255),
+            ),
+            (
+                "i8 [-128..-1]",
+                PrimitiveType::I8,
+                IntegerValue::Signed(-128),
+                IntegerValue::Signed(-2),
+            ),
         ] {
             let (program, reference) =
                 field_type(&format!("data Carrier {{ value: {spelling}; }}"));
@@ -207,6 +227,8 @@ mod tests {
             ("addr [0..=1]", PrimitiveType::Addr),
             ("u64 [0..=18446744073709551615]", PrimitiveType::U64),
             ("u8 [256..=300]", PrimitiveType::U8),
+            ("u8 [0..0]", PrimitiveType::U8),
+            ("i8 [-128..-128]", PrimitiveType::I8),
             ("i32 [0..=255] in Wrapping", PrimitiveType::I32),
         ] {
             let (program, reference) =

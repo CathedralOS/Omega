@@ -298,7 +298,6 @@ pub(super) fn lower_integer_contract_comparison(
 /// represented in the bounded scalar contract language.
 pub(crate) fn lower_integer_parameter_range_requirements(
     program: &TypedTrees,
-    operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<Option<CheckedBooleanExpression>> {
     let Some(entry) = program.machine_states(machine).first() else {
@@ -322,8 +321,11 @@ pub(crate) fn lower_integer_parameter_range_requirements(
                     constraints,
                 } => {
                     for constraint in program.type_reference_table.constraints(*constraints) {
-                        let typed_trees::types::TypeConstraintNode::Range { minimum, maximum } =
-                            constraint
+                        let typed_trees::types::TypeConstraintNode::Range {
+                            minimum,
+                            maximum,
+                            end_inclusive,
+                        } = constraint
                         else {
                             continue;
                         };
@@ -345,32 +347,23 @@ pub(crate) fn lower_integer_parameter_range_requirements(
                                 return None;
                             }
                             let low = validation::closed_integer_range_bound(program, *minimum)?;
-                            let high = validation::closed_integer_range_bound(program, *maximum)?;
+                            let high = validation::closed_integer_range_maximum(
+                                program,
+                                *maximum,
+                                *end_inclusive,
+                            )?;
                             if low > high {
                                 return None;
                             }
-                            let minimum = lower_return_expression(
-                                program,
-                                operators,
-                                *minimum,
-                                &[],
-                                &[],
-                                &[],
-                                &[],
-                                primitive_type,
-                                &[],
-                            )?;
-                            let maximum = lower_return_expression(
-                                program,
-                                operators,
-                                *maximum,
-                                &[],
-                                &[],
-                                &[],
-                                &[],
-                                primitive_type,
-                                &[],
-                            )?;
+                            // Endpoints have already been evaluated under their
+                            // own selected meaning. Land the normalized interval,
+                            // not an exclusive end outside the subject carrier.
+                            let minimum = CheckedScalarExpression::IntegerLiteral {
+                                literal: validation::land_integer_value(&low, primitive_type)?,
+                            };
+                            let maximum = CheckedScalarExpression::IntegerLiteral {
+                                literal: validation::land_integer_value(&high, primitive_type)?,
+                            };
                             let subject = CheckedScalarExpression::Parameter {
                                 position,
                                 primitive_type,

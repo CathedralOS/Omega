@@ -134,7 +134,11 @@ pub(super) fn validate_type_constraints_node(
                     );
                 }
             }
-            TypeConstraintNode::Range { minimum, maximum } => {
+            TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } => {
                 let Some(primitive_type) = primitive_type else {
                     continue;
                 };
@@ -146,21 +150,20 @@ pub(super) fn validate_type_constraints_node(
                     )));
                     continue;
                 }
+                if !primitive_type.accepts_integer_literal() && !end_inclusive {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} uses an exclusive floating range; strict floating range evidence is not yet implemented",
+                    )));
+                    continue;
+                }
                 match (
-                    crate::closed_integer_range_bound(program, *minimum)
-                        .and_then(|value| value.to_i64()),
-                    crate::closed_integer_range_bound(program, *maximum)
-                        .and_then(|value| value.to_i64()),
+                    crate::closed_integer_range_bound(program, *minimum),
+                    crate::closed_integer_range_maximum(program, *maximum, *end_inclusive),
                 ) {
-                    (Some(low), Some(high)) if low > high => {
-                        // An inverted range `[10..=5]` is the empty set -- no value can
-                        // satisfy it -- yet it silently disabled range checking (every
-                        // value "passed" the malformed bound). Reject it at the declaration.
-                        diagnostics.push(Diagnostic::error(format!(
-                            "{owner} declares an inverted range `[{low}..={high}]`: the low bound \
-                             exceeds the high bound, so no value can satisfy it",
-                        )));
-                    }
+                    // Empty integer intervals are legal types, not value
+                    // establishment. Delivery and representation readers retain
+                    // bottom before bounded conversion and reject every value;
+                    // a predecessor below i64::MIN must never become no range.
                     (Some(_), Some(_)) => {}
                     // An INTEGER range whose bound does not const-evaluate (a place
                     // read, a call): the range would silently behave UNBOUNDED --
@@ -208,7 +211,11 @@ pub(super) fn validate_type_constraints_node(
                             continue;
                         }
                         if let Some(message) = dependent_state_parameter_range_error(
-                            program, &owner, *minimum, *maximum,
+                            program,
+                            &owner,
+                            *minimum,
+                            *maximum,
+                            *end_inclusive,
                         ) {
                             diagnostics.push(Diagnostic::error(message));
                         }
@@ -408,6 +415,7 @@ fn dependent_state_parameter_range_error(
     owner: &TypeReferenceOwner<'_>,
     minimum: typed_trees::expression::ExpressionHandle,
     maximum: typed_trees::expression::ExpressionHandle,
+    end_inclusive: bool,
 ) -> Option<String> {
     let generic = || {
         format!(
@@ -427,7 +435,11 @@ fn dependent_state_parameter_range_error(
     // Sibling-length class (`[0..items.len]`): the named sibling must be a
     // slice/fixed-array parameter of the SAME state, and only offsets <= 0
     // are admissible (a `+k` bound would exceed the length).
-    if let Some(sibling) = psi_typed_trees_sibling(program, maximum) {
+    if let Some(sibling) = typed_trees::dependent_ranges::sibling_range_maximum(
+        &program.expression_table,
+        maximum,
+        end_inclusive,
+    ) {
         let TypeReferenceOwner::StateParameter {
             owner: StateSignatureOwner::Machine(machine_name),
             state: state_name,
@@ -470,9 +482,11 @@ fn dependent_state_parameter_range_error(
         }
         return None;
     }
-    let Some(symbolic) =
-        typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, maximum)
-    else {
+    let Some(symbolic) = typed_trees::dependent_ranges::symbolic_range_maximum(
+        &program.expression_table,
+        maximum,
+        end_inclusive,
+    ) else {
         return Some(generic());
     };
     let TypeReferenceOwner::StateParameter {
@@ -528,13 +542,6 @@ fn dependent_state_parameter_range_error(
         ));
     }
     None
-}
-
-fn psi_typed_trees_sibling(
-    program: &TypedTrees,
-    maximum: typed_trees::expression::ExpressionHandle,
-) -> Option<typed_trees::dependent_ranges::SiblingLenBound> {
-    typed_trees::dependent_ranges::sibling_len_bound(&program.expression_table, maximum)
 }
 
 fn type_reference_is_sliceable(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {

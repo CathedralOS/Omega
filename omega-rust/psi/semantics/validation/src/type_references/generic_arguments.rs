@@ -860,12 +860,17 @@ fn validate_const_integer_range(
     } = program.type_reference_table.type_reference(parameter_type)
     {
         for constraint in program.type_reference_table.constraints(*constraints) {
-            let typed_trees::types::TypeConstraintNode::Range { minimum, maximum } = constraint
+            let typed_trees::types::TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
             else {
                 continue;
             };
-            let bounds = crate::closed_integer_range_bound(program, *minimum)
-                .zip(crate::closed_integer_range_bound(program, *maximum));
+            let bounds = crate::closed_integer_range_bound(program, *minimum).zip(
+                crate::closed_integer_range_maximum(program, *maximum, *end_inclusive),
+            );
             let Some((minimum, maximum)) = bounds else {
                 diagnostics.push(Diagnostic::error(format!(
                     "const argument `{value}` for `{base_name}::{}` cannot establish its declared range from closed integer bounds",

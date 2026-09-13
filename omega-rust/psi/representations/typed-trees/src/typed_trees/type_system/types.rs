@@ -573,7 +573,9 @@ impl TypeReferenceTable {
                                 self.remap_symbols_in(argument, expressions, symbols);
                             }
                         }
-                        TypeConstraintNode::Range { minimum, maximum } => {
+                        TypeConstraintNode::Range {
+                            minimum, maximum, ..
+                        } => {
                             expressions.remap_symbols_in(minimum, symbols);
                             expressions.remap_symbols_in(maximum, symbols);
                         }
@@ -888,6 +890,9 @@ pub enum TypeConstraintNode {
     Range {
         minimum: crate::expression::ExpressionHandle,
         maximum: crate::expression::ExpressionHandle,
+        /// Describes the authored endpoint, not an already-subtracted value.
+        /// Normalize exclusive ends in proof integers after checking them.
+        end_inclusive: bool,
     },
     ArithmeticDomain(numerics::arithmetic::ArithmeticDomain),
     /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
@@ -979,9 +984,14 @@ impl TypeConstraintNode {
         match self {
             TypeConstraintNode::Named(name) => Self::Named(name.clone()),
             TypeConstraintNode::Domain(domain) => Self::Domain(domain.clone()),
-            TypeConstraintNode::Range { minimum, maximum } => Self::Range {
+            TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } => Self::Range {
                 minimum: target_expressions.copy_from(source_expressions, *minimum),
                 maximum: target_expressions.copy_from(source_expressions, *maximum),
+                end_inclusive: *end_inclusive,
             },
             TypeConstraintNode::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
         }

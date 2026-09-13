@@ -7,6 +7,7 @@ use crate::crash_routes::{
 };
 
 mod source;
+pub(crate) use source::validate_graph_parameter_ranges;
 pub(crate) use source::validate_scalar_source;
 
 #[cfg(test)]

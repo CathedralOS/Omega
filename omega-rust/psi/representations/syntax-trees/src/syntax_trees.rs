@@ -1171,9 +1171,14 @@ impl SyntaxTrees {
                         arguments: this.copy_type_reference_handle_span(other, domain.arguments),
                     })
                 }
-                TypeConstraintNode::Range { minimum, maximum } => TypeConstraintNode::Range {
+                TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive,
+                } => TypeConstraintNode::Range {
                     minimum: this.copy_expression_handle(other, *minimum),
                     maximum: this.copy_expression_handle(other, *maximum),
+                    end_inclusive: *end_inclusive,
                 },
                 TypeConstraintNode::ArithmeticDomain(domain) => {
                     TypeConstraintNode::ArithmeticDomain(*domain)
