@@ -15,6 +15,12 @@ cross-rung test owner.
 There is deliberately no wrapper that relabels that one command as a complete
 chain run or prints ceremonial status for compiler edges that do not exist.
 
+`tools/bootstrap/beta/artifact_env.sh` binds the exact size and SHA-256 of
+`beta_compiler.beta` and `beta_compiler_bytecode.tape` and refuses to
+materialize any other bytes. The identities are those audited in
+`bootstrap/1_beta/AUDIT.md` and decoded by `tests/beta/compiler/root-audit.py`,
+and a digest match is an identity check, not a proof.
+
 `check-chain-hygiene.sh` is the single repository-topology gate. It positively
 enumerates the implemented compiler source/tape identities, inventories every
 retained source, test, and bootstrap-tool owner, rejects alternate bootstrap
@@ -56,7 +62,7 @@ remain under their language owner.
 | `paths.sh` | Alpha, Beta, Gamma, Delta, Epsilon, Omega, and topology gates that share exact owner paths | Absorb the remaining locators into a single cheaper canonical invocation mechanism, then delete this file and update every consumer atomically. |
 | `check-chain-hygiene.sh` | Repository checks for direct-chain ownership, source purity, and retention | Replace it only with one canonical gate enforcing the same positive inventory and immediate-successor boundary more economically. |
 | `alpha/` | Alpha seed selection and tape stamping used by current tests and tools. | Delete only when every caller has an equally direct canonical invocation. |
-| `beta/` | Trusted Beta compiler materialization and disposable program builds. | Delete only when every caller has an equally direct canonical invocation. |
+| `beta/` | Trusted Beta compiler materialization with the bound-identity check, and disposable program builds. | Delete only when every caller has an equally direct canonical invocation. |
 | `gamma/evaluator_env.sh` | Selected Beta-authored functional Gamma evaluator materialization. | Delete only when every caller has an equally direct canonical invocation. |
 | `source_closure.py` | Byte-exact assembly of the Delta-written Epsilon evaluator and Epsilon-written Omega D source closures. | Delete only when the selected lower compilers accept the same canonical member closures directly. |
 
