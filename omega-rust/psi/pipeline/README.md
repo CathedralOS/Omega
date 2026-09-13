@@ -226,8 +226,9 @@ of the signed compatibility interval; each operand still lands and each typed
 operation must fit before a later cancellation. The same customer exercises
 inferred bounds 511 and 256 through these wide computations.
 
-A named computation endpoint (`u64[0..=limit()]`, a receiver-less zero-argument
-call) folds before checking in `build-time-evaluation/src/range_endpoints.rs`
+A named computation endpoint (`u64[0..=limit()]` or
+`u64[0..=Limits::capacity()]`, a closed zero-argument call) folds before checking
+in `build-time-evaluation/src/range_endpoints.rs`
 through the same `BuildTimeAdmissionPlan` and checked-interpreter route as
 fixed-array lengths, with source invocation custody; the endpoint becomes an
 ordinary literal that inference, declaration checking, proof and layout all
@@ -236,7 +237,11 @@ literal formation or proof-integer normalization: a returned `u64::MAX` remains
 positive, while an `i64` result of -1 remains negative. The shared decoder also
 serves const data arguments and both ordinary and replayed array-length folds;
 each receiving position retains its own fit and layout obligations.
-Calls with value arguments, type-scoped machine paths, open symbolic endpoints,
+The typed call's resolved entry and existing receiver classification distinguish
+a type qualifier from a runtime value. Folding evaluates the exact retained
+machine symbol, not a reconstructed name. Unbound generic callees remain calls
+so folding cannot erase an underdetermined application.
+Calls with value arguments, generic machine arguments, open symbolic endpoints,
 full-width variable compatibility intervals and exact type equations remain
 open; context-free typed evaluation refuses matching selected trait operators
 until the endpoint has direct owner context.

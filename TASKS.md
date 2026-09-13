@@ -1289,9 +1289,10 @@ Owners include
   interval evaluator as canonical type identity.
   Keep `tests/omega/pass/generics/declared_range_endpoint_inference/main.omg`
   as the checked call regression; the source pipeline map retains its CLI command.
-  Receiver-less zero-argument named endpoints (`u64[0..=limit()]`) now fold
+  Closed zero-argument free and type-qualified endpoints (`u64[0..=limit()]`
+  and `u64[0..=Limits::capacity()]`) fold by resolved machine identity
   before checking in `build-time-evaluation/src/range_endpoints.rs` through the
-  shared admission plan; argument-taking and type-scoped calls, owner-sensitive
+  shared admission plan; argument-taking and generic calls, owner-sensitive
   typed operations and open symbolic endpoints remain.
   Replace the range-argument exclusion in `generic_data/arguments.rs` only with exact identity
   and constrained-shell substitution, not a source-display cache key.

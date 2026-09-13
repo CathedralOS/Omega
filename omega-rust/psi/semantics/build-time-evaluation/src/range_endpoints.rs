@@ -15,9 +15,10 @@
 //! context-free `i64` interval evaluator in `validation` never sees the call,
 //! so it cannot become the identity of a named computation.
 //!
-//! SCOPE: a receiver-less, zero-argument, non-generic call. Calls with value
-//! arguments or a type-scoped path stay unfolded and keep the existing
-//! non-constant-bound rejection; nothing here admits them silently.
+//! A type qualifier is not a runtime receiver. Reuse the typed call's resolved
+//! entry and receiver classification, then evaluate that exact machine symbol;
+//! rebuilding a name could select an unrelated same-spelled machine. Calls with
+//! runtime receivers or unresolved arguments remain outside this closed route.
 
 use diagnostics::Diagnostic;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
@@ -30,7 +31,7 @@ use crate::BuildTimeAdmissionPlan;
 struct PendingEndpoint {
     constrained_type: TypeReferenceHandle,
     expression: ExpressionHandle,
-    machine_name: String,
+    machine: symbols::SymbolHandle,
     source_span: source::SourceSpan,
 }
 
@@ -51,20 +52,29 @@ pub fn evaluate_const_range_endpoints_with_authority(
     let mut diagnostics = Vec::new();
     let mut substitutions = Vec::new();
     for endpoint in &pending {
-        match crate::evaluate_zero_argument_machine_for_invocation(
-            execution,
-            &admission,
-            &endpoint.machine_name,
-            "range endpoint",
-            crate::BuildTimeInvocationCustody::Source(endpoint.source_span),
-        ) {
+        let result = admission
+            .evaluate_const_evaluable_machine_symbol_for_invocation(
+                execution,
+                endpoint.machine,
+                Vec::new(),
+                crate::BuildTimeInvocationCustody::Source(endpoint.source_span),
+            )
+            .and_then(|value| {
+                let machine = execution
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == endpoint.machine)
+                    .ok_or_else(|| "range endpoint lost its selected machine".to_owned())?;
+                crate::const_lengths::decode_integer_result(execution, machine, value)
+            });
+        match result {
             Ok(value) => substitutions.push((endpoint.expression, value)),
             Err(reason) => diagnostics.push(Diagnostic::error(format!(
                 "range endpoint of `{}`: const evaluation of `{}` failed: {reason}",
                 typed
                     .type_reference_table
                     .display_name(endpoint.constrained_type),
-                endpoint.machine_name,
+                typed.symbols.display_path(endpoint.machine, "::"),
             ))),
         }
     }
@@ -108,23 +118,97 @@ fn pending_endpoints(typed: &TypedTrees) -> Vec<PendingEndpoint> {
                 else {
                     continue;
                 };
-                if call.receiver.is_valid()
-                    || !typed
-                        .expression_table
-                        .expression_handles(call.arguments)
-                        .is_empty()
+                if !typed
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .is_empty()
                     || !call.machine_arguments.is_empty()
+                    || !call.evidence_arguments.is_empty()
+                    || call.static_machine_parameter.is_valid()
+                    || call.static_requirement_dispatch.is_some()
+                    || call.quotient_operation.is_some()
+                    || call.private_layout_operation.is_some()
                 {
                     continue;
                 }
+                let Some(machine) = typed.machines().iter().find(|machine| {
+                    // No authored argument list does not mean the callee is
+                    // closed. Folding must not erase an underdetermined generic
+                    // application before ordinary call validation can reject it.
+                    machine.type_parameters.is_empty()
+                        && typed.machine_states(machine).first().is_some_and(|entry| {
+                            typed.call_has_no_runtime_receiver(call, machine, entry)
+                                && typed.state_parameters(entry).is_empty()
+                        })
+                }) else {
+                    continue;
+                };
                 pending.push(PendingEndpoint {
                     constrained_type,
                     expression,
-                    machine_name: call.target.as_str().to_owned(),
+                    machine: machine.symbol,
                     source_span: typed.expression_table.source_span(expression),
                 });
             }
         }
     }
     pending
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn typed(source: &str) -> TypedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens)
+                .unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    }
+
+    #[test]
+    fn only_closed_calls_without_runtime_inputs_are_pending_endpoints() {
+        for source in [
+            "data Limits {} machine Limits::capacity(&self) -> u64 { 256 }
+             machine bounded(limits: Limits, value: u64[0..=limits.capacity()]) {}",
+            "data Limits {} machine Limits::capacity(value: u64) -> u64 { value }
+             machine bounded(value: u64[0..=Limits::capacity(256)]) {}",
+            "data Limits {} machine Limits::capacity<const N: u64>() -> u64 { 256 }
+             machine bounded(value: u64[0..=Limits::capacity()]) {}",
+        ] {
+            let program = typed(source);
+            assert!(pending_endpoints(&program).is_empty(), "{source}");
+        }
+    }
+
+    #[test]
+    fn substituted_target_cannot_borrow_another_type_qualifier() {
+        let mut program = typed(
+            "data Limits {} data Other {}
+             machine Limits::capacity() -> u64 { 256 }
+             machine Other::capacity() -> u64 { 512 }
+             machine bounded(value: u64[0..=Limits::capacity()]) {}",
+        );
+        let pending = pending_endpoints(&program);
+        assert_eq!(pending.len(), 1);
+        let expression = pending[0].expression;
+        let other = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Other::capacity")
+            .expect("other attached machine");
+        let other_entry = program.machine_states(other)[0].symbol;
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+            panic!("authored endpoint call");
+        };
+        call.target_symbol = other_entry;
+        assert!(
+            pending_endpoints(&program).is_empty(),
+            "resolved owner and qualifier must agree"
+        );
+    }
 }
