@@ -1,12 +1,20 @@
+//! Own the native process container from launch through closure and reaping.
+//!
+//! Explicit completion consumes the child only after closure and reaping;
+//! dropping an unfinished child retains the platform cleanup fallback.
+
+mod completion;
 #[cfg(unix)]
-use super::descriptors;
-use super::{BoundedProcessCompletion, BoundedProcessExitStatus};
+mod descriptors;
+pub(crate) mod limits;
+#[cfg(windows)]
+pub(crate) mod windows;
+
 use crate::BoundedProcessPrepared;
+pub use completion::{BoundedProcessCompletion, BoundedProcessExitStatus};
 use std::io;
 use std::process::{ChildStderr, ChildStdin, ChildStdout, ExitStatus};
 
-#[cfg(windows)]
-use super::windows;
 #[cfg(unix)]
 use command_group::CommandGroup;
 
@@ -158,3 +166,6 @@ fn native_container_already_absent(error: &io::Error) -> bool {
         error.kind() == io::ErrorKind::InvalidInput
     }
 }
+
+#[cfg(all(test, unix))]
+mod tests;
