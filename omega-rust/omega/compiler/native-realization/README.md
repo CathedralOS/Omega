@@ -4,7 +4,7 @@ This coordinator consumes canonical Terminal Psi and explicit realization
 inputs. Its public contracts are [boundary realization](../../../../wiki/spec/terminal-psi/boundary_calls.md),
 [private callbacks](../../../../wiki/spec/build/private_callbacks.md), and
 [component publication](../../../../wiki/spec/build/component_publication.md).
-Start at [lib.rs](src/lib.rs), then follow [realization](src/realization/native_artifact.rs):
+Start at [native_realization.rs](src/native_realization.rs):
 validate scope and entry, obtain the abstract input, admit providers, emit the
 object, and assemble the image. One `NativeRealizationRequest` carries the image
 request, optional checked scope and optional prepared input alongside target and
@@ -15,11 +15,16 @@ artifact cannot grant dynamic output installation authority. Every rejection
 returns the exact image request. Program-entry and callback-custody adapters
 retain their additional owned evidence and use the same realization operation.
 
+Publication reads the abstract plan and its validated projection from the
+physical result's retained evidence owner. It shares that allocation instead
+of carrying a second plan copy and separately supplied identity fields.
+Independent fragment, object, and image replay still check the complete join.
+
 ## Multi-target reuse
 
 [Target selection](../../../../wiki/spec/build/configuration.md) defines child
 identity and isolation. The compiler batch route prepares each child's canonical
-Terminal artifact independently. [PreparedNativeRealizationInput](src/realization/input.rs)
+Terminal artifact independently. [PreparedNativeRealizationInput](src/native_realization/input.rs)
 shares target-neutral decoding, proof admission, and abstract-input lowering
 only for equal complete `TerminalArtifactIdentity`, exact `AdmissionProfile`,
 and exact `PostTerminalOptimizationSelections`; it rechecks that key on use.
@@ -56,7 +61,7 @@ ABI homes, complete call/relocation replay, and a genuinely reachable authored
 entry. Use rooted provider and callback controls retaining complete argument,
 result, and resource custody; metadata-only receipt tests do not close the route.
 
-[callback_custody.rs](src/realization/callback_custody.rs) returns the caller's
+[callback_custody.rs](src/native_realization/callback_custody.rs) returns the caller's
 opaque companion by value on both success and rejection. That wrapper does not
 admit, lower, fingerprint, or interpret its contents.
 

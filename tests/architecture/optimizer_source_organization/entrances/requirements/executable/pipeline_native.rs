@@ -10,7 +10,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn plan_optimized_program_storage_semantic_wrapper",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/native-realization/src/realization/providers/settlements/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/mod.rs",
         coordination_marker: "pub(crate) fn settle_provider_executions",
     },
     RequiredCoordinationEntrance {
@@ -166,19 +166,19 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_native_program_entry_settlement",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/native-realization/src/realization/native_artifact.rs",
         coordination_marker: "pub fn realize_native_artifact",
+        path: "omega-rust/omega/compiler/native-realization/src/native_realization.rs",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/native-realization/src/realization/terminal_authority_review.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review.rs",
         coordination_marker: "pub(crate) fn review_terminal_authority_closure",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/native-realization/src/realization/terminal_authority_policy/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/mod.rs",
         coordination_marker: "pub fn terminal_authority_policy_with_rows",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/native-realization/src/realization/providers/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/native_realization/providers/mod.rs",
         coordination_marker: "pub(crate) fn admit_native_providers",
     },
     RequiredCoordinationEntrance {

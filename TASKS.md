@@ -74,7 +74,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Bridge owners: **ENTRY-CONTENT-ROOTS** and
   **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION**, owned by
-  `native-realization/src/realization/native_artifact.rs`, `program-entry-plan`
+  `native-realization/src/native_realization.rs`, `program-entry-plan`
   and `external-roots`, under [entry roots](wiki/spec/build/entry_roots.md).
   Preserve the target-backed receiver, private-stack and continuation partitions,
   activation and completion contract under the loading premises below. A
@@ -688,7 +688,7 @@ Owners include
   semantic continuation under the [entry contract](wiki/spec/build/entry_roots.md).
   Owners: target package source assembly, `target::TargetProfile::program_entry_slot`,
   `program-entry-plan`, `external-roots`, and
-  `native-realization/src/realization/native_artifact.rs`. Targetless checks select
+  `native-realization/src/native_realization.rs`. Targetless checks select
   no entry; deployment cannot substitute a semantic machine for a physical adapter.
 
   Close one executable hosted bridge, including the authored contract and its
@@ -1307,7 +1307,7 @@ Owners include
   dynamic/installed-provider op carriers are produced upstream but have no
   consumer in `target-operations-to-selected-instructions` (currently a
   custody-mismatch catch-all), and the common native route rejects callback
-  transport in `native-realization/src/realization/object.rs`. The emission
+  transport in `native-realization/src/native_realization/object.rs`. The emission
   chain (selection -> register homes -> machine emission -> object import
   plans -> image custody -> physical derivation) is the next bounded slice.
   Normalized foreign lowering, machine-code custody, image replay, and artifact
