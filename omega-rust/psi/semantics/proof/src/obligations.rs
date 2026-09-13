@@ -923,6 +923,20 @@ fn binary_value_operands(
     }
 }
 
+/// The declared (constraint-derived) integer range of an arbitrary expression
+/// evaluated in `state`. `binary_value_operands` only carries the top-level
+/// pair; the checker's nested-operand refold asks the same question of inner
+/// operands, so both read from this one provider rather than reopening
+/// `expression_constraints` at the decision site.
+pub(crate) fn declared_integer_range(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<IntegerRange> {
+    integer_range_from_constraints(&expression_constraints(program, machine, state, expression))
+}
+
 /// Walk `statements[..upto]` maintaining the live boundary-ensures witness
 /// set. Resolved calls invalidate only witnesses overlapping their shared R5
 /// may-write frame; opaque calls invalidate everything. A boundary call then

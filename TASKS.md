@@ -151,10 +151,10 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   machine, the same gap tracked under **GENERAL-CYCLIC-EXECUTION** (shared
   with `print_squares` and the Squalr entry). The test-owned
   `gui_samples_compile_from_authored_program_entry_bindings` route passes
-  `window_app`, `window_demo`, and `image_viewer` on both GUI targets;
-  `windowed_calculator` retains two bounded-target proof diagnostics
-  (`self.col - 28 % 8` → `self.local_x`, `self.row - 18 % 9` →
-  `self.button_ly`) independent of service reach.
+  all four GUI samples on both GUI targets once assignment guards narrow
+  nested binary operands (the `(col - 28) % 8` / `(row - 18) % 9`
+  bounded-target obligations needed `col`/`row` narrowed inside the
+  operand, not only at the operand's own spelling).
   `sample_window_demo_runs_natively_exits_0` currently fails in test staging
   (`omega_language_std/console.omg` missing from the staged temp package)
   before sample compilation; unrelated to the reach declarations.
@@ -175,6 +175,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   in a macOS shell prefix the command with `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp`.
   Old observations below are resume evidence, not a fresh
   baseline after the native planner cuts.
+
+  Checked-compilation staleness: since the service-reach evidence
+  tightening (`22dc642ab8`, `7d444a9319`), `all_samples_reach_checked_trees`
+  reports ~130 boundary-calling samples failing
+  "publishes service reach `<none>` but its checked body reaches undeclared
+  services ..." — the diagnostics print each machine's exact required set
+  (the GUI cohort's declarations landed at `40c3332850`). A handful of
+  samples retain distinct failures (`cli__systems__framed_payload` domain
+  weakening, `uefi__uefi_hello` state-mutability).
 
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |

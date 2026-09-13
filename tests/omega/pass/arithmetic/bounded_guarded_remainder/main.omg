@@ -1,0 +1,28 @@
+// A transition guard narrows places INSIDE a nested binary operand of the
+// assignment value, not only operands spelled exactly as the guard spells
+// them. Under `col >= 28 && col < 60` the inner `col` narrows to [28..=59],
+// so `(col - 28)` refolds to [0..=31] and the remainder to [0..=7], which
+// proves the [-4..=11] target. Without nested-operand narrowing the declared
+// [0..=63] fold gives (col - 28) in [-28..=35] and the remainder in [-7..=7],
+// slipping under the -4 floor. This is the windowed_calculator digit-slot
+// shape.
+
+data Main {
+    col: i32 [0..=63];
+    local_x: i32 [-4..=11];
+}
+
+machine Main::main(&mut self) {
+    self.col = 30;
+    transition self.col >= 28 && self.col < 60 {
+        true -> slot()
+        _ -> done()
+    }
+
+    state slot(&mut self) {
+        self.local_x = (self.col - 28) % 8;
+    }
+
+    state done(&mut self) {
+    }
+}
