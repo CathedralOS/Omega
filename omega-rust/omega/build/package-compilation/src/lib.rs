@@ -133,8 +133,15 @@ pub struct PackageDependencyClosure {
 /// Exact generated Omega source handed off by one successfully checked package
 /// build. Construction remains compiler-private: carrying this value proves
 /// only that one compiler run produced these bytes, not package admission.
+/// Clones share the immutable bundle, including paths and dependency metadata;
+/// each consumer still validates its own closure, custody, and target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageGeneratedSourceBundle {
+    contents: Arc<PackageGeneratedSourceBundleContents>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct PackageGeneratedSourceBundleContents {
     package: PackageKeyIdentity,
     target: target::TargetProfile,
     dependency_closure: PackageDependencyClosure,
@@ -152,32 +159,34 @@ impl PackageGeneratedSourceBundle {
         sources: Vec<PackageGeneratedSource>,
     ) -> Self {
         Self {
-            package,
-            target,
-            dependency_closure,
-            source_consumption_commitment,
-            sources,
+            contents: Arc::new(PackageGeneratedSourceBundleContents {
+                package,
+                target,
+                dependency_closure,
+                source_consumption_commitment,
+                sources,
+            }),
         }
     }
 
-    pub const fn package(&self) -> PackageKeyIdentity {
-        self.package
+    pub fn package(&self) -> PackageKeyIdentity {
+        self.contents.package
     }
 
-    pub const fn target(&self) -> target::TargetProfile {
-        self.target
+    pub fn target(&self) -> target::TargetProfile {
+        self.contents.target
     }
 
-    pub const fn dependency_closure(&self) -> &PackageDependencyClosure {
-        &self.dependency_closure
+    pub fn dependency_closure(&self) -> &PackageDependencyClosure {
+        &self.contents.dependency_closure
     }
 
-    pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
-        self.source_consumption_commitment
+    pub fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
+        self.contents.source_consumption_commitment
     }
 
     pub fn sources(&self) -> &[PackageGeneratedSource] {
-        &self.sources
+        &self.contents.sources
     }
 }
 

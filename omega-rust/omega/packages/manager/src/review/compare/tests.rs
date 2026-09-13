@@ -9,8 +9,9 @@ use crate::resolution::graph::{
     PackageSourceClosureLimits, ResolvedPackageClosure, ResolvedPackageSourceClosure,
     resolve_external_local_package_closure,
 };
+use crate::review::ReviewOnlySourceConsumptionCommitment;
 use crate::review::candidate::PackageReviewEvidence;
-use crate::review::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
+use package_evidence::record::PackageReviewCanonicalRow;
 use package_evidence::record::{PackageReviewCanonicalRowKind, PackageReviewSourceLocationRole};
 use package_source::{ExternalSourceContext, ImmutableSourceResolution, LocalSourceLimits};
 use std::path::{Path, PathBuf};
@@ -81,7 +82,7 @@ struct TestReview {
     source_consumption: ReviewOnlySourceConsumptionCommitment,
     build_observation: Option<[u8; 32]>,
     whole_review: [u8; 32],
-    rows: Vec<ReviewOnlyCanonicalRow>,
+    rows: Vec<PackageReviewCanonicalRow>,
 }
 
 impl PackageReviewEvidence for TestReview {
@@ -113,7 +114,7 @@ impl PackageReviewEvidence for TestReview {
         self.whole_review
     }
 
-    fn canonical_rows(&self) -> &[ReviewOnlyCanonicalRow] {
+    fn canonical_rows(&self) -> &[PackageReviewCanonicalRow] {
         &self.rows
     }
 }
