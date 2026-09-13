@@ -33,7 +33,7 @@
 //! allocation follows it, and total input size is capped. Exhausted limits
 //! are an unsuccessful verification, never a satisfied verdict.
 
-use crate::model::{
+use crate::deployment_plan::{
     Binding, Certificate, Completeness, ComponentDescription, DeploymentPlan, Endpoint,
     EndpointDirection, EndpointKey, ExecutedPolicy, Identity, InstanceName, InstanceRole,
     PlanInstance, PolicyCall, PolicyOutcome, PolicyPredicate, PolicySelector, RequestedInstance,

@@ -15,7 +15,7 @@
 //! and exact endpoint delivery remain disclosed provider assumptions (see
 //! `PipeAdapter::assumptions`), not properties proved here.
 
-use crate::model::Identity;
+use crate::deployment_plan::Identity;
 use std::fmt;
 
 /// The four ends of one binding's dedicated request/response pair.
@@ -130,7 +130,7 @@ impl PipeAdapter for StdPipeAdapter {
     }
 
     fn provider(&self) -> Identity {
-        crate::model::identity_of(b"topology::std-pipe-adapter")
+        crate::deployment_plan::identity_of(b"topology::std-pipe-adapter")
     }
 
     fn assumptions(&self) -> &'static [&'static str] {

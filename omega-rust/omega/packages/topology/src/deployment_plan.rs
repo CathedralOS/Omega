@@ -11,6 +11,10 @@
 //! inside its own hashed records — `plan_subject` is computed over encoded
 //! bytes, not stored in them.
 
+pub mod codec;
+pub mod graph;
+pub mod predicate;
+
 use sha2::{Digest, Sha256};
 use std::fmt;
 
@@ -48,7 +52,7 @@ impl InstanceName {
         if name.is_empty() {
             return Err(NameError::Empty);
         }
-        if name.len() > crate::codec::MAX_NAME_BYTES {
+        if name.len() > crate::deployment_plan::codec::MAX_NAME_BYTES {
             return Err(NameError::TooLong);
         }
         Ok(Self(name))
@@ -365,7 +369,7 @@ mod tests {
     #[test]
     fn instance_name_rejects_empty_and_overlong() {
         assert_eq!(InstanceName::new(""), Err(NameError::Empty));
-        let overlong = "x".repeat(crate::codec::MAX_NAME_BYTES + 1);
+        let overlong = "x".repeat(crate::deployment_plan::codec::MAX_NAME_BYTES + 1);
         assert_eq!(InstanceName::new(overlong), Err(NameError::TooLong));
     }
 
