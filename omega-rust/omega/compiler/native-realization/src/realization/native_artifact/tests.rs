@@ -10,7 +10,6 @@ const RECEIVER_STORE: &str = r#"
 
 fn entry_fixture(
     source_text: &str,
-    receiver: program_entry_plan::ProgramEntrySourceReceiverSignature,
     target_profile: target::TargetProfile,
 ) -> (
     terminal_production::ProducedProgramEntryTerminalArtifact,
@@ -25,6 +24,29 @@ fn entry_fixture(
         .iter()
         .find(|machine| machine.name == "Main::launch")
         .expect("source-selected entry");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == selection.machine)
+        .expect("checked source entry");
+    let state = checked
+        .machine_states(machine)
+        .first()
+        .expect("entry state");
+    let receiver = checked
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.is_self)
+        .map_or(
+            program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+            |parameter| {
+                program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+                    normalized_type_identity: checked
+                        .normalized_type_identity(parameter.type_reference)
+                        .into_string(),
+                }
+            },
+        );
     let signature =
         program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
             target_profile.program_entry_slot(),
@@ -79,6 +101,38 @@ fn request<'request>(
 }
 
 #[test]
+fn executable_entry_rejects_lost_source_receiver_projection() {
+    let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
+    let profile = proof_admission::AdmissionProfile::default();
+    let artifact = produced.artifact();
+    let input =
+        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
+            .expect("checked receiver input");
+    let mut plan = input.plan().clone();
+    let entry = plan
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == plan.entry)
+        .expect("selected entry");
+    assert!(
+        entry
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+    );
+    for parameter in &mut entry.structural_parameters {
+        parameter.is_self = false;
+    }
+    let diagnostics = super::validate_executable_entry_receiver(&plan, &signature)
+        .expect_err("lowering cannot change the source-selected receiver mode");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("source-selected receiver mode"))
+    );
+}
+
+#[test]
 fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realization() {
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
@@ -87,13 +141,7 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
         target::TargetProfile::LinuxX64,
         target::TargetProfile::LinuxArm64,
     ] {
-        let (produced, signature) = entry_fixture(
-            RECEIVER_STORE,
-            program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
-                normalized_type_identity: "test::Main".into(),
-            },
-            target_profile,
-        );
+        let (produced, signature) = entry_fixture(RECEIVER_STORE, target_profile);
         let (artifact, receipt, scope, _, _) = produced.into_parts();
         crate::validate_native_program_entry_settlement(
             &artifact,
@@ -149,7 +197,6 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
 fn namespace_attachment_without_receiver_still_realizes_an_executable() {
     let (produced, signature) = entry_fixture(
         "data Main {} machine Main::launch() {}",
-        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
         target::TargetProfile::WindowsX64,
     );
     let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
@@ -180,7 +227,6 @@ fn namespace_attachment_without_receiver_still_realizes_an_executable() {
 fn native_request_scope_and_reuse_preserve_direct_image_bytes() {
     let (produced, signature) = entry_fixture(
         "data Main {} machine Main::launch() {}",
-        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
         target::TargetProfile::WindowsX64,
     );
     let (artifact, _, scope, _, _) = produced.into_parts();
@@ -218,13 +264,11 @@ fn native_request_scope_and_reuse_preserve_direct_image_bytes() {
 fn native_request_rejects_substituted_scope_or_prepared_input_and_returns_image_request() {
     let (produced, signature) = entry_fixture(
         "data Main {} machine Main::launch() {}",
-        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
         target::TargetProfile::WindowsX64,
     );
     let (artifact, _, scope, _, _) = produced.into_parts();
     let (other, _) = entry_fixture(
         "data Main {} machine Main::launch() { Main::work(); } machine Main::work() {}",
-        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
         target::TargetProfile::WindowsX64,
     );
     let (other_artifact, _, other_scope, _, _) = other.into_parts();
@@ -268,12 +312,10 @@ fn native_request_rejects_substituted_scope_or_prepared_input_and_returns_image_
 fn program_entry_adapter_does_not_ignore_supplied_scope() {
     let (produced, signature) = entry_fixture(
         "data Main {} machine Main::launch() {}",
-        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
         target::TargetProfile::WindowsX64,
     );
     let (other, _) = entry_fixture(
         "data Main {} machine Main::launch() { Main::work(); } machine Main::work() {}",
-        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
         target::TargetProfile::WindowsX64,
     );
     let (_, _, other_scope, _, _) = other.into_parts();

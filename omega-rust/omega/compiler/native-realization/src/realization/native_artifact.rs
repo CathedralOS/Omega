@@ -58,7 +58,7 @@ fn realize_image(
         Some(prepared) => prepared.reopen(&artifact, request)?,
         None => lower_realization_input(semantic_bytes, proof_bytes, request.profile)?,
     };
-    validate_executable_entry_receiver(input.plan())?;
+    validate_executable_entry_receiver(input.plan(), request.program_entry.source())?;
     let AdmittedNativeProviders {
         settlements,
         executions,
@@ -96,17 +96,32 @@ fn realize_image(
 
 fn validate_executable_entry_receiver(
     plan: &abstract_operations::AbstractOperationPlan,
+    source: &program_entry_plan::SelectedProgramEntrySourceSignature,
 ) -> Result<(), Vec<Diagnostic>> {
     // Settlement retains the entry declaration, not an installed receiver.
     // Every route through realize_image emits an executable image; callable
     // lowering and explicit semantic wrappers retain their own boundaries.
-    if plan.functions.iter().any(|function| {
+    let has_receiver = plan.functions.iter().any(|function| {
         function.machine == plan.entry
             && function
                 .structural_parameters
                 .iter()
                 .any(|parameter| parameter.is_self)
-    }) {
+    });
+    // Lowering cannot choose a different entry shape by losing its self marker.
+    // The source selection decides whether provisioning is required; the
+    // retained callable must agree before either executable route is selected.
+    let source_has_receiver = matches!(
+        source.receiver(),
+        program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+    );
+    if has_receiver != source_has_receiver {
+        return Err(realization_error(
+            "ProgramEntry receiver provisioning",
+            "lowered entry does not preserve the source-selected receiver mode",
+        ));
+    }
+    if has_receiver {
         return Err(realization_error(
             "ProgramEntry receiver provisioning",
             "the executable entry retains a self parameter, but no root-backed bridge constructs and lends its receiver; source-entry settlement alone does not provision receiver storage",
