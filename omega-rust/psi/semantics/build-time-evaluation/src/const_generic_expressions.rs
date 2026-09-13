@@ -13,7 +13,7 @@
 //! operand. Nonscalar values retain their existing materialization path.
 
 mod lexical_selection;
-mod value;
+pub(super) mod value;
 
 #[cfg(test)]
 mod tests;
@@ -248,7 +248,7 @@ fn requires_typed_expression_probe(syntax: &SyntaxTrees, expression: ExpressionH
     false
 }
 
-fn exact_probe_destination(
+pub(super) fn exact_probe_destination(
     program: &typed_trees::TypedTrees,
     destination: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::types::PrimitiveType> {

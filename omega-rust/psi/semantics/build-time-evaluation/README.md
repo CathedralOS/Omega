@@ -5,6 +5,15 @@ fixed-array evaluation, ownership-taking const-generic pre-resolution evaluation
 and machine-backed concrete const-domain fact discharge. Omega schedules the
 service; it does not reinterpret its language semantics.
 
+[Range endpoints](src/range_endpoints.rs) evaluate exact resolved machine calls
+before type checking. Their [arguments](src/range_endpoints/arguments.rs) must be
+closed integer expressions received by exact unconstrained builtin integer
+parameters. The shared numeric query establishes context-independent arithmetic;
+the scalar constant evaluator retains carrier checks and fractional warnings.
+Each argument keeps its own selection admission before the callee's common
+floor is checked. Nested calls, constrained arguments, generic applications and
+unresolved data-field calls remain outside this route.
+
 The public ownership-taking pre-resolution and pre-check conveyors keep these
 Psi phases separate. Omega interposes target machine selection and schedules
 provider-dependent evaluation after the actual provider plans are selected.
