@@ -1,3 +1,5 @@
+use omega_language_std::console;
+
 machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
 machine exclusive_upper_bound<const N: u64>(value: u64[0..N]) -> u64 { N }
 
@@ -30,3 +32,14 @@ machine exclusive_full_u64(value: u64[0..18446744073709551616]) -> u64 { upper_b
 machine inclusive_to_exclusive(value: u64[0..=256]) -> u64 { exclusive_upper_bound(value) }
 machine exclusive_to_inclusive(value: u64[0..257]) -> u64 { upper_bound(value) }
 machine typed_exclusive(value: u64[0..7u64 / 2 * 2]) -> u64 { upper_bound(value) }
+
+data Main { console: Console; }
+machine Main::main(&mut self) reaches Console {
+    let bound: u64 = inferred(0);
+    transition bound == 256 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(71); }
+}

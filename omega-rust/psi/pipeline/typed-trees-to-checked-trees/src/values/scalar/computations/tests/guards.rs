@@ -183,7 +183,7 @@ fn scalar_computations_keep_numeric_guard_applications_and_casts() {
 }
 
 #[test]
-fn scalar_computations_preserve_existing_lone_call_guard_binding() {
+fn scalar_computations_retain_lone_call_guard_binding() {
     let checked = checked_source(
         "machine identity(input: u8) -> u8 { input }
          machine value(input: u8) -> bool {
@@ -202,16 +202,35 @@ fn scalar_computations_preserve_existing_lone_call_guard_binding() {
         statements.first(),
         Some(StatementNode::LocalData(_))
     ));
-    assert!(
-        checked
-            .facts
-            .values
-            .scalar_computations
-            .roots
-            .iter()
-            .next()
-            .is_none()
+    let computations = &checked.facts.values.scalar_computations;
+    let roots = computations
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .collect::<Vec<_>>();
+    let [root] = roots.as_slice() else {
+        panic!("one computation owns the lifted guard call")
+    };
+    assert_eq!(root.state, state.symbol);
+    assert_eq!(root.statement_ordinal, 0);
+    assert_eq!(
+        root.role,
+        CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 }
     );
+    let StatementNode::LocalData(local) = &statements[0] else {
+        panic!("lifted call initializer")
+    };
+    assert_eq!(
+        computations.nodes.get(root.root).authored_root,
+        local.initial_value
+    );
+    assert!(matches!(
+        computations.nodes.get(root.root).kind,
+        CheckedScalarComputationKind::Call {
+            call_ordinal: 0,
+            ..
+        }
+    ));
     assert!(
         checked
             .facts
@@ -228,7 +247,7 @@ fn scalar_computations_preserve_existing_lone_call_guard_binding() {
         .unwrap();
     assert!(matches!(
         graph.states[0].bindings[0].value,
-        checked_trees::CheckedScalarBindingValue::DirectCall { .. }
+        checked_trees::CheckedScalarBindingValue::Computation
     ));
 }
 

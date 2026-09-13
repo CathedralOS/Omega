@@ -2,6 +2,52 @@
 
 use super::*;
 
+#[test]
+fn composed_scalar_call_locals_replay_their_authored_computation() {
+    for (prefix, argument) in [
+        ("", "value"),
+        ("let prior: u64 = value;", "prior"),
+        ("let prior: u64 = identity(value);", "prior"),
+    ] {
+        let checked = checked_source(&format!(
+            "machine identity(value: u64) -> u64 {{ value }}
+             data Root {{}}
+             machine Root::enter(value: u64) {{
+                 {prefix}
+                 let retained: u64 = identity({argument});
+                 transition retained == 7 {{ true -> yes() false -> no() }}
+                 state yes() {{}}
+                 state no() {{}}
+             }}"
+        ));
+        lower_machine(&checked, "Root::enter")
+            .expect("call locals compose with earlier pure bindings and call results");
+        let machine = source_machine(&checked, "Root::enter");
+        let root = checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .find(|root| root.machine == machine)
+            .expect("call initializer computation")
+            .root;
+        let mut changed = checked.clone();
+        changed
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get_mut(root)
+            .authored_root = typed_trees::expression::ExpressionHandle::invalid();
+        assert!(
+            lower_machine(&changed, "Root::enter").is_err(),
+            "retained computation cannot replace its authored call custody"
+        );
+    }
+}
+
 fn checked_composed_internal_calls() -> checked_trees::CheckedTrees {
     checked_source(
         r#"

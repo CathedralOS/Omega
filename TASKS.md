@@ -1312,7 +1312,7 @@ Owners include
   endpoints through shared semantic evaluation; do not use the i64 compatibility
   interval evaluator as canonical type identity.
   Keep `tests/omega/pass/generics/declared_range_endpoint_inference/main.omg`
-  as the checked call regression; the source pipeline map retains its CLI command.
+  as the checked/Terminal call regression; the source pipeline map retains its CLI command.
   Closed zero-argument free and type-qualified endpoints (`u64[0..=limit()]`
   and `u64[0..=Limits::capacity()]`) fold by resolved machine identity
   before checking in `build-time-evaluation/src/range_endpoints.rs` through the
@@ -1328,6 +1328,11 @@ Owners include
   normalization; do not introduce another arithmetic evaluator or infer layout
   from flow bounds. The source
   pipeline map records the maintained customer and remaining native boundary.
+  Its hosted `Main::main` now produces Terminal; native publication reaches the
+  retained receiver-provisioning rejection. Resume `ENTRY-CONTENT-ROOTS` for the
+  physical bridge, then require this unchanged program to exit 70. The focused
+  `canary_suite` filter `declared_range_inference` exercises the reviewed fixture
+  and this boundary on macOS AArch64; it does not establish native execution.
 
   Acceptance: TinyBytes' `Length == u64[0..=Capacity]` binds omitted Capacity from
   its supplied type before layout; inclusive/exclusive equivalent intervals

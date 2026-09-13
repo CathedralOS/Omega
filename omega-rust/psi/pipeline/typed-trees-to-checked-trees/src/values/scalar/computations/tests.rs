@@ -547,7 +547,7 @@ fn scalar_computations_keep_initializer_roles_and_prior_binding_positions() {
 }
 
 #[test]
-fn scalar_computations_do_not_duplicate_pure_or_direct_call_initializers() {
+fn scalar_computations_retain_each_call_initializer_without_duplicating_pure_values() {
     let checked = checked_source(
         r#"
         machine inner(input: bool) -> bool { input }
@@ -561,21 +561,41 @@ fn scalar_computations_do_not_duplicate_pure_or_direct_call_initializers() {
         "#,
         false,
     );
-    assert!(
-        checked
-            .facts
-            .values
-            .scalar_computations
-            .roots
-            .iter()
-            .next()
-            .is_none()
-    );
     let machine = checked
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "value")
         .unwrap();
+    let computations = &checked.facts.values.scalar_computations;
+    let roots = computations
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        roots.len(),
+        2,
+        "only the two call initializers need computations"
+    );
+    let state = &checked.machine_states(machine)[0];
+    for (root, statement_ordinal) in roots.iter().zip([1, 2]) {
+        assert_eq!(root.machine, machine.symbol);
+        assert_eq!(root.state, state.symbol);
+        assert_eq!(root.statement_ordinal, statement_ordinal);
+        assert_eq!(
+            root.role,
+            CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: statement_ordinal
+            }
+        );
+        assert!(matches!(
+            computations.nodes.get(root.root).kind,
+            CheckedScalarComputationKind::Call {
+                call_ordinal: 0,
+                ..
+            }
+        ));
+    }
     let graph = checked
         .facts
         .flow
@@ -591,7 +611,7 @@ fn scalar_computations_do_not_duplicate_pure_or_direct_call_initializers() {
     for binding in &graph.states[0].bindings[1..] {
         assert!(matches!(
             binding.value,
-            checked_trees::CheckedScalarBindingValue::DirectCall { .. }
+            checked_trees::CheckedScalarBindingValue::Computation
         ));
     }
 }

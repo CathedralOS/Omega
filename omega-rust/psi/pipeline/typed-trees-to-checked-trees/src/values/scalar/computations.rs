@@ -245,19 +245,11 @@ pub(crate) fn build_checked_value_computation_plans(
                             } else {
                                 CheckedScalarExpressionRole::LocalInitializer { binding_ordinal }
                             };
-                            // Keep the established direct-call binding coordinates when
-                            // every argument already has a pure checked plan.
-                            if !argument_roots
-                                && (local.is_mutable
-                                    || !has_pure_call_arguments(
-                                        program,
-                                        pure,
-                                        state.symbol,
-                                        statement_ordinal,
-                                        binding_ordinal,
-                                        local.initial_value,
-                                    ))
-                            {
+                            // A result operation owns its outer call; otherwise the
+                            // ordinary computation must retain it even when all
+                            // arguments are pure. Purity of operands cannot route
+                            // a call away from state-local operation sequencing.
+                            if !argument_roots {
                                 builder.record_root(
                                     pure,
                                     statement_ordinal,
@@ -489,46 +481,6 @@ pub(crate) fn build_checked_value_computation_plans(
         }
     }
     (plans, structural_values)
-}
-
-fn has_pure_call_arguments(
-    program: &TypedTrees,
-    pure: &CheckedScalarExpressionPlans,
-    state: SymbolHandle,
-    statement_ordinal: u32,
-    binding_ordinal: u32,
-    expression: ExpressionHandle,
-) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
-        return false;
-    }
-    let Some(parameters) = crate::call_target_parameters(program, call.target_symbol) else {
-        return false;
-    };
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    arguments.len() == parameters.len()
-        && !parameters.iter().any(|parameter| {
-            parameter.is_self
-                || parameter.is_const
-                || (parameter.is_mutable
-                    && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
-        })
-        && arguments.iter().enumerate().all(|(index, _)| {
-            u32::try_from(index).ok().is_some_and(|argument_ordinal| {
-                pure.expression_at(
-                    state,
-                    statement_ordinal,
-                    CheckedScalarExpressionRole::CallArgument {
-                        binding_ordinal,
-                        argument_ordinal,
-                    },
-                )
-                .is_some()
-            })
-        })
 }
 
 struct Builder<'program, 'plans> {

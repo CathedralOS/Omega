@@ -14,6 +14,114 @@ enum Operand {
     },
 }
 
+/// Keep a call with completed scalar expressions in its caller block. Splitting
+/// these operands into forwarding blocks would replace live local results with
+/// block parameters and lose their exact suspension storage provenance.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn lower_inline_call(
+    checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    role: CheckedScalarExpressionRole,
+    bindings: &storage::ScalarBindings,
+    input_types: &[QualifiedScalarType],
+    result_type: QualifiedScalarType,
+) -> Result<Option<LoweredDirectCallBinding>, LoweringError> {
+    let plans = &checked.facts.values.scalar_computations;
+    let root = plans
+        .root_at(state, statement, role)
+        .ok_or(LoweringError::Unsupported(
+            "scalar binding has no unique computation root",
+        ))?;
+    if !plans.nodes.is_valid(root.root) {
+        return unsupported("scalar computation has no live root");
+    }
+    let CheckedScalarComputationKind::Call {
+        target_machine,
+        target_state,
+        call_ordinal,
+        arguments,
+        structural_arguments,
+        ..
+    } = plans.nodes.get(root.root).kind
+    else {
+        return Ok(None);
+    };
+    let structural = plans
+        .structural_arguments
+        .span(structural_arguments)
+        .ok_or(LoweringError::Unsupported(
+            "computed structural arguments have a stale span",
+        ))?;
+    if !structural.is_empty() {
+        return Ok(None);
+    }
+    let operands = plans
+        .operands
+        .span(arguments)
+        .ok_or(LoweringError::Unsupported(
+            "scalar computation call has an invalid argument span",
+        ))?;
+    let mut arguments = Vec::with_capacity(operands.len());
+    for operand in operands {
+        if !plans.nodes.is_valid(*operand) {
+            return unsupported("scalar computation has a stale operand");
+        }
+        let CheckedScalarComputationKind::Value(value) = &plans.nodes.get(*operand).kind else {
+            return Ok(None);
+        };
+        let argument = bindings.expression(value)?;
+        if direct_expression_contains_short_circuit(&argument) {
+            return Ok(None);
+        }
+        arguments.push(argument);
+    }
+    if root.machine != machine {
+        return unsupported("scalar binding computation belongs to another machine");
+    }
+    if checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .any(|(_, call)| call.caller_machine_symbol == machine && call.runtime_call.is_some())
+    {
+        return unsupported(
+            "scalar computation calls need exact named proof-output operation custody",
+        );
+    }
+    source_custody::validate(
+        checked,
+        machine,
+        &Site {
+            state,
+            statement,
+            bindings,
+        },
+        role,
+        root.root,
+        symbols::SymbolHandle::invalid(),
+    )?;
+    lower_scalar_call(
+        checked,
+        qualifications,
+        machine,
+        state,
+        statement,
+        target_machine,
+        target_state,
+        call_ordinal,
+        result_type,
+        input_types,
+        arguments,
+        Vec::new(),
+        ScalarCallCrashScope::CallerValues,
+    )
+    .map(Some)
+}
+
 impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn call(

@@ -599,7 +599,7 @@ fn transition_scalar_facts_skip_implicit_self_but_retain_target_position() {
 }
 
 #[test]
-fn checked_scalar_graph_retains_direct_call_bindings_and_arguments() {
+fn checked_scalar_graph_retains_call_computation_bindings_and_arguments() {
     let source = r#"
         machine identity(value: bool) -> bool { value }
 
@@ -631,17 +631,50 @@ fn checked_scalar_graph_retains_direct_call_bindings_and_arguments() {
     let [binding] = state.bindings.as_slice() else {
         panic!("caller should retain one scalar binding")
     };
-    let CheckedScalarBindingValue::DirectCall {
+    assert_eq!(binding.value, CheckedScalarBindingValue::Computation);
+    let computations = &checked.facts.values.scalar_computations;
+    let root = computations
+        .root_at(
+            state.state,
+            binding.statement_ordinal,
+            checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+        )
+        .expect("call initializer computation");
+    assert_eq!(root.machine, caller.machine);
+    let checked_trees::CheckedScalarComputationKind::Call {
         target_machine,
         target_state,
         call_ordinal,
-        argument_count,
-    } = binding.value
+        arguments,
+        source_call,
+        ..
+    } = computations.nodes.get(root.root).kind
     else {
         panic!("the call-valued local must not masquerade as a pure expression")
     };
     assert_eq!(call_ordinal, 0);
-    assert_eq!(argument_count, 1);
+    let [argument] = computations
+        .operands
+        .span(arguments)
+        .expect("call arguments")
+    else {
+        panic!("identity has one argument")
+    };
+    assert!(matches!(
+        &computations.nodes.get(*argument).kind,
+        checked_trees::CheckedScalarComputationKind::Value(
+            checked_trees::CheckedScalarExpression::Boolean(value)
+        ) if **value == checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+    ));
+    let occurrence = checked.facts.flow.control.calls.get(source_call);
+    assert_eq!(
+        occurrence.statement_index,
+        binding.statement_ordinal as usize
+    );
+    assert_eq!(
+        occurrence.authored_expression,
+        computations.nodes.get(root.root).authored_root
+    );
     assert_ne!(target_machine, caller.machine);
     assert!(target_state.is_valid());
     let checked_call = checked

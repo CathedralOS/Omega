@@ -130,23 +130,37 @@ fn scalar_fixture_call_coordinate(
         .iter()
         .find(|graph| graph.machine == root.symbol)
         .expect("root scalar graph");
+    let computations = &checked.facts.values.scalar_computations;
+    let root_computation = computations.roots.iter().map(|(_, root)| root).find(|computation| {
+        computation.machine == root.symbol
+            && computation.state == state.symbol
+            && matches!(computation.role, checked_trees::CheckedScalarExpressionRole::LocalInitializer { .. })
+            && matches!(computations.nodes.get(computation.root).kind,
+                checked_trees::CheckedScalarComputationKind::Call { target_machine, .. } if target_machine == target)
+    }).expect("real checked wait call computation");
     let binding = graph.states[0]
         .bindings
         .iter()
-        .find(|binding| {
-            matches!(
-                binding.value,
-                checked_trees::CheckedScalarBindingValue::DirectCall {
-                    target_machine,
-                    ..
-                } if target_machine == target
-            )
-        })
-        .expect("real checked wait call binding");
-    let checked_trees::CheckedScalarBindingValue::DirectCall { call_ordinal, .. } = binding.value
+        .find(|binding| binding.statement_ordinal == root_computation.statement_ordinal)
+        .expect("wait computation has a scalar binding");
+    assert_eq!(
+        binding.value,
+        checked_trees::CheckedScalarBindingValue::Computation
+    );
+    let checked_trees::CheckedScalarComputationKind::Call {
+        call_ordinal,
+        source_call,
+        ..
+    } = computations.nodes.get(root_computation.root).kind
     else {
-        unreachable!()
+        panic!("wait initializer retains its call")
     };
+    let occurrence = checked.facts.flow.control.calls.get(source_call);
+    assert_eq!(
+        occurrence.statement_index,
+        binding.statement_ordinal as usize
+    );
+    assert_eq!(occurrence.call_ordinal, call_ordinal as usize);
     (
         root.symbol,
         state.symbol,
@@ -154,6 +168,31 @@ fn scalar_fixture_call_coordinate(
         usize::try_from(call_ordinal).unwrap(),
         target,
     )
+}
+
+#[test]
+fn inline_scalar_call_computation_rejects_a_missing_source_occurrence() {
+    let mut checked = checked_scalar_suspension_fixture();
+    let (_, state, statement, _, _) = scalar_fixture_call_coordinate(&checked);
+    let computations = &mut checked.facts.values.scalar_computations;
+    let root = computations
+        .root_at(
+            state,
+            u32::try_from(statement).unwrap(),
+            checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 },
+        )
+        .expect("wait initializer computation")
+        .root;
+    let checked_trees::CheckedScalarComputationKind::Call { source_call, .. } =
+        &mut computations.nodes.get_mut(root).kind
+    else {
+        panic!("wait initializer call")
+    };
+    *source_call = Default::default();
+    assert!(
+        lower_machine(&checked, "root").is_err(),
+        "an inline call must retain its exact checked occurrence"
+    );
 }
 
 #[test]

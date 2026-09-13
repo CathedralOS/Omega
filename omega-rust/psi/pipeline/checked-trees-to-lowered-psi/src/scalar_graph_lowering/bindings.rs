@@ -270,7 +270,25 @@ pub(super) fn prepare(
         if store.is_some() && !binding_type.qualifications.is_empty() {
             return unsupported("qualified primitive storage requires qualified storage custody");
         }
-        if matches!(binding.value, CheckedScalarBindingValue::Computation) {
+        let inline_call = if matches!(binding.value, CheckedScalarBindingValue::Computation)
+            && binding.destination == CheckedScalarBindingDestination::Immutable
+        {
+            computations::lower_inline_call(
+                checked,
+                qualifications,
+                machine,
+                state.state,
+                binding.statement_ordinal,
+                role,
+                &scalar_bindings,
+                &value_types,
+                binding_type,
+            )?
+        } else {
+            None
+        };
+        if matches!(binding.value, CheckedScalarBindingValue::Computation) && inline_call.is_none()
+        {
             prefixes.push(PendingStep::Value(PendingComputation {
                 parameter_types,
                 bindings: std::mem::take(&mut bindings),
@@ -291,7 +309,9 @@ pub(super) fn prepare(
             parameter_types.push(binding_type);
         }
         let mut lowered = match &binding.value {
-            CheckedScalarBindingValue::Computation => None,
+            CheckedScalarBindingValue::Computation => {
+                inline_call.map(LoweredScalarBinding::DirectCall)
+            }
             CheckedScalarBindingValue::Expression => {
                 let expression = prepared_expression
                     .take()

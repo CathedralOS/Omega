@@ -1,5 +1,6 @@
 use super::*;
 use compiler::CheckedCompileRequest;
+use typed_trees::types::PrimitiveType;
 
 #[path = "../fixture_rosters/generics_and_dependent_facts.rs"]
 pub(super) mod fixture_roster;
@@ -54,12 +55,92 @@ fn declared_range_inference_returns_the_selected_endpoint() {
             .evaluate_machine_symbol_for_invocation_measured(
                 &checked.typed,
                 machine.symbol,
-                arguments,
+                arguments.clone(),
                 BuildTimeInvocationCustody::Symbol(machine.symbol),
             )
             .expect("checked generic call executes");
         assert_eq!(execution.value(), &BuildTimeValue::Int(expected), "{name}");
+        let state = &checked.machine_states(machine)[0];
+        let integer = |bits: i64, reference| {
+            let primitive = checked
+                .primitive_type_reference(reference)
+                .expect("integer carrier");
+            // This fixture uses 64-bit carriers. BuildTimeValue retains unsigned
+            // results as i64 bits, so the receiver must recover their carrier.
+            assert!(matches!(primitive, PrimitiveType::I64 | PrimitiveType::U64));
+            let signed = primitive.is_signed_integer();
+            terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type: semantic_vocabulary::IntegerType::new(
+                    if signed {
+                        semantic_vocabulary::IntegerSign::Signed
+                    } else {
+                        semantic_vocabulary::IntegerSign::Unsigned
+                    },
+                    64,
+                )
+                .unwrap(),
+                value: if signed {
+                    semantic_vocabulary::IntegerValue::Signed(i128::from(bits))
+                } else {
+                    semantic_vocabulary::IntegerValue::Unsigned(u128::from(bits as u64))
+                },
+            }
+        };
+        let terminal_arguments = arguments
+            .iter()
+            .zip(checked.state_parameters(state))
+            .map(|(value, parameter)| {
+                let BuildTimeValue::Int(bits) = value else {
+                    panic!("integer test input");
+                };
+                integer(*bits, parameter.type_reference)
+            })
+            .collect::<Vec<_>>();
+        let expected = integer(expected, state.return_type);
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, name)
+            .produce_artifact()
+            .unwrap_or_else(|error| panic!("Terminal range consumer {name}: {error:?}"));
+        // Only canonical bytes and fresh input values enter the receiver;
+        // compile-time execution cannot stand in for this separate check.
+        let execution = terminal_interpreter::interpret_terminal_artifact_measured(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &terminal_arguments,
+        )
+        .unwrap_or_else(|error| panic!("Terminal range execution {name}: {error:?}"));
+        assert_eq!(
+            execution.value(),
+            terminal_interpreter::TerminalExecutionResult::Scalar(expected),
+            "{name}"
+        );
     }
+}
+
+#[test]
+fn declared_range_inference_hosted_entry_reaches_receiver_provisioning() {
+    let canary = pass_canary("generics/declared_range_endpoint_inference");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("checked hosted range caller");
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
+        .expect("hosted caller retains its inferred call through Terminal production");
+    let scratch = unique_no_output_build_dir();
+    let result = compile_rooted_canary_for_native_host(&canary, scratch.clone());
+    let _ = fs::remove_dir_all(&scratch);
+    // ENTRY-CONTENT-ROOTS must construct and lend the actual receiver before
+    // this can execute. Preserve that rejection, not a test-supplied self or
+    // an unprovisioned native entry. Once the bridge lands, require exit 70.
+    let diagnostics = result.expect_err("unprovisioned receiver cannot be published");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("native artifact ProgramEntry receiver provisioning failed")),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
