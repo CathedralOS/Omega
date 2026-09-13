@@ -1124,6 +1124,127 @@ machine Inspector::inspect(
 }
 
 #[test]
+fn direct_placed_view_input_survives_codec_and_native_replay() {
+    let (main, inputs) = write_cross_package_program(
+        "placed-view-replay",
+        r#"
+data Inspector {}
+machine Inspector::inspect(
+    &mut self,
+    view: &mut Placed<UartPlacement, Registers>
+) {}
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect("direct placed-view input should compile");
+    let lowered =
+        lower_machine(&checked, "Inspector::inspect").expect("lower placed-view consumer");
+    let semantic = terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode placed-view Terminal module");
+    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
+        .expect("encode placed-view proof bundle");
+    let profile = proof_admission::AdmissionProfile::default();
+    let trust_graph =
+        terminal_codec::current_terminal_trust_graph().expect("current terminal trust graph");
+    let obligation_ledger =
+        terminal_codec::build_terminal_obligation_ledger(&lowered.semantic_module, &trust_graph)
+            .and_then(|ledger| terminal_codec::encode_terminal_obligation_ledger(&ledger))
+            .expect("canonical obligation ledger for the placed-view module");
+
+    // Entrances that do not own the roster still fail closed.
+    assert!(matches!(
+        terminal_psi_to_abstract_operations::lower_replay_artifact_sections(
+            &semantic,
+            &obligation_ledger,
+            &proof,
+            &profile,
+        ),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+    ));
+    assert!(matches!(
+        terminal_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
+            &semantic,
+            &proof,
+            &profile,
+        ),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+    ));
+
+    // The owning entrances replay and admit the exact verified roster.
+    let codec_plan =
+        terminal_psi_to_abstract_operations::lower_artifact_sections_with_placed_view_inputs(
+            &semantic, &proof, &profile,
+        )
+        .expect("retain exact placed-view custody");
+    let replayed = terminal_psi_to_abstract_operations::lower_replay_artifact_sections_with_placed_view_inputs(
+        &semantic,
+        &obligation_ledger,
+        &proof,
+        &profile,
+    )
+    .expect("placed-view input survives codec replay");
+    assert_eq!(replayed, codec_plan);
+    assert_eq!(
+        replayed.placed_view_inputs,
+        lowered.semantic_module.placed_view_inputs
+    );
+
+    let native = terminal_psi_to_abstract_operations::lower_artifact_sections_for_native_realization_with_placed_view_inputs(
+        &semantic,
+        &proof,
+        &profile,
+    )
+    .expect("placed-view input survives native admission");
+    assert_eq!(native.plan(), &codec_plan.plan);
+    assert_eq!(
+        native.placed_view_inputs(),
+        lowered.semantic_module.placed_view_inputs.as_slice()
+    );
+    let native_input = native.into_optimization_input();
+    assert_eq!(native_input.plan(), &codec_plan.plan);
+    assert_eq!(
+        native_input.context().module().placed_view_inputs,
+        lowered.semantic_module.placed_view_inputs
+    );
+
+    // A stale roster row still decodes and validates on its own bytes, but its
+    // module fingerprint differs, so the original ledger cannot replay it.
+    let mut stale = lowered.semantic_module.clone();
+    stale.placed_view_inputs[0].placement_commitment[0] ^= 1;
+    let stale_semantic =
+        terminal_codec::encode_module(&stale).expect("stale roster still encodes canonically");
+    let stale_ledger = terminal_codec::build_terminal_obligation_ledger(&stale, &trust_graph)
+        .and_then(|ledger| terminal_codec::encode_terminal_obligation_ledger(&ledger))
+        .expect("obligation ledger for the substituted roster");
+    assert!(matches!(
+        terminal_psi_to_abstract_operations::lower_replay_artifact_sections_with_placed_view_inputs(
+            &semantic,
+            &stale_ledger,
+            &proof,
+            &profile,
+        ),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ObligationReplay(_))
+    ));
+    let stale_replayed =
+        terminal_psi_to_abstract_operations::lower_replay_artifact_sections_with_placed_view_inputs(
+            &stale_semantic,
+            &stale_ledger,
+            &proof,
+            &profile,
+        );
+    assert!(stale_replayed.is_err() || stale_replayed.unwrap() != codec_plan);
+
+    // An invalid roster row cannot reach replay at all: canonical encode
+    // rejects it before an artifact exists.
+    let mut invalid = lowered.semantic_module.clone();
+    invalid.placed_view_inputs[0].placement_commitment = [0; 32];
+    assert!(terminal_codec::encode_module(&invalid).is_err());
+}
+
+#[test]
 fn placed_view_input_custody_excludes_open_and_nonchecked_machines() {
     let source = POLICY_SOURCE.replace(
         "data Main {}",
