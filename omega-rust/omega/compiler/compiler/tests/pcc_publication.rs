@@ -1,7 +1,7 @@
 //! End-to-end bounded proof-carrying product coverage.
 //!
 //! The normalized root Build's two independent off-by-default requests
-//! produce adjacent `.proof` sidecars beside the ordinary artifacts —
+//! retain Psi proof pairs and report unsupported native proof requests —
 //! never an embedded section, never a different pipeline. Publication
 //! validates every requested pair before reporting success, and receivers
 //! independently verify the pair against their own pinned policy rather
@@ -10,7 +10,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use compilation_report::{NativePccCustodyEvidence, verify_native_proof_sidecar};
+use compilation_report::verify_native_proof_sidecar;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileOutcomes, CompileRequest,
     RequestedCompileProduct, compile,
@@ -22,6 +22,101 @@ use terminal_codec::{
 };
 
 const MAIN: &str = "data Main { }\nmachine Main::main(&mut self) { }\n";
+
+// Reproduce the obsolete custody protocol without trusting its producer API.
+// Every native digest is attacker-chosen; a valid unrelated Psi artifact is
+// enough to recompute all of the consistency hashes for arbitrary bytes.
+fn forged_native_sidecar(psi_bytes: &[u8], executable: &[u8]) -> PccProofSidecar {
+    use sha2::{Digest, Sha256};
+    let psi = terminal_codec::CanonicalTerminalArtifact::from_bytes(psi_bytes).expect("psi");
+    let mut fields = vec![0; 32]; // Native artifact identity.
+    fields.extend_from_slice(&[2, 1]); // x86-64 ELF.
+    fields.extend_from_slice(&8_u64.to_le_bytes());
+    fields.extend_from_slice(&8_u64.to_le_bytes());
+    fields.extend_from_slice(&[0; 32]); // Image symbol digest.
+    fields.extend_from_slice(&[0; 9]); // No boundary fingerprint.
+    fields.extend_from_slice(&[0; 32]); // Text validation digest.
+    fields.extend_from_slice(&[0; 32]); // Function validation digest.
+    fields.extend_from_slice(&[0; 8]); // Function report fingerprint.
+    fields.extend_from_slice(&[0; 32]); // Inventory digest.
+    fields.extend_from_slice(&[0; 8]); // Inventory report fingerprint.
+
+    let mut certificate = Sha256::new();
+    certificate.update(b"omega.native-publication-certificate.sha256.v1\0");
+    certificate.update(&fields[..32]);
+    for bytes in [psi.semantic_bytes(), psi.proof_bytes()] {
+        certificate.update((bytes.len() as u64).to_le_bytes());
+        certificate.update(bytes);
+    }
+    certificate.update(&fields[32..]);
+    let certificate = certificate.finalize();
+
+    let mut container = Sha256::new();
+    container.update(b"omega.published-executable-container.sha256.v1\0");
+    container.update((executable.len() as u64).to_le_bytes());
+    container.update(executable);
+
+    let mut evidence = Sha256::new();
+    evidence.update(b"omega.native-publication-evidence.sha256.v1\0");
+    evidence.update([0; 32]);
+    evidence.update(certificate);
+    evidence.update([0; 64]); // Function and inventory digests.
+    evidence.update([0; 24]); // Callback, inventory and function reports.
+    evidence.update((executable.len() as u64).to_le_bytes());
+    evidence.update([0; 32]); // Text validation digest.
+    evidence.update(container.finalize());
+
+    let mut custody = 1_u16.to_le_bytes().to_vec();
+    custody.extend_from_slice(&(psi_bytes.len() as u64).to_le_bytes());
+    custody.extend_from_slice(psi_bytes);
+    custody.extend_from_slice(&fields);
+    custody.extend_from_slice(&[0; 8]); // Callback report fingerprint.
+    custody.extend_from_slice(&certificate);
+    custody.extend_from_slice(&evidence.finalize());
+    PccProofSidecar::new(
+        PccProductKind::Native,
+        terminal_codec::pcc_artifact_commitment(executable),
+        format!(
+            "native-custody-v1/{}",
+            terminal_codec::psi_semantic_profile_identity(&psi).expect("profile")
+        ),
+        terminal_codec::admission_profile_identity(&AdmissionProfile::default()),
+        vec![terminal_codec::PccGuarantee {
+            identity: "omega.native-certified-custody.v1".to_owned(),
+            premises: Vec::new(),
+        }],
+        custody,
+        terminal_codec::terminal_assumption_closure(),
+        Vec::new(),
+    )
+    .expect("forged sidecar")
+}
+
+#[test]
+fn arbitrary_native_bytes_with_recomputed_custody_never_complete() {
+    let dir = write_project("    builder.pcc.psi = true;\n");
+    let report = compile(compile_request(
+        &dir,
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("terminal compilation");
+    let published = report
+        .publish_retained_terminal_artifact(&dir.join("out"))
+        .expect("psi publication");
+    let psi = read(&published.pcc_publications()[0].artifact_path);
+    let executable = b"arbitrary bytes, not an executable";
+    let sidecar = forged_native_sidecar(&psi, executable);
+    let outcome =
+        verify_native_proof_sidecar(executable, &sidecar.to_bytes(), &receiver_policy(&sidecar));
+    assert_eq!(
+        outcome,
+        PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
+            product: PccProductKind::Native
+        })
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
 
 fn write_project(pcc_lines: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
@@ -105,51 +200,22 @@ fn no_pcc_requests_publish_ordinary_output_only() {
 }
 
 #[test]
-fn native_pcc_publishes_and_verifies_one_adjacent_pair() {
+fn native_pcc_is_incomplete_before_publication() {
     let dir = write_project("    builder.pcc.native = true;\n");
     let out = dir.join("out");
     let report = compile_native(&dir);
     assert!(report.pcc_requests().native && !report.pcc_requests().psi);
-    let published = report
+    let failure = report
         .publish_retained_native_artifact(&out)
-        .expect("native pcc publication");
-    assert_eq!(published.pcc_publications().len(), 1);
-    let pair = &published.pcc_publications()[0];
-    assert_eq!(pair.product, PccProductKind::Native);
-    assert_eq!(
-        pair.sidecar_path.extension().and_then(|e| e.to_str()),
-        Some("proof")
+        .expect_err("native PCC requires unavailable native semantics evidence");
+    assert!(
+        failure.contains("Incomplete(UnsupportedEvidence { product: Native })"),
+        "{failure}"
     );
-    assert_eq!(
-        pair.artifact_byte_len as usize,
-        read(&pair.artifact_path).len()
+    assert!(
+        !out.exists(),
+        "unsupported publication must not create output"
     );
-    assert_eq!(
-        pair.sidecar_byte_len as usize,
-        read(&pair.sidecar_path).len()
-    );
-    // No Psi pair was requested: the executable is the only artifact.
-    assert!(!pair.artifact_path.with_extension("psi").exists());
-
-    let executable = read(&pair.artifact_path);
-    let proof = read(&pair.sidecar_path);
-    let policy = receiver_policy(&PccProofSidecar::from_bytes(&proof).expect("decode"));
-    // The standalone contract: after deleting source, build files and every
-    // other product, verification needs only artifact bytes, sidecar bytes
-    // and the receiver's pinned policy.
-    fs::remove_file(dir.join("main.omg")).expect("delete source");
-    fs::remove_file(dir.join("build.omg")).expect("delete build");
-    match verify_native_proof_sidecar(&executable, &proof, &policy) {
-        PccVerificationOutcome::Complete(product) => {
-            assert_eq!(product.product, PccProductKind::Native);
-            assert_eq!(
-                product.accepted_guarantees,
-                [terminal_codec::NATIVE_CERTIFIED_CUSTODY_GUARANTEE]
-            );
-            assert_eq!(product.policy_package_identity, "receiver-pinned-policy");
-        }
-        other => panic!("expected a complete verified pair, got {other:?}"),
-    }
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -189,62 +255,39 @@ fn psi_pcc_publishes_the_psi_pair_during_native_compilation() {
 }
 
 #[test]
-fn both_requests_publish_two_independent_pairs() {
+fn both_requests_are_incomplete_without_partial_publication() {
     let dir = write_project("    builder.pcc.psi = true;\n    builder.pcc.native = true;\n");
     let out = dir.join("out");
-    let published = compile_native(&dir)
+    fs::create_dir_all(&out).expect("output directory");
+    let previous = out.join("previous-output");
+    fs::write(&previous, b"retained output").expect("previous output");
+    let failure = compile_native(&dir)
         .publish_retained_native_artifact(&out)
-        .expect("dual pcc publication");
-    assert_eq!(published.pcc_publications().len(), 2);
-    let (psi_pair, native_pair) = if published.pcc_publications()[0].product == PccProductKind::Psi
-    {
-        (
-            &published.pcc_publications()[0],
-            &published.pcc_publications()[1],
-        )
-    } else {
-        (
-            &published.pcc_publications()[1],
-            &published.pcc_publications()[0],
-        )
-    };
-    assert_eq!(native_pair.product, PccProductKind::Native);
-    for (artifact_path, sidecar_path, verify) in [
-        (
-            &psi_pair.artifact_path,
-            &psi_pair.sidecar_path,
-            verify_psi_proof_sidecar
-                as fn(&[u8], &[u8], &PccReceiverPolicy) -> PccVerificationOutcome,
-        ),
-        (
-            &native_pair.artifact_path,
-            &native_pair.sidecar_path,
-            verify_native_proof_sidecar
-                as fn(&[u8], &[u8], &PccReceiverPolicy) -> PccVerificationOutcome,
-        ),
-    ] {
-        let artifact = read(artifact_path);
-        let proof = read(sidecar_path);
-        let policy = receiver_policy(&PccProofSidecar::from_bytes(&proof).expect("decode"));
-        assert!(matches!(
-            verify(&artifact, &proof, &policy),
-            PccVerificationOutcome::Complete(_)
-        ));
-    }
+        .expect_err("both requests cannot complete while native PCC is unsupported");
+    assert!(
+        failure.contains("Incomplete(UnsupportedEvidence { product: Native })"),
+        "{failure}"
+    );
+    assert_eq!(read(&previous), b"retained output");
+    assert_eq!(fs::read_dir(&out).expect("output directory").count(), 1);
     let _ = fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn stale_or_substituted_bytes_and_wrong_policy_reject() {
-    let dir = write_project("    builder.pcc.native = true;\n");
-    let out = dir.join("out");
-    let published = compile_native(&dir)
-        .publish_retained_native_artifact(&out)
-        .expect("native pcc publication");
-    let pair = &published.pcc_publications()[0];
-    let executable = read(&pair.artifact_path);
-    let proof = read(&pair.sidecar_path);
-    let sidecar = PccProofSidecar::from_bytes(&proof).expect("decode");
+    let dir = write_project("    builder.pcc.psi = true;\n");
+    let published = compile(compile_request(
+        &dir,
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("terminal compilation")
+    .publish_retained_terminal_artifact(&dir.join("out"))
+    .expect("psi publication");
+    let psi = read(&published.pcc_publications()[0].artifact_path);
+    let executable = b"arbitrary bytes, not an executable".to_vec();
+    let sidecar = forged_native_sidecar(&psi, &executable);
+    let proof = sidecar.to_bytes();
     let policy = receiver_policy(&sidecar);
 
     // A stale sidecar against different bytes rejects on the content
@@ -273,30 +316,12 @@ fn stale_or_substituted_bytes_and_wrong_policy_reject() {
     ));
 
     // A receiver policy that does not admit the claimed assumption closure
-    // rejects; a sidecar carrying a tampered custody claim also rejects.
+    // rejects before unsupported native evidence is considered.
     let mut denied = policy.clone();
     denied.admitted_assumptions = Vec::new();
     assert!(matches!(
         verify_native_proof_sidecar(&executable, &proof, &denied),
         PccVerificationOutcome::Reject(ref r) if r.subject == "assumption"
-    ));
-
-    let mut custody = NativePccCustodyEvidence::from_bytes(sidecar.evidence()).expect("custody");
-    custody.evidence_digest = [0xee; 32];
-    let forged = PccProofSidecar::new(
-        PccProductKind::Native,
-        *sidecar.artifact_commitment(),
-        sidecar.semantic_profile().to_owned(),
-        sidecar.checker_profile().to_owned(),
-        sidecar.guarantees().to_vec(),
-        custody.to_bytes(),
-        sidecar.assumptions().to_vec(),
-        sidecar.dependencies().to_vec(),
-    )
-    .expect("forged sidecar encodes");
-    assert!(matches!(
-        verify_native_proof_sidecar(&executable, &forged.to_bytes(), &policy),
-        PccVerificationOutcome::Reject(ref r) if r.subject == "native custody evidence"
     ));
 
     // A named resource limit reports Incomplete, not Reject.
@@ -313,30 +338,38 @@ fn stale_or_substituted_bytes_and_wrong_policy_reject() {
 }
 
 #[test]
-fn omitted_dependencies_require_exact_possession() {
-    let dir = write_project("    builder.pcc.native = true;\n");
-    let out = dir.join("out");
-    let published = compile_native(&dir)
-        .publish_retained_native_artifact(&out)
-        .expect("native pcc publication");
-    let pair = &published.pcc_publications()[0];
-    let executable = read(&pair.artifact_path);
-    let proof = read(&pair.sidecar_path);
-    let sidecar = PccProofSidecar::from_bytes(&proof).expect("decode");
-
-    // The minimal program omits no dependencies; a receiver possessing
-    // nothing extra verifies, and a receiver that reports different material
-    // under the same identity rejects.
-    let policy = receiver_policy(&sidecar);
-    assert_eq!(
-        sidecar.dependencies(),
-        policy.possessed_dependencies.as_slice()
-    );
-    assert!(matches!(
-        verify_native_proof_sidecar(&executable, &proof, &policy),
-        PccVerificationOutcome::Complete(_)
-    ));
-    let _ = fs::remove_dir_all(&dir);
+fn offered_native_profiles_never_grant_assurance() {
+    for profile in [
+        "native-custody-v1",
+        "native-semantics-v999",
+        "terminal-psi-vocabulary-96",
+    ] {
+        let executable = b"not executable";
+        let sidecar = PccProofSidecar::new(
+            PccProductKind::Native,
+            terminal_codec::pcc_artifact_commitment(executable),
+            profile.to_owned(),
+            terminal_codec::admission_profile_identity(&AdmissionProfile::default()),
+            vec![terminal_codec::PccGuarantee {
+                identity: "omega.standard-memory-safety".to_owned(),
+                premises: Vec::new(),
+            }],
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("sidecar");
+        assert_eq!(
+            verify_native_proof_sidecar(
+                executable,
+                &sidecar.to_bytes(),
+                &receiver_policy(&sidecar)
+            ),
+            PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
+                product: PccProductKind::Native,
+            }),
+        );
+    }
 }
 
 #[test]
