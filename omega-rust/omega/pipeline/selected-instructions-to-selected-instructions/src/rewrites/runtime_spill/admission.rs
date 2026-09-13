@@ -142,11 +142,39 @@ pub(super) fn admit<'source>(
     for (current_block_index, block) in function.blocks.iter().enumerate() {
         let previous_uses = uses;
         let (terminal, successors) = super::control(&block.terminator);
-        if terminal
-            .operands
-            .iter()
-            .any(|operand| operand.virtual_register == register)
-            || successors.into_iter().flatten().any(|successor| {
+        // A terminator operand use executes after every block instruction, so
+        // the same private reload serves it from the end of the block; the
+        // dominance check below already covers that position. A fixed view on
+        // the operand stays attached and pins the fresh reload register to the
+        // same physical unit, so ABI-pinned returns and hosted exits stay
+        // exact. Tied, early-clobber, and defining references stay rejected.
+        for operand in &terminal.operands {
+            if operand.virtual_register != register {
+                continue;
+            }
+            match operand.access {
+                RegisterOperandAccess::Use
+                    if operand.tied_to.is_none()
+                        && !operand.early_clobber
+                        && operand.class == victim.class =>
+                {
+                    // An output tied to this use would extend the reload's
+                    // value identity.
+                    if terminal
+                        .operands
+                        .iter()
+                        .any(|other| other.tied_to == Some(operand.operand))
+                    {
+                        return Err(RuntimeSpillError::UnsupportedUse);
+                    }
+                    uses = uses
+                        .checked_add(1)
+                        .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                }
+                _ => return Err(RuntimeSpillError::UnsupportedUse),
+            }
+        }
+        if successors.into_iter().flatten().any(|successor| {
                 successor.bindings.iter().any(|binding| {
                     matches!(binding.transport,
                 SelectedValueTransport::Registers { argument, parameter }
@@ -425,6 +453,69 @@ pub(super) fn fresh(next: &mut u32) -> Result<u32, RuntimeSpillError> {
         .checked_add(1)
         .ok_or(RuntimeSpillError::IdentityOverflow)?;
     Ok(result)
+}
+
+/// The private address computation and load inserted for one admitted use, at
+/// an instruction operand or at a terminator operand. Proposal and replay build
+/// the identical pair from this one constructor; the consumer operand keeps its
+/// own access, class, and any fixed ABI view while only the referenced register
+/// changes.
+pub(super) struct Reload {
+    pub address_register: VirtualRegister,
+    pub reload_register: VirtualRegister,
+    pub address: SelectedInstruction,
+    pub load: SelectedInstruction,
+}
+
+pub(super) fn reload(
+    admitted: &Admission<'_>,
+    register: VirtualRegisterId,
+    next_instruction: &mut u32,
+    next_register: &mut u32,
+) -> Result<Reload, RuntimeSpillError> {
+    let address_instruction = SelectedInstructionId(fresh(next_instruction)?);
+    let load_instruction = SelectedInstructionId(fresh(next_instruction)?);
+    let address_register = VirtualRegisterId(fresh(next_register)?);
+    let reload_register = VirtualRegisterId(fresh(next_register)?);
+    Ok(Reload {
+        address_register: VirtualRegister {
+            id: address_register,
+            scalar_type: admitted.address_scalar_type,
+            class: admitted.victim.class,
+            origin: VirtualRegisterOrigin::SpillAddress {
+                instruction: address_instruction,
+                register,
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        },
+        reload_register: VirtualRegister {
+            id: reload_register,
+            scalar_type: admitted.victim.scalar_type,
+            class: admitted.victim.class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: load_instruction,
+                source_value: admitted.source_value,
+            },
+            definition_site: admitted.victim.definition_site,
+            entry_fixed_view: None,
+        },
+        address: instruction(
+            address_instruction,
+            SelectedInstructionKind::FrameAddress {
+                slot: frame(admitted.slot),
+                byte_offset: 0,
+            },
+            admitted.address,
+            &[address_register],
+        ),
+        load: instruction(
+            load_instruction,
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            admitted.load,
+            &[address_register, reload_register],
+        ),
+    })
 }
 
 /// Target rows supply the complete operand/effect interface, not guessed ISA conventions.

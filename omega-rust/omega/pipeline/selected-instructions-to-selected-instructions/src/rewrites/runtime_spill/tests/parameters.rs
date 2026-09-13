@@ -232,6 +232,82 @@ fn every_incoming_copy_stores_before_later_copies_and_preserves_parameter_bindin
 }
 
 #[test]
+fn parameter_terminator_uses_reload_from_edge_initialized_storage() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut source = parameter_fixture(target);
+        {
+            // The destination's return operand consumes the edge-initialized
+            // parameter through the ABI's pinned result register.
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            function.blocks[2].terminator = SelectedTerminator::Return {
+                instruction: admission::instruction(
+                    SelectedInstructionId(2000),
+                    SelectedInstructionKind::ReturnScalar,
+                    environment
+                        .constraint(environment.selected_keys().return_i64)
+                        .unwrap(),
+                    &[VirtualRegisterId(1)],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            };
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        let original = &source.transformed().functions[0];
+        let transformed = &result.transformed().functions[0];
+        let block = &transformed.blocks[2];
+        // Two body uses and the terminator use each get their own pair; the
+        // terminator's reload lands after every body instruction.
+        assert_eq!(
+            block.instructions.len(),
+            original.blocks[2].instructions.len() + 6
+        );
+        assert!(matches!(
+            block.instructions[6].kind,
+            SelectedInstructionKind::FrameAddress { .. }
+        ));
+        assert!(matches!(
+            block.instructions[7].kind,
+            SelectedInstructionKind::Load64 { .. }
+        ));
+        let terminator = super::super::control(&block.terminator).0;
+        assert_eq!(
+            terminator.operands[0].virtual_register,
+            block.instructions[7].operands[1].virtual_register
+        );
+        assert_eq!(
+            transformed
+                .boundary_settlements
+                .iter()
+                .map(|settlement| settlement.instruction_index)
+                .collect::<Vec<_>>(),
+            [0, 2, 3, 2, 8, 2]
+        );
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone()
+            )
+            .is_ok()
+        );
+    }
+}
+
+#[test]
 fn incomplete_or_nonlocal_parameter_initialization_is_rejected() {
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     for mutation in 0..12 {
