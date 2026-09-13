@@ -1548,7 +1548,7 @@ Owners include
   Resume at the checked/Terminal representation seam, not another evaluator
   source-shape gate: realize projected owned reference leaves with residual
   carrier cleanup, then nested result operands with their recursive loan custody.
-  Whole owned record ingress and forwarding are available: at `74a7afca7c`,
+  Whole owned record ingress and forwarding are available: at `5374ab3198`,
   `cargo nextest run -p checked-trees-to-lowered-psi --test reference_result_source --no-fail-fast`
   (macOS ARM64, `RUST_MIN_STACK=33554432`) checks canonical encoding, independent
   verification, and fuel-stepped execution of `forward(input)` followed by
