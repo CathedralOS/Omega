@@ -62,7 +62,7 @@ enum Value {
 
 /// Only a wholly anonymous final value uses `destination`. A previously
 /// landed result retains its carrier for the caller's destination check.
-pub(super) fn evaluate(
+pub(crate) fn evaluate(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,

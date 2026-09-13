@@ -44,6 +44,11 @@ fn declared_range_inference_returns_the_selected_endpoint() {
         ("inclusive_to_exclusive", vec![BuildTimeValue::Int(0)], 257),
         ("exclusive_to_inclusive", vec![BuildTimeValue::Int(0)], 256),
         ("typed_exclusive", vec![BuildTimeValue::Int(0)], 5),
+        ("argument_named", vec![BuildTimeValue::Int(0)], 256),
+        ("argument_fractional", vec![BuildTimeValue::Int(0)], 256),
+        ("argument_full_width", vec![BuildTimeValue::Int(0)], -1),
+        ("argument_scoped", vec![BuildTimeValue::Int(0)], 256),
+        ("argument_order", vec![BuildTimeValue::Int(0)], 256),
     ] {
         let machine = checked
             .typed

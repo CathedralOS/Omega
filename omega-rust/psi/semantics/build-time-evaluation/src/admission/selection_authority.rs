@@ -225,69 +225,8 @@ fn expression_selection_violation(
         );
     }
 
-    if let Some(authority) = authority {
-        let occurrences = program
-            .expression_table
-            .authored_selection_occurrences(expression)
-            .collect::<Vec<_>>();
-        for (occurrence_offset, occurrence) in occurrences.iter().copied().enumerate() {
-            let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
-                return Some(format!(
-                    "build-time expression retains unknown authored declaration selection occurrence {}",
-                    occurrence.ordinal()
-                ));
-            };
-            let requester = package_for_source(program, selection.source_span());
-            let owner = match selection.target() {
-                typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(_) => continue,
-                typed_trees::AuthoredDeclarationSelectionTarget::LateBound(binding) => {
-                    if binding
-                        == typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator
-                        && (typed_trees_to_checked_trees::typed_operator_has_no_authored_selection(
-                            program, expression,
-                        ) || unresolved_operator_candidates_are_confined(
-                            program, expression, requester, authority,
-                        ))
-                    {
-                        continue;
-                    } else {
-                        match late_bound_selection_symbol(
-                            program,
-                            expression,
-                            &occurrences[..occurrence_offset],
-                            binding,
-                        ) {
-                            Some(selected) => package_for_symbol(program, selected),
-                            None => {
-                                if unresolved_spelling_is_confined(
-                                    program,
-                                    program.symbols.source_text(selection.source_span()),
-                                    requester,
-                                    authority,
-                                    binding,
-                                ) {
-                                    continue;
-                                }
-                                return Some(format!(
-                                    "build-time expression has unresolved authored {:?} selection `{}` ({binding:?}); package authority must be known before compiler execution",
-                                    selection.kind(),
-                                    program.symbols.source_text(selection.source_span()),
-                                ));
-                            }
-                        }
-                    }
-                }
-                typed_trees::AuthoredDeclarationSelectionTarget::Resolved(selected) => {
-                    package_for_symbol(program, selected.selected_symbol())
-                }
-            };
-            let context = format!("build-time authored {:?} selection", selection.kind());
-            if let Some(violation) =
-                require_selection(program, requester, owner, authority, &context)
-            {
-                return Some(violation);
-            }
-        }
+    if let Some(violation) = expression_occurrence_violation(program, expression, authority) {
+        return Some(violation);
     }
 
     let table = &program.expression_table;
@@ -357,6 +296,114 @@ fn expression_selection_violation(
             return Some(violation);
         }
     }
+    None
+}
+
+// Numeric type positions have no implicit machine activation. Check the same
+// source-owned selections as machine expressions, then establish context-free
+// operator meaning through the shared exact query. Never substitute the
+// callee's lexical context for the caller's argument expressions.
+pub(crate) fn require_closed_integer_argument(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    authority: Option<&dyn BuildTimeSelectionAuthority>,
+) -> Result<(), String> {
+    let mut pending = vec![expression];
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        if let Some(violation) = expression_occurrence_violation(program, expression, authority) {
+            return Err(violation);
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Binary(binary) => {
+                pending.push(binary.right);
+                pending.push(binary.left);
+            }
+            ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {}
+            // Keep traversal complete if the shared numeric query grows new
+            // expression forms: each new form needs its own selection walk.
+            _ => return Err("range endpoint argument requires a closed integer expression with context-independent operator meaning".to_owned()),
+        }
+    }
+    program.closed_integer_value_in(expression, SymbolHandle::invalid())
+        .map(|_| ())
+        .ok_or_else(|| "range endpoint argument requires a closed integer expression with context-independent operator meaning".to_owned())
+}
+
+fn expression_occurrence_violation(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    authority: Option<&dyn BuildTimeSelectionAuthority>,
+) -> Option<String> {
+    if let Some(authority) = authority {
+        let occurrences = program
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .collect::<Vec<_>>();
+        for (occurrence_offset, occurrence) in occurrences.iter().copied().enumerate() {
+            let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+                return Some(format!(
+                    "build-time expression retains unknown authored declaration selection occurrence {}",
+                    occurrence.ordinal()
+                ));
+            };
+            let requester = package_for_source(program, selection.source_span());
+            let owner = match selection.target() {
+                typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(_) => continue,
+                typed_trees::AuthoredDeclarationSelectionTarget::LateBound(binding) => {
+                    if binding
+                        == typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator
+                        && (typed_trees_to_checked_trees::typed_operator_has_no_authored_selection(
+                            program, expression,
+                        ) || unresolved_operator_candidates_are_confined(
+                            program, expression, requester, authority,
+                        ))
+                    {
+                        continue;
+                    } else {
+                        match late_bound_selection_symbol(
+                            program,
+                            expression,
+                            &occurrences[..occurrence_offset],
+                            binding,
+                        ) {
+                            Some(selected) => package_for_symbol(program, selected),
+                            None => {
+                                if unresolved_spelling_is_confined(
+                                    program,
+                                    program.symbols.source_text(selection.source_span()),
+                                    requester,
+                                    authority,
+                                    binding,
+                                ) {
+                                    continue;
+                                }
+                                return Some(format!(
+                                    "build-time expression has unresolved authored {:?} selection `{}` ({binding:?}); package authority must be known before compiler execution",
+                                    selection.kind(),
+                                    program.symbols.source_text(selection.source_span()),
+                                ));
+                            }
+                        }
+                    }
+                }
+                typed_trees::AuthoredDeclarationSelectionTarget::Resolved(selected) => {
+                    package_for_symbol(program, selected.selected_symbol())
+                }
+            };
+            let context = format!("build-time authored {:?} selection", selection.kind());
+            if let Some(violation) =
+                require_selection(program, requester, owner, authority, &context)
+            {
+                return Some(violation);
+            }
+        }
+    }
+
     None
 }
 

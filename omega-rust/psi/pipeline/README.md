@@ -240,7 +240,7 @@ operation must fit before a later cancellation. The same customer exercises
 inferred bounds 511 and 256 through these wide computations.
 
 A named computation endpoint (`u64[0..=limit()]` or
-`u64[0..=Limits::capacity()]`, a closed zero-argument call) folds before checking
+`u64[0..=Limits::capacity(256)]`, a closed resolved call) folds before checking
 in `build-time-evaluation/src/range_endpoints.rs`
 through the same `BuildTimeAdmissionPlan` and checked-interpreter route as
 fixed-array lengths, with source invocation custody; the endpoint becomes an
@@ -254,7 +254,15 @@ The typed call's resolved entry and existing receiver classification distinguish
 a type qualifier from a runtime value. Folding evaluates the exact retained
 machine symbol, not a reconstructed name. Unbound generic callees remain calls
 so folding cannot erase an underdetermined application.
-Calls with value arguments, generic machine arguments, open symbolic endpoints,
+Integer arguments land at exact unconstrained builtin parameters before entering
+the interpreter's value snapshots. The shared context-free numeric query first
+excludes owner-dependent arithmetic; the scalar constant evaluator then retains
+exact carriers and fractional warnings, including nested anonymous landings.
+Argument selections pass their own package gate rather than inheriting the
+callee's permission. This repeats scalar evaluation to reuse both existing
+contracts; it does not add another arithmetic implementation.
+Nested calls, noninteger or constrained arguments, generic machine arguments,
+unresolved data-field calls, open symbolic endpoints,
 full-width variable compatibility intervals and exact type equations remain
 open; context-free typed evaluation refuses matching selected trait operators
 until the endpoint has direct owner context.

@@ -25,6 +25,7 @@ mod selection_authority;
 
 use closure_validation::checked_closure_violation;
 use const_evaluable::require_const_evaluable_result;
+pub(crate) use selection_authority::require_closed_integer_argument;
 use selection_authority::selection_authority_violation;
 
 /// Package-neutral authority consulted before the compiler executes an

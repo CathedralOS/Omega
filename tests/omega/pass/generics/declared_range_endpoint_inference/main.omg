@@ -32,6 +32,14 @@ machine exclusive_full_u64(value: u64[0..18446744073709551616]) -> u64 { upper_b
 machine inclusive_to_exclusive(value: u64[0..=256]) -> u64 { exclusive_upper_bound(value) }
 machine exclusive_to_inclusive(value: u64[0..257]) -> u64 { upper_bound(value) }
 machine typed_exclusive(value: u64[0..7u64 / 2 * 2]) -> u64 { upper_bound(value) }
+machine endpoint(value: u64) -> u64 { value }
+machine argument_named(value: u64[0..=endpoint(256)]) -> u64 { upper_bound(value) }
+machine argument_fractional(value: u64[0..=endpoint(1 / 2 * 512)]) -> u64 { upper_bound(value) }
+machine argument_full_width(value: u64[0..=endpoint(18446744073709551615u64)]) -> u64 { upper_bound(value) }
+machine Limits::endpoint(value: u64) -> u64 { value }
+machine argument_scoped(value: u64[0..Limits::endpoint(257)]) -> u64 { upper_bound(value) }
+machine choose_endpoint(first: u64, second: u64) -> u64 { second }
+machine argument_order(value: u64[0..=choose_endpoint(17, 256)]) -> u64 { upper_bound(value) }
 
 data Main { console: Console; }
 machine Main::main(&mut self) reaches Console {
