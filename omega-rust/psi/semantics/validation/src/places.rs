@@ -401,6 +401,45 @@ fn lexical_place_declaration_before(
     }
 }
 
+/// The declared type of the one binding a normalized immutable-bound symbol
+/// resolves to: a unique state parameter or local across the program, the same
+/// program-wide uniqueness contract the bound normalizers in
+/// `immutable_integer_bounds` already require. `None` when the symbol names
+/// zero or several bindings. This recovers only the declared carrier for
+/// bound-floor evidence; mutability vetting and stored-value identity stay
+/// with the normalization that produced the symbol.
+pub(crate) fn bound_symbol_declared_type(
+    program: &TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    let mut found = None;
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for parameter in program.state_parameters(state) {
+                if parameter.symbol == symbol && found.replace(parameter.type_reference).is_some() {
+                    return None;
+                }
+            }
+            for statement in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+            {
+                if let typed_trees::statement::StatementNode::LocalData(local) = statement
+                    && local.symbol == symbol
+                    && found.replace(local.type_reference).is_some()
+                {
+                    return None;
+                }
+            }
+        }
+    }
+    found
+}
+
 mod builtin_coordinates;
 mod exact_self_field;
 mod local_scalar_record_field;
