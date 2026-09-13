@@ -2,19 +2,22 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IeeeFloatComparisonOperation, IeeeFloatFormat,
     IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
-    ScalarType, ValueId,
+    PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
     Block, CertificateEnvelope, EvidenceRoute, MachineContract, ObligationEvidence, Operation,
-    OperationKind, OperationResult, ProofSystemMarker, SuccessorEdge, TerminalMachine,
+    OperationKind, OperationResult, ProofSystemMarker, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::ProofBundle;
 
 use super::{
+    affine_cleanup::CleanupCase,
     exact_traps::{TrapCase, TrapOperation},
     generator::LaneInput,
     ieee_compare::CompareCase,
@@ -79,6 +82,24 @@ pub(super) fn exact_trap_artifact(
     )
 }
 
+pub(super) fn affine_cleanup_artifact(
+    ordinal: usize,
+    case: &CleanupCase,
+    lane_base: u64,
+) -> CorpusArtifact {
+    build_artifact(
+        ordinal,
+        lane_base,
+        Leaf::AffineCleanup {
+            left: case.left,
+            right: case.right,
+            expected: case.expected,
+            true_records: case.true_cleanups,
+            false_records: case.false_cleanups,
+        },
+    )
+}
+
 #[derive(Clone, Copy)]
 enum Leaf {
     WrappingAdd(LaneInput),
@@ -95,6 +116,24 @@ enum Leaf {
         right: u64,
         expected: u64,
     },
+    AffineCleanup {
+        left: u64,
+        right: u64,
+        expected: u64,
+        true_records: u8,
+        false_records: u8,
+    },
+}
+
+/// Structural declarations and exact return cleanup schedules carried beside
+/// the leaf operations. Every other lane leaves this empty, preserving the
+/// corpus module's scalar-only shape.
+#[derive(Default)]
+struct CleanupPlan {
+    structural_types: Vec<StructuralTypeDeclaration>,
+    structural_places: Vec<StructuralPlaceDeclaration>,
+    true_actions: Vec<TerminalAffineCleanupAction>,
+    false_actions: Vec<TerminalAffineCleanupAction>,
 }
 
 fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact {
@@ -137,6 +176,16 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
         id,
         result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
         kind: OperationKind::WrappingIntegerAdd { left, right },
+    };
+    // `run_machine` legalizes only the admitted scalar instruction set; the
+    // wrapping-add leaf is exercised through Psi/SCCP but is not admitted into
+    // selected-machine lowering. Saturating u64 add is admitted and keeps the
+    // cleanup lane's observation a pure two-operand scalar deterministic fold.
+    let saturating_add = |id, result, left, right| Operation {
+        static_reach_binding: None,
+        id,
+        result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
+        kind: OperationKind::SaturatingIntegerAdd { left, right },
     };
     let float_scalar_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
     let ieee_literal = |id, result, bits| Operation {
@@ -225,7 +274,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
             ],
         }
     };
-    let (true_operations, false_operations, add_operations, expected, machine_scalar_type) =
+    let (true_operations, false_operations, add_operations, expected, machine_scalar_type, cleanup) =
         match leaf {
             Leaf::WrappingAdd(input) => (
                 vec![
@@ -241,6 +290,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 vec![true_add_operation, false_add_operation],
                 CorpusExpected::Unsigned(input.expected),
                 integer_scalar_type,
+                CleanupPlan::default(),
             ),
             Leaf::Immediate(expected) => (
                 vec![literal(true_left_operation, true_result, expected)],
@@ -248,6 +298,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 Vec::new(),
                 CorpusExpected::Unsigned(expected),
                 integer_scalar_type,
+                CleanupPlan::default(),
             ),
             Leaf::IeeeCompare {
                 comparison,
@@ -280,6 +331,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 Vec::new(),
                 CorpusExpected::Boolean(expected),
                 ScalarType::Boolean,
+                CleanupPlan::default(),
             ),
             Leaf::ExactTrap {
                 operation,
@@ -314,14 +366,103 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 Vec::new(),
                 CorpusExpected::Unsigned(expected),
                 integer_scalar_type,
+                CleanupPlan::default(),
             ),
+            Leaf::AffineCleanup {
+                left,
+                right,
+                expected,
+                true_records,
+                false_records,
+            } => {
+                // One shared claim-free empty-record type per artifact. Each
+                // arm establishes its own affine results and the selected
+                // return edge disposes them in reverse producer order — the
+                // exact schedule the verifier reconstructs independently.
+                let record_type = StructuralTypeId::new(base + 30).unwrap();
+                let record_type_declaration = StructuralTypeDeclaration {
+                    id: record_type,
+                    identity: "omega.optimizer-corpus.affine_cleanup.Cell".into(),
+                    shape: StructuralTypeShape::Record { fields: Vec::new() },
+                };
+                let records = |place_base: u64, operation_base: u64, count: u8| {
+                    (0..count)
+                        .map(|index| {
+                            (
+                                PlaceId::new(place_base + u64::from(index)).unwrap(),
+                                OperationId::new(operation_base + u64::from(index)).unwrap(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                };
+                let true_records = records(base + 31, base + 41, true_records);
+                let false_records = records(base + 51, base + 61, false_records);
+                let establish = |(place, producer): (PlaceId, OperationId)| Operation {
+                    static_reach_binding: None,
+                    id: producer,
+                    result: OperationResult::Structural(StructuralOperationResult {
+                        place,
+                        structural_type: record_type,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::EstablishRecord { fields: Vec::new() },
+                };
+                let mut cleanup = CleanupPlan {
+                    structural_types: vec![record_type_declaration],
+                    ..CleanupPlan::default()
+                };
+                for (place, producer) in true_records.iter().chain(&false_records) {
+                    cleanup.structural_places.push(StructuralPlaceDeclaration {
+                        id: *place,
+                        kind: StructuralPlaceKind::OperationResult {
+                            producer: *producer,
+                            structural_type: record_type,
+                        },
+                    });
+                }
+                let schedule = |records: &[(PlaceId, OperationId)]| {
+                    let mut ordered = records.to_vec();
+                    ordered.sort_by_key(|(_, producer)| std::cmp::Reverse(*producer));
+                    ordered
+                        .into_iter()
+                        .map(|(place, _)| TerminalAffineCleanupAction::DiscardRoot(place))
+                        .collect::<Vec<_>>()
+                };
+                cleanup.true_actions = schedule(&true_records);
+                cleanup.false_actions = schedule(&false_records);
+                (
+                    [
+                        literal(true_left_operation, true_left, left),
+                        literal(true_right_operation, true_right, right),
+                        saturating_add(true_add_operation, true_result, true_left, true_right),
+                    ]
+                    .into_iter()
+                    .chain(true_records.iter().copied().map(&establish))
+                    .collect(),
+                    [
+                        literal(false_left_operation, false_left, left),
+                        literal(false_right_operation, false_right, right),
+                        saturating_add(false_add_operation, false_result, false_left, false_right),
+                    ]
+                    .into_iter()
+                    .chain(false_records.iter().copied().map(&establish))
+                    .collect(),
+                    Vec::new(),
+                    CorpusExpected::Unsigned(expected),
+                    integer_scalar_type,
+                    cleanup,
+                )
+            }
         };
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: cleanup.structural_types,
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
@@ -359,7 +500,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(machine_result, machine_scalar_type)),
-            structural_places: Vec::new(),
+            structural_places: cleanup.structural_places,
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
@@ -396,7 +537,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     terminator: Terminator::Return {
                         edge: EdgeId::new(base + 21).unwrap(),
                         value: true_result,
-                        cleanup_actions: Vec::new(),
+                        cleanup_actions: cleanup.true_actions,
                     },
                 },
                 Block {
@@ -407,7 +548,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     terminator: Terminator::Return {
                         edge: EdgeId::new(base + 22).unwrap(),
                         value: false_result,
-                        cleanup_actions: Vec::new(),
+                        cleanup_actions: cleanup.false_actions,
                     },
                 },
             ],
