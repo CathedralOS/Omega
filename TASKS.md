@@ -393,12 +393,13 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   carries the exact machine symbol into `ProgramEntry` selection, so a foreign
   helper binds its own package's entry through the borrowed root Build while
   caller-private names reject; `compiler/tests/build_target_activation.rs`
-  pins both. Remaining: the owner-selected restricted description handoff
-  (`builder.product.entry(...)` and its non-callable description type), the
-  same-name-across-packages fence in `selection.rs` until Terminal production
-  and entry settlement select by symbol instead of machine name, and the
-  computed-receiver implementation fence once ordinary call-result authority
-  and effect/loan traversal can carry that use.
+  pins both. Terminal production and native entry settlement now rejoin the
+  selected machine by exact `SymbolHandle`, so the same-name-across-packages
+  fence in `selection.rs` is removed. Remaining: the owner-selected restricted
+  description handoff (`builder.product.entry(...)` and its non-callable
+  description type) and the computed-receiver implementation fence once
+  ordinary call-result authority and effect/loan traversal can carry that
+  use.
   Final admission must rejoin the exact selected identity after generation.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** In build evaluation, its host custody adapters and
