@@ -18,6 +18,12 @@
 //! Their RHS is a classifier, not a payload constructor, and their subject is
 //! observed rather than moved. The operation survives ordinary expression
 //! copies without fabricating authored membership-selection rows.
+//!
+//! `[erased]` fields are skipped: they have no runtime value, and the
+//! relevance pass (psi/semantics/validation/src/relevance/runtime_uses.rs)
+//! would otherwise reject member reads the author never wrote. A record
+//! whose every field is erased rejects rather than comparing trivially
+//! equal, per the structural_predicates.md equality table.
 
 use super::lowerer::ExpressionTableLowerer;
 use crate::equatable::{
@@ -477,6 +483,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .collect();
 
         if variants.is_empty() {
+            if !fields.is_empty() && fields.iter().all(|field| field.relevance.is_erased()) {
+                return Err(Diagnostic::error(format!(
+                    "cannot synthesize structural `==` for `{}`: every field is `[erased]`, so the record has no runtime value to compare",
+                    data.name
+                )));
+            }
             let compares = self.field_compares(data, &fields, None, left, right, visiting)?;
             return Ok(self.conjunction(compares));
         }
@@ -505,6 +517,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     ) -> Result<Vec<typed::expression::ExpressionHandle>, Diagnostic> {
         let mut compares = Vec::new();
         for field in fields {
+            if field.relevance.is_erased() {
+                continue;
+            }
             compares.push(self.field_compare(data, field, case_variant, left, right, visiting)?);
         }
         Ok(compares)

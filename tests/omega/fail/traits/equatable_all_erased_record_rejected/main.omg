@@ -1,0 +1,28 @@
+// A record whose every field is `[erased]` has no runtime value to compare:
+// the synthesized structural `==` would be a vacuous truth that proves
+// nothing about runtime state, so the all-erased record rejects rather
+// than comparing trivially equal (structural_predicates.md equality table).
+
+trait Equatable {
+    machine equals(&self, rhs: &Self) -> bool;
+}
+
+data Evidence [copy] {
+    case Only;
+}
+
+data Sealed [copy] {
+    proof [erased]: Evidence;
+    attestation [erased]: Evidence;
+}
+
+SealedEquatable: Sealed satisfies Equatable;
+
+data Main {
+    a: Sealed;
+    b: Sealed;
+}
+
+machine Main::main(&mut self) {
+    let same: bool = self.a == self.b;
+}
