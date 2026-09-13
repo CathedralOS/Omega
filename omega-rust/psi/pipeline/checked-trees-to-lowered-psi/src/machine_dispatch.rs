@@ -16,7 +16,6 @@ use crate::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
 use crate::scalar_call_closure::{checked_scalar_call_closure, lower_scalar_call_closure};
 use crate::scalar_graph_lowering::lower_scalar_graph_machine;
-use crate::structural_call_return::lower_structural_call_return_machine;
 use crate::structural_return::lower_structural_return_machine;
 use crate::structural_scalar_return::{
     lower_selected_operator_structural_scalar_return_machine,
@@ -55,7 +54,6 @@ pub(super) enum SelectedMachineRoute {
     NominalAffineUnitCleanup,
     PartialAffineUnitCleanup,
     BoundaryScalarReturn,
-    StructuralCallReturn,
     PayloadlessCaseReturn,
     StructuralReturn,
     AffineReturn,
@@ -461,20 +459,6 @@ pub(super) fn lower_selected_machine(
             route: SelectedMachineRoute::BoundaryScalarReturn,
             exact_sources: Some(lowered.source_machine_ids),
         });
-    }
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_structural_call_returns
-        .for_machine(selection.machine)
-    {
-        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
-            return unsupported("structural call result transfer requires an attached signature");
-        }
-        return source_mapped_machine(
-            lower_structural_call_return_machine(checked, plan),
-            SelectedMachineRoute::StructuralCallReturn,
-        );
     }
     if let Some(plan) = checked
         .facts

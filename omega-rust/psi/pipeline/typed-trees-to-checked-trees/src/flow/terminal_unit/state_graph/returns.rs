@@ -12,11 +12,14 @@ pub(in crate::flow::terminal_unit) fn signature(
         return Some(CheckedControlResultPlan::Unit);
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
-    if !matches!(
-        multiplicity,
-        Multiplicity::Unrestricted | Multiplicity::Affine
-    ) || !parameter_qualifications(program, shapes, reference, &[])?.is_empty()
-        || !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
+    let qualifications = parameter_qualifications(program, shapes, reference, &[])?;
+    if is_reference(program, reference)
+        || type_graph_requires_nominal_drop(program, reference)
+        || (multiplicity != Multiplicity::Linear
+            && (!qualifications.is_empty()
+                || !validation::has_plain_owned_contents_with_numeric_constraints(
+                    program, reference,
+                )))
     {
         return None;
     }
@@ -47,14 +50,16 @@ pub(in crate::flow::terminal_unit) fn signature(
         }
         _ => false,
     };
-    if !valid {
+    // Whole linear forwarding does not inspect or construct payload fields.
+    // Its exact input-origin claims are admitted by the completion/call joins.
+    if !valid && multiplicity != Multiplicity::Linear {
         return None;
     }
     Some(CheckedControlResultPlan::Structural(
         CheckedStructuralResultPlan {
             type_identity,
             multiplicity,
-            qualifications: Vec::new(),
+            qualifications,
         },
     ))
 }
@@ -66,6 +71,10 @@ pub(super) fn constructor(
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+    // A shape classification does not establish fresh linear authority.
+    if program.type_multiplicity(state.return_type) == Multiplicity::Linear {
+        return None;
+    }
     let TypeReferenceNode::Named { symbol, .. } = program
         .type_reference_table
         .type_reference(state.return_type)

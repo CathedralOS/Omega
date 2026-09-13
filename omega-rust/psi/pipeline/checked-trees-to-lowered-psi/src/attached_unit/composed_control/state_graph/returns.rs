@@ -16,20 +16,24 @@ pub(super) fn signature_matches(
             checked_trees::types::TypeReferenceNode::Unit
         ),
         CheckedControlResultPlan::Structural(result) => {
+            let Ok(carrier) = crate::attached_unit::parameters::structural_carrier_type(
+                checked,
+                source.return_type,
+            ) else {
+                return false;
+            };
             checked
-                .normalized_type_identity(source.return_type)
+                .normalized_type_identity(carrier)
                 .as_str()
                 == result.type_identity
                 && checked.type_multiplicity(source.return_type) == result.multiplicity
-                && matches!(
-                    result.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                )
-                && result.qualifications.is_empty()
-                && validation::has_plain_owned_contents_with_numeric_constraints(
+                && validation::structural_result_qualifications(&checked.typed, source.return_type).ok().as_ref() == Some(&result.qualifications)
+                // Plain storage classification excludes linear roots by design.
+                // Their admission instead requires exact entry/call/return claims.
+                && (result.multiplicity == Multiplicity::Linear || validation::has_plain_owned_contents_with_numeric_constraints(
                     &checked.typed,
-                    source.return_type,
-                )
+                    carrier,
+                ))
         }
     }
 }
@@ -224,20 +228,38 @@ pub(super) fn validate_structural(
                 return unsupported("structural return producer custody drifted");
             }
             if binding.statement_index as usize == ordinal {
-                if !matches!(
+                if matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                ) {
+                    crate::attached_unit::structural_calls::validate_custody(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        operation,
+                    )?;
+                    crate::call_source_custody::validate_operation(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        operation,
+                        &state.structural_parameters,
+                    )?;
+                } else if matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 ) {
+                    crate::attached_unit::structural_values::source_custody::validate(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        operation,
+                    )?;
+                } else {
                     return unsupported(
                         "structural return tail producer requires exact value custody",
                     );
                 }
-                crate::attached_unit::structural_values::source_custody::validate(
-                    checked,
-                    plan.machine,
-                    state.state,
-                    operation,
-                )?;
             } else {
                 let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
                     .statement_table
@@ -298,11 +320,13 @@ pub(super) fn result(
             multiplicity: match result.multiplicity {
                 Multiplicity::Affine => StructuralMultiplicity::Affine,
                 Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                Multiplicity::Linear => {
-                    return unsupported("case construction cannot establish linear custody");
-                }
+                Multiplicity::Linear => StructuralMultiplicity::Linear,
             },
-            qualifications: Vec::new(),
+            qualifications: result
+                .qualifications
+                .iter()
+                .map(|domain| lookup_domain_id(&catalogs.domain_ids, *domain))
+                .collect::<Result<Vec<_>, _>>()?,
             projected_qualifications: Vec::new(),
         },
     ))

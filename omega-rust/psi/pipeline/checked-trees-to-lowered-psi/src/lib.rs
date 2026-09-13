@@ -18,17 +18,16 @@ use checked_trees::{
     CheckedScalarBindingValue, CheckedScalarBranchDestination, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
     CheckedScalarSuccessor, CheckedSelectedOperatorStructuralScalarReturnMachinePlan,
-    CheckedStructuralCallReturnMachinePlan, CheckedStructuralReturnMachinePlan,
-    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
-    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedTerminalMachineDebugPlan, CheckedTerminalSignatureEligibility, CheckedTrees,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
-    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
-    types::PrimitiveType,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarIntegerBoundKind,
+    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarReturnCleanupAction,
+    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalMachineDebugPlan,
+    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitPartialAffineDiscardPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ClosedScalarContractValue, ClosedScalarValueContractPlan,
+    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
 };
 use language_semantics::content::{
     ContentAlgebraIdentity as CheckedContentAlgebraIdentity, ContentArithmeticOperator,
@@ -142,7 +141,6 @@ mod scalar_source_custody;
 mod shared_runtime_parameters;
 mod structural_byte_sequence_index_store;
 mod structural_byte_sequence_store;
-mod structural_call_return;
 mod structural_return;
 mod structural_scalar_return;
 mod structural_scalar_store;
@@ -213,7 +211,6 @@ use shared_runtime_parameters::{
     normalize_shared_boolean_comparison_leaves, resolve_shared_boolean_member_fields,
     shared_boolean_runtime_parameters, valid_shared_boolean_runtime_inputs,
 };
-use structural_return::lower_structural_return_machine;
 use structural_types::{
     lower_mixed_cases, lower_mixed_fields, lower_structural_type_plans,
     retain_additional_structural_types, terminal_byte_sequence_carrier,
@@ -1193,7 +1190,6 @@ pub fn lower_machine(
                 | SelectedMachineRoute::NominalAffineUnitCleanup
                 | SelectedMachineRoute::PartialAffineUnitCleanup
                 | SelectedMachineRoute::BoundaryScalarReturn
-                | SelectedMachineRoute::StructuralCallReturn
                 | SelectedMachineRoute::PayloadlessCaseReturn
                 | SelectedMachineRoute::StructuralReturn
                 | SelectedMachineRoute::AffineReturn

@@ -68,7 +68,7 @@ pub(super) use parameters::{
     checked_scalar_source_parameters, literal_argument_places,
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
     lower_structural_arguments, lower_structural_path, lower_unit_parameters,
-    validate_transfer_shape,
+    structural_carrier_type, validate_transfer_shape,
 };
 pub(super) use provider_attachments::lower_provider_attachment_places;
 use provider_attachments::validate_provider_attachment_requirements;
@@ -479,6 +479,7 @@ fn assemble_unit_closure(
                 operation,
                 &machine.structural_parameters,
             )?;
+            structural_calls::validate_custody(checked, machine.machine, machine.state, operation)?;
             match operation {
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                     structural_values::source_custody::validate(
@@ -1770,11 +1771,15 @@ fn assemble_unit_closure(
                                 call_context,
                             )?;
                             let declaration = ordinary_calls::emit_structural(
+                                checked,
                                 plan.state,
                                 operand,
                                 prepared,
                                 lookup_machine_id(&machine_ids, *target_machine)?,
                                 &type_ids,
+                                &domain_ids,
+                                claim_bindings,
+                                true,
                                 place_counter,
                                 output,
                             )?;
@@ -2057,6 +2062,7 @@ fn assemble_unit_closure(
                     } = operation
                     {
                         let declaration = ordinary_calls::emit_structural(
+                            checked,
                             plan.state,
                             operation,
                             ordinary_calls::PreparedCall {
@@ -2067,6 +2073,9 @@ fn assemble_unit_closure(
                             },
                             lookup_machine_id(&machine_ids, *target_machine)?,
                             &type_ids,
+                            &domain_ids,
+                            claim_bindings,
+                            true,
                             &mut next_place,
                             &mut operations,
                         )?;

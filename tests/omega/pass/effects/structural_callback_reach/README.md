@@ -7,27 +7,27 @@ cargo run -p omega -- --check tests/omega/pass/effects/structural_callback_reach
 cargo run -p omega -- inspect-terminal --machine Main::demand tests/omega/pass/effects/structural_callback_reach/main.omg
 ```
 
-The source checks. Terminal publication remains an implementation dependency:
-frontend normalization hoists the callback call into a local and returns that local.
-The checked call, input-origin claim outcome and content identity reshuffle remain
-present, but structural call-return planning requires a single call expression.
-The demanding wrapper also needs the ordinary transitive call closure.
+The source checks and publishes a verified three-machine Terminal module.
+Frontend normalization hoists the selected callback call into a local. Ordinary
+statement sequencing binds that result and completion returns it, preserving the
+exact `Region::Owned` qualification and input-origin claim. The demanding wrapper
+uses the same transitive call closure as its selected callback.
 
-Reuse the structural result binding and completion joins in
-`typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
-and its consumers. Do not add another source-family recognizer for the hoisted
-local. Acceptance is publication, reload and identity-preserving interpretation
-of this same qualified linear call chain, including its exact nominal binder
-reach record and independent rejection of stale call/claim evidence.
-
-The currently supported direct call to a const-generic linear identity callee
-uses the existing two-body producer and preserves that callee's closed reach
-application. Its source-free execution and stale source-coordinate controls run
-with:
+The source-free tests cover publication, reload and identity-preserving execution,
+including a scalar binding before the callback, the exact nominal reach application,
+and rejection of altered call coordinates, same-shaped targets, qualifications,
+result bindings, source claim events and returned-claim transfers. They also retain
+the direct const-generic callee regression:
 
 ```sh
 cargo nextest run -p checked-trees-to-lowered-psi --test structural_return_source service_reach --no-fail-fast --no-tests fail
 ```
 
-These checks do not establish generic PCC or independently authenticated
-original-contract projections.
+Custody reconstruction lives in `validation/src/structural_call_custody.rs`;
+ordinary binding and completion belong to
+`typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`.
+Whole-root linear input-origin forwarding uses the existing `CallStructural`
+operation. Projected or freshly established returned claims, multiple transferred
+linear claims and mixed scalar/linear call arguments require further implementation.
+These checks do not establish generic PCC or independently authenticated original
+contract projections.

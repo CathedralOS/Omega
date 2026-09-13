@@ -28,12 +28,12 @@ pub(in crate::attached_unit::composed_control) fn has_shared_graph_custody(
         })
         && plan.body_qualifications.is_empty()
         && plan.states.iter().all(|state| {
-            state.entry_claims.is_empty()
+            (state.entry_claims.is_empty() || (plan.states.len() == 1 && successors(state).is_empty()))
                 && state.structural_parameters.iter().all(|parameter| {
                     ((parameter.multiplicity == Multiplicity::Unrestricted
                         && matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
-                        || (parameter.access == checked_trees::CheckedStructuralAccess::Owned && matches!(parameter.multiplicity, Multiplicity::Affine | Multiplicity::Unrestricted)))
-                        && parameter.qualifications.is_empty()
+                        || parameter.access == checked_trees::CheckedStructuralAccess::Owned)
+                        && (parameter.qualifications.is_empty() || parameter.multiplicity == Multiplicity::Linear)
                 })
         })
 }
@@ -83,6 +83,14 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
     {
         return unsupported("Unit graph requires a closed checked body");
     }
+    // Whole linear transport retains declaration qualifications and claim
+    // conservation, not an arbitrary authored machine precondition package.
+    if matches!(&plan.result, checked_trees::CheckedControlResultPlan::Structural(result)
+        if result.multiplicity == Multiplicity::Linear)
+        && !checked.machine_contracts(machine).is_empty()
+    {
+        return unsupported("linear structural graph has unrepresented authored machine contracts");
+    }
     super::ranking::validate_witness(checked, machine, plan)?;
     let attachment = super::super::admission::exact_attachment(checked, plan)?;
     let source_states = checked.machine_states(machine);
@@ -97,12 +105,29 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
         return unsupported("Unit graph state identity, contract, or custody drifted");
     }
     for (source, state) in source_states.iter().zip(&plan.states) {
-        if source.symbol != state.state
-            || !checked.state_contracts(source).is_empty()
-            || !super::returns::signature_matches(checked, source, &plan.result)
-            || !state.entry_claims.is_empty()
-        {
+        crate::attached_unit::claims::validate_whole_entry_claims(
+            checked,
+            plan.machine,
+            source,
+            &state.structural_parameters,
+            &state.entry_claims,
+        )?;
+        if source.symbol != state.state {
             return unsupported("Unit graph state identity, contract, or custody drifted");
+        }
+        if !validation::structural_state_contracts_are_parameter_qualifications(
+            &checked.typed,
+            source,
+        ) {
+            return unsupported("structural graph state has unrepresented authored contracts");
+        }
+        if !state.entry_claims.is_empty()
+            && (plan.states.len() != 1 || !successors(state).is_empty())
+        {
+            return unsupported("structural graph successor has no retained claim transport");
+        }
+        if !super::returns::signature_matches(checked, source, &plan.result) {
+            return unsupported("structural graph result signature disagrees with source");
         }
         if crate::attached_unit::parameters::checked_scalar_source_parameters(checked, source)?
             != state.scalar_parameters
@@ -129,26 +154,31 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                     || source.is_mutable
                     || parameter.is_self
                     || parameter.fused_service_erasure.is_some()
-                    || !parameter.qualifications.is_empty()
-                    || !matches!(
-                        parameter.multiplicity,
-                        Multiplicity::Affine | Multiplicity::Unrestricted
-                    )
-                    || checked.type_multiplicity(source.type_reference) != parameter.multiplicity
-                    || checked
-                        .normalized_type_identity(source.type_reference)
-                        .as_str()
-                        != parameter.type_identity
-                    || !matches!(
-                        checked
-                            .type_reference_table
-                            .type_reference(source.type_reference),
-                        TypeReferenceNode::Named { .. }
-                    )
-                    || !validation::has_plain_owned_contents_with_numeric_constraints(
+                    || validation::structural_result_qualifications(
                         &checked.typed,
                         source.type_reference,
                     )
+                    .ok()
+                    .as_ref()
+                        != Some(&parameter.qualifications)
+                    || checked.type_multiplicity(source.type_reference) != parameter.multiplicity
+                    || checked
+                        .normalized_type_identity(
+                            crate::attached_unit::parameters::structural_carrier_type(
+                                checked,
+                                source.type_reference,
+                            )?,
+                        )
+                        .as_str()
+                        != parameter.type_identity
+                    || (parameter.multiplicity != Multiplicity::Linear
+                        && !validation::has_plain_owned_contents_with_numeric_constraints(
+                            &checked.typed,
+                            crate::attached_unit::parameters::structural_carrier_type(
+                                checked,
+                                source.type_reference,
+                            )?,
+                        ))
                 {
                     return unsupported(
                         "Unit graph owned parameter differs from exact source custody",

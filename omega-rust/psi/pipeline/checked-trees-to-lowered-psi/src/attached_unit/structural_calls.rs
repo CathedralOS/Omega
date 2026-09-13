@@ -1,4 +1,7 @@
-//! Ordinary whole-affine result calls within the shared Unit closure.
+//! Ordinary structural-call custody and legacy claim-free affine leaf calls.
+//! Shared graph callees retain their normal result qualifications and returned
+//! claim frontier; an empty producer custody record is accepted only after the
+//! same reconstruction as a claim-bearing call.
 
 use super::*;
 use checked_trees::expression::ExpressionNode;
@@ -9,6 +12,29 @@ mod result_uses;
 mod shared_temporary;
 pub(super) use continuation::validate_cleanup;
 pub(super) use result_uses::{validate_consumer, validate_usage};
+
+pub(crate) fn validate_custody(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Result<(), LoweringError> {
+    let CheckedUnitEffectOperationPlan::StructuralCall { custody, .. } = operation else {
+        return Ok(());
+    };
+    let reconstructed = validation::reconstruct_structural_call_custody(
+        &checked.typed,
+        &checked.facts,
+        machine,
+        state,
+        operation,
+    )
+    .map_err(LoweringError::Unsupported)?;
+    if *custody != reconstructed {
+        return unsupported("structural call custody disagrees with checked source and outcomes");
+    }
+    Ok(())
+}
 
 /// Caller result use cannot change the callee's normal result contract. Both
 /// straight-line and graph callers rejoin the same complete body signature.
@@ -28,6 +54,7 @@ pub(super) fn validate_body_result(
             result,
             target_machine,
             target_contract_commitment,
+            custody,
             ..
         } => {
             let checked_trees::CheckedControlResultPlan::Structural(signature) = expected else {
@@ -45,11 +72,7 @@ pub(super) fn validate_body_result(
                 || result.statement_index != coordinate.statement_index
                 || result.type_identity != signature.type_identity
                 || result.multiplicity != signature.multiplicity
-                || !matches!(
-                    result.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                )
-                || !signature.qualifications.is_empty()
+                || signature.qualifications != custody.result_qualifications
             {
                 return unsupported("structural call result or commitment disagrees with its body");
             }

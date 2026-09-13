@@ -72,6 +72,11 @@ pub use static_machine_call_contracts::{
     validate_static_machine_parameter_contracts,
 };
 mod struct_literals;
+mod structural_call_custody;
+pub use structural_call_custody::{
+    reconstruct_structural_call_custody, structural_result_qualifications,
+    structural_state_contracts_are_parameter_qualifications,
+};
 mod symbols;
 mod traits;
 mod transitions;

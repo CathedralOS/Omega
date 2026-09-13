@@ -20,6 +20,14 @@ pub(super) fn build(
         return None;
     }
     let result = returns::signature(program, shapes, states[0].return_type)?;
+    if matches!(&result, checked_trees::CheckedControlResultPlan::Structural(result)
+        if result.multiplicity == Multiplicity::Linear)
+        && !program.machine_contracts(machine).is_empty()
+    {
+        // Parameter qualifications are transported exactly below. Additional
+        // authored contracts still need their own retained proof obligations.
+        return None;
+    }
     if states.len() < 2
         && result == checked_trees::CheckedControlResultPlan::Unit
         && !facts
@@ -44,9 +52,10 @@ pub(super) fn build(
     };
     let mut attachment = None;
     let mut signatures = Vec::new();
+    let mut state_entry_claims = Vec::new();
     for state in states {
         if returns::signature(program, shapes, state.return_type)? != result
-            || !program.state_contracts(state).is_empty()
+            || !validation::structural_state_contracts_are_parameter_qualifications(program, state)
         {
             return None;
         }
@@ -61,16 +70,11 @@ pub(super) fn build(
         // Persistent receivers keep their invocation place. Other structural
         // parameters retain explicit owned-value or borrowed-view edge custody.
         if structural.iter().any(|parameter| {
-            !parameter.qualifications.is_empty()
-                || (parameter.access == CheckedStructuralAccess::Owned
-                    && !matches!(
-                        parameter.multiplicity,
-                        Multiplicity::Affine | Multiplicity::Unrestricted
-                    ))
+            (parameter.multiplicity != Multiplicity::Linear && !parameter.qualifications.is_empty())
                 || if parameter.is_self {
                     parameter.access != CheckedStructuralAccess::MutableBorrow
                 } else if parameter.access == CheckedStructuralAccess::Owned {
-                    !matches!(
+                    parameter.multiplicity != Multiplicity::Linear && (!matches!(
                         program.type_reference_table.type_reference(
                             program.state_parameters(state)[parameter.position as usize]
                                 .type_reference
@@ -79,7 +83,7 @@ pub(super) fn build(
                     ) || !validation::has_plain_owned_contents_with_numeric_constraints(
                         program,
                         program.state_parameters(state)[parameter.position as usize].type_reference,
-                    )
+                    ))
                 } else {
                     parameter.multiplicity != Multiplicity::Unrestricted
                         || !matches!(
@@ -100,18 +104,19 @@ pub(super) fn build(
         }) {
             return None;
         }
-        if !entry_claims(
+        let claims = entry_claims(
             program,
             facts,
             machine.symbol,
             state.symbol,
             &structural,
             program.state_parameters(state),
-        )?
-        .is_empty()
-        {
+        )?;
+        // Claim-bearing successor transport is not represented by these edges.
+        if states.len() > 1 && !claims.is_empty() {
             return None;
         }
+        state_entry_claims.push(claims);
         signatures.push((structural, scalar));
     }
     let mut planned = Vec::new();
@@ -160,6 +165,8 @@ pub(super) fn build(
             .structural_values
             .root_at(state.symbol, u32::try_from(terminator_index).ok()?)
             .is_some()
+            || matches!(statements.get(terminator_index), Some(StatementNode::Expression(expression))
+                if matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_)))
         {
             terminator_index.checked_add(1)?
         } else {
@@ -183,7 +190,7 @@ pub(super) fn build(
             state,
             structural,
             scalar,
-            &[],
+            &state_entry_claims[state_index],
             &calls,
             &[],
             binding_count,
@@ -227,6 +234,13 @@ pub(super) fn build(
             }
         }
         for operation in &operations {
+            if matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                if result.multiplicity == Multiplicity::Linear)
+            {
+                // Call forwarding preserves checked authority; construction
+                // needs a separate issuance witness, not result classification.
+                return None;
+            }
             match &operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall {
                     structural_arguments,
@@ -387,7 +401,7 @@ pub(super) fn build(
             state: state.symbol,
             structural_parameters: structural.clone(),
             scalar_parameters: scalar.clone(),
-            entry_claims: Vec::new(),
+            entry_claims: state_entry_claims[state_index].clone(),
             bindings,
             binding_initializers,
             operations,

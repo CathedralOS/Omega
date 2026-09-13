@@ -50,12 +50,13 @@ pub(super) fn prepare(
             target_machine,
             scalar_arguments,
             structural_arguments,
+            custody,
             ..
         } => (
             target_machine,
             scalar_arguments,
             structural_arguments,
-            &[][..],
+            custody.claim_transfers.as_slice(),
         ),
         _ => return unsupported("ordinary call preparation has no call operation"),
     };
@@ -191,11 +192,17 @@ pub(super) fn prepare(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_structural(
+    checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
     prepared: PreparedCall,
     callee: MachineId,
     type_ids: &[(String, StructuralTypeId)],
+    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
+    // Graph evaluation attaches the source local and registers this value as
+    // one operation; ordinary and nested operands register it here instead.
+    register_binding: bool,
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
@@ -204,6 +211,8 @@ pub(super) fn emit_structural(
         source_site,
         result,
         target_state,
+        target_machine,
+        custody,
         ..
     } = operation
     else {
@@ -228,38 +237,103 @@ pub(super) fn emit_structural(
         multiplicity: match result.multiplicity {
             Multiplicity::Affine => StructuralMultiplicity::Affine,
             Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-            Multiplicity::Linear => {
-                return unsupported("ordinary structural result has unsupported linear custody");
-            }
+            Multiplicity::Linear => StructuralMultiplicity::Linear,
         },
-        qualifications: Vec::new(),
+        qualifications: custody
+            .result_qualifications
+            .iter()
+            .map(|domain| lookup_domain_id(domain_ids, *domain))
+            .collect::<Result<Vec<_>, _>>()?,
         projected_qualifications: Vec::new(),
-        claims: Vec::new(),
+        claims: custody
+            .returned_claim_transfers
+            .iter()
+            .map(|transfer| {
+                Ok(terminal_psi::StructuralResultClaimBinding {
+                    claim: lookup_claim_id(claim_bindings, transfer.caller_claim)?,
+                    path: Vec::new(),
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?,
+    };
+    let target =
+        UnitBody::find(&checked.facts.flow.terminal_unit_effects, *target_machine)?.entry()?;
+    // Callee claims use the same dense entry ordering as lower_unit_entry_claims;
+    // caller identities stay in the caller's namespace across normal completion.
+    let returned_claim_transfers = custody
+        .returned_claim_transfers
+        .iter()
+        .map(|transfer| {
+            let position = target
+                .entry_claims
+                .iter()
+                .position(|claim| claim.claim_identity == transfer.callee_claim)
+                .ok_or(LoweringError::Unsupported(
+                    "structural returned claim is not a callee entry claim",
+                ))?;
+            Ok(terminal_psi::StructuralResultClaimTransfer {
+                callee_claim: claim_id(
+                    u64::try_from(position)
+                        .map_err(|_| LoweringError::Unsupported("callee claim ordinal overflow"))?
+                        + 1,
+                ),
+                caller_claim: lookup_claim_id(claim_bindings, transfer.caller_claim)?,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let claim_transfers = custody
+        .claim_transfers
+        .iter()
+        .map(|transfer| {
+            Ok(ClaimTransfer {
+                claim: lookup_claim_id(claim_bindings, transfer.claim_identity)?,
+                argument_index: transfer.argument_index,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let kind = if result.multiplicity == Multiplicity::Linear {
+        if !prepared.arguments.is_empty() {
+            return unsupported("linear structural calls require retained scalar-operand support");
+        }
+        OperationKind::CallStructural {
+            callee,
+            structural_arguments: prepared.structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations: prepared.requirement_obligations,
+            crash_continuations: prepared.crash_continuations,
+            selected_evidence: Vec::new(),
+        }
+    } else {
+        OperationKind::CallStructuralWithScalarArguments {
+            callee,
+            arguments: prepared.arguments,
+            structural_arguments: prepared.structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations: prepared.requirement_obligations,
+            crash_continuations: prepared.crash_continuations,
+        }
     };
     operations.push(Operation {
         static_reach_binding: None,
         id,
         result: OperationResult::Structural(returned.clone()),
-        kind: OperationKind::CallStructuralWithScalarArguments {
-            callee,
-            arguments: prepared.arguments,
-            structural_arguments: prepared.structural_arguments,
-            claim_transfers: Vec::new(),
-            returned_claim_transfers: Vec::new(),
-            requirement_obligations: prepared.requirement_obligations,
-            crash_continuations: prepared.crash_continuations,
-        },
+        kind,
     });
-    if operations
-        .structural_values
-        .iter()
-        .any(|(ordinal, _)| *ordinal == result.binding_ordinal)
+    if register_binding
+        && operations
+            .structural_values
+            .iter()
+            .any(|(ordinal, _)| *ordinal == result.binding_ordinal)
     {
         return unsupported("structural call result was published twice");
     }
-    operations
-        .structural_values
-        .push((result.binding_ordinal, returned));
+    if register_binding {
+        operations
+            .structural_values
+            .push((result.binding_ordinal, returned));
+    }
     Ok(StructuralPlaceDeclaration {
         id: place,
         kind: StructuralPlaceKind::OperationResult {
