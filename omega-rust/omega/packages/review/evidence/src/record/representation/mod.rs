@@ -14,8 +14,9 @@ pub use movement::{
     PackageReviewSystemVEightbyteClass,
 };
 pub use policy::{
-    PackagePolicyRepresentation, PackagePolicyRepresentationAvailability,
-    PackagePolicyRepresentationDemand, PackagePolicyRepresentationSelection,
+    PackagePolicyRepresentation, PackagePolicyRepresentationAgreementError,
+    PackagePolicyRepresentationAvailability, PackagePolicyRepresentationDemand,
+    PackagePolicyRepresentationSelection,
 };
 pub use shape::{
     PackageReviewBoundaryShape, PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,

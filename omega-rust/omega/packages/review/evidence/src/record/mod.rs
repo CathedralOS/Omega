@@ -120,10 +120,10 @@ pub use package::{
 };
 pub use quotients::NonExecutableQuotientPackageReview;
 pub use representation::{
-    PackagePolicyRepresentation, PackagePolicyRepresentationAvailability,
-    PackagePolicyRepresentationDemand, PackagePolicyRepresentationSelection,
-    PackageReviewBoundaryCallingPolicy, PackageReviewBoundaryShape,
-    PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
+    PackagePolicyRepresentation, PackagePolicyRepresentationAgreementError,
+    PackagePolicyRepresentationAvailability, PackagePolicyRepresentationDemand,
+    PackagePolicyRepresentationSelection, PackageReviewBoundaryCallingPolicy,
+    PackageReviewBoundaryShape, PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
     PackageReviewBoundaryShapeGraph, PackageReviewBoundaryValueClass,
     PackageReviewBoundaryValueLocation, PackageReviewBoundaryValuePlacement,
     PackageReviewBoundaryValueShape, PackageReviewIndirectPointerLocation,

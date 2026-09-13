@@ -7,6 +7,7 @@ use package_compilation::{
     AcceptedSemanticBindingRole, BuildDeclarationKind, PackageCompilationInputError,
 };
 use package_evidence::encoding::PackageReviewEncodingError;
+use package_evidence::record::PackagePolicyRepresentationAgreementError;
 use package_source::SourceResolveError;
 use std::fmt;
 use std::io;
@@ -104,6 +105,10 @@ pub enum CompileResolvedPackageReviewsError {
     Projection {
         package: PackageKey,
         diagnostics: Vec<Diagnostic>,
+    },
+    RepresentationAgreement {
+        consumer: PackageKey,
+        error: PackagePolicyRepresentationAgreementError,
     },
     Encoding {
         package: PackageKey,
@@ -279,6 +284,11 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 package,
                 diagnostics,
             } => diagnostic_output::render(formatter, "review projection", package, diagnostics),
+            Self::RepresentationAgreement { consumer, error } => write!(
+                formatter,
+                "independently compiled representation agreement failed for package `{}`: {error}",
+                consumer.name().as_str()
+            ),
             Self::Encoding { package, error } => write!(
                 formatter,
                 "review encoding failed for package `{}`: {error}",

@@ -414,6 +414,22 @@ fn compile_resolved_package_reviews_in_session(
             target_closure.target_profile(),
             retained_policy_canonical_total,
         )?;
+        // Dependency reviews precede consumers, so prior rows are available
+        // for rejoining actual foreign by-value representation demands.
+        policy
+            .representation()
+            .rejoin_foreign_demands(|identity| {
+                reviews
+                    .iter()
+                    .find(|review| review.key.identity() == identity)
+                    .map(|review| review.policy.representation())
+            })
+            .map_err(
+                |error| CompileResolvedPackageReviewsError::RepresentationAgreement {
+                    consumer: key.clone(),
+                    error,
+                },
+            )?;
         retained_policy_canonical_total = policy_total;
         let semantic_binding_candidates = candidate_service_bindings(&checked, &projection, &key)?;
         let canonical_review_bytes = projection.canonical_review_bytes().map_err(|error| {
