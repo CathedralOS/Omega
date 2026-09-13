@@ -266,6 +266,7 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
         projected_qualifications: vec![row.clone()],
     };
     let result = |place| terminal_psi::StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place,
         structural_type: root,
         multiplicity: terminal_psi::StructuralMultiplicity::Linear,

@@ -1652,7 +1652,7 @@ fn builtin_structural_boundary_trait_settlement_identity(
     result: &machine_code::BoundaryStructuralResultRecord,
 ) -> Result<[u8; 32], &'static str> {
     let mut digest = Sha256::new();
-    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v2\0");
+    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v3\0");
     digest.update(occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.update(selected_plan_digest.as_bytes());
@@ -1692,6 +1692,7 @@ fn hash_structural_path(digest: &mut Sha256, path: &[terminal_psi::StructuralPat
     digest.update((path.len() as u64).to_le_bytes());
     for segment in path {
         match segment {
+            terminal_psi::StructuralPathSegment::Referent => digest.update([3]),
             terminal_psi::StructuralPathSegment::Field(identity) => {
                 digest.update([1]);
                 hash_bytes(digest, identity.as_bytes());
@@ -1980,6 +1981,23 @@ fn canonical_usize(value: usize) -> [u8; 8] {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn reference_projection_identity_is_distinct_from_owned_paths() {
+        use terminal_psi::StructuralPathSegment;
+        let identity = |path: &[StructuralPathSegment]| {
+            let mut digest = sha2::Sha256::default();
+            super::hash_structural_path(&mut digest, path);
+            sha2::Digest::finalize(digest)
+        };
+        let reference = identity(&[StructuralPathSegment::Referent]);
+        assert_ne!(reference, identity(&[]));
+        assert_ne!(
+            reference,
+            identity(&[StructuralPathSegment::Field("Referent".into())])
+        );
+        assert_ne!(reference, identity(&[StructuralPathSegment::FixedIndex(3)]));
+    }
+
     use super::*;
     use terminal_psi::{SemanticFingerprint, VocabularyMarker};
 

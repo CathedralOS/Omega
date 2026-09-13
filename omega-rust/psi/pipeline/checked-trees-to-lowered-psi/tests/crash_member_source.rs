@@ -7752,7 +7752,8 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
             StructuralTypeShape::Record { fields } => fields
                 .iter_mut()
                 .find(|field| matches!(field.field_type, StructuralFieldType::ByteSequence(_))),
-            StructuralTypeShape::PrimitiveScalar(_)
+            StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::FixedArray { .. }
             | StructuralTypeShape::Sum { .. }

@@ -41,52 +41,6 @@ pub(super) fn encode_structural_result(
     encode_domains(bytes, &result.qualifications)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use terminal_psi::{
-        StructuralAccess, StructuralArgument, StructuralMultiplicity,
-        StructuralReferenceResultSource,
-    };
-
-    #[test]
-    fn native_result_wire_preserves_owned_identity_and_rejects_reference_sources() {
-        let mut result = StructuralResultDeclaration {
-            place: PlaceId::new(3).unwrap(),
-            structural_type: StructuralTypeId::new(7).unwrap(),
-            multiplicity: StructuralMultiplicity::Affine,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            reference_sources: Vec::new(),
-        };
-        let mut bytes = Vec::new();
-        encode_structural_result(&mut bytes, &result).unwrap();
-        let mut reader = Reader::new(&bytes);
-        assert_eq!(decode_structural_result(&mut reader).unwrap(), result);
-        assert_eq!(reader.remaining(), 0);
-        let mut reencoded = Vec::new();
-        encode_structural_result(&mut reencoded, &result).unwrap();
-        assert_eq!(bytes, reencoded);
-
-        result
-            .reference_sources
-            .push(StructuralReferenceResultSource {
-                path: Vec::new(),
-                source: StructuralArgument {
-                    place: PlaceId::new(1).unwrap(),
-                    path: Vec::new(),
-                    access: StructuralAccess::MutableBorrow,
-                },
-            });
-        let mut rejected = Vec::new();
-        assert_eq!(
-            encode_structural_result(&mut rejected, &result),
-            Err(InstallationError::UnsupportedStructuralReturnShape)
-        );
-        assert!(rejected.is_empty());
-    }
-}
-
 pub(super) fn decode_structural_parameter(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralParameterDeclaration, InstallationError> {
@@ -136,4 +90,50 @@ pub(super) fn decode_structural_result(
         qualifications: decode_domains(reader)?,
         projected_qualifications: Vec::new(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use terminal_psi::{
+        StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        StructuralReferenceResultSource,
+    };
+
+    #[test]
+    fn native_result_wire_preserves_owned_identity_and_rejects_reference_sources() {
+        let mut result = StructuralResultDeclaration {
+            place: PlaceId::new(3).unwrap(),
+            structural_type: StructuralTypeId::new(7).unwrap(),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            reference_sources: Vec::new(),
+        };
+        let mut bytes = Vec::new();
+        encode_structural_result(&mut bytes, &result).unwrap();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_structural_result(&mut reader).unwrap(), result);
+        assert_eq!(reader.remaining(), 0);
+        let mut reencoded = Vec::new();
+        encode_structural_result(&mut reencoded, &result).unwrap();
+        assert_eq!(bytes, reencoded);
+
+        result
+            .reference_sources
+            .push(StructuralReferenceResultSource {
+                path: Vec::new(),
+                source: StructuralArgument {
+                    place: PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    access: StructuralAccess::MutableBorrow,
+                },
+            });
+        let mut rejected = Vec::new();
+        assert_eq!(
+            encode_structural_result(&mut rejected, &result),
+            Err(InstallationError::UnsupportedStructuralReturnShape)
+        );
+        assert!(rejected.is_empty());
+    }
 }
