@@ -195,9 +195,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Machine optimization
 
-- **DECLARATIVE-PEEPHOLES.** Generalize the landed bounded instruction-pair
-  descriptors to symbolic instructions, physical register units, effects,
-  traps, memory, stack, and control flow without replacing the independent
+- **DECLARATIVE-PEEPHOLES.** Generalize the landed symbolic instruction-pair
+  descriptors (`selected_lowering/literal_fold/pair_rule.rs`: producer,
+  consumer, and rewritten `MachineSemanticKind` plus one immediate bound,
+  read by the producer only) to physical register units, effects, traps,
+  memory, stack, and control flow without replacing the independent
   validator.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Add copy removal, redundant extension
