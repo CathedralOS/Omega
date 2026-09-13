@@ -3,14 +3,12 @@ mod validation;
 
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::resolution::source::PackageSourceCustody;
-use crate::review::audit::{apply_root_role_change, triage_review_update_records};
+use crate::review::audit::triage_review_update_records;
 use crate::review::candidate::PackageReviewEvidence;
 use crate::review::candidate::validation::{
     validate_review_only_closure, validate_review_only_records,
 };
-use crate::review::{
-    CompilerIssuedPackageReviewSet, ReviewOnlyRootRoleChange, triage_initial_install,
-};
+use crate::review::{CompilerIssuedPackageReviewSet, triage_initial_install};
 
 use super::error::{PackageSourceReviewCustodyRole, PackageSourceReviewError};
 use super::input::{PackageSourceReviewInput, PackageSourceReviewLimits};
@@ -62,26 +60,6 @@ pub(crate) fn assemble_update_source_review_records<B: PackageReviewEvidence>(
     candidate_sources: &ResolvedPackageSourceClosure,
     limits: PackageSourceReviewLimits,
 ) -> Result<PackageSourceReviewInput, PackageSourceReviewError> {
-    assemble_update_source_review_records_with_root_role_change(
-        baseline_reviews,
-        candidate_reviews,
-        recovered_baseline_sources,
-        candidate_sources,
-        limits,
-        None,
-    )
-}
-
-pub(crate) fn assemble_update_source_review_records_with_root_role_change<
-    B: PackageReviewEvidence,
->(
-    baseline_reviews: &[B],
-    candidate_reviews: &CompilerIssuedPackageReviewSet,
-    recovered_baseline_sources: &[PackageSourceCustody],
-    candidate_sources: &ResolvedPackageSourceClosure,
-    limits: PackageSourceReviewLimits,
-    root_role_change: Option<&ReviewOnlyRootRoleChange>,
-) -> Result<PackageSourceReviewInput, PackageSourceReviewError> {
     validate_review_only_closure(candidate_sources, candidate_reviews).map_err(|error| {
         map_closure_validation_error(PackageSourceReviewCustodyRole::Candidate, error)
     })?;
@@ -98,10 +76,6 @@ pub(crate) fn assemble_update_source_review_records_with_root_role_change<
         .filter(|review| !baseline_sources.contains_key(review.key()))
         .map(|review| review.key().clone())
         .collect();
-    let mut triage =
-        triage_review_update_records(baseline_reviews, candidate_reviews, &unavailable);
-    if let Some(change) = root_role_change {
-        apply_root_role_change(&mut triage, change);
-    }
+    let triage = triage_review_update_records(baseline_reviews, candidate_reviews, &unavailable);
     assemble_source_patches(triage, &baseline_sources, candidate_sources, limits, false)
 }

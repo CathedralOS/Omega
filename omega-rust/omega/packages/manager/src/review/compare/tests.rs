@@ -184,9 +184,7 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
             resolution: package.source().resolution().clone(),
             target: "windows_x86_64".to_owned(),
             executable_incident_metadata: [1; 32],
-            source_consumption: ReviewOnlySourceConsumptionCommitment::from_recovered_digest(
-                [2; 32],
-            ),
+            source_consumption: ReviewOnlySourceConsumptionCommitment::for_test_digest([2; 32]),
             build_observation: None,
             whole_review: [u8::try_from(index + 3).expect("small fixture index"); 32],
             rows: Vec::new(),
@@ -210,7 +208,7 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
             0 => review.target = "linux_x86_64".to_owned(),
             1 => {
                 review.source_consumption =
-                    ReviewOnlySourceConsumptionCommitment::from_recovered_digest([9; 32])
+                    ReviewOnlySourceConsumptionCommitment::for_test_digest([9; 32])
             }
             2 => review.build_observation = Some([9; 32]),
             3 => review.whole_review = [9; 32],
@@ -248,9 +246,7 @@ fn candidate_closure_binds_the_selected_target_profile() {
             resolution: package.source().resolution().clone(),
             target: "same-compiler-target".to_owned(),
             executable_incident_metadata: [1; 32],
-            source_consumption: ReviewOnlySourceConsumptionCommitment::from_recovered_digest(
-                [2; 32],
-            ),
+            source_consumption: ReviewOnlySourceConsumptionCommitment::for_test_digest([2; 32]),
             build_observation: None,
             whole_review: [3; 32],
             rows: Vec::new(),
@@ -269,7 +265,7 @@ fn candidate_closure_binds_the_selected_target_profile() {
 }
 
 #[test]
-fn candidate_closure_and_directional_review_bind_the_exact_root_role() {
+fn candidate_closure_binds_the_exact_root_role() {
     let root = temp_root("root-role");
     let cache = temp_root("root-role-cache");
     write_package(&root, "role-probe", None);
@@ -296,9 +292,7 @@ fn candidate_closure_and_directional_review_bind_the_exact_root_role() {
             resolution: package.source().resolution().clone(),
             target: "windows_x86_64".to_owned(),
             executable_incident_metadata: [1; 32],
-            source_consumption: ReviewOnlySourceConsumptionCommitment::from_recovered_digest(
-                [2; 32],
-            ),
+            source_consumption: ReviewOnlySourceConsumptionCommitment::for_test_digest([2; 32]),
             build_observation: None,
             whole_review: [3; 32],
             rows: Vec::new(),
@@ -313,36 +307,6 @@ fn candidate_closure_and_directional_review_bind_the_exact_root_role() {
             .expect("commit application-root graph"),
         "candidate closure identity must bind root role"
     );
-    assert_eq!(
-        compare_review_only_root_role_graphs(&package_graph, &package_graph)
-            .expect("same-role comparison"),
-        None
-    );
-    let dependency_break = compare_review_only_root_role_graphs(&package_graph, &application_graph)
-        .expect("package-to-application comparison")
-        .expect("role changed");
-    assert_eq!(
-        dependency_break.broken_contract(),
-        ReviewOnlyRootRoleContract::DependencyCompatibility
-    );
-    assert_eq!(
-        dependency_break.baseline_role(),
-        BuildDeclarationKind::Package
-    );
-    assert_eq!(
-        dependency_break.candidate_role(),
-        BuildDeclarationKind::Application
-    );
-    assert!(dependency_break.is_blocking());
-
-    let activation_break = compare_review_only_root_role_graphs(&application_graph, &package_graph)
-        .expect("application-to-package comparison")
-        .expect("role changed");
-    assert_eq!(
-        activation_break.broken_contract(),
-        ReviewOnlyRootRoleContract::ApplicationActivation
-    );
-
     let _ = std::fs::remove_dir_all(root);
     let _ = std::fs::remove_dir_all(cache);
 }

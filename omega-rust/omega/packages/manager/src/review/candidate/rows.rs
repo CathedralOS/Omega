@@ -1,7 +1,6 @@
 //! Review-only commitment and canonical-row value types.
 
 use package_compilation::PackageSourceConsumptionCommitment;
-use package_evidence::encoding::DecodedPackageReviewCanonicalRow;
 use package_evidence::record::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewCanonicalRowSource,
@@ -17,7 +16,8 @@ impl ReviewOnlySourceConsumptionCommitment {
         self.0
     }
 
-    pub(crate) const fn from_recovered_digest(digest: [u8; 32]) -> Self {
+    #[cfg(test)]
+    pub(crate) const fn for_test_digest(digest: [u8; 32]) -> Self {
         Self(digest)
     }
 }
@@ -30,10 +30,8 @@ impl From<PackageSourceConsumptionCommitment> for ReviewOnlySourceConsumptionCom
 
 /// Opaque canonical comparison row used by package review orchestration.
 ///
-/// Live rows are copied from an unforgeable compiler-issued review. Recovered
-/// rows are constructed only by the compiler's strict recovery-frame decoder
-/// and remain distinctly review-only; this type is never compiler evidence or
-/// an admission artifact.
+/// Rows are copied from a compiler-issued review for comparison. This type is
+/// never compiler evidence or an admission artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewOnlyCanonicalRow {
     kind: PackageReviewCanonicalRowKind,
@@ -41,7 +39,6 @@ pub struct ReviewOnlyCanonicalRow {
     key_bytes: Vec<u8>,
     canonical_bytes: Vec<u8>,
     source: PackageReviewCanonicalRowSource,
-    recovery_bytes: Option<Vec<u8>>,
 }
 
 impl ReviewOnlyCanonicalRow {
@@ -72,25 +69,6 @@ impl ReviewOnlyCanonicalRow {
             key_bytes: row.key_bytes().to_vec(),
             canonical_bytes: row.canonical_bytes().to_vec(),
             source: row.source().clone(),
-            recovery_bytes: None,
         }
-    }
-
-    pub(crate) fn from_recovered(
-        row: &DecodedPackageReviewCanonicalRow,
-        recovery_bytes: Vec<u8>,
-    ) -> Self {
-        Self {
-            kind: row.kind(),
-            risk: row.risk(),
-            key_bytes: row.key_bytes().to_vec(),
-            canonical_bytes: row.canonical_bytes().to_vec(),
-            source: row.source().clone(),
-            recovery_bytes: Some(recovery_bytes),
-        }
-    }
-
-    pub(crate) fn recovery_bytes(&self) -> Option<&[u8]> {
-        self.recovery_bytes.as_deref()
     }
 }
