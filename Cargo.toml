@@ -112,6 +112,7 @@ members = [
     "omega-rust/omega/packages/sources/acquisition",
     "omega-rust/omega/packages/sources/execution",
     "omega-rust/omega/packages/manager",
+    "omega-rust/omega/packages/topology",
     "omega-rust/omega/packages/review/advisory",
     "tests/native-differential",
     "omega-rust/omega/tooling/visualizations",
