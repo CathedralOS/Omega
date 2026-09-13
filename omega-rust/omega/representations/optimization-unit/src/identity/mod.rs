@@ -54,3 +54,8 @@ use unit_encoding::CanonicalBytes;
 pub use unit_encoding::{
     recompute_psi_optimization_unit_identity, structural_domain_catalog_identity,
 };
+
+#[cfg(test)]
+pub(crate) use unit_encoding::{
+    collect_structural_domain_catalog_bytes, collect_unit_canonical_bytes,
+};

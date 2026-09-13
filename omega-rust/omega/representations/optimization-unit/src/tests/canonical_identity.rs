@@ -7,6 +7,7 @@ use crate::{
     ProofQuestion, ProofQuestionClass, ProofQuestionOwner, PrunedMachineCustody,
     PsiOptimizationUnit, PsiProvenance, StructuralPlaceKind,
     recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
+    structural_domain_catalog_identity,
 };
 use abstract_operations::{AbstractFunctionResult, AbstractOperation, ValueBinding};
 use semantic_vocabulary::{
@@ -665,6 +666,27 @@ fn canonical_identity_binds_every_retained_field_class() {
             recompute_psi_optimization_unit_identity(&unit),
             baseline_identity,
             "{field_class} must contribute to canonical content identity"
+        );
+    }
+}
+
+#[test]
+fn streamed_identity_matches_materialized_canonical_bytes() {
+    for source in [plan(), write_only_store_plan()] {
+        let unit =
+            reconstruct_psi_optimization_unit_seed(&source, FuelScheduleIdentity::new(1).unwrap())
+                .unwrap();
+        let canonical = crate::identity::collect_unit_canonical_bytes(&unit);
+        assert_eq!(
+            OptimizationUnitIdentity::from_canonical_bytes(&canonical),
+            recompute_psi_optimization_unit_identity(&unit),
+        );
+        let catalog = crate::identity::collect_structural_domain_catalog_bytes(
+            unit.structural_domains.as_ref(),
+        );
+        assert_eq!(
+            OptimizationUnitIdentity::from_canonical_bytes(&catalog),
+            structural_domain_catalog_identity(unit.structural_domains.as_ref()),
         );
     }
 }

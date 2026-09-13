@@ -23,7 +23,7 @@ pub use contracts::{
     OptimizationWorkBudget,
 };
 pub use identities::{
-    AcceptedObligationFactIdentity, DuplicateOptimizationRuleIdentity,
+    AcceptedObligationFactIdentity, CanonicalIdentityEncoder, DuplicateOptimizationRuleIdentity,
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, IdentityBundleDecodeError,

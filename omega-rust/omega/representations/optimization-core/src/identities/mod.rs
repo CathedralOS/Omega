@@ -17,6 +17,30 @@ fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
     digest.finalize().into()
 }
 
+/// Incremental [`domain_digest`] input. The domain and total canonical length
+/// are hashed up front, then the identical content byte sequence streams
+/// through `update`; `finish` yields the same digest without materializing
+/// the whole encoding. The digest frame requires the length before content,
+/// so callers derive it from a prior count over the same deterministic walk.
+pub struct CanonicalIdentityEncoder(Sha256);
+
+impl CanonicalIdentityEncoder {
+    fn new(domain: &[u8], canonical_len: u64) -> Self {
+        let mut digest = Sha256::new();
+        digest.update(domain);
+        digest.update(canonical_len.to_le_bytes());
+        Self(digest)
+    }
+
+    pub fn update(&mut self, bytes: &[u8]) {
+        self.0.update(bytes);
+    }
+
+    fn finish(self) -> [u8; IDENTITY_WIDTH] {
+        self.0.finalize().into()
+    }
+}
+
 macro_rules! canonical_identity {
     ($name:ident, $domain:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -27,6 +51,19 @@ macro_rules! canonical_identity {
             /// relocation-independent encoding.
             pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
                 Self(super::domain_digest($domain, canonical))
+            }
+
+            /// Streaming counterpart of `from_canonical_bytes`: returns an
+            /// encoder seeded with this identity's domain and the total
+            /// canonical length, for feeding the identical byte sequence.
+            pub fn canonical_encoder(canonical_len: u64) -> super::CanonicalIdentityEncoder {
+                super::CanonicalIdentityEncoder::new($domain, canonical_len)
+            }
+
+            /// Complete a streaming encode. The resulting identity equals
+            /// `from_canonical_bytes` over the same byte sequence.
+            pub fn from_canonical_encoder(encoder: super::CanonicalIdentityEncoder) -> Self {
+                Self(encoder.finish())
             }
 
             pub const fn from_bytes(bytes: [u8; super::IDENTITY_WIDTH]) -> Self {

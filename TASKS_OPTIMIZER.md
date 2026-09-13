@@ -11,17 +11,6 @@ another broad alias. Every rule must name the exact semantic, proof, ownership,
 effect, target, and provenance facts it consumes, and retain the identities
 needed for independent replay through publication.
 
-## Optimizer execution cost
-
-- **ANALYSIS-REVISION-REUSE.** Measure multi-rule unchanged and rewrite-heavy
-  optimizer runs, including allocations and total time. In the
-  `optimization-unit` canonical identity encoder, stream necessary hashing if
-  its temporary encoded buffers are a material cost; preserve exact bytes and
-  identities. Acceptance: compare full-run allocation/time and demonstrate
-  byte-identical identities, unchanged decisions and rejection of stale content.
-  Keep immutable revision borrowing and independent candidate/publication checks;
-  do not add a cache framework or change rule selection.
-
 ## Pipeline cleanup follow-ups
 
 These are separately schedulable follow-ups, not an ongoing cleanup run.
