@@ -105,9 +105,13 @@ customer's program merely to move the failure.
 
 ## Implement and validate
 
-Use an isolated worktree under `<repository>/.codex/worktrees/<short-name>`.
-Keep its name short; if a generated Windows path fails, measure the actual path
-before relocating work or changing compiler architecture.
+Use an isolated worktree under `<repository>/.codex/worktrees/<short-name>`
+created from the fetched `origin/main`, not from the starting checkout's HEAD
+or local `main`: a checkout that could not fast-forward leaves local `main`
+behind, and a stale base rereads landed work and lengthens the landing rebase.
+A continuation retains its existing worktree base. Keep its name short; if a
+generated Windows path fails, measure the actual path before relocating work or
+changing compiler architecture.
 
 Read the existing module entrance and decision-site explanations before tracing
 the shared implementation and callers, preserving the Psi/Omega firewall
