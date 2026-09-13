@@ -857,11 +857,12 @@ impl<'program> LayoutBuilder<'program> {
             .type_reference(type_reference)
         {
             TypeReferenceNode::Reference { referee, .. } => {
-                // A reference to an UNSIZED referee -- a slice `&[T]` or the
-                // `string` text view -- is a FAT `{ptr, len}` pointer: a thin
-                // pointer cannot carry the element/byte count. (`fat_descriptor_
-                // layout` is documented "for slices and text windows".) Every
-                // other reference (`&SizedType`) stays a thin pointer.
+                // Borrowed views retain their descriptor: `{ptr, len}` for
+                // slices/text and `{instance, table}` for dynamic traits.
+                // Keeping only the instance pointer loses dispatch identity
+                // and disagrees with calling-policy parameter placement.
+                // References to sized carriers (including records containing
+                // a descriptor) remain thin pointers.
                 //
                 // A domain-constrained slice view (`&[u8] in Utf8`) is
                 // `Reference { Constrained { Slice } }`: the constraint is a
@@ -876,18 +877,18 @@ impl<'program> LayoutBuilder<'program> {
                 while let TypeReferenceNode::Constrained { base_type, .. } = referee_node {
                     referee_node = self.program.type_reference_table.type_reference(*base_type);
                 }
-                let referee_unsized = matches!(referee_node, TypeReferenceNode::Slice { .. })
-                    || matches!(
-                        referee_node,
-                        TypeReferenceNode::Named { name, .. } if name.as_str() == "string"
-                    );
-                if referee_unsized {
-                    Ok(fat_descriptor_layout(self.target))
-                } else {
-                    Ok(TypeLayout {
+                match referee_node {
+                    TypeReferenceNode::DynamicTrait { .. } => {
+                        Ok(dynamic_trait_descriptor_layout(self.target))
+                    }
+                    TypeReferenceNode::Slice { .. } => Ok(fat_descriptor_layout(self.target)),
+                    TypeReferenceNode::Named { name, .. } if name.as_str() == "string" => {
+                        Ok(fat_descriptor_layout(self.target))
+                    }
+                    _ => Ok(TypeLayout {
                         size: self.target.pointer_size,
                         alignment: self.target.pointer_alignment,
-                    })
+                    }),
                 }
             }
             TypeReferenceNode::Constrained {

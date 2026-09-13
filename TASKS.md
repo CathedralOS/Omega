@@ -231,6 +231,14 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `dungeon_crawler_cli` (case-literal construction and branch-local
   transfer joins unsupported). `math_proofs` — its owned Bag/multiset row.
 
+  `generic_counters` needs a copy-bound getter plus contextual attachment typing:
+  at `42a2cd85e1`, adding `T [copy]` to `Counter::current` still rejects its
+  borrowed field read because `flow/ownership/place_types.rs` retains the data
+  owner's unconstrained binder. Retain the exact owner-to-method application,
+  and preserve/check method requirements when generic-data synthesis clears clone
+  binders. Coordinate with the typed-machine specialization owner; constraining
+  the whole container would hide the missing method-level contract.
+
   Native resume for `recursive_sum`: at `d3ff511372` (2026-09-13, macOS ARM64),
   `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=recursive_sum cargo nextest
   run -p compiler --test samples_compile --no-fail-fast
@@ -1332,9 +1340,11 @@ Owners include
   plans -> image custody -> physical derivation) is the next bounded slice.
   Normalized foreign lowering, machine-code custody, image replay, and artifact
   derivation still bound foreign arguments/results to fixed-width integers;
-  widening them needs a coordinated lane once emission exists. Adjacent
-  same-pattern gap for FRAME-LAYOUT's owner: `backend/layout/src/builder.rs`
-  `referee_unsized` also misses `DynamicTrait`.
+  widening them needs a coordinated lane once emission exists. Preserve agreement
+  between stored dynamic-reference layouts and normalized calling-policy shapes;
+  `calling_policy_plans::borrowed_dynamic_trait_record_fields_retain_both_descriptor_words`
+  checks neighboring fields and thin sized-reference controls across the four
+  hosted target layouts. Layout agreement alone does not close native transport.
 
 - **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete [representation agreement](wiki/spec/build/opaque_representations.md) at
   independently compiled by-value exchanges. Dependency-first review compilation
