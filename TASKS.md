@@ -377,7 +377,7 @@ including inert declared reach, private helpers, and interleaved binder position
 Run the README's Cargo/nextest commands on macOS ARM64 for full closed telescopes,
 finite substitution, selected public rows, and two-sided emitted-call joins after
 source discard.
-Producer ownership is `checked-trees-to-lowered-psi/src/closed_reach_applications.rs`;
+Producer ownership is `checked-trees-to-lowered-psi/src/psi_lowering/closed_reach_applications.rs`;
 reload checks are `terminal-verifier/src/validation/reach_applications.rs`.
 Selected generic schemas use per-call closed tuples and exact callee application
 joins; exercise source-free execution and hostile controls with
@@ -880,7 +880,7 @@ Owners include
   [separate safety/progress rules](wiki/spec/language/termination.md) for
   `print_squares` and the Console writer. Owners:
   `terminal-verifier/src/validation/control_flow.rs`, Psi's shared
-  `flow/terminal_unit/` and `checked-trees-to-lowered-psi/src/attached_unit/`,
+  `flow/terminal_unit/` and `checked-trees-to-lowered-psi/src/psi_lowering/attached_unit/`,
   and Omega's ordinary `lowering/control_flow/` plus receiving graph replay.
   Unit/scalar/aggregate functions already share that native graph; do not
   recreate the deleted Unit planner or unsigned-countdown native route.
@@ -994,7 +994,7 @@ Owners include
   and may carry no portable `scalar_expression` after conservative `Truth`
   widening, and boundary operator declarations do not yet carry a replayable
   Terminal crash contract; direct lowering rejects selected operator crash uses
-  at `checked-trees-to-lowered-psi/src/lib.rs`. Copying checked rows onto
+  at `checked-trees-to-lowered-psi/src/psi_lowering.rs`. Copying checked rows onto
   `MachineContract` alone would not establish replay meaning. A Terminal row
   also has no producer yet: checked scalar computations admit a selected
   comparison only through `selected_float_comparison`
@@ -1179,7 +1179,7 @@ Owners include
   shape recognition alone discharges the ranking and `fixed_fuel` inherits it.
   The same machine with a plain-owned token takes the composed route and
   carries a `RecursiveComponentCertificate`. Next slice: emit `Natural` from
-  `checked-trees-to-lowered-psi/src/structural_unit_control.rs` through
+  `checked-trees-to-lowered-psi/src/psi_lowering/structural_unit_control.rs` through
   `control_cycle_proofs`, then delete the countdown variant, its codec, its
   validator, and its fixed-fuel/liveness readers; acceptance is the countdown
   program rejecting when its certificate is absent or its decrease is altered.
@@ -1575,7 +1575,7 @@ Owners include
   Keep the selected-call join in
   `typed-trees-to-checked-trees/src/values/scalar/computations.rs`,
   `computations/integers.rs`, and
-  `checked-trees-to-lowered-psi/src/scalar_source_custody` compositional.
+  `checked-trees-to-lowered-psi/src/psi_lowering/scalar_source_custody` compositional.
 
   Acceptance: wrapped 250 + 10 yields 260u64 in the selected true Match arm,
   the false arm yields 1 without invoking the operator, and independent Terminal
@@ -1870,7 +1870,7 @@ Owners include
   Native acceptance also needs the checked transitive machine plan missing
   from `filesystem/windows_canonicalize_exit`: Terminal production currently
   refuses its attached Unit closure in
-  `checked-trees-to-lowered-psi/src/attached_unit/call_closure.rs`. Its source
+  `checked-trees-to-lowered-psi/src/psi_lowering/attached_unit/call_closure.rs`. Its source
   dependencies include nested structural sum construction/transport
   (`UnitResult::Error` carries `ErrorKind`) and whole nominal receiver
   replacement (`self.unit_result = ...`). Resolve these through shared

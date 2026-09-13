@@ -2,7 +2,7 @@
 
 This is the Rust implementation note for the
 [observation contract](../../../../wiki/spec/build/observations.md).
-The [interpreter preparer](../../../psi/semantics/checked-interpreter/src/evaluator/filesystem_preparation.rs)
+The [interpreter preparer](../../../psi/semantics/checked-interpreter/src/interpreter/evaluator/filesystem_preparation.rs)
 and providers share a closed catalog of 50 exact filesystem operation identities.
 Aliases and platform variants remain distinct. Resolve canonical toolchain
 requirements, not user declarations with matching names.

@@ -19,7 +19,7 @@ setup are not additional public program stages.
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/pipeline/symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | Typed → checked trees | [typed-trees-to-checked-trees](psi/pipeline/typed-trees-to-checked-trees/README.md) |
-| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/pipeline/checked-trees-to-lowered-psi/src/lib.rs) |
+| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/pipeline/checked-trees-to-lowered-psi/src/psi_lowering.rs) |
 | Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/pipeline/lowered-psi-to-lowered-psi/src/lib.rs) |
 | Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/pipeline/lowered-psi-to-terminal-psi/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/pipeline/terminal-psi-to-abstract-operations/README.md) |

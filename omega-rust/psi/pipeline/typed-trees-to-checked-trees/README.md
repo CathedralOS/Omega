@@ -577,7 +577,7 @@ their exact parameter and record/fixed-index path; the receiving producer
 rejoins that destination to the authored borrow, independently of bounds and
 alias verification. This source support does not establish native input I/O.
 
-[restored-call production](../checked-trees-to-lowered-psi/src/reborrow_restored_call_use.rs)
+[restored-call production](../checked-trees-to-lowered-psi/src/psi_lowering/reborrow_restored_call_use.rs)
 admits a direct mutable parent with an exclusive child or one complete shared
 cohort of one to three children. Final child use ends immediately before one
 receiver-free whole-parent mutating call. Multi-member final observation uses
@@ -588,7 +588,7 @@ and exact source call. Four-member/sequential shared cohorts, multihop or
 projected restored use, direct assignment, and partial/nonmutating uses remain
 outside this producer.
 
-[root handoff](../checked-trees-to-lowered-psi/src/reborrow_root_handoff.rs)
+[root handoff](../checked-trees-to-lowered-psi/src/psi_lowering/reborrow_root_handoff.rs)
 separately admits a finite nonempty exclusive chain rooted in a direct mutable
 or write-only loan and ending at state exit. Reverse and rejoin its exact
 retired-parent path; reject branches and shared edges. This is direct-root

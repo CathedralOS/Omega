@@ -1,0 +1,227 @@
+//! Rejoin the exact temporary owner and its normal call cleanup.
+
+use super::*;
+use checked_trees::CheckedStructuralAccess;
+
+pub(crate) fn validate_cleanup(
+    checked: &CheckedTrees,
+    caller: &CheckedUnitEffectMachinePlan,
+    operation_index: usize,
+) -> Result<(), LoweringError> {
+    let Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+        coordinate,
+        affine_discards,
+    }) = caller.operations.get(operation_index)
+    else {
+        return unsupported("call continuation cleanup entry is absent");
+    };
+    let consumer = operation_index
+        .checked_sub(1)
+        .and_then(|previous| caller.operations.get(previous))
+        .ok_or(LoweringError::Unsupported(
+            "call cleanup has no preceding consumer",
+        ))?;
+    if let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+        coordinate: producer,
+        result,
+        discard_result_on_return,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::StructuralCall {
+        coordinate: producer,
+        result,
+        discard_result_on_return,
+        ..
+    } = consumer
+    {
+        let [discard] = affine_discards.as_slice() else {
+            return unsupported("discarded boundary result requires one whole disposal");
+        };
+        if producer != coordinate
+            || *discard_result_on_return
+            || result.multiplicity != language_semantics::Multiplicity::Affine
+            || discard.source
+                != (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                })
+            || !discard.path.is_empty()
+            || discard.type_identity != result.type_identity
+        {
+            return unsupported("discarded boundary result cleanup substituted its owner");
+        }
+        return crate::psi_lowering::call_source_custody::initializers::validate_discarded_structural(
+            checked,
+            caller.machine,
+            caller.state,
+            *producer,
+            result,
+        );
+    }
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        coordinate: call,
+        structural_arguments,
+        scalar_arguments,
+        ..
+    } = consumer
+    else {
+        return unsupported("call cleanup does not immediately follow its consumer");
+    };
+    let (_, state) =
+        crate::psi_lowering::scalar_source_custody::authored_state(checked, caller.state)?;
+    let record_cleanup =
+        !affine_discards.is_empty()
+            && affine_discards.iter().all(|discard| {
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: binding,
+                } = discard.source
+                else {
+                    return false;
+                };
+                let Some((result, false)) = caller.operations[..operation_index].iter().find_map(
+                    |operation| match operation {
+                        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                            result,
+                            discard_result_on_return,
+                            ..
+                        }
+                        | CheckedUnitEffectOperationPlan::StructuralCall {
+                            result,
+                            discard_result_on_return,
+                            ..
+                        } if result.binding_ordinal == binding => {
+                            Some((result, *discard_result_on_return))
+                        }
+                        _ => None,
+                    },
+                ) else {
+                    return false;
+                };
+                discard.path.is_empty()
+                    && discard.type_identity == result.type_identity
+                    && structural_arguments.iter().any(|argument| {
+                        argument.source == discard.source
+                            && argument.path.last()
+                                == Some(&checked_trees::CheckedUnitStructuralPathSegment::Referent)
+                    })
+                    && validation::reference_result_custody::local_record_loans(
+                        &checked.typed,
+                        &checked.facts,
+                        caller.machine,
+                        state,
+                        result.statement_index,
+                    )
+                    .is_some_and(|loans| {
+                        !loans.is_empty()
+                            && loans.iter().all(|(_, loan)| {
+                                validation::reference_result_custody::release_statement(
+                                    &checked.facts,
+                                    caller.machine,
+                                    caller.state,
+                                    *loan,
+                                ) == coordinate.statement_index.checked_add(1)
+                            })
+                    })
+            });
+    if record_cleanup {
+        if call != coordinate {
+            return unsupported("record cleanup changed its last-use call");
+        }
+        return Ok(());
+    }
+    let [argument] = structural_arguments.as_slice() else {
+        return unsupported("call cleanup requires one exact temporary argument");
+    };
+    if call != coordinate || coordinate.call_ordinal != 0 || !scalar_arguments.is_empty() {
+        return unsupported("call cleanup substituted its consumer");
+    }
+    let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
+        return unsupported("call cleanup requires an expression-owned result");
+    };
+    let mut producers = caller.operations[..operation_index]
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate,
+                result,
+                discard_result_on_return,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                coordinate,
+                result,
+                discard_result_on_return,
+                ..
+            } if result.binding_ordinal == binding_ordinal => {
+                Some((operation, *coordinate, result, *discard_result_on_return))
+            }
+            _ => None,
+        });
+    let (producer_operation, producer, result, discard_on_return) = producers.next().ok_or(
+        LoweringError::Unsupported("call cleanup has no result producer"),
+    )?;
+    if producers.next().is_some()
+        || discard_on_return
+        || producer.call_ordinal != 1
+        || producer.statement_index != coordinate.statement_index
+        || result.statement_index != coordinate.statement_index
+        || result.multiplicity != language_semantics::Multiplicity::Affine
+    {
+        return unsupported("call cleanup has no unique continuing owner");
+    }
+    match argument.access {
+        CheckedStructuralAccess::SharedBorrow if argument.path.is_empty() => {
+            let [discard] = affine_discards.as_slice() else {
+                return unsupported("shared call cleanup requires the intact owner");
+            };
+            if discard.source != argument.source
+                || !discard.path.is_empty()
+                || discard.type_identity != result.type_identity
+                || argument.type_identity != result.type_identity
+            {
+                return unsupported("shared call cleanup substituted its result");
+            }
+            let source = crate::psi_lowering::call_source_custody::authored::locate_source(
+                checked,
+                caller.state,
+                producer,
+            )?;
+            let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
+                source.source_site
+            else {
+                return unsupported("call cleanup lost its expression-owned source");
+            };
+            shared_temporary::validate(checked, caller, producer, *coordinate, expression)
+        }
+        CheckedStructuralAccess::Owned if !argument.path.is_empty() => {
+            let (_, state) =
+                crate::psi_lowering::scalar_source_custody::authored_state(checked, caller.state)?;
+            if !matches!(
+                checked
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .get(coordinate.statement_index as usize),
+                Some(StatementNode::Call(_))
+            ) {
+                return unsupported("partial cleanup has no authored call statement");
+            }
+            let expected = crate::psi_lowering::unit_cleanup::checked_partial_affine_residuals(
+                &checked.facts.flow.terminal_unit_effects.structural_types,
+                &argument.source,
+                &result.type_identity,
+                &[(argument.path.as_slice(), argument.type_identity.as_str())],
+                affine_discards.len(),
+            )?;
+            if expected != *affine_discards {
+                return unsupported("partial call continuation residual partition drifted");
+            }
+            crate::psi_lowering::unit_cleanup::validate_anonymous_partial_permissions(
+                checked,
+                caller,
+                producer_operation,
+                consumer,
+                affine_discards,
+            )
+        }
+        _ => unsupported("call cleanup has no owned projection or whole shared loan"),
+    }
+}

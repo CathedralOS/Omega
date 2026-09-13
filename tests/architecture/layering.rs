@@ -1706,7 +1706,7 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
 fn first_psi_source_slice_stays_fail_closed() {
     let root = workspace_root();
     let source_root = root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src");
-    let path = source_root.join("lib.rs");
+    let path = source_root.join("psi_lowering.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
     let production_source = recursive_production_rust_source(&source_root);
@@ -1744,7 +1744,7 @@ fn first_psi_source_slice_stays_fail_closed() {
 fn direct_add_proof_search_exposes_its_semantic_owners() {
     let root = workspace_root();
     let direct_add = root.join(
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/nonzero_divisor_certificate/integer_selection/direct_add",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/psi_lowering/nonzero_divisor_certificate/integer_selection/direct_add",
     );
     for (entrance, modules) in [
         (
@@ -1773,8 +1773,9 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
     let root = workspace_root();
     let typed =
         root.join("omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit");
-    let terminal =
-        root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/attached_unit");
+    let terminal = root.join(
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/psi_lowering/attached_unit",
+    );
     for (entrance, modules) in [
         (
             typed.join("composed_control.rs"),
@@ -1921,7 +1922,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     assert!(publication.contains("optimized: &PsiOptimizationStageResult"));
     assert!(publication.contains("CanonicalTerminalArtifact::from_parts("));
     let lowering = std::fs::read_to_string(
-        root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/lib.rs"),
+        root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/psi_lowering.rs"),
     )
     .expect("read checked lowering");
     assert!(!lowering.contains("pub fn produce_terminal_artifact"));

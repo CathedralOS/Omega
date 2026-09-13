@@ -114,7 +114,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/values",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/payloadless_case_return.rs",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/psi_lowering/payloadless_case_return.rs",
         "omega-rust/omega/compiler/compiler/tests/canary_suite/value_and_type_checks.rs",
         "tests/omega/pass/constraints",
         "tests/omega/fail/constraints"
