@@ -74,7 +74,7 @@ pub(crate) fn structural_computation_argument(
     }
     if target_access == CheckedStructuralAccess::SharedBorrow
         && let Some(argument) =
-            shared_record_argument(program, borrow, machine, state, call, &place, target)
+            shared_nominal_argument(program, borrow, machine, state, call, &place, target)
     {
         return Some(argument);
     }
@@ -185,10 +185,10 @@ pub(crate) fn structural_computation_argument(
     })
 }
 
-/// A readable record argument borrows its existing parameter or local result
+/// A readable nominal argument borrows its existing parameter or local result
 /// home. Initializer spelling does not select custody; publication independently
 /// rejoins this symbol to its dominating structural establishment.
-fn shared_record_argument(
+fn shared_nominal_argument(
     program: &TypedTrees,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
@@ -341,14 +341,27 @@ fn shared_record_argument(
     };
     let mut shapes = ShapeCollector::new(program);
     let identity = shapes.add_type(reference, &[], &[])?;
+    // Whole scalar sums use the same established-place observation as records.
+    // No payload is extracted, copied, or reconstructed to borrow the sum; its
+    // source declaration and dominating call result remain separate evidence.
+    // The existing case call channel observes whole copy scalar sums. Nested
+    // sums require a separate projected payload/custody channel, not this loan.
+    let whole_scalar_sum = path.is_empty() && shapes.types.len() == 1
+        && program.type_multiplicity(reference) == Multiplicity::Unrestricted
+        && shapes.types.get(&identity).is_some_and(|shape| {
+            matches!(&shape.shape, CheckedUnitStructuralTypeShape::Sum { cases }
+                if !cases.is_empty() && cases.iter().all(|case| case.fields.iter().all(|field|
+                    !field.relevance.is_erased() && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)))))
+        });
     if identity != target_identity
         || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
-        || !shapes.types.values().all(|shape| {
-            matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }
+        || (!whole_scalar_sum
+            && !shapes.types.values().all(|shape| {
+                matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }
                 if fields.iter().all(|field| !field.relevance.is_erased()
                     && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)
                         | CheckedUnitStructuralFieldType::Structural { .. })))
-        })
+            }))
     {
         return None;
     }

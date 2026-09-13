@@ -31,6 +31,148 @@ const ALIGNMENT_GETTER: &str = "
 ";
 
 #[test]
+fn stored_returned_cases_support_borrowed_refined_getters() {
+    let checked = checked_source(
+        r#"
+        data MemoryAlignment [copy] {
+            case Alignment1; case Alignment2; case Alignment4; case Alignment8;
+        }
+        machine MemoryAlignment::default() -> MemoryAlignment {
+            MemoryAlignment::Alignment4
+        }
+        machine MemoryAlignment::from(size: i32) -> MemoryAlignment {
+            transition size {
+                1 -> (MemoryAlignment::Alignment1)
+                2 -> (MemoryAlignment::Alignment2)
+                4 -> (MemoryAlignment::Alignment4)
+                8 -> (MemoryAlignment::Alignment8)
+                _ -> (MemoryAlignment::Alignment1)
+            }
+        }
+        machine MemoryAlignment::get_size_in_bytes(&self) -> u64 [1..=8] {
+            transition self {
+                MemoryAlignment::Alignment1 -> (1)
+                MemoryAlignment::Alignment2 -> (2)
+                MemoryAlignment::Alignment4 -> (4)
+                MemoryAlignment::Alignment8 -> (8)
+            }
+        }
+        boundary trait Sink { machine record(value: u64); }
+        data Main {}
+        machine Main::main() reaches Sink {
+            transition { _ -> alignment_conversion() }
+            state alignment_conversion() {
+            let default_alignment: MemoryAlignment = MemoryAlignment::default();
+            let fallback_alignment: MemoryAlignment = MemoryAlignment::from(3);
+            let default_size: u64 = default_alignment.get_size_in_bytes();
+            let fallback_size: u64 = fallback_alignment.get_size_in_bytes();
+            transition default_size == 4 && fallback_size == 1 {
+                true -> passed()
+                false -> failed()
+            }
+            }
+            state passed() { Sink::record(1); }
+            state failed() { Sink::record(0); }
+        }
+        "#,
+        BranchForm::Separate,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
+        .expect("stored ordinary case results remain exact borrowed getter receivers");
+    let receivers = checked
+        .facts
+        .values
+        .scalar_computations
+        .structural_arguments
+        .iter()
+        .filter_map(|(handle, argument)| {
+            let argument = argument.as_place()?;
+            matches!(
+                argument.source,
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            )
+            .then_some((handle, argument.source.clone()))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        receivers.len(),
+        2,
+        "both getters use the common computation place capture"
+    );
+    assert_ne!(receivers[0].1, receivers[1].1);
+    for mutation in 0..2 {
+        let mut changed = checked.clone();
+        let argument = changed
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments
+            .get_mut(receivers[0].0)
+            .as_place_mut()
+            .unwrap();
+        if mutation == 0 {
+            argument.source = receivers[1].1.clone();
+        } else {
+            argument.access = checked_trees::CheckedStructuralAccess::MutableBorrow;
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
+                .produce_artifact()
+                .is_err(),
+            "stored receiver mutation {mutation} must fail exact source replay"
+        );
+    }
+    let artifact =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    terminal_verifier::verify_module(
+        &module,
+        &terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    drop(checked);
+    for initial_fuel in [0, 2, 1000] {
+        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &AdmissionProfile::default(),
+            &[],
+        )
+        .unwrap();
+        let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(initial_fuel);
+        let mut completed = false;
+        for _ in 0..256 {
+            match execution.resume(&mut fuel).unwrap() {
+                terminal_interpreter::TerminalExecutionStatus::Complete(result) => {
+                    assert_eq!(result, TerminalExecutionResult::Unit);
+                    completed = true;
+                    break;
+                }
+                terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => {
+                    let effects = execution.effects().to_vec();
+                    assert!(matches!(
+                        execution.resume(&mut fuel).unwrap(),
+                        terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
+                    ));
+                    assert_eq!(execution.effects(), effects);
+                    fuel.replenish(1).unwrap();
+                }
+                other => panic!("unexpected execution {other:?}"),
+            }
+        }
+        assert!(completed);
+        let [terminal_interpreter::TerminalEffect::BoundaryCall { arguments, .. }] =
+            execution.effects()
+        else {
+            panic!("exactly one selected Sink outcome")
+        };
+        assert_eq!(arguments, &[unsigned(64, 1)]);
+    }
+}
+
+#[test]
 fn borrowed_case_getter_executes_every_refined_return_from_encoded_evidence() {
     for (case, expected) in [("Byte", 1), ("Word", 2), ("Dword", 4), ("Qword", 8)] {
         let source = format!(

@@ -1,4 +1,6 @@
-//! Shared record operands retain their declared owner and exact call occurrence.
+//! Shared nominal operands retain their declared owner and exact call occurrence.
+//! Records may retain supported field projections; scalar sums are observed
+//! whole at their established home, including ordinary returned case values.
 //! The implicit receiver precedes explicit actuals but has no row in their
 //! observation roster. Validate it separately, including overlap with that roster.
 //! A projected receiver has two identities: the caller's storage root and the
@@ -171,11 +173,41 @@ pub(super) fn validate(
     else {
         return unsupported("record operand lost its exact nominal source type");
     };
-    if !checked
+    let declaration = checked
         .data_definitions()
         .iter()
-        .any(|data| data.symbol == *symbol)
-        || !validation::has_plain_owned_contents_with_numeric_constraints(checked, reference)
+        .find(|data| data.symbol == *symbol)
+        .ok_or(LoweringError::Unsupported(
+            "shared nominal operand has no declaration",
+        ))?;
+    let members = checked.data_members(declaration);
+    if members
+        .iter()
+        .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
+        && (!argument.path.is_empty()
+            || checked.type_multiplicity(reference)
+                != language_semantics::Multiplicity::Unrestricted
+            || !members.iter().all(|member| {
+                let checked_trees::data::DataMember::Variant(case) = member else {
+                    return false;
+                };
+                checked.data_payload_fields(case).iter().all(|field| {
+                    !field.relevance.is_erased()
+                        && matches!(
+                            checked
+                                .type_reference_table
+                                .type_reference(field.type_reference),
+                            TypeReferenceNode::Named { .. }
+                        )
+                        && checked
+                            .primitive_type_reference(field.type_reference)
+                            .is_some()
+                })
+            }))
+    {
+        return unsupported("shared case operand requires a whole scalar sum");
+    }
+    if !validation::has_plain_owned_contents_with_numeric_constraints(checked, reference)
         || checked.normalized_type_identity(reference).as_str() != argument.type_identity
     {
         return unsupported("record operand changed its declared referent type");
