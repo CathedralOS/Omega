@@ -158,10 +158,17 @@ fn indexed_collection_adaptation_preserves_other_operands_and_access() {
             .expect("index use");
         assert_eq!(
             operator_use.status,
-            checked_trees::CheckedOperatorResolutionStatus::Missing,
+            if actual_collection == "&i32" {
+                checked_trees::CheckedOperatorResolutionStatus::Missing
+            } else {
+                checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+            },
             "{source}"
         );
+        // Builtin meaning is not a matching authored declaration. Bounds and
+        // access remain independent checks on the operation and its consumer.
         assert!(!operator_use.selected_operator_symbol.is_valid());
+        assert_eq!(operator_use.candidate_count, 0);
     }
 }
 
@@ -174,7 +181,7 @@ fn indexed_element_binding_is_shared_with_the_remaining_tuple() {
         ),
         (
             "u64",
-            checked_trees::CheckedOperatorResolutionStatus::Missing,
+            checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
         ),
     ] {
         let source = format!(
@@ -190,6 +197,10 @@ fn indexed_element_binding_is_shared_with_the_remaining_tuple() {
             .find_map(|(_, value)| (value.spelling == OperatorSpelling::Index).then_some(value))
             .expect("index use");
         assert_eq!(operator_use.status, expected_status, "{source}");
+        if expected_status == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback {
+            assert!(!operator_use.selected_operator_symbol.is_valid());
+            assert_eq!(operator_use.candidate_count, 0);
+        }
     }
 }
 
@@ -232,7 +243,7 @@ fn ranged_collection_views_check_both_endpoint_types() {
         ),
         (
             "i32",
-            checked_trees::CheckedOperatorResolutionStatus::Missing,
+            checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
         ),
     ] {
         let source = format!(
@@ -248,6 +259,10 @@ fn ranged_collection_views_check_both_endpoint_types() {
             .find_map(|(_, value)| (value.spelling == OperatorSpelling::Range).then_some(value))
             .expect("range use");
         assert_eq!(operator_use.status, expected_status, "{source}");
+        if expected_status == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback {
+            assert!(!operator_use.selected_operator_symbol.is_valid());
+            assert_eq!(operator_use.candidate_count, 0);
+        }
     }
 }
 
@@ -1945,7 +1960,14 @@ fn checked_values_for(
     for expression in expressions {
         value_roots.append(checked_trees::CheckedValueFact {
             expression,
-            origin: Default::default(),
+            // These synthetic operands are statement roots. NestedExpression
+            // denotes a child already traversed from such an enclosing root.
+            origin: checked_trees::CheckedValueOrigin::StateStatement {
+                machine_symbol: SymbolHandle::from_arena_index(1),
+                state_symbol: SymbolHandle::from_arena_index(2),
+                statement_index: 0,
+                role: checked_trees::CheckedValueStatementRole::Expression,
+            },
             ..Default::default()
         });
     }

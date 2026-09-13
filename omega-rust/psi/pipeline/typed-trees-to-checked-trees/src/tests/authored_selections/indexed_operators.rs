@@ -3,6 +3,73 @@ use checked_trees::CheckedOperatorResolutionStatus;
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
+#[test]
+fn applied_generic_field_indexing_never_acquires_false_builtin_custody() {
+    for field in ["values", "independent"] {
+        let source = format!(
+            r#"
+            data View {{ value: i32; }}
+            data Box<Element> {{ values: [Element; 1]; independent: [View; 1]; }}
+            data Indexing {{}}
+            operator [] Indexing::index(values: &[View], position: u64) -> View;
+            machine inspect(input: &Box<View>) -> View {{ input.{field}[0] }}
+        "#
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let machine = &typed.machines()[0];
+        let state = &typed.machine_states(machine)[0];
+        let indexed = typed
+            .expression_table
+            .iter_expressions()
+            .find_map(|(expression, node)| {
+                matches!(node, ExpressionNode::Indexed(_)).then_some(expression)
+            })
+            .expect("indexed field");
+        let mut roots = arena::Arena::default();
+        roots.append(checked_trees::CheckedValueFact {
+            expression: indexed,
+            origin: checked_trees::CheckedValueOrigin::StateStatement {
+                machine_symbol: machine.symbol,
+                state_symbol: state.symbol,
+                statement_index: 0,
+                role: checked_trees::CheckedValueStatementRole::Expression,
+            },
+            ..Default::default()
+        });
+        let facts = crate::operators::build_operator_facts(
+            &typed,
+            &checked_trees::CheckedValueFacts::with_roots(roots),
+        );
+        let selected = facts.expression_use(indexed).expect("exact indexing use");
+        let ExpressionNode::Indexed(projection) = typed.expression_table.expression(indexed) else {
+            panic!("retained indexed expression");
+        };
+        assert_eq!(
+            crate::operators::expression_type_reference_for_origin(
+                &typed,
+                projection.collection,
+                selected.origin,
+            )
+            .is_some(),
+            field == "independent",
+            "only substitution-dependent fields lose their raw type handle",
+        );
+        assert_eq!(
+            selected.status,
+            CheckedOperatorResolutionStatus::Resolved,
+            "{field}"
+        );
+        assert_eq!(
+            selected.selected_operator_symbol,
+            typed.operators()[0].symbol,
+            "{field}"
+        );
+    }
+}
+
 fn indexed_program() -> typed_trees::TypedTrees {
     let source = r#"
         boundary operator [] Slice::index<Element>(items: &[Element], position: u64) -> Element

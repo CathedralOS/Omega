@@ -385,9 +385,37 @@ fn field_type_reference(
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,
+            arguments,
             ..
+        } => {
+            let data = program.data_definitions().iter().find(|data| {
+                (base_symbol.is_valid() && data.symbol == *base_symbol) || data.name == *base_name
+            })?;
+            let field = data_field_type_reference(program, data, field_symbol, field_name)?;
+            let parameters = program.data_type_parameters(data);
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            if parameters.len() != arguments.len() {
+                return None;
+            }
+            let substitutions = parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.symbol, *argument))
+                .collect::<Vec<_>>();
+            // This API returns an existing type handle, not an applied type
+            // view. A raw telescope field cannot stand in for its substituted
+            // type and exclude a genuinely applicable operator candidate.
+            (program.normalized_type_identity(field)
+                == program.normalized_type_identity_with_binders_and_substitutions(
+                    field,
+                    &[],
+                    &substitutions,
+                ))
+            .then_some(field)
         }
-        | TypeReferenceNode::Named {
+        TypeReferenceNode::Named {
             symbol: base_symbol,
             name: base_name,
         } => program
