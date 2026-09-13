@@ -295,11 +295,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 ## Machine optimization
 
 - **DECLARATIVE-PEEPHOLES.** Generalize the landed symbolic instruction-pair
-  descriptors (`selected_lowering/literal_fold/pair_rule.rs`: producer,
-  consumer, and rewritten `MachineSemanticKind` plus one immediate bound,
-  read by the producer only) to physical register units, effects, traps,
-  memory, stack, and control flow without replacing the independent
-  validator.
+  descriptors (`selected_lowering/literal_fold/pair_rule.rs`) to physical
+  register units, effects, traps, memory, stack, and control flow without
+  replacing the independent validator. Landed: `PairResultDisposition`
+  declares whether the rewritten instruction delivers its result through a
+  scalar `Def` operand or implicit physical-unit condition-state
+  definitions, and the producer admits constraint-row and consumer operand
+  shapes through it (crate `nextest`: 157 pass; a `CompareI64` consumer
+  carrying a scalar-result shape now rejects as `ConsumerMismatch` instead
+  of indexing past the row). Remaining: further unit roles and the effects,
+  trap, memory, stack, and control-flow dimensions.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Add copy removal, redundant extension
   removal, address folding, compare/test selection, and scheduling only where

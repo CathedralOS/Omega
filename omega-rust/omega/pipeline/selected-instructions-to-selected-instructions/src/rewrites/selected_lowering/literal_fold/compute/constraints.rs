@@ -6,7 +6,10 @@ use register_model::{
 };
 use selected_instructions::SelectedInstructionKind;
 
-use crate::{LiteralFoldError, LiteralFoldPolicy, SelectedInstructionPairRule, enabled_pair_rules};
+use crate::{
+    LiteralFoldError, LiteralFoldPolicy, PairResultDisposition, SelectedInstructionPairRule,
+    enabled_pair_rules,
+};
 
 /// One policy-enabled catalog row bound to its constraint-catalog row.
 pub(super) struct AdmittedPair<'a> {
@@ -45,22 +48,27 @@ pub(super) fn select_admitted_pairs<'a>(
             .immediate_constraint_key(keys)
             .ok_or(LiteralFoldError::ImmediateConstraintMismatch)?;
         let row = find(key)?;
-        validate_immediate_row(row)?;
+        validate_immediate_row(rule, row)?;
         pairs.push(AdmittedPair { rule, row });
     }
     Ok(AdmittedPairs { pairs })
 }
 
-fn validate_immediate_row(row: &RegisterInstructionConstraint) -> Result<(), LiteralFoldError> {
+/// Admit the rewritten row whose operand shape matches the rule's declared
+/// result channel: a scalar `Def` operand or implicit physical-unit defs.
+fn validate_immediate_row(
+    rule: SelectedInstructionPairRule,
+    row: &RegisterInstructionConstraint,
+) -> Result<(), LiteralFoldError> {
     let clean = |operands: &[&register_model::RegisterOperandConstraint]| {
         operands.iter().all(|operand| {
             operand.fixed_view.is_none() && operand.tied_to.is_none() && !operand.early_clobber
         }) && row.implicit_uses.is_empty()
             && row.clobbers.is_empty()
     };
-    match row.operands.as_slice() {
+    match (rule.result(), row.operands.as_slice()) {
         // Scalar-result form: `result = left <op> immediate`.
-        [left, result] => {
+        (PairResultDisposition::ScalarRegister, [left, result]) => {
             if left.operand != 0
                 || left.access != RegisterOperandAccess::Use
                 || result.operand != 1
@@ -74,7 +82,7 @@ fn validate_immediate_row(row: &RegisterInstructionConstraint) -> Result<(), Lit
         }
         // Flag-defining form: `compare left, immediate` carries no `Def`
         // operand; its only implicit output is the target condition state.
-        [left] => {
+        (PairResultDisposition::ImplicitUnits, [left]) => {
             if left.operand != 0
                 || left.access != RegisterOperandAccess::Use
                 || !clean(&[left])

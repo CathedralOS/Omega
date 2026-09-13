@@ -4,7 +4,10 @@ use register_model::RegisterOperandAccess;
 use selected_instructions::{SelectedFunction, SelectedInstructionKind};
 use semantic_vocabulary::IntegerValue;
 
-use crate::{LiteralFoldAction, LiteralFoldError, RecoveryClassification, RecoveryVictimRole};
+use crate::{
+    LiteralFoldAction, LiteralFoldError, PairResultDisposition, RecoveryClassification,
+    RecoveryVictimRole,
+};
 
 use super::constraints::AdmittedPairs;
 
@@ -93,12 +96,13 @@ pub(super) fn derive_action(
     }
 
     let row = pair.row;
-    let result = match consumer.operands.as_slice() {
-        [left, right, result] => {
+    let result = match (pair.rule.result(), consumer.operands.as_slice()) {
+        (PairResultDisposition::ScalarRegister, [left, right, result]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
                 || right.virtual_register != candidate.victim
                 || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
@@ -108,8 +112,9 @@ pub(super) fn derive_action(
             }
             Some(result.virtual_register)
         }
-        // Flag-defining consumers carry `[left, right]` uses and no `Def`.
-        [left, right] => {
+        // Flag-defining consumers carry `[left, right]` uses and no `Def`;
+        // their result is the rewritten row's implicit unit definitions.
+        (PairResultDisposition::ImplicitUnits, [left, right]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
                 || right.virtual_register != candidate.victim

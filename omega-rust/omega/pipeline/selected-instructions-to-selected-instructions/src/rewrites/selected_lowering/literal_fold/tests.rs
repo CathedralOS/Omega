@@ -760,3 +760,66 @@ fn compare_fold_rejects_unadmitted_candidate_shapes() {
         );
     }
 }
+
+#[test]
+fn scalar_result_shape_on_a_flag_defining_consumer_is_rejected() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.allocation_constraint_keys();
+    let inputs = staged_inputs(target);
+
+    // A `CompareI64` carrying a scalar `Def` operand does not match the
+    // flag-defining shape its rule admits. Both the producer and the
+    // independent replay must reject it rather than index past the
+    // one-operand rewritten constraint row.
+    let mut plan = inputs.selected.transformed().clone();
+    let consumer = &mut plan.functions[0].blocks[0].instructions[1];
+    let gpr = consumer.operands[0].class;
+    consumer.operands.push(SelectedOperand {
+        operand: 2,
+        virtual_register: VirtualRegisterId(0),
+        access: RegisterOperandAccess::Def,
+        class: gpr,
+        fixed_view: None,
+        tied_to: None,
+        early_clobber: false,
+    });
+    let mut selected = inputs.selected.clone();
+    selected.transformed = Arc::new(plan);
+
+    assert_eq!(
+        fold_selected_incoming_literal(
+            &selected,
+            &inputs.ranges,
+            &inputs.legality,
+            &inputs.spill_choices,
+            &inputs.recovery,
+            &inputs.availability,
+            environment.identity(),
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            &keys,
+            LiteralFoldPolicy::COMPARE_V1,
+            budget(),
+        ),
+        Err(LiteralFoldError::ConsumerMismatch { function: 0 })
+    );
+    assert_eq!(
+        validate_literal_fold(
+            &selected,
+            &inputs.ranges,
+            &inputs.legality,
+            &inputs.spill_choices,
+            &inputs.recovery,
+            &inputs.availability,
+            environment.identity(),
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            &keys,
+            inputs.selected.plan().clone(),
+        ),
+        Err(LiteralFoldError::ConsumerMismatch { function: 0 })
+    );
+}

@@ -8,8 +8,9 @@ use semantic_vocabulary::{IntegerValue, ObligationId};
 use target::NativeTarget;
 
 use super::{
-    LiteralFoldPolicy, ORDERED_SELECTED_LOWERING_RULES, SELECTED_LOWERING_RULE_CATALOG,
-    SelectedInstructionPairRule, enabled_pair_rules, resolve_selected_lowering_rules,
+    LiteralFoldPolicy, ORDERED_SELECTED_LOWERING_RULES, PairResultDisposition,
+    SELECTED_LOWERING_RULE_CATALOG, SelectedInstructionPairRule, enabled_pair_rules,
+    resolve_selected_lowering_rules,
 };
 use crate::RegisterAllocationRuleTargetApplicability;
 
@@ -73,6 +74,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         add_rule.rewritten(),
         MachineSemanticKind::ExactAddI64Immediate
     );
+    assert_eq!(add_rule.result(), PairResultDisposition::ScalarRegister);
     assert_eq!(
         subtract_rule,
         SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12
@@ -84,6 +86,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         subtract_rule.rewritten(),
         MachineSemanticKind::ExactSubtractI64Immediate
+    );
+    assert_eq!(
+        subtract_rule.result(),
+        PairResultDisposition::ScalarRegister
     );
     assert_ne!(add_rule.consumer(), subtract_rule.consumer());
 
@@ -97,6 +103,9 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         compare_rule.rewritten(),
         MachineSemanticKind::CompareI64Immediate
     );
+    // The compare-immediate form delivers its result through the implicit
+    // physical-unit condition state, not a scalar `Def` operand.
+    assert_eq!(compare_rule.result(), PairResultDisposition::ImplicitUnits);
     assert_eq!(
         compare_rule.rewrite_consumer(SelectedInstructionKind::CompareI64, 12),
         Some(SelectedInstructionKind::CompareI64Immediate {
