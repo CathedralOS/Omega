@@ -29,17 +29,6 @@
       "suggested_first_slice": "the old/new ordinary declaration pair with an explicitly selected checked migration, plus its missing-route rejection"
     },
     {
-      "name": "boundary-qual",
-      "board": "TASKS_OPTIMIZER.md",
-      "item": "BOUNDARY-QUALIFICATION-PRESERVATION",
-      "host": "linux",
-      "owning_paths": [
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation",
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules",
-        "omega-rust/omega/semantics/optimization-unit-semantics/src/unit_validation"
-      ]
-    },
-    {
       "name": "custody-mutation",
       "board": "TASKS_OPTIMIZER.md",
       "item": "CUSTODY-MUTATION-COVERAGE",

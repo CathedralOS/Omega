@@ -27,7 +27,9 @@
           "item": {"type": "string", "description": "Board item name; must appear as **<item>.** in the board file."},
           "host": {"type": "string", "enum": ["linux"], "description": "Cloud VMs are Linux x86-64 only."},
           "owning_paths": {"type": "array", "minItems": 1, "items": {"type": "string"}, "description": "Repository-relative paths this session owns; no two sessions may share one."},
-          "suggested_first_slice": {"type": "string", "description": "Optional hint rendered as a suggestion; the board item's acceptance governs."}
+          "suggested_first_slice": {"type": "string", "description": "Optional hint rendered as a suggestion; the board item's acceptance governs."},
+          "host_gates": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "description": "Commands the landing slice's acceptance depends on; each must exit 0 on the coordinator host or the slot is not landable from a Linux session."},
+          "probe_only": {"type": "boolean", "default": false, "description": "The slot is exploratory; verification_only is an accepted planned outcome and failing host_gates are recorded instead of rejecting the manifest."}
         }
       }
     }

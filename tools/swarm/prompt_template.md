@@ -10,6 +10,8 @@ another item.
 
 {suggested_first_slice_block}
 
+{probe_block}
+
 ## Host
 
 You are on Linux x86-64. `mbx` is absent here; use `cargo` everywhere AGENTS.md

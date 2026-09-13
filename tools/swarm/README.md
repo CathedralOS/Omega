@@ -39,9 +39,11 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
 
 1. Write a manifest (see `manifest.schema.json`; `waves/wave-1.json` is the
    worked example).
-2. `plan --manifest <file>` — validates the manifest, probes owning-path
-   freshness, renders one prompt per session to `build/swarm/<wave>/prompts/`,
-   and prints the exact request bodies. Review the prompts.
+2. `plan --manifest <file>` — validates the manifest, runs `host_gates`,
+   probes owning-path freshness (including each path's crate), renders one
+   prompt per session to `build/swarm/<wave>/prompts/`, and prints the exact
+   request bodies. Review the prompts. Use `--skip-host-gates` when the
+   coordinator deliberately does not run them.
 3. `launch --manifest <file>` — creates one session per entry and records
    `receipts.json`. A name with an existing receipt is skipped; pass
    `--relaunch <name>` to recreate just that session. `--dry-run` prints the
@@ -59,6 +61,10 @@ Pick items that are:
 - not in `exclusions` and not an item a human is actively landing,
 - named in a board the launcher knows (`TASKS.md`, `TASKS_BOOTSTRAP.md`,
   `TASKS_OPTIMIZER.md`), with the item present as `**<item>.**`.
+- each item's acceptance gates exit 0 on Linux; declare them in `host_gates`
+  because `plan` runs them and refuses the wave otherwise,
+- a slot whose slice may not be one crate is declared `probe_only`, so a
+  `verification_only` result is planned rather than counted as a miss.
 
 ## Lead-only launch checklist
 
