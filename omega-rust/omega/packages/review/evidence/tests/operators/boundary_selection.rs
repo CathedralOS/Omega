@@ -798,6 +798,78 @@ pub machine compare<Element>(left: Element, right: Element) -> bool {
 }
 
 #[test]
+fn review_exports_artifact_qualified_symbolic_spelled_boundary_demand() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Math {}
+pub boundary operator != Math::not_equal<Value>(left: Value, right: Value) -> bool;
+
+pub machine compare<Element>(left: Element, right: Element) -> bool {
+    left != right
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
+    .expect("generic producer should retain its spelled symbolic boundary demand");
+    assert!(checked.facts.operators.boundary_applications.is_empty());
+    let review = project_checked_package_review(&checked)
+        .expect("spelled symbolic boundary demand should project without claiming realization");
+    assert!(review.boundary_application_realizations().is_empty());
+    let [demand] = review.boundary_application_demands() else {
+        panic!("one artifact-qualified spelled symbolic demand")
+    };
+    assert!(
+        demand
+            .requirement_identity()
+            .contains("operator::Math::not_equal")
+    );
+    assert_eq!(demand.operator_declaration().path(), "Math::not_equal");
+    let exact_operator = review
+        .public_operators()
+        .iter()
+        .find(|operator| operator.coordinate().identity().path() == "Math::not_equal")
+        .expect("exact public operator overload");
+    assert_eq!(demand.operator_coordinate(), exact_operator.coordinate());
+    assert_eq!(demand.producer_callable().path(), "compare");
+    assert_eq!(
+        demand.arguments(),
+        &[
+            PackageReviewSymbolicBoundaryApplicationArgument::TypeBinder {
+                requirement_binder_ordinal: 0,
+                producer_binder_ordinal: 0,
+            }
+        ]
+    );
+    let rows = review.canonical_rows().expect("canonical review rows");
+    let symbolic_rows = rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::BoundaryApplicationDemand)
+        .collect::<Vec<_>>();
+    let [row] = symbolic_rows.as_slice() else {
+        panic!("one canonical symbolic-demand row")
+    };
+    assert!(
+        row.source()
+            .authored_locations()
+            .expect("symbolic demand has authored source")
+            .iter()
+            .any(|location| {
+                location.role() == PackageReviewSourceLocationRole::BoundaryApplicationUse
+            })
+    );
+}
+
+#[test]
 fn symbolic_generic_boundary_demand_rejects_binder_and_callable_drift() {
     let Some(target) = host_target_name() else {
         return;

@@ -40,15 +40,25 @@ pub(crate) fn bind_boundary_operator_application_demands(
         .filter(|operator| operator.is_boundary) else {
             continue;
         };
+        let operand_types = spelled_operand_types(program, operator_use);
         match checked_spelled_boundary_application(
             program,
             &symbols,
             operator,
             operator_use,
-            &spelled_operand_types(program, operator_use),
+            &operand_types,
         ) {
             Ok(Some(application)) => applications.push(application),
-            Ok(None) => {}
+            Ok(None) => {
+                if let Some(application) = spelled_symbolic_boundary_application(
+                    program,
+                    operator,
+                    operator_use,
+                    &operand_types,
+                ) {
+                    symbolic_applications.push(application);
+                }
+            }
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
     }
@@ -233,6 +243,58 @@ fn checked_spelled_boundary_application(
         operator_use.application_site(),
         bindings,
     )))
+}
+
+/// A resolved spelled use inside a generic machine cannot close its
+/// operator application until the machine's binders are substituted, but it
+/// still exports an open demand when every operator type binder maps
+/// directly onto one enclosing-machine type binder — the same symbolic
+/// cohort as named open applications. The row is demand only: it preserves
+/// the producer's transitive open obligation and authorizes no coverage
+/// until a consumer's final substitution closes the application. Implicit
+/// match-equality comparisons carry no authored operator token of their
+/// own, so they stay out of this cohort for now.
+fn spelled_symbolic_boundary_application(
+    program: &TypedTrees,
+    operator: &typed_trees::operator::OperatorDefinition,
+    operator_use: &CheckedOperatorUseFact,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> Option<CheckedSymbolicBoundaryOperatorApplicationDemand> {
+    if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
+        return None;
+    }
+    let machine_symbol = operator_use.origin.machine_symbol()?;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let arguments = typed_trees::operator::symbolic_operator_type_application_for_operands(
+        program,
+        machine,
+        operator,
+        operand_types,
+    )?;
+    let arguments = arguments
+        .into_iter()
+        .enumerate()
+        .map(|(ordinal, argument)| {
+            u32::try_from(ordinal).ok().map(|binder_ordinal| {
+                CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+                    binder_owner: operator.symbol,
+                    binder_ordinal,
+                    binder_symbol: argument.operator_binder_symbol,
+                    machine_binder_ordinal: argument.machine_binder_ordinal,
+                    machine_binder_symbol: argument.machine_binder_symbol,
+                }
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(CheckedSymbolicBoundaryOperatorApplicationDemand {
+        site: operator_use.application_site(),
+        requirement_symbol: operator.symbol,
+        machine_symbol,
+        arguments,
+    })
 }
 
 fn checked_boundary_application_from_bindings(
