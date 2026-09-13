@@ -39,7 +39,7 @@ Cathedral chooses journal location, retention, update cohort, and recovery polic
 
 [callback_registration.rs](src/callback_registration.rs) separates process-lifetime
 gateway admission from direct registration with unregistration/quiescence.
-[Quarantine](../executable-installation/src/replacement_quarantine.rs) retains
+[Quarantine](../executable-installation/src/executable_installation/replacement_quarantine.rs) retains
 exact installed context and capacity loss instead of treating execute removal as
 successful reclamation.
 

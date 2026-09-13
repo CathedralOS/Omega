@@ -2363,8 +2363,9 @@ fn program_local_root_cohort_keys_do_not_collapse_to_compact_schema_identity() {
 #[test]
 fn component_era_artifact_occurrence_joins_require_strong_installation_evidence() {
     let root = workspace_root();
-    let installation_path =
-        root.join("omega-rust/omega/backend/runtime/executable-installation/src/lib.rs");
+    let installation_path = root.join(
+        "omega-rust/omega/backend/runtime/executable-installation/src/executable_installation.rs",
+    );
     let installation = std::fs::read_to_string(&installation_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
     let effects_path =
@@ -3201,8 +3202,9 @@ fn final_image_symbol_authority_binds_exact_entry_and_data_rows() {
 #[test]
 fn executable_container_v2_retains_strong_imported_authority_commitments() {
     let root = workspace_root();
-    let installation_path =
-        root.join("omega-rust/omega/backend/runtime/executable-installation/src/lib.rs");
+    let installation_path = root.join(
+        "omega-rust/omega/backend/runtime/executable-installation/src/executable_installation.rs",
+    );
     let installation = std::fs::read_to_string(&installation_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
     for domain in [
@@ -3233,7 +3235,7 @@ fn executable_container_v2_retains_strong_imported_authority_commitments() {
     );
 
     let codec_path = root
-        .join("omega-rust/omega/backend/runtime/executable-installation/src/container_bytes.rs");
+        .join("omega-rust/omega/backend/runtime/executable-installation/src/executable_installation/container_bytes.rs");
     let codec = std::fs::read_to_string(&codec_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", codec_path.display()));
     assert!(
@@ -3245,7 +3247,7 @@ fn executable_container_v2_retains_strong_imported_authority_commitments() {
     );
 
     let materializer_path =
-        root.join("omega-rust/omega/backend/runtime/executable-installation/src/materializer.rs");
+        root.join("omega-rust/omega/backend/runtime/executable-installation/src/executable_installation/materializer.rs");
     let materializer = std::fs::read_to_string(&materializer_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", materializer_path.display()));
     assert!(
