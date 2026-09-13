@@ -59,7 +59,22 @@ When you finish, for any result, fill this schema exactly:
 ```
 
 `result` is one of `landed`, `verification_only`, `blocked`, `superseded`,
-`budget_exhausted`, `aborted`. `first_build_seconds` is the wall time of your
+`budget_exhausted`, `aborted`. Choose it by the evidence, not by why you
+stopped:
+
+- `verification_only`: you witnessed that the item's bounded slice does not
+  exist on this revision (a rejection, a missing seam, or a slice spanning
+  more crates or stages than one landing), and `remaining_dependency` names
+  the exact seam and next acceptance. Use this even when the finding also
+  ended your session early.
+- `blocked`: an external obstacle (host, access, another item's path, a
+  prerequisite item) stopped you before the slice could be attempted.
+- `budget_exhausted`: only when you were actively implementing a slice you
+  still believe is landable and ran out of ACU doing so; record the partial
+  state and the next step in `remaining_dependency`. A design finding that
+  the slice is too large is `verification_only`, not `budget_exhausted`.
+
+`first_build_seconds` is the wall time of your
 first workspace check in this session. `lease_expiries` counts landing-lease
 expiries you hit. `unrelated_failures` lists confirmed-unrelated failures you
 observed but did not repair.

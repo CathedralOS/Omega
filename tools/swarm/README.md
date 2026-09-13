@@ -72,6 +72,8 @@ Pick items that are:
   `EXACT-MACHINE-SIMPLIFICATIONS`),
 - a slot whose slice may not be one crate is declared `probe_only`, so a
   `verification_only` result is planned rather than counted as a miss.
+- `budget_exhausted` requires active implementation of a slice the child still
+  believes is landable; a finding that a slice spans stages is `verification_only`.
 
 ## Lead-only launch checklist
 

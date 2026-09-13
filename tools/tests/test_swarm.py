@@ -337,6 +337,14 @@ class SwarmTests(unittest.TestCase):
             self.assertNotIn("{" + field + "}", prompt)
         self.assertIn("ITEM-ONE", prompt)
 
+    def test_prompt_result_vocabulary_distinguishes_oversized_slices(self):
+        record = manifest()
+        self.validate(record)
+        template = TEMPLATE.read_text(encoding="utf-8")
+        prompt = self.module.render_prompt(template, record, record["sessions"][0])
+        self.assertIn("is `verification_only`, not `budget_exhausted`", prompt)
+        self.assertIn("only when you were actively implementing", prompt)
+
     def test_prompt_owner_label_and_exclusions(self):
         record = manifest()
         self.validate(record)
