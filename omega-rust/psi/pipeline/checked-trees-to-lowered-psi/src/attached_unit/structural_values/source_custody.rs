@@ -1,4 +1,7 @@
 //! Reconstruct construction, selected ownership and ordered dispatch from authored nodes.
+//! Establishing a local place does not necessarily establish a new value origin:
+//! whole affine moves preserve the original provenance. Replay traces the authored
+//! initializer chain separately from checking each place's establishment and transfer.
 
 use crate::{LoweringError, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
@@ -766,9 +769,85 @@ pub(crate) fn operand_source(
     unsupported("structural operand role escaped its authored value scope")
 }
 
-/// Whole selected locals retain their statement establishment provenance through
-/// later observation, transfer, or disposal. The operation/edge receivers check
-/// the selected transfer schedule independently.
+/// Recover the value's original establishment, not the destination place's.
+/// The operation/edge receivers independently check each transfer schedule.
+fn local_value_provenance(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    mut statement: usize,
+) -> Result<language_semantics::PermissionProvenance, LoweringError> {
+    use language_semantics::{PermissionEventSource, PermissionProvenance};
+    let (_, source) = crate::scalar_source_custody::authored_state(checked, state)?;
+    let statements = checked.statement_table.statements(source.statement_nodes);
+    loop {
+        if let Some((_, receipt)) = checked.facts.flow.ownership.owned_selection_at(
+            state,
+            u32::try_from(statement)
+                .map_err(|_| LoweringError::Unsupported("local origin ordinal overflow"))?,
+        ) {
+            owned_selection::validate_receipt(
+                checked,
+                machine,
+                state,
+                receipt.statement_ordinal,
+                receipt,
+            )?;
+            return Ok(PermissionProvenance::Unknown);
+        }
+        let Some(StatementNode::LocalData(local)) = statements.get(statement) else {
+            return unsupported("owned local origin has no declaration");
+        };
+        let ExpressionNode::Name(name) = checked.expression_table.expression(local.initial_value)
+        else {
+            return Ok(PermissionProvenance::Established {
+                machine_symbol: machine,
+                state_symbol: state,
+                source: PermissionEventSource::Statement {
+                    statement_index: statement,
+                },
+            });
+        };
+        if !name.symbol.is_valid() || name.head_symbol != name.symbol || name.members.count() != 1 {
+            return unsupported("owned local origin is not a whole source");
+        }
+        if checked
+            .state_parameters(source)
+            .iter()
+            .any(|parameter| parameter.symbol == name.symbol)
+        {
+            return Ok(PermissionProvenance::Established {
+                machine_symbol: machine,
+                state_symbol: state,
+                source: PermissionEventSource::StateEntry,
+            });
+        }
+        let mut origins =
+            statements
+                .iter()
+                .enumerate()
+                .filter_map(|(ordinal, source)| match source {
+                    StatementNode::LocalData(origin) if origin.symbol == name.symbol => {
+                        Some((ordinal, origin))
+                    }
+                    _ => None,
+                });
+        let Some((ordinal, origin)) = origins.next() else {
+            return unsupported("owned local origin has no source local");
+        };
+        if origins.next().is_some()
+            || ordinal >= statement
+            || checked.normalized_type_identity(origin.type_reference)
+                != checked.normalized_type_identity(local.type_reference)
+        {
+            return unsupported("owned local origin changed its prior source declaration");
+        }
+        // A move establishes a new place while preserving the value's origin.
+        // Strictly decreasing declarations also rule out forged origin cycles.
+        statement = ordinal;
+    }
+}
+
 fn validate_local_ownership(
     checked: &CheckedTrees,
     machine: SymbolHandle,
@@ -788,10 +867,10 @@ fn validate_local_ownership(
     let establishment_source = PermissionEventSource::Statement {
         statement_index: statement as usize,
     };
-    let provenance = language_semantics::PermissionProvenance::Established {
-        machine_symbol: machine,
-        state_symbol: state,
-        source: establishment_source,
+    let provenance = if multiplicity == Multiplicity::Affine {
+        local_value_provenance(checked, machine, state, statement as usize)?
+    } else {
+        language_semantics::PermissionProvenance::Unknown
     };
     let ownership = &checked.facts.flow.ownership;
     let selected_destination = ownership.owned_selection_at(state, statement).is_some();

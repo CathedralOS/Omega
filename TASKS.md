@@ -1395,8 +1395,10 @@ Owners include
   Its hosted `Main::main` now produces Terminal; native publication reaches the
   retained receiver-provisioning rejection. Resume `ENTRY-CONTENT-ROOTS` for the
   physical bridge, then require this unchanged program to exit 70. The focused
-  `canary_suite` filter `declared_range_inference` exercises the reviewed fixture
-  and this boundary on macOS AArch64; it does not establish native execution.
+  Resume evidence at `4641c0f055`: `cargo nextest run -p compiler --test
+  canary_suite -E 'test(declared_range_inference)' --no-fail-fast` exercises the
+  reviewed fixture and this boundary on macOS AArch64; it does not establish
+  native execution.
 
   Acceptance: TinyBytes' `Length == u64[0..=Capacity]` binds omitted Capacity from
   its supplied type before layout; inclusive/exclusive equivalent intervals
