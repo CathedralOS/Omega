@@ -239,6 +239,58 @@ fn statement_and_value_calls_must_establish_the_parameter_range() {
 }
 
 #[test]
+fn strict_float_calls_retain_and_enforce_the_authored_endpoint() {
+    for argument in ["1.0", "1.4999999", "0.0"] {
+        let source = format!(
+            "machine accept(value: f64 [0.0..1.5]) -> f64 {{ value }}
+             machine run() {{ _ = accept({argument}); }}"
+        );
+        lower_typed_trees(parse_typed_trees(&source))
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+    }
+
+    for (argument, expected) in [("1.5", "expected 0..1.5"), ("2.0", "expected 0..1.5")] {
+        let source = format!(
+            "machine accept(value: f64 [0.0..1.5]) -> f64 {{ value }}
+             machine run() {{ _ = accept({argument}); }}"
+        );
+        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
+            .expect_err("out-of-range float call must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{diagnostics:#?}"
+        );
+    }
+
+    let unknown = r#"
+        machine accept(value: f64 [0.0..1.5]) -> f64 { value }
+        machine run(value: f64) { _ = accept(value); }
+    "#;
+    assert!(
+        lower_typed_trees(parse_typed_trees(unknown)).is_err(),
+        "an unconstrained float call must reject"
+    );
+
+    let strict_to_inclusive = r#"
+        machine wide(value: f64 [0.0..=1.5]) -> f64 { value }
+        machine run(value: f64 [0.0..1.5]) { _ = wide(value); }
+    "#;
+    lower_typed_trees(parse_typed_trees(strict_to_inclusive))
+        .expect("a strict source range fits an inclusive target");
+
+    let inclusive_to_strict = r#"
+        machine narrow(value: f64 [0.0..1.5]) -> f64 { value }
+        machine run(value: f64 [0.0..=1.5]) { _ = narrow(value); }
+    "#;
+    assert!(
+        lower_typed_trees(parse_typed_trees(inclusive_to_strict)).is_err(),
+        "an inclusive source range must not fit a strict target"
+    );
+}
+
+#[test]
 fn incoming_argument_guards_keep_their_own_polarity() {
     let positive = r#"
         machine accept(delivered: u32 [1..=5]) -> u32 { delivered }

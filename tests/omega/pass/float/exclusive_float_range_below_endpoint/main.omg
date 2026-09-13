@@ -1,0 +1,8 @@
+data Main { value: f64; }
+
+machine Main::wide(&self, value: f64[0.0..=1.5]) -> f64 { value }
+machine Main::accept(&self, value: f64[0.0..1.5]) -> f64 { self.wide(value) }
+
+machine Main::main(&mut self) {
+    self.value = self.accept(1.0);
+}

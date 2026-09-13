@@ -198,8 +198,16 @@ pub(super) fn validate_target_ranges(
                                 minimum <= low && low <= high && high <= maximum
                             })
                     });
-            let float_proven = *end_inclusive
-                && float_membership(program, machine, state, cast, env, *minimum, *maximum);
+            let float_proven = float_membership(
+                program,
+                machine,
+                state,
+                cast,
+                env,
+                *minimum,
+                *maximum,
+                *end_inclusive,
+            );
             if !integer_proven && !float_proven {
                 let span = Some(program.expression_table.source_span(cast.value));
                 if diagnostics.iter().any(|existing| {
@@ -225,6 +233,7 @@ fn float_membership(
     env: &ValueEnv,
     minimum: ExpressionHandle,
     maximum: ExpressionHandle,
+    end_inclusive: bool,
 ) -> bool {
     let Some(target @ (PrimitiveType::F32 | PrimitiveType::F64)) =
         program.primitive_type_reference(cast.target_type)
@@ -253,7 +262,12 @@ fn float_membership(
     };
     match (bounds(cast.value), bounds(minimum), bounds(maximum)) {
         (Some((source_low, source_high)), Some((_, minimum_high)), Some((maximum_low, _))) => {
-            minimum_high <= source_low && source_high <= maximum_low
+            minimum_high <= source_low
+                && if end_inclusive {
+                    source_high <= maximum_low
+                } else {
+                    source_high < maximum_low
+                }
         }
         _ => false,
     }

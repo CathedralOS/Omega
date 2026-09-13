@@ -17,14 +17,15 @@ fn accepts(source: &str) -> CheckedTrees {
 }
 
 #[test]
-fn exclusive_integer_normalization_does_not_claim_strict_float_support() {
-    accepts("machine valid(value: f64[0.0..=1.5]) { }");
-    let errors = check("machine unsupported(value: f64[0.0..1.5]) { }")
-        .expect_err("strict floating predicates require their own evidence");
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.message.contains("exclusive floating range"))
+fn exclusive_float_ranges_keep_the_authored_endpoint_and_reject_it() {
+    accepts("machine accept(value: f64[0.0..1.5]) { }");
+    let checked = accepts("machine compare(first: f64[0.0..1.5], second: f64[0.0..=1.5]) { }");
+    let program = &checked.typed;
+    let state = &program.machine_states(&program.machines()[0])[0];
+    let parameters = program.state_parameters(state);
+    assert_ne!(
+        program.normalized_type_identity(parameters[0].type_reference),
+        program.normalized_type_identity(parameters[1].type_reference)
     );
 }
 

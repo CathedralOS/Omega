@@ -1,6 +1,6 @@
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
-    BoundedStateReturnObligation, BoundedTransitionArgumentObligation, IntegerRange,
+    BoundedStateReturnObligation, BoundedTransitionArgumentObligation, FloatRange, IntegerRange,
     ProofConstraint, ProofObligation, ProofPlan, dehoisted_condition, dehoisted_operand,
     integer_binary_range,
 };
@@ -13,12 +13,6 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 mod arrival_stability;
 mod return_arrival;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct FloatRange {
-    minimum: f64,
-    maximum: f64,
-}
 
 pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -107,8 +101,7 @@ fn check_bounded_assignment(
             return;
         };
 
-        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
-        {
+        if !target_range.contains_range(&value_range) {
             diagnostics.push(cannot_prove_bounded_assignment_float(
                 proof_plan,
                 obligation,
@@ -265,8 +258,7 @@ fn check_bounded_initializer(
             return;
         };
 
-        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
-        {
+        if !target_range.contains_range(&value_range) {
             diagnostics.push(cannot_prove_bounded_initializer_float(
                 proof_plan,
                 obligation,
@@ -319,8 +311,7 @@ fn check_bounded_state_return(
             return;
         };
 
-        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
-        {
+        if !target_range.contains_range(&value_range) {
             diagnostics.push(cannot_prove_bounded_return_float(
                 proof_plan,
                 obligation,
@@ -436,9 +427,7 @@ fn check_bounded_call_argument(
             return;
         };
 
-        if argument_range.minimum < target_range.minimum
-            || argument_range.maximum > target_range.maximum
-        {
+        if !target_range.contains_range(&argument_range) {
             diagnostics.push(cannot_prove_bounded_call_float(
                 proof_plan,
                 obligation,
@@ -578,9 +567,7 @@ fn check_bounded_transition_argument(
             return;
         };
 
-        if argument_range.minimum < target_range.minimum
-            || argument_range.maximum > target_range.maximum
-        {
+        if !target_range.contains_range(&argument_range) {
             diagnostics.push(cannot_prove_bounded_transition_float(
                 proof_plan,
                 obligation,
@@ -761,10 +748,7 @@ fn float_range_for_transition_argument(
     {
         ExpressionNode::Float(value) => {
             let value = finite_float_literal(value)?;
-            Some(FloatRange {
-                minimum: value,
-                maximum: value,
-            })
+            Some(FloatRange::closed(value))
         }
         _ => float_range_from_constraints(type_constraints(
             proof_plan,
@@ -784,10 +768,7 @@ fn float_range_for_assignment(
     {
         ExpressionNode::Float(value) => {
             let value = finite_float_literal(value)?;
-            Some(FloatRange {
-                minimum: value,
-                maximum: value,
-            })
+            Some(FloatRange::closed(value))
         }
         _ => {
             float_range_from_constraints(type_constraints(proof_plan, obligation.value_constraints))
@@ -806,10 +787,7 @@ fn float_range_for_call_argument(
     {
         ExpressionNode::Float(value) => {
             let value = finite_float_literal(value)?;
-            Some(FloatRange {
-                minimum: value,
-                maximum: value,
-            })
+            Some(FloatRange::closed(value))
         }
         _ => float_range_from_constraints(type_constraints(
             proof_plan,
@@ -829,10 +807,7 @@ fn float_range_for_return_value(
     {
         ExpressionNode::Float(value) => {
             let value = finite_float_literal(value)?;
-            Some(FloatRange {
-                minimum: value,
-                maximum: value,
-            })
+            Some(FloatRange::closed(value))
         }
         _ => {
             float_range_from_constraints(type_constraints(proof_plan, obligation.value_constraints))
@@ -851,10 +826,7 @@ fn float_range_for_initializer(
     {
         ExpressionNode::Float(value) => {
             let value = finite_float_literal(value)?;
-            Some(FloatRange {
-                minimum: value,
-                maximum: value,
-            })
+            Some(FloatRange::closed(value))
         }
         _ => None,
     }
@@ -1582,20 +1554,23 @@ fn float_range_from_constraints(constraints: &[ProofConstraint]) -> Option<Float
     let mut range: Option<FloatRange> = None;
 
     for constraint in constraints {
-        let ProofConstraint::FloatRange { minimum, maximum } = constraint else {
+        let ProofConstraint::FloatRange {
+            minimum,
+            maximum,
+            maximum_inclusive,
+        } = constraint
+        else {
             continue;
         };
 
         let candidate = FloatRange {
             minimum: minimum.value(),
             maximum: maximum.value(),
+            maximum_inclusive: *maximum_inclusive,
         };
 
         range = Some(match range {
-            Some(existing) => FloatRange {
-                minimum: existing.minimum.max(candidate.minimum),
-                maximum: existing.maximum.min(candidate.maximum),
-            },
+            Some(existing) => existing.intersect(candidate),
             None => candidate,
         });
     }
@@ -2873,13 +2848,12 @@ fn cannot_prove_bounded_transition_float(
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; expected {}..={}",
+        "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; {}",
         expression_display_name(proof_plan, obligation.argument),
         obligation.parameter,
         obligation.machine,
         obligation.state,
-        target_range.minimum,
-        target_range.maximum
+        float_range_display(target_range)
     ))
 }
 
@@ -2889,13 +2863,12 @@ fn cannot_prove_bounded_assignment_float(
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove assignment value `{}` satisfies bounded target `{}` in `{}.{}`; expected {}..={}",
+        "cannot prove assignment value `{}` satisfies bounded target `{}` in `{}.{}`; {}",
         expression_display_name(proof_plan, obligation.value),
         expression_display_name(proof_plan, obligation.target),
         obligation.machine,
         obligation.state,
-        target_range.minimum,
-        target_range.maximum
+        float_range_display(target_range)
     ))
 }
 
@@ -2905,12 +2878,11 @@ fn cannot_prove_bounded_return_float(
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove return value `{}` satisfies bounded return type in `{}.{}`; expected {}..={}",
+        "cannot prove return value `{}` satisfies bounded return type in `{}.{}`; {}",
         expression_display_name(proof_plan, obligation.value),
         obligation.machine,
         obligation.state,
-        target_range.minimum,
-        target_range.maximum
+        float_range_display(target_range)
     ))
 }
 
@@ -2920,11 +2892,10 @@ fn cannot_prove_bounded_initializer_float(
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove initializer `{}` satisfies bounded value `{}`; expected {}..={}",
+        "cannot prove initializer `{}` satisfies bounded value `{}`; {}",
         expression_display_name(proof_plan, obligation.value),
         obligation.owner,
-        target_range.minimum,
-        target_range.maximum
+        float_range_display(target_range)
     ))
 }
 
@@ -2989,6 +2960,14 @@ fn expression_display_name(proof_plan: &ProofPlan, expression: ExpressionHandle)
     proof_plan.program.expression_table.display_name(expression)
 }
 
+fn float_range_display(range: FloatRange) -> String {
+    if range.maximum_inclusive {
+        format!("expected {}..={}", range.minimum, range.maximum)
+    } else {
+        format!("expected {}..{}", range.minimum, range.maximum)
+    }
+}
+
 fn cannot_prove_bounded_call_integer(
     proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
@@ -3024,14 +3003,13 @@ fn cannot_prove_bounded_call_float(
         .unwrap_or_else(|| obligation.target.to_string());
 
     Diagnostic::error(format!(
-        "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected {}..={}",
+        "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; {}",
         expression_display_name(proof_plan, obligation.argument),
         obligation.parameter,
         target,
         obligation.machine,
         obligation.state,
-        target_range.minimum,
-        target_range.maximum
+        float_range_display(target_range)
     ))
 }
 

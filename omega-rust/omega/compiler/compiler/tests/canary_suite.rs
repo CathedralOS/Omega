@@ -348,6 +348,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 /// Pure checked-semantics canaries. These deliberately do not enter native
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
+    "float/exclusive_float_range_below_endpoint",
     // The native differential owner publishes `observe` on all four targets.
     "structural/local_record_receivers",
     "constants/lexical_aggregate_values",
@@ -4351,6 +4352,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "modules/export_item_retired",
+    "float/exclusive_float_range_endpoint_rejected",
     "traits/trait_invariant_clause_retired",
     "traits/trait_contract_undeclared_self_member",
     "tasks/task_runtime_provider_contract_narrowing",

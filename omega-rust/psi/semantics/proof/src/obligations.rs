@@ -94,9 +94,14 @@ pub enum ProofConstraint {
         sibling: Identifier,
         max_offset: i64,
     },
+    /// A floating range with an inclusive minimum and an authored maximum.
+    /// `maximum_inclusive = false` means the value must be less than the
+    /// maximum under IEEE order, so NaN satisfies neither endpoint. The
+    /// authored maximum remains verbatim because floats have no predecessor.
     FloatRange {
         minimum: FloatLiteral,
         maximum: FloatLiteral,
+        maximum_inclusive: bool,
     },
     /// Operand-driven arithmetic behavior carried through expression
     /// derivation. This is metadata for deciding which value facts an
@@ -183,14 +188,10 @@ impl ProofConstraint {
             });
         }
 
-        // Exclusive floating bounds require their own proof vocabulary. Source
-        // validation rejects them; never mint an inclusive fact for that source.
-        if !end_inclusive {
-            return None;
-        }
         Some(Self::FloatRange {
             minimum: FloatLiteral::new(float_range_bound(program, minimum)?),
             maximum: FloatLiteral::new(float_range_bound(program, maximum)?),
+            maximum_inclusive: end_inclusive,
         })
     }
 }
@@ -481,9 +482,43 @@ pub struct BinaryValueOperands {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct FloatRange {
-    minimum: f64,
-    maximum: f64,
+pub(crate) struct FloatRange {
+    pub(crate) minimum: f64,
+    pub(crate) maximum: f64,
+    pub(crate) maximum_inclusive: bool,
+}
+
+impl FloatRange {
+    pub(crate) fn closed(value: f64) -> Self {
+        Self {
+            minimum: value,
+            maximum: value,
+            maximum_inclusive: true,
+        }
+    }
+
+    pub(crate) fn intersect(self, other: Self) -> Self {
+        let maximum = self.maximum.min(other.maximum);
+        let maximum_inclusive = if self.maximum == other.maximum {
+            self.maximum_inclusive && other.maximum_inclusive
+        } else if self.maximum < other.maximum {
+            self.maximum_inclusive
+        } else {
+            other.maximum_inclusive
+        };
+        Self {
+            minimum: self.minimum.max(other.minimum),
+            maximum,
+            maximum_inclusive,
+        }
+    }
+
+    pub(crate) fn contains_range(&self, value: &Self) -> bool {
+        value.minimum >= self.minimum
+            && (value.maximum < self.maximum
+                || (value.maximum == self.maximum
+                    && (self.maximum_inclusive || !value.maximum_inclusive)))
+    }
 }
 
 /// The caller's argument for the SIBLING a sibling-length atom names --
@@ -2211,6 +2246,7 @@ fn float_literal_constraints(value: &FloatLiteral) -> ConstraintBuffer {
     constraints.push(ProofConstraint::FloatRange {
         minimum: FloatLiteral::new(value),
         maximum: FloatLiteral::new(value),
+        maximum_inclusive: true,
     });
     constraints
 }
@@ -2309,6 +2345,7 @@ fn derived_binary_constraints(
         constraints.push(ProofConstraint::FloatRange {
             minimum: FloatLiteral::new(range.minimum),
             maximum: FloatLiteral::new(range.maximum),
+            maximum_inclusive: true,
         });
     }
 
@@ -2467,7 +2504,11 @@ fn augment_constraints_with_named_facts(constraints: &mut ConstraintBuffer) {
             ProofConstraint::IntegerRange { minimum, maximum } if minimum == maximum
         ) || matches!(
             constraint,
-            ProofConstraint::FloatRange { minimum, maximum } if minimum == maximum
+            ProofConstraint::FloatRange {
+                minimum,
+                maximum,
+                maximum_inclusive,
+            } if minimum == maximum && *maximum_inclusive
         )
     }) && !has_named_constraint(constraints, "exact")
     {
@@ -2586,20 +2627,23 @@ fn float_range_from_constraints(constraints: &ConstraintBuffer) -> Option<FloatR
     let mut range: Option<FloatRange> = None;
 
     for constraint in constraints.iter() {
-        let ProofConstraint::FloatRange { minimum, maximum } = constraint else {
+        let ProofConstraint::FloatRange {
+            minimum,
+            maximum,
+            maximum_inclusive,
+        } = constraint
+        else {
             continue;
         };
 
         let candidate = FloatRange {
             minimum: minimum.value(),
             maximum: maximum.value(),
+            maximum_inclusive: *maximum_inclusive,
         };
 
         range = Some(match range {
-            Some(existing) => FloatRange {
-                minimum: existing.minimum.max(candidate.minimum),
-                maximum: existing.maximum.min(candidate.maximum),
-            },
+            Some(existing) => existing.intersect(candidate),
             None => candidate,
         });
     }
@@ -2712,14 +2756,17 @@ fn float_binary_range(
     left: FloatRange,
     right: FloatRange,
 ) -> Option<FloatRange> {
+    // Interval arithmetic over an open endpoint only weakens a conservative result.
     match operator {
         BinaryOperator::Add => Some(FloatRange {
             minimum: left.minimum + right.minimum,
             maximum: left.maximum + right.maximum,
+            maximum_inclusive: true,
         }),
         BinaryOperator::Subtract => Some(FloatRange {
             minimum: left.minimum - right.maximum,
             maximum: left.maximum - right.minimum,
+            maximum_inclusive: true,
         }),
         BinaryOperator::Multiply => {
             let products = [
@@ -2731,6 +2778,7 @@ fn float_binary_range(
             Some(FloatRange {
                 minimum: products.iter().copied().fold(f64::INFINITY, f64::min),
                 maximum: products.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+                maximum_inclusive: true,
             })
         }
         BinaryOperator::Divide => {
@@ -2747,6 +2795,7 @@ fn float_binary_range(
             Some(FloatRange {
                 minimum: quotients.iter().copied().fold(f64::INFINITY, f64::min),
                 maximum: quotients.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+                maximum_inclusive: true,
             })
         }
         BinaryOperator::And
@@ -2902,9 +2951,58 @@ mod range_tests {
                 Some(ProofConstraint::FloatRange {
                     minimum: FloatLiteral::new(expected_minimum),
                     maximum: FloatLiteral::new(expected_maximum),
+                    maximum_inclusive: true,
                 })
             );
         }
+    }
+
+    #[test]
+    fn proof_range_keeps_exclusive_float_endpoint_verbatim() {
+        let mut program = program_with_u8();
+        let minimum = program
+            .expression_table
+            .insert(ExpressionNode::Float(FloatLiteral::new(0.0)));
+        let maximum = program
+            .expression_table
+            .insert(ExpressionNode::Float(FloatLiteral::new(1.5)));
+
+        assert_eq!(
+            ProofConstraint::from_node(
+                &program,
+                &TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive: false,
+                }
+            ),
+            Some(ProofConstraint::FloatRange {
+                minimum: FloatLiteral::new(0.0),
+                maximum: FloatLiteral::new(1.5),
+                maximum_inclusive: false,
+            })
+        );
+    }
+
+    #[test]
+    fn float_ranges_intersect_and_contain_with_strict_endpoints() {
+        let strict = FloatRange {
+            minimum: 0.0,
+            maximum: 1.5,
+            maximum_inclusive: false,
+        };
+        let inclusive = FloatRange {
+            minimum: 0.0,
+            maximum: 1.5,
+            maximum_inclusive: true,
+        };
+        let below = FloatRange::closed(1.0);
+
+        assert!(strict.contains_range(&below));
+        assert!(!strict.contains_range(&inclusive));
+        assert!(strict.contains_range(&strict));
+        assert!(inclusive.contains_range(&strict));
+        assert_eq!(strict.intersect(inclusive), strict);
     }
 
     #[test]
