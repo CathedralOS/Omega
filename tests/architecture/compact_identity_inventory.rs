@@ -588,10 +588,19 @@ fn trust_tooling_compact_coordinates_retain_strong_evidence_and_report_labels() 
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", carrier_path.display()));
     let report = fs::read_to_string(&report_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", report_path.display()));
-    let visualization_path =
-        root.join("omega-rust/omega/tooling/visualizations/src/checked_trees.rs");
-    let visualization = fs::read_to_string(&visualization_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", visualization_path.display()));
+    let visualization = [
+        "qualification_manifest.rs",
+        "machine_contract_manifest.rs",
+        "task_activation_manifest.rs",
+    ]
+    .map(|owner| {
+        let path = root
+            .join("omega-rust/omega/tooling/visualizations/src")
+            .join(owner);
+        fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+    })
+    .join("\n");
 
     for required in [
         "provider_plan_report_fingerprint: u64",

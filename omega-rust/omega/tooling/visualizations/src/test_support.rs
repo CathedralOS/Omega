@@ -1,18 +1,6 @@
-use super::{
-    carry_manifest_json, claim_outcome_manifest_json, exact_manifest_crash_call_source,
-    exact_manifest_crash_source_state, exact_manifest_crash_target, machine_contract_manifest_json,
-    push_termination_interface_json, qualification_evidence_manifest_json,
-    qualification_requirement_identity, qualification_subject,
-    specialization_instance_contract_report_fingerprint, symbol_label,
-    task_activation_manifest_json, validate_content_conservation_plan,
-    validate_content_identity_reshuffle, validate_content_partition_input_custody,
-    validate_content_partition_lineage, validate_content_partition_result_rewrites,
-    validate_content_partition_substitution_replay, validate_qualification_program_point,
-    validate_qualification_receipt, validate_qualification_source,
-    validate_vacuous_qualification_use, validated_content_projection_plans,
-    validated_machine_semantic_domain_commitments, validated_manifest_crash_capsules,
-};
-use checked_trees::{
+//! Test-only checked-program builders shared by manifest regression suites.
+
+pub(super) use checked_trees::{
     CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
     ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
     ContentPartitionResultRewrite, DataCarryFact, FlowCallFact, FlowClaimOutcomeEntryFact,
@@ -21,78 +9,45 @@ use checked_trees::{
     MachineServiceReachRows, StateWriteFramePlan, SuspensionCrossingCarryFact,
     VacuousQualificationUse,
 };
-use facts::{
+pub(super) use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, Place, PlaceRoot, ProgramPoint, QualificationEvidence,
 };
-use language_semantics::content::{
+pub(super) use language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationEquation,
     ContentConservationOwnerKind, ContentConservationPlan, ContentConservationTerm,
     ContentFieldSegment, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,
     ContentProjectionPlan, ContentScalarExpression, ContentStructuralPlace,
     conservation_report_fingerprint, projection_report_fingerprint,
 };
-use language_semantics::{
+pub(super) use language_semantics::{
     BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
     CarrySuspension, MachineSupplyMode, MachineTerminationPlan, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PermissionProvenance,
     QualificationEvidenceOrigin, RankingViewId, RankingWitness, ReferenceAccess, SemanticDomainId,
     SuspensionInterface, SuspensionPlan, TerminationGuarantee, TerminationInterface,
 };
-use symbols::SymbolHandle;
-use typed_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
-use typed_trees::domain::DomainDefinition;
-use typed_trees::expression::{
+pub(super) use symbols::SymbolHandle;
+pub(super) use typed_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
+pub(super) use typed_trees::domain::DomainDefinition;
+pub(super) use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableBorrowExpression, TableCastExpression,
 };
-use typed_trees::machine::Machine;
-use typed_trees::name::Identifier;
-use typed_trees::operator::OperatorDefinition;
-use typed_trees::signature::{StateParameter, StateSignature};
-use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
-use typed_trees::trait_definition::TraitDefinition;
-use typed_trees::typed_trees::MachineSpecialization;
-use typed_trees::types::TypeReferenceNode;
+pub(super) use typed_trees::machine::Machine;
+pub(super) use typed_trees::name::Identifier;
+pub(super) use typed_trees::operator::OperatorDefinition;
+pub(super) use typed_trees::signature::{StateParameter, StateSignature};
+pub(super) use typed_trees::state::State;
+pub(super) use typed_trees::statement::StatementNode;
+pub(super) use typed_trees::trait_definition::TraitDefinition;
+pub(super) use typed_trees::typed_trees::MachineSpecialization;
+pub(super) use typed_trees::types::TypeReferenceNode;
 
-use effects::provider_plan::{
+pub(super) use effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceEntryAuthorityFlow, ServiceEntryClaim,
     ServiceMethod, ServiceResultClaim, ServiceSchema,
 };
 
-#[test]
-fn qualification_expression_search_includes_every_value_dispatch_child() {
-    let mut program = CheckedTrees::default();
-    let expressions = &mut program.typed.expression_table;
-    let subject = expressions.insert(ExpressionNode::Boolean(true));
-    let pattern = expressions.insert(ExpressionNode::Boolean(false));
-    let first = expressions.insert(ExpressionNode::Boolean(false));
-    let last = expressions.insert(ExpressionNode::Boolean(true));
-    let arms = expressions.insert_match_arms([
-        typed_trees::expression::TableMatchArm {
-            pattern: typed_trees::expression::MatchPattern::Value(pattern),
-            value: first,
-            source_span: Default::default(),
-        },
-        typed_trees::expression::TableMatchArm {
-            pattern: typed_trees::expression::MatchPattern::Wildcard,
-            value: last,
-            source_span: Default::default(),
-        },
-    ]);
-    let dispatch = expressions.insert(ExpressionNode::Match(
-        typed_trees::expression::TableMatchExpression { subject, arms },
-    ));
-    for child in [subject, pattern, first, last] {
-        assert!(super::qualification_expression_contains(
-            &program,
-            dispatch,
-            child,
-            &mut Vec::new()
-        ));
-    }
-}
-
-fn push_behavior_contract(
+pub(super) fn push_behavior_contract(
     program: &mut CheckedTrees,
     machine: SymbolHandle,
     checked_may_suspend: bool,
@@ -190,7 +145,7 @@ fn push_behavior_contract(
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ManifestExactAxis {
+pub(super) enum ManifestExactAxis {
     Contract,
     ServiceReach,
     SynchronousInvocation,
@@ -201,7 +156,7 @@ enum ManifestExactAxis {
 }
 
 impl ManifestExactAxis {
-    const ALL: [Self; 7] = [
+    pub(super) const ALL: [Self; 7] = [
         Self::Contract,
         Self::ServiceReach,
         Self::SynchronousInvocation,
@@ -211,7 +166,7 @@ impl ManifestExactAxis {
         Self::Mutation,
     ];
 
-    fn label(self) -> &'static str {
+    pub(super) fn label(self) -> &'static str {
         match self {
             Self::Contract => "machine contract",
             Self::ServiceReach => "service-reach",
@@ -224,7 +179,7 @@ impl ManifestExactAxis {
     }
 }
 
-fn machine_contract_exact_rows_fixture() -> (CheckedTrees, SymbolHandle) {
+pub(super) fn machine_contract_exact_rows_fixture() -> (CheckedTrees, SymbolHandle) {
     let machine_symbol = SymbolHandle::from_arena_index(60);
     let state_symbol = SymbolHandle::from_arena_index(61);
     let mut program = CheckedTrees::default();
@@ -253,7 +208,7 @@ fn machine_contract_exact_rows_fixture() -> (CheckedTrees, SymbolHandle) {
     (program, machine_symbol)
 }
 
-fn remove_manifest_exact_row(
+pub(super) fn remove_manifest_exact_row(
     program: &mut CheckedTrees,
     machine: SymbolHandle,
     axis: ManifestExactAxis,
@@ -303,7 +258,7 @@ fn remove_manifest_exact_row(
     }
 }
 
-fn duplicate_manifest_exact_row(
+pub(super) fn duplicate_manifest_exact_row(
     program: &mut CheckedTrees,
     source_machine: SymbolHandle,
     duplicate_machine: SymbolHandle,
@@ -403,7 +358,7 @@ fn duplicate_manifest_exact_row(
     }
 }
 
-fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+pub(super) fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
     if let Some(message) = payload.downcast_ref::<String>() {
         message.clone()
     } else if let Some(message) = payload.downcast_ref::<&str>() {
@@ -413,7 +368,8 @@ fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
     }
 }
 
-fn mutation_state_owner_fixture() -> (CheckedTrees, SymbolHandle, SymbolHandle, SymbolHandle) {
+pub(super) fn mutation_state_owner_fixture()
+-> (CheckedTrees, SymbolHandle, SymbolHandle, SymbolHandle) {
     let owner = SymbolHandle::from_arena_index(50);
     let owner_state = SymbolHandle::from_arena_index(51);
     let other = SymbolHandle::from_arena_index(52);
@@ -451,7 +407,7 @@ fn mutation_state_owner_fixture() -> (CheckedTrees, SymbolHandle, SymbolHandle, 
     (program, owner, owner_state, other_state)
 }
 
-fn vacuous_qualification_fixture() -> (
+pub(super) fn vacuous_qualification_fixture() -> (
     CheckedTrees,
     SymbolHandle,
     SymbolHandle,
@@ -549,7 +505,7 @@ fn vacuous_qualification_fixture() -> (
     )
 }
 
-fn selected_storage_plan() -> ProviderPlan {
+pub(super) fn selected_storage_plan() -> ProviderPlan {
     ProviderPlan {
         name: "selected::Storage".to_owned(),
         provider_type: "StorageProvider".to_owned(),
@@ -603,7 +559,7 @@ fn selected_storage_plan() -> ProviderPlan {
     }
 }
 
-fn push_qualification_requirement(
+pub(super) fn push_qualification_requirement(
     program: &mut CheckedTrees,
     is_boundary: bool,
     owner_index: u32,
@@ -629,22 +585,3 @@ fn push_qualification_requirement(
     program.typed.push_trait_definition(owner);
     (owner_symbol, requirement)
 }
-
-mod behavior_and_claim_outcomes;
-mod carry_and_activation;
-mod content_lineage_and_plans;
-mod content_manifest_structure;
-mod content_partition_inputs;
-mod content_partition_results;
-mod content_reshuffles;
-mod machine_contract_axes;
-mod machine_contract_crashes;
-mod machine_contract_identity;
-mod qualifications;
-
-use behavior_and_claim_outcomes::{
-    claim_outcome_validation_fixture, first_claim_outcome_entries_mut,
-};
-use content_partition_inputs::content_partition_input_validation_fixture;
-use content_reshuffles::content_identity_reshuffle_validation_fixture;
-use machine_contract_axes::crash_source_coordinate_fixture;
