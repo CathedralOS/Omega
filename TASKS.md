@@ -90,25 +90,29 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   exact field establishment already work; do not add another eligibility path
   or make a missing row authorize an erased-field fallback.
 
-  Conditional bridge probe: unpublished checkpoint `bb66e5b3ef`, macOS ARM64,
+  Conditional bridge probe: unpublished checkpoint `d021bef41a`, macOS ARM64,
   `RUST_MIN_STACK=67108864 cargo nextest run -p compiler --test canary_suite
   --no-fail-fast -E 'test(entry_and_abi::hosted_receiver)'` executes a canonical
   Bound receiver with retained scalar mutation (`A`, exit 0) and distinct process
   exit (`A`, exit 37), and rejects missing establishment and corrupted object
-  binding. This establishes execution feasibility, not complete bridge checking
-  or unchanged Squalr acceptance. Keep the bridge checkpoint unpublished until
-  its conditional loader/bridge obligations are independently checked.
+  binding. That checkpoint additionally checks partition bounds/alignment and
+  decodes final bridge instructions independently of the emitter and relocation
+  patcher. This remains dependency evidence, not unchanged Squalr acceptance.
+  Reconcile the retained package-binding changes with current assignments and
+  main, then validate the complete bridge integration before publication.
 
   `image-macho/src/loader_mapping.rs` and `loader_fixups.rs` independently check
   segment mapping, retained payloads, exact eager bind/rebase writes and zero-fill
   exclusion during ordinary image replay. Object relocations and normalized
   import locators supply the expected pointers; these checks do not establish
   the receiver grant or authorize loaded providers.
-  Next retain the exact target loader/bootstrap premises and prove that, for
-  each conforming future process installation, loaded code and RW/NX zero-fill
-  backing share that occurrence and the receiver/private-stack/continuation
-  partitions and activation loan are valid. Retain the loading assumptions and
-  connect the checked mapping/fixup results to that bridge proof. The
+  The retained `hosted_receiver` implementation joins these checks to disjoint
+  receiver/private-stack/continuation partitions and exact SP/LR and call flow.
+  Its claim remains conditional on conforming loading, process-local exclusive
+  writable-image storage, one entry activation, admitted provider behavior and
+  the declared completion contract; callback occupancy rejects. Preserve these
+  premises during integration rather than treating byte checking as an actual
+  installed receiver grant. The
   [native product contract](wiki/spec/build/component_publication.md#products-and-authority)
   does not require a live `InstalledCode` or Rust supervisor before compiling
   an ordinary executable. Actual installation/epoch custody remains necessary
