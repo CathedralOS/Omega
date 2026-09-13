@@ -29,6 +29,13 @@ fn declared_range_inference_returns_the_selected_endpoint() {
         ("named", vec![BuildTimeValue::Int(0)], 256),
         ("call_named", vec![], 256),
         ("named_exclusive", vec![BuildTimeValue::Int(0)], 255),
+        ("named_full_width", vec![BuildTimeValue::Int(0)], -1),
+        (
+            "named_full_width_exclusive",
+            vec![BuildTimeValue::Int(0)],
+            -2,
+        ),
+        ("named_signed", vec![BuildTimeValue::Int(-2)], -2),
         ("exclusive_full_u64", vec![BuildTimeValue::Int(0)], -1),
         ("inclusive_to_exclusive", vec![BuildTimeValue::Int(0)], 257),
         ("exclusive_to_inclusive", vec![BuildTimeValue::Int(0)], 256),

@@ -231,7 +231,11 @@ call) folds before checking in `build-time-evaluation/src/range_endpoints.rs`
 through the same `BuildTimeAdmissionPlan` and checked-interpreter route as
 fixed-array lengths, with source invocation custody; the endpoint becomes an
 ordinary literal that inference, declaration checking, proof and layout all
-read. The same customer's `named` machine infers `upper_bound<256>` this way.
+read. Integer results are decoded using the callee's declared signedness before
+literal formation or proof-integer normalization: a returned `u64::MAX` remains
+positive, while an `i64` result of -1 remains negative. The shared decoder also
+serves const data arguments and both ordinary and replayed array-length folds;
+each receiving position retains its own fit and layout obligations.
 Calls with value arguments, type-scoped machine paths, open symbolic endpoints,
 full-width variable compatibility intervals and exact type equations remain
 open; context-free typed evaluation refuses matching selected trait operators

@@ -423,7 +423,7 @@ fn zero_argument_integer_position_uses_const_evaluable_admission_and_exact_int_d
 
     assert_eq!(
         evaluate_zero_argument_machine(&typed, &admission, "count", "array length"),
-        Ok(3)
+        Ok(numerics::bignum::BigInt::from_u64(3))
     );
 
     let non_integer =
@@ -450,6 +450,31 @@ fn zero_argument_integer_position_uses_const_evaluable_admission_and_exact_int_d
             .fixed_array_lengths()
             .any(|(_, length)| matches!(length, typed_trees::types::FixedArrayLength::Literal(3)))
     );
+}
+
+#[test]
+fn integer_const_positions_decode_the_callees_declared_carrier() {
+    let program = typed(
+        "machine wide() -> u64 { 18446744073709551615 }
+         machine high_bit() -> u64 { 9223372036854775808 }
+         machine negative() -> i64 { -1 }
+         machine minimum() -> i64 { -9223372036854775808 }
+         machine narrow_unsigned() -> u8 { 255 }
+         machine narrow_signed() -> i8 { -128 }",
+    );
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    for (name, expected) in [
+        ("wide", "18446744073709551615"),
+        ("high_bit", "9223372036854775808"),
+        ("negative", "-1"),
+        ("minimum", "-9223372036854775808"),
+        ("narrow_unsigned", "255"),
+        ("narrow_signed", "-128"),
+    ] {
+        let value = evaluate_zero_argument_machine(&program, &admission, name, "range endpoint")
+            .expect("admitted integer call decodes");
+        assert_eq!(value.to_string(), expected, "{name}");
+    }
 }
 
 #[test]

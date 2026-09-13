@@ -20,7 +20,7 @@
 //! non-constant-bound rejection; nothing here admits them silently.
 
 use diagnostics::Diagnostic;
-use numerics::literals::IntegerLiteral;
+use numerics::literals::{IntegerLiteral, IntegerRadix};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
@@ -70,8 +70,17 @@ pub fn evaluate_const_range_endpoints_with_authority(
     }
 
     for (expression, value) in substitutions {
-        *typed.expression_table.expression_mut(expression) =
-            ExpressionNode::Integer(IntegerLiteral::from_value(value));
+        let literal = IntegerLiteral::from_parts(
+            value.is_negative(),
+            IntegerRadix::Decimal,
+            &value.abs().to_string(),
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "invalid evaluated range endpoint: {reason}"
+            ))]
+        })?;
+        *typed.expression_table.expression_mut(expression) = ExpressionNode::Integer(literal);
     }
 
     if diagnostics.is_empty() {
