@@ -10,7 +10,6 @@ use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
 use package_source::ImmutableSourceResolution;
-use std::fmt;
 
 pub use super::error::ReviewOnlyCapabilityConflictError;
 pub use super::limits::ReviewOnlyCapabilityConflictLimits;
@@ -70,26 +69,6 @@ impl ReviewOnlyRootRoleChange {
         true
     }
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ReviewOnlyRootRoleComparisonError {
-    RootIdentityMismatch {
-        baseline: Box<PackageKey>,
-        candidate: Box<PackageKey>,
-    },
-}
-
-impl fmt::Display for ReviewOnlyRootRoleComparisonError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::RootIdentityMismatch { .. } => formatter.write_str(
-                "root-role comparison requires one stable package key across baseline and candidate",
-            ),
-        }
-    }
-}
-
-impl std::error::Error for ReviewOnlyRootRoleComparisonError {}
 
 /// Domain-separated identity for one exact review-time row conflict.
 ///

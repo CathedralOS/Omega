@@ -7,8 +7,8 @@ use package_source::ImmutableSourceResolution;
 use super::rows::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
 use super::{build_observation_commitment, whole_review_commitment};
 
-/// The package-manager-facing evidence common to a live compiler review and a
-/// restart-stable review-only baseline record.
+/// The package-manager-facing view of compiler review facts used by comparison
+/// and source-triage operations.
 ///
 /// This trait is deliberately private. Implementing it does not issue accepted
 /// evidence or permit construction of a package instance.

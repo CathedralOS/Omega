@@ -132,10 +132,6 @@ pub(super) const fn reason_token(reason: PackageTriageReason) -> &'static str {
         PackageTriageReason::CapabilityOrApiChanged => "capability_or_api_changed",
         PackageTriageReason::SourceLineageChanged => "source_lineage_changed",
         PackageTriageReason::BuildObservationChanged => "build_observation_changed",
-        PackageTriageReason::RootLostDependencyCompatibility => {
-            "root_lost_dependency_compatibility"
-        }
-        PackageTriageReason::RootLostApplicationActivation => "root_lost_application_activation",
         PackageTriageReason::RepresentationTcbIntroducedOrChanged => {
             "representation_tcb_introduced_or_changed"
         }
