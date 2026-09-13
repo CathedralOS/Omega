@@ -5,8 +5,8 @@
 //! declared type (the inference sentinel) because the language has no local type
 //! inference and the element type is not knowable at the hoist site. Here, with
 //! the resolved data-field types available, the temp's element type is derived
-//! from its initializer, retaining reference access for observations, so later domain/range/layout checks and
-//! codegen see a concrete declared type that matches the element read.
+//! from its initializer, retaining reference access for observations, so later
+//! domain/range/layout checks and codegen see the matching concrete type.
 
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_element_applicable_constraints;
