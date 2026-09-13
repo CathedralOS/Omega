@@ -11,6 +11,7 @@ mod control;
 mod derived_calls;
 mod ieee_borrows;
 mod ieee_comparisons;
+mod immediate_compare;
 mod integer_calls;
 mod owned_arguments;
 mod parameters;

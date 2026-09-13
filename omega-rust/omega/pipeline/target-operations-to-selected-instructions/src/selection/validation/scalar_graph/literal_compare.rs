@@ -1,22 +1,31 @@
-//! Local zero-equality selection; executable source rows and fuel remain accounted for.
+//! Zero keeps flag-only comparison; U12 literals use the immediate comparison form.
+use std::ops::RangeInclusive;
+
 use legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarComparison, LegalizedScalarFunction,
     LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
-pub(super) fn folded_zero<'a>(
+pub(super) fn folded_literal<'a>(
     function: &LegalizedScalarFunction,
     block: &'a LegalizedScalarBlock,
     comparison_index: usize,
+    immediates: RangeInclusive<u64>,
 ) -> Option<&'a LegalizedScalarInstruction> {
     let comparison = block.instructions.get(comparison_index)?;
-    let zero = block.instructions.get(comparison_index.checked_sub(1)?)?;
-    let definition = zero.result?;
+    let literal = block.instructions.get(comparison_index.checked_sub(1)?)?;
+    let definition = literal.result?;
+    let LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(value)) = literal.kind
+    else {
+        return None;
+    };
+    let value = u64::try_from(value).ok()?;
     if !matches!(
-        zero.kind,
-        LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(0))
-    ) || !matches!(definition.scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64)
+        definition.scalar_type,
+        ScalarType::Integer(integer)
+            if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64
+    ) || !immediates.contains(&value)
     {
         return None;
     }
@@ -105,5 +114,21 @@ pub(super) fn folded_zero<'a>(
             }
         }
     }
-    Some(zero)
+    Some(literal)
+}
+
+pub(super) fn folded_zero<'a>(
+    function: &LegalizedScalarFunction,
+    block: &'a LegalizedScalarBlock,
+    comparison_index: usize,
+) -> Option<&'a LegalizedScalarInstruction> {
+    folded_literal(function, block, comparison_index, 0..=0)
+}
+
+pub(super) fn folded_immediate<'a>(
+    function: &LegalizedScalarFunction,
+    block: &'a LegalizedScalarBlock,
+    comparison_index: usize,
+) -> Option<&'a LegalizedScalarInstruction> {
+    folded_literal(function, block, comparison_index, 1..=4095)
 }
