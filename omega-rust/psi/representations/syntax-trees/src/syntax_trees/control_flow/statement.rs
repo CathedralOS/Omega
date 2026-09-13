@@ -10,6 +10,11 @@ pub struct RootBinding {
     pub receiver: crate::expression::ExpressionHandle,
     pub slot: Box<[Identifier]>,
     pub implementation: Box<[Identifier]>,
+    /// Present only when the implementation operand is one bare name: a
+    /// delegated product-description place candidate. Product declaration
+    /// paths (every multi-member spelling) keep this invalid and stay purely
+    /// lexical; name resolution decides which form the operand is.
+    pub implementation_operand: crate::expression::ExpressionHandle,
     pub source_span: SourceSpan,
 }
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;

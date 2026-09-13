@@ -467,6 +467,18 @@ pub data BuildOutput {
 }
 pub data BuildLog {
 }
+// Compiler-owned product-selection facet. `builder.product.entry` is the
+// only route to a `ProductEntryRef`: the evaluator answers the query by
+// lexical lookup under the call occurrence's package and returns an opaque
+// marker; the declared body is never executed.
+pub data BuildProduct {
+}
+// A restricted, non-callable product-entry description. Authored code can
+// retain, copy, and hand it to helpers, but only a `roots.bind` delegated
+// operand can consume it, and only the compiler-issued marker value carries
+// the exact selected identity.
+pub data ProductEntryRef [copy] {
+}
 // Optional proof-carrying product requests (wiki/spec/proofs/publication.md).
 // Both flags are independent and default to false; they request adjacent
 // `.proof` sidecars, never a different pipeline or weaker checking.
@@ -484,6 +496,7 @@ pub data Build {
     source: BuildSource;
     output: BuildOutput;
     log: BuildLog;
+    product: BuildProduct;
 }
 pub data PackageSelection {
     case Root;
@@ -534,6 +547,13 @@ pub machine BuildOutput::close(&mut self, descriptor: i32) -> i32 {
 pub machine BuildOutput::include_source(&mut self, generated: BuildPath) {
 }
 pub machine BuildLog::write_line(&mut self, text: &[u8]) {
+}
+// Fallible logical query: select the exact product machine `path` declares in
+// this call occurrence's own package for root slot `slot`. The evaluator
+// intercepts the call and returns the restricted description marker; this
+// declared body is only a statically well-typed stand-in.
+pub machine BuildProduct::entry(&self, path: &[u8], slot: &[u8]) -> ProductEntryRef {
+    ProductEntryRef {}
 }
 // compiler-owned optimization enable machine
 // compiler-owned optimization report machine

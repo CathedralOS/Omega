@@ -953,6 +953,8 @@ impl SyntaxTrees {
             StatementNode::RootBinding(binding) => {
                 StatementNode::RootBinding(crate::statement::RootBinding {
                     receiver: self.copy_expression_handle(other, binding.receiver),
+                    implementation_operand: self
+                        .copy_expression_handle(other, binding.implementation_operand),
                     ..binding.clone()
                 })
             }

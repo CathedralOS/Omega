@@ -31,14 +31,26 @@ pub(super) fn append_statement_ownership_events(
     statement: &StatementNode,
 ) {
     match statement {
-        StatementNode::RootBinding(binding) => moves::observations::append(
-            program,
-            sink,
-            state_symbol,
-            statement_index,
-            binding.receiver,
-            FlowOwnershipEventSource::Statement { statement_index },
-        ),
+        StatementNode::RootBinding(binding) => {
+            moves::observations::append(
+                program,
+                sink,
+                state_symbol,
+                statement_index,
+                binding.receiver,
+                FlowOwnershipEventSource::Statement { statement_index },
+            );
+            if binding.implementation_operand.is_valid() {
+                moves::observations::append(
+                    program,
+                    sink,
+                    state_symbol,
+                    statement_index,
+                    binding.implementation_operand,
+                    FlowOwnershipEventSource::Statement { statement_index },
+                );
+            }
+        }
         StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             let source = FlowOwnershipEventSource::Statement { statement_index };

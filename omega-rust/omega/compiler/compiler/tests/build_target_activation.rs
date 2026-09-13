@@ -440,6 +440,130 @@ fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symb
 }
 
 #[test]
+fn owner_selected_product_description_binds_through_foreign_helper() {
+    // The owner selects its own private entry through the compiler-owned
+    // `product.entry` query and hands the restricted description to a helper
+    // in another package. The helper binds it without holding any product
+    // namespace of its own; the target machine traps if it were ever executed
+    // during selection, so a clean compile also witnesses non-execution.
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine configure(builder: &mut Build, entry: &ProductEntryRef) { builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "machine launch() { crash Trap; }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\"); setup::configure(builder, &entry); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    let checked = compile_to_checked(request).expect(
+        "an owner-selected product description binds through a helper without executing the target",
+    );
+    assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
+}
+
+#[test]
+fn product_entry_query_is_scoped_to_the_query_occurrences_package() {
+    // The helper performs the query itself: `launch` exists only in the
+    // owner's package, so the borrowed Build cannot reach it. Selection
+    // authority belongs to the query occurrence's package, not the caller's.
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine configure(builder: &mut Build) { let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "machine launch() { let marker: u8 = 0; }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    let diagnostics = compile_to_checked(request)
+        .expect_err("a foreign helper cannot select the caller's private product entry")
+        .into_iter()
+        .map(|diagnostic| diagnostic.message)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        diagnostics
+            .contains("not a product declaration visible from this build occurrence's package"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn forged_product_entry_description_is_rejected() {
+    // An authored `ProductEntryRef {}` has the static type but carries no
+    // compiler-issued description payload, so the bind refuses it at
+    // evaluation rather than trusting the shape.
+    let project = TempProject::new(&application_build(
+        "    let forged: ProductEntryRef = ProductEntryRef {};\n    builder.roots.bind(windows_x86_64::ProgramEntry, forged);",
+    ));
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("an authored ProductEntryRef value is not a product description")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("not a compiler-issued product entry description"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn delegated_root_binding_requires_a_product_entry_ref_operand() {
+    // A typed-but-undescribed local cannot mint selection authority: it is not
+    // a compiler-issued description, so the bind refuses it. Build evaluation
+    // runs before checked authored selections finalize, so the refusal is the
+    // evaluation-time marker check.
+    let project = TempProject::new(&application_build(
+        "    let marker: u8 = 1;\n    builder.roots.bind(windows_x86_64::ProgramEntry, marker);",
+    ));
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("a non-description local cannot stand in for a product entry")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("not a compiler-issued product entry description")
+            || diagnostics.contains("ProductEntryRef"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn product_description_binds_only_the_slot_it_was_selected_for() {
+    let project = TempProject::with_main(
+        "machine launch() { let marker: u8 = 0; }",
+        "machine build(builder: &mut Build) { builder.application(\"slot-mismatch\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"linux_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("a description selected for another slot must not bind here")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("does not match the product description's slot"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
 fn root_build_aliases_cannot_mutate_target_or_replace_the_activation() {
     for (operation, expected) in [
         (

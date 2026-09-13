@@ -1762,10 +1762,26 @@ fn root_binding_declaration(
             .to_vec()
             .into_boxed_slice())
     };
+    // A bare operand name may be a delegated `ProductEntryRef` place rather
+    // than a product declaration path; keep its expression so name resolution
+    // can decide. Multi-member paths can only spell declarations and stay
+    // purely lexical.
+    let described_operand = |handle: ExpressionHandle| {
+        let ExpressionNode::Name(path) = syntax_trees.expressions.expression(handle) else {
+            return ExpressionHandle::invalid();
+        };
+        let members = syntax_trees.expressions.identifier_path_members(*path);
+        if members.len() == 1 && members[0].as_str() != "self" {
+            handle
+        } else {
+            ExpressionHandle::invalid()
+        }
+    };
     Ok(Some(syntax_trees::statement::RootBinding {
         receiver: member.receiver,
         slot: operand(*slot)?,
         implementation: operand(*implementation)?,
+        implementation_operand: described_operand(*implementation),
         source_span: call.target.source_span(),
     }))
 }

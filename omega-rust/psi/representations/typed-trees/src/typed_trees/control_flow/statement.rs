@@ -11,6 +11,11 @@ pub struct RootBinding {
     pub receiver: crate::expression::ExpressionHandle,
     pub slot: Box<[Identifier]>,
     pub implementation: Box<[Identifier]>,
+    /// Present only when the implementation operand is a delegated
+    /// product-description place: the bare name resolved to a local,
+    /// parameter, or field. Static product declaration paths keep this
+    /// invalid and are rejoined lexically from `implementation`.
+    pub implementation_operand: crate::expression::ExpressionHandle,
     pub source_span: SourceSpan,
 }
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
@@ -174,6 +179,12 @@ impl StatementTable {
             let statement = match statement {
                 StatementNode::RootBinding(binding) => StatementNode::RootBinding(RootBinding {
                     receiver: target_expressions.copy_from(source_expressions, binding.receiver),
+                    implementation_operand: if binding.implementation_operand.is_valid() {
+                        target_expressions
+                            .copy_from(source_expressions, binding.implementation_operand)
+                    } else {
+                        crate::expression::ExpressionHandle::invalid()
+                    },
                     ..binding.clone()
                 }),
                 StatementNode::AssemblyFact(fact) => {
@@ -365,6 +376,9 @@ impl StatementTable {
             match statement {
                 StatementNode::RootBinding(binding) => {
                     expressions.remap_symbols_in(binding.receiver, symbols);
+                    if binding.implementation_operand.is_valid() {
+                        expressions.remap_symbols_in(binding.implementation_operand, symbols);
+                    }
                 }
                 StatementNode::AssemblyFact(fact) => {
                     expressions.remap_symbols_in(fact.expression, symbols);
@@ -868,6 +882,7 @@ mod tests {
                     Identifier::generated("Product"),
                     Identifier::generated("start"),
                 ]),
+                implementation_operand: crate::expression::ExpressionHandle::invalid(),
                 source_span: Default::default(),
             }),
         );

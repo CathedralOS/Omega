@@ -433,7 +433,13 @@ fn statement_expressions(
             .expression_table
             .expression_handles(call.arguments)
             .to_vec(),
-        StatementNode::RootBinding(binding) => vec![binding.receiver],
+        StatementNode::RootBinding(binding) => {
+            let mut roots = vec![binding.receiver];
+            if binding.implementation_operand.is_valid() {
+                roots.push(binding.implementation_operand);
+            }
+            roots
+        }
         StatementNode::AssemblyFact(fact) => vec![fact.expression],
         StatementNode::Transition(transition) => {
             let mut roots = Vec::new();

@@ -264,6 +264,9 @@ fn route_statement_span(
         match statement {
             symbol_resolved_trees::statement::StatementNode::RootBinding(binding) => {
                 expressions.push(binding.receiver);
+                if binding.implementation_operand.is_valid() {
+                    expressions.push(binding.implementation_operand);
+                }
             }
             symbol_resolved_trees::statement::StatementNode::AssemblyFact(fact) => {
                 expressions.push(fact.expression);

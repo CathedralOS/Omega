@@ -580,7 +580,12 @@ impl<'program> Collector<'program> {
             for statement in body {
                 let mut expressions = Vec::new();
                 match statement {
-                    StatementNode::RootBinding(binding) => expressions.push(binding.receiver),
+                    StatementNode::RootBinding(binding) => {
+                        expressions.push(binding.receiver);
+                        if binding.implementation_operand.is_valid() {
+                            expressions.push(binding.implementation_operand);
+                        }
+                    }
                     StatementNode::AssemblyFact(fact) => expressions.push(fact.expression),
                     StatementNode::Expression(expression) => expressions.push(*expression),
                     StatementNode::LocalData(local) => {

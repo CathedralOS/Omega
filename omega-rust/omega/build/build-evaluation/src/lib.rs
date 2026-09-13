@@ -484,6 +484,18 @@ pub fn admit_build_program(
             },
         ));
     }
+    // The product facet is a compiler-issued marker: `builder.product.entry`
+    // is the only product-selection route, and an authored `BuildProduct`
+    // value never carries this private runtime identity.
+    if has_exact_toolchain_build_facet(typed, "BuildProduct") {
+        build_fields.push((
+            "product".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "$OmegaBuildProductFacet".to_owned(),
+                fields: Vec::new(),
+            },
+        ));
+    }
     // Optional proof-product requests (wiki/spec/proofs/publication.md). Both
     // flags are independent and false until the root build machine assigns
     // them; dependency metadata cannot enable or override the selection.

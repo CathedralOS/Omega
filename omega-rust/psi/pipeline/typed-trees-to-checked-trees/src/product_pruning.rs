@@ -1319,6 +1319,15 @@ fn collect_statement_edges(
     match statement {
         StatementNode::RootBinding(binding) => {
             collect_expression_edges(program, index, edges, from, binding.receiver);
+            if binding.implementation_operand.is_valid() {
+                collect_expression_edges(
+                    program,
+                    index,
+                    edges,
+                    from,
+                    binding.implementation_operand,
+                );
+            }
         }
         StatementNode::AssemblyFact(fact) => {
             collect_expression_edges(program, index, edges, from, fact.expression);

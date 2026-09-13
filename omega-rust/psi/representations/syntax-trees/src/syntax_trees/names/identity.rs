@@ -313,6 +313,9 @@ fn count_statement_node(
     match syntax_trees.statements.statement(statement) {
         crate::statement::StatementNode::RootBinding(binding) => {
             count_expression_handle(syntax_trees, binding.receiver, counts);
+            if binding.implementation_operand.is_valid() {
+                count_expression_handle(syntax_trees, binding.implementation_operand, counts);
+            }
             for member in binding.slot.iter().chain(binding.implementation.iter()) {
                 count_identifier(member, counts);
             }

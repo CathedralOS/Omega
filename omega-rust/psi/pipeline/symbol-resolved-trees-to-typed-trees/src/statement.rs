@@ -30,6 +30,11 @@ pub(crate) fn lower_statement_node(
                     .iter()
                     .map(crate::name::lower_name)
                     .collect(),
+                implementation_operand: if binding.implementation_operand.is_valid() {
+                    lower_statement_expression(lowerer, binding.implementation_operand)?
+                } else {
+                    typed::expression::ExpressionHandle::invalid()
+                },
                 source_span: binding.source_span,
             }),
         ),

@@ -530,6 +530,9 @@ fn count_statement_node(
     match statement {
         StatementNode::RootBinding(binding) => {
             count_expression_handle(expressions, binding.receiver, counts);
+            if binding.implementation_operand.is_valid() {
+                count_expression_handle(expressions, binding.implementation_operand, counts);
+            }
             for member in binding.slot.iter().chain(binding.implementation.iter()) {
                 count_call_name(member, counts);
             }
