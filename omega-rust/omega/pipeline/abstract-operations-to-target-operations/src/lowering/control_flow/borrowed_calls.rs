@@ -145,6 +145,7 @@ pub(super) fn lower(
     if let Some(result) = result {
         super::primitive_storage::retain_result(psi_operation, result, live)?;
         operations.push(TargetUnitOperation::StructuralScalarCall {
+            origin: target_operations::NativeCallOrigin::Authored,
             psi_operation,
             result,
             callee,
@@ -157,6 +158,7 @@ pub(super) fn lower(
         });
     } else {
         operations.push(TargetUnitOperation::Call {
+            origin: target_operations::NativeCallOrigin::Authored,
             psi_operation,
             callee,
             call_plan: signature.call_plan,

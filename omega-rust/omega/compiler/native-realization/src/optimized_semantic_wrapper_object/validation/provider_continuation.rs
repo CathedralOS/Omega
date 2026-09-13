@@ -3,7 +3,7 @@ use super::super::error::{
     OptimizedProgramStorageSemanticWrapperObjectError,
 };
 use super::super::shared::*;
-use legalized_operations::{LegalizedCallUnitSource, LegalizedScalarArgument};
+use legalized_operations::{LegalizedScalarArgument, NativeCallOrigin};
 
 /// Replay the checked-provider half of the ProgramStorage join whenever the
 /// canonical child owns an installation. Synthetic encoding fixtures retain
@@ -56,7 +56,7 @@ pub fn validate_installed_program_storage_continuation_evidence(
         .structural
         .as_ref()
         .ok_or(Error::StructuralContractMismatch)?;
-    let LegalizedCallUnitSource::InstalledProvider {
+    let NativeCallOrigin::InstalledProvider {
         boundary,
         provider,
         completion_claim_sources,

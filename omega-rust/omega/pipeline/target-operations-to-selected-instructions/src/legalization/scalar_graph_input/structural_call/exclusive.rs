@@ -47,8 +47,7 @@ pub(super) fn argument(
     } else {
         ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
     };
-    if (byte_view.is_some() && call.result.is_some())
-        || semantic.place != source.place
+    if semantic.place != source.place
         || destination.access != semantic.access
         || !matches!(
             (source.access, semantic.access),

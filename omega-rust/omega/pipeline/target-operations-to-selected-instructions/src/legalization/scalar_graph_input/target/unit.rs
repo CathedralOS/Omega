@@ -19,6 +19,39 @@ pub(super) fn validate_operation(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
+    if matches!(abstracted, AbstractOperation::BoundaryCall { .. }) {
+        let node = optimized
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .find(|node| &node.operation == abstracted)
+            .ok_or(invalid.clone())?;
+        if let Some((operation, _)) =
+            super::super::call_origin::installed_operation(node, optimized, native, plan)?
+        {
+            let mut ordinary = target.clone();
+            match &mut ordinary {
+                TargetUnitOperation::Call { origin, .. }
+                | TargetUnitOperation::StructuralScalarCall { origin, .. }
+                | TargetUnitOperation::StructuralResultCall { origin, .. } => {
+                    *origin = target_operations::NativeCallOrigin::Authored
+                }
+                _ => return Err(invalid),
+            }
+            return validate_operation(
+                function,
+                &ordinary,
+                &operation,
+                scalar_parameters,
+                parameters,
+                sources,
+                optimized,
+                native,
+                plan,
+                unit,
+            );
+        }
+    }
     let checker = Checker {
         function,
         available: Some(sources),
@@ -356,6 +389,7 @@ pub(super) fn validate_operation(
         }
         (
             TargetUnitOperation::Call {
+                origin: target_operations::NativeCallOrigin::Authored,
                 psi_operation,
                 callee,
                 call_plan,
@@ -377,6 +411,7 @@ pub(super) fn validate_operation(
         )
         | (
             TargetUnitOperation::StructuralScalarCall {
+                origin: target_operations::NativeCallOrigin::Authored,
                 psi_operation,
                 callee,
                 call_plan,

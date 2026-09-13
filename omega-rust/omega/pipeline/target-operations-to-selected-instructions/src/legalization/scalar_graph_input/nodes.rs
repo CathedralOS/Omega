@@ -21,34 +21,13 @@ pub(in crate::legalization) fn instruction(
         Some((*psi_operation, None))
     } else if let AbstractOperation::BoundaryCall {
         psi_operation,
-        result: abstract_operations::AbstractBoundaryResult::Structural(_),
-        arguments,
-        structural_arguments,
-        completion_claim_sources,
-        completion_receipts,
+        result,
         ..
     } = &node.operation
     {
-        (arguments.is_empty()
-            && structural_arguments.is_empty()
-            && completion_claim_sources.is_empty()
-            && completion_receipts.is_empty())
-        .then_some((*psi_operation, None))
-    } else if let AbstractOperation::BoundaryCall {
-        psi_operation,
-        result: abstract_operations::AbstractBoundaryResult::Unit,
-        arguments,
-        structural_arguments,
-        completion_claim_sources,
-        completion_receipts,
-        ..
-    } = &node.operation
-    {
-        (arguments.len() == 1
-            && structural_arguments.is_empty()
-            && completion_claim_sources.is_empty()
-            && completion_receipts.is_empty())
-        .then_some((*psi_operation, None))
+        // Exact native boundary realization is checked by the source reader;
+        // operand origin and result kind do not change operation identity.
+        Some((*psi_operation, result.scalar().map(|result| result.value)))
     } else {
         scalar_instruction(node).map(|(operation, result)| (operation, Some(result)))
     }
@@ -342,10 +321,17 @@ pub(super) fn validate(
             }
             continue;
         }
-        if let AbstractOperation::EstablishByteSequenceLiteral { .. } = &node.operation {
+        if let AbstractOperation::EstablishByteSequenceLiteral {
+            psi_operation,
+            place,
+            structural_type,
+            ..
+        } = &node.operation
+        {
             if result.is_some()
                 || !node.definitions.is_empty()
-                || !super::literals::roster(optimized)
+                || super::literals::declaration_producer(optimized, place.id)
+                    != Some((*psi_operation, structural_type.id))
             {
                 return Err(invalid);
             }
@@ -386,23 +372,18 @@ pub(super) fn validate(
             ..
         } = &node.operation
         {
-            if result.is_some()
-                || !node.definitions.is_empty()
-                || match boundary_result {
-                    abstract_operations::AbstractBoundaryResult::Structural(_) => {
-                        !arguments.is_empty()
-                    }
-                    abstract_operations::AbstractBoundaryResult::Unit => {
-                        arguments.len() != 1
-                            || value_type(optimized, arguments[0])
-                                != Some(ScalarType::Integer(i32_type()))
-                    }
-                    _ => true,
-                }
+            if arguments
+                .iter()
+                .any(|value| value_type(optimized, *value).is_none())
             {
                 return Err(invalid);
             }
-            continue;
+            if boundary_result.scalar().is_none() {
+                if result.is_some() || !node.definitions.is_empty() {
+                    return Err(invalid);
+                }
+                continue;
+            }
         }
         let [definition] = node.definitions.as_slice() else {
             return Err(invalid);
@@ -436,6 +417,10 @@ pub(super) fn validate(
             AbstractOperation::BooleanConstant { .. }
             | AbstractOperation::BooleanStructuralField { .. } => ScalarType::Boolean,
             AbstractOperation::CallStructuralScalar { result, .. }
+            | AbstractOperation::BoundaryCall {
+                result: abstract_operations::AbstractBoundaryResult::Scalar(result),
+                ..
+            }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
             | AbstractOperation::IntegerStructuralField { result, .. }
             | AbstractOperation::StructuralCaseMembership { result, .. } => result.scalar_type,

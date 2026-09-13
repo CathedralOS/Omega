@@ -67,7 +67,7 @@ fn borrowed_owned_input_returns_current_home_instead_of_entry_fragments() {
         let row = &mut source.blocks[0].instructions[2];
         row.ownership = vec![optimization_unit::OwnershipEvent::ClaimTransfer(Vec::new())];
         row.kind = LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
-            source: legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit,
+            source: legalized_operations::NativeCallOrigin::Authored,
             callee: MachineId::new(10).unwrap(),
             arguments: vec![LegalizedScalarArgument::Structural {
                 semantic: terminal_psi::StructuralArgument {

@@ -10,6 +10,34 @@ pub(super) fn validate(
     unit: &PsiOptimizationUnit,
     proposed_plan: &LegalizedOperationPlan,
 ) -> Result<(), LegalizationError> {
+    if let Some((operation, origin)) =
+        scalar_graph_input::call_origin::installed_operation(node, optimized, native, plan)?
+    {
+        let LegalizedScalarInstructionKind::Call(call) = &actual.kind else {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        };
+        if call.source != origin {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        }
+        call.validate_source(&node.ownership)
+            .map_err(|_| Error::NonCanonicalLegalizedPlan)?;
+        let mut call_node = node.clone();
+        call_node.operation = operation;
+        let mut ordinary = actual.clone();
+        let LegalizedScalarInstructionKind::Call(call) = &mut ordinary.kind else {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        };
+        call.source = NativeCallOrigin::Authored;
+        return validate(
+            &ordinary,
+            &call_node,
+            optimized,
+            native,
+            plan,
+            unit,
+            proposed_plan,
+        );
+    }
     let invalid = Error::NonCanonicalLegalizedPlan;
     let (operation, result) = scalar_graph_input::instruction(node).ok_or(invalid.clone())?;
     if actual.operation != operation
@@ -348,7 +376,7 @@ pub(super) fn validate(
                 || call.callee != *callee
                 || call.call_plan != expected
                 || call.result_placement != expected.result
-                || call.source != LegalizedCallUnitSource::AuthoredCallUnit
+                || call.source != NativeCallOrigin::Authored
                 || call.claim_transfers != *claim_transfers
                 || call.requirement_obligations != *requirement_obligations
                 || call.crash_continuations != *crash_continuations
@@ -512,7 +540,7 @@ pub(super) fn validate(
             if call.callee != *callee
                 || call.call_plan != expected
                 || call.result_placement != expected.result
-                || call.source != LegalizedCallUnitSource::AuthoredCallUnit
+                || call.source != NativeCallOrigin::Authored
                 || !call.claim_transfers.is_empty()
                 || call.requirement_obligations != *requirement_obligations
                 || call.crash_continuations != *crash_continuations

@@ -1,4 +1,4 @@
-//! Exact projected structural arguments for an attached Unit call.
+//! Ordinary structural call operands and Unit-call orchestration.
 
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
@@ -210,278 +210,25 @@ pub(in crate::lowering) fn lower_structural_unit_call(
         .zip(callee_shapes.iter().copied())
         .zip(callee_plan.parameters.iter().skip(scalar_arguments.len()))
         .map(|(((argument, callee_parameter), shape), destination)| {
-            if let Some((source, structural_type)) = established_views
-                .get(&argument.place)
-                .map(|(producer, structural_type)| {
-                    (
-                        target_operations::TargetStructuralArgumentSource::EstablishedByteView {
-                            psi_operation: *producer,
-                        },
-                        *structural_type,
-                    )
-                })
-                .or_else(|| {
-                    super::super::scalar::byte_views::block_source(
-                        function,
-                        argument.place,
-                        structural_types,
-                    )
-                })
-            {
-                if !argument.path.is_empty()
-                    || argument.access != StructuralAccess::SharedBorrow
-                    || !super::super::scalar::byte_views::is_immutable_byte_parameter(
-                        callee_parameter,
-                        structural_types,
-                    )
-                    || structural_type != callee_parameter.structural_type
-                    || shape != ValueShape::borrowed_reference(16, 8)
-                {
-                    return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                        callee: *callee,
-                        place: argument.place,
-                    });
-                }
-                return Ok(TargetStructuralArgument {
-                    place: argument.place,
-                    access: argument.access,
-                    path: Vec::new(),
-                    root_structural_type: structural_type,
-                    structural_type,
-                    shape,
-                    source_byte_offset: 0,
-                    fixed_array_length: None,
-                    element_stride: None,
-                    source,
-                    destination: destination.clone(),
-                });
-            }
-            let result_source = super::projected_result::source(operations, argument.place);
-            let (source_structural_type, source_shape, source_placement) =
-                if let Some(source) = parameters_by_place.get(&argument.place).copied() {
-                    (source.structural_type, source.shape, &source.placement)
-                } else if let Some(source) = local_sources_by_place.get(&argument.place) {
-                    (source.structural_type, source.shape, &source.placement)
-                } else if let Some((home, placement)) = result_source {
-                    (home.structural_type(), home.layout.shape(), placement)
-                } else {
-                    return Err(LoweringError::UnknownStructuralArgumentPlace {
-                        machine: function.machine,
-                        place: argument.place,
-                    });
-                };
-            let exact_write_only_projection = argument.access == StructuralAccess::WriteOnlyBorrow
-                && callee_parameter.access == StructuralAccess::WriteOnlyBorrow
-                && callee_parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                && parameters_by_place
-                    .get(&argument.place)
-                    .is_some_and(|source| {
-                        matches!(
-                            source.access,
-                            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                        ) && source.multiplicity == StructuralMultiplicity::Unrestricted
-                    })
-                && argument
-                    .path
-                    .iter()
-                    .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)));
-            let (
-                projected_type,
-                projected_shape,
-                source_byte_offset,
-                fixed_array_length,
-                element_stride,
-            ) =
-                match argument.path.as_slice() {
-                    [] => (source_structural_type, source_shape, 0, None, None),
-                    path if argument.access == StructuralAccess::Owned
-                        && callee_parameter.multiplicity == StructuralMultiplicity::Affine
-                        && (result_source.is_some()
-                            || parameters_by_place.get(&argument.place).is_some_and(
-                                |source| {
-                                    source.access == StructuralAccess::Owned
-                                        && source.multiplicity == StructuralMultiplicity::Affine
-                                },
-                            )) =>
-                    {
-                        let (selected_type, selected_shape, offset) =
-                            resolve_structural_projection_path(
-                                source_structural_type,
-                                path,
-                                structural_types,
-                                shape_cache,
-                                active,
-                            )?;
-                        let (length, stride) =
-                            super::super::structural_layout::root_array_projection_metadata(
-                                source_structural_type,
-                                structural_types,
-                                shape_cache,
-                                active,
-                            )?;
-                        (selected_type, selected_shape, offset, length, stride)
-                    }
-                    path if exact_write_only_projection => {
-                        let (projected_type, projected_shape, offset) =
-                            resolve_structural_projection_path(
-                                source_structural_type,
-                                path,
-                                structural_types,
-                                shape_cache,
-                                active,
-                            )
-                            .map_err(|_| {
-                                LoweringError::StructuralCallArgumentTypeMismatch {
-                                    callee: *callee,
-                                    place: argument.place,
-                                }
-                            })?;
-                        if !matches!(
-                            structural_types
-                                .get(&projected_type)
-                                .map(|declaration| &declaration.shape),
-                            Some(
-                                StructuralTypeShape::PrimitiveScalar(_)
-                                    | StructuralTypeShape::Record { .. }
-                            )
-                        ) {
-                            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                                callee: *callee,
-                                place: argument.place,
-                            });
-                        }
-                        (projected_type, projected_shape, offset, None, None)
-                    }
-                    [StructuralPathSegment::FixedIndex(index)] => {
-                        let declaration = structural_types
-                            .get(&source_structural_type)
-                            .copied()
-                            .ok_or(LoweringError::UnknownStructuralType(source_structural_type))?;
-                        let StructuralTypeShape::FixedArray { element, length } = declaration.shape
-                        else {
-                            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                                callee: *callee,
-                                place: argument.place,
-                            });
-                        };
-                        if *index >= length {
-                            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                                callee: *callee,
-                                place: argument.place,
-                            });
-                        }
-                        let element_shape =
-                            structural_shape(element, structural_types, shape_cache, active)?;
-                        let stride = checked_align_up_u32(
-                            u32::from(element_shape.byte_size),
-                            u32::from(element_shape.alignment),
-                        )
-                        .ok_or(LoweringError::StructuralTypeTooLarge(
-                            source_structural_type,
-                        ))?;
-                        let offset = u64::from(stride)
-                            .checked_mul(*index)
-                            .and_then(|offset| u32::try_from(offset).ok())
-                            .ok_or(LoweringError::StructuralTypeTooLarge(
-                                source_structural_type,
-                            ))?;
-                        (element, element_shape, offset, Some(length), Some(stride))
-                    }
-                    path @ [StructuralPathSegment::Field(_), ..]
-                        if path
-                            .iter()
-                            .all(|segment| matches!(segment, StructuralPathSegment::Field(_))) =>
-                    {
-                        let (field_type, field_shape, offset) = resolve_structural_field_path(
-                            source_structural_type,
-                            path,
-                            structural_types,
-                            shape_cache,
-                            active,
-                        )
-                        .map_err(|_| LoweringError::StructuralCallArgumentTypeMismatch {
-                            callee: *callee,
-                            place: argument.place,
-                        })?;
-                        (field_type, field_shape, offset, None, None)
-                    }
-                    _ => {
-                        return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                            callee: *callee,
-                            place: argument.place,
-                        });
-                    }
-                };
-            // A fixed byte array lends its existing storage through a fresh
-            // descriptor. The ABI size is the descriptor's, not the array's.
-            let byte_view_length = if argument.access == StructuralAccess::MutableBorrow
-                && callee_parameter.access == StructuralAccess::MutableBorrow
-                && callee_parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                && callee_parameter.qualifications.is_empty()
-                && callee_parameter.projected_qualifications.is_empty()
-                && parameters_by_place.get(&argument.place).is_some_and(|source|
-                    source.access == StructuralAccess::MutableBorrow
-                    && source.multiplicity == StructuralMultiplicity::Unrestricted
-                    && source.projected_qualifications.is_empty())
-                && argument.path.iter().all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
-                && matches!(structural_types.get(&callee_parameter.structural_type).map(|declaration| &declaration.shape),
-                    Some(StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)))
-            {
-                structural_types.get(&projected_type).and_then(|declaration| {
-                    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else { return None; };
-                    (length > 0 && matches!(structural_types.get(&element).map(|declaration| &declaration.shape),
-                        Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)))
-                            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
-                        .then_some(length)
-                })
-            } else { None };
-            if let Some(length) = byte_view_length {
-                if shape != ValueShape::borrowed_reference(16, 8)
-                    || u64::from(source_byte_offset).checked_add(length)
-                        .is_none_or(|end| end > u64::from(source_shape.byte_size))
-                {
-                    return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                        callee: *callee, place: argument.place,
-                    });
-                }
-                return Ok(TargetStructuralArgument {
-                    place: argument.place, access: argument.access, path: argument.path.clone(),
-                    root_structural_type: source_structural_type,
-                    structural_type: callee_parameter.structural_type, shape, source_byte_offset,
-                    fixed_array_length: Some(length), element_stride: Some(1),
-                    source: source_placement.clone().into(), destination: destination.clone(),
-                });
-            }
-            let projected_parameter_shape =
-                structural_parameter_shape(projected_shape, callee_parameter.access);
-            if projected_type != callee_parameter.structural_type
-                || argument.access != callee_parameter.access
-                || projected_parameter_shape != shape
-                || u32::from(shape.byte_size)
-                    .checked_add(source_byte_offset)
-                    .is_none_or(|end| end > u32::from(source_shape.byte_size))
-            {
-                return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                    callee: *callee,
-                    place: argument.place,
-                });
-            }
-            Ok(TargetStructuralArgument {
-                place: argument.place,
-                access: argument.access,
-                path: argument.path.clone(),
-                root_structural_type: source_structural_type,
-                structural_type: projected_type,
+            lower_structural_argument(
+                argument,
+                callee_parameter,
                 shape,
-                source_byte_offset,
-                fixed_array_length,
-                element_stride,
-                source: source_placement.clone().into(),
-                destination: destination.clone(),
-            })
+                destination,
+                *callee,
+                function,
+                structural_types,
+                parameters_by_place,
+                local_sources_by_place,
+                established_views,
+                operations,
+                shape_cache,
+                active,
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
     operations.push(TargetUnitOperation::Call {
+        origin: target_operations::NativeCallOrigin::Authored,
         psi_operation: *psi_operation,
         callee: *callee,
         call_plan: callee_plan,
@@ -493,4 +240,308 @@ pub(in crate::lowering) fn lower_structural_unit_call(
     });
     provenance.operations.push(*psi_operation);
     Ok(())
+}
+
+/// Resolve an ordinary call operand independently of the callee's return kind.
+/// Fixed-array views retain the caller's actual storage and exact extent; the
+/// descriptor is an ABI presentation, not a change to the source place's type.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::lowering) fn lower_structural_argument(
+    argument: &terminal_psi::StructuralArgument,
+    callee_parameter: &terminal_psi::StructuralParameterDeclaration,
+    shape: ValueShape,
+    destination: &ValuePlacement,
+    callee: MachineId,
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    local_sources_by_place: &BTreeMap<PlaceId, StructuralCallLocalSource>,
+    established_views: &BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
+    operations: &[TargetUnitOperation],
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<TargetStructuralArgument, LoweringError> {
+    if let Some((source, structural_type)) = established_views
+        .get(&argument.place)
+        .map(|(producer, structural_type)| {
+            (
+                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                    psi_operation: *producer,
+                },
+                *structural_type,
+            )
+        })
+        .or_else(|| {
+            super::super::scalar::byte_views::block_source(
+                function,
+                argument.place,
+                structural_types,
+            )
+        })
+    {
+        if !argument.path.is_empty()
+            || argument.access != StructuralAccess::SharedBorrow
+            || !super::super::scalar::byte_views::is_immutable_byte_parameter(
+                callee_parameter,
+                structural_types,
+            )
+            || structural_type != callee_parameter.structural_type
+            || shape != ValueShape::borrowed_reference(16, 8)
+        {
+            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                callee,
+                place: argument.place,
+            });
+        }
+        return Ok(TargetStructuralArgument {
+            place: argument.place,
+            access: argument.access,
+            path: Vec::new(),
+            root_structural_type: structural_type,
+            structural_type,
+            shape,
+            source_byte_offset: 0,
+            fixed_array_length: None,
+            element_stride: None,
+            source,
+            destination: destination.clone(),
+        });
+    }
+    let result_source = super::projected_result::source(operations, argument.place);
+    let (source_structural_type, source_shape, source_placement) =
+        if let Some(source) = parameters_by_place.get(&argument.place).copied() {
+            (source.structural_type, source.shape, &source.placement)
+        } else if let Some(source) = local_sources_by_place.get(&argument.place) {
+            (source.structural_type, source.shape, &source.placement)
+        } else if let Some((home, placement)) = result_source {
+            (home.structural_type(), home.layout.shape(), placement)
+        } else {
+            return Err(LoweringError::UnknownStructuralArgumentPlace {
+                machine: function.machine,
+                place: argument.place,
+            });
+        };
+    let exact_write_only_projection = argument.access == StructuralAccess::WriteOnlyBorrow
+        && callee_parameter.access == StructuralAccess::WriteOnlyBorrow
+        && callee_parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && parameters_by_place
+            .get(&argument.place)
+            .is_some_and(|source| {
+                matches!(
+                    source.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                ) && source.multiplicity == StructuralMultiplicity::Unrestricted
+            })
+        && argument
+            .path
+            .iter()
+            .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)));
+    let (projected_type, projected_shape, source_byte_offset, fixed_array_length, element_stride) =
+        match argument.path.as_slice() {
+            [] => (source_structural_type, source_shape, 0, None, None),
+            path if argument.access == StructuralAccess::Owned
+                && callee_parameter.multiplicity == StructuralMultiplicity::Affine
+                && (result_source.is_some()
+                    || parameters_by_place
+                        .get(&argument.place)
+                        .is_some_and(|source| {
+                            source.access == StructuralAccess::Owned
+                                && source.multiplicity == StructuralMultiplicity::Affine
+                        })) =>
+            {
+                let (selected_type, selected_shape, offset) = resolve_structural_projection_path(
+                    source_structural_type,
+                    path,
+                    structural_types,
+                    shape_cache,
+                    active,
+                )?;
+                let (length, stride) =
+                    super::super::structural_layout::root_array_projection_metadata(
+                        source_structural_type,
+                        structural_types,
+                        shape_cache,
+                        active,
+                    )?;
+                (selected_type, selected_shape, offset, length, stride)
+            }
+            path if exact_write_only_projection => {
+                let (projected_type, projected_shape, offset) = resolve_structural_projection_path(
+                    source_structural_type,
+                    path,
+                    structural_types,
+                    shape_cache,
+                    active,
+                )
+                .map_err(|_| {
+                    LoweringError::StructuralCallArgumentTypeMismatch {
+                        callee,
+                        place: argument.place,
+                    }
+                })?;
+                if !matches!(
+                    structural_types
+                        .get(&projected_type)
+                        .map(|declaration| &declaration.shape),
+                    Some(
+                        StructuralTypeShape::PrimitiveScalar(_)
+                            | StructuralTypeShape::Record { .. }
+                    )
+                ) {
+                    return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                        callee,
+                        place: argument.place,
+                    });
+                }
+                (projected_type, projected_shape, offset, None, None)
+            }
+            [StructuralPathSegment::FixedIndex(index)] => {
+                let declaration = structural_types
+                    .get(&source_structural_type)
+                    .copied()
+                    .ok_or(LoweringError::UnknownStructuralType(source_structural_type))?;
+                let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+                    return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                        callee,
+                        place: argument.place,
+                    });
+                };
+                if *index >= length {
+                    return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                        callee,
+                        place: argument.place,
+                    });
+                }
+                let element_shape =
+                    structural_shape(element, structural_types, shape_cache, active)?;
+                let stride = checked_align_up_u32(
+                    u32::from(element_shape.byte_size),
+                    u32::from(element_shape.alignment),
+                )
+                .ok_or(LoweringError::StructuralTypeTooLarge(
+                    source_structural_type,
+                ))?;
+                let offset = u64::from(stride)
+                    .checked_mul(*index)
+                    .and_then(|offset| u32::try_from(offset).ok())
+                    .ok_or(LoweringError::StructuralTypeTooLarge(
+                        source_structural_type,
+                    ))?;
+                (element, element_shape, offset, Some(length), Some(stride))
+            }
+            path @ [StructuralPathSegment::Field(_), ..]
+                if path
+                    .iter()
+                    .all(|segment| matches!(segment, StructuralPathSegment::Field(_))) =>
+            {
+                let (field_type, field_shape, offset) = resolve_structural_field_path(
+                    source_structural_type,
+                    path,
+                    structural_types,
+                    shape_cache,
+                    active,
+                )
+                .map_err(|_| {
+                    LoweringError::StructuralCallArgumentTypeMismatch {
+                        callee,
+                        place: argument.place,
+                    }
+                })?;
+                (field_type, field_shape, offset, None, None)
+            }
+            _ => {
+                return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                    callee,
+                    place: argument.place,
+                });
+            }
+        };
+    // A fixed byte array lends its existing storage through a fresh
+    // descriptor. The ABI size is the descriptor's, not the array's.
+    let byte_view_length = if argument.access == StructuralAccess::MutableBorrow
+        && callee_parameter.access == StructuralAccess::MutableBorrow
+        && callee_parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && callee_parameter.qualifications.is_empty()
+        && callee_parameter.projected_qualifications.is_empty()
+        && parameters_by_place
+            .get(&argument.place)
+            .is_some_and(|source| {
+                source.access == StructuralAccess::MutableBorrow
+                    && source.multiplicity == StructuralMultiplicity::Unrestricted
+                    && source.projected_qualifications.is_empty()
+            })
+        && argument
+            .path
+            .iter()
+            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+        && matches!(
+            structural_types
+                .get(&callee_parameter.structural_type)
+                .map(|declaration| &declaration.shape),
+            Some(StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView
+            ))
+        ) {
+        structural_types.get(&projected_type).and_then(|declaration| {
+                    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else { return None; };
+                    (length > 0 && matches!(structural_types.get(&element).map(|declaration| &declaration.shape),
+                        Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)))
+                            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
+                        .then_some(length)
+                })
+    } else {
+        None
+    };
+    if let Some(length) = byte_view_length {
+        if shape != ValueShape::borrowed_reference(16, 8)
+            || u64::from(source_byte_offset)
+                .checked_add(length)
+                .is_none_or(|end| end > u64::from(source_shape.byte_size))
+        {
+            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                callee,
+                place: argument.place,
+            });
+        }
+        return Ok(TargetStructuralArgument {
+            place: argument.place,
+            access: argument.access,
+            path: argument.path.clone(),
+            root_structural_type: source_structural_type,
+            structural_type: callee_parameter.structural_type,
+            shape,
+            source_byte_offset,
+            fixed_array_length: Some(length),
+            element_stride: Some(1),
+            source: source_placement.clone().into(),
+            destination: destination.clone(),
+        });
+    }
+    let projected_parameter_shape =
+        structural_parameter_shape(projected_shape, callee_parameter.access);
+    if projected_type != callee_parameter.structural_type
+        || argument.access != callee_parameter.access
+        || projected_parameter_shape != shape
+        || u32::from(shape.byte_size)
+            .checked_add(source_byte_offset)
+            .is_none_or(|end| end > u32::from(source_shape.byte_size))
+    {
+        return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+            callee,
+            place: argument.place,
+        });
+    }
+    Ok(TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: argument.path.clone(),
+        root_structural_type: source_structural_type,
+        structural_type: projected_type,
+        shape,
+        source_byte_offset,
+        fixed_array_length,
+        element_stride,
+        source: source_placement.clone().into(),
+        destination: destination.clone(),
+    })
 }

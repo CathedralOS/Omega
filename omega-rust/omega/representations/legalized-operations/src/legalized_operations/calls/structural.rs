@@ -11,7 +11,6 @@ use target_operations::ClaimCompletionOnlyRealization;
 use target_operations::ProviderExecutionBinding;
 use terminal_psi::CompletionReceipt;
 use terminal_psi::EntryClaim;
-use terminal_psi::ProviderCandidateConformance;
 use terminal_psi::StructuralArgument;
 use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralPlaceDeclaration;
@@ -47,17 +46,7 @@ pub struct LegalizedCallUnitParameter {
     pub target: target_operations::TargetStructuralParameter,
 }
 
-/// Exact semantic origin of one legalized structural Unit call.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LegalizedCallUnitSource {
-    AuthoredCallUnit,
-    InstalledProvider {
-        boundary: BoundaryMachineId,
-        provider: ProviderCandidateConformance,
-        completion_claim_sources: Vec<CompletionClaimSource>,
-        completion_receipts: Vec<CompletionReceipt>,
-    },
-}
+pub use target_operations::NativeCallOrigin;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedCallSourceError {

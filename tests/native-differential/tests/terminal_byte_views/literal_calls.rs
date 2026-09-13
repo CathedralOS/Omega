@@ -133,6 +133,126 @@ const OTHER_LITERAL: &[u8] = &[
     0xfe, 0x81, 0x00, 0x18, 0x72, 0x40, 0x17, 0x80, 0xff, 0x01, 0x7f,
 ];
 
+#[test]
+fn source_literal_argument_composes_with_an_affine_call_result() {
+    let source = r#"
+        data Outcome { case Count(count: u64); }
+        machine measure(bytes: &[u8]) -> Outcome {
+            Outcome::Count { count: bytes.len }
+        }
+        data Root {}
+        machine Root::enter() {
+            _ = measure("abc");
+            _ = measure("");
+        }
+    "#;
+    let lowered = lower_result_call_source(source);
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let text = super::calls::stage_call_text_with_proof(
+            target,
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+        );
+        assert_eq!(text.text_section().resolved_internal_machine_calls.len(), 2);
+    }
+}
+
+fn lower_result_call_source(source: &str) -> lowered_psi::LoweredPsi {
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap()
+}
+
+#[test]
+fn source_installed_provider_retains_literal_arguments_and_affine_results() {
+    let lowered = lower_result_call_source(
+        r#"
+        data Outcome { case Count(count: u64); }
+        boundary trait Sink {
+            machine accept(bytes: &[u8]) reaches Sink;
+            machine measure(bytes: &[u8]) -> Outcome reaches Sink;
+        }
+        data Meter {}
+        machine Meter::accept(bytes: &[u8]) satisfies Sink::accept {}
+        machine Meter::measure(bytes: &[u8]) -> Outcome satisfies Sink::measure {
+            Outcome::Count { count: bytes.len }
+        }
+        data Root {}
+        machine Root::enter() reaches Sink {
+            Sink::accept("prefix");
+            _ = Sink::measure("abc");
+            _ = Sink::measure("");
+        }
+    "#,
+    );
+    let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let providers = lowered
+        .semantic_module
+        .provider_candidates
+        .iter()
+        .map(
+            |provider| terminal_psi_to_abstract_operations::SelectedProviderAdapter {
+                requirement_identity: provider.requirement_identity.clone(),
+                provider_identity: provider.provider_identity.clone(),
+                machine_identity: provider.candidate_identity.clone(),
+            },
+        )
+        .collect::<Vec<_>>();
+    assert_eq!(providers.len(), 2);
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let selections = optimization_core::OptimizationSelections::new([]).unwrap();
+        let optimized = native_realization::optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+            native_realization::compiler_baseline_request_v1(&selections),
+        )
+        .unwrap();
+        let installation = terminal_psi_to_abstract_operations::admit_provider_installation(
+            optimized.plan(),
+            &semantic,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+            &providers,
+        )
+        .unwrap();
+        let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations_with_provider_executions_and_installation(
+            optimized, native, &[], installation,
+        ).unwrap();
+        let physical = native_realization::stage_optimized_verified_physical_pipeline(
+            target,
+            selections.project_post_terminal().selections(),
+        )
+        .unwrap();
+        let fragments = machine_emission::stage_optimized_function_fragment_emission(
+            physical.into_function_fragment_emission_source(),
+        )
+        .unwrap();
+        let framed =
+            machine_emission::stage_function_fragment_frame_application(fragments).unwrap();
+        let text = machine_emission::stage_optimized_fixed_frame_text_section(framed).unwrap();
+        machine_emission::validate_optimized_fixed_frame_text_section(&text).unwrap();
+        assert_eq!(text.text_section().resolved_internal_machine_calls.len(), 3);
+    }
+}
+
 fn independent_literal_call_module(return_first: bool) -> TerminalModule {
     let mut module = literal_call_module(LITERALS[2]);
     let caller = &mut module.machines[1];

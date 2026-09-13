@@ -126,7 +126,7 @@ pub(in crate::function_fragments) fn validate_function(
             return Err(invalid());
         }
         match (&actual.source, &expected.source) {
-            (InternalUnitCallSource::Authored, LegalizedCallUnitSource::AuthoredCallUnit) => {}
+            (InternalUnitCallSource::Authored, NativeCallOrigin::Authored) => {}
             (
                 InternalUnitCallSource::InstalledProvider {
                     boundary,
@@ -134,7 +134,7 @@ pub(in crate::function_fragments) fn validate_function(
                     completion_claim_sources,
                     completion_receipts,
                 },
-                LegalizedCallUnitSource::InstalledProvider {
+                NativeCallOrigin::InstalledProvider {
                     boundary: wanted_boundary,
                     provider: wanted_provider,
                     completion_claim_sources: wanted_sources,

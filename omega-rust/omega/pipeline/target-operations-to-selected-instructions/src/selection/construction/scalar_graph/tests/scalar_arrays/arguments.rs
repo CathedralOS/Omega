@@ -41,7 +41,7 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
             row.ownership.clear();
             row.kind =
                 LegalizedScalarInstructionKind::Call(legalized_operations::LegalizedScalarCall {
-                    source: legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit,
+                    source: legalized_operations::NativeCallOrigin::Authored,
                     callee: semantic_vocabulary::MachineId::new(2).unwrap(),
                     arguments: vec![legalized_operations::LegalizedScalarArgument::Structural {
                         semantic: terminal_psi::StructuralArgument {

@@ -233,7 +233,7 @@ fn record_read_store_read_materializes_two_snapshots_before_the_consuming_call()
             5,
             LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
                 structural_result: None,
-                source: LegalizedCallUnitSource::AuthoredCallUnit,
+                source: NativeCallOrigin::Authored,
                 callee: MachineId::new(10).unwrap(),
                 arguments,
                 call_plan,

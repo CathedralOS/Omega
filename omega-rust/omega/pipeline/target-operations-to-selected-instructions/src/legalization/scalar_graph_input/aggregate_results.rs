@@ -35,6 +35,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                         | AbstractOperation::EstablishRecord { .. }
                         | AbstractOperation::EstablishScalarCase { .. }
                         | AbstractOperation::CallStructural { .. }
+                        | AbstractOperation::BoundaryCall { result: abstract_operations::AbstractBoundaryResult::Structural(_), .. }
                 ) || matches!(&node.operation,
                     AbstractOperation::CallStructuralScalar { structural_arguments, .. }
                         | AbstractOperation::CallUnit { structural_arguments, .. }
@@ -109,6 +110,9 @@ pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
             // parameters and results without entering the declared-place set.
             if let StructuralPlaceKind::ProviderAttachment { attachment, .. } = place.kind {
                 return function.attachment == Some(attachment);
+            }
+            if matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. }) {
+                return super::literals::declaration_producer(function, place.id).is_some();
             }
             // One graph may own primitive storage alongside aggregate results.
             // Keep each place joined to its exact producer; the primitive input
@@ -512,6 +516,25 @@ pub(in crate::legalization) fn call_argument(
                 .len()
                 .checked_add(position)
                 .ok_or(invalid)?,
+            native,
+            plan,
+        );
+    }
+    // Non-block byte views use the same exact literal, parameter and projected
+    // fixed-array argument reconstruction as scalar- and Unit-result calls.
+    if !caller.blocks.iter().any(|block| {
+        block
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.place == argument.place)
+    }) {
+        return super::structural_call::argument_at(
+            argument,
+            position,
+            call_operation,
+            caller,
+            callee,
+            call,
             native,
             plan,
         );

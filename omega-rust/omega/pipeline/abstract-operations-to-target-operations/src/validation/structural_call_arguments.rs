@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::OperationId;
-use target_operations::{TargetFunction, TargetStructuralArgument, TargetUnitOperation};
+use target_operations::{
+    NativeCallOrigin, TargetFunction, TargetStructuralArgument, TargetUnitOperation,
+};
 use terminal_psi::{
     StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralTypeDeclaration,
@@ -13,6 +15,7 @@ use terminal_psi::{
 use super::structural_shapes;
 
 struct TargetCall<'a> {
+    origin: &'a NativeCallOrigin,
     callee: semantic_vocabulary::MachineId,
     call_plan: &'a calling_conventions::CallPlan,
     scalar_argument_count: usize,
@@ -31,9 +34,10 @@ pub(super) fn validate(
         .iter()
         .flat_map(|block| &block.operations)
         .filter_map(|operation| {
-            let (psi_operation, callee, call_plan, scalar_argument_count, arguments) =
+            let (psi_operation, origin, callee, call_plan, scalar_argument_count, arguments) =
                 match operation {
                     TargetUnitOperation::Call {
+                        origin,
                         psi_operation,
                         callee,
                         call_plan,
@@ -42,6 +46,7 @@ pub(super) fn validate(
                         ..
                     }
                     | TargetUnitOperation::StructuralScalarCall {
+                        origin,
                         psi_operation,
                         callee,
                         call_plan,
@@ -50,6 +55,7 @@ pub(super) fn validate(
                         ..
                     }
                     | TargetUnitOperation::StructuralResultCall {
+                        origin,
                         psi_operation,
                         callee,
                         call_plan,
@@ -58,6 +64,7 @@ pub(super) fn validate(
                         ..
                     } => (
                         *psi_operation,
+                        origin,
                         *callee,
                         call_plan,
                         scalar_arguments.len(),
@@ -68,6 +75,7 @@ pub(super) fn validate(
             Some((
                 psi_operation,
                 TargetCall {
+                    origin,
                     callee,
                     call_plan,
                     scalar_argument_count,
@@ -96,7 +104,51 @@ pub(super) fn validate(
                 callee,
                 structural_arguments,
                 ..
-            } => (*psi_operation, *callee, structural_arguments.as_slice()),
+            } => {
+                if target_calls
+                    .get(psi_operation)
+                    .is_some_and(|call| call.origin != &NativeCallOrigin::Authored)
+                {
+                    return Err(*psi_operation);
+                }
+                (*psi_operation, *callee, structural_arguments.as_slice())
+            }
+            AbstractOperation::BoundaryCall {
+                psi_operation,
+                boundary,
+                arguments,
+                structural_arguments,
+                completion_claim_sources,
+                completion_receipts,
+                ..
+            } => {
+                let Some(call) = target_calls.get(psi_operation) else {
+                    continue;
+                };
+                let NativeCallOrigin::InstalledProvider {
+                    boundary: expected,
+                    provider,
+                    completion_claim_sources: sources,
+                    completion_receipts: receipts,
+                } = call.origin
+                else {
+                    return Err(*psi_operation);
+                };
+                if expected != boundary
+                    || provider.boundary != *boundary
+                    || provider.candidate != call.callee
+                    || sources != completion_claim_sources
+                    || receipts != completion_receipts
+                    || call.scalar_argument_count != arguments.len()
+                {
+                    return Err(*psi_operation);
+                }
+                (
+                    *psi_operation,
+                    provider.candidate,
+                    structural_arguments.as_slice(),
+                )
+            }
             _ => continue,
         };
         let Some(target_call) = target_calls.get(&psi_operation) else {

@@ -107,10 +107,7 @@ pub(super) fn validate_borrowed_argument(
     let shape = if let Some(shape) = aggregate {
         shape
     } else if let Some((offset, _)) = byte_view {
-        if offset != target.source_byte_offset
-            || call.result_placement.is_some()
-            || call.call_plan.result.is_some()
-        {
+        if offset != target.source_byte_offset {
             return None;
         }
         ValueShape::borrowed_reference(16, 8)
@@ -190,7 +187,6 @@ pub(super) fn validate_borrowed_argument(
                 &parameters,
                 &signature.structural_types,
             ))
-        || call.source != legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit
         || !call.claim_transfers.is_empty()
         || !call.requirement_obligations.is_empty()
         || !call.crash_continuations.is_empty()

@@ -154,7 +154,7 @@ mod tests {
                 .unwrap();
                 let mut call = LegalizedScalarCall {
                     structural_result: None,
-                    source: crate::LegalizedCallUnitSource::AuthoredCallUnit,
+                    source: crate::NativeCallOrigin::Authored,
                     claim_transfers: Vec::new(),
                     callee: semantic_vocabulary::MachineId::new(1).unwrap(),
                     arguments: Vec::new(),

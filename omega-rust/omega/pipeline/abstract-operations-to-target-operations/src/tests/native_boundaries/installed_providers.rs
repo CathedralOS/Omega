@@ -338,18 +338,73 @@ fn installed_scalar_provider_plan() -> (
 }
 
 #[test]
-fn graph_rejects_unimplemented_installed_scalar_provider_calls() {
+fn installed_provider_calls_retain_scalar_operands_and_selection_custody() {
     let (plan, installation, _, _, _, _) = installed_scalar_provider_plan();
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        assert!(matches!(
-            lower_to_target_operations_with_provider_executions_and_installation(
-                &plan,
-                target,
-                &[],
-                Some(&installation)
-            ),
-            Err(LoweringError::UnsupportedControlFlow(_))
-        ));
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let lowered = lower_to_target_operations_with_provider_executions_and_installation(
+            &plan,
+            target,
+            &[],
+            Some(&installation),
+        )
+        .unwrap();
+        crate::validate_abstract_to_target_translation(&plan, target, &lowered).unwrap();
+        crate::validation::installed_calls::validate(&lowered, Some(&installation)).unwrap();
+        assert!(crate::validation::installed_calls::validate(&lowered, None).is_err());
+        for corruption in 0..5 {
+            let mut changed = lowered.clone();
+            let call = &mut changed.functions[0].graph.blocks[0].operations[0];
+            let TargetUnitOperation::Call {
+                callee,
+                origin,
+                scalar_arguments,
+                ..
+            } = call
+            else {
+                panic!("ordinary call transport");
+            };
+            match corruption {
+                0 => *origin = target_operations::NativeCallOrigin::Authored,
+                1 => {
+                    let target_operations::NativeCallOrigin::InstalledProvider { provider, .. } =
+                        origin
+                    else {
+                        unreachable!()
+                    };
+                    *callee = MachineId::new(9_999).unwrap();
+                    provider.candidate = *callee;
+                }
+                2 => scalar_arguments.clear(),
+                3 => {
+                    let target_operations::NativeCallOrigin::InstalledProvider {
+                        completion_receipts,
+                        ..
+                    } = origin
+                    else {
+                        unreachable!()
+                    };
+                    completion_receipts.push(terminal_psi::CompletionReceipt {
+                        claim: semantic_vocabulary::ClaimId::new(9_999).unwrap(),
+                        argument_index: 0,
+                    });
+                }
+                _ => {
+                    let duplicate = call.clone();
+                    changed.functions[0].graph.blocks[0]
+                        .operations
+                        .push(duplicate);
+                }
+            }
+            assert!(
+                crate::validation::installed_calls::validate(&changed, Some(&installation))
+                    .is_err(),
+                "corruption {corruption}"
+            );
+        }
     }
 }
 
@@ -373,7 +428,45 @@ fn installed_i32_provider_rejects_scalar_evidence_substitution() {
 }
 
 #[test]
-fn installed_provider_result_evidence_cannot_bypass_unit_native_fence() {
+fn installed_selection_rejects_another_semantically_valid_catalog_candidate() {
+    let (mut plan, installation, _, _, _, _) = installed_scalar_provider_plan();
+    let mut alternate_function = plan.functions[1].clone();
+    let mut alternate_provider = plan.provider_candidates[0].clone();
+    alternate_function.machine = MachineId::new(9_999).unwrap();
+    alternate_function.entry = BlockId::new(9_999).unwrap();
+    alternate_function.block_entries[0].block = alternate_function.entry;
+    alternate_provider.candidate = alternate_function.machine;
+    alternate_provider.candidate_identity = "OtherPingProvider::ping_value".into();
+    alternate_provider.provider_identity = "OtherPingProvider".into();
+    plan.functions.push(alternate_function);
+    plan.provider_candidates.push(alternate_provider.clone());
+    let native = NativeTarget::macos_arm64();
+    let mut target = lower_to_target_operations_with_provider_executions_and_installation(
+        &plan,
+        native,
+        &[],
+        Some(&installation),
+    )
+    .unwrap();
+    crate::validation::installed_calls::validate(&target, Some(&installation)).unwrap();
+    let TargetUnitOperation::Call { callee, origin, .. } =
+        &mut target.functions[0].graph.blocks[0].operations[0]
+    else {
+        panic!("installed call");
+    };
+    *callee = alternate_provider.candidate;
+    let target_operations::NativeCallOrigin::InstalledProvider { provider, .. } = origin else {
+        panic!("installed origin");
+    };
+    *provider = alternate_provider;
+    // The replacement has the same signature and arguments and is present in
+    // this very catalog. Only the separately retained selection distinguishes it.
+    crate::validate_abstract_to_target_translation(&plan, native, &target).unwrap();
+    assert!(crate::validation::installed_calls::validate(&target, Some(&installation)).is_err());
+}
+
+#[test]
+fn installed_provider_result_must_match_occurrence_and_boundary_declaration() {
     for replace_call_result in [false, true] {
         let (mut plan, mut installation, boundary, operation) = installed_provider_plan();
         let result =

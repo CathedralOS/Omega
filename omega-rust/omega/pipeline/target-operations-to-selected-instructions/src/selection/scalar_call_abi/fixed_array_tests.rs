@@ -103,7 +103,7 @@ fn fixed_array_call(
     };
     let call = LegalizedScalarCall {
         structural_result: None,
-        source: legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit,
+        source: legalized_operations::NativeCallOrigin::Authored,
         callee: MachineId::new(2).unwrap(),
         arguments: vec![LegalizedScalarArgument::Structural {
             semantic: StructuralArgument {
@@ -135,7 +135,7 @@ fn fixed_array_call(
 }
 
 #[test]
-fn fixed_array_view_rejects_coherent_scalar_result_calls() {
+fn fixed_array_view_preserves_extent_across_unit_and_scalar_result_calls() {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
@@ -169,7 +169,7 @@ fn fixed_array_view_rejects_coherent_scalar_result_calls() {
         call.validate_shape().expect("coherent scalar-result call");
         assert_eq!(
             validate_borrowed_argument(&source, &call, operation, 0),
-            None
+            Some(())
         );
     }
 }

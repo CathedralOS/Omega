@@ -66,7 +66,7 @@ fn local_fixture(target: target::NativeTarget, unit_call: bool) -> LegalizedScal
     .unwrap();
     source.blocks[0].instructions[2].kind = LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
         structural_result: None,
-        source: LegalizedCallUnitSource::AuthoredCallUnit, callee: MachineId::new(10).unwrap(),
+        source: NativeCallOrigin::Authored, callee: MachineId::new(10).unwrap(),
         arguments: vec![LegalizedScalarArgument::Structural {
             semantic: terminal_psi::StructuralArgument { place, access: StructuralAccess::MutableBorrow, path: Vec::new() },
             target: target_operations::TargetStructuralArgument {

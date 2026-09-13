@@ -7,9 +7,7 @@ pub(super) fn validate_owned_arguments(
     call: &LegalizedScalarCall,
     operation: semantic_vocabulary::OperationId,
 ) -> Option<()> {
-    if call.source != legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit
-        || !call.claim_transfers.is_empty()
-    {
+    if !call.claim_transfers.is_empty() {
         return None;
     }
     for argument in &call.arguments {

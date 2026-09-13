@@ -308,7 +308,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 AbstractOperation::CallUnit { psi_operation, .. } => selected.calls.iter().any(|row| row.operation == *psi_operation && row.call.result_placement.is_none()),
                 AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.operation() == *psi_operation)
-                    || selected.calls.iter().any(|row| row.operation == *psi_operation && matches!(row.call.source, legalized_operations::LegalizedCallUnitSource::InstalledProvider { .. })),
+                    || selected.calls.iter().any(|row| row.operation == *psi_operation && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. })),
                 AbstractOperation::Return {
                     cleanup_actions, ..
                 } => cleanup_actions.is_empty()

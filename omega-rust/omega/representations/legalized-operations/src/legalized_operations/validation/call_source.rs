@@ -1,6 +1,6 @@
 //! Independent origin, provider-completion and ownership consistency.
 use crate::{
-    LegalizedCallSourceError, LegalizedCallUnitSource, LegalizedScalarArgument, LegalizedScalarCall,
+    LegalizedCallSourceError, LegalizedScalarArgument, LegalizedScalarCall, NativeCallOrigin,
 };
 use optimization_unit::OwnershipEvent;
 use terminal_psi::ClaimTransfer;
@@ -9,7 +9,7 @@ pub(super) fn validate(
     ownership: &[OwnershipEvent],
 ) -> Result<(), LegalizedCallSourceError> {
     match &call.source {
-        LegalizedCallUnitSource::AuthoredCallUnit => {
+        NativeCallOrigin::Authored => {
             let claims = call
                 .claim_transfers
                 .iter()
@@ -20,7 +20,7 @@ pub(super) fn validate(
             .then_some(())
             .ok_or(LegalizedCallSourceError::OwnershipMismatch)
         }
-        LegalizedCallUnitSource::InstalledProvider {
+        NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
             completion_claim_sources,
@@ -29,18 +29,31 @@ pub(super) fn validate(
             if provider.boundary != *boundary || provider.candidate != call.callee {
                 return Err(LegalizedCallSourceError::ProviderIdentityMismatch);
             }
-            if provider.signature.parameters.len() != call.arguments.len()
+            let structural_arguments = call
+                .arguments
+                .iter()
+                .filter_map(|argument| match argument {
+                    LegalizedScalarArgument::Structural { semantic, target } => {
+                        Some((semantic, target))
+                    }
+                    LegalizedScalarArgument::Scalar { .. } => None,
+                })
+                .collect::<Vec<_>>();
+            if provider.signature.parameters.len() != structural_arguments.len()
                 || call
                     .arguments
                     .iter()
+                    .skip_while(|argument| {
+                        matches!(argument, LegalizedScalarArgument::Scalar { .. })
+                    })
+                    .any(|argument| matches!(argument, LegalizedScalarArgument::Scalar { .. }))
+                || structural_arguments
+                    .iter()
                     .zip(&provider.signature.parameters)
-                    .any(|(argument, parameter)| {
-                        let LegalizedScalarArgument::Structural { semantic, target } = argument
-                        else {
-                            return true;
-                        };
-                        !semantic.path.is_empty()
-                            || semantic.access != parameter.access
+                    .any(|((semantic, target), parameter)| {
+                        semantic.access != parameter.access
+                            || target.place != semantic.place
+                            || target.path != semantic.path
                             || target.access != parameter.access
                             || target.structural_type != parameter.structural_type
                     })
@@ -64,10 +77,9 @@ pub(super) fn validate(
                     .windows(2)
                     .any(|pair| pair[0] >= pair[1])
                 || completion_receipts.iter().any(|receipt| {
-                    let Some(argument) = call.arguments.get(receipt.argument_index as usize) else {
-                        return true;
-                    };
-                    let LegalizedScalarArgument::Structural { semantic, .. } = argument else {
+                    let Some((semantic, _)) =
+                        structural_arguments.get(receipt.argument_index as usize)
+                    else {
                         return true;
                     };
                     let matching = completion_claim_sources
@@ -91,9 +103,10 @@ pub(super) fn validate(
                 .iter()
                 .map(|receipt| receipt.claim)
                 .collect::<Vec<_>>();
-            (ownership == [OwnershipEvent::ClaimCompletion(completed)])
-                .then_some(())
-                .ok_or(LegalizedCallSourceError::OwnershipMismatch)
+            ((completed.is_empty() && ownership.is_empty())
+                || ownership == [OwnershipEvent::ClaimCompletion(completed)])
+            .then_some(())
+            .ok_or(LegalizedCallSourceError::OwnershipMismatch)
         }
     }
 }

@@ -1082,6 +1082,59 @@ fn sample_entry_exceptions_are_explicit_and_non_runnable() {
 }
 
 #[test]
+fn cli_mvp_preserves_both_lines_with_eof_and_enter() {
+    use std::io::Write;
+
+    let main_path = repo_root().join("samples/cli/basics/cli_mvp/main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-cli-mvp-input-{}", std::process::id()));
+    // Use the same explicit test-owned package policy as the corpus probe; this
+    // does not accept the user's project or replace the shipped CLI review path.
+    compile_native_and_publish(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: Some(host_target_name().to_owned()),
+    })
+    .unwrap_or_else(|error| {
+        panic!(
+            "cli_mvp compilation failed: {error:?}; observations: {}",
+            build_dir.display()
+        )
+    });
+    for input in [b"".as_slice(), b"\n".as_slice()] {
+        let mut child = Command::new(build_dir.join(executable_name()))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("run newly published cli_mvp");
+        child
+            .stdin
+            .take()
+            .expect("piped stdin")
+            .write_all(input)
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "input {input:?}; stderr {:?}",
+            output.stderr
+        );
+        assert_eq!(
+            output.stdout, b"Hello, Omega.\n[press Enter to close]\n",
+            "input {input:?}"
+        );
+        assert!(
+            output.stderr.is_empty(),
+            "unexpected stderr: {:?}",
+            output.stderr
+        );
+    }
+    fs::remove_dir_all(build_dir).expect("remove successful sample build");
+}
+
+#[test]
 fn samples_with_documented_exit_run_correctly() {
     let sample_mains = sample_mains();
     let mut failures: Vec<String> = Vec::new();
