@@ -1,6 +1,7 @@
 //! Canonical Terminal-Psi product construction and verification.
 
 use diagnostics::Diagnostic;
+mod callback_registrars;
 pub(super) mod float_comparisons;
 
 /// Produce a retained Terminal product and its ordinary compiler report.
@@ -161,23 +162,21 @@ fn project_terminal_native_realization_proposal(
             .map_err(|message| vec![Diagnostic::error(message)])
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let callback_source_calls = callback_registrars::CallbackSourceCalls::new(
+        callback_placements
+            .iter()
+            .map(|placement| (placement.site, placement.registration_operation)),
+        source_call_occurrences,
+    );
     let callback_occurrences = callback_placements
         .iter()
         .enumerate()
         .map(|(placement_index, placement)| {
-            let matching = source_call_occurrences
-                .iter()
-                .filter(|occurrence| {
-                    occurrence.source_site == Some(placement.site)
-                        && occurrence.source_target == placement.registration_operation
-                })
-                .collect::<Vec<_>>();
-            let [occurrence] = matching.as_slice() else {
-                return Err(vec![Diagnostic::error(format!(
-                    "callback placement {placement_index} resolves to {} Terminal registrar occurrences; exactly one is required",
-                    matching.len(),
-                ))]);
-            };
+            let occurrence = callback_source_calls
+                .find(placement.site, placement.registration_operation)
+                .map_err(|count| vec![Diagnostic::error(format!(
+                    "callback placement {placement_index} resolves to {count} Terminal registrar occurrences; exactly one is required",
+                ))])?;
             let callback_thunk_identity =
                 backend_plan::canonical_callback_thunk_identity(placement_index, placement)
                     .ok_or_else(|| {
@@ -326,6 +325,19 @@ fn callback_closed_external_binding_rows(
     callback_occurrences: &[compilation_report::TerminalCallbackOccurrenceProposal],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     let mut rows = checked.external_binding_rows().to_vec();
+    if callback_occurrences.is_empty() {
+        return Ok(rows);
+    }
+    let operations = callback_registrars::CallbackTerminalOperations::new(
+        callback_occurrences
+            .iter()
+            .map(|occurrence| occurrence.terminal_operation()),
+        terminal_module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations),
+    );
     let declarations = terminal_module
         .boundary_machines
         .iter()
@@ -345,20 +357,12 @@ fn callback_closed_external_binding_rows(
                 "callback registrar import closure requires one private materialization",
             )]
         })?;
-        let operations = terminal_module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .filter(|operation| operation.id == occurrence.terminal_operation())
-            .collect::<Vec<_>>();
-        let [operation] = operations.as_slice() else {
-            return Err(vec![Diagnostic::error(format!(
-                "callback registrar import closure resolves Terminal operation {} to {} operations",
+        let operation = operations.find(occurrence.terminal_operation()).map_err(|count| {
+            vec![Diagnostic::error(format!(
+                "callback registrar import closure resolves Terminal operation {} to {count} operations",
                 occurrence.terminal_operation().get(),
-                operations.len(),
-            ))]);
-        };
+            ))]
+        })?;
         let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
             return Err(vec![Diagnostic::error(
                 "callback registrar import closure names a non-boundary Terminal operation",
