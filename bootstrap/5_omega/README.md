@@ -58,6 +58,12 @@ identity, and exact source inventory before concatenating bytes without separato
 The current seven-member
 manifest materializes 13,887 lines / 474,515 bytes with SHA-256
 `f2064048b10a3dcc12c2de4f19d553b9133e4ea84e5d2e7bd3ff50c6d57b00f3`.
+The manifest itself is 1,177 bytes, SHA-256
+`1661cf53f0903588eb158da271f5f17a23cc763da9eed28e777614b199d32a0b`;
+`tools/bootstrap/omega/compiler_env.sh` checks both identities against every
+materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
+A digest is an identity check on the bytes being compiled, not a proof that
+D implements Omega.
 The authoring files preserve one Epsilon translation unit and its packed
 diagnostic coordinates.
 

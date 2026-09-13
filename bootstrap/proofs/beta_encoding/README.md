@@ -31,6 +31,15 @@ template writers live in `encoding/`, not in either arithmetic component.
 The checker receives Gamma-emitted package bytes, not host-generated
 definitions. No new checker primitive is introduced.
 
+The packed member closure materializes 435 lines / 21,305 bytes, SHA-256
+`26dd7d6bd28f07222a34eec33067ee2a9efd77f0b3359e43b45816b3deb06d4d`.
+The manifest itself is 3,600 bytes, SHA-256
+`757cf25f1eed02d65437945ec7f9fd984810fad5041cd7fc39a742565cc23dcb`;
+`tools/bootstrap/proofs/sources_env.sh` checks both identities against every
+materialization and `tests/bootstrap/proofs-identity.sh` covers the refusals.
+A digest is an identity check on the member bytes, not artifact authority for
+the theory.
+
 ## Constructor vocabulary
 
 Byte is a finite free-constructor sort, not a checker integer. Its 256 nullary

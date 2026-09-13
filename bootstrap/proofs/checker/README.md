@@ -21,6 +21,17 @@ composes [outer admission](implementation/admission.gamma) with traversal of
 theory, proposition, and certificate records. The manifest selects the exact
 implementation bytes.
 
+[`implementation.gamma.sources`](implementation/implementation.gamma.sources)
+is the ordered source authority: repacking it materializes 1,365 lines /
+62,349 bytes, SHA-256
+`6423e10ca5dab533d8d0f58dc1e66eb08917273889a00d5da985433483528802`.
+The manifest itself is 9,046 bytes, SHA-256
+`661f3483b149bfed17cc9b994aac5dc377061c95f7f0d1bc32e3b620dae70165`;
+`tools/bootstrap/proofs/sources_env.sh` checks both identities against every
+materialization and `tests/bootstrap/proofs-identity.sh` covers the refusals.
+A digest is an identity check on the member bytes, not a proof of the checker
+or of any certificate it accepts.
+
 After ground validation, [comparison.gamma](implementation/comparison.gamma)
 exposes a session API for structural term comparisons. Its helpers own explicit
 pending frames, completed-pair memoization, and cumulative work accounting.
