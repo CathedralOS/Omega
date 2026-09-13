@@ -1,11 +1,23 @@
 # Executable-installation foundation
 
 Contract: [admitted executable installation](../../../../../wiki/spec/build/executable_installation.md).
-[lib.rs](src/lib.rs) owns artifact/placement admission and the linear lifecycle.
-[container.rs](src/container.rs) and [container_bytes.rs](src/container_bytes.rs)
-own container validation; [materializer.rs](src/materializer.rs) resolves sealed
-sources; [replacement_quarantine.rs](src/replacement_quarantine.rs) retains
-incompletely drained installed realizations.
+Start at [executable_installation.rs](src/executable_installation.rs). Its opening
+operations expose admission, materialization/freeze, final-byte validation,
+installation, and retirement in lifecycle order. These are separate consuming
+transitions: callers bring each provider's evidence, and failed transitions
+return their linear inputs. The state carriers and their checks follow those
+operations; `lib.rs` only exports the owner.
+
+Follow the subordinate protocols as needed:
+
+- [Container validation](src/executable_installation/container.rs) and its
+  [byte codec](src/executable_installation/container_bytes.rs) reconstruct candidates.
+- [Materialization](src/executable_installation/materializer.rs) resolves sealed
+  sources without granting execution authority.
+- [Post-handoff writers](src/executable_installation/post_handoff_writer.rs) own
+  destination custody, resolved contexts, writing, and consumer replay.
+- [Replacement quarantine](src/executable_installation/replacement_quarantine.rs)
+  retains incompletely drained installed realizations.
 
 Keep exact bytes, relocation/proof payload, placement lineage, final-byte
 snapshot, footprint, audience, and provider receipts behind report identities.
