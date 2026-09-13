@@ -21,6 +21,82 @@ const SOURCE: &str = "
 ";
 
 #[test]
+fn projected_self_borrow_does_not_require_an_interned_owner_type() {
+    let checked = checked_source(
+        "data Inner { value: u64; }
+         data Outer { inner: Inner; sibling: Inner; }
+         machine Inner::read(&self) -> u64 { self.value }
+         machine Outer::read(&self) -> u64 { self.inner.read() }",
+    );
+    let outer = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Outer")
+        .unwrap();
+    assert!(
+        checked
+            .type_reference_table
+            .find_named_type_reference(outer.symbol)
+            .is_none(),
+        "self-only attachments need no incidental authored Outer type reference"
+    );
+    let lowered = lower_machine(&checked, "Outer::read")
+        .expect("projected self loan uses its declared endpoint");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independently verified projected self loan");
+    let arguments = checked
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .iter()
+        .find_map(|(_, node)| match node.kind {
+            CheckedScalarComputationKind::Call {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        })
+        .unwrap();
+    for corruption in ["sibling", "root", "access"] {
+        let mut changed = checked.clone();
+        let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
+            &mut changed
+                .facts
+                .values
+                .scalar_computations
+                .structural_arguments
+                .span_mut(arguments)
+                .unwrap()[0]
+        else {
+            panic!("projected self borrow");
+        };
+        match corruption {
+            "sibling" => {
+                argument.path[0] =
+                    checked_trees::CheckedUnitStructuralPathSegment::Field("sibling".into())
+            }
+            "root" => {
+                argument.source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: 1,
+                    }
+            }
+            "access" => argument.access = checked_trees::CheckedStructuralAccess::MutableBorrow,
+            _ => unreachable!(),
+        }
+        assert!(
+            lower_machine(&changed, "Outer::read").is_err(),
+            "accepted {corruption}"
+        );
+    }
+}
+
+#[test]
 fn projected_shared_actual_preserves_root_path_and_observation_custody() {
     let checked = checked_source(
         "

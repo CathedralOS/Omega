@@ -149,12 +149,20 @@ pub(super) fn validate(
                 if *symbol != caller.symbol && *symbol != caller.attached_data_symbol {
                     return unsupported("record source self changed its attachment");
                 }
-                checked
-                    .type_reference_table
-                    .find_named_type_reference(caller.attached_data_symbol)
-                    .ok_or(LoweringError::Unsupported(
-                        "record source attachment has no declared type",
-                    ))?
+                // Projected loans reconstruct the endpoint from the authored
+                // place below. Their enclosing attachment need not have an
+                // incidentally interned named type; its identity was checked
+                // above independently of the producer's argument plan.
+                if argument.path.is_empty() {
+                    checked
+                        .type_reference_table
+                        .find_named_type_reference(caller.attached_data_symbol)
+                        .ok_or(LoweringError::Unsupported(
+                            "record source attachment has no declared type",
+                        ))?
+                } else {
+                    reference
+                }
             } else {
                 reference
             }
