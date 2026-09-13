@@ -1,4 +1,5 @@
 use super::shared::trait_definition_by_symbol;
+use crate::standard_declarations::is_core_vector;
 use crate::type_references::{type_reference_label, type_references_match};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -387,12 +388,7 @@ fn boundary_has_explicit_calling_policy(
     program: &TypedTrees,
     trait_definition: &TraitDefinition,
 ) -> bool {
-    let calling = program.traits().iter().find(|candidate| {
-        candidate.name.as_str().rsplit("::").next() == Some("Calling")
-            && program.trait_type_parameters(candidate).len() == 1
-            && program.trait_machine_signatures(candidate).is_empty()
-    });
-    calling.is_some_and(|calling| {
+    crate::standard_declarations::standard_calling_traits(program).is_some_and(|(calling, _)| {
         program
             .trait_requirements(trait_definition)
             .iter()
@@ -446,11 +442,11 @@ fn private_native_carrier(
             private_native_carrier(program, *element_type, visiting)
         }
         TypeReferenceNode::Generic {
-            base_name,
+            base_symbol,
             arguments,
             ..
         } => {
-            if base_name.as_str().rsplit("::").next() == Some("Vec") {
+            if is_core_vector(program, *base_symbol) {
                 return Some(PrivateNativeCarrier::Vector);
             }
             program
@@ -458,32 +454,41 @@ fn private_native_carrier(
                 .type_reference_handles(*arguments)
                 .iter()
                 .find_map(|argument| private_native_carrier(program, *argument, visiting))
+                .or_else(|| private_record_carrier(program, *base_symbol, visiting))
         }
-        TypeReferenceNode::Named { symbol, name } => {
-            if name.as_str().rsplit("::").next() == Some("Vec") {
+        TypeReferenceNode::Named { symbol, .. } => {
+            if is_core_vector(program, *symbol) {
                 return Some(PrivateNativeCarrier::Vector);
             }
-            if !symbol.is_valid() || visiting.contains(symbol) {
-                return None;
-            }
-            let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *symbol)?;
-            visiting.push(*symbol);
-            let carrier = program.data_members(definition).iter().find_map(|member| {
-                let DataMember::Field(field) = member else {
-                    return None;
-                };
-                private_native_carrier(program, field.type_reference, visiting)
-            });
-            visiting.pop();
-            carrier
+            private_record_carrier(program, *symbol, visiting)
         }
         TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => None,
     }
+}
+
+fn private_record_carrier(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+    visiting: &mut Vec<SymbolHandle>,
+) -> Option<PrivateNativeCarrier> {
+    if !symbol.is_valid() || visiting.contains(&symbol) {
+        return None;
+    }
+    let definition = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == symbol)?;
+    visiting.push(symbol);
+    let carrier = program.data_members(definition).iter().find_map(|member| {
+        let DataMember::Field(field) = member else {
+            return None;
+        };
+        private_native_carrier(program, field.type_reference, visiting)
+    });
+    visiting.pop();
+    carrier
 }
 
 fn carrier_is_slice_or_fixed_array(

@@ -1285,23 +1285,13 @@ pub fn compute_boundary_calling_plans(
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
-    let Some(calling_policy_trait) = typed
-        .traits()
-        .iter()
-        .find(|definition| definition.name.as_str().rsplit("::").next() == Some("CallingPolicy"))
+    let Some((calling_trait, calling_policy_trait)) = validation::standard_calling_traits(typed)
     else {
         // Programs that do not import std::calling cannot accidentally opt in
         // merely by having an unrelated local trait named Calling.
         return Ok(Vec::new());
     };
     let calling_policy_symbol = calling_policy_trait.symbol;
-    let Some(calling_trait) = typed.traits().iter().find(|definition| {
-        definition.name.as_str().rsplit("::").next() == Some("Calling")
-            && typed.trait_type_parameters(definition).len() == 1
-            && typed.trait_machine_signatures(definition).is_empty()
-    }) else {
-        return Ok(Vec::new());
-    };
     let calling_symbol = calling_trait.symbol;
 
     let mut pending = Vec::new();

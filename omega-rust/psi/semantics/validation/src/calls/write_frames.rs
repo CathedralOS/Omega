@@ -416,6 +416,9 @@ fn walk_state_write_prefix_inner(
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
     query: Option<StateWriteQuery<'_>>,
 ) -> Option<StateWritePrefix> {
+    if crate::standard_declarations::is_core_vector_surface_state(program, machine, state) {
+        return None;
+    }
     #[cfg(test)]
     PREFIX_WALKS.with(|walks| walks.set(walks.get() + 1));
     let parameters = program.state_parameters(state);

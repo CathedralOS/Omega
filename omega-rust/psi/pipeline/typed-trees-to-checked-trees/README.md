@@ -182,6 +182,12 @@ Indexed-access checking owns one lazy mutation-summary table for its immutable
 program and borrow facts. Incoming-state propagation and branch snapshots borrow
 that same table while rebuilding their local bounds. A new check owns a fresh
 table; source or borrow changes cannot reuse an earlier invocation's summaries.
+Summary propagation retains call dependencies and stages changes in dirty rounds,
+without cloning the table or revisiting unrelated callers. Round publication
+preserves first-discovery write ordering and propagates opaque callees outward.
+The shared call-frame checker keeps exact core-vector placeholder bodies opaque;
+their empty source blocks are not runtime no-op implementations. User method names
+grant neither completeness nor an injected whole-receiver write.
 Both range walks borrow per-state slices of completed flow and borrow calls,
 prepared once per machine alongside the existing call-frame resolver. Expression
 calls rejoin their retained authored handles; statement calls require the exact
@@ -535,6 +541,12 @@ Extending a classifier alone does not extend artifact admission or erase a
 downstream unsupported-shape rejection.
 
 ## Bounded Terminal correspondence
+
+Ordinary and composed Unit candidates retain one immutable roster while call
+dependencies are checked. Duplicate machine owners reject together; unavailable
+targets propagate only to their callers through retained reverse edges. Registered
+scalar and ordinary structural-return fallbacks keep their distinct admission
+rules. Candidate construction and surviving output order are unchanged.
 
 Plain nested-record construction retains selected fields and authored operand
 ordinals. Constructor calls carry their exact captured source occurrence, and
