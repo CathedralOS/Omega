@@ -87,8 +87,15 @@ fn computed_rank_copies_reestablish_equality_and_descent_on_every_cycle_edge() {
 }
 
 #[test]
-fn computed_rank_copies_require_immutable_parameters_and_checked_operator_meaning() {
-    reject(&ACYCLIC.replace("right: u32", "mut right: u32"));
+fn computed_rank_copies_admit_undisturbed_mutable_copies_and_checked_operator_meaning() {
+    // An undisturbed mutable copy still denotes its arrival value at the
+    // edge; the preserved prefix keeps every parameter path untouched.
+    prove(&ACYCLIC.replace("right: u32", "mut right: u32"));
+    // A prefix store into the copy's path invalidates the arrival premise.
+    reject(&ACYCLIC.replace("right: u32", "mut right: u32").replace(
+        "transition { _ -> finish",
+        "right = 0;\n        transition { _ -> finish",
+    ));
     reject(&format!(
         "operator + u32::custom(left: u32, right: u32) -> u32; {ACYCLIC}"
     ));
