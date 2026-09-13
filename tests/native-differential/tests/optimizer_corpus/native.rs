@@ -13,3 +13,16 @@ pub(super) fn assert_u64_result(layout: &StagedOptimizedResolvedSelectedFormLayo
         ),
     );
 }
+
+pub(super) fn assert_bool_result(
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    expected: bool,
+) {
+    let expected_literal = if expected { "true" } else { "false" };
+    native_function::assert_c_driver(
+        layout,
+        &format!(
+            "#include <stdbool.h>\n#include <stdint.h>\nextern bool omega_entry(uint8_t);\nint main(void) {{ return omega_entry(0) == {expected_literal} && omega_entry(1) == {expected_literal} ? 0 : 1; }}\n"
+        ),
+    );
+}

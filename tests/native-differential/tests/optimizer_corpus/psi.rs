@@ -1,7 +1,7 @@
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-    ScalarType, ValueId,
+    BlockId, ContractId, EdgeId, IeeeFloatComparisonOperation, IeeeFloatFormat, IeeeFloatValue,
+    IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
 };
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact_measured,
@@ -13,12 +13,18 @@ use terminal_psi::{
 };
 use terminal_verifier::ProofBundle;
 
-use super::generator::LaneInput;
+use super::{generator::LaneInput, ieee_compare::CompareCase};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CorpusExpected {
+    Unsigned(u64),
+    Boolean(bool),
+}
 
 pub(super) struct CorpusArtifact {
     pub(super) semantic: Vec<u8>,
     pub(super) proof: Vec<u8>,
-    pub(super) expected: u64,
+    pub(super) expected: CorpusExpected,
     pub(super) add_operations: Vec<OperationId>,
 }
 
@@ -34,10 +40,33 @@ pub(super) fn immediate_artifact(ordinal: usize, expected: u64, lane_base: u64) 
     build_artifact(ordinal, lane_base, Leaf::Immediate(expected))
 }
 
+pub(super) fn ieee_compare_artifact(
+    ordinal: usize,
+    case: &CompareCase,
+    lane_base: u64,
+) -> CorpusArtifact {
+    build_artifact(
+        ordinal,
+        lane_base,
+        Leaf::IeeeCompare {
+            comparison: case.comparison,
+            left_bits: case.left_bits,
+            right_bits: case.right_bits,
+            expected: case.expected,
+        },
+    )
+}
+
 #[derive(Clone, Copy)]
 enum Leaf {
     WrappingAdd(LaneInput),
     Immediate(u64),
+    IeeeCompare {
+        comparison: IeeeFloatComparisonOperation,
+        left_bits: u64,
+        right_bits: u64,
+        expected: bool,
+    },
 }
 
 fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact {
@@ -61,8 +90,8 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     let false_right_operation = OperationId::new(base + 17).unwrap();
     let false_add_operation = OperationId::new(base + 18).unwrap();
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    let scalar_type = ScalarType::Integer(integer_type);
-    let declaration = |id| ValueDeclaration {
+    let integer_scalar_type = ScalarType::Integer(integer_type);
+    let declaration = |id, scalar_type| ValueDeclaration {
         qualifications: Default::default(),
         id,
         scalar_type,
@@ -70,7 +99,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     let literal = |id, result, value: u64| Operation {
         static_reach_binding: None,
         id,
-        result: OperationResult::Scalar(declaration(result)),
+        result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
         kind: OperationKind::IntegerConstant {
             value: IntegerValue::Unsigned(value.into()),
         },
@@ -78,31 +107,85 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     let wrapping_add = |id, result, left, right| Operation {
         static_reach_binding: None,
         id,
-        result: OperationResult::Scalar(declaration(result)),
+        result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
         kind: OperationKind::WrappingIntegerAdd { left, right },
     };
-    let (true_operations, false_operations, add_operations, expected) = match leaf {
-        Leaf::WrappingAdd(input) => (
-            vec![
-                literal(true_left_operation, true_left, input.left),
-                literal(true_right_operation, true_right, input.right),
-                wrapping_add(true_add_operation, true_result, true_left, true_right),
-            ],
-            vec![
-                literal(false_left_operation, false_left, input.left),
-                literal(false_right_operation, false_right, input.right),
-                wrapping_add(false_add_operation, false_result, false_left, false_right),
-            ],
-            vec![true_add_operation, false_add_operation],
-            input.expected,
-        ),
-        Leaf::Immediate(expected) => (
-            vec![literal(true_left_operation, true_result, expected)],
-            vec![literal(false_left_operation, false_result, expected)],
-            Vec::new(),
-            expected,
-        ),
+    let float_scalar_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+    let ieee_literal = |id, result, bits| Operation {
+        static_reach_binding: None,
+        id,
+        result: OperationResult::Scalar(declaration(result, float_scalar_type)),
+        kind: OperationKind::IeeeFloatConstant {
+            value: IeeeFloatValue::Binary64(bits),
+        },
     };
+    let ieee_compare = |id, result, comparison, left, right| Operation {
+        static_reach_binding: None,
+        id,
+        result: OperationResult::Scalar(declaration(result, ScalarType::Boolean)),
+        kind: OperationKind::IeeeFloatCompare {
+            comparison,
+            left,
+            right,
+        },
+    };
+    let (true_operations, false_operations, add_operations, expected, machine_scalar_type) =
+        match leaf {
+            Leaf::WrappingAdd(input) => (
+                vec![
+                    literal(true_left_operation, true_left, input.left),
+                    literal(true_right_operation, true_right, input.right),
+                    wrapping_add(true_add_operation, true_result, true_left, true_right),
+                ],
+                vec![
+                    literal(false_left_operation, false_left, input.left),
+                    literal(false_right_operation, false_right, input.right),
+                    wrapping_add(false_add_operation, false_result, false_left, false_right),
+                ],
+                vec![true_add_operation, false_add_operation],
+                CorpusExpected::Unsigned(input.expected),
+                integer_scalar_type,
+            ),
+            Leaf::Immediate(expected) => (
+                vec![literal(true_left_operation, true_result, expected)],
+                vec![literal(false_left_operation, false_result, expected)],
+                Vec::new(),
+                CorpusExpected::Unsigned(expected),
+                integer_scalar_type,
+            ),
+            Leaf::IeeeCompare {
+                comparison,
+                left_bits,
+                right_bits,
+                expected,
+            } => (
+                vec![
+                    ieee_literal(true_left_operation, true_left, left_bits),
+                    ieee_literal(true_right_operation, true_right, right_bits),
+                    ieee_compare(
+                        true_add_operation,
+                        true_result,
+                        comparison,
+                        true_left,
+                        true_right,
+                    ),
+                ],
+                vec![
+                    ieee_literal(false_left_operation, false_left, left_bits),
+                    ieee_literal(false_right_operation, false_right, right_bits),
+                    ieee_compare(
+                        false_add_operation,
+                        false_result,
+                        comparison,
+                        false_left,
+                        false_right,
+                    ),
+                ],
+                Vec::new(),
+                CorpusExpected::Boolean(expected),
+                ScalarType::Boolean,
+            ),
+        };
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
@@ -145,7 +228,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 scalar_type: ScalarType::Boolean,
             }],
             ranked_scc: None,
-            result: TerminalMachineResult::Scalar(declaration(machine_result)),
+            result: TerminalMachineResult::Scalar(declaration(machine_result, machine_scalar_type)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -223,12 +306,16 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
             &[TerminalScalarValue::Boolean(condition)],
         )
         .unwrap();
-        assert_eq!(
-            execution.value(),
-            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
+        let expected_value = match expected {
+            CorpusExpected::Unsigned(expected) => TerminalScalarValue::Integer {
                 scalar_type: integer_type,
                 value: IntegerValue::Unsigned(expected.into()),
-            })
+            },
+            CorpusExpected::Boolean(expected) => TerminalScalarValue::Boolean(expected),
+        };
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(expected_value)
         );
     }
     CorpusArtifact {

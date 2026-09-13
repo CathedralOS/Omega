@@ -14,7 +14,7 @@ use semantic_vocabulary::IntegerValue;
 use target::NativeTarget;
 
 use super::generator::CorpusCase;
-use super::psi::CorpusArtifact;
+use super::psi::{CorpusArtifact, CorpusExpected};
 
 pub(super) fn exercise_x86(case: &CorpusCase, artifact: &CorpusArtifact) {
     let first_psi = run_psi(case, artifact);
@@ -23,16 +23,25 @@ pub(super) fn exercise_x86(case: &CorpusCase, artifact: &CorpusArtifact) {
         first_psi, second_psi,
         "x86 Psi corpus case drifted: {case:?}",
     );
-    let machine_artifact = super::psi::immediate_artifact(case.ordinal, artifact.expected, 30_000);
-    let first = run_machine(case, &machine_artifact, NativeTarget::linux_x64());
-    let second = run_machine(case, &machine_artifact, NativeTarget::linux_x64());
+    let machine_artifact =
+        super::psi::immediate_artifact(case.ordinal, expected_unsigned(artifact), 30_000);
+    let first = run_machine(case.ordinal, &machine_artifact, NativeTarget::linux_x64());
+    let second = run_machine(case.ordinal, &machine_artifact, NativeTarget::linux_x64());
     assert_eq!(first, second, "x86 corpus case drifted: {case:?}");
 
-    let sign_extended_expected = i64::from(artifact.expected as u32 as i32) as u64;
+    let sign_extended_expected = i64::from(expected_unsigned(artifact) as u32 as i32) as u64;
     let sign_extended_artifact =
         super::psi::immediate_artifact(case.ordinal, sign_extended_expected, 35_000);
-    let first = run_machine(case, &sign_extended_artifact, NativeTarget::linux_x64());
-    let second = run_machine(case, &sign_extended_artifact, NativeTarget::linux_x64());
+    let first = run_machine(
+        case.ordinal,
+        &sign_extended_artifact,
+        NativeTarget::linux_x64(),
+    );
+    let second = run_machine(
+        case.ordinal,
+        &sign_extended_artifact,
+        NativeTarget::linux_x64(),
+    );
     assert_eq!(
         first, second,
         "x86 sign-extended corpus case drifted: {case:?}"
@@ -46,9 +55,10 @@ pub(super) fn exercise_aarch64(case: &CorpusCase, artifact: &CorpusArtifact) {
         first_psi, second_psi,
         "AArch64 Psi corpus case drifted: {case:?}",
     );
-    let machine_artifact = super::psi::immediate_artifact(case.ordinal, artifact.expected, 40_000);
-    let first = run_machine(case, &machine_artifact, NativeTarget::linux_arm64());
-    let second = run_machine(case, &machine_artifact, NativeTarget::linux_arm64());
+    let machine_artifact =
+        super::psi::immediate_artifact(case.ordinal, expected_unsigned(artifact), 40_000);
+    let first = run_machine(case.ordinal, &machine_artifact, NativeTarget::linux_arm64());
+    let second = run_machine(case.ordinal, &machine_artifact, NativeTarget::linux_arm64());
     assert_eq!(first, second, "AArch64 corpus case drifted: {case:?}",);
 }
 
@@ -59,10 +69,47 @@ pub(super) fn exercise_aarch64(case: &CorpusCase, artifact: &CorpusArtifact) {
 ))]
 pub(super) fn exercise_host_native(case: &CorpusCase, artifact: &CorpusArtifact) {
     let target = NativeTarget::host();
-    let first = run_machine(case, artifact, target);
-    let second = run_machine(case, artifact, target);
+    let first = run_machine(case.ordinal, artifact, target);
+    let second = run_machine(case.ordinal, artifact, target);
     assert_eq!(first, second, "host-native corpus case drifted: {case:?}");
-    super::native::assert_u64_result(&first.layout, artifact.expected);
+    super::native::assert_u64_result(&first.layout, expected_unsigned(artifact));
+}
+
+pub(super) fn exercise_ieee_compare(
+    case: &super::ieee_compare::CompareCase,
+    artifact: &CorpusArtifact,
+) {
+    let first_x86 = run_machine(case.ordinal, artifact, NativeTarget::linux_x64());
+    let second_x86 = run_machine(case.ordinal, artifact, NativeTarget::linux_x64());
+    assert_eq!(
+        first_x86, second_x86,
+        "IEEE x86 corpus case drifted: {case:?}"
+    );
+    let first_aarch64 = run_machine(case.ordinal, artifact, NativeTarget::linux_arm64());
+    let second_aarch64 = run_machine(case.ordinal, artifact, NativeTarget::linux_arm64());
+    assert_eq!(
+        first_aarch64, second_aarch64,
+        "IEEE AArch64 corpus case drifted: {case:?}"
+    );
+}
+
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+))]
+pub(super) fn exercise_host_native_ieee_compare(
+    case: &super::ieee_compare::CompareCase,
+    artifact: &CorpusArtifact,
+) {
+    let target = NativeTarget::host();
+    let first = run_machine(case.ordinal, artifact, target);
+    let second = run_machine(case.ordinal, artifact, target);
+    assert_eq!(
+        first, second,
+        "host-native IEEE corpus case drifted: {case:?}"
+    );
+    super::native::assert_bool_result(&first.layout, expected_boolean(artifact));
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,11 +160,7 @@ fn run_psi(case: &CorpusCase, artifact: &CorpusArtifact) -> PsiEvidence {
     }
 }
 
-fn run_machine(
-    case: &CorpusCase,
-    artifact: &CorpusArtifact,
-    target: NativeTarget,
-) -> MachineEvidence {
+fn run_machine(ordinal: usize, artifact: &CorpusArtifact, target: NativeTarget) -> MachineEvidence {
     assert!(artifact.add_operations.is_empty());
     let selections = OptimizationSelections::new([]).unwrap();
     let optimized = optimize_artifact_sections(
@@ -126,7 +169,7 @@ fn run_machine(
         &AdmissionProfile::default(),
         compiler_baseline_request_v1(&selections),
     )
-    .unwrap_or_else(|error| panic!("case {} failed Psi optimization: {error}", case.ordinal));
+    .unwrap_or_else(|error| panic!("case {ordinal} failed Psi optimization: {error}"));
     assert!(optimized.commits().is_empty());
 
     let unit = optimized.unit().identity;
@@ -219,7 +262,7 @@ fn assert_sccp(
         };
         assert_eq!(
             rewrite.constant,
-            IntegerValue::Unsigned(artifact.expected.into())
+            IntegerValue::Unsigned(expected_unsigned(artifact).into())
         );
         rewritten.push(rewrite.source_operation);
     }
@@ -237,9 +280,24 @@ fn assert_sccp(
                             psi_operation,
                             value: IntegerValue::Unsigned(value),
                             ..
-                        } if *psi_operation == add_operation && *value == artifact.expected.into()
+                        } if *psi_operation == add_operation
+                            && *value == expected_unsigned(artifact).into()
                     )
                 })
         );
+    }
+}
+
+fn expected_unsigned(artifact: &CorpusArtifact) -> u64 {
+    match artifact.expected {
+        CorpusExpected::Unsigned(expected) => expected,
+        CorpusExpected::Boolean(_) => panic!("expected an unsigned corpus artifact"),
+    }
+}
+
+fn expected_boolean(artifact: &CorpusArtifact) -> bool {
+    match artifact.expected {
+        CorpusExpected::Boolean(expected) => expected,
+        CorpusExpected::Unsigned(_) => panic!("expected a Boolean corpus artifact"),
     }
 }
