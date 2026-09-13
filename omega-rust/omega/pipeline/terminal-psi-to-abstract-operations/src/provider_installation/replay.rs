@@ -1,3 +1,12 @@
+//! Installation composes a verified boundary call with its selected candidate.
+//!
+//! Admission first verifies Terminal Psi and independently reconstructs the exact
+//! abstract plan. Terminal verification owns operand types, availability, paths,
+//! access, and candidate signature/refinement checks. Replaying a narrower source
+//! grammar here would reject valid local values and projected loans. Join the
+//! exact call occurrence, then substitute candidate completion/content claims;
+//! that cross-machine custody relationship is specific to installation.
+
 use super::error::ProviderInstallationError;
 use super::model::AdmittedInstalledProviderCall;
 use crate::shared::*;
@@ -81,83 +90,21 @@ pub(super) fn replay_installed_provider_calls(
             {
                 return Err(malformed());
             }
-            if !replays_supported_scalar_call(
-                caller,
-                terminal_caller,
-                arguments,
-                boundary_declaration,
-                candidate,
-                terminal_candidate,
-            ) {
+            let terminal_psi::OperationKind::BoundaryCall {
+                boundary: terminal_boundary,
+                arguments: terminal_arguments,
+                structural_arguments: terminal_structural_arguments,
+                completion_receipts: terminal_completion_receipts,
+            } = &terminal_operation.kind
+            else {
                 return Err(malformed());
-            }
-            for (index, (((argument, signature), boundary_parameter), candidate_parameter)) in
-                structural_arguments
-                    .iter()
-                    .zip(&provider.signature.parameters)
-                    .zip(&boundary_declaration.structural_parameters)
-                    .zip(&candidate.structural_parameters)
-                    .enumerate()
+            };
+            if boundary != terminal_boundary
+                || arguments != terminal_arguments
+                || structural_arguments != terminal_structural_arguments
+                || completion_receipts != terminal_completion_receipts
             {
-                let Some(caller_parameter) = caller
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == argument.place)
-                else {
-                    return Err(malformed());
-                };
-                // A shared loan of one initialized inline byte field presents a
-                // borrowed view without a structural-type identity; the capacity
-                // row is the exact admission the Terminal verifier checked.
-                let shared_byte_view = terminal_semantics::shared_boundary_buffer_capacity(
-                    module,
-                    caller_parameter.structural_type,
-                    argument,
-                    boundary_parameter,
-                )
-                .is_some();
-                let argument_type = resolve_structural_argument_type(
-                    module,
-                    caller_parameter.structural_type,
-                    &argument.path,
-                );
-                if argument_type.is_none() && !shared_byte_view {
-                    return Err(malformed());
-                }
-                let caller_matches = if argument.path.is_empty() {
-                    caller_parameter.structural_type == signature.structural_type
-                        && caller_parameter.multiplicity == signature.multiplicity
-                        && caller_parameter.access == signature.access
-                        && caller_parameter.qualifications == signature.qualifications
-                } else if shared_byte_view {
-                    signature.multiplicity == StructuralMultiplicity::Unrestricted
-                        && signature.access == terminal_psi::StructuralAccess::SharedBorrow
-                        && signature.qualifications.is_empty()
-                        && structural_access_can_supply(caller_parameter.access, signature.access)
-                } else {
-                    argument_type == Some(signature.structural_type)
-                        && signature.multiplicity == StructuralMultiplicity::Linear
-                        && structural_access_can_supply(caller_parameter.access, signature.access)
-                        && signature.qualifications.is_empty()
-                };
-                if signature.position as usize != index
-                    || argument.access != signature.access
-                    || boundary_parameter.position != signature.position
-                    || boundary_parameter.is_self != signature.is_self
-                    || boundary_parameter.structural_type != signature.structural_type
-                    || boundary_parameter.multiplicity != signature.multiplicity
-                    || boundary_parameter.access != signature.access
-                    || boundary_parameter.qualifications != signature.qualifications
-                    || candidate_parameter.position != signature.position
-                    || candidate_parameter.is_self != signature.is_self
-                    || candidate_parameter.structural_type != signature.structural_type
-                    || candidate_parameter.multiplicity != signature.multiplicity
-                    || candidate_parameter.access != signature.access
-                    || candidate_parameter.qualifications != signature.qualifications
-                    || !caller_matches
-                {
-                    return Err(malformed());
-                }
+                return Err(malformed());
             }
 
             let mut expected_claims = Vec::new();
@@ -173,18 +120,6 @@ pub(super) fn replay_installed_provider_calls(
                 expected_claims.push((argument_index, claim.claim));
             }
             if completion_receipts.len() != expected_claims.len() {
-                return Err(malformed());
-            }
-            if structural_arguments
-                .iter()
-                .enumerate()
-                .any(|(index, argument)| {
-                    !argument.path.is_empty()
-                        && !expected_claims
-                            .iter()
-                            .any(|(argument_index, _)| *argument_index as usize == index)
-                })
-            {
                 return Err(malformed());
             }
             for (receipt, (argument_index, candidate_claim)) in
@@ -286,104 +221,5 @@ fn replays_result(
                 && candidate.projected_qualifications.is_empty()
         }
         _ => false,
-    }
-}
-
-fn replays_supported_scalar_call(
-    caller: &AbstractFunction,
-    terminal_caller: &TerminalMachine,
-    arguments: &[semantic_vocabulary::ValueId],
-    boundary: &terminal_psi::BoundaryMachineDeclaration,
-    candidate: &AbstractFunction,
-    terminal_candidate: &TerminalMachine,
-) -> bool {
-    match arguments {
-        [] => {
-            boundary.scalar_parameters.is_empty()
-                && candidate.parameters.is_empty()
-                && terminal_candidate.parameters.is_empty()
-        }
-        [argument] => {
-            let [caller_parameter] = caller.parameters.as_slice() else {
-                return false;
-            };
-            let [terminal_caller_parameter] = terminal_caller.parameters.as_slice() else {
-                return false;
-            };
-            let [boundary_parameter] = boundary.scalar_parameters.as_slice() else {
-                return false;
-            };
-            let [candidate_parameter] = candidate.parameters.as_slice() else {
-                return false;
-            };
-            let [terminal_candidate_parameter] = terminal_candidate.parameters.as_slice() else {
-                return false;
-            };
-            let signed_i32 = ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
-                    .expect("fixed signed i32 is a valid scalar type"),
-            );
-            *argument == caller_parameter.value
-                && caller_parameter.value == terminal_caller_parameter.id
-                && caller_parameter.scalar_type == terminal_caller_parameter.scalar_type
-                && caller_parameter.scalar_type == signed_i32
-                && *boundary_parameter == signed_i32
-                && candidate_parameter.scalar_type == signed_i32
-                && terminal_candidate_parameter.scalar_type == signed_i32
-                && candidate_parameter.value == terminal_candidate_parameter.id
-        }
-        _ => false,
-    }
-}
-
-fn resolve_structural_argument_type(
-    module: &terminal_psi::TerminalModule,
-    mut structural_type: semantic_vocabulary::StructuralTypeId,
-    path: &[terminal_psi::StructuralPathSegment],
-) -> Option<semantic_vocabulary::StructuralTypeId> {
-    for segment in path {
-        let declaration = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)?;
-        structural_type = match (segment, &declaration.shape) {
-            (
-                terminal_psi::StructuralPathSegment::Field(identity),
-                terminal_psi::StructuralTypeShape::Record { fields },
-            ) => {
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-                let terminal_psi::StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
-                next
-            }
-            (
-                terminal_psi::StructuralPathSegment::FixedIndex(index),
-                terminal_psi::StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            _ => return None,
-        };
-    }
-    Some(structural_type)
-}
-
-fn structural_access_can_supply(
-    source: terminal_psi::StructuralAccess,
-    presented: terminal_psi::StructuralAccess,
-) -> bool {
-    use terminal_psi::StructuralAccess;
-
-    match source {
-        StructuralAccess::Owned => true,
-        StructuralAccess::SharedBorrow => presented == StructuralAccess::SharedBorrow,
-        StructuralAccess::MutableBorrow => matches!(
-            presented,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        ),
-        StructuralAccess::WriteOnlyBorrow => presented == StructuralAccess::WriteOnlyBorrow,
     }
 }

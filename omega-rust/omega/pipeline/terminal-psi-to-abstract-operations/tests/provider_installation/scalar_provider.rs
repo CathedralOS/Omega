@@ -43,7 +43,7 @@ fn omega_rejects_removing_the_installed_provider_scalar_argument() {
 }
 
 #[test]
-fn omega_rejects_substituting_a_computed_i32_for_the_exact_caller_parameter() {
+fn omega_installs_the_verified_computed_argument_and_rejects_operand_substitution() {
     let mut module = scalar_provider_module();
     let scalar_type = signed_i32();
     let replacement = value_id(9);
@@ -70,12 +70,20 @@ fn omega_rejects_substituting_a_computed_i32_for_the_exact_caller_parameter() {
 
     let (semantic, proof) = artifact(&module);
     let profile = AdmissionProfile::default();
-    let plan = lower_artifact_sections(&semantic, &proof, &profile)
+    let mut plan = lower_artifact_sections(&semantic, &proof, &profile)
         .expect("computed i32 argument is valid Terminal Psi");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
+    let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
+        .expect("a verified computed argument composes with the selected provider");
+    assert_eq!(
+        installation.installed_calls()[0].scalar_arguments(),
+        &[replacement]
+    );
+
+    scalar_call_arguments_mut(&mut plan)[0] = value_id(1);
     assert!(matches!(
         admit_provider_installation(&plan, &semantic, &proof, &profile, &selected),
-        Err(ProviderInstallationError::InstalledCallReplayMismatch { .. })
+        Err(ProviderInstallationError::PlanReplayMismatch)
     ));
 }
 
