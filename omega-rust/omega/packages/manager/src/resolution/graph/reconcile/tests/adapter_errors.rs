@@ -25,6 +25,7 @@ fn returns_adapter_error_with_exact_request_context() {
             dependency_index: 0,
             request: DependencySourceRequest::Path { location, .. },
             error: "network unavailable",
+            ..
         } if requester.name().as_str() == "application" && location == "missing"
     ));
 }

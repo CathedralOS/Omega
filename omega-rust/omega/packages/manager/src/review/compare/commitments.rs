@@ -182,6 +182,7 @@ fn derive_candidate_graph_commitment_with_source<C: PackageReviewEvidence>(
                     .expect("bounded dependency index fits u64")
                     .to_le_bytes(),
             );
+            digest.update([u8::from(!dependency.purpose().is_product())]);
             hash_field(&mut digest, dependency.alias().as_str().as_bytes());
             hash_field(&mut digest, &dependency.target().identity().digest());
         }
@@ -233,6 +234,7 @@ fn hash_dependency_path(digest: &mut Sha256, path: &DependencyRequestPath) {
     );
     for step in path.steps() {
         hash_field(digest, &step.requester().identity().digest());
+        digest.update([u8::from(!step.purpose().is_product())]);
         digest.update(
             u64::try_from(step.dependency_index())
                 .expect("dependency index fits u64")

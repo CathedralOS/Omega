@@ -273,7 +273,8 @@ fn rejects_duplicate_unordered_unknown_and_mismatched_targets() {
 fn embedded_source_must_be_canonical_and_consistent() {
     let text = pending().encode().unwrap();
     for malformed in [
-        text.replacen("omega-source-closure 1", "omega-source-closure 2", 1),
+        // A legacy v1 record decodes but does not re-encode canonically.
+        text.replacen("omega-source-closure 2", "omega-source-closure 1", 1),
         text.replacen("packages 1", "packages 0", 1),
         text.replacen("lineage github", "lineage GitHub", 1),
         text.replacen("11111111", "31111111", 1),

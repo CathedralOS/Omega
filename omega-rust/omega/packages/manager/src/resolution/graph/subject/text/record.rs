@@ -14,8 +14,15 @@ use super::requests::{
     write_root,
 };
 use super::source::{read_key, read_source, write_key, write_source};
-use crate::declarations::dependencies::read::ProjectedDependencies;
+use crate::declarations::dependencies::read::{
+    DependencyProjections, DependencyPurpose, DependencySourceRequest, ProjectedDependencies,
+};
 use target::TargetProfile;
+
+/// Text record carrying purpose-split authored rows and purpose-tagged edges.
+const TEXT_VERSION: &str = "2";
+/// Legacy record: every authored row and edge is implicitly product purpose.
+const LEGACY_TEXT_VERSION: &str = "1";
 
 impl CanonicalSourceClosureSubject {
     /// Render the exact source graph as bounded canonical text, without
@@ -54,12 +61,35 @@ impl CanonicalSourceClosureSubject {
             ));
         }
         let mut writer = Writer::new(limits.maximum_record_bytes, Budget::new(usize::MAX));
-        self.write_text(&mut writer)?;
+        self.write_text(&mut writer, TEXT_VERSION)?;
         Ok(writer.finish()?.0)
     }
 
-    fn write_text(&self, writer: &mut Writer) -> Result<(), Error> {
-        writer.row("omega-source-closure 1", &[])?;
+    fn write_text(&self, writer: &mut Writer, version: &str) -> Result<(), Error> {
+        match version {
+            LEGACY_TEXT_VERSION => {
+                // The legacy record carries product-purpose rows only; it is
+                // emitted solely to verify canonical legacy input.
+                if self
+                    .package_dependency_projections
+                    .iter()
+                    .any(|projection| !projection.build().authored_dependencies().is_empty())
+                    || self
+                        .dependency_requests
+                        .iter()
+                        .any(|edge| edge.purpose != DependencyPurpose::Product)
+                {
+                    return Err(Error::new(
+                        "version-1 source-closure text cannot express build-purpose rows",
+                    ));
+                }
+                writer.row("omega-source-closure 1", &[])?;
+            }
+            TEXT_VERSION => writer.row("omega-source-closure 2", &[])?,
+            _ => {
+                return Err(Error::new("unsupported source-closure text version"));
+            }
+        }
         writer.row(
             "target",
             &[self.target_profile().identity().as_str().as_bytes()],
@@ -75,9 +105,21 @@ impl CanonicalSourceClosureSubject {
             writer.row("package", &[])?;
             write_source(writer, package)?;
             write_navigation(writer, navigation)?;
-            writer.number("authored", projection.authored_dependencies().len())?;
-            for request in projection.authored_dependencies() {
+            writer.number(
+                "authored",
+                projection.product().authored_dependencies().len(),
+            )?;
+            for request in projection.product().authored_dependencies() {
                 write_request(writer, Request::from(request))?;
+            }
+            if version == TEXT_VERSION {
+                writer.number(
+                    "authored-build",
+                    projection.build().authored_dependencies().len(),
+                )?;
+                for request in projection.build().authored_dependencies() {
+                    write_request(writer, Request::from(request))?;
+                }
             }
         }
         writer.number("edges", self.dependency_requests().len())?;
@@ -85,6 +127,9 @@ impl CanonicalSourceClosureSubject {
             writer.row("edge", &[])?;
             writer.row("requester", &[])?;
             write_key(writer, edge.requester())?;
+            if version == TEXT_VERSION {
+                writer.row("purpose", &[edge.purpose().name().as_bytes()])?;
+            }
             writer.number("ordinal", edge.dependency_index())?;
             write_request(writer, Request::from(edge.request()))?;
             writer.row("resolved-alias", &[edge.alias().as_str().as_bytes()])?;
@@ -115,7 +160,15 @@ impl CanonicalSourceClosureSubject {
             Budget::new(maximum_owned_bytes),
         )?;
         reader.expect("omega-source-closure")?;
-        reader.expect("1")?;
+        // Legacy version-1 records decode as product-only projections and
+        // edges. This is the versioned lock migration: old records keep their
+        // legacy product meaning rather than silently gaining build scope.
+        let version = reader.atom()?;
+        if !matches!(version, LEGACY_TEXT_VERSION | TEXT_VERSION) {
+            return Err(Error::new(
+                "unexpected source-closure text field or version",
+            ));
+        }
         reader.expect("target")?;
         let target = reader.string(limits.maximum_identity_bytes)?;
         let target = TargetProfile::ALL
@@ -133,20 +186,17 @@ impl CanonicalSourceClosureSubject {
             reader.expect("package")?;
             packages.push(read_source(&mut reader, limits)?);
             navigations.push(read_navigation(&mut reader, limits)?);
-            reader.expect("authored")?;
-            let authored_count =
-                reader.count(limits.maximum_dependency_requests - total_authored)?;
-            total_authored = total_authored
-                .checked_add(authored_count)
-                .ok_or_else(|| Error::new("text authored-request count overflow"))?;
-            if total_authored > limits.maximum_dependency_requests {
-                return Err(Error::new("text authored-request count exceeds its limit"));
-            }
-            let mut authored = reader.budget.reserve(authored_count)?;
-            for _ in 0..authored_count {
-                authored.push(into_authored(read_request(&mut reader, limits)?));
-            }
-            projections.push(ProjectedDependencies::from(authored));
+            let product =
+                read_authored_scope(&mut reader, "authored", limits, &mut total_authored)?;
+            let build = if version == TEXT_VERSION {
+                read_authored_scope(&mut reader, "authored-build", limits, &mut total_authored)?
+            } else {
+                Vec::new()
+            };
+            projections.push(DependencyProjections::new(
+                ProjectedDependencies::from(product),
+                ProjectedDependencies::from(build),
+            ));
         }
         reader.expect("edges")?;
         let count = reader.count(limits.maximum_dependency_requests)?;
@@ -155,6 +205,16 @@ impl CanonicalSourceClosureSubject {
             reader.expect("edge")?;
             reader.expect("requester")?;
             let requester = read_key(&mut reader, limits)?;
+            let purpose = if version == TEXT_VERSION {
+                reader.expect("purpose")?;
+                match reader.string(64)?.as_str() {
+                    "product" => DependencyPurpose::Product,
+                    "build" => DependencyPurpose::Build,
+                    _ => return Err(Error::new("unknown text dependency purpose")),
+                }
+            } else {
+                DependencyPurpose::Product
+            };
             reader.expect("ordinal")?;
             let dependency_index = reader.number(u32::MAX as usize)?;
             let request = read_request(&mut reader, limits)?;
@@ -164,6 +224,7 @@ impl CanonicalSourceClosureSubject {
             let selected = read_source(&mut reader, limits)?;
             edges.push(CanonicalDependencySourceSelection {
                 requester,
+                purpose,
                 dependency_index,
                 request,
                 alias,
@@ -187,8 +248,29 @@ impl CanonicalSourceClosureSubject {
             &mut budget,
         )?;
         let mut writer = Writer::verifying(limits.maximum_record_bytes, text, budget);
-        subject.write_text(&mut writer)?;
+        subject.write_text(&mut writer, version)?;
         let (_, budget) = writer.finish()?;
         Ok((subject, budget.usage))
     }
+}
+
+fn read_authored_scope(
+    reader: &mut Reader<'_>,
+    label: &str,
+    limits: Limits,
+    total_authored: &mut usize,
+) -> Result<Vec<DependencySourceRequest>, Error> {
+    reader.expect(label)?;
+    let authored_count = reader.count(limits.maximum_dependency_requests - *total_authored)?;
+    *total_authored = total_authored
+        .checked_add(authored_count)
+        .ok_or_else(|| Error::new("text authored-request count overflow"))?;
+    if *total_authored > limits.maximum_dependency_requests {
+        return Err(Error::new("text authored-request count exceeds its limit"));
+    }
+    let mut authored = reader.budget.reserve(authored_count)?;
+    for _ in 0..authored_count {
+        authored.push(into_authored(read_request(reader, limits)?));
+    }
+    Ok(authored)
 }

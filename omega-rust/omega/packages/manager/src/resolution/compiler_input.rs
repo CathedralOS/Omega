@@ -90,19 +90,25 @@ impl<'closure> PackageCompilationScope<'closure> {
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| vec![error])?;
+        // Only product edges authorize product imports. Build-purpose edges
+        // select host build inputs; they never become import bindings here.
         let dependencies = closure
             .graph()
             .packages()
             .iter()
             .filter(|package| reachable.contains(package.source().key()))
             .flat_map(|package| {
-                package.dependencies().iter().map(|dependency| {
-                    PackageDependencyBinding::new(
-                        package.source().key().identity(),
-                        dependency.alias().as_str(),
-                        dependency.target().identity(),
-                    )
-                })
+                package
+                    .dependencies()
+                    .iter()
+                    .filter(|dependency| dependency.purpose().is_product())
+                    .map(|dependency| {
+                        PackageDependencyBinding::new(
+                            package.source().key().identity(),
+                            dependency.alias().as_str(),
+                            dependency.target().identity(),
+                        )
+                    })
             })
             .collect();
 
@@ -150,6 +156,12 @@ fn revalidate_package_source_selection(
     })
 }
 
+/// The product compilation closure: reachability follows product edges only.
+///
+/// A package selected only through the root's build-purpose edges is acquired
+/// and locked, but it is not a product compilation input: host build outputs
+/// are a separate context, and source custody never substitutes for target
+/// evidence.
 fn reachable_package_keys(
     closure: &ResolvedPackageSourceClosure,
     root: &crate::declarations::PackageKey,
@@ -167,6 +179,7 @@ fn reachable_package_keys(
             node.dependencies()
                 .iter()
                 .rev()
+                .filter(|dependency| dependency.purpose().is_product())
                 .map(|dependency| dependency.target().clone()),
         );
     }
@@ -217,6 +230,20 @@ mod tests {
         source_root: PathBuf,
         dependency_requests: Vec<DependencySourceRequest>,
     ) -> PackageSourceCustody {
+        custody_with_scopes(
+            name,
+            marker,
+            source_root,
+            crate::declarations::dependencies::DependencyProjections::from(dependency_requests),
+        )
+    }
+
+    fn custody_with_scopes(
+        name: &str,
+        marker: u8,
+        source_root: PathBuf,
+        projections: crate::declarations::dependencies::DependencyProjections,
+    ) -> PackageSourceCustody {
         std::fs::create_dir_all(&source_root).expect("create source root");
         let source_root = source_root
             .canonicalize()
@@ -254,7 +281,7 @@ mod tests {
             crate::resolution::source::PackageSourceNavigation::Root,
             crate::resolution::source::PackageSourceSelectionEvidence::Root,
             package_source::LocalSourceLimits::default(),
-            dependency_requests,
+            projections,
         )
     }
 
@@ -512,6 +539,63 @@ mod tests {
                 Some(position)
             );
         }
+
+        let _ = std::fs::remove_dir_all(roots);
+    }
+
+    #[test]
+    fn build_purpose_edges_do_not_become_product_import_bindings() {
+        let roots = temp_root("build-scope");
+        let product = custody("product-lib", 2, roots.join("product"), Vec::new());
+        let host = custody("host-tool", 3, roots.join("host"), Vec::new());
+        let host_key = host.key().clone();
+        let root = custody_with_scopes(
+            "application",
+            1,
+            roots.join("root"),
+            crate::declarations::dependencies::DependencyProjections::new(
+                vec![DependencySourceRequest::Path {
+                    explicit_alias: None,
+                    location: "product".to_owned(),
+                }]
+                .into(),
+                vec![DependencySourceRequest::Path {
+                    explicit_alias: None,
+                    location: "host".to_owned(),
+                }]
+                .into(),
+            ),
+        );
+        let root_key = root.key().clone();
+        let closure =
+            resolve_package_source_closure(root_request(&root), root, |_, request| match request {
+                DependencySourceRequest::Path { location, .. } if location == "product" => {
+                    Ok::<_, &'static str>(product.clone())
+                }
+                DependencySourceRequest::Path { location, .. } if location == "host" => {
+                    Ok(host.clone())
+                }
+                _ => Err("unexpected request"),
+            })
+            .expect("dual-scope closure resolves");
+
+        let inputs = package_compilation_inputs(&closure).expect("compiler handoff validates");
+
+        // Source custody acquired the host package, but product compilation
+        // sees only the product closure: no binding, no package membership.
+        assert_eq!(inputs.packages().count(), 2);
+        assert!(inputs.package_root(host_key.identity()).is_none());
+        assert_eq!(
+            inputs.dependency_target(root_key.identity(), "product_lib"),
+            Some(product.key().identity())
+        );
+        assert_eq!(
+            inputs.dependency_target(root_key.identity(), "host_tool"),
+            None
+        );
+        let dependency_closure = inputs.dependency_closure();
+        assert_eq!(dependency_closure.packages().len(), 2);
+        assert_eq!(dependency_closure.dependencies().len(), 1);
 
         let _ = std::fs::remove_dir_all(roots);
     }

@@ -90,7 +90,7 @@ fn source_custody_projects_only_canonical_dependency_rows() {
     .expect("resolve package and dependency projection");
 
     assert_eq!(
-        resolved.dependency_requests(),
+        resolved.product_dependency_requests(),
         [
             DependencySourceRequest::Path {
                 explicit_alias: None,

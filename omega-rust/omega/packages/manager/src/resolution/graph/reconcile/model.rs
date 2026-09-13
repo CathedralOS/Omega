@@ -2,7 +2,9 @@
 
 use super::super::PackageClosureValidationError;
 use crate::declarations::BuildDeclarationKind;
-use crate::declarations::dependencies::read::{DependencyAliasError, DependencySourceRequest};
+use crate::declarations::dependencies::read::{
+    DependencyAliasError, DependencyPurpose, DependencySourceRequest,
+};
 use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::source::PackageSourceCustody;
 
@@ -12,6 +14,7 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DependencyRequestPathStep {
     pub(super) requester: PackageKey,
+    pub(super) purpose: DependencyPurpose,
     pub(super) dependency_index: usize,
     pub(super) alias: AliasName,
     pub(super) target: PackageKey,
@@ -22,7 +25,13 @@ impl DependencyRequestPathStep {
         &self.requester
     }
 
-    /// Zero-based position in the requester's projected dependency rows.
+    /// Which authorized context this edge belongs to.
+    pub const fn purpose(&self) -> DependencyPurpose {
+        self.purpose
+    }
+
+    /// Zero-based position in the requester's projected dependency rows for
+    /// this edge's purpose scope.
     pub fn dependency_index(&self) -> usize {
         self.dependency_index
     }
@@ -121,6 +130,7 @@ pub enum PackageSourceClosureResolutionError<E> {
     /// The adapter could not resolve one projected dependency request.
     Adapter {
         requester: PackageKey,
+        purpose: DependencyPurpose,
         dependency_index: usize,
         request: DependencySourceRequest,
         error: E,
@@ -141,14 +151,23 @@ pub enum PackageSourceClosureResolutionError<E> {
     /// importable. Applications may be selected only as the closure root.
     InvalidDependencyRole {
         requester: PackageKey,
+        purpose: DependencyPurpose,
         dependency_index: usize,
         selected: PackageKey,
         role: BuildDeclarationKind,
+    },
+    /// A package other than the closure root authored build-purpose
+    /// dependency rows. Host build inputs are selected only by the root
+    /// build context; host libraries use their own ordinary dependencies.
+    UnsupportedBuildDependencies {
+        requester: PackageKey,
+        authored_rows: usize,
     },
     /// Requester-local aliases conflict after package-authored names have been
     /// recovered from source custody.
     InvalidAliases {
         requester: PackageKey,
+        purpose: DependencyPurpose,
         error: DependencyAliasError,
     },
 }
@@ -161,6 +180,7 @@ impl<E> PackageSourceClosureResolutionError<E> {
             | Self::LimitExceeded { .. }
             | Self::InvalidClosure { .. }
             | Self::InvalidDependencyRole { .. }
+            | Self::UnsupportedBuildDependencies { .. }
             | Self::InvalidAliases { .. } => None,
         }
     }
@@ -171,13 +191,15 @@ impl<E: fmt::Display> fmt::Display for PackageSourceClosureResolutionError<E> {
         match self {
             Self::Adapter {
                 requester,
+                purpose,
                 dependency_index,
                 error,
                 ..
             } => write!(
                 formatter,
-                "source adapter failed for dependency row {dependency_index} of package `{}`: {error}",
-                requester.name().as_str()
+                "source adapter failed for {purpose_name} dependency row {dependency_index} of package `{requester_name}`: {error}",
+                purpose_name = purpose.name(),
+                requester_name = requester.name().as_str(),
             ),
             Self::LimitExceeded { kind, limit } => write!(
                 formatter,
@@ -195,18 +217,33 @@ impl<E: fmt::Display> fmt::Display for PackageSourceClosureResolutionError<E> {
             ),
             Self::InvalidDependencyRole {
                 requester,
+                purpose,
                 dependency_index,
                 selected,
                 role,
             } => write!(
                 formatter,
-                "dependency row {dependency_index} of package `{}` selected `{}` with non-package role {role:?}",
+                "{} dependency row {dependency_index} of package `{}` selected `{}` with non-package role {role:?}",
+                purpose.name(),
                 requester.name().as_str(),
                 selected.name().as_str(),
             ),
-            Self::InvalidAliases { requester, error } => write!(
+            Self::UnsupportedBuildDependencies {
+                requester,
+                authored_rows,
+            } => write!(
                 formatter,
-                "dependencies of package `{}` have invalid aliases: {error}",
+                "package `{}` authors {authored_rows} build dependency row(s), but host build inputs may only be selected by the root build context",
+                requester.name().as_str(),
+            ),
+            Self::InvalidAliases {
+                requester,
+                purpose,
+                error,
+            } => write!(
+                formatter,
+                "{} dependencies of package `{}` have invalid aliases: {error}",
+                purpose.name(),
                 requester.name().as_str(),
             ),
         }

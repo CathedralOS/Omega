@@ -2,7 +2,9 @@
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
-use crate::declarations::dependencies::read::{DependencySourceRequest, ProjectedDependencies};
+use crate::declarations::dependencies::read::{
+    DependencyProjections, DependencyPurpose, DependencySourceRequest,
+};
 use crate::resolution::source::{
     PackageSourceMaterialization, PackageSourceNavigation, PackageSourceSelectionEvidence,
 };
@@ -22,7 +24,7 @@ pub struct PackageSourceCustody {
     navigation: PackageSourceNavigation,
     selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
-    projected_dependencies: ProjectedDependencies,
+    dependency_projections: DependencyProjections,
 }
 
 impl PartialEq for PackageSourceCustody {
@@ -34,7 +36,7 @@ impl PartialEq for PackageSourceCustody {
             && self.snapshot_root == other.snapshot_root
             && self.navigation == other.navigation
             && self.selection_evidence == other.selection_evidence
-            && self.projected_dependencies == other.projected_dependencies
+            && self.dependency_projections == other.dependency_projections
     }
 }
 
@@ -53,7 +55,7 @@ impl PackageSourceCustody {
         projected_dependencies: D,
     ) -> Self
     where
-        D: Into<ProjectedDependencies>,
+        D: Into<DependencyProjections>,
     {
         debug_assert!(resolution.matches_lineage(key.source_lineage()));
         Self {
@@ -65,7 +67,7 @@ impl PackageSourceCustody {
             navigation,
             selection_evidence,
             source_limits,
-            projected_dependencies: projected_dependencies.into(),
+            dependency_projections: projected_dependencies.into(),
         }
     }
 
@@ -101,12 +103,23 @@ impl PackageSourceCustody {
         self.source_limits
     }
 
-    pub fn dependency_requests(&self) -> &[DependencySourceRequest] {
-        self.projected_dependencies.authored_dependencies()
+    /// Authored requests for one purpose scope, in requester-local order.
+    pub fn dependency_requests(&self, purpose: DependencyPurpose) -> &[DependencySourceRequest] {
+        self.dependency_projections.requests(purpose)
     }
 
-    pub const fn projected_dependencies(&self) -> &ProjectedDependencies {
-        &self.projected_dependencies
+    /// Authored product-purpose requests, in requester-local order.
+    pub fn product_dependency_requests(&self) -> &[DependencySourceRequest] {
+        self.dependency_requests(DependencyPurpose::Product)
+    }
+
+    /// Authored build-purpose requests, in requester-local order.
+    pub fn build_dependency_requests(&self) -> &[DependencySourceRequest] {
+        self.dependency_requests(DependencyPurpose::Build)
+    }
+
+    pub const fn dependency_projections(&self) -> &DependencyProjections {
+        &self.dependency_projections
     }
 
     pub(crate) fn semantically_equivalent(&self, other: &Self) -> bool {
@@ -116,6 +129,6 @@ impl PackageSourceCustody {
             && self.materialization == other.materialization
             && self.navigation == other.navigation
             && self.selection_evidence == other.selection_evidence
-            && self.projected_dependencies == other.projected_dependencies
+            && self.dependency_projections == other.dependency_projections
     }
 }

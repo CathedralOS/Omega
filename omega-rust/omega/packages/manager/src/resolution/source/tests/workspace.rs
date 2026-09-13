@@ -65,7 +65,7 @@ fn workspace_member_resolution_binds_root_lineage_path_and_member_snapshot() {
         ImmutableSourceResolution::Workspace { .. }
     ));
     assert_eq!(
-        resolved.dependency_requests(),
+        resolved.product_dependency_requests(),
         [DependencySourceRequest::Git {
             explicit_alias: None,
             repository: "https://github.com/CathedralOS/exact-math.git".to_owned(),

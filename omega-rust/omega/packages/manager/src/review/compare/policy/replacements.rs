@@ -1,6 +1,7 @@
 //! Source identity changes at established root or requester-local bindings.
 
 use super::{PackagePolicyChangeError as Error, PackagePolicyChangeFingerprint, limits::Budget};
+use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::graph::{CanonicalDependencySourceSelection, CanonicalSourceClosureSubject};
 
@@ -11,6 +12,7 @@ pub enum PackagePolicyReplacementSite {
     Root,
     Dependency {
         requester: PackageKey,
+        purpose: DependencyPurpose,
         alias: AliasName,
     },
 }
@@ -87,6 +89,7 @@ pub(super) fn compare(
             &mut replacements,
             PackagePolicyReplacementSite::Dependency {
                 requester: previous.requester().clone(),
+                purpose: previous.purpose(),
                 alias: previous.alias().clone(),
             },
             previous.selected().key(),
@@ -123,8 +126,14 @@ fn visit_replacements(
     Ok(())
 }
 
-fn binding(selection: &CanonicalDependencySourceSelection) -> (&PackageKey, &str) {
-    (selection.requester(), selection.alias().as_str())
+fn binding(
+    selection: &CanonicalDependencySourceSelection,
+) -> (&PackageKey, DependencyPurpose, &str) {
+    (
+        selection.requester(),
+        selection.purpose(),
+        selection.alias().as_str(),
+    )
 }
 
 fn ordered_bindings<'source>(

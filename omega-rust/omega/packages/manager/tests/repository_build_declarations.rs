@@ -256,7 +256,7 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
             }]
         };
         assert_eq!(
-            projection.dependencies(),
+            projection.product_dependencies(),
             expected_dependencies,
             "unexpected sample dependency declaration in {}",
             root.display()
@@ -272,7 +272,7 @@ fn assert_canary_declares_ordinary_standard_library_edge(root: &Path) {
         )
     });
     assert_eq!(
-        projection.dependencies(),
+        projection.product_dependencies(),
         [DependencySourceRequest::Path {
             explicit_alias: None,
             location: "../../../../../source/library/std".to_owned(),
@@ -362,7 +362,7 @@ fn assert_mixed_canary_category_standard_library_edges_with_build_consumers(
         if compatibility_roots.contains(&name) {
             let projection = extract_build_dependency_projection(&root).unwrap();
             assert!(
-                projection.dependencies().is_empty(),
+                projection.product_dependencies().is_empty(),
                 "compatibility canary {} must not claim a migrated std edge",
                 root.display()
             );
@@ -396,7 +396,7 @@ fn assert_mixed_canary_category_standard_library_edges_with_build_consumers(
             )
         });
         let standard_library_edges = projection
-            .dependencies()
+            .product_dependencies()
             .iter()
             .filter(|dependency| *dependency == &expected_dependency)
             .count();
@@ -445,7 +445,7 @@ fn assert_partial_canary_category_standard_library_migration(
         }
         let projection = extract_build_dependency_projection(&root).unwrap();
         assert!(
-            projection.dependencies().is_empty(),
+            projection.product_dependencies().is_empty(),
             "compatibility canary {} must not claim a migrated std edge",
             root.display()
         );
@@ -641,7 +641,7 @@ fn ownership_and_reference_runtime_canaries_declare_ordinary_standard_library_ed
         if root == dependency_free {
             let projection = extract_build_dependency_projection(&root).unwrap();
             assert!(
-                projection.dependencies().is_empty(),
+                projection.product_dependencies().is_empty(),
                 "freestanding UEFI ownership canary must remain dependency-free"
             );
         } else {

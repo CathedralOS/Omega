@@ -14,7 +14,8 @@ use super::source::{
 };
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{
-    DependencySourceRequest, PackageSelection, ProjectedDependencies,
+    DependencyProjections, DependencyPurpose, DependencySourceRequest, PackageSelection,
+    ProjectedDependencies,
 };
 use crate::declarations::{AliasName, PackageName};
 use crate::resolution::graph::ResolvedSourceIdentity;
@@ -27,7 +28,7 @@ pub(in super::super) fn encode_subject(
     root: &CanonicalRootSourceSelection,
     packages: &[ResolvedSourceIdentity],
     package_navigations: &[PackageSourceNavigation],
-    package_dependency_projections: &[ProjectedDependencies],
+    package_dependency_projections: &[DependencyProjections],
     dependency_requests: &[CanonicalDependencySourceSelection],
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<Vec<u8>, CanonicalSourceClosureSubjectError> {
@@ -51,7 +52,7 @@ pub(in super::super) fn encode_subject_with_budget(
     root: &CanonicalRootSourceSelection,
     packages: &[ResolvedSourceIdentity],
     package_navigations: &[PackageSourceNavigation],
-    package_dependency_projections: &[ProjectedDependencies],
+    package_dependency_projections: &[DependencyProjections],
     dependency_requests: &[CanonicalDependencySourceSelection],
     limits: CanonicalSourceClosureSubjectLimits,
     budget: &mut Budget,
@@ -77,7 +78,7 @@ fn encode_subject_to(
     root: &CanonicalRootSourceSelection,
     packages: &[ResolvedSourceIdentity],
     package_navigations: &[PackageSourceNavigation],
-    package_dependency_projections: &[ProjectedDependencies],
+    package_dependency_projections: &[DependencyProjections],
     dependency_requests: &[CanonicalDependencySourceSelection],
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
@@ -126,6 +127,15 @@ pub(in super::super) fn decode_target_profile(
 
 fn encode_dependency_projection(
     encoder: &mut Encoder,
+    dependencies: &DependencyProjections,
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<(), CanonicalSourceClosureSubjectError> {
+    encode_dependency_scope(encoder, dependencies.product(), limits)?;
+    encode_dependency_scope(encoder, dependencies.build(), limits)
+}
+
+fn encode_dependency_scope(
+    encoder: &mut Encoder,
     dependencies: &ProjectedDependencies,
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
@@ -137,6 +147,15 @@ fn encode_dependency_projection(
 }
 
 pub(in super::super) fn decode_dependency_projection(
+    decoder: &mut Decoder<'_>,
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<DependencyProjections, CanonicalSourceClosureSubjectError> {
+    let product = decode_dependency_scope(decoder, limits)?;
+    let build = decode_dependency_scope(decoder, limits)?;
+    Ok(DependencyProjections::new(product, build))
+}
+
+fn decode_dependency_scope(
     decoder: &mut Decoder<'_>,
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<ProjectedDependencies, CanonicalSourceClosureSubjectError> {
@@ -290,6 +309,7 @@ fn encode_dependency_selection(
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     encode_package_key(encoder, &selection.requester, limits.maximum_identity_bytes)?;
+    encode_dependency_purpose(encoder, selection.purpose);
     encoder.u32(u32::try_from(selection.dependency_index).map_err(|_| {
         CanonicalSourceClosureSubjectError::new("dependency ordinal exceeds canonical range")
     })?);
@@ -336,6 +356,7 @@ pub(in super::super) fn decode_dependency_selection(
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<CanonicalDependencySourceSelection, CanonicalSourceClosureSubjectError> {
     let requester = decode_package_key(decoder, limits.maximum_identity_bytes)?;
+    let purpose = decode_dependency_purpose(decoder)?;
     let dependency_index = usize::try_from(decoder.u32()?).map_err(|_| {
         CanonicalSourceClosureSubjectError::new("dependency ordinal exceeds platform range")
     })?;
@@ -346,11 +367,31 @@ pub(in super::super) fn decode_dependency_selection(
     let selected = decode_source_identity(decoder, limits.maximum_identity_bytes)?;
     Ok(CanonicalDependencySourceSelection {
         requester,
+        purpose,
         dependency_index,
         request,
         alias,
         selected,
     })
+}
+
+pub(super) fn encode_dependency_purpose(encoder: &mut Encoder, purpose: DependencyPurpose) {
+    encoder.byte(match purpose {
+        DependencyPurpose::Product => 0,
+        DependencyPurpose::Build => 1,
+    });
+}
+
+pub(super) fn decode_dependency_purpose(
+    decoder: &mut Decoder<'_>,
+) -> Result<DependencyPurpose, CanonicalSourceClosureSubjectError> {
+    match decoder.byte()? {
+        0 => Ok(DependencyPurpose::Product),
+        1 => Ok(DependencyPurpose::Build),
+        _ => Err(CanonicalSourceClosureSubjectError::new(
+            "invalid dependency-purpose tag",
+        )),
+    }
 }
 
 pub(super) fn decode_dependency_request(

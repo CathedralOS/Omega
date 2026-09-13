@@ -1,5 +1,5 @@
 use super::*;
-use package_manager::declarations::{AliasName, PackageKey};
+use package_manager::declarations::{AliasName, DependencyPurpose, PackageKey};
 use package_manager::review::{
     PackagePolicyChangeSet, PackagePolicyDecision, PackagePolicyDecisionError as Error,
     PackagePolicyDecisionSubject as Subject, PackagePolicyReplacementSite as Site,
@@ -67,6 +67,7 @@ fn assert_binding(
 ) {
     let site = Site::Dependency {
         requester: requester.clone(),
+        purpose: DependencyPurpose::Product,
         alias: AliasName::parse(alias).unwrap(),
     };
     let replacement = changes
@@ -77,7 +78,11 @@ fn assert_binding(
     let old = accepted_source(lock)
         .dependency_requests()
         .iter()
-        .find(|selection| selection.requester() == requester && selection.alias().as_str() == alias)
+        .find(|selection| {
+            selection.requester() == requester
+                && selection.purpose() == DependencyPurpose::Product
+                && selection.alias().as_str() == alias
+        })
         .unwrap();
     assert_eq!(replacement.baseline(), old.selected().key());
     assert_ne!(replacement.baseline(), replacement.candidate());

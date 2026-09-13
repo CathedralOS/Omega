@@ -1,7 +1,7 @@
 use super::ResolvePackageSourceError;
 use crate::declarations::PackageName;
 use crate::declarations::dependencies::read::{
-    DependencyProjectionError, ProjectedDependencies, extract_build_dependency_projection,
+    DependencyProjectionError, DependencyProjections, extract_build_dependency_projection,
 };
 use crate::declarations::roles::{BuildDeclaration, BuildDeclarationError, BuildDeclarationKind};
 use std::path::Path;
@@ -13,7 +13,7 @@ use std::path::Path;
 pub(super) struct ProjectedPackageBuild {
     pub(super) name: PackageName,
     pub(super) role: BuildDeclarationKind,
-    pub(super) dependencies: ProjectedDependencies,
+    pub(super) dependencies: DependencyProjections,
 }
 
 pub(super) fn project_package_build(

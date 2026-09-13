@@ -100,6 +100,8 @@ fn render_package(
     output.push('\n');
     for step in package.dependency_path.steps() {
         output.push_str("dependency_step ");
+        output.push_str(step.purpose().name());
+        output.push(' ');
         output.push_str(&step.dependency_index().to_string());
         output.push(' ');
         output.push_str(step.alias().as_str());

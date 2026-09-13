@@ -462,7 +462,7 @@ fn changed_api_is_freshly_reported_without_retaining_old_meaning_or_requiring_ap
         assert!(text.contains(&package.resolution().content().to_hex()));
     }
     for alias in ["left", "right", "again", "transitive"] {
-        assert!(text.contains(&format!("-- {alias:?} [dependency ")));
+        assert!(text.contains(&format!("-- {alias:?} [product dependency ")));
     }
 }
 

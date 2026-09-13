@@ -6,18 +6,21 @@ use std::path::Path;
 
 pub(super) const BUILD_FILE_NAME: &str = "build.omg";
 
-/// Project direct dependency declarations from the immutable package root.
+/// Project direct product dependency declarations from the immutable package
+/// root.
 ///
 /// This parses only the root `build.omg`; it does not evaluate build code,
 /// imports, constants, helpers, control flow, or providers. The same parsed
 /// tree must first produce one authoritative package, application, or workspace
-/// declaration; absence is not a second implicit project kind.
+/// declaration; absence is not a second implicit project kind. Build-purpose
+/// requests are projected but not returned by this product-scope helper.
 pub fn extract_dependency_projection(
     package_root: impl AsRef<Path>,
 ) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
     Ok(extract_build_dependency_projection(package_root)?
         .into_parts()
         .1
+        .into_product()
         .into_authored_dependencies())
 }
 
@@ -52,5 +55,6 @@ pub(crate) fn extract_from_source(
     Ok(extract_build_projection_from_source(source)?
         .into_parts()
         .1
+        .into_product()
         .into_authored_dependencies())
 }

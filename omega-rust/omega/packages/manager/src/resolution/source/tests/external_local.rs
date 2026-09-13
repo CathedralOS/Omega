@@ -27,7 +27,7 @@ fn external_local_resolution_uses_declared_name_and_immutable_snapshot() {
         resolved.resolution(),
         ImmutableSourceResolution::ExternalLocal { .. }
     ));
-    assert!(resolved.dependency_requests().is_empty());
+    assert!(resolved.product_dependency_requests().is_empty());
     assert_ne!(
         resolved.snapshot_root(),
         root.canonicalize().expect("canonical live root")

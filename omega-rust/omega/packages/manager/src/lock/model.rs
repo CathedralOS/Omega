@@ -170,7 +170,7 @@ impl PackageLock {
                     .package_dependency_projection(package.key())
                     .ok_or(Error::BaselineCoverage)?;
                 requests = requests
-                    .checked_add(projection.authored_dependencies().len())
+                    .checked_add(projection.authored_request_count())
                     .ok_or(Error::CountLimitExceeded)?;
             }
         }

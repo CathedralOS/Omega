@@ -32,7 +32,7 @@ pub(super) fn source(target: TargetProfile) -> CanonicalSourceClosureSubject {
     );
     let identity = target.identity().as_str();
     let text = format!(
-        "omega-source-closure 1\ntarget \"{identity}\"\nroot\nrole package\nrequest git \"https://github.com/CathedralOS/codec.git\" \"main\"\nselection root\nselected\n{selected}packages 1\npackage\n{selected}navigation root\nauthored 0\nedges 0\nend\n"
+        "omega-source-closure 2\ntarget \"{identity}\"\nroot\nrole package\nrequest git \"https://github.com/CathedralOS/codec.git\" \"main\"\nselection root\nselected\n{selected}packages 1\npackage\n{selected}navigation root\nauthored 0\nauthored-build 0\nedges 0\nend\n"
     );
     let subject = CanonicalSourceClosureSubject::recover_text(&text, Default::default()).unwrap();
     assert_eq!(subject.canonical_text(Default::default()).unwrap(), text);

@@ -1,5 +1,6 @@
 use super::*;
 use crate::declarations::BuildDeclarationKind;
+use crate::declarations::dependencies::read::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey, PackageName};
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
@@ -82,6 +83,7 @@ fn borrowed_source_graph_comparison_excludes_only_target_and_derived_encoding() 
         .dependency_requests
         .push(CanonicalDependencySourceSelection {
             requester: original.packages[0].key().clone(),
+            purpose: DependencyPurpose::Product,
             dependency_index: 0,
             request: CanonicalDependencySourceRequest::Path {
                 explicit_alias: None,
@@ -188,6 +190,7 @@ fn readable_source_subject_preserves_named_git_member_requests_and_aliases() {
     let alias = AliasName::parse("codec_alias").unwrap();
     let selected_dependency = CanonicalDependencySourceSelection {
         requester: root.key().clone(),
+        purpose: DependencyPurpose::Product,
         dependency_index: 0,
         request: CanonicalDependencySourceRequest::Git {
             explicit_alias: Some(alias.clone()),
@@ -425,6 +428,7 @@ fn git_package_selection_is_canonical_request_custody_not_package_identity() {
     let child = git_source("child", "workspace", 1);
     let request = |selection| CanonicalDependencySourceSelection {
         requester: root.key().clone(),
+        purpose: DependencyPurpose::Product,
         dependency_index: 0,
         request: CanonicalDependencySourceRequest::Git {
             explicit_alias: None,
@@ -498,6 +502,7 @@ fn request_and_edge_disagreement_reject_before_encoding() {
     let child = git_source("child", "child", 2);
     let request = CanonicalDependencySourceSelection {
         requester: root.key().clone(),
+        purpose: DependencyPurpose::Product,
         dependency_index: 0,
         request: CanonicalDependencySourceRequest::Git {
             explicit_alias: None,
@@ -527,6 +532,7 @@ fn missing_ordinals_and_open_graphs_reject() {
     let child = git_source("child", "child", 2);
     let request = |dependency_index| CanonicalDependencySourceSelection {
         requester: root.key().clone(),
+        purpose: DependencyPurpose::Product,
         dependency_index,
         request: CanonicalDependencySourceRequest::Git {
             explicit_alias: None,
@@ -647,6 +653,7 @@ fn noncanonical_unreachable_and_cyclic_package_state_rejects() {
                    selected: &ResolvedSourceIdentity,
                    repository: &str| CanonicalDependencySourceSelection {
         requester: requester.key().clone(),
+        purpose: DependencyPurpose::Product,
         dependency_index: 0,
         request: CanonicalDependencySourceRequest::Git {
             explicit_alias: None,
@@ -670,5 +677,182 @@ fn noncanonical_unreachable_and_cyclic_package_state_rejects() {
     assert_eq!(
         error.message(),
         "source-closure subject does not form one closed reachable acyclic graph"
+    );
+}
+
+#[test]
+fn dual_purpose_edges_round_trip_through_binary_and_text() {
+    let limits = CanonicalSourceClosureSubjectLimits::default();
+    let application = git_source("application", "application", 1);
+    let host = git_source("host-tool", "host-tool", 2);
+    let product = git_source("product-lib", "product-lib", 3);
+    let edge =
+        |purpose: DependencyPurpose,
+         dependency_index: usize,
+         repository: &str,
+         selected: &ResolvedSourceIdentity| CanonicalDependencySourceSelection {
+            requester: application.key().clone(),
+            purpose,
+            dependency_index,
+            request: CanonicalDependencySourceRequest::Git {
+                explicit_alias: None,
+                repository: repository.to_owned(),
+                revision: "main".to_owned(),
+                selection: crate::declarations::PackageSelection::Root,
+            },
+            alias: selected.key().name().default_alias(),
+            selected: selected.clone(),
+        };
+    let original = finish(
+        root_git_selection(
+            "https://github.com/CathedralOS/application.git",
+            &application,
+        ),
+        vec![application.clone(), host.clone(), product.clone()],
+        vec![
+            edge(
+                DependencyPurpose::Product,
+                0,
+                "https://github.com/CathedralOS/product-lib.git",
+                &product,
+            ),
+            edge(
+                DependencyPurpose::Build,
+                0,
+                "https://github.com/CathedralOS/host-tool.git",
+                &host,
+            ),
+        ],
+        limits,
+    )
+    .expect("dual-purpose subject finishes");
+
+    assert_eq!(
+        CanonicalSourceClosureSubject::recover(original.canonical_bytes(), limits)
+            .expect("binary v7 round-trips"),
+        original
+    );
+    let text = original.canonical_text(limits).expect("encode text v2");
+    assert!(text.contains("omega-source-closure 2"));
+    assert!(text.contains("authored-build 1"));
+    assert!(text.contains("purpose \"build\""));
+    assert_eq!(
+        CanonicalSourceClosureSubject::recover_text(&text, limits).expect("text v2 round-trips"),
+        original
+    );
+    assert_eq!(
+        original
+            .dependency_requests()
+            .iter()
+            .map(|edge| edge.purpose())
+            .collect::<Vec<_>>(),
+        [DependencyPurpose::Product, DependencyPurpose::Build]
+    );
+}
+
+#[test]
+fn version_one_text_decodes_as_product_only_and_reencodes_as_version_two() {
+    let limits = CanonicalSourceClosureSubjectLimits::default();
+    let application = git_source("application", "application", 1);
+    let product = git_source("product-lib", "product-lib", 2);
+    let original = finish(
+        root_git_selection(
+            "https://github.com/CathedralOS/application.git",
+            &application,
+        ),
+        vec![application.clone(), product.clone()],
+        vec![CanonicalDependencySourceSelection {
+            requester: application.key().clone(),
+            purpose: DependencyPurpose::Product,
+            dependency_index: 0,
+            request: CanonicalDependencySourceRequest::Git {
+                explicit_alias: None,
+                repository: "https://github.com/CathedralOS/product-lib.git".to_owned(),
+                revision: "main".to_owned(),
+                selection: crate::declarations::PackageSelection::Root,
+            },
+            alias: product.key().name().default_alias(),
+            selected: product.clone(),
+        }],
+        limits,
+    )
+    .expect("product-only subject finishes");
+    let version_two = original.canonical_text(limits).expect("encode text v2");
+    let version_one = version_two
+        .replacen("omega-source-closure 2", "omega-source-closure 1", 1)
+        .replace("authored-build 0\n", "")
+        .replace("purpose \"product\"\n", "");
+    assert_ne!(version_one, version_two);
+
+    let recovered = CanonicalSourceClosureSubject::recover_text(&version_one, limits)
+        .expect("the versioned migration decodes product-only records");
+    assert_eq!(recovered, original);
+    assert_eq!(recovered.canonical_bytes(), original.canonical_bytes());
+    assert_eq!(
+        recovered.canonical_text(limits).unwrap(),
+        version_two,
+        "a migrated record re-encodes in the current format"
+    );
+
+    // Version-1 records cannot express build scope: a record smuggling a
+    // purpose row rejects rather than silently gaining build authority.
+    let smuggled = version_one.replacen("ordinal 0\n", "purpose \"build\"\nordinal 0\n", 1);
+    assert!(CanonicalSourceClosureSubject::recover_text(&smuggled, limits).is_err());
+}
+
+#[test]
+fn build_edges_beyond_the_root_reject_in_the_canonical_subject() {
+    let limits = CanonicalSourceClosureSubjectLimits::default();
+    let application = git_source("application", "application", 1);
+    let host = git_source("host-tool", "host-tool", 2);
+    let nested = git_source("nested-host", "nested-host", 3);
+    let root_selection = root_git_selection(
+        "https://github.com/CathedralOS/application.git",
+        &application,
+    );
+    let edge =
+        |purpose: DependencyPurpose,
+         dependency_index: usize,
+         requester: &ResolvedSourceIdentity,
+         repository: &str,
+         selected: &ResolvedSourceIdentity| CanonicalDependencySourceSelection {
+            requester: requester.key().clone(),
+            purpose,
+            dependency_index,
+            request: CanonicalDependencySourceRequest::Git {
+                explicit_alias: None,
+                repository: repository.to_owned(),
+                revision: "main".to_owned(),
+                selection: crate::declarations::PackageSelection::Root,
+            },
+            alias: selected.key().name().default_alias(),
+            selected: selected.clone(),
+        };
+
+    let error = finish(
+        root_selection.clone(),
+        vec![application.clone(), host.clone(), nested.clone()],
+        vec![
+            edge(
+                DependencyPurpose::Product,
+                0,
+                &application,
+                "https://github.com/CathedralOS/host-tool.git",
+                &host,
+            ),
+            edge(
+                DependencyPurpose::Build,
+                0,
+                &host,
+                "https://github.com/CathedralOS/nested-host.git",
+                &nested,
+            ),
+        ],
+        limits,
+    )
+    .unwrap_err();
+    assert_eq!(
+        error.message(),
+        "build dependency edge is not authorized by the root build context"
     );
 }

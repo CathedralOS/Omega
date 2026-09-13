@@ -119,9 +119,14 @@ pub(super) fn source_replacement(
     field(&mut hash, &context.digest());
     match site {
         PackagePolicyReplacementSite::Root => hash.update([0]),
-        PackagePolicyReplacementSite::Dependency { requester, alias } => {
+        PackagePolicyReplacementSite::Dependency {
+            requester,
+            purpose,
+            alias,
+        } => {
             hash.update([1]);
             field(&mut hash, &requester.identity().digest());
+            hash.update([u8::from(!purpose.is_product())]);
             field(&mut hash, alias.as_str().as_bytes());
         }
     }
@@ -148,6 +153,7 @@ fn path(hash: &mut Sha256, value: Option<&PackagePolicyDependencyPath>) {
         hash.update((value.steps.len() as u64).to_le_bytes());
         for step in &value.steps {
             field(hash, &step.requester.digest());
+            hash.update([u8::from(!step.purpose.is_product())]);
             hash.update((step.dependency_index as u64).to_le_bytes());
             field(hash, step.alias.as_bytes());
             field(hash, &step.target.digest());

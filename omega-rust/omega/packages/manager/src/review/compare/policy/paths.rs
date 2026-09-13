@@ -115,6 +115,7 @@ impl<'a> Paths<'a> {
             alias.push_str(edge.alias().as_str());
             steps.push(PackagePolicyDependencyPathStep {
                 requester: edge.requester().identity(),
+                purpose: edge.purpose(),
                 dependency_index: edge.dependency_index(),
                 alias,
                 target: edge.selected().key().identity(),

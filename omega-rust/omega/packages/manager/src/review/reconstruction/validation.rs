@@ -111,7 +111,9 @@ fn validate_ledger_source_closure(
     let mut expected_dependencies = source_closure
         .dependency_requests()
         .iter()
-        .filter(|dependency| reachable.contains(dependency.requester()))
+        .filter(|dependency| {
+            dependency.purpose().is_product() && reachable.contains(dependency.requester())
+        })
         .map(|dependency| {
             (
                 dependency.requester().identity(),
@@ -155,7 +157,9 @@ fn reachable_source_packages(
             source_closure
                 .dependency_requests()
                 .iter()
-                .filter(|dependency| dependency.requester() == &package)
+                .filter(|dependency| {
+                    dependency.purpose().is_product() && dependency.requester() == &package
+                })
                 .map(|dependency| dependency.selected().key().clone()),
         );
     }

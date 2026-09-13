@@ -10,7 +10,7 @@ use super::model::{
 };
 use super::resolved_closure::ResolvedPackageSourceClosure;
 use crate::declarations::BuildDeclarationKind;
-use crate::declarations::dependencies::read::DependencySourceRequest;
+use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
 use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::graph::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
@@ -22,6 +22,7 @@ enum CustodyOrigin {
     Root,
     Dependency {
         requester: PackageKey,
+        purpose: DependencyPurpose,
         dependency_index: usize,
         alias: AliasName,
     },
@@ -71,12 +72,13 @@ where
         root_request,
         root,
         limits,
-        |requester, _, request| resolve_dependency(requester, request),
+        |requester, _, _, request| resolve_dependency(requester, request),
     )
 }
 
-/// The same custody traversal with the exact requester-owned authored ordinal.
-/// Locked recovery uses this coordinate to join distinct request occurrences.
+/// The same custody traversal with the exact requester-owned authored
+/// coordinate. Locked recovery uses `(purpose, index)` to join distinct
+/// request occurrences.
 pub(crate) fn resolve_package_source_closure_with_indexed_limits<E, F>(
     root_request: PackageRootSourceRequest,
     root: PackageSourceCustody,
@@ -86,6 +88,7 @@ pub(crate) fn resolve_package_source_closure_with_indexed_limits<E, F>(
 where
     F: FnMut(
         &PackageSourceCustody,
+        DependencyPurpose,
         usize,
         &DependencySourceRequest,
     ) -> Result<PackageSourceCustody, E>,
@@ -121,65 +124,104 @@ where
             .expect("only accepted package custody enters the traversal queue")
             .clone();
         let requester_depth = depths[&requester_key];
-        let mut selected_dependencies = Vec::with_capacity(requester.dependency_requests().len());
 
-        for (dependency_index, request) in requester.dependency_requests().iter().enumerate() {
-            dependency_request_count = dependency_request_count.saturating_add(1);
-            if dependency_request_count > limits.max_dependency_requests {
-                return Err(PackageSourceClosureResolutionError::LimitExceeded {
-                    kind: PackageSourceClosureLimitKind::DependencyRequests,
-                    limit: limits.max_dependency_requests,
-                });
-            }
-            let dependency_depth = requester_depth.saturating_add(1);
-            if dependency_depth > limits.max_depth {
-                return Err(PackageSourceClosureResolutionError::LimitExceeded {
-                    kind: PackageSourceClosureLimitKind::Depth,
-                    limit: limits.max_depth,
-                });
-            }
-            let dependency =
-                resolve_dependency(&requester, dependency_index, request).map_err(|error| {
-                    PackageSourceClosureResolutionError::Adapter {
+        // Host build inputs are selected only by the root build context. A
+        // non-root package's authored build rows have no host-of-host
+        // interpretation and are rejected rather than silently ignored.
+        if requester_key != root_key {
+            let build_rows = requester.build_dependency_requests().len();
+            if build_rows != 0 {
+                return Err(
+                    PackageSourceClosureResolutionError::UnsupportedBuildDependencies {
                         requester: requester_key.clone(),
+                        authored_rows: build_rows,
+                    },
+                );
+            }
+        }
+
+        let mut selected_dependencies =
+            Vec::with_capacity(requester.dependency_projections().authored_request_count());
+
+        for purpose in DependencyPurpose::ALL {
+            for (dependency_index, request) in
+                requester.dependency_requests(purpose).iter().enumerate()
+            {
+                dependency_request_count = dependency_request_count.saturating_add(1);
+                if dependency_request_count > limits.max_dependency_requests {
+                    return Err(PackageSourceClosureResolutionError::LimitExceeded {
+                        kind: PackageSourceClosureLimitKind::DependencyRequests,
+                        limit: limits.max_dependency_requests,
+                    });
+                }
+                let dependency_depth = requester_depth.saturating_add(1);
+                if dependency_depth > limits.max_depth {
+                    return Err(PackageSourceClosureResolutionError::LimitExceeded {
+                        kind: PackageSourceClosureLimitKind::Depth,
+                        limit: limits.max_depth,
+                    });
+                }
+                let dependency = resolve_dependency(&requester, purpose, dependency_index, request)
+                    .map_err(|error| PackageSourceClosureResolutionError::Adapter {
+                        requester: requester_key.clone(),
+                        purpose,
                         dependency_index,
                         request: request.clone(),
                         error,
-                    }
-                })?;
-            if dependency.role() != BuildDeclarationKind::Package {
-                return Err(PackageSourceClosureResolutionError::InvalidDependencyRole {
-                    requester: requester_key.clone(),
+                    })?;
+                if dependency.role() != BuildDeclarationKind::Package {
+                    return Err(PackageSourceClosureResolutionError::InvalidDependencyRole {
+                        requester: requester_key.clone(),
+                        purpose,
+                        dependency_index,
+                        selected: dependency.key().clone(),
+                        role: dependency.role(),
+                    });
+                }
+                let alias = request.resolved_alias(dependency.key().name());
+                selected_dependencies.push((
+                    purpose,
                     dependency_index,
-                    selected: dependency.key().clone(),
-                    role: dependency.role(),
-                });
+                    dependency,
+                    alias,
+                    dependency_depth,
+                ));
             }
-            let alias = request.resolved_alias(dependency.key().name());
-            selected_dependencies.push((dependency_index, dependency, alias, dependency_depth));
         }
 
-        let selected_package_names = selected_dependencies
-            .iter()
-            .map(|(_, dependency, _, _)| dependency.key().name().clone())
-            .collect::<Vec<_>>();
-        requester
-            .projected_dependencies()
-            .validate_aliases(&selected_package_names)
-            .map_err(
-                |error| PackageSourceClosureResolutionError::InvalidAliases {
-                    requester: requester_key.clone(),
-                    error,
-                },
-            )?;
+        for purpose in DependencyPurpose::ALL {
+            let selected_package_names = selected_dependencies
+                .iter()
+                .filter(|(edge_purpose, _, _, _, _)| *edge_purpose == purpose)
+                .map(|(_, _, dependency, _, _)| dependency.key().name().clone())
+                .collect::<Vec<_>>();
+            requester
+                .dependency_projections()
+                .validate_aliases(purpose, &selected_package_names)
+                .map_err(
+                    |error| PackageSourceClosureResolutionError::InvalidAliases {
+                        requester: requester_key.clone(),
+                        purpose,
+                        error,
+                    },
+                )?;
+        }
 
         let mut resolved_dependencies = Vec::with_capacity(selected_dependencies.len());
-        for (dependency_index, dependency, alias, dependency_depth) in selected_dependencies {
+        for (purpose, dependency_index, dependency, alias, dependency_depth) in
+            selected_dependencies
+        {
             let target = dependency.key().clone();
-            resolved_dependencies.push(ResolvedDependency::new(alias.clone(), target.clone()));
+            resolved_dependencies.push(ResolvedDependency::new(
+                purpose,
+                dependency_index,
+                alias.clone(),
+                target.clone(),
+            ));
 
             let origin = CustodyOrigin::Dependency {
                 requester: requester_key.clone(),
+                purpose,
                 dependency_index,
                 alias,
             };
@@ -289,6 +331,7 @@ fn paths_for_origin(
         }],
         CustodyOrigin::Dependency {
             requester,
+            purpose,
             dependency_index,
             alias,
         } => {
@@ -296,6 +339,7 @@ fn paths_for_origin(
             for path in &mut requester_paths {
                 path.steps.push(DependencyRequestPathStep {
                     requester: requester.clone(),
+                    purpose: *purpose,
                     dependency_index: *dependency_index,
                     alias: alias.clone(),
                     target: target.clone(),
@@ -352,16 +396,19 @@ fn collect_paths(
 
     if let Some(outgoing) = dependencies.get(current) {
         debug_assert_eq!(
-            custodies[current].dependency_requests().len(),
+            custodies[current]
+                .dependency_projections()
+                .authored_request_count(),
             outgoing.len()
         );
-        for (dependency_index, dependency) in outgoing.iter().enumerate() {
+        for dependency in outgoing {
             if active.contains(dependency.target()) {
                 continue;
             }
             steps.push(DependencyRequestPathStep {
                 requester: current.clone(),
-                dependency_index,
+                purpose: dependency.purpose(),
+                dependency_index: dependency.dependency_index(),
                 alias: dependency.alias().clone(),
                 target: dependency.target().clone(),
             });

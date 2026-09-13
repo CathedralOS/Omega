@@ -3,7 +3,7 @@
 use super::super::{ResolvedPackageClosure, ResolvedSourceIdentity};
 use super::model::{DependencyRequestPath, DependencyRequestPathStep};
 use crate::declarations::BuildDeclarationKind;
-use crate::declarations::dependencies::read::DependencySourceRequest;
+use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
 use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::graph::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
@@ -69,6 +69,7 @@ impl<'a> ResolvedRootPackageSourceRequest<'a> {
 #[derive(Debug, Clone, Copy)]
 pub struct ResolvedDependencySourceRequest<'a> {
     requester: &'a PackageKey,
+    purpose: DependencyPurpose,
     dependency_index: usize,
     request: &'a DependencySourceRequest,
     alias: &'a AliasName,
@@ -80,7 +81,14 @@ impl<'a> ResolvedDependencySourceRequest<'a> {
         self.requester
     }
 
-    pub fn dependency_index(&self) -> usize {
+    /// Which authorized context this request occurrence belongs to.
+    pub const fn purpose(&self) -> DependencyPurpose {
+        self.purpose
+    }
+
+    /// Zero-based position in the requester's authored rows for this edge's
+    /// purpose scope.
+    pub const fn dependency_index(&self) -> usize {
         self.dependency_index
     }
 
@@ -129,25 +137,25 @@ impl<'a> ResolvedPackageSourceRequestSet<'a> {
                 .expect("every validated graph package has source custody");
             debug_assert_eq!(
                 requester.dependencies().len(),
-                custody.dependency_requests().len()
+                custody.dependency_projections().authored_request_count()
             );
-            requester.dependencies().iter().enumerate().map(
-                move |(dependency_index, dependency)| {
-                    let request = &custody.dependency_requests()[dependency_index];
-                    let selected = closure
-                        .graph
-                        .package(dependency.target())
-                        .expect("validated dependency edge has a target package")
-                        .source();
-                    ResolvedDependencySourceRequest {
-                        requester: requester_key,
-                        dependency_index,
-                        request,
-                        alias: dependency.alias(),
-                        selected,
-                    }
-                },
-            )
+            requester.dependencies().iter().map(move |dependency| {
+                let request = &custody.dependency_requests(dependency.purpose())
+                    [dependency.dependency_index()];
+                let selected = closure
+                    .graph
+                    .package(dependency.target())
+                    .expect("validated dependency edge has a target package")
+                    .source();
+                ResolvedDependencySourceRequest {
+                    requester: requester_key,
+                    purpose: dependency.purpose(),
+                    dependency_index: dependency.dependency_index(),
+                    request,
+                    alias: dependency.alias(),
+                    selected,
+                }
+            })
         })
     }
 }
@@ -219,9 +227,9 @@ impl ResolvedPackageSourceClosure {
                 .expect("validated graph package retains source custody");
             debug_assert_eq!(
                 node.dependencies().len(),
-                custody.dependency_requests().len()
+                custody.dependency_projections().authored_request_count()
             );
-            for (dependency_index, dependency) in node.dependencies().iter().enumerate() {
+            for dependency in node.dependencies() {
                 if !visited.insert(dependency.target().clone()) {
                     continue;
                 }
@@ -229,7 +237,8 @@ impl ResolvedPackageSourceClosure {
                     dependency.target().clone(),
                     DependencyRequestPathStep {
                         requester: requester.clone(),
-                        dependency_index,
+                        purpose: dependency.purpose(),
+                        dependency_index: dependency.dependency_index(),
                         alias: dependency.alias().clone(),
                         target: dependency.target().clone(),
                     },

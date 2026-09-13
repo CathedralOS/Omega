@@ -13,7 +13,7 @@ use super::super::{
     PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
 use crate::declarations::PackageKey;
-use crate::declarations::dependencies::read::DependencySourceRequest;
+use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
 use crate::resolution::source::{PackageSourceCustody, ResolvePackageSourceError};
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{
@@ -145,7 +145,9 @@ fn resolve(
             root_request.clone(),
             root,
             closure_limits,
-            |requester, ordinal, request| resolver.dependency(requester, ordinal, request),
+            |requester, purpose, ordinal, request| {
+                resolver.dependency(requester, purpose, ordinal, request)
+            },
         )
         .map_err(|error| ResolveLockedPackageClosureError::Closure(Box::new(error)))?;
         let matches = match root_policy {
@@ -189,10 +191,18 @@ impl Resolver<'_> {
     fn dependency(
         &mut self,
         requester: &PackageSourceCustody,
+        purpose: DependencyPurpose,
         ordinal: usize,
         request: &DependencySourceRequest,
     ) -> Result<PackageSourceCustody, ResolveLockedPackageClosureError> {
-        let edge = comparison::edge(self.subject, requester, ordinal, request, self.root_policy)?;
+        let edge = comparison::edge(
+            self.subject,
+            requester,
+            purpose,
+            ordinal,
+            request,
+            self.root_policy,
+        )?;
         let selected = match request {
             DependencySourceRequest::Git {
                 repository,
