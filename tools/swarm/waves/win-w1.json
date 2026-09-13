@@ -1,0 +1,81 @@
+{
+  "wave": "win-w1",
+  "max_acu_limit": 10,
+  "devin_mode": "fusion",
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "win-w1"],
+  "owner_label_prefix": "Jarod / win-w1",
+  "exclusions": [
+    "SQUALR-HEADLESS",
+    "FRAME-LAYOUT",
+    "RUNTIME-VALUE-GENERICS"
+  ],
+  "sessions": [
+    {
+      "name": "float-providers",
+      "board": "TASKS.md",
+      "item": "FLOAT-PROVIDERS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/compiler/compiler/tests/canary_suite/providers_float_and_console",
+        "tests/omega/pass/float"
+      ],
+      "suggested_first_slice": "Complete one runtime Boolean or machine operation for exact FloatMeaning with an artifact-aware proof source and focused canary."
+    },
+    {
+      "name": "borrow-proof-convergence",
+      "board": "TASKS.md",
+      "item": "BORROW-PROOF-CONVERGENCE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/validation/src/places.rs",
+        "omega-rust/psi/semantics/validation/src/slice_ranking.rs"
+      ],
+      "suggested_first_slice": "Extend one ordinary borrow-checking range proof beyond exact shared immutable slices without creating or amplifying authority."
+    },
+    {
+      "name": "opaque-boundary-abi",
+      "board": "TASKS.md",
+      "item": "OPAQUE-BY-VALUE-BOUNDARY-ABI",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/provider-planning/src/calling_policy_plans/opaque_representations.rs",
+        "omega-rust/omega/representations/boundary-applications/src/realization.rs",
+        "omega-rust/omega/representations/installation-evidence/src/lib.rs"
+      ],
+      "suggested_first_slice": "Complete one independently compiled opaque by-value representation agreement and rejoin its consumer demands to the producer declarations."
+    },
+    {
+      "name": "stdlib-bindings",
+      "board": "TASKS.md",
+      "item": "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/package-compilation/src/semantic_bindings.rs",
+        "omega-rust/omega/compiler/compiler/src/pipeline/package"
+      ],
+      "suggested_first_slice": "Finish one package-aware ordinary std dependency edge while preserving freestanding builds and explicit semantic bindings."
+    },
+    {
+      "name": "declarative-peepholes",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "DECLARATIVE-PEEPHOLES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites"
+      ],
+      "suggested_first_slice": "Generalize one symbolic instruction-pair descriptor to physical register units, effects, traps, memory, stack, or control flow while preserving the independent validator."
+    },
+    {
+      "name": "generated-differentials",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "GENERATED-DIFFERENTIALS",
+      "host": "linux",
+      "owning_paths": [
+        "tests/native-differential/tests/optimizer_corpus"
+      ],
+      "suggested_first_slice": "Add one new float, trap, atomic, or placed-memory differential lane replayed deterministically against the reference interpreter on Linux x86-64."
+    }
+  ]
+}
