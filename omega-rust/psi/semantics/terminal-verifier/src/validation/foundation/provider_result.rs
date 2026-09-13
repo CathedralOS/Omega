@@ -29,7 +29,7 @@ pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &Termina
                 && candidate.contract.requires.is_empty()
                 && candidate.contract.ensures.is_empty()
                 && candidate.contract.outcome_specific_ensures.is_empty()
-                && candidate.contract.crash_routes.is_empty()
+                && super::super::crash::provider_crash_routes_refine_boundary(boundary, candidate)
         }
         _ => false,
     }
