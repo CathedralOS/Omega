@@ -1248,6 +1248,18 @@ Owners include
   established. Explicit arguments alone do not establish all callee reads;
   preserved numeric captures must remain independent of subsequent source writes.
 
+  First slice landed at 300c9b4760: `slice_tail_strictly_decreases`
+  (`omega-rust/psi/semantics/validation/src/slice_ranking.rs`) now routes the
+  tail start and `len` guard bound through the shared immutable-integer-bound
+  normalization, admitting `param[k..]` (literal or immutable local copy,
+  `k >= 1`) when the guard proves `len >= k` — `entries[step..]` under
+  `entries.len >= step` with `let step: u64 = 2` compiles via
+  `mbx run -p omega -- --check` on Windows. The borrow-overlap selector proof
+  (`checks/borrows/overlap/indexes.rs`) still orders only literal and
+  same-symbol boundaries, and `place_segments_containment` remains
+  fixed-range/structural. Next slice: carry the same normalized-bound ordering
+  into borrow-compatibility places, then explicit compatibility theorems.
+
 - **CALLBACK-PARAMETER-REQUIREMENT.** Checked admission of the nominal
   `where machine Selected satisfies Trait::requirement` binder is pinned by
   `tests/omega/pass/generics/nominal_machine_parameter_satisfaction_compile`
