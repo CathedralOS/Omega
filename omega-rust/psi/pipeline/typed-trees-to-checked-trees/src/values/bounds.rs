@@ -14,8 +14,12 @@ mod tests;
 pub(crate) use sources::PlaceIntegerBounds;
 
 pub(crate) trait IntegerBoundsSource {
-    fn binding(&mut self, position: usize) -> Option<IntegerRange>;
-    fn storage(&mut self, symbol: SymbolHandle) -> Option<IntegerRange>;
+    fn binding(&mut self, position: usize, primitive_type: PrimitiveType) -> Option<IntegerRange>;
+    fn storage(
+        &mut self,
+        symbol: SymbolHandle,
+        primitive_type: PrimitiveType,
+    ) -> Option<IntegerRange>;
     fn structural_field(
         &mut self,
         position: u32,
@@ -52,11 +56,11 @@ fn integer(
         | Expression::Local {
             position,
             primitive_type,
-        } => (*primitive_type, source.binding(*position)?),
+        } => (*primitive_type, source.binding(*position, *primitive_type)?),
         Expression::StorageRead {
             symbol,
             primitive_type,
-        } => (*primitive_type, source.storage(*symbol)?),
+        } => (*primitive_type, source.storage(*symbol, *primitive_type)?),
         Expression::StructuralParameterField {
             parameter_position,
             path,

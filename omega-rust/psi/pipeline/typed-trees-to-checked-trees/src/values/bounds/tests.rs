@@ -3,12 +3,12 @@ use super::*;
 struct Bounds(Vec<IntegerRange>);
 
 impl IntegerBoundsSource for Bounds {
-    fn binding(&mut self, position: usize) -> Option<IntegerRange> {
+    fn binding(&mut self, position: usize, _: PrimitiveType) -> Option<IntegerRange> {
         self.0.get(position).cloned()
     }
 
-    fn storage(&mut self, _: SymbolHandle) -> Option<IntegerRange> {
-        self.binding(0)
+    fn storage(&mut self, _: SymbolHandle, primitive_type: PrimitiveType) -> Option<IntegerRange> {
+        self.binding(0, primitive_type)
     }
 
     fn structural_field(
@@ -16,7 +16,7 @@ impl IntegerBoundsSource for Bounds {
         _: u32,
         _: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<IntegerRange> {
-        self.binding(0)
+        self.binding(0, PrimitiveType::U8)
     }
 
     fn indexed_field(
@@ -25,7 +25,7 @@ impl IntegerBoundsSource for Bounds {
         _: &[CheckedStructuralPredicatePathSegment],
         _: Option<&IntegerRange>,
     ) -> Option<IntegerRange> {
-        self.binding(0)
+        self.binding(0, PrimitiveType::U8)
     }
 }
 
