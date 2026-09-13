@@ -28,7 +28,7 @@ pub use model::{
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
     ReviewedPackageProductionCandidate,
 };
-pub use rows::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
+pub use rows::ReviewOnlySourceConsumptionCommitment;
 pub use semantic_bindings::{
     ConsumerScopedSemanticBindingReviewInput, SemanticBindingReviewCandidate,
 };

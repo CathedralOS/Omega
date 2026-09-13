@@ -1,7 +1,9 @@
 //! Highest changed-row risk used by review triage.
 
-use crate::review::candidate::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
-use package_evidence::record::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
+use crate::review::candidate::PackageReviewEvidence;
+use package_evidence::record::{
+    PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
+};
 use std::cmp::Ordering;
 
 /// Highest policy risk among changed canonical rows. A whole-review change
@@ -45,8 +47,8 @@ pub(crate) fn changed_review_risk(
             continue;
         }
         let row_risk = merge_risk(
-            baseline_row.map(ReviewOnlyCanonicalRow::risk),
-            candidate_row.map(ReviewOnlyCanonicalRow::risk),
+            baseline_row.map(PackageReviewCanonicalRow::risk),
+            candidate_row.map(PackageReviewCanonicalRow::risk),
         );
         changed = Some(merge_risk(changed, Some(row_risk)));
     }
@@ -59,7 +61,7 @@ pub(crate) fn changed_review_risk(
     }
 }
 
-fn row_coordinate(row: &ReviewOnlyCanonicalRow) -> (PackageReviewCanonicalRowKind, &[u8]) {
+fn row_coordinate(row: &PackageReviewCanonicalRow) -> (PackageReviewCanonicalRowKind, &[u8]) {
     (row.kind(), row.key_bytes())
 }
 

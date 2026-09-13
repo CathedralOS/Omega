@@ -21,7 +21,7 @@ use super::ledger::{
     MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES, reserve_retained_obligation_ledger_bytes,
     retained_obligation_ledger_bytes,
 };
-use super::rows::ReviewOnlyCanonicalRow;
+use super::rows::RetainedReviewRows;
 use super::semantic_bindings::{
     ConsumerScopedSemanticBindingReviewInput, candidate_semantic_binding_inputs,
     candidate_service_bindings, semantic_bindings_by_consumer,
@@ -469,10 +469,6 @@ fn compile_resolved_package_reviews_in_session(
                 maximum_bytes: MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES,
             }
         })?;
-        let comparison_rows = canonical_rows
-            .iter()
-            .map(ReviewOnlyCanonicalRow::from_compiler_issued)
-            .collect();
         let package_position = closure
             .graph()
             .package_position(&key)
@@ -491,10 +487,9 @@ fn compile_resolved_package_reviews_in_session(
             projection,
             policy,
             canonical_review_bytes,
-            canonical_rows,
+            canonical_rows: RetainedReviewRows(canonical_rows),
             obligations,
             obligation_results,
-            comparison_rows,
         });
         if retained_root_entry.is_some() && &key == closure.graph().root() {
             checked_root = Some(Box::new(checked));

@@ -1,4 +1,4 @@
-use super::rows::ReviewOnlyCanonicalRow;
+use super::rows::RetainedReviewRows;
 use crate::declarations::PackageKey;
 use build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
 use package_compilation::{
@@ -32,10 +32,9 @@ pub struct CompilerIssuedPackageReview {
     pub(super) projection: CheckedPackageReviewProjection,
     pub(super) policy: package_evidence::record::PackagePolicyBaseline,
     pub(super) canonical_review_bytes: Vec<u8>,
-    pub(super) canonical_rows: Vec<PackageReviewCanonicalRow>,
+    pub(super) canonical_rows: RetainedReviewRows,
     pub(super) obligations: OrdinaryPackageObligationLedger,
     pub(super) obligation_results: OrdinaryPackageObligationResultSet,
-    pub(super) comparison_rows: Vec<ReviewOnlyCanonicalRow>,
 }
 
 impl CompilerIssuedPackageReview {
@@ -107,7 +106,7 @@ impl CompilerIssuedPackageReview {
     }
 
     pub fn canonical_rows(&self) -> &[PackageReviewCanonicalRow] {
-        &self.canonical_rows
+        &self.canonical_rows.0
     }
 
     /// Exact schema-bound replay question reconstructed from this package's
@@ -122,10 +121,6 @@ impl CompilerIssuedPackageReview {
     /// supplies remain explicitly open; this is not admission.
     pub const fn obligation_results(&self) -> &OrdinaryPackageObligationResultSet {
         &self.obligation_results
-    }
-
-    pub(crate) fn comparison_rows(&self) -> &[ReviewOnlyCanonicalRow] {
-        &self.comparison_rows
     }
 }
 

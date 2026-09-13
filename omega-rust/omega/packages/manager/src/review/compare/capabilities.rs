@@ -7,12 +7,13 @@ use super::model::*;
 use super::resources::{ComparisonInputBudget, account_review_resources};
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{DependencyRequestPath, ExactTargetPackageSourceClosure};
+use crate::review::candidate::PackageReviewEvidence;
 use crate::review::candidate::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
     validate_review_only_records,
 };
-use crate::review::candidate::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
+use package_evidence::record::PackageReviewCanonicalRow;
 use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
@@ -314,8 +315,8 @@ fn compare_rows<B: PackageReviewEvidence, C: PackageReviewEvidence>(
             (None, None) => unreachable!("row-key union contains at least one row"),
         };
         let risk = merge_risk(
-            baseline_row.map(ReviewOnlyCanonicalRow::risk),
-            candidate_row.map(ReviewOnlyCanonicalRow::risk),
+            baseline_row.map(PackageReviewCanonicalRow::risk),
+            candidate_row.map(PackageReviewCanonicalRow::risk),
         );
         let required_bytes = row_key
             .len()
@@ -481,7 +482,7 @@ fn clone_bytes(bytes: &[u8]) -> Result<Vec<u8>, ReviewOnlyCapabilityConflictErro
     Ok(owned)
 }
 
-fn row_coordinate(row: &ReviewOnlyCanonicalRow) -> (PackageReviewCanonicalRowKind, &[u8]) {
+fn row_coordinate(row: &PackageReviewCanonicalRow) -> (PackageReviewCanonicalRowKind, &[u8]) {
     (row.kind(), row.key_bytes())
 }
 

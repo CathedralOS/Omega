@@ -139,13 +139,28 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     #[test]
     fn run_preserves_non_utf8_paths_but_rejects_non_utf8_target_names() {
         use std::ffi::OsString;
-        use std::os::unix::ffi::OsStringExt;
 
-        let path = OsString::from_vec(b"source-\xff.omg".to_vec());
+        #[cfg(unix)]
+        let path = {
+            use std::os::unix::ffi::OsStringExt;
+            OsString::from_vec(b"source-\xff.omg".to_vec())
+        };
+        #[cfg(windows)]
+        let path = {
+            use std::os::windows::ffi::OsStringExt;
+            OsString::from_wide(&[
+                b's' as u16,
+                0xd800,
+                b'.' as u16,
+                b'o' as u16,
+                b'm' as u16,
+                b'g' as u16,
+            ])
+        };
         let parsed = parse_arguments([path.clone()].into_iter()).unwrap();
         assert_eq!(parsed.main_path.as_os_str(), path);
         assert!(parse_arguments(["--target".into(), path, "main.omg".into()].into_iter()).is_err());

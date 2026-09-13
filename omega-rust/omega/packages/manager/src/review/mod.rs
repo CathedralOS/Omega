@@ -22,7 +22,7 @@ pub use audit::{
 pub use candidate::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompilerIssuedPackageReviewSet, ConsumerScopedSemanticBindingReviewInput,
-    PackageSourceVerificationPhase, ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
+    PackageSourceVerificationPhase, ReviewOnlySourceConsumptionCommitment,
     ReviewedPackageProductionCandidate, SemanticBindingReviewCandidate,
     compile_resolved_package_candidate_for_production,
     compile_resolved_package_candidate_for_production_with_semantic_bindings,

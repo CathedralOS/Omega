@@ -988,6 +988,26 @@ fn complete_generated_source_bundles_bind_owner_closure_target_and_bytes() {
         12,
         vec![generated],
     );
+    let retained_middle = middle.clone();
+    assert!(std::ptr::eq(
+        middle.dependency_closure(),
+        retained_middle.dependency_closure()
+    ));
+    assert_eq!(
+        middle.sources().as_ptr(),
+        retained_middle.sources().as_ptr()
+    );
+    let independently_built = generated_bundle(
+        &inputs,
+        identity(2),
+        target::TargetProfile::WindowsX64,
+        12,
+        retained_middle.sources().to_vec(),
+    );
+    assert_eq!(
+        middle, independently_built,
+        "equality observes contents, not allocation identity"
+    );
     let leaf = generated_bundle(
         &inputs,
         identity(3),
@@ -1024,6 +1044,87 @@ fn complete_generated_source_bundles_bind_owner_closure_target_and_bytes() {
         b"pub machine generated_value() -> u64 { 17 }\n"
     );
     assert_eq!(retained.digest(), generated_digest);
+    drop(inputs);
+    assert_eq!(retained_middle.sources()[0].digest(), generated_digest);
+}
+
+#[test]
+fn diamond_consumers_share_the_leaf_bundle_without_sharing_admission() {
+    let tree = TempTree::new();
+    let packages = (1..=4)
+        .map(|marker| {
+            PackageSourceBinding::new(
+                identity(marker),
+                format!("package-{marker}"),
+                tree.package(&marker.to_string()),
+            )
+        })
+        .collect::<Vec<_>>();
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        packages.clone(),
+        vec![
+            PackageDependencyBinding::new(identity(1), "left", identity(2)),
+            PackageDependencyBinding::new(identity(1), "right", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(4)),
+            PackageDependencyBinding::new(identity(3), "leaf", identity(4)),
+        ],
+    )
+    .unwrap();
+    let leaf = generated_bundle(
+        &inputs,
+        identity(4),
+        target::TargetProfile::WindowsX64,
+        14,
+        vec![generated_source(
+            b"leaf.omg",
+            b"pub const VALUE: u64 = 17;\n",
+        )],
+    );
+    let mut consumers = Vec::new();
+    for root in [identity(2), identity(3)] {
+        let consumer = PackageCompilationInputs::new_package(
+            root,
+            packages
+                .iter()
+                .filter(|package| [root, identity(4)].contains(&package.identity()))
+                .cloned()
+                .collect(),
+            vec![PackageDependencyBinding::new(root, "leaf", identity(4))],
+        )
+        .unwrap()
+        .with_complete_dependency_generated_sources(vec![leaf.clone()])
+        .unwrap();
+        consumer
+            .validate_dependency_generated_source_target(Some(target::TargetProfile::WindowsX64))
+            .unwrap();
+        assert!(
+            consumer
+                .validate_dependency_generated_source_target(Some(target::TargetProfile::LinuxX64))
+                .is_err()
+        );
+        let retained = consumer
+            .dependency_generated_source_bundles()
+            .next()
+            .unwrap();
+        assert!(std::ptr::eq(
+            retained.dependency_closure(),
+            leaf.dependency_closure()
+        ));
+        assert_eq!(retained.sources().as_ptr(), leaf.sources().as_ptr());
+        consumers.push(consumer);
+    }
+    drop(leaf);
+    drop(consumers.remove(0));
+    assert_eq!(
+        consumers[0]
+            .dependency_generated_source_bundles()
+            .next()
+            .unwrap()
+            .sources()[0]
+            .relative_path(),
+        b"leaf.omg"
+    );
 }
 
 #[test]
