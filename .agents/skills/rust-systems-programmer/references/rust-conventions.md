@@ -25,6 +25,22 @@ and `mod.rs` stub merely to manufacture another level. Use suffixes such as
 exist. Module roots may own cohesive behavior. Neither file length nor directory
 depth is a quota; split where responsibilities diverge, not to meet a size target.
 
+Give an operation-owning library an obvious, domain-named starting file beside
+its Rust wiring when that improves discovery: for example, `package_manager.rs`
+should contain the command lifecycle, not forward to a hidden coordinator.
+`lib.rs` and `mod.rs` identify Rust module structure, not the domain; a generic
+`operations/` or `commands/` directory is not automatically a discoverable
+entrance. Re-exports and README maps help, but cannot replace visible behavior.
+For a representation or utility crate, the principal data structure or cohesive
+operations may already be the right entrance; do not invent a dispatcher.
+
+Review navigation from the file tree: can a reader choose a likely starting
+file, learn the owner's job from its body, and follow its calls into progressively
+narrower responsibilities without repository-wide search? Keep real dispatch,
+sequencing and result handling there. Move subordinate mechanisms beneath their
+owner, not into a flat crowd of competing entrances. This is a readability test,
+not a mandatory filename, folder template, extra facade, or file-count rule.
+
 Prefer explicit imports for project types; grouping related standard-library or external imports is fine. Follow local formatting, remove unused imports, and do not churn existing imports solely for style. Do not add empty `impl` blocks or pass-through helpers with no responsibility.
 
 ## Keep policy above mechanisms

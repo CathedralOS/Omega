@@ -1,7 +1,7 @@
 use package_manager::lock::{PackageLock, PackageLockRecoveryLimits};
-use package_manager::operations::{
+use package_manager::{
     PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
-    PackageCommandOutcome, execute_package_command_with_storage,
+    PackageCommandOutcome, execute_package_command,
 };
 use package_source::SourceResolverStorage;
 use std::fs;
@@ -171,14 +171,14 @@ impl Fixture {
         } else {
             vec![TargetProfile::WindowsX64]
         };
-        let result = execute_package_command_with_storage(
+        let result = execute_package_command(
             command,
             PackageCommandOptions {
                 project_root: self.path("root"),
                 targets,
                 offline,
             },
-            &SourceResolverStorage::for_hardened_base(self.path("cache")).unwrap(),
+            Some(&SourceResolverStorage::for_hardened_base(self.path("cache")).unwrap()),
         );
         if offline {
             assert_eq!(

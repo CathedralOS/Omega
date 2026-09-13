@@ -163,7 +163,7 @@ fn run_returns_host_output_and_comparison_then_cross_target_without_execution() 
             })
             .is_err()
         );
-        use package_manager::operations::{
+        use package_manager::{
             PackageCommand, PackageCommandOptions, PackageCommandStatus, execute_package_command,
         };
         let accepted = execute_package_command(
@@ -179,6 +179,7 @@ fn run_returns_host_output_and_comparison_then_cross_target_without_execution() 
                 ],
                 offline: true,
             },
+            None,
         )
         .unwrap();
         assert_eq!(accepted.status, PackageCommandStatus::Published);

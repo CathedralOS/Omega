@@ -3,8 +3,8 @@
 #[path = "old_sources.rs"]
 mod old_sources;
 
-use super::super::model::{PackageCommandError, failure};
-use super::super::state;
+use super::model::{PackageCommandError, failure};
+use super::state;
 use crate::lock::PackageLock;
 use crate::operations::PackageFileTransaction;
 use crate::resolution::graph::ResolvedPackageSourceClosure;

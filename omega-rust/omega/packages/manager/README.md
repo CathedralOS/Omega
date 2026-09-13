@@ -1,7 +1,9 @@
 # Omega Package Manager
 
-This is the operation-owning `package-manager` crate. Start at
-[`src/lib.rs`](src/lib.rs), then enter the operation you are following.
+Start at [`src/package_manager.rs`](src/package_manager.rs): recover the project
+transaction, dispatch install/update/resume/discard, resolve the candidate,
+review it, then publish. Compiler preparation and read-only inspection have
+separate entrances in [`operations`](src/operations/mod.rs).
 
 [Source selection](../../../../wiki/spec/packages/sources.md) owns the
 requester-local graph and workspace-member contract. Acquisition enforces the
@@ -21,8 +23,10 @@ manager/
 ├── Cargo.toml
 ├── README.md
 ├── src/
-│   ├── lib.rs             Rust entrance
-│   ├── operations/        complete package-aware operations
+│   ├── lib.rs             Rust module wiring and exports
+│   ├── package_manager.rs command lifecycle and dispatch
+│   ├── package_manager/   edit planning, review files, proposal recovery
+│   ├── operations/        compiler preparation, inspection, publication
 │   ├── admission/         separate compiler/native handoff checks
 │   ├── declarations/      checked package declarations from build.omg
 │   ├── resolution/        exact source selection and dependency closure
@@ -31,7 +35,7 @@ manager/
 └── tests/                 manager integration tests
 ```
 
-`operations` is the only owner of complete user or compiler workflows.
+`package_manager.rs` owns command orchestration and composes `operations`.
 [`operations::inspect_packages`](src/operations/inspect_packages/README.md)
 drives `omega audit packages`: current project source, pinned dependencies,
 fresh compiler findings, and comparison with accepted policy without publishing
@@ -78,7 +82,7 @@ intent and publishes the pair under a project mutex. Interruption recovery
 completes forward only from recorded old/new contents; unrelated edits stop it.
 Ordinary project preparation coordinates with existing pending state before
 snapshotting. See [publication](src/operations/publication/README.md) for the
-file protocol and platform limits. The [command operation](src/operations/package_commands/README.md)
+file protocol and platform limits. The [command operation](src/package_manager/README.md)
 owns package/alias selection, persisted per-target findings, exact candidate
 resume, and reviewed publication for `omega install` and `omega update`.
 
@@ -202,7 +206,7 @@ application root that produced them. Admission consumes that root directly
 into unpublished Terminal/native production after fresh evidence comparison;
 it does not rerun `build.omg` or recover generated source from staging.
 
-Install and update belong in `operations/`, with accepted baselines and decisions
+Install and update belong in `package_manager.rs`, with accepted baselines and decisions
 recorded directly. Their command flow does not extend the promotion layer or
 certify lock acceptance. The source and review crates remain subordinate.
 

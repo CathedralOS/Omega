@@ -65,7 +65,7 @@ including resume and historical-source diagnostics. It does not skip checking
 or authorize reuse of a cached branch when a new selection was requested.
 Missing required content fails without publishing a candidate.
 
-The [command reference](../../omega-rust/omega/packages/manager/src/operations/package_commands/README.md)
+The [command reference](../../omega-rust/omega/packages/manager/src/package_manager/README.md)
 lists current options and limits; [inspection](../../omega-rust/omega/packages/manager/src/operations/inspect_packages/README.md)
 describes reporting. [Package fixtures](../../tests/fixtures/packages/README.md)
 and [remote pins](../../tests/fixtures/packages/REMOTE_PINS.md) document integration

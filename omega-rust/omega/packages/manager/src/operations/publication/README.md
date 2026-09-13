@@ -44,6 +44,6 @@ without a non-atomic copy fallback.
 Two renames are not simultaneous for readers that ignore the mutex. This is
 process coordination and interruption recovery, not protection from a hostile
 process acting as the same user. Do not delete pending journals as build-cache
-cleanup. [Package commands](../package_commands/README.md) own review-file
+cleanup. [Package commands](../../package_manager/README.md) own review-file
 persistence/resume and selective update pin selection. Their `proposal` restart
 record is separate from this publication journal.
