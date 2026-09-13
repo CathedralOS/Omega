@@ -867,6 +867,18 @@ pub(in crate::flow::terminal_unit) fn build(
             }
         }
         Some(binding.into())
+    } else if let Some(result) = returned_parameter(
+        program,
+        facts,
+        machine,
+        state,
+        structural_parameters,
+        entry_claims,
+    ) {
+        // Completion can forward an existing formal directly. A retained Name
+        // value describes possible materialization, not a requirement to create
+        // a second binding and bypass the exact parameter-return custody owner.
+        Some(result)
     } else if let Some(root) = returned_value {
         if root.machine != machine.symbol || root.type_reference != state.return_type {
             return None;
@@ -923,15 +935,6 @@ pub(in crate::flow::terminal_unit) fn build(
         Some(returned)
     } else if let Some(binding) = returned_call {
         Some(binding.into())
-    } else if let Some(result) = returned_parameter(
-        program,
-        facts,
-        machine,
-        state,
-        structural_parameters,
-        entry_claims,
-    ) {
-        Some(result)
     } else if validation::is_closed_primitive_array_type(program, state.return_type) {
         let statements = program.statement_table.statements(state.statement_nodes);
         let StatementNode::Expression(expression) = statements.last()? else {
