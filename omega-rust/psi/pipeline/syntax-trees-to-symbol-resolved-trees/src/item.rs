@@ -213,7 +213,22 @@ fn lower_item_with_exposure(
         syntax::item::Item::Const(definition) => {
             let pending = lowerer.const_resolution_mode
                 == crate::lowerer::ConstResolutionMode::InitializerSelection
-                && crate::constant::requires_const_initializer_evaluation(syntax_trees, definition);
+                && crate::constant::requires_const_initializer_evaluation(syntax_trees, definition)
+                && !crate::constant::pending_const_initializer_leaves(
+                    syntax_trees,
+                    definition,
+                    lowerer.constant_selection.as_ref().ok_or_else(|| {
+                        diagnostics::Diagnostic::error(
+                            "initializer preparation lost its declaration selector",
+                        )
+                        .with_source_span(definition.name.source_span())
+                    })?,
+                )
+                .map_err(|reason| {
+                    diagnostics::Diagnostic::error(reason)
+                        .with_source_span(definition.name.source_span())
+                })?
+                .is_empty();
             if !pending {
                 crate::constant::validate_const_definition(syntax_trees, definition)?;
             }

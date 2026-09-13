@@ -41,8 +41,8 @@
 //!   reach that form through build-time evaluation, retaining declaration-owned
 //!   original syntax and selection receipts. Initializer preparation is a
 //!   separate non-executing mode: pending expressions acquire no value identity.
-//!   Computed integer/Boolean array leaves now evaluate independently. Calls,
-//!   nominal aggregates and floating computations still need evaluation.
+//!   Computed integer/Boolean leaves in arrays and selected nominal literals
+//!   evaluate independently. Calls and floating computations still need evaluation.
 //! - A const may not collide with a case of its scope type: `Type::NAME` must
 //!   stay unambiguous against case-constructor paths, which substitution
 //!   would otherwise shadow.
@@ -63,56 +63,98 @@ use syntax_trees::item::{ConstDefinition, DataMember, Item};
 mod carrier;
 pub(crate) mod initializer_normalization;
 
-/// Route unfinished scalar initializers to semantic preparation. Spelling only
-/// chooses this route: preparation independently checks the resolved builtin
-/// carrier before returning evidence. Literal validation remains unconditional.
+/// Find unfinished values without claiming a carrier or constructor selection.
+/// Preparation separately admits exact scalar leaves in their declared owners.
 pub fn requires_const_initializer_evaluation(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> bool {
-    !pending_const_initializer_leaves(syntax, definition).is_empty()
+    use syntax_trees::expression::ExpressionNode;
+    let mut pending = vec![definition.value];
+    while let Some(expression) = pending.pop() {
+        match syntax.expressions.expression(expression) {
+            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::String(_) => {
+            }
+            // An explicit float format needs ordinary carrier validation, not
+            // an integer probe. Unsuffixed decimals may still land as integers.
+            ExpressionNode::Float(text)
+                if numerics::literals::FloatLiteral::parse(text.as_str())
+                    .is_some_and(|literal| literal.landing().is_some()) => {}
+            ExpressionNode::ArrayLiteral(elements) => {
+                pending.extend(
+                    syntax
+                        .expressions
+                        .expression_handles(*elements)
+                        .iter()
+                        .copied(),
+                );
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                pending.extend(
+                    syntax
+                        .expressions
+                        .struct_fields(literal.fields)
+                        .iter()
+                        .map(|field| field.value),
+                );
+            }
+            _ => return true,
+        }
+    }
+    false
 }
 
-pub fn pending_const_initializer_leaves(
+pub(crate) fn pending_const_initializer_leaves(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-) -> Vec<(
-    syntax_trees::expression::ExpressionHandle,
-    syntax_trees::types::TypeReferenceHandle,
-)> {
+    selection: &crate::generic_data::constant_selection::ConstantSelection,
+) -> Result<
+    Vec<(
+        syntax_trees::expression::ExpressionHandle,
+        syntax_trees::types::TypeReferenceHandle,
+    )>,
+    String,
+> {
     use syntax_trees::expression::ExpressionNode;
     use syntax_trees::types::{FixedArrayLength, TypeReferenceNode};
 
     fn collect(
         syntax: &SyntaxTrees,
+        selection: &crate::generic_data::constant_selection::ConstantSelection,
         expression: syntax_trees::expression::ExpressionHandle,
         type_reference: syntax_trees::types::TypeReferenceHandle,
         leaves: &mut Vec<(
             syntax_trees::expression::ExpressionHandle,
             syntax_trees::types::TypeReferenceHandle,
         )>,
-    ) -> bool {
+    ) -> Result<(), String> {
         match syntax.type_references.type_reference(type_reference) {
             TypeReferenceNode::FixedArray {
                 element_type,
-                length: FixedArrayLength::Literal(_),
+                length: FixedArrayLength::Literal(length),
             } => {
                 let ExpressionNode::ArrayLiteral(elements) =
                     syntax.expressions.expression(expression)
                 else {
-                    return false;
+                    return Err("computed array constant requires an array literal".to_owned());
                 };
-                for element in syntax.expressions.expression_handles(*elements) {
-                    if !collect(syntax, *element, *element_type, leaves) {
-                        return false;
-                    }
+                let values = syntax.expressions.expression_handles(*elements);
+                if values.len() != elements.len() || values.len() != *length {
+                    return Err("computed array constant has an incorrect element roster".to_owned());
                 }
-                true
+                for element in values {
+                    collect(syntax, selection, *element, *element_type, leaves)?;
+                }
+                Ok(())
             }
             TypeReferenceNode::Named(name)
                 if matches!(
-                    name.as_str(),
-                    "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool"
+                    selection.builtin_type(name),
+                    Some(symbols::BuiltinTypeAtom::I8 | symbols::BuiltinTypeAtom::I16
+                        | symbols::BuiltinTypeAtom::I32 | symbols::BuiltinTypeAtom::I64
+                        | symbols::BuiltinTypeAtom::U8 | symbols::BuiltinTypeAtom::U16
+                        | symbols::BuiltinTypeAtom::U32 | symbols::BuiltinTypeAtom::U64
+                        | symbols::BuiltinTypeAtom::Bool)
                 ) =>
             {
                 if !matches!(
@@ -121,23 +163,82 @@ pub fn pending_const_initializer_leaves(
                 ) {
                     leaves.push((expression, type_reference));
                 }
-                true
+                Ok(())
             }
-            _ => false,
+            TypeReferenceNode::Named(name) => {
+                let ExpressionNode::StructLiteral(literal) = syntax.expressions.expression(expression) else {
+                    // Existing literal validation owns payloadless cases and
+                    // noncomputed scalar formats; they introduce no probe leaf.
+                    return if matches!(syntax.expressions.expression(expression),
+                        ExpressionNode::Name(_) | ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::String(_)) {
+                        Ok(())
+                    } else {
+                        Err("computed constant leaf requires an exact builtin integer or Boolean carrier".to_owned())
+                    };
+                };
+                let declared = selection.data(syntax, name)?;
+                if !declared.type_parameters.is_empty() || !declared.lifetime_parameters.is_empty() {
+                    return Err("computed nominal constant requires a closed selected declaration".to_owned());
+                }
+                let (constructed, case) = selection.constructor(syntax, &literal.constructor_name)?;
+                if !std::ptr::eq(declared, constructed) {
+                    return Err("computed constant constructor differs from its declared nominal carrier".to_owned());
+                }
+                let members = syntax.items.data_members(declared.members);
+                if members.len() != declared.members.len() {
+                    return Err("computed constant data member span is stale".to_owned());
+                }
+                let fields = if let Some(case) = case {
+                    let variant = members.iter().find_map(|member| match member {
+                        DataMember::Variant(variant) if variant.name.as_str() == case.as_str() => Some(variant),
+                        _ => None,
+                    }).ok_or("computed constant case is absent from its selected owner")?;
+                    let fields = syntax.items.data_payload_fields(variant.payload);
+                    if fields.len() != variant.payload.len() {
+                        return Err("computed constant payload span is stale".to_owned());
+                    }
+                    fields.iter().collect::<Vec<_>>()
+                } else {
+                    if members.iter().any(|member| matches!(member, DataMember::Variant(_))) {
+                        return Err("computed constant sum must select its exact case".to_owned());
+                    }
+                    members.iter().filter_map(|member| match member {
+                        DataMember::Field(field) => Some(field),
+                        _ => None,
+                    }).collect()
+                };
+                let authored = syntax.expressions.struct_fields(literal.fields);
+                if authored.len() != literal.fields.len() || authored.len() != fields.len() {
+                    return Err("computed constant field roster differs from its declaration".to_owned());
+                }
+                // Keep authored evaluation order, but select field types only
+                // within the exact constructor's retained declaration.
+                for field in authored {
+                    if authored.iter().filter(|candidate| candidate.name.as_str() == field.name.as_str()).count() != 1 {
+                        return Err(format!("duplicate computed constant field `{}`", field.name));
+                    }
+                    let declaration = fields.iter().find(|candidate| candidate.name.as_str() == field.name.as_str())
+                        .ok_or_else(|| format!("unknown computed constant field `{}`", field.name))?;
+                    collect(syntax, selection, field.value, declaration.type_reference, leaves)?;
+                }
+                Ok(())
+            }
+            _ => Err("computed constant requires a closed array, nominal literal, or builtin scalar carrier".to_owned()),
         }
     }
 
     let mut leaves = Vec::new();
-    if collect(
+    if !requires_const_initializer_evaluation(syntax, definition) {
+        return Ok(leaves);
+    }
+    collect(
         syntax,
+        selection,
         definition.value,
         definition.type_reference,
         &mut leaves,
-    ) {
-        leaves
-    } else {
-        Vec::new()
-    }
+    )?;
+    Ok(leaves)
 }
 
 /// Public declaration identity includes floating scalars with determined bits, independently

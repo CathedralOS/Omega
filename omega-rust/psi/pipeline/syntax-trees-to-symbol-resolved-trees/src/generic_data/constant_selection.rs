@@ -197,7 +197,7 @@ impl<'base> ConstantSelection<'base> {
     /// Select the nominal carrier in the authored type/constructor's source.
     /// Header handles remain transient; declaration custody is rejoined after
     /// ordinary resolution allocates the receiving generic slot.
-    pub(super) fn data<'syntax>(
+    pub(crate) fn data<'syntax>(
         &self,
         syntax: &'syntax SyntaxTrees,
         name: &Identifier,
@@ -213,7 +213,7 @@ impl<'base> ConstantSelection<'base> {
         self.data_declaration(syntax, name, selected)
     }
 
-    pub(super) fn constructor<'syntax>(
+    pub(crate) fn constructor<'syntax>(
         &self,
         syntax: &'syntax SyntaxTrees,
         name: &Identifier,
@@ -234,10 +234,19 @@ impl<'base> ConstantSelection<'base> {
         Ok((definition, case))
     }
 
+    pub(crate) fn builtin_type(&self, name: &Identifier) -> Option<symbols::BuiltinTypeAtom> {
+        let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            name.as_str(),
+            &[SymbolKind::BuiltinType, SymbolKind::Data],
+            name.source_span(),
+        )?;
+        self.symbols.builtin_type_atom(selected)
+    }
+
     /// Bare Names retain value-prefix precedence before specialization changes
     /// their lookup metadata. The shared resolver distinguishes absence from
     /// unique or ambiguous constants; braces remain ordinary constructors.
-    pub(super) fn bare_case<'syntax>(
+    pub(crate) fn bare_case<'syntax>(
         &self,
         syntax: &'syntax SyntaxTrees,
         name: &Identifier,

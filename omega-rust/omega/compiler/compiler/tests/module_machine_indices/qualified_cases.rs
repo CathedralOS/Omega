@@ -109,13 +109,12 @@ fn package_qualified_case_values_and_membership_select_the_declaring_owner() {
                 )
                 .expect("checked membership evaluates with its selected nominal owner");
             assert_eq!(result.value(), &BuildTimeValue::Bool(expected));
-            if matches!(entry, "is_empty" | "is_some" | "local_is_empty") {
-                if let Err(error) =
+            if matches!(entry, "is_empty" | "is_some" | "local_is_empty")
+                && let Err(error) =
                     terminal_production::TerminalProductionRequest::new(&checked, entry)
                         .produce_artifact()
-                {
-                    terminal_failures.push(format!("{expression}, {entry}: {error:?}"));
-                }
+            {
+                terminal_failures.push(format!("{expression}, {entry}: {error:?}"));
             }
         }
     }

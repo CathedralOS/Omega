@@ -136,3 +136,99 @@ fn measure_projection_does_not_bind_an_unresolved_same_spelled_receiver() {
     assert!(declared_symbol_type(&program, SymbolHandle::invalid()).is_none());
     assert!(declared_symbol_type(&program, program.measures[0].symbol).is_none());
 }
+
+#[test]
+fn nested_constructor_projections_bind_fields_and_preserve_conflicting_selections() {
+    let mut program = resolve(
+        "data Inner [copy] { size: u64; }
+        data Outer [copy] { inner: Inner; }
+        data Other [copy] { size: u64; }
+        const VALUE: Outer = Outer { inner: Inner { size: 7 } };
+        machine read() -> u64 { VALUE.inner.size }",
+    );
+    let typed = lower_symbol_resolved_trees(&program).expect("literal receiver typing");
+    let mut projections = 0;
+    for (_, expression) in typed.expression_table.expression_entries() {
+        let typed_trees::expression::ExpressionNode::Member(member) = expression else {
+            continue;
+        };
+        assert!(
+            member.member_symbol.is_valid(),
+            "nested constructor field has an exact symbol"
+        );
+        assert_eq!(
+            typed.symbols.name(member.member_symbol),
+            member.member.as_str()
+        );
+        projections += 1;
+    }
+    assert_eq!(projections, 2);
+    let other = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Other")
+        .unwrap();
+    let resolved::data::DataMember::Field(field) = &program.data_members(other.members)[0] else {
+        panic!("foreign field");
+    };
+    let foreign = field.symbol;
+    let expression = program.tables.bodies.expressions.iter_expressions().find_map(|(handle, expression)| {
+        matches!(expression, resolved::expression::ExpressionNode::Member(member) if member.member.as_str() == "size").then_some(handle)
+    }).unwrap();
+    let resolved::expression::ExpressionNode::Member(member) =
+        program.tables.bodies.expressions.expression_mut(expression)
+    else {
+        panic!("projection");
+    };
+    member.member_symbol = foreign;
+    let typed =
+        lower_symbol_resolved_trees(&program).expect("retain conflicting projection for checking");
+    assert!(typed.expression_table.expression_entries().any(
+        |(_, expression)| matches!(expression,
+        typed_trees::expression::ExpressionNode::Member(member)
+            if member.member.as_str() == "size" && member.member_symbol == foreign)
+    ));
+}
+
+#[test]
+fn module_constructor_projection_keeps_its_declaring_field_owner() {
+    let root = "use settings; data Config [copy] { size: u64; }
+        machine read() -> u64 { settings::VALUE.size }";
+    let module = "module settings; pub data Config [copy] { size: u64; }
+        pub const VALUE: Config = Config { size: 7 };";
+    let tokens = Lexer::new(root).tokenize().unwrap();
+    let mut syntax = parse_syntax_trees(&tokens).unwrap();
+    let tokens = Lexer::new(module).tokenize().unwrap();
+    tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
+        &mut syntax,
+        source::SourceId(1),
+        &tokens,
+    )
+    .unwrap();
+    let resolved = lower_syntax_trees(&syntax).expect("module projection resolution");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("module projection typing");
+    let member = typed
+        .expression_table
+        .expression_entries()
+        .find_map(|(_, expression)| match expression {
+            typed_trees::expression::ExpressionNode::Member(member) => Some(member),
+            _ => None,
+        })
+        .expect("module constant field projection");
+    let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+        typed.expression_table.expression(member.receiver)
+    else {
+        panic!("module constructor");
+    };
+    assert!(member.member_symbol.is_valid());
+    assert_eq!(
+        typed.symbols.get(member.member_symbol).parent,
+        literal.type_symbol
+    );
+    let caller_owner = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Config")
+        .expect("caller's same-spelled data");
+    assert_ne!(literal.type_symbol, caller_owner.symbol);
+}

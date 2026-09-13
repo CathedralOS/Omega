@@ -478,6 +478,7 @@ fn whole_record_equality_expansion_preserves_normalized_field_correspondence() {
         &mut Vec::new(),
         &mut reads,
         &mut member_paths,
+        &mut Vec::new(),
     )
     .expect("source traversal");
     assert_eq!(

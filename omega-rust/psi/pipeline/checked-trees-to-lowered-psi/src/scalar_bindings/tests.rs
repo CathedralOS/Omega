@@ -3,6 +3,299 @@ use crate::scalar_graph_lowering::lower_checked_boolean_expression;
 use checked_trees::CheckedScalarBindingDestination;
 
 #[test]
+fn closed_record_projections_replay_exact_sources_carriers_and_all_siblings() {
+    use checked_trees::expression::ExpressionNode;
+    let source = "data Config [copy] { size: u64; enabled: bool; }
+        data Foreign [copy] { size: u64; enabled: bool; }
+        data Outer [copy] { config: Config; bytes: [u8; 1]; }
+        const CONFIG: Config = Config { size: 7, enabled: true };
+        const NESTED: Outer = Outer { config: Config { size: 7, enabled: true }, bytes: [5] };
+        machine read() -> u64 { CONFIG.size }
+        machine donor() -> u64 { CONFIG.size }
+        machine projected_with_parameter(other: Config) -> u64 { CONFIG.size }
+        machine nested() -> u64 { NESTED.config.size + 0u64 }
+        machine boolean() -> bool { !CONFIG.enabled }
+        machine sibling() -> bool { true }
+        machine caller() -> bool { sibling() }";
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokens");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolved");
+    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("typed");
+    let original = typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("checked literal projections");
+    let state = |name: &str| {
+        let machine = original
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("machine");
+        original.machine_states(machine)[0].symbol
+    };
+    let read_state = state("read");
+    let read_machine = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "read")
+        .unwrap();
+    let read_entry = &original.machine_states(read_machine)[0];
+    let checked_trees::statement::StatementNode::Expression(read_source) = original
+        .statement_table
+        .statements(read_entry.statement_nodes)[0]
+    else {
+        panic!("read expression");
+    };
+    assert!(
+        validation::closed_record_scalar_projection(&original.typed, read_source).is_some(),
+        "authored constructor projection selects a closed scalar leaf"
+    );
+    let bindings = ScalarBindings::new(0);
+    let validate = |checked: &CheckedTrees, state| {
+        bindings.expression_at(checked, state, 0, CheckedScalarExpressionRole::Return)
+    };
+    for name in ["read", "donor", "nested", "boolean"] {
+        validate(&original, state(name))
+            .expect("closed projection composes through ordinary scalar replay");
+    }
+    let plans = &original.facts.values.scalar_expressions;
+    let (source_binding, retained) = plans
+        .bound_expression_at(read_state, 0, CheckedScalarExpressionRole::Return)
+        .expect("source-bound projection");
+    assert!(
+        matches!(retained, CheckedScalarExpression::IntegerLiteral { literal }
+        if literal.value_u64() == Some(7)
+        && literal.landing().unwrap().landed_type == numerics::literals::LandedIntegerType::U64)
+    );
+    let parameter_state = state("projected_with_parameter");
+    let (parameter_binding, parameter_retained) = plans
+        .bound_expression_at(parameter_state, 0, CheckedScalarExpressionRole::Return)
+        .expect("projection with unrelated structural formal");
+    let validate_parameter = |checked: &CheckedTrees, retained: &CheckedScalarExpression| {
+        crate::scalar_source_custody::validate_storage_read_expression(
+            checked,
+            parameter_state,
+            0,
+            parameter_binding.expression,
+            retained,
+        )
+    };
+    validate_parameter(&original, parameter_retained).expect("literal retains source custody");
+    let substituted_field = CheckedScalarExpression::StructuralParameterField {
+        parameter_position: 0,
+        path: vec![checked_trees::CheckedStructuralPredicatePathSegment::Field(
+            "size".into(),
+        )],
+        primitive_type: PrimitiveType::U64,
+    };
+    assert!(
+        validate_parameter(&original, &substituted_field).is_err(),
+        "an unrelated valid structural formal cannot replace a projected literal"
+    );
+    let mut changed = original.clone();
+    let ExpressionNode::Member(parameter_member) = original
+        .expression_table
+        .expression(parameter_binding.expression)
+    else {
+        panic!("parameter machine projection");
+    };
+    *changed
+        .typed
+        .expression_table
+        .expression_mut(parameter_member.receiver) =
+        ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(7));
+    assert!(
+        validate_parameter(&changed, &substituted_field).is_err(),
+        "receiver corruption cannot turn a value projection into a structural read"
+    );
+    let mut changed = original.clone();
+    changed
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter_mut()
+        .find(|expression| {
+            expression.state == state("nested")
+                && expression.role == CheckedScalarExpressionRole::Return
+        })
+        .expect("nested arithmetic plan")
+        .expression = retained.clone();
+    assert!(
+        validate(&changed, state("nested")).is_err(),
+        "a same-valued literal cannot replace the member's enclosing computation"
+    );
+    let mut changed = original.clone();
+    let nested = changed
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter_mut()
+        .find(|expression| {
+            expression.state == state("nested")
+                && expression.role == CheckedScalarExpressionRole::Return
+        })
+        .expect("nested arithmetic plan");
+    let CheckedScalarExpression::IntegerBinary { kind, .. } = &mut nested.expression else {
+        panic!("nested addition");
+    };
+    *kind = checked_trees::CheckedIntegerBinaryKind::ExactMultiply;
+    assert!(
+        validate(&changed, state("nested")).is_err(),
+        "projection replay preserves its enclosing operator"
+    );
+    let expression = source_binding.expression;
+    let ExpressionNode::Member(member) = original.expression_table.expression(expression) else {
+        panic!("member");
+    };
+    let constructor = member.receiver;
+    let ExpressionNode::StructLiteral(literal) = original.expression_table.expression(constructor)
+    else {
+        panic!("constructor");
+    };
+    let constructor_fields = literal.fields;
+    let actuals = original.expression_table.struct_fields(constructor_fields);
+    let selected = actuals
+        .iter()
+        .find(|actual| actual.name.as_str() == "size")
+        .unwrap()
+        .value;
+    let sibling = actuals
+        .iter()
+        .find(|actual| actual.name.as_str() == "enabled")
+        .unwrap()
+        .value;
+    let foreign = original
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Foreign")
+        .unwrap();
+    let checked_trees::data::DataMember::Field(foreign_field) = &original.data_members(foreign)[0]
+    else {
+        panic!("field");
+    };
+
+    for field_symbol in [symbols::SymbolHandle::invalid(), foreign_field.symbol] {
+        let mut changed = original.clone();
+        let ExpressionNode::Member(member) =
+            changed.typed.expression_table.expression_mut(expression)
+        else {
+            panic!("member");
+        };
+        member.member_symbol = field_symbol;
+        assert!(
+            validate(&changed, read_state).is_err(),
+            "invalid or foreign field cannot disable replay"
+        );
+    }
+    let mut changed = original.clone();
+    let ExpressionNode::StructLiteral(literal) =
+        changed.typed.expression_table.expression_mut(constructor)
+    else {
+        panic!("constructor");
+    };
+    literal.type_symbol = foreign.symbol;
+    assert!(
+        validate(&changed, read_state).is_err(),
+        "same-layout constructor substitution rejects"
+    );
+
+    let mut changed = original.clone();
+    *changed.typed.expression_table.expression_mut(constructor) =
+        ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(7));
+    assert!(
+        validate(&changed, read_state).is_err(),
+        "replacing the constructor cannot disable projection replay"
+    );
+
+    let mut changed = original.clone();
+    *changed.typed.expression_table.expression_mut(selected) =
+        ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(8));
+    assert!(
+        validate(&changed, read_state).is_err(),
+        "selected value must match retained value"
+    );
+
+    let call = original
+        .expression_table
+        .expression_entries()
+        .find_map(|(_, node)| matches!(node, ExpressionNode::Call(_)).then_some(node.clone()))
+        .unwrap();
+    let mut changed = original.clone();
+    *changed.typed.expression_table.expression_mut(sibling) = call;
+    assert!(
+        validate(&changed, read_state).is_err(),
+        "unselected call cannot disappear"
+    );
+
+    let mut changed = original.clone();
+    let mut stale = actuals[0].clone();
+    stale.value = checked_trees::expression::ExpressionHandle::from_parts(
+        stale.value.arena_index(),
+        stale.value.generation() + 1,
+    );
+    changed
+        .typed
+        .expression_table
+        .set_struct_field_at_offset(constructor_fields, 0, stale);
+    assert!(
+        validate(&changed, read_state).is_err(),
+        "stale constructor value rejects"
+    );
+
+    let mut changed = original.clone();
+    let ExpressionNode::StructLiteral(changed_literal) =
+        changed.typed.expression_table.expression_mut(constructor)
+    else {
+        panic!("constructor");
+    };
+    changed_literal.fields = arena::HandleSpan::from_parts(
+        arena::Handle::from_parts(
+            constructor_fields.start().arena_index(),
+            constructor_fields.start().generation() + 1,
+        ),
+        constructor_fields.count(),
+    );
+    assert!(
+        validate(&changed, read_state).is_err(),
+        "stale constructor field span rejects"
+    );
+
+    let donor = plans
+        .bound_expression_at(state("donor"), 0, CheckedScalarExpressionRole::Return)
+        .unwrap()
+        .0
+        .expression;
+    assert_ne!(donor, expression);
+    let mut changed = original.clone();
+    let row = changed
+        .facts
+        .values
+        .scalar_expressions
+        .source_bindings
+        .iter()
+        .find_map(|(handle, binding)| {
+            (binding.state == read_state && binding.role == CheckedScalarExpressionRole::Return)
+                .then_some(handle)
+        })
+        .unwrap();
+    changed
+        .facts
+        .values
+        .scalar_expressions
+        .source_bindings
+        .get_mut(row)
+        .expression = donor;
+    assert!(
+        validate(&changed, read_state).is_err(),
+        "equal-valued same-typed source occurrence cannot substitute"
+    );
+}
+
+#[test]
 fn owned_structural_locals_reuse_exact_published_payloads_and_reject_invalid_custody() {
     let symbol = symbols::SymbolHandle::from_arena_index(1);
     let other = symbols::SymbolHandle::from_arena_index(2);

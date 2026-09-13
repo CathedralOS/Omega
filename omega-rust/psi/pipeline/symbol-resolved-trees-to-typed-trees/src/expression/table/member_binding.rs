@@ -1,4 +1,6 @@
-//! Bind missing members through the receiver's exact declared type.
+//! Bind missing members through the receiver's exact declared type or
+//! constructor owner. Substituted constant values are ordinary constructors;
+//! their projections need the same field identity before checked scalar replay.
 
 use super::lowerer::ExpressionTableLowerer;
 use crate::call_results::peel;
@@ -21,18 +23,42 @@ impl ExpressionTableLowerer<'_, '_, '_> {
             || member.case_variant.is_some()
             || !matches!(
                 self.source.expression(member.receiver),
-                ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+                ExpressionNode::Name(_)
+                    | ExpressionNode::Member(_)
+                    | ExpressionNode::Indexed(_)
+                    | ExpressionNode::StructLiteral(_)
             )
         {
             return member.member_symbol;
         }
         self.program
             .and_then(|program| {
-                let receiver = declared_type(program, self.source, member.receiver, 0)?;
-                declared_field(program, receiver, member).map(|field| field.symbol)
+                declared_receiver_field(program, self.source, member, 0).map(|field| field.symbol)
             })
             .unwrap_or(member.member_symbol)
     }
+}
+
+fn declared_receiver_field<'program>(
+    program: &'program resolved::SymbolResolvedTrees,
+    expressions: &resolved::expression::ExpressionTable,
+    member: &TableMemberExpression,
+    depth: usize,
+) -> Option<&'program DataField> {
+    if depth >= 128
+        || member.case_variant.is_some()
+        || !expressions.expression_is_valid(member.receiver)
+    {
+        return None;
+    }
+    if let ExpressionNode::StructLiteral(literal) = expressions.expression(member.receiver) {
+        if literal.case_name.is_some() || literal.case_symbol.is_some() {
+            return None;
+        }
+        return declared_data_field(program, literal.type_symbol, member);
+    }
+    let receiver = declared_type(program, expressions, member.receiver, depth + 1)?;
+    declared_field(program, receiver, member)
 }
 
 fn declared_type<'program>(
@@ -84,8 +110,7 @@ fn declared_type<'program>(
             {
                 return declared_symbol_type(program, member.member_symbol);
             }
-            let receiver = declared_type(program, expressions, member.receiver, depth + 1)?;
-            Some(&declared_field(program, receiver, member)?.type_reference)
+            Some(&declared_receiver_field(program, expressions, member, depth + 1)?.type_reference)
         }
         _ => None,
     }
@@ -103,9 +128,22 @@ fn declared_field<'program>(
         TypeReference::Named { symbol, .. } | TypeReference::SelfType { symbol } => *symbol,
         _ => return None,
     };
-    let definition = program.data_definitions.iter().find(|definition| {
-        definition.symbol == symbol && exact_top_level_data_symbol(program, definition)
-    })?;
+    declared_data_field(program, symbol, member)
+}
+
+fn declared_data_field<'program>(
+    program: &'program resolved::SymbolResolvedTrees,
+    symbol: SymbolHandle,
+    member: &TableMemberExpression,
+) -> Option<&'program DataField> {
+    let mut definitions = program
+        .data_definitions
+        .iter()
+        .filter(|definition| definition.symbol == symbol);
+    let definition = definitions.next()?;
+    if definitions.next().is_some() || !exact_top_level_data_symbol(program, definition) {
+        return None;
+    }
     let mut fields = program
         .data_members(definition.members)
         .iter()

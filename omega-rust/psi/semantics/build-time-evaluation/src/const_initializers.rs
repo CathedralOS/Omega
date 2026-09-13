@@ -3,10 +3,10 @@
 //! Resolve the authored forest once without substituting pending values. Its
 //! exact source-owned dependencies determine evaluation order, including unused
 //! declarations and references in unselected branches. Then use the same typed
-//! scalar probes as index expressions, one per pending scalar leaf; an array
-//! declaration's identity is the canonical literal array rebuilt from its
-//! evaluated leaves. A whole-array probe is not used because a probe lands one
-//! scalar destination and array values have no execution route yet. A probe may
+//! scalar probes as index expressions, one per pending scalar leaf. Aggregate
+//! declarations retain their constructors and fields while evaluated leaves
+//! replace only their exact authored expressions. Their identity is encoded from
+//! the complete materialized value. A probe may
 //! stub other pending declarations to type the surrounding forest, but no
 //! selected dependency may use such a stub: every returned origin must rejoin a
 //! completed value and the original selection. Only evaluated literals and
@@ -85,16 +85,15 @@ pub(super) fn evaluate(
                     "initializer lost its exact declaration",
                 )
             })?;
-        let leaves = syntax_trees_to_symbol_resolved_trees::pending_const_initializer_leaves(
-            &syntax, definition,
-        )
-        .into_iter()
-        .map(|(expression, destination)| PendingLeaf {
-            expression,
-            destination,
-            dependencies: Vec::new(),
-        })
-        .collect();
+        let leaves = preparation
+            .pending_leaves(&syntax, definition)?
+            .into_iter()
+            .map(|(expression, destination)| PendingLeaf {
+                expression,
+                destination,
+                dependencies: Vec::new(),
+            })
+            .collect();
         declarations.push(Declaration {
             item: *item,
             definition: definition.clone(),
@@ -162,7 +161,6 @@ pub(super) fn evaluate(
             declarations[ordinal].leaves[leaf_ordinal].dependencies = dependencies;
         }
     }
-    drop(preparation);
     while declarations
         .iter()
         .any(|declaration| !declaration.leaves.is_empty())
@@ -201,14 +199,10 @@ pub(super) fn evaluate(
             .filter(|declaration| !declaration.leaves.is_empty())
         {
             let mut definition = declaration.definition.clone();
-            let value = if matches!(
-                probe.expressions.expression(definition.value),
-                ExpressionNode::ArrayLiteral(_)
-            ) {
-                placeholder_array(&mut probe, definition.value, definition.type_reference)?
-            } else {
+            let mut placeholders = HashMap::new();
+            for leaf in &declaration.leaves {
                 let boolean = matches!(
-                    probe.type_references.type_reference(definition.type_reference),
+                    probe.type_references.type_reference(leaf.destination),
                     TypeReferenceNode::Named(name) if name.as_str() == "bool"
                 );
                 let value = if boolean {
@@ -217,13 +211,12 @@ pub(super) fn evaluate(
                     ExpressionNode::Integer(numerics::literals::IntegerLiteral::zero())
                 };
                 let placeholder = probe.expressions.insert(value);
-                probe.expressions.set_source_span(
-                    placeholder,
-                    syntax.expressions.source_span(definition.value),
-                );
-                placeholder
-            };
-            definition.value = value;
+                probe
+                    .expressions
+                    .set_source_span(placeholder, syntax.expressions.source_span(leaf.expression));
+                placeholders.insert(leaf.expression, placeholder);
+            }
+            definition.value = materialize_value(&mut probe, definition.value, &placeholders)?;
             definition.normalization = None;
             probe
                 .items
@@ -324,7 +317,14 @@ pub(super) fn evaluate(
                         selections.push(origin);
                     }
                 }
-                builtin_operators.extend(result.operators);
+                // Several fields may depend on the same computed declaration.
+                // Its authored operators remain one provenance roster, not one
+                // synthetic occurrence for every leaf which reads the value.
+                for operator in result.operators {
+                    if !builtin_operators.contains(&operator) {
+                        builtin_operators.push(operator);
+                    }
+                }
                 scalar_encoding = Some(result.value.encoding.clone());
                 let literal = match result.value.decode_encoding() {
                     Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
@@ -362,7 +362,7 @@ pub(super) fn evaluate(
                     .get(&declarations[ordinal].leaves[0].expression)
                     .expect("scalar initializer replacement")
             } else {
-                materialize_array(&mut syntax, authored_expression, &replacements)?
+                materialize_value(&mut syntax, authored_expression, &replacements)?
             };
             let mut definition = declarations[ordinal].definition.clone();
             let canonical_result_encoding = if declarations[ordinal].leaves.len() == 1
@@ -372,14 +372,12 @@ pub(super) fn evaluate(
             } else {
                 let mut materialized_definition = definition.clone();
                 materialized_definition.value = value;
-                syntax_trees_to_symbol_resolved_trees::canonicalize_declared_const_definition(
-                    &syntax,
-                    &materialized_definition,
-                )
-                .map_err(|reason| {
-                    failure(syntax.expressions.source_span(authored_expression), reason)
-                })?
-                .encoding
+                preparation
+                    .canonicalize_value(&syntax, &materialized_definition)
+                    .map_err(|reason| {
+                        failure(syntax.expressions.source_span(authored_expression), reason)
+                    })?
+                    .encoding
             };
             definition.normalization = Some(ConstInitializerNormalization {
                 authored_expression,
@@ -411,53 +409,7 @@ fn failure(reference: SourceSpan, reason: impl std::fmt::Display) -> Vec<Diagnos
     vec![Diagnostic::error(format!("constant initializer: {reason}")).with_source_span(reference)]
 }
 
-fn placeholder_array(
-    syntax: &mut SyntaxTrees,
-    expression: ExpressionHandle,
-    type_reference: syntax_trees::types::TypeReferenceHandle,
-) -> Result<ExpressionHandle, Vec<Diagnostic>> {
-    let source_span = syntax.expressions.source_span(expression);
-    let value = match syntax
-        .type_references
-        .type_reference(type_reference)
-        .clone()
-    {
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            let elements = match syntax.expressions.expression(expression) {
-                ExpressionNode::ArrayLiteral(elements) => {
-                    syntax.expressions.expression_handles(*elements).to_vec()
-                }
-                _ => {
-                    return Err(failure(
-                        source_span,
-                        "computed array initializer lost its authored array shape",
-                    ));
-                }
-            };
-            let placeholders = elements
-                .iter()
-                .map(|element| placeholder_array(syntax, *element, element_type))
-                .collect::<Result<Vec<_>, _>>()?;
-            let handles = syntax.expressions.insert_expression_handles(placeholders);
-            ExpressionNode::ArrayLiteral(handles)
-        }
-        TypeReferenceNode::Named(name) if name.as_str() == "bool" => ExpressionNode::Boolean(false),
-        TypeReferenceNode::Named(_) => {
-            ExpressionNode::Integer(numerics::literals::IntegerLiteral::zero())
-        }
-        _ => {
-            return Err(failure(
-                source_span,
-                "computed array initializer requires fixed integer or Boolean leaves",
-            ));
-        }
-    };
-    let handle = syntax.expressions.insert(value);
-    syntax.expressions.set_source_span(handle, source_span);
-    Ok(handle)
-}
-
-fn materialize_array(
+fn materialize_value(
     syntax: &mut SyntaxTrees,
     expression: ExpressionHandle,
     replacements: &HashMap<ExpressionHandle, ExpressionHandle>,
@@ -466,18 +418,29 @@ fn materialize_array(
         return Ok(*replacement);
     }
     let source_span = syntax.expressions.source_span(expression);
-    let ExpressionNode::ArrayLiteral(elements) = syntax.expressions.expression(expression) else {
-        return Ok(expression);
+    let value = match syntax.expressions.expression(expression).clone() {
+        ExpressionNode::ArrayLiteral(elements) => {
+            let elements = syntax.expressions.expression_handles(elements).to_vec();
+            let materialized = elements
+                .into_iter()
+                .map(|element| materialize_value(syntax, element, replacements))
+                .collect::<Result<Vec<_>, _>>()?;
+            ExpressionNode::ArrayLiteral(syntax.expressions.insert_expression_handles(materialized))
+        }
+        ExpressionNode::StructLiteral(mut constructor) => {
+            let mut fields = syntax
+                .expressions
+                .struct_fields(constructor.fields)
+                .to_vec();
+            for field in &mut fields {
+                field.value = materialize_value(syntax, field.value, replacements)?;
+            }
+            constructor.fields = syntax.expressions.insert_struct_fields(fields);
+            ExpressionNode::StructLiteral(constructor)
+        }
+        _ => return Ok(expression),
     };
-    let elements = syntax.expressions.expression_handles(*elements).to_vec();
-    let materialized = elements
-        .into_iter()
-        .map(|element| materialize_array(syntax, element, replacements))
-        .collect::<Result<Vec<_>, _>>()?;
-    let handles = syntax.expressions.insert_expression_handles(materialized);
-    let handle = syntax
-        .expressions
-        .insert(ExpressionNode::ArrayLiteral(handles));
+    let handle = syntax.expressions.insert(value);
     syntax.expressions.set_source_span(handle, source_span);
     Ok(handle)
 }

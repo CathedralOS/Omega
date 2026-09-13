@@ -192,7 +192,7 @@ pub use literals::land_integer_value;
 pub use literals::select_anonymous_numeric_match_arm;
 pub use literals::{
     ScalarArrayElements, closed_constant_array_elements, closed_literal_array_elements,
-    is_closed_primitive_array_type, scalar_array_elements,
+    closed_record_scalar_projection, is_closed_primitive_array_type, scalar_array_elements,
 };
 pub use machine_parameters::{
     ValidatedNominalMachineUse, ValidatedNominalMachineUseSite, closed_static_call_type_bindings,
