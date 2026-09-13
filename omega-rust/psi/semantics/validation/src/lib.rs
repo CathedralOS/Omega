@@ -41,6 +41,8 @@ mod machine_data;
 mod machine_parameters;
 mod machine_specialization_identity;
 mod operators;
+mod owned_value_source;
+pub use owned_value_source::plain_owned_value_source;
 mod scalar_case_constructor;
 mod storage_contents;
 pub use scalar_case_constructor::{

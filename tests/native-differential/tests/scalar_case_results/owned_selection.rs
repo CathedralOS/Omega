@@ -1,6 +1,64 @@
-//! The selected value is an existing owner, not a reconstructed constructor.
+//! Selected existing and fresh values retain their exact owners and payloads.
 
 use super::{membership, produce_source};
+
+#[path = "owned_selection/records.rs"]
+mod records;
+
+#[test]
+fn owned_match_nested_record_keeps_outer_candidates_and_surviving_storage() {
+    let artifact = produce_source(
+        "choose",
+        include_str!("../../../omega/pass/expressions/owned_match_record_values/main.omg"),
+    );
+    membership::execute(
+        &artifact,
+        r#"
+        #include <stdbool.h>
+        #include <stdint.h>
+        extern uint64_t omega_entry(uint64_t selected, bool inner, uint64_t first, uint64_t second);
+        int main(void) {
+            uint64_t first = UINT64_C(0x8123456789abcdef);
+            uint64_t second = UINT64_C(0xfedcba9876543210);
+            for (uint64_t selected = 0; selected < 4; ++selected) {
+                for (unsigned inner = 0; inner < 2; ++inner) {
+                    uint64_t expected = selected == 0 ? second : selected == 1 ? first
+                        : (inner ? first : second) ^ 255;
+                    if (omega_entry(selected, inner, first, second) != (expected ^ 37)) return 1;
+                }
+            }
+            return 0;
+        }
+        "#,
+    );
+}
+
+#[test]
+fn owned_match_mixed_fresh_record_preserves_selected_payload() {
+    let artifact = produce_source(
+        "choose",
+        "data Pair { left: u64; right: u64; }
+         machine choose(selected: bool, first: u64, second: u64) -> u64 {
+             let original: Pair = Pair { left: first, right: second };
+             let result: Pair = match selected {
+                 true -> original,
+                 false -> Pair { right: first, left: second }
+             };
+             result.right
+         }",
+    );
+    membership::execute(
+        &artifact,
+        "#include <stdbool.h>\n#include <stdint.h>\n\
+         extern uint64_t omega_entry(bool selected, uint64_t first, uint64_t second);\n\
+         int main(void) {\n\
+             uint64_t first = UINT64_C(0x8123456789abcdef);\n\
+             uint64_t second = UINT64_C(0xfedcba9876543210);\n\
+             return omega_entry(true, first, second) != second\n\
+                 || omega_entry(false, first, second) != first;\n\
+         }",
+    );
+}
 
 #[test]
 fn terminal_owned_selection_retains_the_unselected_owner_until_completion() {

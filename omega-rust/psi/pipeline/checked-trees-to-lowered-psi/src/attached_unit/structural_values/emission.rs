@@ -358,6 +358,22 @@ pub(super) struct ValueContinuation {
 }
 
 impl Emission<'_, '_, '_> {
+    pub(super) fn record_field_value(
+        &mut self,
+        value: CheckedStructuralValueHandle,
+    ) -> Result<PlaceId, LoweringError> {
+        // A fresh field's continuation joins that field, not the enclosing
+        // selection's result/residual slots. Its constructors leave incoming
+        // owners live on every branch; only the outer completion may displace
+        // a candidate. Source replay still refuses hidden owned child transfers.
+        let sources = std::mem::take(&mut self.sources);
+        let owners = std::mem::take(&mut self.owners);
+        let result = self.value(value, None);
+        self.sources = sources;
+        self.owners = owners;
+        result
+    }
+
     pub(super) fn value(
         &mut self,
         value: CheckedStructuralValueHandle,
@@ -414,9 +430,6 @@ impl Emission<'_, '_, '_> {
                 Ok(place)
             }
             CheckedStructuralValueKind::Record { .. } => {
-                if !self.sources.is_empty() {
-                    return unsupported("selected ownership mixes fresh and existing obligations");
-                }
                 let place = self.record(value)?;
                 if let Some(continuation) = continuation {
                     self.complete_value(place, continuation)?;

@@ -252,7 +252,7 @@ fn has_owned_leaf(
             validation::expression_result_type_reference(program, machine, state, expression)
                 .is_some_and(|reference| {
                     program.type_multiplicity(reference) != Multiplicity::Unrestricted
-                        && validation::scalar_case_value_source(program, expression, reference)
+                        && validation::plain_owned_value_source(program, expression, reference)
                             .is_some()
                 })
         }
@@ -271,7 +271,7 @@ fn collect_leaves(
 ) -> Result<(), Diagnostic> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) if source_arm.is_valid() => {
-            match validation::scalar_case_value_source(program, expression, type_reference) {
+            match validation::plain_owned_value_source(program, expression, type_reference) {
                 Some(symbol) => {
                     leaves.push((expression, source_arm, symbol));
                     Ok(())
@@ -340,17 +340,44 @@ fn fresh_leaf(
     expression: ExpressionHandle,
     type_reference: TypeReferenceHandle,
 ) -> Result<(), Diagnostic> {
-    let constructor =
-        validation::scalar_case_constructor(program, expression).ok_or_else(unsupported)?;
-    if program.normalized_type_identity(constructor.type_reference)
-        != program.normalized_type_identity(type_reference)
+    let (reference, fields) =
+        if let Some(constructor) = validation::scalar_case_constructor(program, expression) {
+            (
+                constructor.type_reference,
+                constructor
+                    .fields
+                    .into_iter()
+                    .map(|(_, value, _)| value)
+                    .collect::<Vec<_>>(),
+            )
+        } else if let ExpressionNode::StructLiteral(literal) =
+            program.expression_table.expression(expression)
+            && literal.case_symbol.is_none()
+        {
+            let reference =
+                validation::expression_result_type_reference(program, machine, state, expression)
+                    .ok_or_else(unsupported)?;
+            (
+                reference,
+                program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .map(|field| field.value)
+                    .collect(),
+            )
+        } else {
+            return Err(unsupported());
+        };
+    if !validation::has_plain_owned_contents(program, reference)
+        || program.normalized_type_identity(reference)
+            != program.normalized_type_identity(type_reference)
     {
         return Err(unsupported());
     }
-    let operands = constructor
-        .fields
-        .iter()
-        .flat_map(|(_, value, _)| expression_nodes(program, *value))
+    let operands = fields
+        .into_iter()
+        .flat_map(|value| expression_nodes(program, value))
         .collect::<Vec<_>>();
     if operands.iter().any(|operand| {
         matches!(

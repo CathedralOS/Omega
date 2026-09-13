@@ -57,9 +57,10 @@ its exact declared field, recursive layout, scalar value or completed owned chil
 and range obligation. Selection initializes padding and copies nested children at
 exact widths before publishing the result address. Child storage may come from an
 operation result or an owned entry parameter whose ABI storage is already
-captured; borrowed operands cannot substitute for owned children. Scalar-field
-record block arrivals use the existing aggregate edge transport; nested record
-block arrivals remain unsupported. Independent replay reconstructs field
+captured; borrowed operands cannot substitute for owned children. Record block
+arrivals use the existing aggregate edge transport with recursive payload geometry.
+Shared projected calls borrow that block's destination home, not an incoming
+producer or a byte-view descriptor. Independent replay reconstructs field
 placement, child sources, stores, and the single operation charge.
 
 Scalar field observations retain the exact readable parameter, nominal field,

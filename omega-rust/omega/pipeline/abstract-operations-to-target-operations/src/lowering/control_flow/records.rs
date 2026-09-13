@@ -150,12 +150,27 @@ pub(super) fn argument(
         {
             return Err(invalid());
         }
-        (
-            home.structural_type(),
-            target_operations::TargetStructuralArgumentSource::StructuralHome {
-                psi_operation: home.operation_result().ok_or_else(invalid)?.0,
+        // A join owns its destination storage, not any incoming producer's home.
+        let source = match &home.origin {
+            target_operations::TargetStructuralHomeOrigin::OperationResult {
+                operation, ..
+            } => target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: *operation,
             },
-        )
+            target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                block,
+                declaration,
+            } => {
+                if argument.access != StructuralAccess::SharedBorrow {
+                    return Err(invalid());
+                }
+                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    block: *block,
+                    place: declaration.place,
+                }
+            }
+        };
+        (home.structural_type(), source)
     } else {
         let parameter = prepared
             .parameters

@@ -93,27 +93,7 @@ pub fn scalar_case_value_source(
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if path.symbol != path.head_symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-        || !matches!(
-            program.symbols.get(path.symbol).kind,
-            symbols::SymbolKind::Local | symbols::SymbolKind::Parameter
-        )
-        || !crate::has_plain_owned_contents(program, reference)
-    {
-        return None;
-    }
-    let actual = crate::expression_types::named_value_type_reference(program, path)?;
-    if program.normalized_type_identity(actual) != program.normalized_type_identity(reference) {
-        return None;
-    }
+    let source = crate::plain_owned_value_source(program, expression, reference)?;
     let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(reference)
     else {
@@ -136,7 +116,7 @@ pub fn scalar_case_value_source(
     {
         return None;
     }
-    Some(path.symbol)
+    Some(source)
 }
 
 pub fn scalar_case_constructor(

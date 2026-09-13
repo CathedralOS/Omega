@@ -272,7 +272,7 @@ pub(crate) fn completed_record_source<'a>(
     .then_some(result)
 }
 
-pub(crate) fn completed_record_loan(
+pub(crate) fn record_loan(
     function: &PsiOptimizationFunction,
     argument: &terminal_psi::StructuralArgument,
     parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -281,8 +281,34 @@ pub(crate) fn completed_record_loan(
     argument.access != StructuralAccess::Owned
         && argument.access == parameter.access
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && completed_record_source(function, argument.place, types).is_some_and(|result| {
-            resolve_structural_path(types, result.structural_type, &argument.path)
-                == Some(parameter.structural_type)
-        })
+        && completed_record_source(function, argument.place, types)
+            .map(|result| result.structural_type)
+            .or_else(|| {
+                // Whole and projected loans borrow the selected block value. This
+                // checks the current signature; declaration, dominance, and
+                // frontier replay still own that value's availability.
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.structural_parameters)
+                    .find(|source| {
+                        source.place == argument.place
+                            && argument.access == StructuralAccess::SharedBorrow
+                            && (argument.path.is_empty() || is_nonempty_field_path(&argument.path))
+                            && source.access == StructuralAccess::Owned
+                            && matches!(
+                                source.multiplicity,
+                                StructuralMultiplicity::Affine
+                                    | StructuralMultiplicity::Unrestricted
+                            )
+                            && source.qualifications.is_empty()
+                            && source.projected_qualifications.is_empty()
+                            && plain_record(types, source.structural_type)
+                    })
+                    .map(|source| source.structural_type)
+            })
+            .is_some_and(|root_type| {
+                resolve_structural_path(types, root_type, &argument.path)
+                    == Some(parameter.structural_type)
+            })
 }

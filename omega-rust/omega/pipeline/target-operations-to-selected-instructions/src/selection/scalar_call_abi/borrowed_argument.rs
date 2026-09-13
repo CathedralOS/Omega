@@ -47,8 +47,10 @@ pub(super) fn validate_borrowed_argument(
     );
     let local = crate::selection::primitive_local_input::local(source, semantic.place);
     let record_home = crate::selection::record_input::home(source, semantic.place);
+    let record_block_home = crate::selection::record_input::block_home(source, semantic.place);
     let record_root = record_home
         .map(|(_, result)| result.structural_type)
+        .or_else(|| record_block_home.map(|(_, declaration)| declaration.structural_type))
         .or_else(|| {
             signature
                 .parameters
@@ -228,6 +230,17 @@ pub(super) fn validate_borrowed_argument(
                 .find(|parameter| parameter.semantic.place == semantic.place)?;
             if target.root_structural_type != parameter.semantic.structural_type
                 || *placement != parameter.target.placement
+            {
+                return None;
+            }
+        }
+        target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
+            if record.is_some() =>
+        {
+            let (owner, declaration) = record_block_home?;
+            if semantic.access != StructuralAccess::SharedBorrow
+                || *block != owner
+                || *place != declaration.place
             {
                 return None;
             }

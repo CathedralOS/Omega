@@ -182,7 +182,7 @@ pub(crate) fn structural_arguments_match(
                         if result.place == argument.place)
                     }));
         let actual_multiplicity =
-            if shared_affine_loan || completed_record_loan(caller, argument, parameter, types) {
+            if shared_affine_loan || record_loan(caller, argument, parameter, types) {
                 terminal_psi::StructuralMultiplicity::Unrestricted
             } else if argument.path.is_empty() {
                 source.multiplicity
@@ -228,7 +228,15 @@ pub(crate) fn structural_arguments_match(
             if left.place == right.place
                 && structural_paths_may_overlap(&left.path, &right.path)
                 && (structural_access_is_exclusive(left.access)
-                    || structural_access_is_exclusive(right.access))
+                    || structural_access_is_exclusive(right.access)
+                    // Moving an affine owner is exclusive even when the other
+                    // argument only borrows a child. Block arrivals retain that
+                    // obligation just like parameters and operation results.
+                    || ((left.access == terminal_psi::StructuralAccess::Owned
+                        || right.access == terminal_psi::StructuralAccess::Owned)
+                        && structural_source_contract(caller, left.place, allow_byte_literal)
+                            .is_some_and(|source| source.access == terminal_psi::StructuralAccess::Owned
+                                && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine)))
             {
                 return false;
             }

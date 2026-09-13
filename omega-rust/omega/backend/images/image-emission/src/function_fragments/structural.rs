@@ -77,7 +77,10 @@ fn scalar_type(function: &SelectedFunction, value: ValueId) -> Result<ScalarType
     Ok(scalar_type)
 }
 
-pub(super) fn published_call(contract: &selected_instructions::SelectedCallContract) -> bool {
+pub(super) fn published_call(
+    selected: &SelectedFunction,
+    contract: &selected_instructions::SelectedCallContract,
+) -> bool {
     // Fresh aggregate results use complete selected call/storage replay. The
     // legacy singular structural-result record describes a different family
     // (whole-input returns); recording that here would misstate result custody.
@@ -86,11 +89,17 @@ pub(super) fn published_call(contract: &selected_instructions::SelectedCallContr
         // projection. Their complete call operands and homes belong to the
         // mandatory selected graph replay, just like aggregate results.
         // Borrowing a constructed home also belongs to that replay: its address
-        // is activation-local storage, not an incoming pointer placement.
+        // is activation-local storage, not an incoming pointer placement. Record
+        // joins own the same kind of payload home; legacy block-source records
+        // describe byte-view descriptors, not those owned record bytes.
         && !contract.call.arguments.iter().any(|argument| {
             matches!(argument, LegalizedScalarArgument::Structural { target, .. }
                 if inline_owned_placement(target.access, &target.destination)
-                    || matches!(target.source, target_operations::TargetStructuralArgumentSource::StructuralHome { .. }))
+                    || matches!(target.source, target_operations::TargetStructuralArgumentSource::StructuralHome { .. })
+                    || (matches!(target.source, target_operations::TargetStructuralArgumentSource::BlockParameter { .. })
+                        && selected.structural.as_ref().is_some_and(|signature| signature.structural_types.iter().any(|declaration|
+                            declaration.id == target.root_structural_type
+                                && matches!(declaration.shape, terminal_psi::StructuralTypeShape::Record { .. })))))
         })
         && (contract.call.result_placement.is_none()
             || contract
@@ -346,7 +355,7 @@ pub(super) fn populate(
     for contract in selected
         .calls
         .iter()
-        .filter(|contract| published_call(contract))
+        .filter(|contract| published_call(selected, contract))
     {
         let call = &contract.call;
         let span = rows

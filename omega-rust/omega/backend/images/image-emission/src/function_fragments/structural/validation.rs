@@ -51,7 +51,7 @@ pub(in crate::function_fragments) fn validate_function(
             != selected
                 .calls
                 .iter()
-                .filter(|row| published_call(row))
+                .filter(|row| published_call(selected, row))
                 .count()
     {
         return Err(invalid());
@@ -85,11 +85,12 @@ pub(in crate::function_fragments) fn validate_function(
         source::frame(source, function.machine)?.map_or(0, |frame| frame.frame_size_bytes),
     )
     .map_err(|_| Error::Overflow)?;
-    for (actual, contract) in function
-        .internal_unit_calls
-        .iter()
-        .zip(selected.calls.iter().filter(|row| published_call(row)))
-    {
+    for (actual, contract) in function.internal_unit_calls.iter().zip(
+        selected
+            .calls
+            .iter()
+            .filter(|row| published_call(selected, row)),
+    ) {
         let expected = &contract.call;
         let span = rows
             .iter()

@@ -207,3 +207,44 @@ pub(super) fn home(
     }
     Some((operation, result))
 }
+
+/// A selected record lives in the join's own home. Reconstruct its declaration
+/// and exact place coordinate; source replay separately checks availability.
+pub(super) fn block_home(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<(
+    semantic_vocabulary::BlockId,
+    &terminal_psi::StructuralParameterDeclaration,
+)> {
+    let mut matching = source.blocks.iter().flat_map(|block| {
+        block
+            .structural_parameters
+            .iter()
+            .filter(move |parameter| parameter.place == place)
+            .map(move |parameter| (block.id, parameter))
+    });
+    let (block, parameter) = matching.next()?;
+    let signature = source.structural.as_ref()?;
+    if matching.next().is_some()
+        || parameter.access != StructuralAccess::Owned
+        || parameter.multiplicity == StructuralMultiplicity::Linear
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || !signature.structural_places.iter().any(|declaration| {
+            declaration.id == place
+                && declaration.kind
+                    == semantic_vocabulary::StructuralPlaceKind::BlockParameter {
+                        block,
+                        position: parameter.position,
+                    }
+        })
+    {
+        return None;
+    }
+    crate::structural_reference_input::plain_record_shape(
+        parameter.structural_type,
+        &signature.structural_types,
+    )?;
+    Some((block, parameter))
+}

@@ -1401,7 +1401,11 @@ pub(super) fn validate_structural_arguments(
                                 StructuralAccess::Owned, &[][..], &[][..]))
                         }
                         StructuralPlaceKind::BlockParameter { .. }
-                            if argument.path.is_empty()
+                            if (argument.path.is_empty()
+                                || (allow_projected && ordinary_call
+                                    && argument.access == StructuralAccess::SharedBorrow
+                                    && is_nonempty_field_path(&argument.path)
+                                    && is_record_loan(module, caller, expected, argument)))
                                 && (argument.access == StructuralAccess::SharedBorrow
                                     || (ordinary_call && argument.access == StructuralAccess::Owned)
                                     || (ordinary_call && argument.access == StructuralAccess::MutableBorrow
@@ -1618,7 +1622,7 @@ pub(super) fn validate_structural_arguments(
                     .iter()
                     .any(|parameter| parameter.place == argument.place));
         let actual_multiplicity =
-            if shared_affine_loan || is_completed_record_loan(module, caller, expected, argument) {
+            if shared_affine_loan || is_record_loan(module, caller, expected, argument) {
                 StructuralMultiplicity::Unrestricted
             } else if argument.path.is_empty() {
                 actual_multiplicity
@@ -1701,11 +1705,21 @@ pub(super) fn validate_structural_arguments(
                                 && (matches!(
                                     place.kind,
                                     StructuralPlaceKind::OperationResult { .. }
-                                ) || caller.structural_parameters.iter().any(|parameter| {
-                                    parameter.place == place.id
-                                        && parameter.access == StructuralAccess::Owned
-                                        && parameter.multiplicity == StructuralMultiplicity::Affine
-                                }))
+                                ) || caller
+                                    .structural_parameters
+                                    .iter()
+                                    .chain(
+                                        caller
+                                            .blocks
+                                            .iter()
+                                            .flat_map(|block| &block.structural_parameters),
+                                    )
+                                    .any(|parameter| {
+                                        parameter.place == place.id
+                                            && parameter.access == StructuralAccess::Owned
+                                            && parameter.multiplicity
+                                                == StructuralMultiplicity::Affine
+                                    }))
                         })))
             {
                 return Err(ModuleError::OverlappingExclusiveStructuralArguments {
@@ -1942,7 +1956,7 @@ pub(super) fn validate_service_reach(
     Ok(())
 }
 
-fn is_completed_record_loan(
+fn is_record_loan(
     module: &TerminalModule,
     caller: &TerminalMachine,
     parameter: &StructuralParameterDeclaration,
@@ -1951,10 +1965,33 @@ fn is_completed_record_loan(
     argument.access != StructuralAccess::Owned
         && parameter.access == argument.access
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && super::record::completed_source(module, caller, argument.place).is_some_and(|result| {
-            resolve_structural_path(module, result.structural_type, &argument.path)
-                == Some(parameter.structural_type)
-        })
+        && super::record::completed_source(module, caller, argument.place)
+            .map(|result| result.structural_type)
+            .or_else(|| {
+                // A joined plain record still owns its fields. Shared field
+                // access borrows that selected storage rather than transferring
+                // it. Block declaration, dominance and live-frontier checks
+                // remain mandatory; this is only the exact loan signature.
+                super::block_views::parameter(caller, argument.place)
+                    .filter(|source| {
+                        argument.access == StructuralAccess::SharedBorrow
+                            && is_nonempty_field_path(&argument.path)
+                            && source.access == StructuralAccess::Owned
+                            && matches!(
+                                source.multiplicity,
+                                StructuralMultiplicity::Affine
+                                    | StructuralMultiplicity::Unrestricted
+                            )
+                            && source.qualifications.is_empty()
+                            && source.projected_qualifications.is_empty()
+                            && super::record::plain_type(module, source.structural_type)
+                    })
+                    .map(|source| source.structural_type)
+            })
+            .is_some_and(|root_type| {
+                resolve_structural_path(module, root_type, &argument.path)
+                    == Some(parameter.structural_type)
+            })
 }
 
 pub(super) fn validate_unit_call_claim_transfers(
@@ -2028,8 +2065,7 @@ pub(super) fn validate_unit_call_claim_transfers(
                     .entry_claims
                     .iter()
                     .all(|claim| claim.input != argument.place);
-            if !(is_completed_record_loan(module, caller, parameter, argument)
-                && callee_claims.is_empty())
+            if !(is_record_loan(module, caller, parameter, argument) && callee_claims.is_empty())
                 && !claim_free_unrestricted_write_only_field
                 && !claim_free_reference
                 && !claim_free_unrestricted_shared_field

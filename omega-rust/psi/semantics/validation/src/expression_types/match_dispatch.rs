@@ -205,8 +205,8 @@ pub fn validate_match_dispatch(
 
 /// Type admission only. Mandatory multiplicity checking subsequently establishes
 /// selected transfer receipts, continuation availability, and residual custody.
-/// Fresh/existing mixtures and borrowed, projected, or parameter owners remain
-/// outside this whole-local contract.
+/// Fresh plain construction can join whole locals. Borrowed, projected, and
+/// parameter owners still require their own transfer and cleanup evidence.
 fn plain_local_owner_selection(
     program: &TypedTrees,
     machine: &Machine,
@@ -214,8 +214,8 @@ fn plain_local_owner_selection(
     expression: ExpressionHandle,
 ) -> bool {
     if crate::scalar_case_constructor(program, expression).is_some() {
-        // Construction remains type-compatible. Multiplicity checking rejects
-        // a reachable fresh/existing mixture until residual counts can join.
+        // Construction remains type-compatible; multiplicity checking owns
+        // the displaced source and residual counts for fresh/existing mixtures.
         return true;
     }
     match program.expression_table.expression(expression) {
@@ -226,12 +226,17 @@ fn plain_local_owner_selection(
                     .iter()
                     .all(|arm| plain_local_owner_selection(program, machine, state, arm.value))
         }
+        ExpressionNode::StructLiteral(_) => {
+            declared_value_type(program, machine, state, expression)
+                .is_some_and(|reference| crate::has_plain_owned_contents(program, reference))
+                && !result_needs_custody_join(program, machine, state, expression)
+        }
         ExpressionNode::Name(path) => {
             let Some(reference) = declared_value_type(program, machine, state, expression) else {
                 return false;
             };
             program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
-                && crate::scalar_case_value_source(program, expression, reference) == Some(path.symbol)
+                && crate::plain_owned_value_source(program, expression, reference) == Some(path.symbol)
                 && crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
                 && program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
                     matches!(statement, typed_trees::statement::StatementNode::LocalData(local)

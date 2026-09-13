@@ -143,7 +143,7 @@ impl emission::Emission<'_, '_, '_> {
                                 return unsupported("nested record cannot create linear custody");
                             }
                         };
-                    let place = self.value(value, None)?;
+                    let place = self.record_field_value(value)?;
                     self.structural_type = parent_type;
                     self.multiplicity = parent_multiplicity;
                     terminal_psi::RecordFieldValue::Structural(StructuralArgument {
