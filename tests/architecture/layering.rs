@@ -745,8 +745,8 @@ fn compiler_product_coordinator_source(root: &std::path::Path) -> String {
 fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");
-    let model = root.join("omega-rust/omega/build/trust-model/src/lib.rs");
-    let ledger = root.join("omega-rust/omega/build/trust-ledger/src/custody.rs");
+    let model = root.join("omega-rust/omega/build/trust-model/src/admission_settlement.rs");
+    let ledger = root.join("omega-rust/omega/build/trust-ledger/src/admission_policy.rs");
 
     assert!(
         model.is_file() && ledger.is_file(),

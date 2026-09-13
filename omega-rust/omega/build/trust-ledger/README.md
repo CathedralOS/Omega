@@ -1,7 +1,8 @@
 # Standalone compiler admission custody
 
-[src/lib.rs](src/lib.rs) owns coordinator-facing `omega.admissions` custody.
-The sibling [trust-model](../trust-model/src/lib.rs) owns filesystem-free
+[admission_policy.rs](src/admission_policy.rs) owns reading and explicitly
+replacing `omega.admissions`, including format validation.
+The sibling [trust-model](../trust-model/README.md) owns filesystem-free
 obligation/report construction. This is separate from the
 [package lock](../../../../wiki/spec/packages/locks.md), which records source
 pins and project package acceptance.
