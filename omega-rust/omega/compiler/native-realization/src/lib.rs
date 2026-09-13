@@ -11,9 +11,9 @@
 mod entry_settlement;
 mod native_pipeline;
 pub use native_pipeline::*;
+mod native_realization;
 mod optimized_semantic_wrapper_encoding;
 mod optimized_semantic_wrapper_object;
-mod realization;
 
 pub use abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement;
 pub use entry_settlement::{
@@ -31,14 +31,7 @@ pub use native_artifact::{
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations, PhysicalChildParent,
     PhysicalRelocationDisposition,
 };
-pub use optimized_semantic_wrapper_encoding::{
-    OptimizedProgramStorageSemanticWrapperEncodingError,
-    StagedOptimizedProgramStorageSemanticWrapperEncoding,
-    select_optimized_program_storage_semantic_wrapper_encoding,
-    validate_optimized_program_storage_semantic_wrapper_encoding,
-};
-pub use optimized_semantic_wrapper_object::*;
-pub use realization::{
+pub use native_realization::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CallbackCustodyNativeRealizationError,
     CompilerIntrinsicTerminalAuthorityPolicy, MissingTerminalAuthorityPermission,
     NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
@@ -58,6 +51,13 @@ pub use realization::{
     realize_native_artifact_with_callback_custody, realize_program_entry_native_artifact,
     terminal_authority_permission_policy_with_rows, terminal_authority_policy_with_rows,
 };
+pub use optimized_semantic_wrapper_encoding::{
+    OptimizedProgramStorageSemanticWrapperEncodingError,
+    StagedOptimizedProgramStorageSemanticWrapperEncoding,
+    select_optimized_program_storage_semantic_wrapper_encoding,
+    validate_optimized_program_storage_semantic_wrapper_encoding,
+};
+pub use optimized_semantic_wrapper_object::*;
 
 #[cfg(test)]
 mod tests;

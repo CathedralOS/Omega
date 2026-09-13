@@ -1987,8 +1987,8 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     );
 
     let realization_root =
-        root.join("omega-rust/omega/compiler/native-realization/src/realization");
-    let realization_path = realization_root.join("native_artifact.rs");
+        root.join("omega-rust/omega/compiler/native-realization/src/native_realization");
+    let realization_path = realization_root.with_extension("rs");
     let realization = std::fs::read_to_string(&realization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
     let machine_code_path = realization_root.join("object.rs");
@@ -2147,7 +2147,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && target_stage.contains("lower_validated_abstract_to_target_operations")
             && !target_stage.contains("optimization_selections")
             && !target_output.contains("Optimized(Box<")
-            && physical_stage.contains("struct NativePhysicalStageResult")
+            && !physical_stage.contains("struct NativePhysicalStageResult")
             && !physical_stage.contains("NativeTargetStageEvidence")
             && !target_output.contains("enum NativeTargetStageEvidence")
             && !target_stage.contains("lower_validated_ranked_to_target_operations(")
@@ -2155,7 +2155,11 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && !root.join("omega-rust/omega/pipeline/target-operations-to-assigned-target-operations").exists()
             && !physical_stage.contains("IdentityRanked")
             && !machine_code.contains("IdentityRanked")
-            && physical_stage.contains("pub(crate) physical: crate::StagedOptimizedVerifiedPhysicalPipeline")
+            && physical_stage.contains("Result<crate::StagedOptimizedVerifiedPhysicalPipeline, Vec<Diagnostic>>")
+            && !physical_stage.contains(".plan().clone()")
+            && optimized_fragment_projection.contains("optimized.shared_program()")
+            && optimized_fragment_projection.contains("optimized.validation()")
+            && !optimized_fragment_projection.contains("pub(super) optimized_plan:")
             && physical_stage.contains("stage_optimized_verified_physical_pipeline(")
             && machine_code.contains("lower_realization_target_stage(")
             && machine_code.contains("lower_realization_physical_stage(")
@@ -2226,7 +2230,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .find("let (_, optimized_target) = target_stage")
         .expect("physical routing consumes current target data and bound evidence");
     let selected_physical_stage = physical_stage
-        .find("let physical = crate::stage_optimized_verified_physical_pipeline")
+        .find("crate::stage_optimized_verified_physical_pipeline(")
         .expect("optimized realization visibly enters physical optimization after target lowering");
     let transitional_assignment =
         "target_operations_to_assigned_target_operations::assign_registers";
@@ -2287,7 +2291,7 @@ fn component_candidate_replay_keeps_compact_identity_report_only() {
     let effects = std::fs::read_to_string(&effects_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", effects_path.display()));
     let producer_path =
-        root.join("omega-rust/omega/compiler/native-realization/src/realization/output.rs");
+        root.join("omega-rust/omega/compiler/native-realization/src/native_realization/output.rs");
     let producer = std::fs::read_to_string(&producer_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", producer_path.display()));
 

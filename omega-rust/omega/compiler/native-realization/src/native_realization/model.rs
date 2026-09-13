@@ -1,0 +1,196 @@
+use crate::entry_settlement::{
+    NativeProgramEntrySettlement, ValidatedNativeProgramEntrySettlement,
+};
+use installation_evidence::ProviderExecutionEvidence;
+use native_artifact::{DynamicElfNativeArtifact, NativeArtifact};
+use target_operations::BoundaryRealization;
+
+#[derive(Debug, Clone, Copy)]
+pub enum NativeBoundaryRealization<'execution> {
+    Builtin(BoundaryRealization),
+    NormalizedForeignCall(&'execution task_plans::AdmittedSameStackContribution),
+}
+
+impl<'execution> From<BoundaryRealization> for NativeBoundaryRealization<'execution> {
+    fn from(realization: BoundaryRealization) -> Self {
+        Self::Builtin(realization)
+    }
+}
+
+macro_rules! builtin_native_realization_conversion {
+    ($realization:ty) => {
+        impl<'execution> From<$realization> for NativeBoundaryRealization<'execution> {
+            fn from(realization: $realization) -> Self {
+                Self::Builtin(realization.into())
+            }
+        }
+    };
+}
+
+builtin_native_realization_conversion!(target_operations::MetadataOnlyPortRealization);
+builtin_native_realization_conversion!(target_operations::DirectPortReadU8Realization);
+builtin_native_realization_conversion!(target_operations::LinuxWriteLineRealization);
+builtin_native_realization_conversion!(target_operations::HostedExitProcessI32Realization);
+builtin_native_realization_conversion!(target_operations::HostedReadByteRealization);
+builtin_native_realization_conversion!(target_operations::ClaimCompletionOnlyRealization);
+
+pub(crate) use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput as NativeRealizationInput;
+
+/// Provider-supplied realization input for one Terminal boundary. The exact
+/// requirement comes from admitted execution evidence rather than a caller-
+/// authored numeric boundary ID.
+#[derive(Debug, Clone, Copy)]
+pub struct NativeProviderSettlement<'execution> {
+    pub provider_execution: &'execution dyn ProviderExecutionEvidence,
+    /// Complete selected-plan evidence. The compact report identity remains a
+    /// report coordinate and cannot select or authorize a plan by itself.
+    pub provider_plan: &'execution effects::provider_plan::ProviderPlan,
+    pub realization: NativeBoundaryRealization<'execution>,
+}
+
+/// Target-constrained compiler-builtin proposal consumed by the local native
+/// lowerer. This carries no provider execution or installation receipt.
+#[derive(Debug, Clone, Copy)]
+pub struct NativeCompilerBuiltinSettlement<'execution> {
+    pub requirement_identity: &'execution str,
+    pub provider_plan: &'execution effects::provider_plan::ProviderPlan,
+    pub execution: target_operations::CompilerBuiltinExecution,
+}
+
+/// Borrowed source-free body and placement join for one compiler-private
+/// callback thunk. The ordinary callback-argument carrier remains separate so
+/// target lowering cannot confuse executable body custody with a semantic
+/// registrar argument.
+#[derive(Debug, Clone, Copy)]
+pub struct NativeCallbackThunkSettlement<'artifact> {
+    pub terminal_operation: semantic_vocabulary::OperationId,
+    pub placement_index: usize,
+    pub callback_function: function_identity::MachineFunctionIdentity,
+    pub private_symbol: &'artifact str,
+    pub artifact: &'artifact terminal_codec::CanonicalTerminalArtifact,
+    pub lowering_receipt: lowered_psi::CallbackTerminalLoweringReceipt,
+    pub boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
+}
+
+/// Complete build-owned inputs for one target-native realization. Keeping
+/// these coupled prevents callers from accidentally carrying entry, target,
+/// optimization, and provider custody through separate positional channels.
+pub struct NativeRealizationRequest<'request> {
+    pub target: target::NativeTarget,
+    pub image_request: image_emission::ExecutableImageEmissionRequest,
+    /// Optional same-artifact source custody, validated before realization.
+    pub checked_scope:
+        Option<&'request lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
+    /// Optional target-neutral reuse; exact artifact/profile/selection equality is rechecked.
+    pub prepared_input: Option<&'request super::input::PreparedNativeRealizationInput>,
+    pub profile: &'request proof_admission::AdmissionProfile,
+    /// Receiving target policy used to classify every demanded compiler
+    /// intrinsic before native settlement.
+    pub terminal_authority_policy: crate::native_realization::TerminalAuthorityPolicy,
+    /// Independently accepted exact service-schema/requirement permissions.
+    /// Physical classification cannot manufacture or widen these rows.
+    pub terminal_authority_permission_policy:
+        crate::native_realization::TerminalAuthorityPermissionPolicy,
+    pub program_entry: NativeProgramEntrySettlement<'request>,
+    pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
+    pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
+    pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
+    pub settlements: &'request [NativeProviderSettlement<'request>],
+    pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
+    /// Exact source-free D29 demand and realization custody projected by the
+    /// compiler product owner. A nonempty checked scope requires this value;
+    /// `None` never means an exact empty demand set.
+    pub boundary_application_coverage:
+        Option<&'request boundary_applications::TerminalBoundaryApplicationCoverage>,
+    /// Exact retained nearest-FMA occurrences admitted by the source/Terminal
+    /// proposal. The ordinary Abstract-to-Target stage consumes these rows;
+    /// they are never inferred from a selected-plan report coordinate.
+    pub ieee_float_fma:
+        &'request [abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement<
+            'request,
+        >],
+    /// Exact target-owned callback arguments rejoined by Terminal operation.
+    /// This custody is consumed only by ordinary target lowering and physical
+    /// assignment; machine emission remains a later, explicitly fenced rung.
+    pub native_callbacks:
+        &'request [abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
+    /// Isolated executable bodies paired one-to-one with `native_callbacks`.
+    /// Their Terminal machine identities live in separate artifact namespaces.
+    pub callback_thunks: &'request [NativeCallbackThunkSettlement<'request>],
+}
+
+/// Source-free native result selected by the exact object-bound image request.
+/// Dynamic ELF remains a separate, non-installable authority class.
+#[derive(Debug)]
+#[must_use = "requested native realization retains its authority-distinct image custody"]
+pub enum RequestedNativeArtifact {
+    Direct(NativeArtifact),
+    DynamicElf(DynamicElfNativeArtifact),
+}
+
+impl RequestedNativeArtifact {
+    /// Borrow a direct artifact without treating dynamic custody as executable authority.
+    pub fn as_direct(&self) -> Option<&NativeArtifact> {
+        match self {
+            Self::Direct(artifact) => Some(artifact),
+            Self::DynamicElf(_) => None,
+        }
+    }
+
+    /// Extract a direct artifact without discarding a different image's custody.
+    pub fn into_direct(self) -> Result<NativeArtifact, Self> {
+        match self {
+            Self::Direct(artifact) => Ok(artifact),
+            other => Err(other),
+        }
+    }
+}
+
+/// Failed requested realization with the complete image input recoverable.
+#[derive(Debug)]
+#[must_use = "requested native realization failure retains the exact image request"]
+pub struct RequestedNativeArtifactError {
+    pub(crate) image_request: image_emission::ExecutableImageEmissionRequest,
+    pub(crate) diagnostics: Vec<diagnostics::Diagnostic>,
+}
+
+impl RequestedNativeArtifactError {
+    pub fn into_parts(
+        self,
+    ) -> (
+        image_emission::ExecutableImageEmissionRequest,
+        Vec<diagnostics::Diagnostic>,
+    ) {
+        (self.image_request, self.diagnostics)
+    }
+
+    pub fn diagnostics(&self) -> &[diagnostics::Diagnostic] {
+        &self.diagnostics
+    }
+}
+
+/// Native result retaining its independently validated ProgramEntry settlement.
+#[derive(Debug)]
+pub struct SettledNativeArtifact {
+    pub(crate) artifact: RequestedNativeArtifact,
+    pub(crate) program_entry: ValidatedNativeProgramEntrySettlement,
+}
+
+impl SettledNativeArtifact {
+    pub const fn artifact(&self) -> &RequestedNativeArtifact {
+        &self.artifact
+    }
+
+    pub const fn program_entry(&self) -> &ValidatedNativeProgramEntrySettlement {
+        &self.program_entry
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        RequestedNativeArtifact,
+        ValidatedNativeProgramEntrySettlement,
+    ) {
+        (self.artifact, self.program_entry)
+    }
+}
