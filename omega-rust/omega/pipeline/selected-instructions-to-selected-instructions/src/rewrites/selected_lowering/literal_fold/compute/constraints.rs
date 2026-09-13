@@ -52,22 +52,38 @@ pub(super) fn select_admitted_pairs<'a>(
 }
 
 fn validate_immediate_row(row: &RegisterInstructionConstraint) -> Result<(), LiteralFoldError> {
-    let [left, result] = row.operands.as_slice() else {
-        return Err(LiteralFoldError::ImmediateConstraintMismatch);
+    let clean = |operands: &[&register_model::RegisterOperandConstraint]| {
+        operands.iter().all(|operand| {
+            operand.fixed_view.is_none() && operand.tied_to.is_none() && !operand.early_clobber
+        }) && row.implicit_uses.is_empty()
+            && row.clobbers.is_empty()
     };
-    if left.operand != 0
-        || left.access != RegisterOperandAccess::Use
-        || result.operand != 1
-        || result.access != RegisterOperandAccess::Def
-        || left.class != result.class
-        || [left, result].iter().any(|operand| {
-            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
-        })
-        || !row.implicit_uses.is_empty()
-        || !row.implicit_defs.is_empty()
-        || !row.clobbers.is_empty()
-    {
-        return Err(LiteralFoldError::ImmediateConstraintMismatch);
+    match row.operands.as_slice() {
+        // Scalar-result form: `result = left <op> immediate`.
+        [left, result] => {
+            if left.operand != 0
+                || left.access != RegisterOperandAccess::Use
+                || result.operand != 1
+                || result.access != RegisterOperandAccess::Def
+                || left.class != result.class
+                || !clean(&[left, result])
+                || !row.implicit_defs.is_empty()
+            {
+                return Err(LiteralFoldError::ImmediateConstraintMismatch);
+            }
+        }
+        // Flag-defining form: `compare left, immediate` carries no `Def`
+        // operand; its only implicit output is the target condition state.
+        [left] => {
+            if left.operand != 0
+                || left.access != RegisterOperandAccess::Use
+                || !clean(&[left])
+                || row.implicit_defs.is_empty()
+            {
+                return Err(LiteralFoldError::ImmediateConstraintMismatch);
+            }
+        }
+        _ => return Err(LiteralFoldError::ImmediateConstraintMismatch),
     }
     Ok(())
 }

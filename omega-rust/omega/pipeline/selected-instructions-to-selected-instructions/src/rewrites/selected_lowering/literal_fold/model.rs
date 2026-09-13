@@ -13,7 +13,7 @@ use crate::{
 };
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 3;
+const LITERAL_FOLD_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldIdentity(pub(crate) [u8; 32]);
@@ -38,13 +38,17 @@ pub struct LiteralFoldPolicy {
 impl LiteralFoldPolicy {
     const EXACT_ADD_BIT: u8 = 1 << 0;
     const EXACT_SUBTRACT_BIT: u8 = 1 << 1;
-    const KNOWN_BITS: u8 = Self::EXACT_ADD_BIT | Self::EXACT_SUBTRACT_BIT;
+    const COMPARE_BIT: u8 = 1 << 2;
+    const KNOWN_BITS: u8 = Self::EXACT_ADD_BIT | Self::EXACT_SUBTRACT_BIT | Self::COMPARE_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
     };
     pub const EXACT_SUBTRACT_V1: Self = Self {
         enabled_rules: Self::EXACT_SUBTRACT_BIT,
+    };
+    pub const COMPARE_V1: Self = Self {
+        enabled_rules: Self::COMPARE_BIT,
     };
 
     pub(crate) const fn empty() -> Self {
@@ -67,6 +71,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_exact_subtract(self) -> bool {
         self.enabled_rules & Self::EXACT_SUBTRACT_BIT != 0
+    }
+
+    pub const fn enables_compare(self) -> bool {
+        self.enabled_rules & Self::COMPARE_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u8 {
@@ -161,7 +169,11 @@ impl LiteralFoldPlan {
                         cursor.array()?,
                     )),
                     left: VirtualRegisterId(u32::from_le_bytes(cursor.array()?)),
-                    result: VirtualRegisterId(u32::from_le_bytes(cursor.array()?)),
+                    result: match cursor.byte()? {
+                        0 => None,
+                        1 => Some(VirtualRegisterId(u32::from_le_bytes(cursor.array()?))),
+                        tag => return Err(LiteralFoldDecodeError::UnknownOption(tag)),
+                    },
                     immediate: u64::from_le_bytes(cursor.array()?),
                     immediate_constraint: decode_constraint_key(&mut cursor)?,
                 }),
@@ -210,7 +222,9 @@ pub struct LiteralFoldAction {
     pub victim: VirtualRegisterId,
     pub consumer_instruction: SelectedInstructionId,
     pub left: VirtualRegisterId,
-    pub result: VirtualRegisterId,
+    /// The folded consumer's scalar result. Flag-defining consumers such as
+    /// `CompareI64` carry no `Def` operand and record `None`.
+    pub result: Option<VirtualRegisterId>,
     pub immediate: u64,
     pub immediate_constraint: RegisterConstraintKey,
 }

@@ -38,6 +38,12 @@ impl SelectedInstructionPairRule {
         rewritten: MachineSemanticKind::ExactSubtractI64Immediate,
         immediate_limit: 4095,
     };
+    pub const COMPARE_IMMEDIATE_U12: Self = Self {
+        producer: MachineSemanticKind::MaterializeI64,
+        consumer: MachineSemanticKind::CompareI64,
+        rewritten: MachineSemanticKind::CompareI64Immediate,
+        immediate_limit: 4095,
+    };
 
     pub const fn producer(self) -> MachineSemanticKind {
         self.producer
@@ -75,6 +81,7 @@ impl SelectedInstructionPairRule {
         match self.rewritten {
             MachineSemanticKind::ExactAddI64Immediate => Some(keys.add_i64_immediate),
             MachineSemanticKind::ExactSubtractI64Immediate => Some(keys.subtract_i64_immediate),
+            MachineSemanticKind::CompareI64Immediate => Some(keys.compare_i64_immediate),
             _ => None,
         }
     }
@@ -109,6 +116,9 @@ impl SelectedInstructionPairRule {
                 obligation,
                 accepted_fact,
             }),
+            (MachineSemanticKind::CompareI64Immediate, SelectedInstructionKind::CompareI64) => {
+                Some(SelectedInstructionKind::CompareI64Immediate { immediate })
+            }
             _ => None,
         }
     }

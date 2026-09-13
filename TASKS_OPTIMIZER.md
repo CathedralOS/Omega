@@ -180,10 +180,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   plus a fold action for flag-defining consumers without a `Def` result.
   Landed: the `CompareI64Immediate` kind and both encoders (x86-64 `cmp
   r64,imm32`, AArch64 `subs xzr,xN,#imm12`; immediate domain is u12, semantic
-  tag 53), with canonical zero decode on AArch64 reusing `CompareI64Zero`.
-  Remaining: the fold family itself — a `CompareI64` + u12 literal
-  rematerialization candidate, the flag-defining/no-`Def` fold action, its
-  vocabulary entry, and corruption/replay coverage.
+  tag 53), with canonical zero decode on AArch64 reusing `CompareI64Zero`,
+  and the compare fold family itself: `Optimization::
+  SelectedIncomingU12CompareImmediate` (tag 21) enables the
+  `COMPARE_IMMEDIATE_U12` pair rule, the flag-defining/no-`Def` fold action
+  (`LiteralFoldAction.result: Option`, codec v4), flag-shape immediate-row
+  validation in compute and independent replay, and firing/corruption/replay
+  coverage on both Linux targets. Note: selected-lowering selections still
+  reject at the common physical-staging gate
+  (`UnconsumedPostTerminalPhase(SelectedLowering)`, retired downstream
+  dispatch from `267f5eb205`), identical to the add/subtract families.
+  Remaining: further families (address-mode folding, extension elimination,
+  constant materialization) one exact named family at a time.
 
 - **SELECTED-ABI-VALIDATION.** Validate ABI operands, calls, clobbers, effects,
   traps, provenance, cleanup, and logical fuel across every selected rule.
