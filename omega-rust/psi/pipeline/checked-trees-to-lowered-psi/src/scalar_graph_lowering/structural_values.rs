@@ -3,6 +3,8 @@
 //! completed fields commit through the same record emitter as Unit bodies.
 //! Only the completed root enters the local namespace. Nested owned records
 //! transfer into their parent, while a root survives through selected arguments.
+//! Whole record copies bind a fresh block home through ordinary owned edges.
+//! Reusing the source place would alias its storage instead of taking a snapshot.
 
 use super::*;
 use checked_trees::{
@@ -17,6 +19,11 @@ pub(super) struct Prepared {
 }
 
 enum Step {
+    Copy {
+        source: StructuralArgument,
+        destination: StructuralParameterDeclaration,
+        prefix: Vec<QualifiedScalarType>,
+    },
     Scalar {
         role: CheckedScalarExpressionRole,
         result_type: QualifiedScalarType,
@@ -128,13 +135,6 @@ impl Preparation<'_> {
     ) -> Result<PlaceId, LoweringError> {
         let plans = &self.checked.facts.values.structural_values;
         let node = plans.nodes.get(value);
-        let CheckedStructuralValueKind::Record {
-            data_symbol,
-            fields,
-        } = node.kind
-        else {
-            return unsupported("scalar structural construction requires record value custody");
-        };
         let identity = self.checked.normalized_type_identity(reference);
         let declaration = self
             .types
@@ -148,6 +148,40 @@ impl Preparation<'_> {
         } = &declaration.shape
         else {
             return unsupported("scalar record has a nonrecord structural declaration");
+        };
+        if let CheckedStructuralValueKind::Place(argument) = &node.kind {
+            // Source replay above checks the authored name, destination carrier
+            // and earlier establishment. This join copies storage; affine moves
+            // additionally need the surviving-owner frontier transported here.
+            if self.checked.type_multiplicity(reference) != Multiplicity::Unrestricted
+                || argument.type_identity != identity.as_str()
+            {
+                return unsupported("scalar record copy changed its carrier or multiplicity");
+            }
+            let source = self.bindings.owned_argument(argument)?;
+            let place = place_id(allocate_dense(self.next_place)?);
+            self.steps.push(Step::Copy {
+                source,
+                destination: StructuralParameterDeclaration {
+                    place,
+                    position: 0,
+                    is_self: false,
+                    structural_type: declaration.id,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::Owned,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                },
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
+        let CheckedStructuralValueKind::Record {
+            data_symbol,
+            fields,
+        } = node.kind
+        else {
+            return unsupported("scalar structural construction requires record value custody");
         };
         let owner = self
             .checked
@@ -287,12 +321,15 @@ impl Prepared {
             .steps
             .last()
             .map(|step| match step {
-                Step::Scalar { prefix, .. } | Step::Record { prefix, .. } => prefix,
+                Step::Scalar { prefix, .. }
+                | Step::Record { prefix, .. }
+                | Step::Copy { prefix, .. } => prefix,
             })
             .ok_or(LoweringError::Unsupported(
                 "record construction has no completion",
             ))?;
         let mut target = computations.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             parameter_types: completed_types.clone(),
             bindings: Vec::new(),
             structural_effects: Vec::new(),
@@ -305,6 +342,36 @@ impl Prepared {
         });
         for step in self.steps.into_iter().rev() {
             target = match step {
+                Step::Copy {
+                    source,
+                    destination,
+                    prefix,
+                } => {
+                    let copied = computations.push(LoweredScalarBranchState {
+                        structural_parameters: vec![destination],
+                        parameter_types: prefix.clone(),
+                        bindings: Vec::new(),
+                        structural_effects: Vec::new(),
+                        terminator: LoweredScalarBranchTerminator::Jump {
+                            target,
+                            arguments: computations::parameters(&prefix),
+                            structural_arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    });
+                    computations.push(LoweredScalarBranchState {
+                        structural_parameters: Vec::new(),
+                        parameter_types: prefix.clone(),
+                        bindings: Vec::new(),
+                        structural_effects: Vec::new(),
+                        terminator: LoweredScalarBranchTerminator::Jump {
+                            target: copied,
+                            arguments: computations::parameters(&prefix),
+                            structural_arguments: vec![source],
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    })
+                }
                 Step::Scalar {
                     role,
                     result_type,
@@ -323,6 +390,7 @@ impl Prepared {
                     construction,
                     prefix,
                 } => computations.push(LoweredScalarBranchState {
+                    structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),
                     bindings: Vec::new(),
                     structural_effects: vec![LoweredScalarEffect::EstablishRecord(construction)],
@@ -471,6 +539,7 @@ pub(super) fn exit_target(
         return Ok(target);
     }
     Ok(computations.push(LoweredScalarBranchState {
+        structural_parameters: Vec::new(),
         parameter_types: parameter_types.to_vec(),
         bindings: Vec::new(),
         structural_effects: Vec::new(),

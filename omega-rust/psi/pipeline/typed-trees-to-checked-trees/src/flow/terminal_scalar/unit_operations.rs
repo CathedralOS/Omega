@@ -1,5 +1,5 @@
 //! Complete ordered effects after the source graph and ownership ledger exist.
-//! Fresh records keep their exact value roots and edge-owned disposal; scalar
+//! Record values keep their exact value roots and edge-owned disposal; scalar
 //! observations do not turn the record into a scalar binding or move its owner.
 
 use checked_trees::{CheckFacts, CheckedUnitEffectOperationPlan};
@@ -58,7 +58,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                         .map(|(ordinal, statement)| {
                             if let StatementNode::LocalData(local) = statement {
                                 let ordinal = u32::try_from(ordinal).ok()?;
-                                let root = super::constructions::fresh_record_root(
+                                let root = super::constructions::record_value_root(
                                     program,
                                     &facts.values.structural_values,
                                     machine.symbol,

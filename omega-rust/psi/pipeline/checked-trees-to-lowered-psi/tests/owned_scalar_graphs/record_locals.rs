@@ -30,6 +30,145 @@ fn integer(value: u128) -> TerminalScalarValue {
     }
 }
 
+const COPY_SOURCE: &str = r#"
+data Value [copy] { number: u64; take: bool; }
+data Outer [copy] { inner: Value; }
+machine selected(take: bool, input: u64) -> u64 {
+    let before: u64 = input ^ 17;
+    let first: Value = Value { take: take, number: before };
+    let other: Value = Value { number: 3, take: false };
+    let nested: Outer = Outer { inner: first };
+    let copied: Outer = nested;
+    let last: Outer = copied;
+    let after: u64 = last.inner.number ^ 17;
+    transition last.inner.take {
+        true -> yes(after, other.number)
+        _ -> no(other.number)
+    }
+    state yes(value: u64, snapshot: u64) { value ^ snapshot }
+    state no(value: u64) { value }
+}
+"#;
+
+#[test]
+fn record_copies_bind_distinct_homes_before_nested_transition_reads() {
+    let (_, module, bytes, proof) = support::publish(COPY_SOURCE, "selected");
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let mut copies = 0;
+    for block in &machine.blocks {
+        let terminal_psi::Terminator::Jump {
+            target,
+            structural_arguments,
+            ..
+        } = &block.terminator
+        else {
+            continue;
+        };
+        let destination = machine
+            .blocks
+            .iter()
+            .find(|block| block.id == *target)
+            .unwrap();
+        for (source, destination) in structural_arguments
+            .iter()
+            .zip(&destination.structural_parameters)
+        {
+            assert_ne!(
+                source.place, destination.place,
+                "copy cannot alias the source home"
+            );
+            assert_eq!(source.access, terminal_psi::StructuralAccess::Owned);
+            assert_eq!(
+                destination.multiplicity,
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            );
+            copies += 1;
+        }
+    }
+    assert_eq!(copies, 3, "nested field and two whole-local copies");
+    for input in [0, 256, u128::from(u64::MAX)] {
+        for (take, expected) in [(true, input ^ 3), (false, 3)] {
+            let result = terminal_interpreter::interpret_terminal_artifact_measured(
+                &bytes,
+                &proof,
+                &proof_admission::AdmissionProfile::default(),
+                &[TerminalScalarValue::Boolean(take), integer(input)],
+            )
+            .unwrap();
+            assert_eq!(
+                result.value(),
+                TerminalExecutionResult::Scalar(integer(expected))
+            );
+        }
+    }
+}
+
+#[test]
+fn record_copy_replay_rejects_same_carrier_source_and_access_substitution() {
+    let (checked, _, _, _) = support::publish(COPY_SOURCE, "selected");
+    let local = |name: &str| {
+        checked
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.machine_states(machine))
+            .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
+            .find_map(|statement| match statement {
+                checked_trees::statement::StatementNode::LocalData(local)
+                    if local.name.as_str() == name =>
+                {
+                    Some(local.symbol)
+                }
+                _ => None,
+            })
+            .unwrap()
+    };
+    let first = local("first");
+    let other = local("other");
+    let handle = checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .iter()
+        .find_map(|(handle, node)| match &node.kind {
+            checked_trees::CheckedStructuralValueKind::Place(argument)
+                if argument.source == checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: first } => Some(handle),
+            _ => None,
+        })
+        .unwrap();
+    for corruption in 0..3 {
+        let mut forged = checked.clone();
+        let checked_trees::CheckedStructuralValueKind::Place(argument) = &mut forged
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get_mut(handle)
+            .kind
+        else {
+            panic!("whole-place copy");
+        };
+        match corruption {
+            0 => {
+                argument.source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol: other,
+                    }
+            }
+            1 => argument.access = checked_trees::CheckedStructuralAccess::SharedBorrow,
+            _ => argument.type_identity.push_str("substituted"),
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&forged, "selected").is_err(),
+            "corruption {corruption}"
+        );
+    }
+}
+
 #[test]
 fn record_locals_complete_fields_and_selected_arguments_before_cleanup() {
     let (_, _, bytes, proof) = support::publish(SOURCE, "selected");

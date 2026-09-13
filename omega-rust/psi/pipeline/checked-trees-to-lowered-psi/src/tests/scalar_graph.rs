@@ -179,6 +179,7 @@ fn scalar_machine_builder_uses_a_disjoint_module_identity_namespace() {
     let identity_base = TERMINAL_MACHINE_IDENTITY_STRIDE;
     let lowered = build_scalar_graph_module(
         &[LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             parameter_types: vec![ScalarType::Boolean.into()],
             bindings: Vec::new(),
             structural_effects: Vec::new(),
@@ -241,6 +242,7 @@ fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
     let lowered = build_scalar_graph_module(
         &[
             LoweredScalarBranchState {
+                structural_parameters: Vec::new(),
                 parameter_types: vec![ScalarType::Boolean.into()],
                 bindings: Vec::new(),
                 structural_effects: Vec::new(),
@@ -252,6 +254,7 @@ fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
                 },
             },
             LoweredScalarBranchState {
+                structural_parameters: Vec::new(),
                 parameter_types: vec![ScalarType::Boolean.into()],
                 bindings: Vec::new(),
                 structural_effects: Vec::new(),
@@ -300,6 +303,7 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
     };
     let states = [
         LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             parameter_types: vec![ScalarType::Boolean.into()],
             bindings: Vec::new(),
             structural_effects: Vec::new(),
@@ -312,6 +316,7 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
             },
         },
         LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             parameter_types: vec![ScalarType::Boolean.into()],
             bindings: Vec::new(),
             structural_effects: Vec::new(),
@@ -320,6 +325,7 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
             },
         },
         LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             parameter_types: vec![ScalarType::Boolean.into()],
             bindings: Vec::new(),
             structural_effects: Vec::new(),

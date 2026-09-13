@@ -389,6 +389,7 @@ impl<'a> Expansion<'a> {
         let mut completed_types = source_types.to_vec();
         completed_types.extend(&argument_types);
         let completion = self.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: completed_types.clone(),
             bindings: Vec::new(),
@@ -466,6 +467,7 @@ impl<'a> Expansion<'a> {
         let mut arguments = parameters(&input_types[..retained]);
         arguments.push(parameter(input_types.len(), binding.scalar_type().into()));
         self.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: input_types.to_vec(),
             bindings: vec![binding],
@@ -559,6 +561,7 @@ impl<'a> Expansion<'a> {
                     // The target was prepared with the full result type. Only
                     // this edge establishes it, leaving the operand unchanged.
                     let qualify = self.push(LoweredScalarBranchState {
+                        structural_parameters: Vec::new(),
                         parameter_types: operand_types.clone(),
                         bindings: Vec::new(),
                         structural_effects: Vec::new(),
@@ -625,6 +628,7 @@ impl<'a> Expansion<'a> {
                 let mut condition_types = input_types.to_vec();
                 condition_types.push(ScalarType::Boolean.into());
                 let dispatch = self.push(LoweredScalarBranchState {
+                    structural_parameters: Vec::new(),
                     structural_effects: Vec::new(),
                     parameter_types: condition_types,
                     bindings: Vec::new(),

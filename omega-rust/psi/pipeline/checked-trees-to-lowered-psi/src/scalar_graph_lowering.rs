@@ -570,6 +570,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         // Existing conditional argument lowering evaluates them only in the
         // selected arm; no source state or executable value is manufactured.
         lowered_states.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: vec![result_type],
             bindings: Vec::new(),
