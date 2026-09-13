@@ -516,7 +516,10 @@ pub(super) fn retain_call_targets<'a>(
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
+                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                // The paired call carries the callee dependency; cleanup only
+                // disposes its discarded result.
+                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {}
                 _ => return unsupported("composed Unit call state contains a non-call operation"),
             }
         }
@@ -649,6 +652,49 @@ pub(super) fn retain_call_boundary<'a>(
             ..
         } => {
             let target = unique_unit_boundary(plans, *target_machine)?;
+            // A discarded structural result pairs with its call's cleanup
+            // continuation: custody stays inside the state sequence and the
+            // boundary keeps its declared result shape rather than the
+            // claim-free affine transfer roster.
+            let cleanup_disposed = state.operations.iter().any(|operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                        coordinate: cleanup_coordinate,
+                        affine_discards,
+                    } if *cleanup_coordinate == *coordinate
+                        && affine_discards.iter().any(|discard| matches!(
+                            discard.source,
+                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                binding_ordinal,
+                            } if binding_ordinal == result.binding_ordinal
+                        ))
+                )
+            });
+            if cleanup_disposed {
+                // Argument and receiver custody was already proven by the
+                // source-custody validation and exact flow-call retention
+                // above; only the binding ordinal must stay exact here.
+                if result.binding_ordinal as usize != state.operations.iter().filter(|operation| {
+                    matches!(operation, CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        coordinate: previous, ..
+                    } if previous.statement_index < coordinate.statement_index)
+                }).count()
+                    || !completion_receipts.is_empty()
+                {
+                    return unsupported("composed Unit discarded result kept ordinal or receipt custody");
+                }
+                return retain_exact_unit_boundary(
+                    checked,
+                    plans,
+                    boundaries,
+                    *target_machine,
+                    *target_state,
+                    *target_contract_report_fingerprint,
+                    *service_reach,
+                    target.result.clone(),
+                );
+            }
             if (!*discard_result_on_return
                 && !matches!(&state.terminator, CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } if subject.type_identity == result.type_identity && subject.source == (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal })))
                 || result.binding_ordinal as usize != state.operations.iter().filter(|operation| {

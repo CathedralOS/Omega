@@ -177,6 +177,9 @@ fn complete_expression_tree(
 ) -> bool {
     let mut pending = vec![root];
     let mut value_children = Vec::new();
+    // Sibling call frames share completed state summaries: one honest
+    // acyclic or solved-cycle frame per state per tree walk.
+    let mut complete_state_summaries = Vec::new();
     while let Some(node) = pending.pop() {
         let expression =
             match node {
@@ -298,6 +301,7 @@ fn complete_expression_tree(
             machine_symbols,
             symbols,
             inference,
+            &mut complete_state_summaries,
         )
         .or_else(|| {
             if call.receiver.is_valid() && receiver_member_chain(program, call.receiver).is_none() {

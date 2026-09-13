@@ -30,6 +30,29 @@ fn stores_and_mutating_calls_forget_old_boolean_observations() {
     }
 }
 
+#[test]
+fn sibling_field_store_preserves_disjoint_boolean_observations() {
+    // Writing field_1 cannot touch field_2's storage: the disjoint observation
+    // remains current for later proof sites while the overwritten field's old
+    // equation still expires.
+    for cyclic in [false, true] {
+        let mut module = receiver_module(cyclic);
+        let operations = &mut module.machines[0].blocks[0].operations;
+        operations.retain(|operation| !matches!(operation.id.get(), 12 | 13 | 15 | 16));
+        operations.insert(1, boolean_read(9, 1, 2));
+        operations.push(store(12, 1, 11));
+        let axioms = exit_axioms(&mut module);
+        assert!(
+            !axioms.contains(&equation(10, 1, 1)),
+            "cyclic={cyclic}: the overwritten field's old equation expires"
+        );
+        assert!(
+            axioms.contains(&equation(9, 1, 2)),
+            "cyclic={cyclic}: the disjoint sibling observation stays current"
+        );
+    }
+}
+
 fn premise_certificate(
     module: &TerminalModule,
     obligation: u64,

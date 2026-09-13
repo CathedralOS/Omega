@@ -106,20 +106,36 @@ pub(super) fn replay_installed_provider_calls(
                 else {
                     return Err(malformed());
                 };
-                let Some(argument_type) = resolve_structural_argument_type(
+                // A shared loan of one initialized inline byte field presents a
+                // borrowed view without a structural-type identity; the capacity
+                // row is the exact admission the Terminal verifier checked.
+                let shared_byte_view = terminal_semantics::shared_boundary_buffer_capacity(
+                    module,
+                    caller_parameter.structural_type,
+                    argument,
+                    boundary_parameter,
+                )
+                .is_some();
+                let argument_type = resolve_structural_argument_type(
                     module,
                     caller_parameter.structural_type,
                     &argument.path,
-                ) else {
+                );
+                if argument_type.is_none() && !shared_byte_view {
                     return Err(malformed());
-                };
+                }
                 let caller_matches = if argument.path.is_empty() {
                     caller_parameter.structural_type == signature.structural_type
                         && caller_parameter.multiplicity == signature.multiplicity
                         && caller_parameter.access == signature.access
                         && caller_parameter.qualifications == signature.qualifications
+                } else if shared_byte_view {
+                    signature.multiplicity == StructuralMultiplicity::Unrestricted
+                        && signature.access == terminal_psi::StructuralAccess::SharedBorrow
+                        && signature.qualifications.is_empty()
+                        && structural_access_can_supply(caller_parameter.access, signature.access)
                 } else {
-                    argument_type == signature.structural_type
+                    argument_type == Some(signature.structural_type)
                         && signature.multiplicity == StructuralMultiplicity::Linear
                         && structural_access_can_supply(caller_parameter.access, signature.access)
                         && signature.qualifications.is_empty()

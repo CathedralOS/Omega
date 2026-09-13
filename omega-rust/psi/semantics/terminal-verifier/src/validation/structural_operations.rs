@@ -1565,6 +1565,16 @@ pub(super) fn validate_structural_arguments(
             || (borrowed_call && is_unrestricted_mutable_subloan(caller, expected, argument)))
             && terminal_semantics::boundary_buffer_capacity(module, root_type, argument, expected)
                 .is_some();
+        // The shared counterpart: a boundary reads the field's live bytes
+        // through a borrowed view. The operand keeps its owning root and path;
+        // the shared loan grants no mutation, storage, or extent replacement.
+        let shared_buffer_presentation = (source_policy
+            == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+            || (borrowed_call && is_unrestricted_shared_subloan(caller, expected, argument)))
+            && terminal_semantics::shared_boundary_buffer_capacity(
+                module, root_type, argument, expected,
+            )
+            .is_some();
         // A boundary lends the same exact initialized fixed-array range as an
         // ordinary call. Keep the array's real type and path: presentation
         // is not a type substitution, storage grant, or permission to resize.
@@ -1584,7 +1594,7 @@ pub(super) fn validate_structural_arguments(
                         .iter()
                         .any(|claim| claim.input.root == argument.place)
             });
-        if !buffer_presentation && !fixed_array_presentation {
+        if !buffer_presentation && !shared_buffer_presentation && !fixed_array_presentation {
             let Some(actual_type) = resolve_structural_path(module, root_type, &argument.path)
             else {
                 return Err(ModuleError::InvalidStructuralArgumentPath {
@@ -1646,6 +1656,7 @@ pub(super) fn validate_structural_arguments(
             } else if unrestricted_write_only_field_subloan
                 || unrestricted_shared_field_subloan
                 || unrestricted_mutable_field_subloan
+                || shared_buffer_presentation
                 || (buffer_presentation
                     && actual_access == StructuralAccess::MutableBorrow
                     && actual_multiplicity == StructuralMultiplicity::Unrestricted)
@@ -1940,7 +1951,7 @@ fn is_unrestricted_write_only_subloan(
         && indexed_path_is_material
 }
 
-fn is_unrestricted_shared_subloan(
+pub(super) fn is_unrestricted_shared_subloan(
     caller: &TerminalMachine,
     expected: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
@@ -1959,7 +1970,7 @@ fn is_unrestricted_shared_subloan(
         && actual.multiplicity == StructuralMultiplicity::Unrestricted
 }
 
-fn is_unrestricted_mutable_subloan(
+pub(super) fn is_unrestricted_mutable_subloan(
     caller: &TerminalMachine,
     expected: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
@@ -2462,20 +2473,19 @@ fn substitute_crash_route_places(
         .collect()
 }
 
-pub(crate) fn structural_argument_canonical_prefix(
-    module: &TerminalModule,
+/// Resolve the declared structural type behind a caller place. Field-store
+/// destinations and structural call arguments share the same root inventory:
+/// machine parameters, block-view parameters, then declared structural places.
+fn caller_structural_root_type(
     caller: &TerminalMachine,
-    argument: &StructuralArgument,
-) -> Option<Vec<CanonicalStructuralPathSegment>> {
-    let mut structural_type = caller
+    root: PlaceId,
+) -> Option<StructuralTypeId> {
+    caller
         .structural_parameters
         .iter()
-        .find_map(|parameter| {
-            (parameter.place == argument.place).then_some(parameter.structural_type)
-        })
+        .find_map(|parameter| (parameter.place == root).then_some(parameter.structural_type))
         .or_else(|| {
-            super::block_views::parameter(caller, argument.place)
-                .map(|parameter| parameter.structural_type)
+            super::block_views::parameter(caller, root).map(|parameter| parameter.structural_type)
         })
         .or_else(|| {
             caller
@@ -2490,10 +2500,18 @@ pub(crate) fn structural_argument_canonical_prefix(
                     }
                     | StructuralPlaceKind::OperationResult {
                         structural_type, ..
-                    } if place.id == argument.place => Some(structural_type),
+                    } if place.id == root => Some(structural_type),
                     _ => None,
                 })
-        })?;
+        })
+}
+
+pub(crate) fn structural_argument_canonical_prefix(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    argument: &StructuralArgument,
+) -> Option<Vec<CanonicalStructuralPathSegment>> {
+    let mut structural_type = caller_structural_root_type(caller, argument.place)?;
     let mut prefix = Vec::with_capacity(argument.path.len());
     for (position, segment) in argument.path.iter().enumerate() {
         match segment {
@@ -2546,6 +2564,93 @@ pub(crate) fn structural_argument_canonical_prefix(
         }
     }
     Some(prefix)
+}
+
+/// Resolve the exact canonical path one field store writes. `path` arrives in
+/// the operation's name-spelled segment space; each field identity is resolved
+/// against the declared carrier so the result can be compared against exact
+/// canonical observation paths. `None` means the write cannot be scoped below
+/// the root and callers must forget the whole root instead.
+pub(crate) fn structural_field_store_write_path(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Option<(PlaceId, Vec<CanonicalStructuralPathSegment>)> {
+    let (root, path, field) = match &operation.kind {
+        OperationKind::StructuralScalarFieldStore {
+            destination,
+            path,
+            field,
+            ..
+        }
+        | OperationKind::StructuralByteSequenceFieldStore {
+            destination,
+            path,
+            field,
+            ..
+        }
+        | OperationKind::StructuralByteSequenceFieldByteStore {
+            destination,
+            path,
+            field,
+            ..
+        } => (*destination, path, *field),
+        _ => return None,
+    };
+    let mut structural_type = caller_structural_root_type(machine, root)?;
+    let mut written = Vec::with_capacity(path.len() + 1);
+    for segment in path {
+        match segment {
+            StructuralPathSegment::Referent => return None,
+            StructuralPathSegment::Field(identity) => {
+                let declaration = module
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == structural_type)?;
+                let field = match &declaration.shape {
+                    StructuralTypeShape::Record { fields }
+                    | StructuralTypeShape::Mixed { fields, .. } => fields
+                        .iter()
+                        .find(|field| field.identity == *identity && !field.relevance.is_erased()),
+                    _ => None,
+                }?;
+                written.push(CanonicalStructuralPathSegment::Field(field.id));
+                structural_type = match field.field_type {
+                    StructuralFieldType::Structural(next) => next,
+                    _ => return None,
+                };
+            }
+            StructuralPathSegment::FixedIndex(index) => {
+                let element = module
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == structural_type)
+                    .and_then(|declaration| match declaration.shape {
+                        StructuralTypeShape::FixedArray { element, length } if *index < length => {
+                            Some(element)
+                        }
+                        _ => None,
+                    })?;
+                written.push(CanonicalStructuralPathSegment::FixedIndex(*index));
+                structural_type = element;
+            }
+        }
+    }
+    let carrier = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)?;
+    match &carrier.shape {
+        StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }
+            if fields
+                .iter()
+                .any(|candidate| candidate.id == field && !candidate.relevance.is_erased()) =>
+        {
+            written.push(CanonicalStructuralPathSegment::Field(field));
+            Some((root, written))
+        }
+        _ => None,
+    }
 }
 
 fn validate_boundary_requirements(

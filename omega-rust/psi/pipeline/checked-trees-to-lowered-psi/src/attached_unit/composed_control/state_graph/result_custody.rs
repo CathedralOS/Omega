@@ -154,8 +154,34 @@ pub(super) fn local_discards(
     edge: Option<&CheckedStructuralControlSuccessorPlan>,
 ) -> Result<Vec<u32>, LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
+    // A discarded structural result pairs with its call's cleanup continuation
+    // rather than an authored local; that continuation already proves disposal.
+    let cleanup_discards =
+        state
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                    affine_discards, ..
+                } => {
+                    Some(affine_discards.iter().filter_map(|discard| {
+                        match discard.source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } => Some(binding_ordinal),
+                    _ => None,
+                }
+                    }))
+                }
+                _ => None,
+            })
+            .flatten()
+            .collect::<Vec<u32>>();
     let mut discards = Vec::new();
     for result in state.operations.iter().rev().filter_map(result) {
+        if cleanup_discards.contains(&result.binding_ordinal) {
+            continue;
+        }
         let Some(StatementNode::LocalData(local)) = statements.get(result.statement_index as usize)
         else {
             return unsupported("Unit graph edge result has no authored local");

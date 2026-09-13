@@ -28,7 +28,21 @@ pub(super) fn validate(
     let marker_count = super::cases::validate_markers(checked, machine, source, state, end)?;
     let tail_value = usize::from(matches!(state.terminator, CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. })
         && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))));
-    if prefix > end || state.operations.len() + marker_count != end - prefix + tail_value {
+    // Result cleanup shares its producing call's authored statement rather
+    // than consuming a new one.
+    let continuation_count = state
+        .operations
+        .iter()
+        .filter(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+            )
+        })
+        .count();
+    if prefix > end
+        || state.operations.len() + marker_count != end - prefix + tail_value + continuation_count
+    {
         return unsupported("Unit graph dropped or added a body effect");
     }
     let mut next_structural_binding = 0_u32;
@@ -44,8 +58,8 @@ pub(super) fn validate(
             .count(),
     )
     .map_err(|_| LoweringError::Unsupported("Unit graph scalar binding count overflow"))?;
-    for (ordinal, operation) in state.operations.iter().enumerate() {
-        let ordinal = prefix + ordinal;
+    let mut cursor = prefix;
+    for operation in &state.operations {
         match operation {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
             | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
@@ -73,7 +87,22 @@ pub(super) fn validate(
             }
             _ => {}
         }
-        match (operation, &statements[ordinal]) {
+        let ordinal =
+            if let CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } =
+                operation
+            {
+                coordinate.statement_index as usize
+            } else {
+                let ordinal = cursor;
+                cursor += 1;
+                ordinal
+            };
+        match (
+            operation,
+            statements.get(ordinal).ok_or(LoweringError::Unsupported(
+                "Unit graph effect lost its authored statement",
+            ))?,
+        ) {
             (
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     result,
@@ -179,7 +208,7 @@ pub(super) fn validate(
                     discard_result_on_return,
                     ..
                 },
-                StatementNode::LocalData(_),
+                StatementNode::LocalData(_) | StatementNode::Call(_),
             ) if completion_receipts.is_empty()
                 && coordinate.statement_index as usize == ordinal
                 && coordinate.call_ordinal == 0
@@ -194,6 +223,13 @@ pub(super) fn validate(
                     &state.structural_parameters,
                 )?;
             }
+            // A discarded call result dies on the same authored statement as
+            // its producer; the producer's own custody rejoin already demanded
+            // this exact immediate cleanup.
+            (
+                CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. },
+                StatementNode::Call(_),
+            ) => {}
             (
                 CheckedUnitEffectOperationPlan::ByteSequenceWrite(write),
                 StatementNode::Assignment(assignment),

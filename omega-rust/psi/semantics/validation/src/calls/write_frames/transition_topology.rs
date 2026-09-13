@@ -67,6 +67,36 @@ pub(super) fn named_transition_subgraph_is_acyclic(
     visit(program, machine, target, &mut Vec::new(), &mut Vec::new())
 }
 
+/// True when every named edge leaving `state` lands in an acyclic named
+/// subgraph. A state that can reach a named cycle may observe a back-edge to
+/// a still-active ancestor during a depth-first walk; the resulting summary
+/// depends on the recursion stack that produced it and is valid only for the
+/// query that computed it.
+pub(super) fn named_state_transition_subgraph_is_acyclic(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+) -> bool {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .all(|statement| {
+            let StatementNode::Transition(transition) = statement else {
+                return true;
+            };
+            [transition.target, transition.continuation]
+                .into_iter()
+                .filter(|edge| edge.is_valid())
+                .all(|edge| {
+                    !matches!(
+                        program.statement_table.transition_target(edge),
+                        TransitionTargetNode::Named { .. }
+                    ) || named_transition_subgraph_is_acyclic(program, machine, state, edge)
+                })
+        })
+}
+
 pub(super) fn named_transition_target_state<'program>(
     program: &'program TypedTrees,
     machine: &'program Machine,

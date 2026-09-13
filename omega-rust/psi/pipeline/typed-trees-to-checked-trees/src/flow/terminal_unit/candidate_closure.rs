@@ -230,8 +230,13 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => {}
-                _ => closure.retained[caller_index] = false,
+                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                // The paired boundary call carries the callee dependency;
+                // its cleanup continuation only disposes the discarded result.
+                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {}
+                _ => {
+                    closure.retained[caller_index] = false;
+                }
             }
             if !closure.retained[caller_index] {
                 break;

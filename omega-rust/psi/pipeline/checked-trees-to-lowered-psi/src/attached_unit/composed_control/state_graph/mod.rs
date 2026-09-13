@@ -50,7 +50,7 @@ use checked_trees::{
 
 mod admission;
 pub(super) mod body;
-mod case_emission;
+pub(super) mod case_emission;
 mod cases;
 mod edges;
 mod emission;

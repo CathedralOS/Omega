@@ -667,6 +667,41 @@ pub(super) fn emit_call_operations(
             )?;
             continue;
         }
+        if let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+            affine_discards, ..
+        } = operation
+        {
+            let mut discards = Vec::new();
+            let mut residuals = Vec::new();
+            for discard in affine_discards {
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal,
+                } = discard.source
+                else {
+                    return unsupported(
+                        "Unit graph continuation cleanup requires a result binding",
+                    );
+                };
+                let produced =
+                    state_graph::case_emission::result(state, binding_ordinal, operations)?;
+                if discard.path.is_empty() {
+                    discards.push(produced.place);
+                } else {
+                    residuals.push(terminal_psi::StructuralAffineDiscard {
+                        place: produced.place,
+                        path: lower_structural_path(&discard.path),
+                        structural_type: lookup_type_id(
+                            &catalogs.type_ids,
+                            &discard.type_identity,
+                        )?,
+                    });
+                }
+            }
+            evaluation.cleanup_continuation(
+                discards, residuals, values, next_value, next_block, next_edge, operations,
+            )?;
+            continue;
+        }
         let (arguments, byte_argument_places) = literal_arguments::evaluate(
             checked,
             machine,
