@@ -57,6 +57,7 @@ use omega::language::core::service;
 
 data Main {{
     value: i32;
+    bytes: [u8; 256];
     console: {console_type};
 }}
 
@@ -105,6 +106,17 @@ machine Main::main(&mut self) reaches Console {{
     let report = result.unwrap_or_else(|diagnostics| {
         panic!("authored hosted receiver must produce its executable: {diagnostics:#?}")
     });
+    let receiver = report
+        .retained_native_artifact()
+        .unwrap()
+        .object()
+        .hosted_receiver_binding()
+        .expect("retain exact provisioned receiver");
+    assert_eq!(
+        receiver.receiver_byte_count(),
+        260,
+        "scalar and fixed array both occupy the image-backed receiver"
+    );
     if !explicit_exit {
         assert_hosted_binding_replay_rejects_corruption(&report);
     }

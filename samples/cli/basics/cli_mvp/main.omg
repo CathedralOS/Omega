@@ -7,9 +7,10 @@
 // Expected output contains: Hello, Omega.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console> in Bound;
     pause: [u8; 256];
 }
 
