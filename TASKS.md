@@ -17,6 +17,10 @@ condition. Delete completed work; Git holds checkpoint results and superseded
 diagnoses. Link the specification for semantics rather than restating it.
 Retain a dated/revision-bound failure only when it determines where to resume;
 rerun that customer before assuming the old diagnosis still applies.
+Live assignments belong in the [timestamped, expiring work-claim registry](tools/claims.md),
+not historical board prose. Check `python tools/claims.py status` (`python3` on
+macOS) before taking over a path; a retained checkpoint is resume material, not
+an indefinite claim.
 
 The [workflow](AGENTS.md#workflow) governs scoped checks, strategy pauses, and
 landing. A paused strategy is not a blocked language feature. Unsettled owner
@@ -73,13 +77,13 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Finish that local review before rerunning the outer command; this preparation
   does not establish receiver provisioning or native execution.
 
-  Next dependency: **ENTRY-CONTENT-ROOTS** and
+  Bridge owners: **ENTRY-CONTENT-ROOTS** and
   **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION**, owned by
   `native-realization/src/realization/native_artifact.rs`, `program-entry-plan`
   and `external-roots`, under [entry roots](wiki/spec/build/entry_roots.md).
-  Supply the actual installed backing, receiver partition, activation loan and
-  completion contract; retain the native rejection until that bridge exists.
-  A test-supplied receiver or zero-payload provider layout is not provisioning.
+  Preserve the target-backed receiver, private-stack and continuation partitions,
+  activation and completion contract under the loading premises below. A
+  test-supplied receiver or zero-payload provider layout is not provisioning.
 
   Keep one integration owner and this application command across the bridge
   and subsequent native/provider failures. Do not restart isolated getter/setter
@@ -90,7 +94,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   exact field establishment already work; do not add another eligibility path
   or make a missing row authorize an erased-field fallback.
 
-  Conditional bridge probe: unpublished checkpoint `d021bef41a`, macOS ARM64,
+  Conditional bridge probe: unpublished checkpoint `25551c2978` on `b9b7568f7a`,
+  macOS ARM64 (2026-09-13),
   `RUST_MIN_STACK=67108864 cargo nextest run -p compiler --test canary_suite
   --no-fail-fast -E 'test(entry_and_abi::hosted_receiver)'` executes a canonical
   Bound receiver with retained scalar mutation (`A`, exit 0) and distinct process
@@ -98,8 +103,23 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   binding. That checkpoint additionally checks partition bounds/alignment and
   decodes final bridge instructions independently of the emitter and relocation
   patcher. This remains dependency evidence, not unchanged Squalr acceptance.
-  Reconcile the retained package-binding changes with current assignments and
-  main, then validate the complete bridge integration before publication.
+  The retained bridge now uses the landed `SemanticBindingReview` workflow;
+  `cargo nextest run -p package-manager --test semantic_binding_review
+  --no-fail-fast -E 'test(macos_entry)'`
+  passes discovery, explicit binding, stale-binding rejection and the
+  unaccepted-policy control. Source-level `optimizer_opt_in` return/scalar-call
+  tests replay native and installation evidence across all four target formats
+  and execute macOS binaries; backend and architecture checks also pass.
+  Incoming `5d134569b6` now supplies `MacosArm64ProgramEntry`, exact calling
+  contracts and accepted-package source seeding; `4ea6a5013e` reorganizes the
+  package-manager entrypoint. Integrate the receiver bridge onto those landed
+  owners and discard its superseded contract/seeding implementations before
+  publication. The checkpoint's tests are on `b9b7568f7a`, not proof of this
+  newer integration. Inspect current claims for any remaining overlapping
+  edits; the now-landed semantic role itself is not a missing dependency.
+  Preserve the unified package workflow, finish the relocated application
+  review and run the unchanged outer command. These probes do not establish
+  Squalr acceptance.
 
   `image-macho/src/loader_mapping.rs` and `loader_fixups.rs` independently check
   segment mapping, retained payloads, exact eager bind/rebase writes and zero-fill
@@ -312,6 +332,21 @@ do not claim a faster compiler from a smaller helper alone.
   cost without changing findings, admission, or generated-source custody.
   Discovery/final checking can select different std bindings; neither checked
   results nor build effects may be reused merely because bytes match.
+
+- **CRASH-GUARD-COST.** Investigate repeated classification in
+  `typed-trees-to-checked-trees/src/checks/crashes.rs` before adding caches or
+  threads. At retained bridge checkpoint `25551c2978` on macOS ARM64,
+  `RUST_MIN_STACK=67108864 cargo nextest run -p package-manager --test
+  semantic_binding_review --no-fail-fast -E 'test(macos_entry)'` passes but
+  spends 566.133 seconds executing after a 29.20-second build. A two-second
+  sample during the run places the compile thread in preliminary crash-guard
+  checking; integer classification repeatedly scans all machines, states,
+  locals and fields in `symbol_is_integer_typed`. This is a debug-run hotspot,
+  not a measured attribution of the entire route or a release speedup claim.
+  Acceptance: compare unchanged whole-route inputs and release/debug timings,
+  remove material repeated work through existing typed ownership/type facts
+  where possible, and preserve positive/negative crash-guard outcomes for
+  parameters, locals and fields. Coordinate with live checking-stage work.
 
 Optimizer revision/analysis reuse is tracked only in `TASKS_OPTIMIZER.md`.
 
@@ -1223,9 +1258,8 @@ Owners include
   custody-mismatch catch-all), and the common native route rejects callback
   transport in `native-realization/src/realization/object.rs`. The emission
   chain (selection -> register homes -> machine emission -> object import
-  plans -> image custody -> physical derivation) is the next bounded slice;
-  its paths were under live claims (SQUALR-HEADLESS) this cycle. Normalized
-  foreign lowering, machine-code custody, image replay, and artifact
+  plans -> image custody -> physical derivation) is the next bounded slice.
+  Normalized foreign lowering, machine-code custody, image replay, and artifact
   derivation still bound foreign arguments/results to fixed-width integers;
   widening them needs a coordinated lane once emission exists. Adjacent
   same-pattern gap for FRAME-LAYOUT's owner: `backend/layout/src/builder.rs`
