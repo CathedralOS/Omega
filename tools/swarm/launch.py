@@ -185,6 +185,83 @@ def host_gate_results(repository, sessions, skip=False):
     return results
 
 
+def route_crates(repository):
+    try:
+        result = subprocess.run(
+            ["cargo", "metadata", "--format-version", "1"],
+            cwd=repository, capture_output=True, text=True, timeout=300)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode:
+        return None
+    try:
+        metadata = json.loads(result.stdout)
+    except ValueError:
+        return None
+    packages = {
+        package["id"]: package
+        for package in metadata.get("packages", [])
+        if package.get("id") in metadata.get("workspace_members", [])
+    }
+    workspace_members = set(packages)
+    omega_id = next(
+        (package_id for package_id, package in packages.items()
+         if package.get("name") == "omega"),
+        None)
+    if omega_id is None:
+        return {
+            Path(package["manifest_path"]).parent.relative_to(repository).as_posix():
+            {"name": package["name"], "on_route": False}
+            for package in packages.values()
+        }
+    dependencies = {
+        node["id"]: {
+            dependency["pkg"]
+            for dependency in node.get("deps", [])
+            if dependency.get("pkg") in workspace_members
+        }
+        for node in metadata.get("resolve", {}).get("nodes", [])
+    }
+    reached = set()
+    pending = [omega_id]
+    while pending:
+        package_id = pending.pop()
+        if package_id in reached:
+            continue
+        reached.add(package_id)
+        pending.extend(dependencies.get(package_id, ()))
+    crates = {}
+    for package_id, package in packages.items():
+        crate_dir = Path(package["manifest_path"]).parent
+        try:
+            crate_key = crate_dir.relative_to(repository).as_posix()
+        except ValueError:
+            continue
+        crates[crate_key] = {
+            "name": package["name"],
+            "on_route": package_id in reached,
+        }
+    return crates
+
+
+def crate_directory(repository, path):
+    source_path = repository / path
+    if source_path.exists():
+        candidate = source_path if source_path.is_dir() else source_path.parent
+    else:
+        candidate = source_path
+        while candidate != repository and not candidate.exists():
+            candidate = candidate.parent
+        if candidate.is_file():
+            candidate = candidate.parent
+    while True:
+        if (candidate / "Cargo.toml").is_file():
+            return candidate
+        if candidate == repository:
+            return None
+        candidate = candidate.parent
+
+
 def load_manifest(path, repository):
     try:
         manifest = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -194,7 +271,7 @@ def load_manifest(path, repository):
     return manifest
 
 
-def freshness_probe(repository, session):
+def freshness_probe(repository, session, crates=None):
     """Informational only: how hot each owning path and the board file are."""
     lines = []
     paths = list(session["owning_paths"]) + [session["board"]]
@@ -204,22 +281,39 @@ def freshness_probe(repository, session):
         recent = git(repository, "log", "--since=7.days.ago", "--format=%H",
                      "--", path)
         count = len(recent.splitlines()) if recent else 0
-        source_path = repository / path
         crate = None
-        if source_path.exists():
-            candidate = source_path if source_path.is_dir() else source_path.parent
-            while True:
-                if (candidate / "Cargo.toml").is_file():
-                    crate = candidate.relative_to(repository).as_posix() or "."
-                    break
-                if candidate == repository:
-                    break
-                candidate = candidate.parent
+        crate_name = None
+        on_route = "skipped" if crates == "skipped" else "unknown"
+        crate_directory_path = crate_directory(repository, path)
+        if crate_directory_path is not None:
+            crate = crate_directory_path.relative_to(repository).as_posix()
+            if crates not in (None, "skipped"):
+                crate_record = crates.get(crate)
+                if crate_record is not None:
+                    crate_name = crate_record["name"]
+                    on_route = crate_record["on_route"]
         lines.append({"path": path,
                       "last_commit": last or "no commits",
                       "commits_7d": count,
-                      "crate": crate})
+                      "crate": crate,
+                      "crate_name": crate_name,
+                      "on_route": on_route})
     return lines
+
+
+def route_check(sessions, freshness_by_name):
+    failures = []
+    for session in sessions:
+        if session.get("probe_only"):
+            continue
+        for line in freshness_by_name[session["name"]]:
+            if line["on_route"] is False:
+                failures.append(
+                    f"{session['name']}: owning path {line['path']} is in crate "
+                    f"{line['crate']} which is not on the omega route; mark the "
+                    "slot probe_only or drop it")
+    if failures:
+        raise SwarmError("\n".join(failures))
 
 
 def render_prompt(template, manifest, session):
@@ -335,6 +429,14 @@ def command_plan(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
     gate_results = host_gate_results(repository, manifest["sessions"],
                                      skip=arguments.skip_host_gates)
+    skip_route_check = getattr(arguments, "skip_route_check", False)
+    route_data = "skipped" if skip_route_check else route_crates(repository)
+    freshness = {
+        session["name"]: freshness_probe(repository, session, route_data)
+        for session in manifest["sessions"]
+    }
+    if not skip_route_check:
+        route_check(manifest["sessions"], freshness)
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
         encoding="utf-8")
     wave_directory = build_directory(repository, manifest["wave"])
@@ -357,7 +459,7 @@ def command_plan(arguments, repository):
             "prompt": str(prompt_path.relative_to(repository)),
             "host_gates": gate_results[session["name"]],
             "probe_only": bool(session.get("probe_only", False)),
-            "freshness": freshness_probe(repository, session),
+            "freshness": freshness[session["name"]],
             "body": request_body(manifest, session, prompt),
         })
     emit({"command": "plan", "wave": manifest["wave"], "sessions": planned})
@@ -369,6 +471,13 @@ def command_launch(arguments, repository):
     if not arguments.dry_run:
         host_gate_results(repository, manifest["sessions"],
                           skip=arguments.skip_host_gates)
+        route_data = "skipped" if arguments.skip_route_check else route_crates(repository)
+        freshness = {
+            session["name"]: freshness_probe(repository, session, route_data)
+            for session in manifest["sessions"]
+        }
+        if not arguments.skip_route_check:
+            route_check(manifest["sessions"], freshness)
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
         encoding="utf-8")
     wave_directory = build_directory(repository, manifest["wave"])
@@ -515,10 +624,12 @@ def main(argv=None):
     plan = subparsers.add_parser("plan")
     plan.add_argument("--manifest", required=True)
     plan.add_argument("--skip-host-gates", action="store_true")
+    plan.add_argument("--skip-route-check", action="store_true")
     launch = subparsers.add_parser("launch")
     launch.add_argument("--manifest", required=True)
     launch.add_argument("--dry-run", action="store_true")
     launch.add_argument("--skip-host-gates", action="store_true")
+    launch.add_argument("--skip-route-check", action="store_true")
     launch.add_argument("--relaunch")
     status = subparsers.add_parser("status")
     status.add_argument("--wave", required=True)
