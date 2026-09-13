@@ -388,18 +388,18 @@ fn load_pending_imports(
 /// One seeded hosted physical entry contract: the contract file, the root its
 /// authored imports close inside, and whether that root is a closed toolchain
 /// subtree. The bundled fallback owns an entire closed subtree so its
-/// transitive `use` closure keeps toolchain custody; a reconciled package
-/// supplier only loans the contract file itself, whose ordinary imports still
-/// resolve through that package's custody.
+/// transitive `use` closure keeps toolchain custody. A reconciled supplier's
+/// contract and ordinary imports retain that package's custody instead.
 pub(super) struct HostedEntryContractSeed {
     pub(super) source: PathBuf,
     pub(super) root: PathBuf,
     pub(super) closed_subtree: bool,
 }
 
-/// The hosted physical entry contract is closed toolchain-owned target
-/// definition, never an authored dependency: the selected profile's contract
-/// package must join compilation even when no authored `use` names it. The
+/// The selected profile's physical entry contract must join compilation even
+/// when no authored `use` names it. A reconciled supplier remains an ordinary
+/// package subject to exact consumer acceptance; only the bundled fallback is
+/// closed toolchain-owned source. The
 /// seed defers until after authored imports resolve so an explicitly imported
 /// contract copy keeps its own package custody and accepted-binding
 /// requirement. Freestanding (`ProgramStorageApplication`) profiles keep
@@ -437,9 +437,9 @@ fn hosted_entry_contract_seed(
             })
         }
         // Package-aware compilation loads the contract from inside the
-        // reconciled dependency closure so the file clears the package
-        // source frontier; registration then asserts the same toolchain
-        // custody the bundled arm replays byte-exact. A consumer's accepted
+        // reconciled dependency closure, preserving its package identity and
+        // source frontier. Its location grants no toolchain provenance or
+        // consumer acceptance. A consumer's accepted
         // binding names the supplying package when more than one qualifies.
         // When no package in the closure carries the contract and no accepted
         // binding claims a supplier, the bundled toolchain copy is the same
