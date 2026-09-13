@@ -361,6 +361,7 @@ impl Expansion<'_> {
                     }
                     let constructor = self.push(LoweredScalarBranchState {
                         parameter_types: field_types,
+                        structural_parameters: Vec::new(),
                         bindings: Vec::new(),
                         structural_effects: vec![LoweredScalarEffect::EstablishScalarCase(
                             cases::Construction {
