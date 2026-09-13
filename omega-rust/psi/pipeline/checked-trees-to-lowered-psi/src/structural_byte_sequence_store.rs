@@ -19,6 +19,7 @@ pub(crate) fn validate_assignment(
         checked,
         machine,
         state_symbol,
+        None,
         assignment.target,
     )?;
     let parameter = checked

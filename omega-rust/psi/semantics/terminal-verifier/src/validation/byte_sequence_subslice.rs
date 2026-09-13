@@ -146,7 +146,8 @@ pub(super) fn validate_uses(
         | OperationKind::ByteSequenceRead { source, .. }
         | OperationKind::StructuralByteSequenceFieldStore { source, .. }
         | OperationKind::ByteSequenceSubslice { source, .. } => require(*source),
-        OperationKind::ByteSequenceWrite { destination, .. } => require(*destination),
+        OperationKind::ByteSequenceWrite { destination, .. }
+        | OperationKind::StructuralScalarFieldStore { destination, .. } => require(*destination),
         OperationKind::CallUnit {
             structural_arguments,
             ..

@@ -1,4 +1,4 @@
-//! Exact declaration custody for a scalar read from an immutable local record.
+//! Exact declaration custody for a scalar observation of local record storage.
 
 use language_semantics::Multiplicity;
 use numerics::arithmetic::ArithmeticDomain;
@@ -30,7 +30,8 @@ pub struct LocalScalarRecordField {
     pub primitive_type: PrimitiveType,
 }
 
-/// Resolve a field path below one prior, whole immutable plain-owned local.
+/// Resolve a field path below one prior, whole plain-owned local. A mutable
+/// source is observed at this statement, never equated with its initializer.
 /// The caller must bind the expression to this authored statement's evaluation
 /// graph. Open generic/qualified owners, erased fields and
 /// nominally qualified or policy-bearing scalar fields require additional facts.
@@ -240,7 +241,6 @@ fn local_plain_record(
     let (ordinal, local) = locals.next()?;
     if locals.next().is_some()
         || ordinal >= statement_ordinal as usize
-        || local.is_mutable
         || !program
             .expression_table
             .expression_is_valid(local.initial_value)

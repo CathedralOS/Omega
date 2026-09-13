@@ -150,6 +150,7 @@ use scalar_locals::*;
 use selected_ieee_float::*;
 use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;
+pub(super) use structural_scalar_store::build_local_scalar_field_store;
 use structural_scalar_store::build_structural_scalar_field_store;
 use types::*;
 

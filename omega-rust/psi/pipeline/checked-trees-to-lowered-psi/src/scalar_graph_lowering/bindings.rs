@@ -28,6 +28,7 @@ struct PendingEffect {
 enum PreparedOperation {
     Unit(unit_operations::Prepared),
     Structural(structural_values::Prepared),
+    FieldStore(field_stores::Prepared),
 }
 
 struct PendingComputation {
@@ -105,7 +106,7 @@ pub(super) fn prepare(
         .statement_table
         .statements(source_state.statement_nodes);
     let mut binding_rows = state.bindings.iter();
-    let mut unit_rows = state.unit_operations.iter();
+    let mut unit_rows = state.unit_operations.iter().peekable();
     for (ordinal, statement) in statements[..authored_prefix].iter().enumerate() {
         let ordinal = u32::try_from(ordinal)
             .map_err(|_| LoweringError::Unsupported("scalar statement ordinal exceeds u32"))?;
@@ -135,6 +136,15 @@ pub(super) fn prepare(
                         "scalar graph structural local moved from its authored statement",
                     );
                 }
+            }
+            checked_trees::statement::StatementNode::Assignment(_)
+                if unit_rows.peek().is_some_and(|operation| {
+                    matches!(operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
+                        if store.statement_index == ordinal)
+                }) =>
+            {
+                unit_rows.next();
             }
             _ => {
                 if binding_rows
@@ -486,6 +496,12 @@ fn prepare_operation(
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<PreparedOperation, LoweringError> {
+    if let checked_trees::CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) =
+        operation
+    {
+        return field_stores::prepare(checked, machine, state.state, store, bindings, types)
+            .map(PreparedOperation::FieldStore);
+    }
     if matches!(
         operation,
         checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
@@ -539,55 +555,50 @@ impl Prepared {
                 PendingStep::Value(prefix) => prefix,
                 PendingStep::Effect(prefix) => {
                     let target = computations.push(continuation);
-                    let prepared = match prefix.prepared {
-                        PreparedOperation::Unit(prepared) => prepared,
-                        PreparedOperation::Structural(prepared) => {
-                            let target = prepared.finish(
-                                state,
-                                &prefix.scalar_bindings,
-                                &prefix.value_types,
-                                target,
-                                computations,
-                            )?;
-                            continuation = LoweredScalarBranchState {
+                    let target = match prefix.prepared {
+                        PreparedOperation::Structural(prepared) => prepared.finish(
+                            state,
+                            &prefix.scalar_bindings,
+                            &prefix.value_types,
+                            target,
+                            computations,
+                        )?,
+                        PreparedOperation::FieldStore(prepared) => prepared.finish(
+                            state,
+                            &prefix.scalar_bindings,
+                            &prefix.value_types,
+                            target,
+                            computations,
+                        )?,
+                        PreparedOperation::Unit(prepared) => {
+                            let mut argument_types = prefix.value_types.clone();
+                            argument_types.extend_from_slice(&prepared.argument_types);
+                            let call_block = computations.push(LoweredScalarBranchState {
                                 structural_parameters: Vec::new(),
-                                parameter_types: prefix.parameter_types,
-                                bindings: prefix.bindings,
-                                structural_effects: Vec::new(),
+                                parameter_types: argument_types,
+                                bindings: Vec::new(),
+                                structural_effects: vec![LoweredScalarEffect::CallUnit(
+                                    prepared.call,
+                                )],
                                 terminator: LoweredScalarBranchTerminator::Jump {
+                                    trivial_affine_discards: Vec::new(),
                                     target,
                                     arguments: computations::parameters(&prefix.value_types),
                                     structural_arguments: Vec::new(),
-                                    trivial_affine_discards: Vec::new(),
                                 },
-                            };
-                            continue;
+                            });
+                            computations.call_arguments(
+                                state,
+                                prepared.coordinate,
+                                false,
+                                &prepared.arguments,
+                                0,
+                                &prefix.scalar_bindings,
+                                &prefix.value_types,
+                                call_block,
+                            )?
                         }
                     };
-                    let mut argument_types = prefix.value_types.clone();
-                    argument_types.extend_from_slice(&prepared.argument_types);
-                    let call_block = computations.push(LoweredScalarBranchState {
-                        structural_parameters: Vec::new(),
-                        parameter_types: argument_types,
-                        bindings: Vec::new(),
-                        structural_effects: vec![LoweredScalarEffect::CallUnit(prepared.call)],
-                        terminator: LoweredScalarBranchTerminator::Jump {
-                            trivial_affine_discards: Vec::new(),
-                            target,
-                            arguments: computations::parameters(&prefix.value_types),
-                            structural_arguments: Vec::new(),
-                        },
-                    });
-                    let target = computations.call_arguments(
-                        state,
-                        prepared.coordinate,
-                        false,
-                        &prepared.arguments,
-                        0,
-                        &prefix.scalar_bindings,
-                        &prefix.value_types,
-                        call_block,
-                    )?;
                     continuation = LoweredScalarBranchState {
                         structural_parameters: Vec::new(),
                         parameter_types: prefix.parameter_types,

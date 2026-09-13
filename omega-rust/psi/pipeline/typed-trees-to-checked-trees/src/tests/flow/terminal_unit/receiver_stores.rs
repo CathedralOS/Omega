@@ -95,7 +95,7 @@ fn retains_mutable_receiver_field_stores() {
         else {
             panic!("{name} retains one exact store and return")
         };
-        assert_eq!(store.destination_parameter_position, 0);
+        assert_eq!(store.destination.parameter_position(), Some(0));
         assert_eq!(store.carrier_path.len(), path_length);
         assert_eq!(store.primitive_type, primitive_type);
     }

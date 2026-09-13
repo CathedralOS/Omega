@@ -2,6 +2,8 @@
 
 #[path = "structural_block_wire_tests/fixed_array_views.rs"]
 mod fixed_array_views;
+#[path = "structural_block_wire_tests/owned_record_stores.rs"]
+mod owned_record_stores;
 use super::{decode_module, encode_module};
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, MachineId, PsiSemanticId, StructuralPlaceKind,

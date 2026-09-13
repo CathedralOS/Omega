@@ -173,7 +173,7 @@ unit, charged before execution.
 | Operation | Retained subject |
 | --- | --- |
 | `WriteOnlyPrimitiveStore` | Destination primitive parameter or established primitive local and already-defined, exactly typed SSA value. The referent is not represented as a synthetic record. |
-| `StructuralScalarFieldStore` | Destination parameter, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. An empty carrier path denotes a field directly on the root record. |
+| `StructuralScalarFieldStore` | Destination structural home, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. A whole, unqualified, claim-free owned record home (entry, block parameter, or completed establishment/call result) supplies write authority directly; mutable and write-only borrowed parameters retain their existing authority. An empty carrier path denotes a field directly on the root record. |
 | `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source view, exact dominating source-length observation, and capacity obligation. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
 | `ByteSequenceWrite` | Whole mutable borrowed view, exact runtime `u64` index, `u8` value, current same-view length observation, and index obligation. It needs no synthetic record or field identity. |
@@ -183,8 +183,12 @@ borrow may perform a non-observing store without first discarding read authority
 The admitted primitive-store form has an unrestricted, unqualified, claim-free
 mutable or write-only parameter, or an established owned primitive local.
 Field-store admission independently checks the
-complete parameter declaration, path, field, access, qualifications/claims,
-scalar type, and dominating definition. Integer and Boolean field observations
+complete home declaration, path, field, access, qualifications/claims,
+scalar type, and dominating definition. Owned destinations must be established
+and live as whole values, with no conflicting reference custody. Raw bounded
+integer field stores remain unsupported: accepting the underlying scalar carrier
+alone would invalidate subsequent declaration-derived range snapshots.
+Integer and Boolean field observations
 remain distinct operations and require readable access.
 
 `IntegerStructuralField` and `BooleanStructuralField` retain the whole source

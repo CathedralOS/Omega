@@ -1114,7 +1114,7 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
         panic!("direct field store must retain one checked store and return")
     };
     assert_eq!(direct_store.statement_index, 0);
-    assert_eq!(direct_store.destination_parameter_position, 0);
+    assert_eq!(direct_store.destination.parameter_position(), Some(0));
     assert!(direct_store.carrier_path.is_empty());
     assert_eq!(direct_store.primitive_type, PrimitiveType::U8);
     assert!(matches!(
@@ -1131,7 +1131,7 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
         panic!("nested field store must retain one checked store and return")
     };
     assert_eq!(nested_store.statement_index, 0);
-    assert_eq!(nested_store.destination_parameter_position, 0);
+    assert_eq!(nested_store.destination.parameter_position(), Some(0));
     assert!(matches!(
         nested_store.carrier_path.as_slice(),
         [CheckedUnitStructuralPathSegment::Field(identity)] if !identity.is_empty()
@@ -1219,7 +1219,7 @@ fn retains_one_scalar_result_before_a_projected_write_only_store() {
             && result.binding_ordinal == 0
             && result.primitive_type == PrimitiveType::I32
             && store.statement_index == 1
-            && store.destination_parameter_position == 0
+            && store.destination.parameter_position() == Some(0)
             && store.carrier_path.is_empty()
             && store.primitive_type == PrimitiveType::I32
             && matches!(

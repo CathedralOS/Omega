@@ -52,10 +52,23 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                         })
                         .filter(|(_, statement)| {
                             matches!(statement, StatementNode::Call(_))
+                                || matches!(statement, StatementNode::Assignment(assignment)
+                                    if matches!(program.expression_table.expression(assignment.target),
+                                        typed_trees::expression::ExpressionNode::Member(_)))
                                 || matches!(statement, StatementNode::LocalData(local)
                                 if program.primitive_type_reference(local.type_reference).is_none())
                         })
                         .map(|(ordinal, statement)| {
+                            if let StatementNode::Assignment(assignment) = statement {
+                                return super::super::terminal_unit::build_local_scalar_field_store(
+                                    program,
+                                    facts,
+                                    machine,
+                                    source,
+                                    u32::try_from(ordinal).ok()?,
+                                    assignment,
+                                ).map(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore);
+                            }
                             if let StatementNode::LocalData(local) = statement {
                                 let ordinal = u32::try_from(ordinal).ok()?;
                                 let root = super::constructions::record_value_root(

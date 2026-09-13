@@ -54,15 +54,23 @@ pub(crate) fn source(
     )
 }
 
-/// Assignment targets can retain a declared parameter field without stamping
-/// the terminal Member node. Calls still require their captured endpoint stamp.
+/// Assignment targets need no terminal Member stamp. A local destination also
+/// needs its statement coordinate, so later declarations cannot supply storage.
 pub(crate) fn store_destination(
     checked: &CheckedTrees,
     caller: SymbolHandle,
     state: SymbolHandle,
+    statement: Option<usize>,
     expression: ExpressionHandle,
 ) -> Result<ReceiverSource, LoweringError> {
-    resolve_source(checked, caller, state, expression, false, None)
+    resolve_source(
+        checked,
+        caller,
+        state,
+        expression,
+        false,
+        statement.map(|ordinal| (ordinal, false)),
+    )
 }
 
 fn resolve_source(

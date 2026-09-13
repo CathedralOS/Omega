@@ -1,4 +1,4 @@
-//! Bounded scalar-field mutation and observation below structural parameters.
+//! Scalar-field mutation and observation under exact structural authority.
 
 use super::*;
 use terminal_psi::is_bounded_structural_scalar_store_path;
@@ -134,20 +134,38 @@ pub(super) fn structural_scalar_field_store_type(
         path: path.to_vec(),
         field,
     };
-    let parameter = parameter_for(machine, destination).ok_or_else(invalid)?;
-    if !matches!(
-        parameter.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !matches!(
-        parameter.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) || !has_empty_structural_custody(machine, destination)
-        || !is_bounded_structural_scalar_store_path(path)
+    let structural_type =
+        if let Some(result) = super::record::completed_source(module, machine, destination) {
+            result.structural_type
+        } else {
+            let parameter = readable_parameter_for(machine, destination).ok_or_else(invalid)?;
+            if !matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            ) || !matches!(
+                parameter.access,
+                StructuralAccess::Owned
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            ) || !has_empty_structural_custody(machine, destination)
+            {
+                return Err(invalid());
+            }
+            parameter.structural_type
+        };
+    if !is_bounded_structural_scalar_store_path(path)
+        || machine
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == destination)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == destination)
     {
         return Err(invalid());
     }
-    let parent_type =
-        resolve_structural_path(module, parameter.structural_type, path).ok_or_else(invalid)?;
+    let parent_type = resolve_structural_path(module, structural_type, path).ok_or_else(invalid)?;
     direct_relevant_scalar_field(module, parent_type, field, false).ok_or_else(invalid)
 }
 

@@ -869,7 +869,7 @@ fn validate_exact_dynamic_plan(
     };
     if let Some(store) = store
         && (store.statement_index != 0
-            || store.destination_parameter_position != plan.source_parameter_position
+            || store.destination.parameter_position() != Some(plan.source_parameter_position)
             || store.carrier_path != plan.source_path
             || !crate::structural_scalar_store::checked_store_literal_matches(
                 store.value.as_pure().ok_or(LoweringError::Unsupported(
@@ -2474,7 +2474,7 @@ fn lower_caller_store_operations(
         return Ok(Vec::new());
     };
     if caller_self.access != StructuralAccess::MutableBorrow
-        || store.destination_parameter_position != caller_self.position
+        || store.destination.parameter_position() != Some(caller_self.position)
         || store.carrier_path != plan.source_path
     {
         return unsupported("direct dynamic caller store lost mutable carrier custody");

@@ -923,7 +923,7 @@ fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores
         .as_ref()
         .expect("exact integer structural field store");
     assert_eq!(integer_store.statement_index, 0);
-    assert_eq!(integer_store.destination_parameter_position, 0);
+    assert_eq!(integer_store.destination.parameter_position(), Some(0));
     assert_eq!(integer_store.carrier_path, plan.source_path);
     assert_eq!(integer_store.field_identity, "value");
     assert_eq!(
@@ -969,7 +969,7 @@ fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores
         .as_ref()
         .expect("exact Boolean structural field store");
     assert_eq!(boolean_store.statement_index, 0);
-    assert_eq!(boolean_store.destination_parameter_position, 0);
+    assert_eq!(boolean_store.destination.parameter_position(), Some(0));
     assert_eq!(boolean_store.carrier_path, plan.source_path);
     assert_eq!(boolean_store.field_identity, "enabled");
     assert_eq!(
@@ -996,7 +996,7 @@ fn dynamic_plan_retains_exact_mutating_realization_body() {
         panic!("three selected realization stores expected")
     };
     assert_eq!(integer_store.statement_index, 0);
-    assert_eq!(integer_store.destination_parameter_position, 0);
+    assert_eq!(integer_store.destination.parameter_position(), Some(0));
     assert!(integer_store.carrier_path.is_empty());
     assert_eq!(integer_store.field_identity, "value");
     assert_eq!(

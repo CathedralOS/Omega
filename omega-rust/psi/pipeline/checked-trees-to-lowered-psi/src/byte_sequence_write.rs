@@ -24,6 +24,7 @@ pub(crate) fn validate_assignment(
         checked,
         machine,
         state_symbol,
+        None,
         indexed.collection,
     )?;
     if owner.symbol != machine

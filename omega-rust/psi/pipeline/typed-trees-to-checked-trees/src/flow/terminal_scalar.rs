@@ -434,6 +434,9 @@ fn checked_statement_bindings(
             .iter()
             .enumerate()
             .filter(|(_, statement)| !matches!(statement, StatementNode::Call(_))
+                && !(unit_calls && matches!(statement, StatementNode::Assignment(assignment)
+                    if matches!(program.expression_table.expression(assignment.target),
+                        typed_trees::expression::ExpressionNode::Member(_))))
                 && !(unit_calls && matches!(statement, StatementNode::LocalData(local)
                     if program.primitive_type_reference(local.type_reference).is_none())))
             .map(|(statement_index, statement)| {

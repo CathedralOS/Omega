@@ -200,9 +200,9 @@ pub enum OperationKind {
         obligation: ObligationId,
     },
     /// Store one already-defined scalar into one exact relevant field beneath
-    /// a structural parameter. `path` resolves from the parameter root to the
-    /// record containing `field`; authority remains on the parameter
-    /// declaration rather than being repeated by the operation.
+    /// a structural home. `path` resolves from the root to the record containing
+    /// `field`; authority remains on the owned home or mutable/write-only borrowed
+    /// parameter declaration rather than being repeated by the operation.
     StructuralScalarFieldStore {
         destination: PlaceId,
         path: Vec<StructuralPathSegment>,

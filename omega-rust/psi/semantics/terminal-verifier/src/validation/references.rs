@@ -962,7 +962,8 @@ pub(super) fn apply_operation(
             return establish_record(module, machine, operation, live);
         }
         OperationKind::PrimitiveScalarRead { source } => check_root_access(machine, live, *source)?,
-        OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
+        OperationKind::WriteOnlyPrimitiveStore { destination, .. }
+        | OperationKind::StructuralScalarFieldStore { destination, .. } => {
             check_root_access(machine, live, *destination)?
         }
         OperationKind::EstablishPrimitiveLocal { .. } => {

@@ -4,6 +4,9 @@ use typed_trees::statement::StatementNode;
 
 use super::{BooleanExpressionOwner, ContractExpressionEvaluator};
 
+#[cfg(test)]
+mod tests;
+
 impl ContractExpressionEvaluator<'_, '_> {
     /// Substitute a contract formal once, then retain caller ownership through
     /// local resolution. Recursive calls share symbols but not these namespaces.
@@ -168,8 +171,9 @@ impl ContractExpressionEvaluator<'_, '_> {
                     local.name == *name
                 };
                 // This evaluator has no flow contexts or storage revisions.
-                // Only immutable closed values can be reconstructed here;
-                // mutable values and captured reads require live evidence.
+                // Only immutable scalar values can be reconstructed here.
+                // Owned aggregate fields may change even without `let mut`;
+                // their reads require live evidence, not initializer replay.
                 (local_matches && !local.is_mutable && self.closed_value(local.initial_value))
                     .then_some(local.initial_value)
             })
@@ -183,24 +187,12 @@ impl ContractExpressionEvaluator<'_, '_> {
         {
             return false;
         }
-        match self.program.expression_table.expression(expression) {
+        matches!(
+            self.program.expression_table.expression(expression),
             ExpressionNode::Boolean(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::String(_) => true,
-            ExpressionNode::ArrayLiteral(values) => self
-                .program
-                .expression_table
-                .expression_handles(*values)
-                .iter()
-                .all(|value| self.closed_value(*value)),
-            ExpressionNode::StructLiteral(value) => self
-                .program
-                .expression_table
-                .struct_fields(value.fields)
-                .iter()
-                .all(|field| self.closed_value(field.value)),
-            _ => false,
-        }
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::String(_)
+        )
     }
 }

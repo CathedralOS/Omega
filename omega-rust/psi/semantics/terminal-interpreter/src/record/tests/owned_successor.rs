@@ -2,8 +2,7 @@
 
 use super::*;
 
-#[test]
-fn verified_owned_record_successor_copy_survives_mutation_of_original() {
+fn owned_successor_module() -> TerminalModule {
     let mut module = record_module();
     let mut writer = unit_module().machines.remove(0);
     writer.id = MachineId::new(902).unwrap();
@@ -104,6 +103,12 @@ fn verified_owned_record_successor_copy_survives_mutation_of_original() {
         },
     });
     module.machines.extend([getter(), writer]);
+    module
+}
+
+#[test]
+fn verified_owned_record_successor_copy_survives_mutation_of_original() {
+    let module = owned_successor_module();
     terminal_verifier::validate_module(&module)
         .expect("dominating source remains legal after an owned unrestricted edge copy");
     // The existing runner canonical-decodes and verifies again, then executes
@@ -119,4 +124,35 @@ fn verified_owned_record_successor_copy_survives_mutation_of_original() {
         TerminalExecutionResult::Scalar(unsigned(41)),
         "owned successor retained its independent pre-mutation payload"
     );
+}
+
+#[test]
+fn verified_direct_owned_record_stores_preserve_copy_and_scalar_snapshots() {
+    for destination in [1, 2] {
+        let mut module = owned_successor_module();
+        let mut store = module.machines.pop().unwrap().blocks.remove(0).operations;
+        let OperationKind::StructuralScalarFieldStore {
+            destination: place, ..
+        } = &mut store[1].kind
+        else {
+            unreachable!()
+        };
+        *place = PlaceId::new(destination).unwrap();
+        let continuation = &mut module.machines[0].blocks[1];
+        continuation.operations.remove(0);
+        store.insert(0, getter_call(30, destination));
+        continuation.operations.splice(0..0, store);
+        terminal_verifier::validate_module(&module)
+            .expect("owned operation and block homes both permit direct scalar stores");
+        let (execution, result) = run(&module, &[unsigned(41)]);
+        assert_eq!(execution.values[&ValueId::new(30).unwrap()], unsigned(41));
+        assert_eq!(
+            execution.values[&ValueId::new(4).unwrap()],
+            unsigned(if destination == 1 { 99 } else { 41 })
+        );
+        assert_eq!(
+            result,
+            TerminalExecutionResult::Scalar(unsigned(if destination == 2 { 99 } else { 41 }))
+        );
+    }
 }

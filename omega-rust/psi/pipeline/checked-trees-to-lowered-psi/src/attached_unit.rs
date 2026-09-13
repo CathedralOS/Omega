@@ -3462,7 +3462,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                     let destination = parameters
                         .iter()
                         .find(|parameter| {
-                            parameter.position == store.destination_parameter_position
+                            Some(parameter.position) == store.destination.parameter_position()
                         })
                         .ok_or(LoweringError::Unsupported(
                             "structural scalar store names an unknown parameter",

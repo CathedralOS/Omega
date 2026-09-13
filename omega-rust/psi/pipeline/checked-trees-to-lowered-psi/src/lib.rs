@@ -500,6 +500,13 @@ struct LoweredScalarBranchState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredScalarEffect {
+    StoreScalarField {
+        destination: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+        value_position: usize,
+        scalar_type: ScalarType,
+    },
     EstablishRecord(scalar_graph_lowering::structural_values::Construction),
     EstablishScalarArray(LoweredScalarArrayConstruction),
     EstablishScalarCase(scalar_computations::cases::Construction),
