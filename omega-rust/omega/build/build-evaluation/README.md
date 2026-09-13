@@ -26,11 +26,11 @@ observations. Requests are not target-admission evidence.
 Foreign helpers are admitted lexically: each `roots.bind` occurrence resolves
 its implementation against the product machines of its own source package, so a
 helper can bind its own package's entry but never the caller's private
-declarations. Owner-selected restricted product-reference handoff to helpers
-(no `ProductEntryRef`-style description yet), computed call-result receivers,
-and same-named machines across packages remain explicit implementation limits;
-the same-name fence holds until Terminal production rejoins the selected
-identity by symbol.
+declarations. The exact machine symbol survives into Terminal production and
+native entry settlement, so same-named machines across packages cannot capture
+the selected identity. Owner-selected restricted product-reference handoff to
+helpers (no `ProductEntryRef`-style description yet) and computed call-result
+receivers remain explicit implementation limits.
 [Evaluated build work](../../../../wiki/spec/build/declarations.md#evaluated-build-work)
 defines the accepted language; the remaining restricted product-description and
 lexical selection handoff is tracked by `BUILD-PRODUCT-REFERENCES` in `TASKS.md`.
