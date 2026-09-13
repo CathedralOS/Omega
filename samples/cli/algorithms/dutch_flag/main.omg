@@ -45,7 +45,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("dutch_flag: partitioning [White, Blue, Red] into [Red, White, Blue]");
     self.items[0] = Color::White;
     self.items[1] = Color::Blue;

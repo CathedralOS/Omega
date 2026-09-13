@@ -63,7 +63,7 @@ machine add_one_congruence(a: u64, b: u64)
 requires
     a == b
 ensures
-    a + 1 == b + 1
+    embed(a) + 1 == embed(b) + 1
 {
 }
 
@@ -73,7 +73,7 @@ ensures
 // Engine increment: term normalization (canonical operand order).
 machine add_commutative(a: u64, b: u64)
 ensures
-    a + b == b + a
+    embed(a) + embed(b) == embed(b) + embed(a)
 {
 }
 

@@ -70,7 +70,7 @@ machine Main::log(&mut self, level: LogLevel) {
     state done(&mut self) {}
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("logger: counting log entries by severity into a weighted score");
     // Log five Info entries.
     self.log(LogLevel::Info);

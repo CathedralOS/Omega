@@ -24,7 +24,7 @@ data Main {
     result: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
     self.x = 3735928559; // 0xDEADBEEF
     self.count = 0;

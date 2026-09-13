@@ -168,7 +168,7 @@ machine Main::compute_total(&mut self) {
     self.inv.total_value = v0 + v1 + v2 + v3 + v4;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("inventory_system: populating a 5-item table, then searching and totaling it");
     // Populate inventory.
     self.set_item(0, 1, 3, 10);

@@ -180,7 +180,7 @@ machine Main::step(&mut self, op: Opcode) {
     state done(&mut self) {}
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("stack_vm: a tiny bytecode VM runs (3 + 4) * 2 - 1 on a fixed stack");
     // Initialize VM.
     self.init();

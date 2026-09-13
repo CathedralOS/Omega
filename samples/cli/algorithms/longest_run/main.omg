@@ -24,7 +24,7 @@ data Main {
     b: u8 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
     self.text = "aaabbbbccdaa";
     self.i = 0;

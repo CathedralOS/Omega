@@ -19,7 +19,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("bitset_sieve: Sieve of Eratosthenes over a u32 bitset -- counting primes in 2..30");
     self.bits = 0;
     self.i = 2;

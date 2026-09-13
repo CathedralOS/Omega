@@ -22,7 +22,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("array_sum: overflow-safe reduction -- i32 elements widened to an i64 accumulator");
     self.nums[0] = 2000000000;
     self.nums[1] = 200000000;

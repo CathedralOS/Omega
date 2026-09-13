@@ -133,14 +133,37 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Old observations below are resume evidence, not a fresh
   baseline after the native planner cuts.
 
-  Checked-compilation staleness: since the service-reach evidence
-  tightening (`22dc642ab8`, `7d444a9319`), `all_samples_reach_checked_trees`
-  reports ~130 boundary-calling samples failing
+  Checked-compilation staleness: the service-reach evidence tightening
+  (`22dc642ab8`, `7d444a9319`) left 135/140 samples failing
   "publishes service reach `<none>` but its checked body reaches undeclared
-  services ..." — the diagnostics print each machine's exact required set
-  (the GUI cohort's declarations landed at `40c3332850`). A handful of
-  samples retain distinct failures (`cli__systems__framed_payload` domain
-  weakening, `uefi__uefi_hello` state-mutability).
+  services ..." at `2646d0a974`. The missing declarations are now declared:
+  132 machine signatures carry their diagnostic-printed sets (`reaches` is
+  transitive through machine calls — e.g. `Main::apply` in
+  `cli/systems/account_ledger`), following the GUI cohort's pattern at
+  `40c3332850`. Six distinct sample defects were fixed with it:
+  `framed_payload`/`clamp_sum` explicit `as i32` domain casts,
+  `array_index_from_call` i64-widened operands, `math_proofs` `embed()`
+  ensures arithmetic, `uefi_hello` `&mut self` receiver, and
+  `dungeon_crawler_cli`'s `==`/`!=` guard pair rewritten as a boolean
+  transition. `all_samples_reach_checked_trees` now reports 20/140 failing,
+  each attributed to a named dependency below — reach failures are gone.
+  Samples still failing earlier phases may hide additional undeclared
+  reaches; their owners should rerun and read the printed sets.
+
+  Residual distribution (20 samples): text/field proofs —
+  `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`,
+  `dice_histogram`, `calendar`, `dungeon_render` (cannot prove byte writes
+  preserve the `Utf8` field domain across state edges). Receiver/aggregate
+  loans — `recursive_sum`, `slice_accum_probe`, `subslice_sum`,
+  `dual_accumulator_recursion`, `framed_payload` (retained-argument loan
+  origin vs mutable receiver); `dutch_flag`, `generic_counters`,
+  `dungeon_render`, `wire_protocol` (non-copy transfer out of borrowed
+  storage). Index/subslice proofs — `mandelbrot`, `mandelbrot_zoom`,
+  `wire_protocol`. Hoisted-temp range — `heat_grid` (synthesized `__hoist_N`
+  locals cannot prove their inferred declared range; owner is the
+  hoist-temp/range pipeline, not the sample). Match custody —
+  `dungeon_crawler_cli` (case-literal construction and branch-local
+  transfer joins unsupported). `math_proofs` — its owned Bag/multiset row.
 
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |

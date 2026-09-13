@@ -101,7 +101,7 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
     state done(&mut self) {}
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("alarm_scheduler: 5-arm case dispatch over a scripted alarm sequence (set/snooze/trigger/dismiss/cancel)");
     self.dispatch(AlarmEvent::Set { hour: 6, minute: 30 });
     self.dispatch(AlarmEvent::Snooze { minutes: 5 });

@@ -16,7 +16,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("leap_year: classifying 2024 with the div-4/100/400 compound rule");
     self.year = 2024;
 

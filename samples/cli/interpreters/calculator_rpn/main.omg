@@ -148,7 +148,7 @@ machine Main::mul(&mut self) {
 // ---------------------------------------------------------------------------
 // main: evaluate "32 4 + 2 * 2 -" = 70.
 // ---------------------------------------------------------------------------
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("calculator_rpn: evaluate \"32 4 + 2 * 2 -\" on a fixed-capacity stack");
     self.push(32);
     self.push(4);

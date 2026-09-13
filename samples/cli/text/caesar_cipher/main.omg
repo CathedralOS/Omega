@@ -31,7 +31,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("caesar_cipher: shift each byte of HELLO by 3 -- expecting KHOOR");
     self.text = "HELLO";
     self.out = ".....";

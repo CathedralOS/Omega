@@ -54,7 +54,7 @@ pub data Main {
     msg: [u16; 19];
 }
 
-boundary machine Main::run(&self, handle: addr, table: &EfiSystemTable) -> i32
+boundary machine Main::run(&mut self, handle: addr, table: &EfiSystemTable) -> i32
 invokes TextOutput;
 {
     self.msg = utf16"Hello from Omega\r\n\0";

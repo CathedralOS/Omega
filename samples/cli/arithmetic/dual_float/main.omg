@@ -39,7 +39,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("dual_float: f32 and f64 coexisting in one struct -- 3.5+3.5 (f32) and 6.5-3.0 (f64)");
     // Assign the mixed-width float fields.
     self.f.low = 3.5;

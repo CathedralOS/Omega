@@ -54,7 +54,7 @@ machine Calc::add5(&mut self, n: i32 in Saturating) -> i32 in Saturating {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("value_call_in_expr: value-call results used inline in arithmetic expressions");
     self.base = 10;
 

@@ -47,7 +47,7 @@ data Main {
     dash: Dashboard;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("nested_diagnostics: read engine + battery through nested receivers");
     self.dash.engine.rpm = 3000;
     self.dash.battery.percent = 85;

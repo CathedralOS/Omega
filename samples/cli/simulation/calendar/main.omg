@@ -32,7 +32,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("calendar: render a 30-day month starting on Wednesday as a 7-column grid");
     self.header = "Su Mo Tu We Th Fr Sa ";
     self.line = "                     ";

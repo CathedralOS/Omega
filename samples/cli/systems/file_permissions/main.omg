@@ -22,7 +22,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("file_permissions: unix-style permission bits built with bitwise and/or/xor");
     self.mode = 4 | 2;          // READ | WRITE          -> 6
     self.mode = self.mode | 1;  // + EXEC                -> 7

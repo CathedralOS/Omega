@@ -14,9 +14,9 @@ machine CommandParser::resolve_navigation(
     ) -> Navigation {
     let choice: NavigationChoice = self.resolve_command(line);
 
-    transition {
-        choice == NavigationChoice::Invalid -> self.resolve_exit(level, cell, line)
-        choice != NavigationChoice::Invalid -> self.navigation(choice, CellId::Empty)
+    transition choice == NavigationChoice::Invalid {
+        true -> self.resolve_exit(level, cell, line)
+        false -> self.navigation(choice, CellId::Empty)
     }
 }
 

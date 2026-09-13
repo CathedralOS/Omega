@@ -48,7 +48,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("elevator: case-payload commands drive a door/floor FSM through 6 scripted steps");
     self.send(Command::GoTo { floor: 2 });
     self.send(Command::OpenDoor);

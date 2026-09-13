@@ -70,7 +70,7 @@ machine Main::add_weighted(&mut self, x: f64, w: f64) {
     self.s.weighted_sum = self.s.weighted_sum + x * w;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("stats_compute: f64 mean, variance, and weighted sum over 8 samples");
     // Phase 1: accumulate the 8 data values.
     self.add(2.0);

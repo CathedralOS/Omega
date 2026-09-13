@@ -46,7 +46,7 @@ machine Main::step(&mut self, d: Dir) {
     self.py = self.py + v.dy;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("grid_walk: an enum-dispatched walk (E,E,E,S,S) accumulating a 2D position");
     self.px = 0;
     self.py = 0;

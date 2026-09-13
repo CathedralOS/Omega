@@ -23,7 +23,7 @@ data Main {
     elapsed: u64 in Wrapping;
     pause: [u8; 256];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock2 + Console {
     self.console.write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
     self.t_start = self.clock.tick_count();
     self.frame = 0;

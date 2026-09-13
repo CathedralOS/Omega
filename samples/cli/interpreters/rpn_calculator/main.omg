@@ -33,7 +33,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("rpn_calculator: evaluates the postfix program 3 4 + 5 * on an operand stack");
     self.program[0] = 3;
     self.program[1] = 4;

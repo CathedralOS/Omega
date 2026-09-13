@@ -30,7 +30,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("calculator: parse and evaluate the expression \"12+34\" from text bytes");
     self.text = "12+34";
 

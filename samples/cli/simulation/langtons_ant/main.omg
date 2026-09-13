@@ -46,7 +46,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console {
     self.console.write_line("langtons_ant: an ant on a two-color toroidal grid, 120 animated steps");
     self.ax = 12;
     self.ay = 7;

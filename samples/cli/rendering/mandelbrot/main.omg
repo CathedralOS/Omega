@@ -38,7 +38,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("mandelbrot: escape-time fractal rendered as 64x28 ASCII");
     self.palette = " .:-=+*#";
     self.row = "................................................................";

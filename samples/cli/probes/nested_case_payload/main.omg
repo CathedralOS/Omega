@@ -93,7 +93,7 @@ machine Main::apply_command(&mut self, cmd: Command) {
     state done(&mut self) {}
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("nested_case_payload: case-payload commands feeding a nested integer dispatch");
     self.apply_command(Command::Run { op: 0, n: 10 });
     self.apply_command(Command::Noop);

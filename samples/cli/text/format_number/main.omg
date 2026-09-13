@@ -26,7 +26,7 @@ data Main {
     ones_byte: u8;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("format_number: rendering the number 25 into a text carrier digit by digit");
     self.buffer = "00";
     self.value = 25;

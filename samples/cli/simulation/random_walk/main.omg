@@ -46,7 +46,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console {
     self.console.write_line("random_walk: a pseudo-random walker wanders a 24x12 grid leaving a trail");
     self.px = 12;
     self.py = 6;

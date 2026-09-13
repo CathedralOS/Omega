@@ -41,7 +41,7 @@ data Main {
     digit: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("elapsed_timer: times a 50ms workload with std::time");
     self.digits = "0123456789";
     self.line = "elapsed milliseconds: 00000";

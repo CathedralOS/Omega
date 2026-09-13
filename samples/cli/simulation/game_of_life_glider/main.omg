@@ -54,7 +54,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console {
     self.console.write_line("game_of_life_glider: a glider crossing a 24x12 field, animated in place");
     self.chars = " #";
     self.home = "XXX";

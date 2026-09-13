@@ -36,7 +36,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("bank_ledger: 6 deposits/withdrawals into a fixed transaction list, then a const-indexed balance sum");
     self.deposit(500);
     self.deposit(200);

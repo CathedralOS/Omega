@@ -23,7 +23,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("scoreboard: sums three player records stored in an array of structs");
     self.players[0].id = 1;
     self.players[0].score = 30;

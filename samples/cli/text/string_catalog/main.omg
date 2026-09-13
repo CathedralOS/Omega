@@ -85,7 +85,7 @@ machine Main::compute_total(&mut self) {
     self.catalog.total = self.catalog.entry1.score + self.catalog.entry2.score;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("string_catalog: bounded UTF-8 fields, concatenation, and equality guards");
     self.set_entry1();
     self.set_entry2();

@@ -50,7 +50,7 @@ machine Main::clamp_low(&mut self, n: i32 in Saturating, min_val: i32 in Saturat
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("multi_value_calls: three value-returning calls combined into one total");
     // Set up a field to test that it doesn't interfere with call results.
     self.offset = 38;

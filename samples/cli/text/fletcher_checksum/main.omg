@@ -37,7 +37,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("fletcher_checksum: fletcher-16 position-sensitive checksum over [1..6]");
     self.adder.bytes[0] = 1;
     self.adder.bytes[1] = 2;

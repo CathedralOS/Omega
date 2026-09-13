@@ -34,7 +34,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("string_hash: FNV-1a hashes the bytes of the string omega");
     self.text = "omega";
     self.hash = 2166136261;

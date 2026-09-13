@@ -30,7 +30,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("roman_numeral: parses MCMXCIV with the subtractive-pair look-back rule");
     self.text = "MCMXCIV";
     self.i = 0;

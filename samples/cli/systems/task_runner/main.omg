@@ -80,7 +80,7 @@ machine Main::run_task(&mut self, task: Task) {
     state done(&mut self) {}
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("task_runner: nested case-payload dispatch runs a compute/double/clamp script");
     self.run_task(Task::Compute { value: 10 });
     self.run_task(Task::Compute { value: 15 });

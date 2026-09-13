@@ -40,7 +40,7 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
     state done(&mut self) {}
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("alarm_probe: no-payload case arm after payload arms -- Trigger must fire twice");
     self.dispatch(AlarmEvent::Trigger);
     self.dispatch(AlarmEvent::Trigger);

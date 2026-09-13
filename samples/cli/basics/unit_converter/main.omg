@@ -46,7 +46,7 @@ machine kg_to_lbs(kg: f64) -> f64 {
     kg * 2.20462
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.write_line("unit_converter: f64 temperature, distance, and mass conversions");
     // Check 1: 100°C → 212°F.
     self.result = celsius_to_fahrenheit(100.0);
