@@ -460,7 +460,7 @@ impl<'program> Evaluator<'program> {
     }
 
     /// `Type::Variant` paths whose head is an enum/data symbol with a matching variant.
-    fn enum_value_from_path(&self, path: &TableNamePath) -> EvalResult<Option<Value>> {
+    pub(super) fn enum_value_from_path(&self, path: &TableNamePath) -> EvalResult<Option<Value>> {
         // Resolution has already selected the declaration. Display names may
         // include an importing package's alias, and same-leaf data declarations
         // are not interchangeable during evaluation.

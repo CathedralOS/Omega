@@ -46,46 +46,9 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Float(value) => Ok(Value::Float(value.landed_f64())),
             ExpressionNode::String(value) => self.allocate_text(value.to_vec()),
             ExpressionNode::Name(path) => self.eval_name(&path, frame),
-            ExpressionNode::Member(member) => {
-                // A destructure-bound payload projects the subject observed by
-                // the guard. Its copied call expression is not another effect.
-                // Ordinary member expressions do not carry this case marker.
-                if member.case_variant.is_some() {
-                    let observed = frame
-                        .guard_call_results
-                        .borrow()
-                        .iter()
-                        .find(|(subject, _)| {
-                            self.program
-                                .expression_table
-                                .expressions_structurally_equal(*subject, member.receiver)
-                        })
-                        .map(|(_, value)| value.clone());
-                    if let Some(observed) = observed {
-                        let receiver = self.allocate_cell(observed)?;
-                        let field = self.field_cell(&receiver, member.member.as_str())?;
-                        return Ok(self.deref_cell(field).borrow().clone());
-                    }
-                }
-                // A member on a PLACE receiver reads through its storage cell,
-                // preserving aliasing. An inline NON-place receiver -- e.g. `.len`
-                // on a subslice literal `(arr[a..b]).len`, whose receiver is a VIEW,
-                // not a storage location -- has no place; evaluate the receiver to a
-                // value and read the field off it. (A subslice BOUND to a local is a
-                // place and takes the fast path.) Without this fallback the
-                // receiver's range index reached the `Range` arm below and tripped
-                // "range expression outside index position", diverging from the
-                // native fold of `(arr[a..b]).len`.
-                match self.resolve_place(handle, frame) {
-                    Ok(cell) => Ok(cell.borrow().clone()),
-                    Err(Halt::Unsupported(_)) => {
-                        let receiver = self.eval_expression(member.receiver, frame)?;
-                        let receiver = self.allocate_cell(receiver)?;
-                        let field = self.field_cell(&receiver, member.member.as_str())?;
-                        Ok(self.deref_cell(field).borrow().clone())
-                    }
-                    Err(error) => Err(error),
-                }
+            ExpressionNode::Member(_) => {
+                let field = self.eval_read_cell(handle, frame)?;
+                Ok(self.deref_cell(field).borrow().clone())
             }
             ExpressionNode::Borrow(inner) => {
                 // `&mut place as &mut View` can survive typed-tree rewriting as
@@ -308,49 +271,8 @@ impl<'program> Evaluator<'program> {
                     .and_then(|source| self.program.primitive_type_reference(source));
                 self.eval_cast(value, source, target, cast.domain)
             }
-            ExpressionNode::Indexed(indexed) => {
-                // A range index `arr[start..end]` produces a SUBSLICE view sharing the
-                // collection's element cells; a scalar index reads one element.
-                if let ExpressionNode::Range(range) = self
-                    .program
-                    .expression_table
-                    .expression(indexed.index)
-                    .clone()
-                {
-                    return self.eval_subslice(indexed.collection, &range, frame);
-                }
-                // Select the collection and index once, including nested views.
-                // Packed bytes share their buffer; other arrays share cells.
-                let collection = if self.is_array_literal_projection(indexed.collection) {
-                    if validation::builtin_constant_array_projection_type(
-                        self.program,
-                        frame.machine_symbol,
-                        handle,
-                    )
-                    .is_none()
-                    {
-                        return unsupported(
-                            "array value projection has no exact builtin constant indexing meaning",
-                        );
-                    }
-                    // A copied literal is a value, not a source place. Evaluate
-                    // all its elements before the selector, once, without
-                    // extending resolve_place's write/borrow authority.
-                    let value = self.eval_expression(indexed.collection, frame)?;
-                    self.allocate_cell(value)?
-                } else {
-                    self.resolve_place(indexed.collection, frame)?
-                };
-                let collection = self.deref_cell(collection);
-                let index = self.eval_index(indexed.index, frame)?;
-                if let Value::Str(text) = &*collection.borrow() {
-                    return text
-                        .borrow()
-                        .get(index)
-                        .map(|byte| Value::Int(i64::from(*byte)))
-                        .ok_or_else(|| Halt::Trap(format!("string index {index} out of bounds")));
-                }
-                let cell = self.element_cell(&collection, index)?;
+            ExpressionNode::Indexed(_) => {
+                let cell = self.eval_read_cell(handle, frame)?;
                 let value = self.deref_cell(cell).borrow().clone();
                 Ok(value)
             }
@@ -370,16 +292,6 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::StructLiteral(literal) => self.eval_struct_literal(&literal, frame),
             ExpressionNode::ZeroValue(_) => {
                 unsupported("proof-only zero_value<T>() reached runtime evaluation")
-            }
-        }
-    }
-
-    fn is_array_literal_projection(&self, mut expression: ExpressionHandle) -> bool {
-        loop {
-            match self.program.expression_table.expression(expression) {
-                ExpressionNode::ArrayLiteral(_) => return true,
-                ExpressionNode::Indexed(indexed) => expression = indexed.collection,
-                _ => return false,
             }
         }
     }

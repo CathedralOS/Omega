@@ -1434,6 +1434,18 @@ Owners include
   the outer call, and preserve every selected source loan and linear claim.
   Remove the nested-call gate only when those result uses have real producers;
   a correct declared type or source origin alone does not realize a value.
+  Resume at the checked/Terminal representation seam, not another evaluator
+  source-shape gate: `terminal-psi`'s `StructuralFieldType` still has no stored
+  reference field, and structural result custody does not retain an executable
+  reference's original referent/access relationship. Existing result homes and
+  projection paths should carry that relationship through encoding, verification,
+  and interpretation. `checked-interpreter/tests/projected_results.rs` exercises
+  the shared evaluator separately, including source-loan alias identity and
+  once-only projection effects; run `cargo nextest run -p checked-interpreter
+  --test projected_results --no-fail-fast` (macOS ARM64). This does not establish
+  Terminal or native acceptance. Keep the full-checking rejection control in
+  `typed-trees-to-checked-trees/src/tests/borrow/carrier_results.rs` until the
+  unchanged reference-bearing customer executes from encoded Terminal evidence.
 
 - **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
   semantic facts, flow transfer, and contract consumption. Collection elements

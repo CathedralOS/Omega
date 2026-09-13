@@ -1397,6 +1397,8 @@ mod scalar_operations;
 mod statements_and_calls;
 #[path = "evaluator/type_metadata.rs"]
 mod type_metadata;
+#[path = "evaluator/value_projections.rs"]
+mod value_projections;
 #[path = "evaluator/wire_codec.rs"]
 mod wire_codec;
 
