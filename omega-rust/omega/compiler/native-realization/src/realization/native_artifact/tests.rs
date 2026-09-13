@@ -127,10 +127,118 @@ fn executable_entry_rejects_lost_source_receiver_projection() {
     }
     let diagnostics = super::validate_executable_entry_receiver(
         &plan,
+        input.context().module(),
         artifact,
         &request(&signature, &profile, &optimizations, &providers),
     )
     .expect_err("lowering cannot change the source-selected receiver mode");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("source-selected receiver mode"))
+    );
+}
+
+const ERASED_RECEIVER: &str = "data Main {} machine Main::launch(&mut self) {}";
+
+#[test]
+fn provisioned_receiver_erased_before_realization_still_realizes_an_executable() {
+    let (produced, signature) = entry_fixture(ERASED_RECEIVER, target::TargetProfile::WindowsX64);
+    let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    // Checked production erases the unused `&mut self` place entirely; the
+    // attached type survives so the root bridge still knows what to provision.
+    assert!(
+        entry
+            .structural_parameters
+            .iter()
+            .all(|parameter| !parameter.is_self)
+    );
+    assert!(entry.attachment.is_some());
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let native = crate::realize_program_entry_native_artifact(
+        produced,
+        request(&signature, &profile, &optimizations, &providers),
+    )
+    .expect("bridge provisioning preserves the erased source receiver mode");
+    native
+        .artifact()
+        .as_direct()
+        .expect("direct image requested")
+        .validate()
+        .expect("erased-receiver executable replays");
+}
+
+#[test]
+fn erased_provisioned_receiver_must_retain_its_attached_type() {
+    let (produced, signature) = entry_fixture(ERASED_RECEIVER, target::TargetProfile::WindowsX64);
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let input = super::lower_realization_input(
+        produced.artifact().semantic_bytes(),
+        produced.artifact().proof_bytes(),
+        &profile,
+    )
+    .expect("checked erased-receiver input");
+    let mut plan = input.plan().clone();
+    for function in &mut plan.functions {
+        if function.machine == plan.entry {
+            function.attachment = None;
+        }
+    }
+    let diagnostics = super::validate_executable_entry_receiver(
+        &plan,
+        input.context().module(),
+        produced.artifact(),
+        &request(&signature, &profile, &optimizations, &providers),
+    )
+    .expect_err(
+        "an erased provisioned receiver cannot lose the attached type the bridge provisions",
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("source-selected receiver mode"))
+    );
+}
+
+#[test]
+fn free_source_entry_cannot_acquire_a_receiver() {
+    let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
+    let artifact = produced.artifact();
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let input =
+        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
+            .expect("checked receiver input");
+    let free_signature =
+        program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+            signature.target_slot(),
+            signature.machine_symbol(),
+            signature.state_symbol(),
+            signature.machine_name().into(),
+            signature.state_name().into(),
+            signature.normalized_callable_identity().into(),
+            program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+            signature.visible_parameters().to_vec(),
+        )
+        .expect("free source signature");
+    // Both frontiers retain the receiver param; the source mode alone forbids it.
+    let diagnostics = super::validate_executable_entry_receiver(
+        input.plan(),
+        input.context().module(),
+        artifact,
+        &request(&free_signature, &profile, &optimizations, &providers),
+    )
+    .expect_err("a free source entry cannot acquire a receiver through lowering");
     assert!(
         diagnostics
             .iter()
