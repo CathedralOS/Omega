@@ -206,11 +206,105 @@ fn a_forged_satisfied_flag_does_not_survive_replay() {
     );
     let plan_bytes = encode_plan(&plan).unwrap();
     // The recorded certificate is replayed against the reconstructed graph:
-    // the forged "satisfied" verdict cannot survive either the certificate
-    // re-check or the outcome comparison.
+    // the forged "satisfied" verdict cannot survive the outcome comparison —
+    // replay recomputes the only_via row as violated before the recorded
+    // certificate is even reached.
     assert!(matches!(
         verify_plan(&plan_bytes, &request_bytes),
-        Err(PlanRejection::ReplayMismatch { .. }) | Err(PlanRejection::InvalidCertificate { .. })
+        Err(PlanRejection::ReplayMismatch { index: 1 })
+    ));
+}
+
+#[test]
+fn an_indirect_bypass_through_a_roster_member_rejects_on_replay() {
+    // The bypass runs api -> logging -> billing through a legitimate roster
+    // member: every demanded import is bound, the roster and transports match
+    // the request exactly, and the recorded outcomes are honestly formed — so
+    // normalization and every comparison succeed, and only independent replay
+    // of the selected predicates sees the route around authorization.
+    let mut request = payment_request();
+    request.instances.push(RequestedInstance {
+        name: name("logging"),
+        subject: identity(0x44),
+    });
+    let request_bytes = encode_request(&request).unwrap();
+
+    // logging holds a billing channel legitimately and exports its own
+    // service on slot 1; api has no route to it, so this four-instance
+    // composition satisfies only_via honestly.
+    let mut instances = payment_instances();
+    instances.push(instance("logging", 0x44, &[1], &[1]));
+    let mut bindings = payment_bindings();
+    bindings.push(Binding {
+        import: endpoint(3, 1),
+        export: endpoint(2, 1),
+        transport: transport(),
+    });
+    let (plan, _) = compose_plan(&request, &request_bytes, instances, bindings, verifier())
+        .expect("composition without the api -> logging edge succeeds");
+
+    // Forge: declare api's second import and the laundering binding while
+    // keeping the outcomes recorded for the bypass-free graph.
+    let mut forged = plan;
+    forged.instances[0].endpoints.push(Endpoint {
+        slot: 2,
+        direction: EndpointDirection::Import,
+        contract: identity(0xC0),
+    });
+    // Binding (0,2)->(3,1) sorts between (0,1)->(1,1) and (1,1)->(2,1).
+    forged.bindings.insert(
+        1,
+        Binding {
+            import: endpoint(0, 2),
+            export: endpoint(3, 1),
+            transport: transport(),
+        },
+    );
+    let forged_bytes = encode_plan(&forged).unwrap();
+    assert!(matches!(
+        verify_plan(&forged_bytes, &request_bytes),
+        Err(PlanRejection::ReplayMismatch { index: 1 })
+    ));
+
+    // The checked witness is the real two-hop route: replay on the
+    // reconstructed graph reports api -> logging -> billing, not a generic
+    // failure.
+    let graph = NormalizedGraph::new(forged.instances.clone(), forged.bindings.clone()).unwrap();
+    let call = PolicyCall::only_via(
+        PolicySelector::new([name("api")]),
+        PolicySelector::new([name("billing")]),
+        PolicySelector::new([name("authorization")]),
+    );
+    let PolicyEvaluation::Decided(PolicyOutcome::Violated {
+        violation: Violation::Bypass { path },
+    }) = evaluate_policy(&graph, &call)
+    else {
+        panic!("replay must surface the bypass")
+    };
+    let names: Vec<&str> = path
+        .iter()
+        .map(|&index| graph.instances()[index as usize].name.as_str())
+        .collect();
+    assert_eq!(names, ["api", "logging", "billing"]);
+
+    // And the recorded certificate has no repair: the honest reachable set is
+    // no longer closed under the actual edges, while the set that *is* closed
+    // under them contains the target — closure and disjointness cannot both
+    // hold, so no reachable-set forgery survives structural checking.
+    let recorded = &forged.policies[1].outcome;
+    assert!(matches!(
+        predicate::check_outcome(&graph, &call, recorded),
+        Err(CertificateRejection::NotClosed { .. })
+    ));
+    let closed_set = PolicyOutcome::Satisfied {
+        certificate: Certificate::OnlyVia {
+            path: vec![0, 1, 2],
+            reachable: vec![0, 2, 3],
+        },
+    };
+    assert!(matches!(
+        predicate::check_outcome(&graph, &call, &closed_set),
+        Err(CertificateRejection::NotDisjoint { vertex: 2 })
     ));
 }
 
