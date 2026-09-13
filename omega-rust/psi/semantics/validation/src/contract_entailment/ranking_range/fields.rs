@@ -81,6 +81,9 @@ impl<'program> FieldCoordinate<'program> {
         arrival: RankingRangeState<'_>,
         entry_symbol: SymbolHandle,
     ) -> Option<Self> {
+        if !entry_symbol.is_valid() {
+            return None;
+        }
         let mut parameters = program
             .state_parameters(arrival.state)
             .iter()
