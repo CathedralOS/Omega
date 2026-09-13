@@ -10,7 +10,6 @@ mod provider_evidence;
 mod scalar;
 mod scalar_abi;
 mod shared;
-mod structural;
 pub(super) mod structural_layout;
 pub(crate) mod structural_signature;
 mod structural_type_lookup;

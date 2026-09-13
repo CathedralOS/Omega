@@ -1328,7 +1328,7 @@ fn validate_scalar_cleanup_actions(
     // ordinary edge and Unit-return disposal, before older named roots.
     for place in expected_trivial_affine_discards(machine, parameter_order, &frontier) {
         if !super::scalar_case::plain_return_source(module, machine, place)
-            && !super::record::plain_return_source(module, machine, place)
+            && super::record::completed_source(module, machine, place).is_none()
         {
             continue;
         }

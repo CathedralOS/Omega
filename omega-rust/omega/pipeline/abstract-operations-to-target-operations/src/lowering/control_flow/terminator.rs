@@ -95,8 +95,7 @@ pub(super) fn lower_terminator(
                     .ok_or_else(invalid)?;
                 let placement = prepared.call_plan.result.as_ref().ok_or_else(invalid)?;
                 if parameter.access != StructuralAccess::Owned
-                    || (parameter.multiplicity != StructuralMultiplicity::Affine
-                        && !super::scalar_arrays::is_owned_parameter(parameter, structural_types))
+                    || parameter.multiplicity == StructuralMultiplicity::Linear
                     || parameter.is_self
                     || parameter.structural_type != result.structural_type
                     || parameter.multiplicity != result.multiplicity
@@ -110,44 +109,10 @@ pub(super) fn lower_terminator(
                 {
                     return Err(invalid());
                 }
-                if super::scalar_arrays::is_owned_parameter(parameter, structural_types) {
-                    // Incoming value fragments may reside on the caller's stack;
-                    // the return still needs a direct-register result ABI. These
-                    // are distinct placements even when the semantic shape agrees.
-                    for (placement, incoming) in [(&actual.placement, true), (placement, false)] {
-                        if placement.shape.byte_size > 16
-                            || placement.locations.iter().any(|location| {
-                                !matches!(
-                                    location,
-                                    calling_conventions::ValueLocation::Register {
-                                        byte_size: 1..=8,
-                                        ..
-                                    }
-                                ) && !(incoming
-                                    && matches!(
-                                        location,
-                                        calling_conventions::ValueLocation::Stack {
-                                            byte_size: 1..=8,
-                                            ..
-                                        }
-                                    ))
-                            })
-                        {
-                            return Err(LoweringError::UnsupportedStructuralReturnPlacement(
-                                function.machine,
-                            ));
-                        }
-                    }
-                } else {
-                    super::super::structural::require_direct_structural_fragments(
-                        function.machine,
-                        &actual.placement,
-                    )?;
-                    super::super::structural::require_direct_structural_fragments(
-                        function.machine,
-                        placement,
-                    )?;
-                }
+                // The complete prepared call plan already fixes both placements.
+                // Returning the same value does not require identical input and
+                // result registers, nor a direct-register ABI on either side.
+                // Selection realizes the transfer from captured input storage.
                 provenance.edges.push(*psi_edge);
                 return Ok(TargetControlTerminator::ReturnStructural {
                     psi_edge: *psi_edge,

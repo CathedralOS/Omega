@@ -162,7 +162,11 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
     if function.scalar_abi.is_some() || function.mixed_structural_scalar_abi.is_some() {
         return scalar_function_is_exact(record, function);
     }
-    if function.unit_parameters.len() != function.unit_parameter_homes.len()
+    // Owned values and borrowed pointers share one normalized graph signature.
+    // Inline owned values need no pointer-home row. Reconstruct that complete
+    // roster with its existing owner, then keep the same frame/call checks below.
+    let owned_graph = super::graph_structural::function_is_exact(function, record.target);
+    if (!owned_graph && function.unit_parameters.len() != function.unit_parameter_homes.len())
         || function.unit_body
         || function.unit_affine_cleanup.is_some()
         || !function.unit_continuations.is_empty()
@@ -184,7 +188,15 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
     {
         return false;
     }
-    let Some(plan) = combined_plan(function, record.target) else {
+    let plan = if owned_graph {
+        function
+            .parameter_abi
+            .as_ref()
+            .map(|abi| abi.call_plan.clone())
+    } else {
+        combined_plan(function, record.target)
+    };
+    let Some(plan) = plan else {
         return false;
     };
     let scalar_count = function
@@ -214,35 +226,37 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
     }) {
         return false;
     }
-    for (parameter_index, ((parameter, home), placement)) in function
-        .unit_parameters
-        .iter()
-        .zip(&function.unit_parameter_homes)
-        .zip(&plan.parameters[scalar_count..])
-        .enumerate()
-    {
-        if parameter.place != home.place
-            || parameter.structural_type != home.structural_type
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || parameter.multiplicity != home.multiplicity
-            || parameter.access != home.access
-            || !matches!(
-                parameter.access,
-                StructuralAccess::SharedBorrow
-                    | StructuralAccess::MutableBorrow
-                    | StructuralAccess::WriteOnlyBorrow
-            )
-            || parameter.shape != home.shape
-            || home.source != *placement
-            || !home.indirect
-            || pointer_location(placement)
-                .map(|location| StructuralSourceLocation::IncomingBorrowedPointer { location })
-                != Some(home.location)
-            || function.unit_parameters[..parameter_index]
-                .iter()
-                .any(|prior| prior.place == parameter.place)
+    if !owned_graph {
+        for (parameter_index, ((parameter, home), placement)) in function
+            .unit_parameters
+            .iter()
+            .zip(&function.unit_parameter_homes)
+            .zip(&plan.parameters[scalar_count..])
+            .enumerate()
         {
-            return false;
+            if parameter.place != home.place
+                || parameter.structural_type != home.structural_type
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || parameter.multiplicity != home.multiplicity
+                || parameter.access != home.access
+                || !matches!(
+                    parameter.access,
+                    StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
+                )
+                || parameter.shape != home.shape
+                || home.source != *placement
+                || !home.indirect
+                || pointer_location(placement)
+                    .map(|location| StructuralSourceLocation::IncomingBorrowedPointer { location })
+                    != Some(home.location)
+                || function.unit_parameters[..parameter_index]
+                    .iter()
+                    .any(|prior| prior.place == parameter.place)
+            {
+                return false;
+            }
         }
     }
     let calls = record

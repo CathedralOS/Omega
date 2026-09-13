@@ -217,7 +217,7 @@ pub(super) fn validate_uses(
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
     let validate = |place| {
-        if plain_return_source(module, machine, place) && !available.contains(&place) {
+        if completed_source(module, machine, place).is_some() && !available.contains(&place) {
             Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
                 operation: operation.id,
                 place,
@@ -292,4 +292,23 @@ pub(super) fn plain_return_source(
     source: PlaceId,
 ) -> bool {
     completed_source(module, machine, source).is_some()
+        || machine.structural_parameters.iter().any(|parameter| {
+            parameter.place == source
+                && parameter.access == StructuralAccess::Owned
+                && matches!(
+                    parameter.multiplicity,
+                    StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                )
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+                && plain_type(module, parameter.structural_type)
+                && !machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == source)
+                && !machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == source)
+        })
 }

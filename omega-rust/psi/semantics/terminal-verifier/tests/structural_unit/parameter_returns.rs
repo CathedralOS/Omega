@@ -214,6 +214,85 @@ fn affine_parameter_return_composes_with_writes_calls_and_multiple_parameters() 
 }
 
 #[test]
+fn unrestricted_record_parameter_return_preserves_exact_owned_custody() {
+    let mut original = module();
+    original.machines[0].structural_parameters[1].multiplicity =
+        StructuralMultiplicity::Unrestricted;
+    let TerminalMachineResult::Structural(result) = &mut original.machines[0].result else {
+        unreachable!()
+    };
+    result.multiplicity = StructuralMultiplicity::Unrestricted;
+    for branched in [false, true] {
+        let mut module = original.clone();
+        if branched {
+            branch(&mut module);
+        }
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap();
+    }
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        let mut changed = original.clone();
+        changed.machines[0].structural_parameters[1].access = access;
+        assert!(
+            validate_module(&changed).is_err(),
+            "borrow cannot supply an owned return: {access:?}"
+        );
+    }
+    let mut changed = original.clone();
+    changed.machines[0].structural_parameters[1].multiplicity = StructuralMultiplicity::Affine;
+    assert!(
+        validate_module(&changed).is_err(),
+        "affine input cannot become copyable at return"
+    );
+    let mut changed = original.clone();
+    let TerminalMachineResult::Structural(result) = &mut changed.machines[0].result else {
+        unreachable!()
+    };
+    result.structural_type = structural_type_id(1);
+    assert!(
+        validate_module(&changed).is_err(),
+        "return must preserve its exact nominal type"
+    );
+    let mut changed = original.clone();
+    changed
+        .structural_domains
+        .push(StructuralDomainDeclaration {
+            id: domain_id(1),
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+            identity: "QualifiedRecord".into(),
+            carrier: structural_type_id(2),
+            content_projection: None,
+        });
+    changed.machines[0].structural_parameters[1]
+        .qualifications
+        .push(domain_id(1));
+    assert!(
+        validate_module(&changed).is_err(),
+        "return cannot erase source qualifications"
+    );
+    let mut changed = original;
+    let Terminator::ReturnStructural {
+        returned_claims, ..
+    } = &mut changed.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    returned_claims.push(claim_id(1));
+    assert!(
+        validate_module(&changed).is_err(),
+        "copyable record cannot invent a returned claim"
+    );
+}
+
+#[test]
 fn affine_parameter_return_checks_each_branch() {
     let mut module = module();
     branch(&mut module);

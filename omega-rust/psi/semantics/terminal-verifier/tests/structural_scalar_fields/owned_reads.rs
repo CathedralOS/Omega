@@ -71,6 +71,38 @@ fn claim_free_owned_scalar_reads_accept_affine_and_unrestricted_parameters() {
 }
 
 #[test]
+fn scalar_only_call_cannot_omit_an_owned_record_input() {
+    for multiplicity in [
+        StructuralMultiplicity::Affine,
+        StructuralMultiplicity::Unrestricted,
+    ] {
+        let mut module = owned_reader(multiplicity, integer_type());
+        validate_module(&module).unwrap();
+        let mut caller = structural_scalar_field_module().machines.remove(0);
+        caller.attachment = None;
+        caller.structural_parameters.clear();
+        caller.structural_places.clear();
+        let mut call = caller.blocks[0].operations.pop().unwrap();
+        call.kind = OperationKind::Call {
+            callee: module.entry,
+            arguments: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        caller.blocks[0].operations = vec![call];
+        module.entry = caller.id;
+        module.machines.insert(0, caller);
+        assert!(
+            matches!(
+                validate_module(&module),
+                Err(ModuleError::CallTargetHasStructuralContract { .. })
+            ),
+            "scalar-only call cannot acquire an implicit {multiplicity:?} record"
+        );
+    }
+}
+
+#[test]
 fn scalar_field_read_after_discard_on_predecessor_edge_rejects() {
     for scalar_type in [integer_type(), ScalarType::Boolean] {
         let mut module = owned_reader(StructuralMultiplicity::Affine, scalar_type);

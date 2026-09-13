@@ -461,7 +461,7 @@ pub(super) fn validate_machine(
                     )?;
                     if callee.structural_places.iter().any(|place| {
                         !super::scalar_array::plain_return_source(module, callee, place.id)
-                            && !super::record::plain_return_source(module, callee, place.id)
+                            && super::record::completed_source(module, callee, place.id).is_none()
                     }) || !callee.content_entry_claims.is_empty()
                         || !callee.content_identity_reshuffles.is_empty()
                         || !callee.content_partition_compositions.is_empty()

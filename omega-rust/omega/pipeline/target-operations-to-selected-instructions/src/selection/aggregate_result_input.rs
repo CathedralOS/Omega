@@ -208,9 +208,7 @@ pub(super) fn returned_parameter<'a>(
         .find(|parameter| parameter.semantic.place == *place)?;
     let semantic = &parameter.semantic;
     if semantic.access != terminal_psi::StructuralAccess::Owned
-        || !(semantic.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            || (semantic.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                && super::scalar_array_input::shape(source, semantic.structural_type).is_some()))
+        || semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || semantic.structural_type != declared.structural_type
         || semantic.multiplicity != declared.multiplicity
         || semantic.is_self
@@ -226,8 +224,14 @@ pub(super) fn returned_parameter<'a>(
         crate::structural_reference_input::parameter_shape(semantic, &signature.structural_types)?;
     if parameter.target.shape != shape
         || placement.shape != shape
-        || !direct_fragments(placement)
-        || !inline_argument_fragments(&parameter.target.placement)
+        || !(direct_fragments(placement)
+            || indirect_result(placement, source.call_plan.policy).is_some())
+        || !(inline_argument_fragments(&parameter.target.placement)
+            || crate::structural_unit_input::owned_indirect_pointer(
+                semantic,
+                &parameter.target.placement,
+            )
+            .is_some())
     {
         return None;
     }

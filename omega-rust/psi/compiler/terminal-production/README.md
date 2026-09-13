@@ -283,6 +283,13 @@ typed block parameters and return from their arriving home, including across an
 unrelated owned selection. Direct structural returns use existing result homes
 with their exact declared ownership; there is no record-specific function
 representation or separate one-field local recognizer.
+Whole owned parameters also return after ordinary calls and writes through the
+same ordered body. A discarded scalar call still produces its typed SSA result
+and executes, but does not occupy a source-local binding ordinal. Source replay
+checks the exact returned parameter and affine transfer at the final statement;
+Terminal verification independently retains type, access, claims, and liveness.
+`checked-trees-to-lowered-psi --test owned_record_return_source` covers these
+compositions, source substitution, and suspension around observable writes.
 Shared attached calls retain the established local's actual structural place,
 whether established directly or returned by an ordinary constructor call. The
 implicit receiver precedes explicit structural operands but has its own captured

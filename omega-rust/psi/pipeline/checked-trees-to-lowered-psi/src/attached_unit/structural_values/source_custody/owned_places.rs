@@ -2,7 +2,7 @@
 use super::*;
 use checked_trees::{CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan};
 
-pub(super) fn validate(
+pub(crate) fn validate(
     checked: &CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,

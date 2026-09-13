@@ -484,15 +484,27 @@ pub(in crate::flow::terminal_unit) fn build(
             StatementNode::Call(call) if call.discards_result => {
                 let result_type =
                     crate::flow::call_target_return_type(program, call.target_symbol)?;
-                if !is_unit(program, result_type) {
+                if let Some(primitive_type) = program.primitive_type_reference(result_type) {
+                    // Discarding the value does not discard the invocation or
+                    // change its result signature. Keep the ordinary SSA result
+                    // without introducing a source local.
+                    let result = CheckedUnitScalarResultBindingPlan {
+                        statement_index,
+                        binding_ordinal: u32::try_from(scalar_count).ok()?,
+                        primitive_type,
+                    };
+                    Some(result)
+                } else if !is_unit(program, result_type) {
                     let mut result =
                         checked_structural_result_type(program, shapes, result_type, &binders)?;
                     result.statement_index = statement_index;
                     // No source local exists for an explicit discard. The call
                     // still produces its own typed result and disposal debt.
                     structural_result = Some((result, None));
+                    None
+                } else {
+                    None
                 }
-                None
             }
             StatementNode::Call(_) => None,
             StatementNode::Expression(_) if completes_machine

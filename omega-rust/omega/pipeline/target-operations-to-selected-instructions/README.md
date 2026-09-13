@@ -68,17 +68,23 @@ before subsequent calls or stores. Independent target and selected replay
 reconstructs the field offset and exact-width load from the declaration; a
 same-typed field or later reload cannot substitute for the retained observation.
 
-Inline owned record input observations use one `StructuralParameter` local slot
-keyed by the exact incoming place. Entry stores every captured register or inline stack
+Register-passed owned record input observations use one `StructuralParameter` local slot
+keyed by the exact incoming place. Entry stores every captured register
 fragment before authored operations; the ordinary field load then snapshots its
 scalar value. Borrowed calls use that same home, and subsequent whole returns or
 nested copies read its current bytes rather than stale entry fragments. A borrowed
 input still denotes its original referent and is never copied into this slot.
-Direct inputs used only for whole-value transport retain fragment-only storage.
+Register inputs used only for whole-value transport retain fragment-only storage.
 Independent replay reconstructs the input slot, extent, writes and every field observation.
 The [source/native parameter cases](../../../../tests/native-differential/tests/scalar_case_results/record_reads/parameters.rs)
 cover full-width values across calls, signed and Boolean subfields, and inline
-stack input capture.
+stack input backing.
+
+Inline stack inputs already have activation-lived owned value storage. Entry
+retains its exact incoming frame address, and later observations, calls, nested
+copies, and whole returns read the current bytes. Eagerly capturing every payload
+fragment would impose avoidable register pressure across calls. This storage is
+the ABI's value copy, not the caller's original referent; no extra copy is needed.
 
 Indirect owned record inputs instead retain the ABI-prepared value copy's pointer;
 no second record copy or borrowed access is introduced. Entry captures pointer
@@ -88,8 +94,9 @@ reads and nested constructor operands consume this backing, even without an
 earlier field observation. Source/native controls cover both pointer placements,
 calls, nested results, and installation reload. Published pointer homes preserve
 owned versus borrowed identity; the full call plan and independent graph replay
-remain required. General indirect owned call forwarding and whole-parameter
-returns remain separate transport limits.
+remain required. Whole-parameter returns consume the same current backing under
+their independently selected result ABI, including hidden result storage.
+General indirect owned call forwarding remains a separate transport limit.
 
 Primitive arrays share that aggregate storage and call/return path without a sum
 tag. [Array input](src/selection/scalar_array_input.rs) reconstructs the declared
@@ -101,8 +108,8 @@ Owned arguments load those same homes or copy captured incoming fragments;
 returning an incoming array retains its parameter identity. Each argument joins
 its exact producer, place, type, and destination ABI, including mixed borrowed
 arguments. Inline stack arguments use one contiguous outgoing slot per call and
-argument ordinal. Entry captures their exact fragments before later calls can
-reuse the caller's storage; the frame encoder alone applies the incoming frame
+argument ordinal. Entry retains the incoming value copy's address throughout
+the activation; the frame encoder alone applies the incoming frame
 and return-address bias. Register operands include only register-resident
 fragments. Input residence does not change the independent result ABI checks.
 Inline values retain complete graph replay at publication, not

@@ -356,3 +356,108 @@ fn owned_record_indirect_entry_can_move_into_a_nested_result() {
         true,
     );
 }
+
+#[test]
+fn owned_record_parameter_returns_through_indirect_result_storage() {
+    for property in ["", "[copy]"] {
+        for stack_pointer in [false, true] {
+            let extra_parameters = if stack_pointer {
+                ", second: u64, third: u64, fourth: u64, fifth: u64, sixth: u64, seventh: u64, eighth: u64"
+            } else {
+                ""
+            };
+            let artifact = produce_source(
+                "retain",
+                &format!(
+                    "data Record {property} {{ first: u64; second: u64; third: u64; }}
+                     machine identity(value: u64) -> u64 {{ value }}
+                     machine retain(mask: u64{extra_parameters}, record: Record) -> Record {{
+                         _ = identity(mask);
+                         record
+                     }}"
+                ),
+            );
+            let signature = if stack_pointer {
+                "uint64_t mask, uint64_t second, uint64_t third, uint64_t fourth, uint64_t fifth, uint64_t sixth, uint64_t seventh, uint64_t eighth, Record record"
+            } else {
+                "uint64_t mask, Record record"
+            };
+            let arguments = if stack_pointer {
+                "UINT64_MAX, 2, 3, 4, 5, 6, 7, 8, record"
+            } else {
+                "UINT64_MAX, record"
+            };
+            execute(
+                &artifact,
+                &format!(
+                    "#include <stdint.h>
+                     typedef struct {{ uint64_t first; uint64_t second; uint64_t third; }} Record;
+                     extern Record omega_entry({signature});
+                     int main(void) {{
+                         Record record = {{ UINT64_MAX, UINT64_C(0x123456789abcdef0), UINT64_C(0x8000000000000001) }};
+                         Record result = omega_entry({arguments});
+                         return result.first == record.first && result.second == record.second
+                             && result.third == record.third ? 0 : 1;
+                     }}"
+                ),
+                true,
+            );
+        }
+    }
+}
+
+#[test]
+fn owned_record_parameter_round_trip_uses_independent_input_and_result_abi() {
+    let artifact = produce_source(
+        "retain",
+        "data Record { first: u64; second: u64; third: u64; }
+         machine retain(record: Record) -> Record { record }",
+    );
+    execute(
+        &artifact,
+        r#"
+        #include <stdint.h>
+        typedef struct { uint64_t first; uint64_t second; uint64_t third; } Record;
+        extern Record omega_entry(Record record);
+        int main(void) {
+            Record record = { UINT64_MAX, UINT64_C(0x123456789abcdef0), UINT64_C(0x8000000000000001) };
+            Record result = omega_entry(record);
+            return result.first == record.first && result.second == record.second
+                && result.third == record.third ? 0 : 1;
+        }
+        "#,
+        true,
+    );
+}
+
+#[test]
+fn owned_record_parameter_return_survives_an_observable_call() {
+    let artifact = produce_source(
+        "retain",
+        "data Record { first: u64; second: u64; third: u64; }
+         machine replace(value: &mut u64, replacement: u64) -> u64 {
+             value = replacement;
+             replacement
+         }
+         machine retain(record: Record, output: &mut u64, replacement: u64) -> Record {
+             _ = replace(&mut output, replacement);
+             record
+         }",
+    );
+    execute(
+        &artifact,
+        r#"
+        #include <stdint.h>
+        typedef struct { uint64_t first; uint64_t second; uint64_t third; } Record;
+        extern Record omega_entry(uint64_t replacement, Record record, uint64_t *output);
+        int main(void) {
+            Record record = { UINT64_MAX, UINT64_C(0x123456789abcdef0), UINT64_C(0x8000000000000001) };
+            uint64_t output = 0;
+            Record result = omega_entry(UINT64_C(0xfedcba9876543210), record, &output);
+            return output == UINT64_C(0xfedcba9876543210) && result.first == record.first
+                && result.second == record.second && result.third == record.third ? 0 : 1;
+        }
+        "#,
+        true,
+    );
+}
