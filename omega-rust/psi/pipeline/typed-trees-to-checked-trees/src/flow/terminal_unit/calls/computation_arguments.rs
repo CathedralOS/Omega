@@ -1,4 +1,4 @@
-//! Structural parameters, projected shared receivers, and primitive referents
+//! Structural parameters, projected shared operands, and primitive referents
 //! in scalar computations. Parameter projections reuse established storage;
 //! local construction remains independently restricted to supported whole values.
 

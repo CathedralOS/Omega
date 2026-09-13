@@ -161,6 +161,20 @@ pub(super) fn observation(
             left,
             right,
         }
+        | AbstractOperation::SaturatingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | AbstractOperation::SaturatingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
         | AbstractOperation::ExactIntegerAdd {
             psi_operation,
             result,
@@ -170,6 +184,14 @@ pub(super) fn observation(
             ..
         }
         | AbstractOperation::ExactIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | AbstractOperation::ExactIntegerDivide {
             psi_operation,
             result,
             scalar_type,

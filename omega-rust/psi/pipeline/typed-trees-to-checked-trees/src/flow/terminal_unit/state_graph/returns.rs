@@ -146,13 +146,23 @@ pub(super) fn constructor(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn guarded(
     program: &TypedTrees,
     facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    first_ordinal: u32,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    claims: &[CheckedUnitEntryClaimPlan],
+    operations: &[CheckedUnitEffectOperationPlan],
+    start: usize,
 ) -> Option<CheckedComposedUnitControlTerminatorPlan> {
-    use checked_trees::CheckedScalarBranchDestination;
+    if is_unit(program, state.return_type)
+        || program.type_multiplicity(state.return_type) == Multiplicity::Linear
+    {
+        return None;
+    }
     let mut tails = facts
         .flow
         .terminal_scalar_graphs
@@ -168,28 +178,54 @@ pub(super) fn guarded(
         .terminal_scalar_graphs
         .guarded_exits
         .span(tail.arms)?;
-    if arms.first()?.guard_statement_ordinal != first_ordinal {
+    if arms.first()?.guard_statement_ordinal as usize != start {
         return None;
     }
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let mut returns = Vec::new();
+    let mut count = operations
+        .iter()
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+                Some(result.binding_ordinal)
+            }
+            _ => None,
+        })
+        .max()
+        .map(|ordinal| usize::try_from(ordinal).ok()?.checked_add(1))
+        .unwrap_or(Some(0))?;
+    let mut return_values = Vec::new();
     for destination in arms
         .iter()
         .map(|arm| &arm.destination)
         .chain(tail.fallback.iter())
     {
-        let CheckedScalarBranchDestination::Return {
+        let checked_trees::CheckedScalarBranchDestination::Return {
             statement_ordinal,
-            is_continuation: false,
+            is_continuation,
         } = destination
         else {
+            // Named structural transfers and crashes retain their existing
+            // custody owners; they cannot be relabeled as fresh value returns.
             return None;
         };
-        let expression = match statements.get(*statement_ordinal as usize)? {
-            StatementNode::Expression(expression) => *expression,
-            StatementNode::Transition(transition) => {
+        let expression = match program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(*statement_ordinal as usize)?
+        {
+            StatementNode::Expression(expression) if !is_continuation => *expression,
+            StatementNode::Transition(transition)
+                if transition.exit == TransitionExit::Ordinary =>
+            {
+                let target = if *is_continuation {
+                    transition.continuation
+                } else {
+                    transition.target
+                };
                 let TransitionTargetNode::Value(expression) =
-                    program.statement_table.transition_target(transition.target)
+                    program.statement_table.transition_target(target)
                 else {
                     return None;
                 };
@@ -197,17 +233,44 @@ pub(super) fn guarded(
             }
             _ => return None,
         };
-        returns.push(constructor(
-            program,
-            facts,
-            state,
+        let root = facts.values.structural_values.root_for_expression(
+            state.symbol,
             *statement_ordinal,
             expression,
-        )?);
+        )?;
+        if root.machine != machine.symbol || root.type_reference != state.return_type {
+            return None;
+        }
+        let calls = control::structural_operands::value_calls(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            parameters,
+            &[],
+            claims,
+            &[],
+            &mut count,
+            root.root,
+        )?;
+        let result = CheckedUnitStructuralResultBindingPlan {
+            statement_index: *statement_ordinal,
+            binding_ordinal: u32::try_from(count).ok()?,
+            type_identity: shapes.add_type(state.return_type, &[], &[])?,
+            multiplicity: program.type_multiplicity(state.return_type),
+        };
+        count = count.checked_add(1)?;
+        return_values.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            result,
+            value: root.root,
+            calls,
+            discard_result_on_return: false,
+        });
     }
     Some(CheckedComposedUnitControlTerminatorPlan::Guarded {
         arms: tail.arms,
         fallback: tail.fallback.clone(),
-        returns,
+        return_values,
     })
 }

@@ -337,6 +337,16 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(6);
                     super::structural::encode_boundary_settlement(bytes, settlement);
                 }
+                LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right } => {
+                    bytes.push(35);
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::SaturatingAddU64 { left, right } => {
+                    bytes.push(36);
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::ExactBinary {
                     operator,
                     left,
@@ -348,6 +358,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(match operator {
                         LegalizedExactIntegerOperator::Add => 0,
                         LegalizedExactIntegerOperator::Subtract => 1,
+                        LegalizedExactIntegerOperator::Divide => 2,
                     });
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());

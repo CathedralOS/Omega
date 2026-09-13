@@ -79,11 +79,18 @@ pub fn unit_result_initializer_call_is_supported(
     machine: &Machine,
     value: ExpressionHandle,
 ) -> bool {
-    let [state] = program.machine_states(machine) else {
+    let mut states = program.machine_states(machine).iter().filter(|state| {
+        program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
+            matches!(statement, StatementNode::LocalData(local) if local.initial_value == value)
+                || matches!(statement, StatementNode::Expression(expression) if *expression == value)
+        })
+    });
+    let Some(state) = states.next() else {
         return false;
     };
-    if !(unit_type(program, state.return_type)
-        || ordinary_structural_result_type(program, state.return_type))
+    if states.next().is_some()
+        || !(unit_type(program, state.return_type)
+            || ordinary_structural_result_type(program, state.return_type))
         || !program.expression_table.expression_is_valid(value)
     {
         return false;
@@ -93,6 +100,7 @@ pub fn unit_result_initializer_call_is_supported(
     // local. Its operands still use the same checked computation evaluator.
     if matches!(statements.last(), Some(StatementNode::Expression(expression)) if *expression == value)
         && crate::is_closed_primitive_array_type(program, state.return_type)
+        && program.machine_states(machine).len() == 1
     {
         return initializer_target_is_supported(
             program,
@@ -116,13 +124,26 @@ pub fn unit_result_initializer_call_is_supported(
     let Some((statement_index, local)) = initializers.next() else {
         return false;
     };
+    let has_ordinary_structural_initializer =
+        ordinary_structural_initializer(program, local.initial_value, local.type_reference);
     if initializers.next().is_some()
-        || local.is_mutable
+        // Scalar locals in state graphs keep their whole-call computation
+        // owner. Ordinary structural results already use statement sequencing
+        // in each state, including the constructor's nested operands.
+        || (program.machine_states(machine).len() != 1
+            && !has_ordinary_structural_initializer)
+        // Mutable plain results retain the ordinary constructor's storage.
+        // Primitive initialization, linear custody, and boundary results keep
+        // their separate receiving contracts.
+        || (local.is_mutable
+            && (program.type_multiplicity(local.type_reference)
+                == language_semantics::Multiplicity::Linear
+                || !has_ordinary_structural_initializer))
         || (statement_index != 0
             && program
                 .primitive_type_reference(local.type_reference)
                 .is_none()
-            && !ordinary_structural_initializer(program, local.initial_value, local.type_reference)
+            && !has_ordinary_structural_initializer
             && !boundary_structural_initializer(program, machine, local))
     {
         return false;

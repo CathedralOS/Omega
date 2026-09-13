@@ -27,6 +27,22 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right },
+            AbstractOperation::SaturatingIntegerSubtract {
+                left: source_left,
+                right: source_right,
+                ..
+            },
+        ) if left == source_left && right == source_right => {}
+        (
+            LegalizedScalarInstructionKind::SaturatingAddU64 { left, right },
+            AbstractOperation::SaturatingIntegerAdd {
+                left: source_left,
+                right: source_right,
+                ..
+            },
+        ) if left == source_left && right == source_right => {}
+        (
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field },
             AbstractOperation::IntegerStructuralField { .. }
             | AbstractOperation::BooleanStructuralField { .. },
@@ -540,12 +556,22 @@ pub(super) fn validate(
                 left: source_left,
                 right: source_right,
                 ..
+            }
+            | AbstractOperation::ExactIntegerDivide {
+                psi_operation,
+                obligation: source_obligation,
+                left: source_left,
+                right: source_right,
+                ..
             },
         ) => {
             let expected_operator = match node.operation {
                 AbstractOperation::ExactIntegerAdd { .. } => LegalizedExactIntegerOperator::Add,
                 AbstractOperation::ExactIntegerSubtract { .. } => {
                     LegalizedExactIntegerOperator::Subtract
+                }
+                AbstractOperation::ExactIntegerDivide { .. } => {
+                    LegalizedExactIntegerOperator::Divide
                 }
                 _ => return Err(invalid),
             };

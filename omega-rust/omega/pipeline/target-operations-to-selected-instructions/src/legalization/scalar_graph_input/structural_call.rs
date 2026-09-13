@@ -36,6 +36,7 @@ pub(in crate::legalization) fn argument_at(
                 && matches!(
                     declaration.shape,
                     terminal_psi::StructuralTypeShape::Record { .. }
+                        | terminal_psi::StructuralTypeShape::Sum { .. }
                 )
         })
     {

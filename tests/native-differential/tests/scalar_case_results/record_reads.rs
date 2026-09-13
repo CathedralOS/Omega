@@ -112,3 +112,44 @@ fn signed_record_field_reads_preserve_their_carrier() {
         "#include <stdint.h>\nextern int16_t omega_entry(int16_t payload);\nint main(void) { return omega_entry(INT16_MIN) == INT16_MIN && omega_entry(-12345) == -12345 && omega_entry(INT16_MAX) == INT16_MAX ? 0 : 1; }",
     );
 }
+#[test]
+fn projected_shared_actual_compares_original_nested_records() {
+    let artifact = super::produce_source(
+        "Outer::equals",
+        "
+        data Inner { left: u64; right: u64; }
+        data Outer { prefix: u64; inner: Inner; sibling: Inner; }
+        machine Inner::equals(&self, other: &Inner) -> bool {
+            self.left == other.left && self.right == other.right
+        }
+        machine Outer::equals(&self, other: &Outer) -> bool {
+            self.inner.equals(&other.inner)
+        }
+    ",
+    );
+    for target in [
+        super::NativeTarget::linux_x64(),
+        super::NativeTarget::linux_arm64(),
+        super::NativeTarget::macos_arm64(),
+        super::NativeTarget::windows_x64(),
+    ] {
+        super::publish(&artifact, target);
+    }
+    super::membership::execute(
+        &artifact,
+        "#include <stdbool.h>\n#include <stdint.h>\n
+        struct inner { uint64_t left, right; };
+        struct outer { uint64_t prefix; struct inner inner, sibling; };
+        extern bool omega_entry(const struct outer *, const struct outer *);
+        int main(void) {
+            struct outer left={3,{UINT64_MAX,UINT64_C(0x8123456789abcdef)},{7,8}};
+            struct outer right={5,{UINT64_MAX,UINT64_C(0x8123456789abcdef)},{9,10}};
+            if (!omega_entry(&left,&right) || !omega_entry(&left,&left)) return 1;
+            right.inner.right=0;
+            if (omega_entry(&left,&right)) return 2;
+            right.inner.right=left.inner.right;
+            right.inner.left=0;
+            return omega_entry(&left,&right) || left.prefix!=3 || left.sibling.left!=7;
+        }",
+    );
+}

@@ -196,6 +196,33 @@ pub(super) fn retain_shapes(
             } => {
                 pending.extend(plans.operands.span(*arguments)?);
                 for argument in plans.structural_arguments.span(*structural_arguments)? {
+                    if let checked_trees::CheckedScalarComputationStructuralArgument::Case(
+                        subject,
+                    ) = argument
+                    {
+                        for shape in super::super::terminal_unit::scalar_case_value_shapes(
+                            program,
+                            subject.type_reference,
+                        )? {
+                            if let Some(existing) = shapes
+                                .iter()
+                                .find(|existing| existing.identity == shape.identity)
+                            {
+                                if existing != &shape {
+                                    return None;
+                                }
+                            } else {
+                                shapes.push(shape);
+                            }
+                        }
+                        pending.extend(
+                            plans
+                                .case_fields
+                                .span(subject.fields)?
+                                .iter()
+                                .map(|field| field.value),
+                        );
+                    }
                     if let checked_trees::CheckedScalarComputationStructuralArgument::Array {
                         elements,
                         ..

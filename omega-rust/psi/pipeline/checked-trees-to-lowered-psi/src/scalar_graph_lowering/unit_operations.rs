@@ -136,6 +136,9 @@ pub(super) fn prepare(
         .expression_handles(source_call.arguments);
     let access_positions = crate::scalar_source_custody::computation_calls::rejoin_call_accesses(
         checked,
+        machine,
+        state.state,
+        coordinate.statement_index,
         borrow,
         authored_arguments,
     )?;

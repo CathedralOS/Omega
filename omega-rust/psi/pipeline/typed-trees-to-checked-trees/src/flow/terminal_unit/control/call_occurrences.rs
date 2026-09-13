@@ -115,6 +115,37 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
     state: &typed_trees::state::State,
     calls: &'a [checked_trees::FlowCallFact],
 ) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
+    outer_calls_before(
+        program,
+        facts,
+        machine,
+        state,
+        calls,
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len(),
+    )
+}
+
+/// Sequence only the common body. Selected exit operands retain their own
+/// computation/value roots and must not consume the body's call roster.
+pub(in crate::flow::terminal_unit) fn outer_calls_before<'a>(
+    program: &TypedTrees,
+    facts: &'a CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    calls: &'a [checked_trees::FlowCallFact],
+    statement_end: usize,
+) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    if statement_end > statements.len()
+        || calls
+            .iter()
+            .any(|call| call.statement_index >= statement_end)
+    {
+        return None;
+    }
     let mut consumed = Vec::new();
     let mut structural = Vec::<&checked_trees::FlowCallFact>::new();
     let mut outer = Vec::new();
@@ -130,6 +161,7 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
         .statements(state.statement_nodes)
         .iter()
         .enumerate()
+        .take(statement_end)
     {
         if let Some(root) = u32::try_from(statement_index).ok().and_then(|ordinal| {
             facts

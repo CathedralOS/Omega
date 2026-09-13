@@ -81,6 +81,12 @@ pub(crate) fn borrow_access_place(
             }
         }
         ExpressionNode::Name(path) => {
+            // A declared case name constructs a value; it does not read storage
+            // rooted at the type or variant declaration. Payload computations
+            // have their own ordinary accesses before establishment.
+            if validation::exact_case_reference_owner(program, expression).is_some() {
+                return None;
+            }
             let root_symbol = contextual_name_root_symbol(
                 program,
                 state_symbol,

@@ -269,7 +269,7 @@ fn retain_owned_home(
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let place = parameter.semantic.place;
-    if !crate::selection::record_input::parameter_home_required(source, place) {
+    if !crate::selection::aggregate_result_input::parameter_home_required(source, place) {
         return Ok(());
     }
     let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };

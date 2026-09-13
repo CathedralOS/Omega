@@ -35,9 +35,31 @@ fn selected_roots(
 ) -> Result<Vec<checked_trees::CheckedScalarComputationHandle>, LoweringError> {
     let mut pending = Vec::new();
     for state in states {
+        if let CheckedComposedUnitControlTerminatorPlan::Guarded { arms, .. } = &state.terminator {
+            let guards = checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .guarded_exits
+                .span(*arms)
+                .ok_or(LoweringError::Unsupported(
+                    "guarded computation roster is stale",
+                ))?;
+            for guard in guards {
+                if let Some(root) = checked.facts.values.scalar_computations.root_at(
+                    state.state,
+                    guard.guard_statement_ordinal,
+                    CheckedScalarExpressionRole::Guard,
+                ) {
+                    if root.machine != machine {
+                        return unsupported("ordered guard changed its computation owner");
+                    }
+                    pending.push(root.root);
+                }
+            }
+        }
         for operation in state
-            .operations
-            .iter()
+            .operation_dependencies()
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
         {
             if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } =
@@ -95,6 +117,9 @@ fn selected_roots(
                     scalar_arguments, ..
                 }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    scalar_arguments, ..
+                }
+                | CheckedUnitEffectOperationPlan::StructuralCall {
                     scalar_arguments, ..
                 }
                 | CheckedUnitEffectOperationPlan::CallUnit {

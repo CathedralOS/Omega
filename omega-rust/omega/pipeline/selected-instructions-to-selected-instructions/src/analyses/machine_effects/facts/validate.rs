@@ -215,6 +215,11 @@ fn replay_declaration<'a>(
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,
         SelectedInstructionKind::BitwiseAndI64 => MachineSemanticKind::BitwiseAndI64,
         SelectedInstructionKind::BitwiseXorI64 => MachineSemanticKind::BitwiseXorI64,
+        SelectedInstructionKind::SaturatingSubtractU64 => {
+            MachineSemanticKind::SaturatingSubtractU64
+        }
+        SelectedInstructionKind::SaturatingAddU64 => MachineSemanticKind::SaturatingAddU64,
+        SelectedInstructionKind::ExactDivideU64 { .. } => MachineSemanticKind::ExactDivideU64,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             MachineSemanticKind::ExactAddI64Immediate
         }
@@ -302,6 +307,9 @@ fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> Selec
         bits_to_float64: keys.bits_to_float64,
         add_i64: keys.add_i64,
         subtract_i64: keys.subtract_i64,
+        saturating_subtract_u64: keys.saturating_subtract_u64,
+        saturating_add_u64: keys.saturating_add_u64,
+        divide_u64: keys.divide_u64,
         add_i64_immediate: keys.add_i64_immediate,
         subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,

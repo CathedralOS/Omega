@@ -13,6 +13,7 @@ use checked_trees::{
     CheckedUnitStructuralArgumentSourcePlan,
 };
 
+#[derive(Clone)]
 pub(crate) struct Binding {
     symbol: symbols::SymbolHandle,
     subject: CheckedUnitStructuralArgumentPlan,

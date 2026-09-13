@@ -1,6 +1,7 @@
 //! Ordinary control graphs; available definitions belong to dominating blocks.
 use super::shared::*;
 use super::unit::scalar_call::KnownUnitInteger;
+mod aggregate_borrows;
 pub(super) mod aggregate_results;
 mod borrowed_calls;
 mod byte_write;

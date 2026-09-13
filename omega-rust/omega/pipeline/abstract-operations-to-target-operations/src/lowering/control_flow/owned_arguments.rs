@@ -1,5 +1,5 @@
 //! Owned aggregate actuals retain exact type, custody, and current value backing.
-//! Array dimensions and nominal record layout share transport, not semantic identity.
+//! Arrays, records, and completed sums share transport, not semantic identity.
 use super::LiveDefinitions;
 use crate::lowering::shared::*;
 
@@ -12,7 +12,7 @@ pub(super) fn is_owned_parameter(
         && !parameter.is_self
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
-        && value_shape(parameter.structural_type, types).is_ok()
+        && value_layout(parameter.structural_type, types).is_ok()
 }
 
 pub(super) fn argument(
@@ -24,7 +24,8 @@ pub(super) fn argument(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
     let invalid = || LoweringError::UnsupportedStructuralArray(declaration.structural_type);
-    let expected_shape = value_shape(declaration.structural_type, types)?;
+    let expected_layout = value_layout(declaration.structural_type, types)?;
+    let expected_shape = expected_layout.shape();
     if !is_owned_parameter(declaration, types)
         || argument.access != StructuralAccess::Owned
         || !argument.path.is_empty()
@@ -38,8 +39,7 @@ pub(super) fn argument(
             || home.has_claims()
             || !home.qualifications().is_empty()
             || !home.projected_qualifications().is_empty()
-            || home.layout
-                != target_operations::TargetStructuralHomeLayout::Aggregate(expected_shape)
+            || home.layout != expected_layout
         {
             return Err(invalid());
         }
@@ -76,10 +76,11 @@ pub(super) fn argument(
     })
 }
 
-fn value_shape(
+fn value_layout(
     structural_type: StructuralTypeId,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<ValueShape, LoweringError> {
+) -> Result<target_operations::TargetStructuralHomeLayout, LoweringError> {
+    use target_operations::TargetStructuralHomeLayout;
     match types
         .get(&structural_type)
         .map(|declaration| &declaration.shape)
@@ -91,7 +92,20 @@ fn value_shape(
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
             )
+            .map(TargetStructuralHomeLayout::Aggregate)
         }
-        _ => super::scalar_arrays::shape(structural_type, types).map(|(_, _, shape)| shape),
+        Some(StructuralTypeShape::Sum { .. }) => {
+            // Equal byte sizes do not establish equal tag and payload placement.
+            // Retain the same declared sum layout used by construction and reads.
+            crate::lowering::structural_layout::structural_sum_layout(
+                structural_type,
+                types,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )
+            .map(TargetStructuralHomeLayout::Sum)
+        }
+        _ => super::scalar_arrays::shape(structural_type, types)
+            .map(|(_, _, shape)| TargetStructuralHomeLayout::Aggregate(shape)),
     }
 }

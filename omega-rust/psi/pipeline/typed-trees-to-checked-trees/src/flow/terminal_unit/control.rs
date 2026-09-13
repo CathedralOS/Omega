@@ -10,7 +10,7 @@ mod call_occurrences;
 mod scalar_arrays;
 pub(super) mod statement_sequence;
 pub(super) mod structural_operands;
-pub(super) use call_occurrences::{outer_calls, tail_call};
+pub(super) use call_occurrences::{outer_calls, outer_calls_before, tail_call};
 
 pub(crate) fn build_checked_structural_unit_control_plans(
     program: &TypedTrees,

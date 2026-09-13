@@ -95,6 +95,15 @@ pub enum SelectedInstructionKind {
     MaterializeI64 {
         value: IntegerValue,
     },
+    /// Unsigned subtraction clamps to zero; no Exact proof is implied.
+    SaturatingSubtractU64,
+    /// Unsigned addition clamps to u64::MAX; no Exact proof is implied.
+    SaturatingAddU64,
+    /// Unsigned division admitted by this operation's definedness proof.
+    ExactDivideU64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
     CopyI64,
     /// Bitwise intersection of normalized integer carriers; no arithmetic overflow.
     BitwiseAndI64,

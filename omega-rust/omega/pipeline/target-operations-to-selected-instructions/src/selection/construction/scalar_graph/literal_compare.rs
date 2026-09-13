@@ -101,7 +101,9 @@ pub(super) fn folded_literal<'a>(
                     .arguments
                     .iter()
                     .any(|argument| argument.scalar_source() == Some(definition.value)),
-                LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
+                LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right }
+        | LegalizedScalarInstructionKind::SaturatingAddU64 { left, right }
+                | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                 | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
                 | LegalizedScalarInstructionKind::BitwiseXor { left, right }
                 | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. }

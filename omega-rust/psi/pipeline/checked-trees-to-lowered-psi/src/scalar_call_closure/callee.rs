@@ -82,7 +82,10 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 let Some(plan) = operation_body
                     .filter(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some())
                 else {
-                    return unsupported("scalar callee has no checked executable body");
+                    return Err(LoweringError::InvalidUnitMachinePlan {
+                        machine: checked.symbols.display_path(source, "::"),
+                        reason: "scalar callee has no checked executable body",
+                    });
                 };
                 if plan.structural_result.is_some() {
                     return unsupported("scalar callee has conflicting checked result ownership");

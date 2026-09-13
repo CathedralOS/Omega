@@ -1,4 +1,4 @@
-//! Replay the ordered whole-place observations of a mixed shared-borrow call.
+//! Replay ordered observations using the same authored places as call operands.
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{BorrowAccessKind, BorrowCallFact, CheckedTrees};
@@ -9,6 +9,9 @@ use crate::{LoweringError, unsupported};
 /// Scalar actuals may contribute zero, one, or several observation rows.
 pub(crate) fn rejoin(
     checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement: u32,
     call: &BorrowCallFact,
     arguments: &[ExpressionHandle],
 ) -> Result<Vec<usize>, LoweringError> {
@@ -126,6 +129,14 @@ pub(crate) fn rejoin(
                     children.extend_from_slice(values);
                     (None, BorrowAccessKind::Read)
                 }
+                ExpressionNode::StructLiteral(literal) => {
+                    let fields = table.struct_fields(literal.fields);
+                    if fields.len() != literal.fields.count() as usize {
+                        return unsupported("computed construction has stale field observations");
+                    }
+                    children.extend(fields.iter().map(|field| field.value));
+                    (None, BorrowAccessKind::Read)
+                }
                 ExpressionNode::Indexed(indexed)
                     if is_array_value_projection(checked, indexed.collection) =>
                 {
@@ -151,42 +162,28 @@ pub(crate) fn rejoin(
                 if !table.expression_is_valid(named) {
                     return unsupported("computed shared borrow has a stale named observation");
                 }
-                let mut receiver = named;
-                let mut segments = Vec::new();
-                let mut receivers = Vec::new();
-                while let ExpressionNode::Member(member) = table.expression(receiver) {
-                    if !member.member_symbol.is_valid()
-                        || member.case_variant.is_some()
-                        || !table.expression_is_valid(member.receiver)
-                        || receivers.contains(&receiver)
-                    {
-                        return unsupported(
-                            "computed argument has a stale or unsupported field observation",
-                        );
-                    }
-                    receivers.push(receiver);
-                    segments.push(facts::PlaceSegment::Field {
-                        symbol: member.member_symbol,
-                    });
-                    receiver = member.receiver;
-                }
-                segments.reverse();
-                let ExpressionNode::Name(name) = table.expression(receiver) else {
-                    return unsupported("computed shared borrow requires a whole named referent");
-                };
+                // An attached self field can be captured at the field's root,
+                // unlike a projection from an ordinary parameter. Reuse the
+                // source rejoin instead of guessing capture identity from the
+                // spelling of the final Name/Member chain.
+                let source = crate::call_source_custody::projected_receivers::source(
+                    checked,
+                    machine,
+                    state,
+                    statement as usize,
+                    named,
+                )?;
+                let captured = source.captured_place();
                 let row = rows.get(position).ok_or(LoweringError::Unsupported(
                     "computed shared borrow omits an authored observation",
                 ))?;
-                if !name.symbol.is_valid()
-                    || name.head_symbol != name.symbol
-                    || name.members.count() != 1
-                    || table.name_path_members(name.members).len() != 1
-                    || row.root_symbol != name.symbol
+                if !captured.root_symbol.is_valid()
+                    || row.root_symbol != captured.root_symbol
                     || row.kind != kind
                     || borrow
                         .access_segments
                         .span(row.segments)
-                        .is_none_or(|path| path != segments)
+                        .is_none_or(|path| path != captured.segments)
                 {
                     return unsupported(
                         "computed shared borrow substituted or reordered an observation",

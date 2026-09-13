@@ -89,6 +89,7 @@ pub(super) fn reconstruct(
                     matches!(&node.operation,
                 AbstractOperation::EstablishScalarArray { psi_operation, result: actual, .. }
                 | AbstractOperation::EstablishRecord { psi_operation, result: actual, .. }
+                | AbstractOperation::EstablishScalarCase { psi_operation, result: actual, .. }
                 | AbstractOperation::CallStructural { psi_operation, result: actual, .. }
                 if *psi_operation == producer && actual == result)
                     .then_some((block.id, position))

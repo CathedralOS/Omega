@@ -92,6 +92,23 @@ pub struct CheckedStructuralDispatchArm {
 }
 
 impl CheckedStructuralValuePlans {
+    /// Continuation and primary returns may share a statement, but never an
+    /// authored value occurrence. Rejoin both coordinates without ambiguity.
+    pub fn root_for_expression(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+        expression: ExpressionHandle,
+    ) -> Option<&CheckedStructuralValueRoot> {
+        let mut roots = self.roots.iter().map(|(_, root)| root).filter(|root| {
+            root.state == state
+                && root.statement_ordinal == statement_ordinal
+                && root.expression == expression
+        });
+        let root = roots.next()?;
+        roots.next().is_none().then_some(root)
+    }
+
     pub fn root_at(
         &self,
         state: SymbolHandle,

@@ -51,7 +51,7 @@ fn lower_composed_services(
     )?;
     for operation in states
         .iter()
-        .flat_map(|state| &state.operations)
+        .flat_map(|state| state.operation_dependencies())
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
         let service_reach = match operation {
@@ -189,7 +189,7 @@ fn lower_catalogs(
     type_roots.extend(
         states
             .iter()
-            .flat_map(|state| &state.operations)
+            .flat_map(|state| state.operation_dependencies())
             .filter_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
                     Some(result.type_identity.clone())

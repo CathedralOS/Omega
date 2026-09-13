@@ -124,6 +124,9 @@ pub(in crate::function_fragments) fn arrivals(
         | AbstractOperation::IntegerWiden { .. }
         | AbstractOperation::IntegerBitwiseAnd { .. }
         | AbstractOperation::ExactIntegerAdd { .. }
+        | AbstractOperation::ExactIntegerDivide { .. }
+        | AbstractOperation::SaturatingIntegerSubtract { .. }
+        | AbstractOperation::SaturatingIntegerAdd { .. }
         | AbstractOperation::ExactIntegerSubtract { .. }
         | AbstractOperation::Call { .. }
         | AbstractOperation::Jump { .. }

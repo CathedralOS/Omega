@@ -228,6 +228,9 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub add_i64: RegisterConstraintKey,
     pub add_i64_immediate: RegisterConstraintKey,
     pub subtract_i64: RegisterConstraintKey,
+    pub saturating_subtract_u64: RegisterConstraintKey,
+    pub saturating_add_u64: RegisterConstraintKey,
+    pub divide_u64: RegisterConstraintKey,
     pub subtract_i64_immediate: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
     pub compare_i64: RegisterConstraintKey,
@@ -1667,6 +1670,9 @@ mod tests {
             add_i64: instruction_key(6),
             add_i64_immediate: instruction_key(7),
             subtract_i64: instruction_key(8),
+            saturating_subtract_u64: instruction_key(8),
+            saturating_add_u64: instruction_key(8),
+            divide_u64: instruction_key(8),
             subtract_i64_immediate: instruction_key(9),
             compare_i64_zero: instruction_key(2),
             compare_i64: instruction_key(20),
@@ -1816,6 +1822,18 @@ mod tests {
             },
             TargetRegisterEnvironmentConstraintKeys {
                 subtract_i64: instruction_key(18),
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                saturating_subtract_u64: instruction_key(18),
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                saturating_add_u64: instruction_key(18),
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                divide_u64: instruction_key(18),
                 ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {

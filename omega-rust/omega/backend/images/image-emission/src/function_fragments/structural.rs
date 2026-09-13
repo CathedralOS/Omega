@@ -92,14 +92,38 @@ pub(super) fn published_call(
         // is activation-local storage, not an incoming pointer placement. Record
         // joins own the same kind of payload home; legacy block-source records
         // describe byte-view descriptors, not those owned record bytes.
+        // An inline owned input later borrowed by a helper likewise lives in
+        // captured value storage. Its incoming register is not a pointer; the
+        // full graph retains the capture, loan address, and call transport.
         && !contract.call.arguments.iter().any(|argument| {
-            matches!(argument, LegalizedScalarArgument::Structural { target, .. }
-                if inline_owned_placement(target.access, &target.destination)
-                    || matches!(target.source, target_operations::TargetStructuralArgumentSource::StructuralHome { .. })
-                    || (matches!(target.source, target_operations::TargetStructuralArgumentSource::BlockParameter { .. })
-                        && selected.structural.as_ref().is_some_and(|signature| signature.structural_types.iter().any(|declaration|
+            let LegalizedScalarArgument::Structural { target, .. } = argument else {
+                return false;
+            };
+            if inline_owned_placement(target.access, &target.destination) {
+                return true;
+            }
+            use target_operations::TargetStructuralArgumentSource;
+            match &target.source {
+                TargetStructuralArgumentSource::Placement(placement) => {
+                    selected.structural.as_ref().is_some_and(|signature| {
+                        signature.parameters.iter().any(|parameter| {
+                            parameter.target.place == target.place
+                                && parameter.target.placement == *placement
+                                && inline_owned_placement(parameter.target.access, placement)
+                        })
+                    })
+                }
+                TargetStructuralArgumentSource::StructuralHome { .. } => true,
+                TargetStructuralArgumentSource::BlockParameter { .. } => {
+                    selected.structural.as_ref().is_some_and(|signature| {
+                        signature.structural_types.iter().any(|declaration| {
                             declaration.id == target.root_structural_type
-                                && matches!(declaration.shape, terminal_psi::StructuralTypeShape::Record { .. })))))
+                                && matches!(declaration.shape, terminal_psi::StructuralTypeShape::Record { .. })
+                        })
+                    })
+                }
+                _ => false,
+            }
         })
         && (contract.call.result_placement.is_none()
             || contract

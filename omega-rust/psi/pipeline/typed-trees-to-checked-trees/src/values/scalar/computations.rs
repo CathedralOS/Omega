@@ -222,7 +222,10 @@ pub(crate) fn build_checked_value_computation_plans(
                     );
                 }
                 if let StatementNode::LocalData(local) = statement {
-                    let argument_roots = !local.is_mutable
+                    let argument_roots = (!local.is_mutable
+                        || program
+                            .primitive_type_reference(local.type_reference)
+                            .is_none())
                         && validation::result_initializer_call_is_supported(
                             program,
                             machine,
@@ -406,6 +409,30 @@ pub(crate) fn build_checked_value_computation_plans(
                 {
                     if !target.is_valid() {
                         continue;
+                    }
+                    if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                        && let TransitionTargetNode::Value(expression) =
+                            program.statement_table.transition_target(target)
+                        && program
+                            .primitive_type_reference(state.return_type)
+                            .is_none()
+                        && let Some(root) = builder.structural_value(
+                            *expression,
+                            state.return_type,
+                            &mut structural_values,
+                            pure,
+                        )
+                    {
+                        structural_values
+                            .roots
+                            .append(checked_trees::CheckedStructuralValueRoot {
+                                machine: machine.symbol,
+                                state: state.symbol,
+                                statement_ordinal,
+                                expression: *expression,
+                                type_reference: state.return_type,
+                                root,
+                            });
                     }
                     if transition.exit == typed_trees::statement::TransitionExit::Ordinary
                         && let TransitionTargetNode::Value(expression) =

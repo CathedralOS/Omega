@@ -250,6 +250,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
             checked,
             plan.machine,
             state,
+            &state.operations,
             catalogs,
             &state_parameters,
             &claims.source_claims,
@@ -306,31 +307,23 @@ pub(in crate::attached_unit::composed_control) fn emit(
             &mut next_value,
             &mut operations,
         )?;
+        let guarded_return = super::guarded::emit(
+            checked,
+            plan,
+            state,
+            catalogs,
+            &state_parameters,
+            &claims.source_claims,
+            &mut evaluation,
+            &mut values,
+            &mut next_value,
+            &mut next_block,
+            &mut next_edge,
+            &mut operations,
+        )?;
+        let is_guarded_return = guarded_return.is_some();
         let inherited_lengths = operations.byte_lengths.clone();
         let mut edge_blocks = Vec::new();
-        let guarded_terminator = if matches!(
-            state.terminator,
-            CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
-        ) {
-            Some(super::guarded::emit(
-                checked,
-                plan.machine,
-                state,
-                &machine_result,
-                &bindings,
-                catalogs,
-                &mut evaluation,
-                &mut values,
-                &mut next_value,
-                &mut next_block,
-                &mut next_edge,
-                &mut operations,
-                &mut edge_blocks,
-            )?)
-        } else {
-            None
-        };
-        let guarded_end = guarded_terminator.as_ref().map(|(_, end)| *end);
         let mut successor = |edge: &CheckedStructuralControlSuccessorPlan,
                              payload_values: &[(u32, ValueDeclaration)],
                              case_edge: bool|
@@ -570,13 +563,9 @@ pub(in crate::attached_unit::composed_control) fn emit(
             }
         };
         let mut terminator = match &state.terminator {
-            CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => {
-                guarded_terminator
-                    .ok_or(LoweringError::Unsupported(
-                        "ordered structural emission absent",
-                    ))?
-                    .0
-            }
+            CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => guarded_return.ok_or(
+                LoweringError::Unsupported("guarded structural emission absent"),
+            )?,
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
                 let returned_claims = match result.source {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
@@ -725,6 +714,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
         // the returned owner itself is not a discard.
         for completion in std::iter::once(&mut terminator)
             .chain(edge_blocks.iter_mut().map(|block| &mut block.terminator))
+            .filter(|_| !is_guarded_return)
         {
             if let Terminator::ReturnStructural {
                 trivial_affine_discards,
@@ -753,7 +743,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         .collect();
             }
         }
-        if !evaluation.selection_cleanups.is_empty() {
+        if !is_guarded_return && !evaluation.selection_cleanups.is_empty() {
             let discards = match &mut terminator {
                 Terminator::ReturnStructural {
                     trivial_affine_discards,
@@ -845,13 +835,12 @@ pub(in crate::attached_unit::composed_control) fn emit(
             id: evaluation.current,
             parameters: evaluation.parameters,
             structural_parameters: evaluation.block_structural_parameters,
-            operations: operations[evaluation.operation_start..if let Some(end) = guarded_end {
-                end
-            } else if condition.is_some() || prepared_cases.is_some() {
-                body_end
-            } else {
-                operations.len()
-            }]
+            operations: operations[evaluation.operation_start
+                ..if condition.is_some() || prepared_cases.is_some() {
+                    body_end
+                } else {
+                    operations.len()
+                }]
                 .to_vec(),
             terminator,
         });

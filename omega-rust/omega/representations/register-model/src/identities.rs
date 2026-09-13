@@ -212,6 +212,9 @@ pub fn target_register_environment_identity(
         selected_keys.compare_i64,
         selected_keys.jump,
         selected_keys.compare_i64_immediate,
+        selected_keys.saturating_subtract_u64,
+        selected_keys.saturating_add_u64,
+        selected_keys.divide_u64,
     ] {
         constraint_key(&mut bytes, key.family, key.variant);
     }

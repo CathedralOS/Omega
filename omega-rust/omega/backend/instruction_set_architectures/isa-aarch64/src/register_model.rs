@@ -243,6 +243,21 @@ pub const AARCH64_ADD_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintK
     family: RegisterConstraintFamily::Instruction,
     variant: 5,
 };
+/// Total unsigned subtraction using SUBS followed by CSEL; defines NZCV.
+pub const AARCH64_SATURATING_SUBTRACT_U64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 54,
+};
+/// Total unsigned addition clamps to the maximum u64 value.
+pub const AARCH64_SATURATING_ADD_U64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 55,
+};
+/// Unsigned division uses the ordinary three-address UDIV register form.
+pub const AARCH64_DIVIDE_U64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 56,
+};
 /// Flag-transparent three-address exact i64 subtraction, matching the
 /// ordinary AArch64 `SUB` register form.
 pub const AARCH64_SUBTRACT_I64: RegisterConstraintKey = RegisterConstraintKey {
@@ -332,7 +347,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 77] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 80] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -489,6 +504,9 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 77] = [
     AARCH64_ADD_I64,
     AARCH64_ADD_I64_IMMEDIATE,
     AARCH64_SUBTRACT_I64,
+    AARCH64_SATURATING_SUBTRACT_U64,
+    AARCH64_SATURATING_ADD_U64,
+    AARCH64_DIVIDE_U64,
     AARCH64_SUBTRACT_I64_IMMEDIATE,
     AARCH64_COMPARE_I64,
     AARCH64_JUMP,
@@ -1447,6 +1465,42 @@ pub fn aarch64_register_constraint_catalog(
             clobbers: Vec::new(),
         });
     }
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: AARCH64_SATURATING_SUBTRACT_U64,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            allocatable(2, RegisterOperandAccess::Def, GPR64),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: view("nzcv").units.clone(),
+        clobbers: Vec::new(),
+    });
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: AARCH64_DIVIDE_U64,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            allocatable(2, RegisterOperandAccess::Def, GPR64),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    });
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: AARCH64_SATURATING_ADD_U64,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            allocatable(2, RegisterOperandAccess::Def, GPR64),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: view("nzcv").units.clone(),
+        clobbers: Vec::new(),
+    });
     mixed_calls::append_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);
     indirect_results::append_constraints(&mut constraints, model);

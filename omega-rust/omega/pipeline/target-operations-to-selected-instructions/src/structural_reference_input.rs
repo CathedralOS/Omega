@@ -164,7 +164,7 @@ pub(crate) fn plain_record_shape(
     owned_aggregate_shape(structural_type, declarations)
 }
 
-/// Whole owned records and arrays share recursive payload geometry. This checks
+/// Whole owned records, arrays, and sums share payload geometry. This checks
 /// carrier contents, not authority to construct, borrow or dispose the value.
 pub(crate) fn owned_aggregate_shape(
     structural_type: StructuralTypeId,
@@ -176,7 +176,9 @@ pub(crate) fn owned_aggregate_shape(
         .filter(|declaration| {
             matches!(
                 declaration.shape,
-                StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }
+                StructuralTypeShape::Record { .. }
+                    | StructuralTypeShape::FixedArray { .. }
+                    | StructuralTypeShape::Sum { .. }
             )
         })?;
     plain_aggregate(structural_type, declarations, &mut Vec::new()).then_some(())?;
@@ -210,6 +212,16 @@ fn plain_aggregate(
         StructuralTypeShape::FixedArray { element, .. } => {
             plain_aggregate(*element, declarations, active)
         }
+        StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
+            case.fields.iter().all(|field| {
+                !field.relevance.is_erased()
+                    && field
+                        .field_type
+                        .scalar_type()
+                        .and_then(scalar_shape)
+                        .is_some()
+            })
+        }),
         StructuralTypeShape::Record { fields } => fields.iter().all(|field| {
             !field.relevance.is_erased()
                 && match field.field_type {
