@@ -75,7 +75,7 @@ fn expression_origin(
     };
     match node {
         ExpressionNode::Call(call) => {
-            if call.receiver.is_valid() {
+            if call.receiver.is_valid() && !static_namespace_receiver(program, call)? {
                 retain(call.receiver)?;
             }
             let arguments = program.expression_table.expression_handles(call.arguments);
@@ -108,4 +108,53 @@ fn expression_origin(
     }
     active.pop();
     Ok(if different { None } else { common })
+}
+
+fn static_namespace_receiver(
+    program: &TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Result<bool, &'static str> {
+    if !program.expression_table.expression_is_valid(call.receiver) {
+        return Err("permission provenance has a stale call receiver");
+    }
+    let ExpressionNode::Name(receiver) = program.expression_table.expression(call.receiver) else {
+        return Ok(false);
+    };
+    if !receiver.symbol.is_valid()
+        || program.symbols.get(receiver.symbol).kind != symbols::SymbolKind::Data
+    {
+        return Ok(false);
+    }
+    // A static attachment such as Region::new is a namespace, not a live
+    // operand. Omit it only for its exact selected nonself state; arbitrary
+    // unresolved names and value receivers still belong to the place resolver.
+    if program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.symbol == receiver.symbol)
+        .count()
+        != 1
+    {
+        return Err("permission provenance namespace has no unique declaration");
+    }
+    let mut targets = program.machines().iter().flat_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .filter(move |state| state.symbol == call.target_symbol)
+            .map(move |state| (machine, state))
+    });
+    let Some((machine, state)) = targets.next() else {
+        return Err("permission provenance namespace has no selected state");
+    };
+    if targets.next().is_some()
+        || machine.attached_data_symbol != receiver.symbol
+        || program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.is_self)
+    {
+        return Err("permission provenance namespace differs from its selected nonself state");
+    }
+    Ok(true)
 }
