@@ -14,7 +14,7 @@ data Main { console: Console; champion: Player; }
 machine Main::recruit(&mut self, strength: i32 [1..=100]) {
     self.champion = Player { health: strength };
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.recruit(50);
     let power: i32 = self.champion.health;
     self.console.exit_process(70);

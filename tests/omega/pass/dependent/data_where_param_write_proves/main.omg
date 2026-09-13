@@ -12,7 +12,7 @@ data Main { console: Console; meter: Meter; }
 machine Main::bump(&mut self, target: &mut Meter) {
     target.count = 3;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.bump(&mut self.meter);
     self.console.exit_process(70);
 }

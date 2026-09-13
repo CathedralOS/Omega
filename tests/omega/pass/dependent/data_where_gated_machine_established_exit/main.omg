@@ -8,7 +8,7 @@ where
     console: Console;
     health: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.health = 70;
     self.console.exit_process(self.health);
 }
