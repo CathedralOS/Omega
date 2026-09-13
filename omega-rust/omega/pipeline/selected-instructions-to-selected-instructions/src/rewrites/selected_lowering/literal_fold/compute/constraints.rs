@@ -4,19 +4,33 @@ use register_model::{
     RegisterInstructionConstraint, RegisterOperandAccess, TargetRegisterEnvironmentConstraintKeys,
     ValidatedRegisterConstraintCatalog,
 };
+use selected_instructions::SelectedInstructionKind;
 
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::{LiteralFoldError, LiteralFoldPolicy, SelectedInstructionPairRule, enabled_pair_rules};
 
-pub(super) struct ImmediateRows<'a> {
-    pub(super) add: Option<&'a RegisterInstructionConstraint>,
-    pub(super) subtract: Option<&'a RegisterInstructionConstraint>,
+/// One policy-enabled catalog row bound to its constraint-catalog row.
+pub(super) struct AdmittedPair<'a> {
+    pub(super) rule: SelectedInstructionPairRule,
+    pub(super) row: &'a RegisterInstructionConstraint,
 }
 
-pub(super) fn select_immediate_rows<'a>(
+pub(super) struct AdmittedPairs<'a> {
+    pairs: Vec<AdmittedPair<'a>>,
+}
+
+impl<'a> AdmittedPairs<'a> {
+    pub(super) fn for_consumer(&self, kind: SelectedInstructionKind) -> Option<&AdmittedPair<'a>> {
+        self.pairs
+            .iter()
+            .find(|pair| pair.rule.matches_consumer(kind))
+    }
+}
+
+pub(super) fn select_admitted_pairs<'a>(
     constraints: &'a ValidatedRegisterConstraintCatalog,
     keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: LiteralFoldPolicy,
-) -> Result<ImmediateRows<'a>, LiteralFoldError> {
+) -> Result<AdmittedPairs<'a>, LiteralFoldError> {
     let find = |key| {
         constraints
             .catalog()
@@ -25,18 +39,16 @@ pub(super) fn select_immediate_rows<'a>(
             .find(|row| row.key == key)
             .ok_or(LiteralFoldError::ImmediateConstraintMismatch)
     };
-    let add = policy
-        .enables_exact_add()
-        .then(|| find(keys.add_i64_immediate))
-        .transpose()?;
-    let subtract = policy
-        .enables_exact_subtract()
-        .then(|| find(keys.subtract_i64_immediate))
-        .transpose()?;
-    for row in [add, subtract].into_iter().flatten() {
+    let mut pairs = Vec::new();
+    for rule in enabled_pair_rules(policy) {
+        let key = rule
+            .immediate_constraint_key(keys)
+            .ok_or(LiteralFoldError::ImmediateConstraintMismatch)?;
+        let row = find(key)?;
         validate_immediate_row(row)?;
+        pairs.push(AdmittedPair { rule, row });
     }
-    Ok(ImmediateRows { add, subtract })
+    Ok(AdmittedPairs { pairs })
 }
 
 fn validate_immediate_row(row: &RegisterInstructionConstraint) -> Result<(), LiteralFoldError> {

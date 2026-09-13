@@ -1,21 +1,19 @@
 //! Producer application and dense-identifier reconstruction for one function.
 
 use selected_instructions::{
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionProvenance,
+    SelectedOperand, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::IntegerValue;
 
 use crate::{LiteralFoldAction, LiteralFoldError};
 
-use super::constraints::ImmediateRows;
+use super::constraints::AdmittedPairs;
 
 pub(super) fn apply_action(
     function_index: usize,
     function: &mut SelectedFunction,
     action: LiteralFoldAction,
-    rows: &ImmediateRows<'_>,
+    rows: &AdmittedPairs<'_>,
 ) -> Result<(), LiteralFoldError> {
     let block = function
         .blocks
@@ -47,36 +45,19 @@ pub(super) fn apply_action(
             function: function_index,
         })?;
 
-    let (row, rewritten_kind) = match consumer.kind {
-        SelectedInstructionKind::ExactAddI64 {
-            obligation,
-            accepted_fact,
-        } => (
-            rows.add,
-            SelectedInstructionKind::ExactAddI64Immediate {
-                immediate: IntegerValue::Unsigned(u128::from(action.immediate)),
-                obligation,
-                accepted_fact,
-            },
-        ),
-        SelectedInstructionKind::ExactSubtractI64 {
-            obligation,
-            accepted_fact,
-        } => (
-            rows.subtract,
-            SelectedInstructionKind::ExactSubtractI64Immediate {
-                immediate: IntegerValue::Unsigned(u128::from(action.immediate)),
-                obligation,
-                accepted_fact,
-            },
-        ),
-        _ => (None, consumer.kind),
-    };
-    let row = row
-        .filter(|row| row.key == action.immediate_constraint)
+    let pair = rows
+        .for_consumer(consumer.kind)
+        .filter(|pair| pair.row.key == action.immediate_constraint)
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
+    let rewritten_kind = pair
+        .rule
+        .rewrite_consumer(consumer.kind, action.immediate)
+        .ok_or(LiteralFoldError::ConsumerMismatch {
+            function: function_index,
+        })?;
+    let row = pair.row;
 
     let consumer_provenance = consumer.provenance.clone();
     let mut operations = literal.provenance.operations;

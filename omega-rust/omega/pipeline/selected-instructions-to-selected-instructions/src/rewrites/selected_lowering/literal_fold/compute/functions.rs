@@ -8,13 +8,13 @@ use crate::{
 };
 
 use super::actions::derive_action;
-use super::constraints::ImmediateRows;
+use super::constraints::AdmittedPairs;
 use super::function_rewrite::apply_action;
 
 pub(super) fn derive_function_folds(
     selected: &impl ValidatedSelectedAnalysis,
     recovery: &ValidatedRecoveryClassifications,
-    rows: &ImmediateRows<'_>,
+    rows: &AdmittedPairs<'_>,
 ) -> Result<(Vec<FunctionLiteralFold>, SelectedInstructionPlan), LiteralFoldError> {
     let source_plan = selected.selected_plan();
     let mut transformed = source_plan.clone();

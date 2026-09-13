@@ -6,13 +6,13 @@ use semantic_vocabulary::IntegerValue;
 
 use crate::{LiteralFoldAction, LiteralFoldError, RecoveryClassification, RecoveryVictimRole};
 
-use super::constraints::ImmediateRows;
+use super::constraints::AdmittedPairs;
 
 pub(super) fn derive_action(
     function_index: usize,
     function: &SelectedFunction,
     candidate: &crate::PressureRecoveryClassification,
-    rows: &ImmediateRows<'_>,
+    rows: &AdmittedPairs<'_>,
 ) -> Result<LiteralFoldAction, LiteralFoldError> {
     if candidate.role != RecoveryVictimRole::Incoming {
         return Err(LiteralFoldError::UnsupportedVictimRole {
@@ -31,12 +31,9 @@ pub(super) fn derive_action(
             function: function_index,
         });
     };
-    let immediate = u64::try_from(*value)
-        .ok()
-        .filter(|value| *value <= 4095)
-        .ok_or(LiteralFoldError::UnsupportedImmediate {
-            function: function_index,
-        })?;
+    let immediate = u64::try_from(*value).map_err(|_| LiteralFoldError::UnsupportedImmediate {
+        function: function_index,
+    })?;
     let [future_use] = future_uses.as_slice() else {
         return Err(LiteralFoldError::FutureUseMismatch {
             function: function_index,
@@ -70,10 +67,21 @@ pub(super) fn derive_action(
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
+    let pair = rows
+        .for_consumer(consumer.kind)
+        .ok_or(LiteralFoldError::ConsumerMismatch {
+            function: function_index,
+        })?;
+    if !pair.rule.admits_immediate(immediate) {
+        return Err(LiteralFoldError::UnsupportedImmediate {
+            function: function_index,
+        });
+    }
     if literal.kind
         != (SelectedInstructionKind::MaterializeI64 {
             value: IntegerValue::Unsigned(*value),
         })
+        || !pair.rule.matches_producer(literal.kind)
         || literal.provenance != *provenance
         || literal.operands.len() != 1
         || literal.operands[0].virtual_register != candidate.victim
@@ -84,14 +92,7 @@ pub(super) fn derive_action(
         });
     }
 
-    let row = match consumer.kind {
-        SelectedInstructionKind::ExactAddI64 { .. } => rows.add,
-        SelectedInstructionKind::ExactSubtractI64 { .. } => rows.subtract,
-        _ => None,
-    }
-    .ok_or(LiteralFoldError::ConsumerMismatch {
-        function: function_index,
-    })?;
+    let row = pair.row;
     let [left, right, result] = consumer.operands.as_slice() else {
         return Err(LiteralFoldError::ConsumerMismatch {
             function: function_index,
