@@ -129,9 +129,12 @@ pub(super) fn edges_to_state<'program>(
     edges
 }
 
-/// Only immutable primitive parameters and literal Boolean/comparison structure
-/// supply facts across statements. Calls, storage reads, and projections are not
-/// assumed to retain their observed value.
+/// Only primitive parameters and literal Boolean/comparison structure supply
+/// facts across statements. Calls, storage reads, and projections are not
+/// assumed to retain their observed value. A carried fact spans only
+/// consecutive transitions: any intervening statement clears it, and the edge
+/// owner separately requires the prefix to preserve every parameter path, so
+/// a mutable parameter's observed value still holds at the next transition.
 fn stable_guard(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
@@ -141,7 +144,6 @@ fn stable_guard(
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(name) => program.state_parameters(state).iter().any(|parameter| {
             parameter.symbol == name.symbol
-                && !parameter.is_mutable
                 && !parameter.is_self
                 && program
                     .primitive_type_reference(parameter.type_reference)

@@ -223,9 +223,9 @@ fn argument_mapping(
         argument_subjects(program, machine, source, *argument, &mut subjects, 0)?;
         let mut selected_entry = None;
         for subject in &subjects {
-            let source_position = source_parameters.iter().position(|parameter| {
-                parameter.symbol == *subject && !parameter.is_mutable && !parameter.is_const
-            })?;
+            let source_position = source_parameters
+                .iter()
+                .position(|parameter| parameter.symbol == *subject && !parameter.is_const)?;
             let entry_symbol = source_mapping[source_position];
             if subjects.len() == 1 || (rank_subject.is_valid() && entry_symbol == rank_subject) {
                 // Discover the authored role, not equality of current values.

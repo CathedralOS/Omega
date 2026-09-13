@@ -109,6 +109,24 @@ fn intervening_write_cannot_reuse_entry_hypotheses() {
 }
 
 #[test]
+fn a_failed_guard_on_a_mutable_parameter_still_discharges_the_next_edge() {
+    // Consecutive transitions evaluate no intervening statement, so a failed
+    // guard on a mutable parameter still holds at the next edge. Here it
+    // contradicts the second guard and vacuously discharges an edge that
+    // cannot decrease.
+    prove(
+        "machine walk(mut remaining: u32 [0..=5]) terminates by remaining -> Nat::Descending in 0..=5; -> u32 { transition remaining > 0 { true -> walk(remaining - 1) } transition remaining > 0 { true -> walk(remaining) false -> remaining } }",
+    );
+    // A store into the ranked path before the dispatch invalidates the
+    // mutable arrival premise: the preserved-prefix evidence fails, so the
+    // descending edge can no longer bound its argument from the declared
+    // parameter range.
+    reject(
+        "machine walk(mut remaining: u32 [0..=5]) terminates by remaining -> Nat::Descending in 0..=5; -> u32 { remaining = 1; transition remaining > 0 { true -> walk(remaining - 1) } transition remaining > 0 { true -> walk(remaining) false -> remaining } }",
+    );
+}
+
+#[test]
 fn disjoint_receiver_store_preserves_rank_range_and_pinned_endpoints() {
     let source = "data Cursor { visited: u64; } machine Cursor::walk(&mut self, index: u64, limit: u64) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { self.visited = index; transition index < limit { true -> walk(index + 1, limit) false -> index } }";
     prove(source);

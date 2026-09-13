@@ -129,23 +129,40 @@ fn changing_view_bound_cannot_reuse_a_pinned_rank_ceiling() {
 }
 
 #[test]
-fn mutable_and_wrapping_declarations_do_not_establish_rank_bounds() {
-    for parameter in [
-        "mut remaining: u32 [1..=5]",
-        "remaining: u32 [1..=5] in Wrapping",
+fn mutable_parameters_establish_rank_bounds_only_while_the_prefix_preserves_them() {
+    // A mutable parameter still denotes its arrival value while no earlier
+    // statement writes its path; the entry query has no prefix at all.
+    for source in [
+        "machine walk(mut remaining: u32 [1..=5]) terminates by remaining -> Nat::Descending in 1..=5; -> u32 { remaining }",
+        "machine walk(mut remaining: u32 [1..=5]) terminates by remaining -> Nat::Descending in 1..=5; -> u32 { transition remaining > 1 { true -> walk(remaining - 1) false -> remaining } }",
     ] {
-        let source = format!(
-            "machine walk({parameter}) terminates by remaining -> Nat::Descending in 1..=5; -> u32 {{ remaining }}"
-        );
-        let diagnostics = crate::checks::termination::check_machine_termination(&typed(&source))
-            .expect_err(parameter);
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("cannot prove rank range")),
-            "{diagnostics:#?}"
-        );
+        crate::checks::termination::check_machine_termination(&typed(source))
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+        lower_typed_trees(typed(source))
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
+    // Live write-frame evidence decides: a prefix store into the ranked
+    // path invalidates the arrival premise even when the value stays in
+    // range, and the machine must not borrow the arrival constraint.
+    let source = "machine walk(mut remaining: u32 [1..=5]) terminates by remaining -> Nat::Descending in 1..=5; -> u32 { remaining = 3; transition remaining > 1 { true -> walk(remaining - 1) false -> remaining } }";
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed(source))
+        .expect_err("a prefix write invalidates the mutable premise");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove rank range")),
+        "{diagnostics:#?}"
+    );
+    // A wrapping carrier still cannot bound a natural rank.
+    let source = "machine walk(remaining: u32 [1..=5] in Wrapping) terminates by remaining -> Nat::Descending in 1..=5; -> u32 { remaining }";
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed(source))
+        .expect_err("wrapping");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove rank range")),
+        "{diagnostics:#?}"
+    );
 }
 
 #[test]

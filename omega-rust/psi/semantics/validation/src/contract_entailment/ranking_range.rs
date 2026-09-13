@@ -61,6 +61,9 @@ pub enum RankingRangePremises {
 /// This query neither mutates source/evidence nor admits an unknown judgment.
 /// The caller must provide an exact root self-edge and its live guard facts;
 /// arbitrary state-to-root substitutions are deliberately not inferred here.
+/// `evaluated_prefix` must come from a parameter-preserving prefix: live
+/// write-frame evidence that no earlier statement writes any parameter's path,
+/// so a mutable parameter still denotes its arrival value at the transition.
 pub fn prove_ranking_range_edge(
     program: &TypedTrees,
     machine: &Machine,
@@ -103,7 +106,10 @@ pub struct RankingRangeState<'program> {
 /// telescopes. Each source uses the selected graph-wide invariant, including
 /// reentered roots. Every destination formal receives its exact actual in
 /// one simultaneous substitution; graph ownership decides whether strict
-/// decrease is additionally required for this edge.
+/// decrease is additionally required for this edge. `evaluated_prefix` must
+/// come from a parameter-preserving prefix: live write-frame evidence that no
+/// earlier statement writes any parameter's path, so a mutable parameter still
+/// denotes its arrival value at the transition.
 pub fn prove_ranking_range_transition(
     program: &TypedTrees,
     machine: &Machine,
@@ -272,16 +278,12 @@ fn prove_edge(
         admit(*expression)?;
     }
     let parameters = program.state_parameters(state);
-    // Local-state induction still has no mutable-parameter arrival evidence.
-    // Call components own a separate exact prefix-preservation judgment;
-    // shared meaning and symbol binding do not establish either guarantee.
-    if parameters.iter().any(|parameter| {
-        !parameter.is_self
-            && parameter.is_mutable
-            && exact_integer_parameter(program, parameter.type_reference).is_some()
-    }) {
-        return None;
-    }
+    // A mutable parameter's live value equals its arrival value only while no
+    // intervening write touches its path. The evaluated-prefix callers prove
+    // that per edge with complete write frames disjoint from every parameter
+    // path before this judgment runs; the entry query has no prefix at all.
+    // Mutability is then a storage capability, not a value distinction, and an
+    // integer atom names the same live value it would for an immutable formal.
     if arguments.is_some_and(|arguments| {
         program
             .state_parameters(destination.map_or(state, |destination| destination.state))
@@ -795,7 +797,6 @@ fn validate_mapping(
         .zip(entry_parameters)
     {
         if !parameter.symbol.is_valid()
-            || parameter.is_mutable
             || parameter.is_const
             || parameters
                 .iter()
@@ -819,8 +820,7 @@ fn validate_mapping(
         let entry = root_parameters
             .iter()
             .find(|entry| !entry.is_self && entry.symbol == *entry_symbol)?;
-        if entry.is_mutable
-            || entry.is_const
+        if entry.is_const
             || exact_integer_parameter(program, entry.type_reference)
                 != exact_integer_parameter(program, parameter.type_reference)
         {
