@@ -261,7 +261,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   preserving exact register-unit aliases, liveness, and target custody.
 
 - **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the landed
-  CFG families: stack-argument storage, red-zone policy, probing, unwind
+  CFG families: red-zone policy, probing, unwind
   information, stable-address loans, and dynamic-allocation constraints.
   General calls need target-owned frame, callee-save, link-register, and
   call-site alignment plans. Witnessed: the ordinary three-block/two-return
@@ -270,6 +270,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   frame application, relocation-free object construction, and validated
   ordinary callable publication on x86-64 and AArch64
   (`runtime_spill_pressure::loop_carried_spill_frame_replays_private_accesses_through_callable_publication`).
+  A scalar caller passing one argument past each target's register capacity
+  now replays its exact outgoing-ABI-area write and the callee's exact
+  incoming-activation read against the validated frame geometry through the
+  same publication boundary on all four targets
+  (`register_arity::stack_argument_calls_replay_frame_accesses_through_callable_publication`).
   Acceptance: every admitted frame policy replays its exact physical accesses
   through callable publication; requirements artifacts remain
   non-authoritative until that replay succeeds.
