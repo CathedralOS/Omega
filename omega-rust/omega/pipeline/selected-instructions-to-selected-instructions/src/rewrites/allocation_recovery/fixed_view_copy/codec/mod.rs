@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. V32 removes the retired countdown
-//! custody payload from the ordinary selected function graph.
+//! Owns admission and authentication order. V33 distinguishes captured owned
+//! entry-value homes from operation-result and successor-arrival storage.
 //! Every older envelope is rejected before its payload is interpreted.
 
 mod content;
@@ -13,11 +13,11 @@ mod primitives;
 mod selected;
 mod values;
 
-use self::envelope::v32_identity;
+use self::envelope::v33_identity;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-const VERSION: u32 = 32;
+const VERSION: u32 = 33;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.
@@ -27,7 +27,7 @@ impl FixedViewCopyPlan {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(MAGIC);
         encoded.extend_from_slice(&VERSION.to_le_bytes());
-        encoded.extend_from_slice(&v32_identity(self, &content));
+        encoded.extend_from_slice(&v33_identity(self, &content));
         encoded.extend_from_slice(&content);
         encoded
     }

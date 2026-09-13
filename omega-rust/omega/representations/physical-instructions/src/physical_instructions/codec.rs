@@ -1,8 +1,10 @@
-//! Version-13 post-allocation machine-plan framing and content authentication.
+//! Version-17 post-allocation machine-plan framing and content authentication.
 //!
 //! The entrance owns the wire marker/version, canonical content boundary,
 //! trailing-byte rejection, and final identity authentication. Ordered content,
 //! instruction vocabulary, cursor translation, and errors descend explicitly.
+//! Owned parameter-home slots extend that vocabulary; version 17 retires the
+//! previous envelope even though its slot tags otherwise remain unchanged.
 
 mod cursor;
 mod error;
@@ -18,7 +20,7 @@ use crate::{
 use selected_instructions::selected_instructions::effects::program::encoding as effect_codec;
 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
-const VERSION: u32 = 16;
+const VERSION: u32 = 17;
 
 pub(crate) fn encode_terminal_post_allocation_machine_plan(
     plan: &PostAllocationMachinePlan,
