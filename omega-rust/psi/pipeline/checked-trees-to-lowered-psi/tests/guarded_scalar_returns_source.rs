@@ -58,10 +58,10 @@ fn stored_returned_cases_support_borrowed_refined_getters() {
             }
         }
         boundary trait Sink { machine record(value: u64); }
-        data Main {}
-        machine Main::main() reaches Sink {
+        data Main { sink: Sink; }
+        machine Main::main(&mut self) reaches Sink {
             transition { _ -> alignment_conversion() }
-            state alignment_conversion() {
+            state alignment_conversion(&mut self) {
             let default_alignment: MemoryAlignment = MemoryAlignment::default();
             let fallback_alignment: MemoryAlignment = MemoryAlignment::from(3);
             let default_size: u64 = default_alignment.get_size_in_bytes();
@@ -71,8 +71,8 @@ fn stored_returned_cases_support_borrowed_refined_getters() {
                 false -> failed()
             }
             }
-            state passed() { Sink::record(1); }
-            state failed() { Sink::record(0); }
+            state passed(&mut self) { self.sink.record(1); }
+            state failed(&mut self) { self.sink.record(0); }
         }
         "#,
         BranchForm::Separate,
@@ -132,15 +132,63 @@ fn stored_returned_cases_support_borrowed_refined_getters() {
         &AdmissionProfile::default(),
     )
     .unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let [receiver] = entry.structural_parameters.as_slice() else {
+        panic!("one persistent Main receiver")
+    };
+    assert!(receiver.is_self);
+    assert_eq!(
+        receiver.access,
+        terminal_psi::StructuralAccess::MutableBorrow
+    );
+    let receiver_type = receiver.structural_type;
+    let mut missing_provider = module.clone();
+    let entry = missing_provider
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let prior_places = entry.structural_places.len();
+    entry.structural_places.retain(|place| {
+        !matches!(
+            place.kind,
+            semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
+        )
+    });
+    assert_eq!(
+        prior_places - entry.structural_places.len(),
+        1,
+        "only the direct Sink boundary needs a provider root"
+    );
+    assert!(
+        terminal_verifier::verify_module(
+            &missing_provider,
+            &terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap(),
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "ordinary constructor calls cannot replace the missing provider root"
+    );
     drop(checked);
     for initial_fuel in [0, 2, 1000] {
-        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &AdmissionProfile::default(),
-            &[],
-        )
-        .unwrap();
+        let mut execution =
+            terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &AdmissionProfile::default(),
+                &[],
+                &[terminal_interpreter::TerminalStructuralValue {
+                    opaque_identity: 17,
+                    structural_type: receiver_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+            )
+            .unwrap();
         let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(initial_fuel);
         let mut completed = false;
         for _ in 0..256 {

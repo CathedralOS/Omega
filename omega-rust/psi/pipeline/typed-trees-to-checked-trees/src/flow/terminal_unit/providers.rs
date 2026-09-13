@@ -34,21 +34,18 @@ pub(super) fn checked_provider_attachment_requirements(
     };
     // Ordinary callees own their direct provider requirements, including when
     // they borrow this receiver. Receiver loans do not forward attachment roots.
+    // Select boundary operations directly: a list of unrelated operations to
+    // exclude makes every new local or ordinary result call an accidental
+    // provider obligation. Their executable callees retain their own closure.
     let call_operations = operations
         .iter()
         .filter(|operation| {
-            !matches!(
+            matches!(
                 operation,
-                CheckedUnitEffectOperationPlan::CallUnit { .. }
-                    | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                    | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
-                    | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-                    | CheckedUnitEffectOperationPlan::Complete { .. }
+                CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+                    | CheckedUnitEffectOperationPlan::PortWrite { .. }
             )
         })
         .collect::<Vec<_>>();
@@ -97,8 +94,7 @@ pub(super) fn checked_provider_attachment_requirements(
     let mut requirements = Vec::with_capacity(call_operations.len());
     for operation in call_operations {
         let coordinate = match operation {
-            CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
+            CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
             | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
             | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => coordinate,
