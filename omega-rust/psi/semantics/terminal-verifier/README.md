@@ -71,6 +71,17 @@ formation directly.
 
 ## Call and crash reconstruction
 
+Local affine records can own mutable primitive reference leaves through ordinary
+`EstablishRecord` operations. [references.rs](src/validation/references.rs)
+reconstructs each leaf's formation identity, current carrier path, original
+referent, and immediate parent. Packing relocates an existing permission rather
+than creating a child loan. Typed record-field paths ending in `Referent` borrow
+that leaf; whole-owner disposal checks reverse declaration order and rejects
+parents with surviving children before ending any loan. Aggregate parameters,
+results, partial transfers, arrays of references, and host interfaces remain
+unsupported until their complete reference custody is reconstructed. Plain
+record classification must not silently admit those boundaries.
+
 Boundary declarations retain their own published scalar crash routes. Their
 formal values are reconstructed from scalar signature order in a declaration-local
 namespace, validated without caller values, then simultaneously substituted at
