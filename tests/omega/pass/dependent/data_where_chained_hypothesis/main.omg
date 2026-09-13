@@ -13,7 +13,7 @@ where
     capacity: u32 [0..=100];
 }
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let t: Tally = Tally { count: 5, mid: 20, capacity: 50 };
     let bounded: u32 [0..=100] = t.count;
     self.console.exit_process(70);
