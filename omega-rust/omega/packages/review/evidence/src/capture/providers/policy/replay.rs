@@ -3,7 +3,7 @@
 use super::rejected;
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
-use provider_planning::plans::{
+use provider_planning::{
     DerivedProviderPlan, ProviderSelectionProvenance, SelectedProviderPlanWithProvenance,
 };
 use semantic_vocabulary::PackageKeyIdentity;
@@ -45,7 +45,7 @@ pub(super) fn validate(
             selected_by: retained.selected_by.clone(),
         })
         .collect();
-    let (replayed, _) = provider_planning::plans::selected_provider_plan_facts_with_provenance(
+    let (replayed, _) = provider_planning::selected_provider_plan_facts_with_provenance(
         &compilation.typed,
         compilation.evaluated_via_bindings(),
         selected,

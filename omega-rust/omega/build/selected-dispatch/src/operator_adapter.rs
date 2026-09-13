@@ -637,8 +637,7 @@ pub(super) fn resolve_checked_adapter_for_operator(
             )));
         }
     };
-    let direct_provider =
-        provider_planning::plans::exact_checked_adapter(&checked.typed, plan, row);
+    let direct_provider = provider_planning::exact_checked_adapter(&checked.typed, plan, row);
     let specialized = checked
         .typed
         .machine_specializations
@@ -926,7 +925,7 @@ mod tests {
             .expect("resolve checked-operator dispatch fixture");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type checked-operator dispatch fixture");
-        let plans = provider_planning::plans::derive_satisfies_plans(&typed, None);
+        let plans = provider_planning::derive_satisfies_plans(&typed, None);
         let checked_plan = plans
             .iter()
             .find(|plan| {

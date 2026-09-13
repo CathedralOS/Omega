@@ -5,7 +5,7 @@ use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
 use language_semantics::ServiceReachRowId;
-use provider_planning::plans::ProviderSchemaDeclaration;
+use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_selected_installation_reach(

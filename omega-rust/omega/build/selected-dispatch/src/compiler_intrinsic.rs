@@ -6,7 +6,7 @@ use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use language_semantics::MachineSupplyMode;
-use provider_planning::plans::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration};
+use provider_planning::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use typed_trees::types::TypeReferenceNode;
 

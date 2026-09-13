@@ -264,7 +264,7 @@ pub(super) fn project_callable_conformances(
                 };
                 if operator.spelling.is_some()
                     && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
-                        || provider_planning::plans::primitive_float_binary_intrinsic_execution_identity(
+                        || provider_planning::primitive_float_binary_intrinsic_execution_identity(
                             &compilation.typed,
                             operator,
                         )

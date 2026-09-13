@@ -44,7 +44,7 @@ pub(crate) struct SelectedTargetMachineDeclarations {
 
 pub(crate) struct SettledTargetMachineDeclarations {
     pub(crate) provider_defaults: Vec<provider_planning::ProviderSelection>,
-    pub(crate) origins: Vec<provider_planning::plans::SelectedTargetMachineOrigin>,
+    pub(crate) origins: Vec<provider_planning::SelectedTargetMachineOrigin>,
 }
 
 impl SelectedTargetMachineDeclarations {
@@ -130,7 +130,7 @@ impl SelectedTargetMachineDeclarations {
                 )));
                 continue;
             };
-            origins.push(provider_planning::plans::SelectedTargetMachineOrigin {
+            origins.push(provider_planning::SelectedTargetMachineOrigin {
                 machine: machine.symbol,
                 target,
             });

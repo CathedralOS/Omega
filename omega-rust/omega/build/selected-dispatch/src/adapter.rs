@@ -442,7 +442,7 @@ fn resolve_selected_adapter_row(
             plan.name,
         )));
     }
-    let adapter = provider_planning::plans::exact_checked_adapter(typed, plan, row)?;
+    let adapter = provider_planning::exact_checked_adapter(typed, plan, row)?;
     if adapter.attached_data.as_ref().map(|owner| owner.as_str())
         != Some(plan.provider_type.as_str())
     {
@@ -773,7 +773,7 @@ mod tests {
             .expect("resolve exact adapter-dispatch fixture");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type exact adapter-dispatch fixture");
-        let plans = provider_planning::plans::derive_satisfies_plans(&typed, None);
+        let plans = provider_planning::derive_satisfies_plans(&typed, None);
         Fixture { typed, plans }
     }
 

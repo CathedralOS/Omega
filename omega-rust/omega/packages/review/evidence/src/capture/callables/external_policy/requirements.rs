@@ -124,7 +124,18 @@ pub(super) fn project(
             {
                 return Err(rejected("external operator application is not closed"));
             }
-            if operator.spelling.is_some() && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic) || provider_planning::plans::primitive_float_binary_intrinsic_execution_identity(&compilation.typed, operator).is_none()) { return Err(rejected("fixed-token external operator has no closed intrinsic execution")); }
+            if operator.spelling.is_some()
+                && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
+                    || provider_planning::primitive_float_binary_intrinsic_execution_identity(
+                        &compilation.typed,
+                        operator,
+                    )
+                    .is_none())
+            {
+                return Err(rejected(
+                    "fixed-token external operator has no closed intrinsic execution",
+                ));
+            }
             super::super::boundary_operators::validate_selected_boundary_operator_external_supply(
                 compilation,
                 machine,

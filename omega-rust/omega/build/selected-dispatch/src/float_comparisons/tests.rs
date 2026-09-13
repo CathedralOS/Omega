@@ -26,7 +26,7 @@ fn fixture() -> (CheckedTrees, ProviderPlan) {
         .expect("resolve floating Match fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type floating Match fixture");
-    let plans = provider_planning::plans::derive_satisfies_plans(&typed, None);
+    let plans = provider_planning::derive_satisfies_plans(&typed, None);
     let [plan] = plans.as_slice() else {
         panic!("floating Match fixture must derive exactly one plan")
     };

@@ -12,7 +12,7 @@ use crate::record::PackagePolicyServiceMethod;
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ServiceMethod;
-use provider_planning::plans::ProviderSchemaDeclaration;
+use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
 pub(crate) use crate::capture::calling::application::signature::declaration_parameters;

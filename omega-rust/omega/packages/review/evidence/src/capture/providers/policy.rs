@@ -16,7 +16,7 @@ use crate::record::{
 };
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
-use provider_planning::plans::SelectedProviderReviewProvenance;
+use provider_planning::SelectedProviderReviewProvenance;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
@@ -169,12 +169,12 @@ fn normalized_plan_name(
     retained: &SelectedProviderReviewProvenance,
 ) -> Result<String, Vec<Diagnostic>> {
     let plan = &retained.plan;
-    let provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(symbol) =
+    let provider_planning::ProviderSchemaDeclaration::BoundaryOperator(symbol) =
         retained.provider.schema
     else {
         return Ok(plan.name.clone());
     };
-    let generated = provider_planning::plans::satisfies_plan_name(
+    let generated = provider_planning::satisfies_plan_name(
         &plan.target,
         &plan.schema.trait_name,
         &plan.provider_type,
@@ -186,7 +186,7 @@ fn normalized_plan_name(
     }
     let requirement =
         policy_provider_requirement_identity(compilation, retained.provider.schema, symbol)?;
-    Ok(provider_planning::plans::satisfies_plan_name(
+    Ok(provider_planning::satisfies_plan_name(
         &plan.target,
         requirement.path(),
         &plan.provider_type,

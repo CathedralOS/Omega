@@ -170,7 +170,7 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
         .zip(provenance)
         .filter(|(_plan, retained)| {
             retained.provider.schema
-                == provider_planning::plans::ProviderSchemaDeclaration::BoundaryRequirement(
+                == provider_planning::ProviderSchemaDeclaration::BoundaryRequirement(
                     requirement.symbol,
                 )
                 && retained.provider.row_realizations.contains(&machine.symbol)

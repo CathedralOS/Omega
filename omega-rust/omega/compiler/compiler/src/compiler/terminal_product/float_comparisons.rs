@@ -10,7 +10,7 @@ pub(in crate::compiler) fn associate(
     checked: &CheckedTrees,
     module: &terminal_psi::TerminalModule,
     selected: &effects::SelectedProviderPlanFacts,
-    provenance: &[provider_planning::plans::SelectedProviderReviewProvenance],
+    provenance: &[provider_planning::SelectedProviderReviewProvenance],
     occurrences: &[lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence],
 ) -> Result<Vec<compilation_report::TerminalIeeeFloatComparisonOccurrenceProposal>, Vec<Diagnostic>>
 {
@@ -32,7 +32,7 @@ pub(in crate::compiler) fn associate(
 fn associate_one(
     checked: &CheckedTrees,
     selected: &effects::SelectedProviderPlanFacts,
-    provenance: &[provider_planning::plans::SelectedProviderReviewProvenance],
+    provenance: &[provider_planning::SelectedProviderReviewProvenance],
     occurrence: &lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence,
 ) -> Result<compilation_report::TerminalIeeeFloatComparisonOccurrenceProposal, Diagnostic> {
     let fail = |reason: &str| {

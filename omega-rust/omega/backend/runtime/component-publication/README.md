@@ -45,7 +45,7 @@ successful reclamation.
 
 ## Source composition boundary
 
-[Provider planning](../../../build/provider-planning/src/plans.rs) retains mode
+[Provider planning](../../../build/provider-planning/src/provider_planning.rs) retains mode
 through selected-plan provenance but rejects Independent before publishing
 checked/package-review facts until the component closure and routed installation
 exist. The Fused source carrier is toolchain-owned affine `Service<R> in Bound`

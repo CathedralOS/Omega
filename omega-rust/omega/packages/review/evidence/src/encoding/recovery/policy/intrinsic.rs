@@ -6,7 +6,7 @@ mod tests;
 use super::{Error, reader::Reader};
 use crate::record::PackageReviewCompilerIntrinsicExecution;
 use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
-use provider_planning::plans::{CompilerNumericType, CompilerPrimitiveFloatBinaryOperation};
+use provider_planning::{CompilerNumericType, CompilerPrimitiveFloatBinaryOperation};
 
 pub(super) fn execution(
     reader: &mut Reader<'_>,

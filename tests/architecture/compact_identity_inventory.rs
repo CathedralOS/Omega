@@ -494,7 +494,8 @@ fn checked_operator_provider_reports_retain_strong_plan_authority() {
         "checked operator uses must classify compact plan coordinates as reports beside exact commitments",
     );
 
-    let planning_path = root.join("omega-rust/omega/build/provider-planning/src/plans.rs");
+    let planning_path =
+        root.join("omega-rust/omega/build/provider-planning/src/provider_planning.rs");
     let planning = fs::read_to_string(&planning_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", planning_path.display()));
     assert!(

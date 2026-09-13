@@ -53,9 +53,7 @@ pub(super) fn selected_operators(
         )
         .map_err(|error| vec![error])?;
         let expected =
-            provider_planning::plans::primitive_float_binary_intrinsic_execution_identity(
-                typed, operator,
-            );
+            provider_planning::primitive_float_binary_intrinsic_execution_identity(typed, operator);
         if execution.is_none() || execution != expected {
             continue;
         }

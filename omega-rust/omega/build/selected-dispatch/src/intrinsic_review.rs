@@ -4,7 +4,7 @@ use crate::{
 };
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
-use provider_planning::plans::SelectedProviderReviewProvenance;
+use provider_planning::SelectedProviderReviewProvenance;
 use symbols::SymbolHandle;
 
 /// One consumer-supplied semantic binding after exact selected-plan

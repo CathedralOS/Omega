@@ -20,7 +20,7 @@ fn optional_intrinsic_diagnostic_label(
         operators.next().is_none(),
         "selected intrinsic plan must resolve one exact boundary operator"
     );
-    provider_planning::plans::compiler_intrinsic_diagnostic_label(&checked.typed, operator)
+    provider_planning::compiler_intrinsic_diagnostic_label(&checked.typed, operator)
 }
 
 fn selected_intrinsic_diagnostic_label(
@@ -645,7 +645,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                 // must wait for a feature-qualified or checked software plan.
                 return None;
             }
-            provider_planning::plans::compiler_intrinsic_diagnostic_label(&checked.typed, operator)
+            provider_planning::compiler_intrinsic_diagnostic_label(&checked.typed, operator)
         };
         let mut used_intrinsics = std::collections::BTreeSet::new();
 

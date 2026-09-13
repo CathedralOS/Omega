@@ -1837,7 +1837,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
 
 #[test]
 fn hosted_console_compiler_intrinsic_review_identities_are_exact() {
-    use provider_planning::plans::CompilerIntrinsicExecutionIdentity;
+    use provider_planning::CompilerIntrinsicExecutionIdentity;
 
     let canary = pass_canary(fixture_roster::RUNTIME_ADAPTER_FORWARDING_EXIT);
     let main_path = canary.join("main.omg");

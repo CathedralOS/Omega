@@ -2,7 +2,7 @@ use crate::record::PackageReviewCompilerIntrinsicExecution;
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
-use provider_planning::plans::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration};
+use provider_planning::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration};
 use selected_dispatch::{
     SelectedCompilerIntrinsicExecutionIdentity,
     derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolved_binding,
@@ -168,11 +168,11 @@ mod tests {
     fn execution_reconciliation_rejects_missing_mismatched_and_spoofed_state() {
         use numerics::arithmetic::ArithmeticDomain;
         use numerics::literals::FloatFormat;
-        use provider_planning::plans::CompilerIntrinsicExecutionIdentity::{
+        use provider_planning::CompilerIntrinsicExecutionIdentity::{
             BuiltinFunction, HostedExitProcessI32, NamedFloatConversion, NamedFloatNegation,
             PrimitiveFloatBinary,
         };
-        use provider_planning::plans::CompilerNumericType;
+        use provider_planning::CompilerNumericType;
         use symbols::BuiltinFunction::{Max, Min};
 
         assert_eq!(
@@ -209,7 +209,7 @@ mod tests {
             domain: ArithmeticDomain::Exact,
         };
         let primitive_add_f32 = PrimitiveFloatBinary {
-            operation: provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Add,
+            operation: provider_planning::CompilerPrimitiveFloatBinaryOperation::Add,
             format: FloatFormat::F32,
         };
         assert_eq!(
@@ -251,8 +251,7 @@ mod tests {
                     primitive_add_f32,
                 )),
                 Some(PrimitiveFloatBinary {
-                    operation:
-                        provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Subtract,
+                    operation: provider_planning::CompilerPrimitiveFloatBinaryOperation::Subtract,
                     format: FloatFormat::F32,
                 }),
                 "retains compiler execution identity primitive float binary `subtract.f32`, but exact selected execution rederives primitive float binary `add.f32`",
@@ -262,7 +261,7 @@ mod tests {
                     primitive_add_f32,
                 )),
                 Some(PrimitiveFloatBinary {
-                    operation: provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Add,
+                    operation: provider_planning::CompilerPrimitiveFloatBinaryOperation::Add,
                     format: FloatFormat::F64,
                 }),
                 "retains compiler execution identity primitive float binary `add.f64`, but exact selected execution rederives primitive float binary `add.f32`",

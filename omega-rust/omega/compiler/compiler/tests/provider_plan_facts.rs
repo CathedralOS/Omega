@@ -1,6 +1,6 @@
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
-use provider_planning::plans::selected_external_root_provider_plan_id;
+use provider_planning::selected_external_root_provider_plan_id;
 
 #[test]
 fn checked_progress_entry_retains_selected_syscall_binding_without_table_projection() {

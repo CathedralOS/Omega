@@ -13,7 +13,7 @@ use effects::provider_plan::ProviderBinding;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::float_semantics::RoundingDirection;
 use numerics::literals::{FloatFormat, FloatLiteral};
-use provider_planning::plans::{CompilerIntrinsicExecutionIdentity, CompilerNumericType};
+use provider_planning::{CompilerIntrinsicExecutionIdentity, CompilerNumericType};
 use std::sync::Arc;
 use symbols::BuiltinFunction;
 use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
@@ -689,22 +689,19 @@ fn selected_compiler_intrinsic_realization(
     let ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
         return Ok(None);
     };
-    if !provider_planning::plans::intrinsic_realization_matches_operator(typed, machine, operator) {
+    if !provider_planning::intrinsic_realization_matches_operator(typed, machine, operator) {
         return Err(Diagnostic::error(format!(
             "selected compiler-intrinsic ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact overload `{overload_identity}` as an external leaf",
             plan.name,
         )));
     }
-    provider_planning::plans::compiler_intrinsic_diagnostic_label(typed, operator)
-        .ok_or_else(|| {
+    provider_planning::compiler_intrinsic_diagnostic_label(typed, operator).ok_or_else(|| {
         Diagnostic::error(format!(
             "selected overload `{overload_identity}` has no compiler-known intrinsic realization",
         ))
     })?;
     if let Some(identity) =
-        provider_planning::plans::primitive_float_binary_intrinsic_execution_identity(
-            typed, operator,
-        )
+        provider_planning::primitive_float_binary_intrinsic_execution_identity(typed, operator)
     {
         return Ok(Some(
             SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(identity),
@@ -1138,7 +1135,7 @@ mod tests {
             .expect("resolve named-float dispatch fixture");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type named-float dispatch fixture");
-        let plans = provider_planning::plans::derive_satisfies_plans(&typed, None);
+        let plans = provider_planning::derive_satisfies_plans(&typed, None);
         let minimum_plan = plans
             .iter()
             .find(|plan| plan.schema.trait_name.contains("F32::minimum"))

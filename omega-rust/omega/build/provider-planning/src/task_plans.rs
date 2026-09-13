@@ -2669,10 +2669,11 @@ mod tests {
             syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
-        let provider_plans = crate::plans::derive_satisfies_plans(&typed, None);
+        let provider_plans = crate::provider_planning::derive_satisfies_plans(&typed, None);
         assert_eq!(provider_plans.len(), 1);
         assert!(
-            crate::plans::validate_provider_plan_candidates(&typed, &provider_plans,).is_empty()
+            crate::provider_planning::validate_provider_plan_candidates(&typed, &provider_plans,)
+                .is_empty()
         );
         let selected = effects::SelectedProviderPlanFacts::from_selection(
             &provider_plans,

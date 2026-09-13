@@ -5,7 +5,7 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 use numerics::literals::FloatFormat;
-use provider_planning::plans::{
+use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation,
 };
 use semantic_vocabulary::IeeeFloatComparisonOperation;

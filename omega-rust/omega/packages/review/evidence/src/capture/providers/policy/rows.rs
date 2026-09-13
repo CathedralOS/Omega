@@ -8,7 +8,7 @@ use crate::capture::semantics::declarations::{
 use crate::record::PackagePolicyProviderRow;
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
-use provider_planning::plans::{ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
+use provider_planning::{ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
 use symbols::SymbolHandle;
 use target::TargetProfile;
 

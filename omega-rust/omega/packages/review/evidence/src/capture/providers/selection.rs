@@ -60,8 +60,8 @@ pub(crate) fn selected_provider_row_source(
         }
 
         match &retained.selected_by {
-            provider_planning::plans::ProviderSelectionProvenance::BuildOverride(declarations)
-            | provider_planning::plans::ProviderSelectionProvenance::TargetDefault(declarations) => {
+            provider_planning::ProviderSelectionProvenance::BuildOverride(declarations)
+            | provider_planning::ProviderSelectionProvenance::TargetDefault(declarations) => {
                 for declaration in declarations {
                     locations.push(canonical_source_span_location(
                         compilation,
@@ -70,7 +70,7 @@ pub(crate) fn selected_provider_row_source(
                     )?);
                 }
             }
-            provider_planning::plans::ProviderSelectionProvenance::UniqueCoveringCandidate => {
+            provider_planning::ProviderSelectionProvenance::UniqueCoveringCandidate => {
                 compiler_derivations
                     .push(PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection);
             }
