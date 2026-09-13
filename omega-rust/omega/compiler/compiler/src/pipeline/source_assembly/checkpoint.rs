@@ -176,6 +176,22 @@ impl ImmutableSourceParseCheckpoint {
             package_inputs,
             timings,
         )?;
+        if let Some(seed) =
+            super::hosted_entry_contract_seed(target_name, package_inputs, &source_storage)
+        {
+            source_storage.register_toolchain_contract_root(seed.source.clone(), seed.root.clone());
+            if seed.closed_subtree {
+                source_storage.register_toolchain_contract_dir(seed.root);
+            }
+            imports.seed(seed.source);
+            load_pending_imports(
+                &mut source_storage,
+                &mut imports,
+                &self.root_path,
+                package_inputs,
+                timings,
+            )?;
+        }
         let mut source_scoped_top_level_bindings = inject_build_prelude(
             &mut source_storage,
             self.build_source_id,
@@ -254,7 +270,9 @@ fn load_target_independent_imports(
     while imports.has_pending() {
         let frontier = imports.take_frontier();
         let frontier = match package_inputs {
-            Some(package_inputs) => validate_package_source_frontier(frontier, package_inputs)?,
+            Some(package_inputs) => {
+                validate_package_source_frontier(frontier, package_inputs, source_storage)?
+            }
             None => frontier,
         };
         let first_source_id = source_storage.next_source_id();
@@ -265,6 +283,7 @@ fn load_target_independent_imports(
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
             parse_sources(lexed, &mut source_storage.syntax_trees)
         })?;
+        let contract_custody = source_storage.toolchain_contract_custody();
         let discovered = match package_inputs {
             Some(package_inputs) => {
                 let (discovered, mut requests) = discover_package_imports(
@@ -273,6 +292,7 @@ fn load_target_independent_imports(
                     package_inputs,
                     PackageImportPhase::TargetIndependent,
                     &mut source_storage.resolved_imports,
+                    &contract_custody,
                 )?;
                 retained_requests.append(&mut requests);
                 discovered

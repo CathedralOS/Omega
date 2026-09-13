@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::pipeline::PackageCompilationInputs;
-use crate::pipeline::source::SourceStorage;
+use crate::pipeline::source::{SourceStorage, ToolchainContractCustody};
 use crate::{lexer, parser};
 use arena::{Arena, HandleSpan};
 use diagnostics::Diagnostic;
@@ -273,6 +273,13 @@ fn standalone_source_root(default_root: &Path, source: &Path) -> PathBuf {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ReconciledPackageImport {
     Toolchain(PathBuf),
+    /// An import authored inside a closed toolchain contract source. It owns
+    /// no package identity, so its path closes inside the registered contract
+    /// root rather than selecting reconciled package content.
+    ToolchainContract {
+        root: PathBuf,
+        path: PathBuf,
+    },
     Package(ReconciledPackageImportRequest),
 }
 
@@ -361,6 +368,7 @@ pub(super) fn reconciled_package_import(
     requesting_source: &Path,
     members: &[Identifier],
     requester: Option<semantic_vocabulary::PackageKeyIdentity>,
+    contract_root: Option<&Path>,
     packages: &PackageCompilationInputs,
 ) -> Result<ReconciledPackageImport, Vec<Diagnostic>> {
     let Some(first) = members.first() else {
@@ -381,6 +389,20 @@ pub(super) fn reconciled_package_import(
         ))]);
     }
     let Some(requester) = requester else {
+        // A toolchain contract source owns no package identity; its authored
+        // imports close inside the registered contract root and keep toolchain
+        // custody rather than selecting reconciled package content.
+        if let Some(contract_root) = contract_root {
+            return resolve_reconciled_import(
+                contract_root.to_path_buf(),
+                members,
+                "toolchain contract",
+            )
+            .map(|path| ReconciledPackageImport::ToolchainContract {
+                root: contract_root.to_path_buf(),
+                path,
+            });
+        }
         return Err(vec![Diagnostic::error(format!(
             "cannot establish the reconciled package identity for import in {}",
             requesting_source.display()
@@ -435,6 +457,7 @@ pub(super) fn discover_imports_with_packages(
     packages: &PackageCompilationInputs,
     generated_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     retained: &mut Vec<ResolvedSourceImport>,
+    contract_custody: &ToolchainContractCustody,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
     let (imports, _) = discover_package_imports(
         parsed,
@@ -442,6 +465,7 @@ pub(super) fn discover_imports_with_packages(
         packages,
         PackageImportPhase::ExactTarget(generated_owner),
         retained,
+        contract_custody,
     )?;
     Ok(imports)
 }
@@ -458,6 +482,7 @@ pub(super) fn discover_package_imports(
     packages: &PackageCompilationInputs,
     phase: PackageImportPhase,
     retained: &mut Vec<ResolvedSourceImport>,
+    contract_custody: &ToolchainContractCustody,
 ) -> Result<(Vec<PathBuf>, Vec<PendingPackageImport>), Vec<Diagnostic>> {
     let generated_owner = match phase {
         PackageImportPhase::TargetIndependent => None,
@@ -470,12 +495,19 @@ pub(super) fn discover_package_imports(
         // package association; their virtual paths need no filesystem lookup.
         let requester =
             generated_owner.or_else(|| packages.package_for_source(&parsed_source.path));
+        let contract_root = contract_custody.root_for(&parsed_source.path);
         for (ordinal, root_item) in parsed_source.root_items.iter().enumerate() {
             let Item::Use(use_item) = syntax_trees.root_item(*root_item) else {
                 continue;
             };
             let members = syntax_trees.items.identifier_path_members(use_item.path);
-            match reconciled_package_import(&parsed_source.path, members, requester, packages)? {
+            match reconciled_package_import(
+                &parsed_source.path,
+                members,
+                requester,
+                contract_root,
+                packages,
+            )? {
                 ReconciledPackageImport::Toolchain(path) => {
                     retained.push(ResolvedSourceImport {
                         occurrence: ImportOccurrence::new(
@@ -489,6 +521,19 @@ pub(super) fn discover_package_imports(
                             &members[2..],
                             &path,
                         ),
+                        path: path.clone(),
+                    });
+                    imports.push(path);
+                }
+                ReconciledPackageImport::ToolchainContract { root, path } => {
+                    retained.push(ResolvedSourceImport {
+                        occurrence: ImportOccurrence::new(
+                            parsed_source.source_id,
+                            ordinal,
+                            members,
+                            0,
+                        ),
+                        requires_module: !direct_source_import(&root, members, &path),
                         path: path.clone(),
                     });
                     imports.push(path);

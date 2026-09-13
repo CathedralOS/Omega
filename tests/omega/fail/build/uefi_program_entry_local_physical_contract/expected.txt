@@ -1,1 +1,1 @@
-must come from exact toolchain package `omega::language::std::targets::uefi_x64::entry`
+require either the exact bundled UEFI contract or one accepted package-owned UEFI binding

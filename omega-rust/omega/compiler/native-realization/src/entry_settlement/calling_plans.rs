@@ -44,6 +44,9 @@ pub(crate) fn validate_paired_calling_plans(
         target::ProgramEntryCallingConvention::MicrosoftX64 => {
             calling_conventions::CallingPolicy::MicrosoftX64
         }
+        target::ProgramEntryCallingConvention::Aapcs64 => {
+            calling_conventions::CallingPolicy::Aapcs64
+        }
     };
     if semantic_plan.plan().call.policy != expected_policy(expected_semantic)
         || physical_plan.plan().call.policy != expected_policy(expected_physical)
@@ -51,25 +54,44 @@ pub(crate) fn validate_paired_calling_plans(
         return Err("selected ProgramEntry calling policies drifted from their target slot".into());
     }
 
-    // The current freestanding bridge forwards these two roots to source.
-    // Hosted entry needs its own explicit adapter mapping; two internal storage
-    // inputs must never be treated as zero source-visible inputs by omission.
-    if semantic_method.parameter_type_identities
-        != source
-            .visible_parameters()
-            .iter()
-            .map(|parameter| parameter.normalized_type_identity().to_owned())
-            .collect::<Vec<_>>()
-        || !semantic_plan
-            .plan()
-            .call
-            .parameters
-            .iter()
-            .map(|placement| placement.shape)
-            .eq(source
-                .visible_parameters()
-                .iter()
-                .map(|parameter| parameter.value_shape()))
+    // The freestanding bridge forwards its two roots to source. Hosted entry
+    // instead provisions two bridge-internal Extent roots under its own
+    // adapter: the source signature retains zero visible parameters while the
+    // semantic requirement retains exactly two Extent inputs. Internal roots
+    // must never be treated as zero source-visible inputs by omission.
+    let semantic_shapes = semantic_plan
+        .plan()
+        .call
+        .parameters
+        .iter()
+        .map(|placement| placement.shape)
+        .collect::<Vec<_>>();
+    let semantic_source_pairing = match slot.schema {
+        target::ProgramEntrySchema::ProgramStorageApplication => {
+            semantic_method.parameter_type_identities
+                == source
+                    .visible_parameters()
+                    .iter()
+                    .map(|parameter| parameter.normalized_type_identity().to_owned())
+                    .collect::<Vec<_>>()
+                && semantic_shapes
+                    == source
+                        .visible_parameters()
+                        .iter()
+                        .map(|parameter| parameter.value_shape())
+                        .collect::<Vec<_>>()
+        }
+        target::ProgramEntrySchema::HostedApplication => {
+            source.visible_parameters().is_empty()
+                && semantic_method.parameter_type_identities.len() == 2
+                && semantic_method
+                    .parameter_type_identities
+                    .iter()
+                    .all(|identity| identity == &semantic_method.parameter_type_identities[0])
+                && semantic_shapes == [calling_conventions::ValueShape::integer(16, 8); 2]
+        }
+    };
+    if !semantic_source_pairing
         || semantic_method.has_result
         || semantic_method.result_type_identity.is_some()
         || semantic_plan.plan().call.result.is_some()

@@ -7,7 +7,9 @@
 use calling_conventions::BoundaryEntryPlan;
 use sha2::{Digest, Sha256};
 
+mod exact_macos;
 mod exact_uefi;
+pub use exact_macos::*;
 pub use exact_uefi::*;
 
 /// Domain-separated commitment to the exact source bytes of one closed
@@ -57,8 +59,11 @@ pub struct ProgramEntryPhysicalContractPlan {
     result_type_identity: String,
     calling_plan_report_fingerprint: u64,
     boundary_entry_plan: BoundaryEntryPlan,
-    guaranteed_entry_stack_application: target::SymbolicTargetObservationApplication,
-    guaranteed_entry_stack: target::TargetEntryStackGuarantee,
+    /// Numeric entry-stack closure only where the target contract supplies
+    /// one. The authored macOS contract deliberately declares no stack
+    /// guarantee: `EntryStack::ProviderSelected` there requires independent
+    /// backing, not a replayed toolchain number.
+    guaranteed_entry_stack: Option<target::TargetEntryStackGuarantee>,
 }
 
 impl ProgramEntryPhysicalContractPlan {
@@ -76,51 +81,76 @@ impl ProgramEntryPhysicalContractPlan {
         let Some(physical_requirement) = target_slot.physical_arrival_requirement else {
             return Err("program-entry physical contract has no target-fixed requirement".into());
         };
-        if target_slot.owner != target::TargetProfile::UefiX64
-            || physical_requirement != "UefiPhysicalEntry::enter"
+        if target_slot != target_slot.owner.program_entry_slot()
+            || physical_requirement.is_empty()
             || target_slot.physical_contract_package != Some(target_package)
             || target_package_source_digest.package() != target_package
-            || target_slot.physical_calling_convention
-                != Some(target::ProgramEntryCallingConvention::MicrosoftX64)
         {
             return Err(
-                "physical entry contract is restricted to the exact UEFI x86-64 target declaration"
-                    .into(),
+                "physical entry contract drifted from its exact target slot declaration".into(),
             );
         }
+        // The contract shape is fixed by the target-owned physical package,
+        // never inferred from parameter count. macOS ARM64 publishes the
+        // four-register dyld arrival under AAPCS64 and deliberately retains
+        // no numeric stack guarantee; UEFI x86-64 publishes the two-input
+        // Microsoft-x64 arrival with its exact closed stack evidence.
+        let (expected_policy, parameter_count, guaranteed_entry_stack) = match (
+            target_slot.owner,
+            target_slot.physical_calling_convention,
+        ) {
+            (
+                target::TargetProfile::UefiX64,
+                Some(target::ProgramEntryCallingConvention::MicrosoftX64),
+            ) => {
+                let application = target::TargetSemantics::guaranteed_entry_stack::<
+                    target::UefiX86_64,
+                >(target_slot.owner)
+                .map_err(|error| error.to_string())?;
+                let guarantee = target::TargetSemantics::close_guaranteed_entry_stack::<
+                    target::UefiX86_64,
+                >(target_slot.owner)
+                .map_err(|error| error.to_string())?;
+                if guarantee.application() != &application {
+                    return Err(
+                        "physical UEFI entry contract target-stack application and numeric closure drifted"
+                            .into(),
+                    );
+                }
+                (
+                    calling_conventions::CallingPolicy::MicrosoftX64,
+                    2,
+                    Some(guarantee),
+                )
+            }
+            (
+                target::TargetProfile::MacosArm64,
+                Some(target::ProgramEntryCallingConvention::Aapcs64),
+            ) => (calling_conventions::CallingPolicy::Aapcs64, 4, None),
+            _ => {
+                return Err(
+                    "physical entry contract requires a target declaration with an authored physical calling convention"
+                        .into(),
+                );
+            }
+        };
         if requirement_identity.is_empty()
-            || parameter_type_identities.len() != 2
+            || parameter_type_identities.len() != parameter_count
             || parameter_type_identities.iter().any(String::is_empty)
             || result_type_identity.is_empty()
             || calling_plan_report_fingerprint == 0
         {
-            return Err(
-                "physical UEFI entry contract lost its exact two parameters, result, or calling-plan identity"
-                    .into(),
-            );
+            return Err(format!(
+                "physical {physical_requirement} entry contract lost its exact {parameter_count} parameters, result, or calling-plan identity"
+            ));
         }
-        if boundary_entry_plan.call.policy != calling_conventions::CallingPolicy::MicrosoftX64
-            || boundary_entry_plan.call.parameters.len() != 2
+        if boundary_entry_plan.call.policy != expected_policy
+            || boundary_entry_plan.call.parameters.len() != parameter_count
             || boundary_entry_plan.call.result.is_none()
         {
-            return Err(
-                "physical UEFI entry contract does not realize two Microsoft-x64 inputs and one result"
-                    .into(),
-            );
-        }
-        let guaranteed_entry_stack_application = target::TargetSemantics::guaranteed_entry_stack::<
-            target::UefiX86_64,
-        >(target_slot.owner)
-        .map_err(|error| error.to_string())?;
-        let guaranteed_entry_stack = target::TargetSemantics::close_guaranteed_entry_stack::<
-            target::UefiX86_64,
-        >(target_slot.owner)
-        .map_err(|error| error.to_string())?;
-        if guaranteed_entry_stack.application() != &guaranteed_entry_stack_application {
-            return Err(
-                "physical UEFI entry contract target-stack application and numeric closure drifted"
-                    .into(),
-            );
+            return Err(format!(
+                "physical {physical_requirement} entry contract does not realize {parameter_count} {expected_policy:?} inputs and one result"
+            ));
         }
         Ok(Self {
             target_slot,
@@ -132,7 +162,6 @@ impl ProgramEntryPhysicalContractPlan {
             result_type_identity,
             calling_plan_report_fingerprint,
             boundary_entry_plan,
-            guaranteed_entry_stack_application,
             guaranteed_entry_stack,
         })
     }
@@ -188,19 +217,24 @@ impl ProgramEntryPhysicalContractPlan {
     }
 
     /// Exact symbolic target-observation application retained as part of the
-    /// physical contract's compatibility evidence. It carries no byte value,
-    /// runtime stack observation, or address authority.
+    /// physical contract's compatibility evidence where the target closes one.
+    /// It carries no byte value, runtime stack observation, or address
+    /// authority.
     pub const fn guaranteed_entry_stack_application(
         &self,
-    ) -> &target::SymbolicTargetObservationApplication {
-        &self.guaranteed_entry_stack_application
+    ) -> Option<&target::SymbolicTargetObservationApplication> {
+        match &self.guaranteed_entry_stack {
+            Some(guarantee) => Some(guarantee.application()),
+            None => None,
+        }
     }
 
     /// Exact numeric target-contract closure of the symbolic entry-stack
-    /// observation. Runtime firmware conformance remains a separate arrival
-    /// admission.
-    pub const fn guaranteed_entry_stack(&self) -> &target::TargetEntryStackGuarantee {
-        &self.guaranteed_entry_stack
+    /// observation. Runtime conformance remains a separate arrival admission,
+    /// and a target whose authored contract declares no numeric guarantee
+    /// retains `None` rather than an invented bound.
+    pub const fn guaranteed_entry_stack(&self) -> Option<&target::TargetEntryStackGuarantee> {
+        self.guaranteed_entry_stack.as_ref()
     }
 }
 

@@ -132,8 +132,9 @@ use replay_eligibility::{
 
 pub use selection::{
     SelectedCompilerProgramEntry, SelectedProgramEntry, SelectedProgramEntryCallingPlans,
-    select_compiler_program_entry, selected_program_entry_machine,
-    validate_selected_program_entry_calling_plan, validate_selected_program_entry_shape,
+    program_entry_semantic_binding_role, select_compiler_program_entry,
+    selected_program_entry_machine, validate_selected_program_entry_calling_plan,
+    validate_selected_program_entry_shape,
 };
 
 pub use selection::root_bindings::RootBinding;

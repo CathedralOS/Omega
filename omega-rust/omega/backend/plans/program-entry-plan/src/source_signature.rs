@@ -580,6 +580,7 @@ fn push_optional_calling_convention(
     canonical.push(match value {
         None => 0,
         Some(target::ProgramEntryCallingConvention::MicrosoftX64) => 1,
+        Some(target::ProgramEntryCallingConvention::Aapcs64) => 2,
     });
 }
 

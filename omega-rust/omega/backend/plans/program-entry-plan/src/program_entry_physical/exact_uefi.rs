@@ -105,6 +105,9 @@ impl ProgramEntryPhysicalContractPlan {
     /// compiler fixtures; runtime custody must use this exact verdict.
     pub fn matches_exact_uefi_x64_physical_contract(&self) -> bool {
         let expected = exact_uefi_x64_physical_boundary_entry_plan();
+        let Some(guarantee) = &self.guaranteed_entry_stack else {
+            return false;
+        };
         self.target_slot == target::TargetProfile::UefiX64.program_entry_slot()
             && self.target_package == target::ProgramEntryPhysicalContractPackage::UefiX64
             && self.target_package_source_digest
@@ -116,13 +119,10 @@ impl ProgramEntryPhysicalContractPlan {
             && self.result_type_identity == UEFI_X64_STATUS_TYPE_IDENTITY
             && self.calling_plan_report_fingerprint == expected.contract_report_fingerprint()
             && &self.boundary_entry_plan == expected.plan()
-            && self
-                .guaranteed_entry_stack_application
+            && guarantee
+                .application()
                 .matches_exact_uefi_x64_entry_stack_application()
-            && self
-                .guaranteed_entry_stack
-                .matches_exact_uefi_x64_entry_stack_guarantee()
-            && self.guaranteed_entry_stack.application() == &self.guaranteed_entry_stack_application
+            && guarantee.matches_exact_uefi_x64_entry_stack_guarantee()
     }
 }
 
@@ -155,32 +155,21 @@ mod tests {
     fn exact_runtime_contract_replays_all_owned_fields() {
         let exact = exact_contract();
         assert!(exact.matches_exact_uefi_x64_physical_contract());
+        let application = exact
+            .guaranteed_entry_stack_application()
+            .expect("exact UEFI contract retains stack evidence");
+        let guarantee = exact
+            .guaranteed_entry_stack()
+            .expect("exact UEFI contract retains its numeric stack closure");
         assert_eq!(
-            exact
-                .guaranteed_entry_stack_application()
-                .selected_profile(),
+            application.selected_profile(),
             target::TargetProfile::UefiX64,
         );
-        assert_eq!(
-            exact.guaranteed_entry_stack_application().subject(),
-            "UefiX86_64",
-        );
-        assert_ne!(
-            exact
-                .guaranteed_entry_stack_application()
-                .compatibility_commitment(),
-            &[0; 32],
-        );
-        assert_eq!(
-            exact.guaranteed_entry_stack().guaranteed_available_bytes(),
-            128 * 1024,
-        );
-        assert_eq!(exact.guaranteed_entry_stack().required_alignment(), 16);
-        assert!(
-            exact
-                .guaranteed_entry_stack()
-                .matches_exact_uefi_x64_entry_stack_guarantee()
-        );
+        assert_eq!(application.subject(), "UefiX86_64",);
+        assert_ne!(application.compatibility_commitment(), &[0; 32],);
+        assert_eq!(guarantee.guaranteed_available_bytes(), 128 * 1024,);
+        assert_eq!(guarantee.required_alignment(), 16);
+        assert!(guarantee.matches_exact_uefi_x64_entry_stack_guarantee());
 
         let mut requirement_drift = exact.clone();
         requirement_drift.requirement_identity =

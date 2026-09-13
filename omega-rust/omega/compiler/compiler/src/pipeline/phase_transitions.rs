@@ -54,7 +54,7 @@ pub(super) struct SelectedExecutionSettlementInput<'a> {
         Option<&'a package_compilation::AcceptedSemanticBinding>,
     pub(super) accepted_filesystem_binding:
         Option<&'a package_compilation::AcceptedSemanticBinding>,
-    pub(super) accepted_uefi_binding: Option<&'a package_compilation::AcceptedSemanticBinding>,
+    pub(super) accepted_entry_binding: Option<&'a package_compilation::AcceptedSemanticBinding>,
 }
 
 /// Final typed settlements that must finish inside the phase transition that
@@ -310,18 +310,20 @@ pub(super) fn settle_selected_execution(
         })
         .transpose()
         .map_err(|diagnostic| vec![diagnostic])?;
-    let resolved_uefi_binding = match (
-        settlement.accepted_uefi_binding,
-        settlement.selected_target_profile,
-    ) {
+    let expected_entry_role = settlement
+        .selected_target_profile
+        .map(|profile| profile.program_entry_slot())
+        .and_then(|slot| slot.physical_contract_package)
+        .map(crate::pipeline::build_config::program_entry_semantic_binding_role);
+    let resolved_entry_binding = match (settlement.accepted_entry_binding, expected_entry_role) {
         (None, _) => None,
-        (Some(binding), Some(target::TargetProfile::UefiX64)) => Some(
+        (Some(binding), Some(role)) if binding.role() == role => Some(
             selected_dispatch::resolve_accepted_service_binding(&checked.program, binding)
                 .map_err(|diagnostic| vec![diagnostic])?,
         ),
         (Some(binding), _) => {
             return Err(vec![Diagnostic::error(format!(
-                "accepted semantic binding {:?} was not consumed by the UEFI x86-64 target",
+                "accepted semantic binding {:?} was not consumed by the selected target's program-entry contract",
                 binding.role(),
             ))]);
         }
@@ -349,7 +351,7 @@ pub(super) fn settle_selected_execution(
         resolved_semantic_bindings: resolved_exit_bindings
             .into_iter()
             .chain(resolved_filesystem_binding)
-            .chain(resolved_uefi_binding)
+            .chain(resolved_entry_binding)
             .collect(),
         component_progress,
         task_activations,

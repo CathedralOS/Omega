@@ -5813,6 +5813,148 @@ machine Boot::launch(
 }
 
 #[test]
+fn accepted_package_macos_binding_selects_exact_ordinary_schema() {
+    let tree = TempTree::new();
+    let root = tree.package("macos-application");
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("repository root");
+    let standard_library = repository.join("source/library/std");
+    let root_package = identity(55);
+    let standard_library_package = identity(56);
+    TempTree::write(
+        root.join("main.omg"),
+        // Import only the contract submodule: the `targets::macos_arm64`
+        // definition also loads `filesystem_impl`, which declares target
+        // `FilesystemHost` implementations outside this entry-only custody.
+        r#"use ordinary_std::targets::macos_arm64::entry;
+
+data Boot { launch_count: u64; }
+machine Boot::launch(&mut self) {
+    transition { _ -> retain() }
+    state retain(&mut self) {
+        transition { _ -> retain() }
+    }
+}
+"#,
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("macos-application");
+    builder.roots.bind(macos_arm64::ProgramEntry, Boot::launch);
+}
+"#,
+    );
+    let base_inputs = || {
+        PackageCompilationInputs::new(
+            root_package,
+            BuildDeclarationKind::Application,
+            vec![
+                PackageSourceBinding::new(root_package, "macos-application", root.clone()),
+                PackageSourceBinding::new(
+                    standard_library_package,
+                    "ordinary-std",
+                    standard_library.clone(),
+                ),
+            ],
+            vec![PackageDependencyBinding::new(
+                root_package,
+                "ordinary_std",
+                standard_library_package,
+            )],
+        )
+        .expect("ordinary application and std dependency graph")
+    };
+
+    let candidate = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(base_inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("semantic-only compilation can derive the exact macOS schema candidate");
+    let binding = candidate
+        .candidate_service_binding(
+            AcceptedSemanticBindingRole::MacosArm64ProgramEntry,
+            standard_library_package,
+            "MacosApplication",
+        )
+        .expect("compiler should derive exact package-owned macOS coordinates");
+
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(base_inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("macos_arm64"))
+    })
+    .expect_err("ordinary macOS source requires exact consumer acceptance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("accepted package-owned macOS ARM64 binding")),
+        "unexpected missing-binding diagnostics: {diagnostics:#?}",
+    );
+
+    let stale = AcceptedSemanticBinding::new_service(
+        AcceptedSemanticBindingRole::MacosArm64ProgramEntry,
+        standard_library_package,
+        binding.declaration_path(),
+        effects::provider_plan::ServiceSchemaDigest::from_digest([95; 32]),
+    )
+    .expect("stale row remains structurally valid input");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![stale])
+                .expect("stale binding still names a package in the closure"),
+        ),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("macos_arm64"))
+    })
+    .expect_err("stale macOS schema identity must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not match the exact accepted")),
+        "unexpected stale-binding diagnostics: {diagnostics:#?}",
+    );
+
+    let accepted = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![binding.clone()])
+                .expect("exact macOS binding names the ordinary dependency"),
+        ),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("macos_arm64"))
+    })
+    .expect("exact ordinary-package macOS schema should settle");
+    assert_eq!(
+        accepted
+            .resolved_semantic_binding(AcceptedSemanticBindingRole::MacosArm64ProgramEntry)
+            .expect("exact macOS binding was consumed")
+            .accepted(),
+        &binding,
+    );
+    let physical_contract = accepted
+        .selected_program_entry()
+        .and_then(|entry| entry.calling_plans())
+        .and_then(|plans| plans.storage_entry.physical_contract())
+        .expect("accepted macOS binding must retain the target-fixed physical contract");
+    assert!(
+        physical_contract.matches_exact_macos_arm64_physical_contract(),
+        "package custody must replay the exact dyld arrival contract",
+    );
+    let macos_source = accepted
+        .typed
+        .symbols
+        .source_files()
+        .find(|source| source.path.ends_with("targets/macos_arm64/entry.omg"))
+        .expect("ordinary macOS package source remains loaded");
+    assert_eq!(macos_source.origin, source::SourceOrigin::User);
+    assert_eq!(
+        macos_source.package_identity,
+        Some(standard_library_package),
+    );
+}
+
+#[test]
 fn free_process_exit_helper_lowers_without_a_synthetic_attachment() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
