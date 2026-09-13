@@ -767,6 +767,39 @@ fn constrained_primitive_operator_is_not_preclassified_as_intrinsic() {
 }
 
 #[test]
+fn unrelated_nominal_operator_does_not_capture_primitive_comparison() {
+    let source = r#"
+        data Quantity { value: i32; }
+        domain Quantity::Ordered;
+        operator < Quantity::Ordered::less(left: Quantity, right: Quantity) -> bool;
+        machine bounded(value: u64) -> bool { value < 256 }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let comparison = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            matches!(node, typed_trees::expression::ExpressionNode::Binary(binary)
+            if binary.operator == typed_trees::expression::BinaryOperator::Less)
+            .then_some(handle)
+        })
+        .expect("primitive comparison");
+    assert!(
+        crate::authored_selections::typed_operator_authored_selection_candidates(
+            &typed, comparison
+        )
+        .is_empty()
+    );
+    assert!(
+        crate::authored_selections::typed_operator_has_no_authored_selection(&typed, comparison),
+        "an unrelated same-spelled nominal operator cannot acquire a primitive occurrence"
+    );
+}
+
+#[test]
 fn successful_checking_finalizes_inferred_field_members_and_primitive_operators() {
     let source = r#"
         data Build { freestanding: bool; }
