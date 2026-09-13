@@ -72,6 +72,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   while completing checkout-local review; restoring it still makes the outer
   native command exit 200 before compilation. No native acceptance is established.
 
+  Do not resume from the application's historical missing-Unit-plan diagnosis.
+  At `76478cbd6e`, a targetless compiler-library probe of unchanged app `7a272a896c85`
+  and its complete reachable package graph, using std's exact pinned source tree
+  `f299035391e73299c6cad3918ada57cb144fb1cc`, retains the composed `Main::main`
+  plan and all geometry helper bodies. `compile_to_checked` followed by
+  `TerminalProductionRequest::new(&checked, "Main::main").produce_artifact()`
+  succeeds on macOS ARM64. This bypasses neither approval nor native admission:
+  the probe supplied source bindings only, selected no target, and did not execute
+  the app. Complete the explicit review and source publication above, then rerun
+  the real native command before assigning another lowering repair. Once geometry
+  executes, alternate the port's supplied-byte scan work with the concrete compiler
+  gaps that it exposes; Terminal publication alone does not close that milestone.
+
   Bridge owners: **ENTRY-CONTENT-ROOTS** and
   **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION**, owned by
   `native-realization/src/native_realization.rs`, `program-entry-plan`
