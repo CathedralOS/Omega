@@ -15,11 +15,17 @@ cross-rung test owner.
 There is deliberately no wrapper that relabels that one command as a complete
 chain run or prints ceremonial status for compiler edges that do not exist.
 
+`tools/bootstrap/alpha/seed_env.sh` binds the exact size and SHA-256 of the
+selected audited Alpha container from the `bootstrap/0_alpha/README.md`
+retention inventory; `stamp_seed` refuses to carry any other bytes.
 `tools/bootstrap/beta/artifact_env.sh` binds the exact size and SHA-256 of
 `beta_compiler.beta` and `beta_compiler_bytecode.tape` and refuses to
-materialize any other bytes. The identities are those audited in
-`bootstrap/1_beta/AUDIT.md` and decoded by `tests/beta/compiler/root-audit.py`,
-and a digest match is an identity check, not a proof.
+materialize any other bytes; those identities are those audited in
+`bootstrap/1_beta/AUDIT.md` and decoded by `tests/beta/compiler/root-audit.py`.
+`tools/bootstrap/gamma/evaluator_env.sh` binds `gamma_evaluator.beta` and
+`gamma_evaluator_bytecode.tape` the same way against
+`bootstrap/2_gamma/EVALUATOR_PROFILE.md`. A digest match is an identity check,
+not a proof.
 
 `check-chain-hygiene.sh` is the single repository-topology gate. It positively
 enumerates the implemented compiler source/tape identities, inventories every

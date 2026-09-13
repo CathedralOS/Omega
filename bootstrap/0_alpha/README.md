@@ -102,10 +102,10 @@ edge to the Gamma evaluator.
 The selected native container identities are SHA-256 commitments to the exact
 repository bytes, separate from their realization/conformance obligations:
 
-| Container | SHA-256 |
-| --- | --- |
-| `alpha_arm64_macos` | `348bc9601a9f44d4afa98febd7292f77d016b3c1060e20b15768dc23e4061082` |
-| `alpha_x64_windows.exe` | `bc71f8bee48cbd4c70c533e57b5dfcd04e04199ac3cf055cbed8e76ad6fb1c40` |
+| Container | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `alpha_arm64_macos` | 16,942,384 | `348bc9601a9f44d4afa98febd7292f77d016b3c1060e20b15768dc23e4061082` |
+| `alpha_x64_windows.exe` | 16,782,336 | `bc71f8bee48cbd4c70c533e57b5dfcd04e04199ac3cf055cbed8e76ad6fb1c40` |
 
 | Retained files | Direct role | Deletion condition |
 | --- | --- | --- |

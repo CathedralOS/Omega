@@ -377,12 +377,14 @@ prerequisite to every lower-rung milestone.
   certificate, and disclosed admission. Acceptance: a reviewer can follow
   every dependency back to the audited root without treating a digest,
   successful execution, or producer assertion as a proof.
-  Bound so far: the Alpha-to-Beta edge source/tape identity in
-  `tools/bootstrap/beta/artifact_env.sh`, checked by
-  `tests/bootstrap/beta-identity.sh` (Linux x86-64 stamps without executing;
-  seed execution needs macOS arm64 or Windows x64). Next: bind the selected
-  Alpha seed container identity and the Gamma evaluator tape the same way,
-  then the Delta/Epsilon manifests' digests.
+  Bound so far: the audited Alpha seed container identity in
+  `tools/bootstrap/alpha/seed_env.sh` (every stamp refuses a non-audited
+  container), the Alpha-to-Beta edge source/tape identity in
+  `tools/bootstrap/beta/artifact_env.sh`, and the selected Gamma evaluator
+  source/tape identity in `tools/bootstrap/gamma/evaluator_env.sh`; checked by
+  `tests/bootstrap/{alpha,beta,gamma}-identity.sh` (stamps without executing;
+  seed execution needs macOS arm64 or Windows x64). Next: bind the
+  Delta/Epsilon manifests' digests the same way.
 
 - **OFFLINE-REBUILD.** Close `tests/bootstrap/` reconstruction across all
   completed edges. Acceptance: a blank supported host reconstructs and checks
