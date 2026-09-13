@@ -9,6 +9,7 @@ name = "proof_admission"
 path = "src/lib.rs"
 
 [dependencies]
+arena = { path = "../../foundation/arena" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 numerics = { path = "../../foundation/numerics" }

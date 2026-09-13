@@ -5,6 +5,9 @@
 //! site and installation-profile decision. Executable terminal-Psi lowering
 //! reconstructs obligations; a proof bundle cannot choose their class. This
 //! crate is distinct from the Gamma-written bootstrap derivation checker.
+//! The crate also owns the common mathematical core: the shared dependent
+//! term model and its independent checker for the reference predicative
+//! calculus with stratified relevant and strict universes.
 
 #![forbid(unsafe_code)]
 
@@ -15,6 +18,7 @@ mod integer_cast;
 mod integer_forbidden_root;
 mod integer_shift;
 mod kernel;
+mod mathematical_core;
 mod normalization;
 mod predicate_denotation;
 mod proof;
@@ -52,6 +56,10 @@ pub use integer_shift::{
     check_integer_shift_chain_witness,
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
+pub use mathematical_core::{
+    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Level, Sort, Term, TermArena, TermHandle,
+    check_type, convertible, infer_sort, infer_type, shift, substitute, weak_head_normalize,
+};
 pub use normalization::{
     NormalizationAcceptance, NormalizationCertificate, NormalizationError,
     NormalizationLawAcceptance, NormalizationLawCertificate, NormalizationLawObligation,
