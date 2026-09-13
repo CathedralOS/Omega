@@ -1,4 +1,4 @@
-//! Type-bound value expressions use the callable's ordinary value namespace.
+//! Type-bound value expressions use their declaration's ordinary value namespace.
 //! Type/domain names retain declaration lookup; index expressions must resolve
 //! lexical subjects before a later phase can establish that their value is static.
 
@@ -11,6 +11,65 @@ use symbol_resolved_trees::{
 use symbols::{SymbolHandle, SymbolTable};
 
 use crate::symbols::{expressions::assign_statement_expression_symbols, scope::MachineScope};
+
+/// A field's type can contain the same value expressions as a parameter's type.
+/// Resolve them after declaration and type identities exist, before typing can
+/// copy an unresolved call into a constant position. Data owns its generic and
+/// field names but has no machine activation: no state parameters or locals are
+/// in scope. Field references remain symbolic, not same-spelled global constants.
+pub(in crate::symbols) fn assign_data_type_value_expression_symbols(
+    program: &mut symbol_resolved_trees::SymbolResolvedTrees,
+    symbols: &SymbolTable,
+) {
+    let attached_machines = crate::symbols::scope::attached_machines(program);
+    let declarations = &mut program.tables.declarations;
+    for definition in program.roots.data_definitions.iter() {
+        let members = declarations.data_members.span_or_empty(definition.members);
+        let mut scope = MachineScope {
+            symbol: definition.symbol,
+            attached_machines: &attached_machines,
+            type_parameters: declarations
+                .data_type_parameters
+                .span_or_empty(definition.type_parameters),
+            attached_data: Some(&definition.name),
+            attached_data_symbol: definition.symbol,
+            inherited_data_members: Some(members),
+            owned_data: &[],
+            prior_statements: &[],
+            data_definitions: &program.roots.data_definitions,
+            data_members: &declarations.data_members,
+            data_payload_fields: &declarations.data_payload_fields,
+            type_constraints: &program.tables.types.constraints,
+        };
+        for member in members {
+            let fields = match member {
+                symbol_resolved_trees::data::DataMember::Field(field) => {
+                    scope.symbol = definition.symbol;
+                    std::slice::from_ref(field)
+                }
+                symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                    // Payload subjects shadow common fields and global names.
+                    // The symbol hierarchy retains the enclosing data owner.
+                    scope.symbol = variant.symbol;
+                    declarations
+                        .data_payload_fields
+                        .span_or_empty(variant.payload)
+                }
+            };
+            for field in fields {
+                assign_type_value_expression_symbols(
+                    symbols,
+                    &scope,
+                    &[],
+                    SymbolHandle::invalid(),
+                    &mut program.tables.bodies.expressions,
+                    &mut declarations.child_type_references,
+                    &field.type_reference,
+                );
+            }
+        }
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::symbols) fn assign_type_value_expression_symbols(

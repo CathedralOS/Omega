@@ -193,6 +193,11 @@ pub(super) fn child_or_attached_data_child_symbol_by_kinds(
     name: &str,
 ) -> SymbolHandle {
     let child = child_symbol_by_kinds(symbols, parent, kinds, name);
+    if !child.is_valid() && symbols.get(parent).kind == SymbolKind::Variant {
+        // A case payload has its own lexical fields, then inherits its data's
+        // common fields. Follow declaration identity, not the case's spelling.
+        return child_symbol_by_kinds(symbols, symbols.get(parent).parent, kinds, name);
+    }
     if child.is_valid() || symbols.get(parent).kind != SymbolKind::Machine {
         return child;
     }

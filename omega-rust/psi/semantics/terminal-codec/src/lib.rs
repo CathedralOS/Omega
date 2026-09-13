@@ -1425,7 +1425,7 @@ fn validate_operation_foundation(
                     declaration.id == local.structural_type).is_some_and(|declaration|
                         matches!(&declaration.shape, StructuralTypeShape::Record { fields }
                             if fields.iter().all(|field| !field.relevance.is_erased()
-                                && matches!(field.field_type, StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_)))
+                                && matches!(field.field_type, StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) | StructuralFieldType::BoundedInteger(_)))
                                 && fields.iter().any(|candidate| candidate.id == *field
                                     && candidate.field_type.scalar_type() == Some(result.scalar_type))));
                 if !matching

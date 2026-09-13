@@ -180,9 +180,15 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     // the authored callable requirement stored on that parameter. Its symbol
     // remains the signature identity until specialization substitutes a
     // concrete entry state.
+    // A case owns payload subjects, but callable binders belong to its data.
+    let generic_owner = if symbols.get(machine.symbol).kind == SymbolKind::Variant {
+        symbols.get(machine.symbol).parent
+    } else {
+        machine.symbol
+    };
     let machine_parameter = child_symbol_by_kinds(
         symbols,
-        machine.symbol,
+        generic_owner,
         &[SymbolKind::MachineParameter],
         target.as_str(),
     );
@@ -195,7 +201,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     // distinct target category here instead of confusing it with a machine.
     let proposition_parameter = child_symbol_by_kinds(
         symbols,
-        machine.symbol,
+        generic_owner,
         &[SymbolKind::PropositionParameter],
         target.as_str(),
     );
