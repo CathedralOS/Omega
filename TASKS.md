@@ -226,7 +226,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |
-  | `cli_mvp` native call contract | At `4465076234`, the macOS native sample probe gets through receiver eligibility and selected-provider installation, then fails abstract initial validation with `StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(1), node: 4 }`. Keep the canonical Bound Console, two writes and original 256-byte input buffer. Reconcile the call's structural arguments with the independently verified Terminal boundary contract; do not bypass validation. |
+  | `cli_mvp` native call contract | At `2dd3466a62`, the macOS native sample probe gets through receiver eligibility and selected-provider installation, then fails abstract initial validation with `StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(1), node: 4 }`. Keep the canonical Bound Console, two writes and original 256-byte input buffer. Reconcile the call's structural arguments with the independently verified Terminal boundary contract; do not bypass validation. |
   | `print_squares` closure | `58dd5c0482` retains the checked transitive Unit plan and shared byte-field presentation; the probe now stops at `OperationProofUnavailable` for field-state obligations (nonzero divisor, indexed bounds, increment overflow). Psi must let retained evidence name storage observations such as `IntegerField` within the documented invariant scope. **GENERAL-CYCLIC-EXECUTION** owns cyclic completion; **NOMINAL-FIELD-FLOW** owns declared field facts. |
   | Fixed-range Console input/output | Compose the selected source provider and real byte leaves with original receiver storage, exact returned cases/prefix, once-only effects, and cleanup. Use the ordinary graph and provider replay, not the deleted Unit/boundary planner. Windows byte I/O still needs imported-call/fixup/frame custody; Linux runtime evidence requires matching hosts. |
   | Receiver and aggregate operations | Finish shared/indexed projections, owned/local roots, scalar-result receiver calls, nested sum results and whole replacements, including mixed foreign-result assignments. Extend the shared statement sequencer; **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, and **CML4** own the corresponding joins. |
@@ -235,11 +235,11 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   `cli_mvp` resume: macOS ARM64, 2026-09-13, `RUST_MIN_STACK=67108864`,
   the filtered native sample command above reaches the abstract structural-call
-  contract check (16.207 seconds at `4465076234`, including entry/root integration).
+  contract check (16.279 seconds at `2dd3466a62`, including checking/entry/root integration).
   Selection now joins the source's normalized overload identity, and installation
   replays verified local byte views/projected loans instead of parameter-only
-  source shapes. Continue at `optimization-unit-semantics/src/unit_validation/
-  operation_contracts/service_calls.rs` and `structural_access.rs`, retaining
+  source shapes. Continue in `optimization-unit-semantics/src/unit_validation/operation_contracts/`,
+  at `service_calls.rs` and `structural_access.rs`, retaining
   exact argument, result, borrow and completion custody. This is a required
   correctness check before optimization, not a request for optimizer tuning.
   The debug CLI invoked with `--target macos_arm64 --build-dir
