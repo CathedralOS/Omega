@@ -17,17 +17,30 @@
 //   parameters: a boundary returning `Granted` custody from two consumed
 //   qualified inputs is rejected as ambiguous, and the checker's exact
 //   correspondence recognizes only a one-parameter identity, not `separate`.
-// - Field-level `in Granted` facts are read from parameters and from
-//   conservation equations, so each field is bound to an exactly typed local
-//   before it is used. A record returned by an ordinary machine does not carry
-//   its fields' qualification to the caller, which is why `exercise` is
-//   spelled directly over the boundary instead of chaining `allocate` and
-//   `reset`; that chaining is the next acceptance for this canary.
-// - Returning an allocation does not rewind the tail. A returned region stays
-//   a separate qualified value until reset, which consumes every returned
-//   region together with the tail and recomposes the original range. Because
-//   `Extent` is linear, a still-live allocation cannot be dropped to reach
-//   reset; a partial reset has no spelling.
+//   An ordinary machine faces no such limit: `reset` consumes `lower` and
+//   `upper` as two separate qualified parameters.
+// - A record returned by a call does not surface its fields' declared
+//   `in Granted` facts on the result's field places, so `issued.allocation`
+//   cannot fill an `in Granted` parameter directly. Each qualified field is
+//   restated through an exactly typed `let`
+//   (`let field: Extent in Granted = issued.allocation`), which re-reads
+//   the declared field domain; the same holds for `Split` fields returned
+//   by the boundary. The restated fields of one record then share their
+//   custody: once a restated sibling value is consumed onward — by a call
+//   or by a plain `let` transfer — the record's other restated facts are
+//   gone. `exercise` therefore binds `first_allocation` only after
+//   `first_tail` has been consumed, and consumes `second_allocation`
+//   together with `second_tail` in the `reset` call. A container chaining
+//   allocation must order custody this way or keep the family in one
+//   record consumed atomically.
+// - An ordinary machine cannot restate the boundary's `separate` law as
+//   its own `ensures`, so `allocate` and `reset` keep the exact
+//   conservation inside their bodies instead of publishing it.
+// - Returning an allocation does not rewind the tail. A returned region
+//   stays a separate qualified value until reset, which consumes every
+//   returned region together with the tail and recomposes the original
+//   range. Because `Extent` is linear, a still-live allocation cannot be
+//   dropped to reach reset; a partial reset has no spelling.
 use omega::language::core::extent;
 use omega::language::core::content;
 
@@ -103,8 +116,30 @@ reaches ExtentPartition
 }
 
 // Two coexisting allocations, cleanup of each, then reset to the whole range,
-// spelled directly over the partition boundary.
+// chained through the package machines `allocate` and `reset`. Each returned
+// record's qualified fields are restated through exactly typed locals in the
+// custody order described in the header.
 machine exercise(partition: &ExtentPartition, whole: Extent in Granted) -> Extent
+reaches ExtentPartition
+{
+    let issued_first: Issued = allocate(partition, Bump { tail: whole }, 16);
+    let first_tail: Extent in Granted = issued_first.strategy.tail;
+    let issued_second: Issued = allocate(partition, Bump { tail: first_tail }, 32);
+    let second_allocation: Extent in Granted = issued_second.allocation;
+    let second_tail: Extent in Granted = issued_second.strategy.tail;
+    let first_allocation: Extent in Granted = issued_first.allocation;
+    let restored: Bump = reset(
+        partition,
+        Bump { tail: second_tail },
+        first_allocation,
+        second_allocation,
+    );
+    restored.tail as Extent
+}
+
+// The same composition spelled directly over the partition boundary, kept as
+// the control surface for restating `Split` fields from a boundary result.
+machine exercise_boundary(partition: &ExtentPartition, whole: Extent in Granted) -> Extent
 reaches ExtentPartition
 {
     let first: Split = partition.split(whole, 16);
