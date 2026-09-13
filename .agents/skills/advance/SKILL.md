@@ -33,8 +33,13 @@ unrelated cleanup. Missing implementation, a red customer command, and cross-sta
 scope do not make a task unavailable. A paused helper strategy requires the
 AGENTS.md reassessment before resumption, not permanent exclusion of its customer.
 When passing over an eligible priority, name the real decision, prerequisite, or
-active assignment preventing work. Check available live assignments and coordinate
-overlapping paths before editing; an old wave exclusion is not a current claim.
+active assignment preventing work. Check live assignments with
+`python tools/claims.py status` and coordinate overlapping paths before editing;
+an old wave exclusion is not a current claim. Claim your item before editing
+(`claim --board <board> --item <item> --owner "<label>" --path <paths>`), renew
+a long task before its lease expires, and release it when finished for any
+reason. A live conflicting claim is a real assignment preventing work on that
+item or path; select different work or coordinate a handoff.
 If no defensible path remains for the customer, preserve its resume evidence and
 select independent actionable work within the user's allowed scope. Do not resume
 the paused strategy under another helper name. A named board limits

@@ -583,13 +583,18 @@ owner question. Never invent semantics or validation evidence to satisfy a gate.
 The coordinator owns dispatch, monitoring, result inspection, and integration.
 Assign one integration owner per customer slice, including its outer acceptance
 command; split independent dependencies only with explicit edit boundaries and a
-handoff back to that owner. Before editing, check available live session assignments
-and recent lane commits, and announce the customer slice and owning paths to the
-coordinator (or in the working conversation for an uncoordinated local session).
-If evidence suggests an overlap, resolve it before editing the shared paths;
-continue read-only investigation or independent work meanwhile. Do not require
+handoff back to that owner. Before editing, check the claims registry
+(`python tools/claims.py status`) for live session assignments and recent lane
+commits, claim the chosen item and its owning paths through
+[tools/claims](tools/claims.md), and announce the customer slice and owning
+paths to the coordinator (or in the working conversation for an uncoordinated
+local session). A live conflicting claim is a real assignment: resolve it
+before editing the shared paths; continue read-only investigation or
+independent work meanwhile. Do not require
 a new global reservation or proof that no unseen session exists. Old wave exclusions and
-idle worktrees are not proof of active ownership. The landing queue serializes
+idle worktrees are not proof of active ownership, and unclaimed work can still
+collide — the claims registry is an advisory fence, not a lock. The landing
+queue serializes
 publication, not development, and does not prevent duplicate implementation.
 Use actual agent tools and returned IDs before reporting workers as launched,
 queued, or running; report tool failures as failures. Distinguish implementation
@@ -603,8 +608,11 @@ the existing isolation, validation, and landing rules.
 
 Cloud swarm waves are coordinated with [tools/swarm](tools/swarm/README.md):
 the coordinator pre-assigns one board item per session in a wave manifest, and
-each session is an ordinary `advance` invocation restricted to that item. It
-publishes through the landing protocol with a `swarm-<wave>-<name>` owner
+each session is an ordinary `advance` invocation restricted to that item. Live
+assignments are registered on `refs/coordination/omega-claims/main` through
+[tools/claims](tools/claims.md): the launcher checks each manifest entry
+against it, and each session claims its item before editing. Sessions publish
+through the landing protocol with a `swarm-<wave>-<name>` owner
 label, and receipts stay in ignored `build/swarm/`, never on boards.
 
 ### Commit naming

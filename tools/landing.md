@@ -10,7 +10,10 @@ Development and initial testing happen before joining.
 `main` is the only shared code branch. Develop in isolated worktrees, including
 detached worktrees. GitHub stores queue metadata at
 `refs/coordination/omega-landing/main`; it runs no builds, waiting processes, or
-model calls. There are no PRs, remote worker branches, or work-ownership records.
+model calls. There are no PRs or remote worker branches. In-progress
+assignments live in the separate claims registry
+(`refs/coordination/omega-claims/main`, [tools/claims](claims.md)); this queue
+serializes only publication.
 
 ## Join when ready
 
