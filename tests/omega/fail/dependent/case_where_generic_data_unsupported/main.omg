@@ -1,0 +1,9 @@
+// CASE-CONSTRAINTS slice 1 fence: case constraints on GENERIC data refuse
+// -- generic instance synthesis re-lowers only the definition's `where`
+// facts per instance, so variant facts would be silently dropped.
+data Value<T> {
+    case Integer(value: T) where value == value;
+}
+data Main { }
+machine Main::main(&mut self) {
+}

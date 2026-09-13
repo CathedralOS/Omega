@@ -73,7 +73,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             .iter()
             .map(|(_, contract)| (contract.facts, Vec::new())),
     );
-    proof_fact_scopes.extend(program.data_definitions.iter().map(|definition| {
+    proof_fact_scopes.extend(program.data_definitions.iter().flat_map(|definition| {
         let mut local_symbols = program
             .tables
             .declarations
@@ -96,7 +96,42 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                     symbol_resolved_trees::data::DataMember::Variant(_) => None,
                 }),
         );
-        (definition.where_facts, local_symbols)
+        // A case's own `where` facts resolve in the definition scope PLUS the
+        // case's payload fields; payload names shadow same-named common
+        // entries (the scope lookup refuses ambiguous duplicates, so shadowed
+        // commons are dropped rather than listed twice).
+        let variant_scopes = program
+            .tables
+            .declarations
+            .data_members
+            .span_or_empty(definition.members)
+            .iter()
+            .filter_map(|member| match member {
+                symbol_resolved_trees::data::DataMember::Variant(variant)
+                    if !variant.where_facts.is_empty() =>
+                {
+                    let mut scope = program
+                        .tables
+                        .declarations
+                        .data_payload_fields
+                        .span_or_empty(variant.payload)
+                        .iter()
+                        .map(|field| (field.name.as_str().to_owned(), field.symbol))
+                        .collect::<Vec<_>>();
+                    let inherited = local_symbols
+                        .iter()
+                        .filter(|(name, _)| {
+                            !scope.iter().any(|(payload_name, _)| payload_name == name)
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    scope.extend(inherited);
+                    Some((variant.where_facts, scope))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        std::iter::once((definition.where_facts, local_symbols)).chain(variant_scopes)
     }));
     let domain_path_members = &program.tables.declarations.domain_path_members;
     let proof_facts = &mut program.tables.declarations.proof_facts;

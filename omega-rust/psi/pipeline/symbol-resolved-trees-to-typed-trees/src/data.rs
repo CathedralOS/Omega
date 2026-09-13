@@ -272,6 +272,7 @@ fn lower_data_member(
                 symbol: variant.symbol,
                 name: crate::name::lower_name(&variant.name),
                 payload: arena::HandleSpan::empty(),
+                where_facts: crate::domain::lower_proof_facts(lowerer, variant.where_facts)?,
                 retired_payload_identities: variant.retired_payload_identities.clone(),
             };
             let payload_fields = lowerer

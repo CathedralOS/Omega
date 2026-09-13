@@ -3708,6 +3708,50 @@ fn parses_data_default_domain_where_clause() {
 }
 
 #[test]
+fn parses_case_local_where_clause() {
+    // CASE-CONSTRAINTS (ch12 active-case indexed constraint): the `where`
+    // clause sits after the payload parens and before the case's `;`; a case
+    // without it has an empty fact span.
+    let source = r#"
+        data Interval {
+            case Empty;
+            case Range(lo: u64, hi: u64) where lo <= hi;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let data = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .expect("data root item");
+
+    let mut fact_counts =
+        parsed
+            .items
+            .data_members(data.members)
+            .iter()
+            .map(|member| match member {
+                syntax_trees::item::DataMember::Variant(variant) => {
+                    parsed.items.proof_facts(variant.where_facts).len()
+                }
+                _ => panic!("expected only variant members"),
+            });
+    assert_eq!(
+        fact_counts.next(),
+        Some(0),
+        "payload-less case without `where`"
+    );
+    assert_eq!(fact_counts.next(), Some(1), "case `where lo <= hi`");
+    assert!(fact_counts.next().is_none());
+}
+
+#[test]
 fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
     let source = r#"
         data Sample {

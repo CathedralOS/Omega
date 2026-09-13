@@ -1,0 +1,11 @@
+// CASE-CONSTRAINTS slice 1: UNKNOWN bounds are refused, not assumed --
+// `lo <= hi` over runtime-valued fields cannot fold at construction, so
+// the literal cannot prove the selected case's constraint.
+data Interval {
+    case Empty;
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+data Main { interval: Interval; lo: u64; hi: u64; }
+machine Main::main(&mut self) {
+    self.interval = Interval::Range { lo: self.lo, hi: self.hi };
+}

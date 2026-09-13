@@ -1,0 +1,11 @@
+// CASE-CONSTRAINTS slice 1: reversed bounds FAIL the selected case's
+// constraint -- `lo <= hi` evaluates FALSE at `Range { lo: 5, hi: 1 }`;
+// construction is the gate.
+data Interval {
+    case Empty;
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+data Main { interval: Interval; }
+machine Main::main(&mut self) {
+    self.interval = Interval::Range { lo: 5, hi: 1 };
+}

@@ -107,6 +107,7 @@ fn variant_snapshot_retains_payload_only_erased_field() {
             identity: Some(3),
             name: Identifier::generated("Certified"),
             payload: arena::HandleSpan::from_parts(payload, 1),
+            where_facts: arena::HandleSpan::empty(),
             retired_payload_identities: Vec::new(),
         }));
     syntax_trees.push_root_item(Item::Data(DataDefinition {

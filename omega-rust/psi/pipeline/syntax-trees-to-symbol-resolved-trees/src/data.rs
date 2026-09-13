@@ -100,7 +100,12 @@ fn lower_data_definition_with_argument_origins(
 ) -> Result<DataDefinition, Diagnostic> {
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
-    let members = lower_data_members(lowerer, syntax_trees, data_definition.members)?;
+    let members = lower_data_members(
+        lowerer,
+        syntax_trees,
+        data_definition.members,
+        type_parameters.is_empty(),
+    )?;
     let retired_identities = syntax_trees
         .items
         .data_members(data_definition.members)
@@ -431,6 +436,7 @@ fn lower_data_members(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     members: HandleSpan<syntax::item::DataMember>,
+    monomorphic: bool,
 ) -> Result<HandleSpan<DataMember>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
@@ -438,7 +444,7 @@ fn lower_data_members(
         if matches!(member, syntax::item::DataMember::Retired(_)) {
             continue;
         }
-        let member = lower_data_member(lowerer, syntax_trees, member)?;
+        let member = lower_data_member(lowerer, syntax_trees, member, monomorphic)?;
         lowerer
             .symbol_resolved_trees
             .tables
@@ -454,6 +460,7 @@ fn lower_data_member(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     member: &syntax::item::DataMember,
+    monomorphic: bool,
 ) -> Result<DataMember, Diagnostic> {
     match member {
         syntax::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
@@ -488,11 +495,23 @@ fn lower_data_member(
                     .data_payload_fields
                     .append_to_span(&mut payload, lowered);
             }
+            // Generic instance synthesis (generic_data/synthesis.rs)
+            // re-lowers only the definition's `where_facts` per instance;
+            // variant facts would be silently dropped there, so refuse until
+            // instance synthesis carries them.
+            if !monomorphic && !variant.where_facts.is_empty() {
+                return Err(Diagnostic::error(
+                    "case constraints on generic data are not supported yet",
+                ));
+            }
+            let where_facts =
+                crate::domain::lower_proof_facts(lowerer, syntax_trees, variant.where_facts)?;
             Ok(DataMember::Variant(DataVariant {
                 identity: variant.identity,
                 symbol: SymbolHandle::invalid(),
                 name: crate::name::lower_name(&variant.name),
                 payload,
+                where_facts,
                 retired_payload_identities: variant.retired_payload_identities.clone(),
             }))
         }

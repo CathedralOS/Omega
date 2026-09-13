@@ -264,6 +264,9 @@ pub struct DataVariant {
     /// Named payload fields (`case Say(text: String);`); empty for payload-less cases.
     /// Stored in the `data_payload_fields` arena, separate from the parent's member span.
     pub payload: HandleSpan<DataField>,
+    /// Case-local `where` facts proved at construction of this case; empty when
+    /// the case declares none.
+    pub where_facts: HandleSpan<crate::domain::ProofFact>,
     pub retired_payload_identities: Vec<u64>,
 }
 
@@ -274,6 +277,7 @@ impl Default for DataVariant {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             payload: HandleSpan::empty(),
+            where_facts: HandleSpan::empty(),
             retired_payload_identities: Vec::new(),
         }
     }

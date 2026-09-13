@@ -630,6 +630,20 @@ fn parse_case_member<'tokens, 'source>(
         (HandleSpan::empty(), Vec::new())
     };
 
+    // CASE-CONSTRAINTS: a case-local `where` clause after the payload list --
+    // `case Range(lo: u64, hi: u64) where lo <= hi;` -- names payload and
+    // common fields; the fact list ends at the case's `;`.
+    let mut where_facts = HandleSpan::empty();
+    if input.at_contextual("where") {
+        input = input.take_contextual("where")?;
+        let ((facts, _token_count), rest) =
+            crate::parser::proof_fact::parse_proof_facts_until(syntax_trees, input, |input| {
+                input.at_punctuation(PunctuationKind::Semicolon) || input.tokens.is_empty()
+            })?;
+        where_facts = facts;
+        input = rest;
+    }
+
     input = if input.at_punctuation(PunctuationKind::Semicolon) {
         input.take_punctuation(PunctuationKind::Semicolon, ";")?
     } else {
@@ -640,6 +654,7 @@ fn parse_case_member<'tokens, 'source>(
             identity,
             name: case_name,
             payload,
+            where_facts,
             retired_payload_identities,
         }),
         input,
