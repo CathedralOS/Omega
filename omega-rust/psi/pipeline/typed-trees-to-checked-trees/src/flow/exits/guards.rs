@@ -18,6 +18,12 @@ pub(super) fn append_guard_context(
     let TransitionGuardNode::When(expression) = guard else {
         return;
     };
+    let point = ProgramPoint::TransitionArm {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        transition_target,
+    };
     append_predicate_context(
         program,
         semantic,
@@ -26,15 +32,201 @@ pub(super) fn append_guard_context(
         statement_index,
         expression,
         value,
-        ProgramPoint::TransitionArm {
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            transition_target,
-        },
+        point,
         active_contexts,
         active_constraints,
     );
+    if value {
+        append_case_constraint_context(
+            program,
+            semantic,
+            ctx,
+            state_symbol,
+            statement_index,
+            expression,
+            point,
+            active_contexts,
+            active_constraints,
+        );
+    }
+}
+
+/// CASE-CONSTRAINTS (ch12): on the matched branch a case-membership guard
+/// (`subject in Type::Case`, lowered to `subject == Type::Case`) contributes
+/// the selected case's `where` propositions, substituted onto the exact
+/// subject -- matching an established constrained case is how its
+/// constraints become arm-local facts (wiki/spec/language/patterns.md). The
+/// clause's payload and common-field names rebase to `subject.<field>`
+/// through the same canonical-term renderer call contracts use, so a
+/// `requires` proven against the destructured payload sees the contributed
+/// identity. Facts ride on the subject's canonical place, so ordinary write
+/// invalidation retires them exactly like the guard's own evidence. Generic
+/// data is refused upstream, so head/case symbols alone identify the
+/// variant; membership and proposition-application clauses still wait for
+/// their carriers.
+#[allow(clippy::too_many_arguments)]
+fn append_case_constraint_context(
+    program: &typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    ctx: &mut FlowBuildContext,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    point: ProgramPoint,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
+    let mut conjuncts = Vec::new();
+    flatten_and_conjuncts(program, expression, &mut conjuncts);
+    let mut refs = HandleSpan::empty();
+    for conjunct in conjuncts {
+        let Some((subject, variant, definition)) = case_membership_claim(program, conjunct) else {
+            continue;
+        };
+        if variant.where_facts.is_empty() {
+            continue;
+        }
+        let Some(place) = crate::semantic_places::canonical_place_to_fact_place_in_state(
+            program,
+            semantic,
+            state_symbol,
+            statement_index,
+            subject,
+        ) else {
+            continue;
+        };
+        let subject_label = program.render_proof_expression_with_symbols(subject, &[]);
+        let mut substitutions = Vec::new();
+        for field in program.data_payload_fields(variant) {
+            substitutions.push((
+                field.symbol,
+                field.name.as_str().to_owned(),
+                format!("{subject_label}.{}", field.name),
+            ));
+        }
+        for member in program.data_members(definition) {
+            if let typed_trees::data::DataMember::Field(field) = member {
+                substitutions.push((
+                    field.symbol,
+                    field.name.as_str().to_owned(),
+                    format!("{subject_label}.{}", field.name),
+                ));
+            }
+        }
+        for offset in 0..variant.where_facts.count() {
+            let fact_handle = Handle::from_parts(
+                variant
+                    .where_facts
+                    .start()
+                    .arena_index()
+                    .saturating_add(offset),
+                variant.where_facts.start().generation(),
+            );
+            let typed_trees::domain::ProofFact::Expression(fact_expression) =
+                program.proof_facts.get(fact_handle)
+            else {
+                continue;
+            };
+            let instantiated = semantic.append_instantiated_expression(
+                program.render_proof_expression_with_parameters(*fact_expression, &substitutions),
+            );
+            let fact = semantic.append_fact(Fact {
+                place: FactPlace::Place(place),
+                point,
+                origin: FactOrigin::TransitionGuard,
+                evidence: QualificationEvidence::default(),
+                payload: FactPayload::ContractBooleanExpression {
+                    kind: facts::ContractFactKind::Requires,
+                    fact: fact_handle,
+                    expression: *fact_expression,
+                    instantiated,
+                },
+            });
+            semantic.append_ref(&mut refs, fact);
+        }
+    }
+    if refs.is_empty() {
+        return;
+    }
+    let context = semantic.append_context(point, refs);
+    *active_contexts =
+        retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
+    *active_constraints =
+        retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
+    common::append_flow_reference(
+        &mut ctx.contexts.semantic_context_refs,
+        active_contexts,
+        FlowSemanticContextRef { context },
+    );
+    append_constraint_ref(
+        &mut ctx.contexts.constraint_refs,
+        active_constraints,
+        FlowConstraintKind::SemanticContext { context },
+    );
+}
+
+fn flatten_and_conjuncts(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    conjuncts: &mut Vec<ExpressionHandle>,
+) {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary)
+            if binary.operator == typed_trees::expression::BinaryOperator::And =>
+        {
+            flatten_and_conjuncts(program, binary.left, conjuncts);
+            flatten_and_conjuncts(program, binary.right, conjuncts);
+        }
+        _ => conjuncts.push(expression),
+    }
+}
+
+/// Recognize `subject == Type::Case` (or its commute), the tag compare a
+/// case-membership `in` test lowers to, and return the subject with the
+/// resolved variant and its data definition.
+fn case_membership_claim<'program>(
+    program: &'program typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(
+    ExpressionHandle,
+    &'program typed_trees::data::DataVariant,
+    &'program typed_trees::data::DataDefinition,
+)> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if binary.operator != typed_trees::expression::BinaryOperator::Equal {
+        return None;
+    }
+    for (case_reference, subject) in [(binary.right, binary.left), (binary.left, binary.right)] {
+        let ExpressionNode::Name(path) = program.expression_table.expression(case_reference) else {
+            continue;
+        };
+        let Some(definition) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == path.head_symbol)
+        else {
+            continue;
+        };
+        let Some(variant) =
+            program
+                .data_members(definition)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees::data::DataMember::Variant(variant)
+                        if variant.symbol == path.symbol =>
+                    {
+                        Some(variant)
+                    }
+                    _ => None,
+                })
+        else {
+            continue;
+        };
+        return Some((subject, variant, definition));
+    }
+    None
 }
 
 #[allow(clippy::too_many_arguments)]
