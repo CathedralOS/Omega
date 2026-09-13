@@ -128,18 +128,12 @@ pub(crate) fn validate(
             *discard_result_on_return,
         )?;
     }
-    let mut pending = vec![(
-        *value,
-        expression,
-        reference,
-        arena::Handle::invalid(),
-        false,
-    )];
+    let mut pending = vec![(*value, expression, reference, arena::Handle::invalid())];
     let mut consumed_calls = Vec::new();
     let mut visited = Vec::new();
     let mut operand_roles = Vec::new();
     let mut selected_leaves = Vec::new();
-    while let Some((handle, expression, reference, source_arm, record_child)) = pending.pop() {
+    while let Some((handle, expression, reference, source_arm)) = pending.pop() {
         if !plans.nodes.is_valid(handle) || visited.contains(&handle) {
             return unsupported("structural construction has stale or reused value nodes");
         }
@@ -156,11 +150,9 @@ pub(crate) fn validate(
                     )?;
                     selected_leaves.push(expression);
                 } else {
-                    if !record_child
-                        || !super::super::structural_values::plain_record(checked, reference)
-                    {
+                    if !super::super::structural_values::plain_record(checked, reference) {
                         return unsupported(
-                            "existing structural value has no selected ownership receipt or record field owner",
+                            "existing structural value has no selected ownership receipt or plain record type",
                         );
                     }
                     owned_places::validate(
@@ -350,7 +342,6 @@ pub(crate) fn validate(
                                 initializer.value,
                                 declaration.type_reference,
                                 source_arm,
-                                true,
                             ));
                         }
                     }
@@ -527,13 +518,7 @@ pub(crate) fn validate(
                             );
                         }
                     }
-                    pending.push((
-                        arm.value,
-                        authored_arm.value,
-                        reference,
-                        arm.source_arm,
-                        record_child,
-                    ));
+                    pending.push((arm.value, authored_arm.value, reference, arm.source_arm));
                 }
                 if !covered || retained_ordinal != retained.len() {
                     return unsupported("structural selection omitted required coverage");

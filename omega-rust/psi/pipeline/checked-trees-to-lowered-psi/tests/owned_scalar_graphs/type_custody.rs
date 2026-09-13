@@ -237,6 +237,25 @@ fn bounded_fields_preserve_signed_unsigned_expression_and_substituted_ranges() {
             IntegerValue::Unsigned(5),
         ),
         (
+            "data Envelope { limit: u64; spare: u64 [0..18446744073709551616]; }",
+            None,
+            IntegerValue::Unsigned(0),
+            IntegerValue::Unsigned(u128::from(u64::MAX)),
+        ),
+        (
+            "data Envelope { limit: u64; spare: u64 [18446744073709551615..=18446744073709551615]; }",
+            None,
+            IntegerValue::Unsigned(u128::from(u64::MAX)),
+            IntegerValue::Unsigned(u128::from(u64::MAX)),
+        ),
+        (
+            "data Cell<T> { spare: T; }
+             data Envelope { limit: u64; wrapped: Cell<u64 [0..18446744073709551616]>; }",
+            Some("wrapped"),
+            IntegerValue::Unsigned(0),
+            IntegerValue::Unsigned(u128::from(u64::MAX)),
+        ),
+        (
             "data Envelope { limit: u64; spare: i16 [0 - 3..=10 * 2]; }",
             None,
             IntegerValue::Signed(-3),
@@ -279,6 +298,32 @@ fn bounded_fields_preserve_signed_unsigned_expression_and_substituted_ranges() {
             panic!("source range must survive publication: {declarations}")
         };
         assert_eq!((integer.minimum(), integer.maximum()), (minimum, maximum));
+    }
+}
+
+#[test]
+fn full_width_bounded_fields_reject_range_erasure_and_endpoint_drift() {
+    let (original, identity) =
+        fixture("data Envelope { limit: u64; spare: u64 [0..18446744073709551616]; }");
+    for replacement in [
+        CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64),
+        CheckedUnitStructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                IntegerValue::Unsigned(0),
+                IntegerValue::Unsigned(u128::from(u64::MAX - 1)),
+            )
+            .unwrap(),
+        ),
+    ] {
+        let mut checked = original.clone();
+        corrupt(&mut checked, &identity, |shape| {
+            let CheckedUnitStructuralTypeShape::Record { fields } = shape else {
+                panic!("bounded source record")
+            };
+            fields[1].field_type = replacement.clone();
+        });
+        reject(&checked);
     }
 }
 

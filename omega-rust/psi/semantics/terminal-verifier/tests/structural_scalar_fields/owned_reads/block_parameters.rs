@@ -62,6 +62,135 @@ fn integer_and_boolean_reads_accept_exact_owned_block_parameters() {
     }
 }
 
+fn bounded_block_reader(multiplicity: StructuralMultiplicity) -> TerminalModule {
+    let mut module = block_reader(integer_type(), multiplicity);
+    let ScalarType::Integer(integer) = integer_type() else {
+        panic!("integer carrier");
+    };
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+        panic!("record carrier");
+    };
+    fields[0].field_type = StructuralFieldType::BoundedInteger(
+        semantic_vocabulary::BoundedIntegerType::new(
+            integer,
+            IntegerValue::Signed(12),
+            IntegerValue::Signed(100),
+        )
+        .unwrap(),
+    );
+    module.machines[0].blocks[1].operations.push(Operation {
+        static_reach_binding: None,
+        id: id(5),
+        result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(5),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+        }),
+        kind: OperationKind::IntegerExactCast {
+            operand: id(4),
+            obligation: id(5),
+        },
+    });
+    module
+}
+
+fn read_bounds(minimum: i128, maximum: i128) -> [Proposition; 2] {
+    let ScalarType::Integer(integer) = integer_type() else {
+        panic!("integer carrier");
+    };
+    let value = ScalarTerm::value(id(4), integer_type());
+    let endpoint = |value| ScalarTerm::Integer {
+        scalar_type: integer,
+        value: IntegerValue::Signed(value),
+    };
+    [
+        Proposition::LessOrEqual(endpoint(minimum), value.clone()),
+        Proposition::LessOrEqual(value, endpoint(maximum)),
+    ]
+}
+
+#[test]
+fn bounded_block_reads_capture_declared_range_on_the_fresh_scalar() {
+    for multiplicity in [
+        StructuralMultiplicity::Unrestricted,
+        StructuralMultiplicity::Affine,
+    ] {
+        let module = bounded_block_reader(multiplicity);
+        let obligations = reconstruct_operation_obligations(&module).unwrap();
+        let [cast] = obligations.as_slice() else {
+            panic!("one conversion obligation");
+        };
+        for bound in read_bounds(12, 100) {
+            assert!(
+                cast.semantic_axioms.contains(&bound),
+                "{multiplicity:?}: {bound:?}"
+            );
+        }
+        assert!(
+            cast.semantic_axioms
+                .iter()
+                .filter(|fact| matches!(fact, Proposition::LessOrEqual(..)))
+                .all(|fact| {
+                    !matches!(
+                        fact,
+                        Proposition::LessOrEqual(ScalarTerm::IntegerField { .. }, _)
+                            | Proposition::LessOrEqual(_, ScalarTerm::IntegerField { .. })
+                    )
+                }),
+            "range facts describe the captured SSA value, not a mutable-place alias"
+        );
+    }
+}
+
+#[test]
+fn bounded_block_reads_cannot_reuse_another_declarations_range() {
+    let original = bounded_block_reader(StructuralMultiplicity::Unrestricted);
+    for replacement in [
+        StructuralFieldType::Scalar(integer_type()),
+        StructuralFieldType::BoundedInteger(
+            semantic_vocabulary::BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                IntegerValue::Signed(13),
+                IntegerValue::Signed(99),
+            )
+            .unwrap(),
+        ),
+    ] {
+        let mut module = original.clone();
+        let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+            panic!("record carrier");
+        };
+        fields[0].field_type = replacement;
+        let obligations = reconstruct_operation_obligations(&module).unwrap();
+        for stale in read_bounds(12, 100) {
+            assert!(!obligations[0].semantic_axioms.contains(&stale));
+        }
+    }
+    let mut wrong_field = original.clone();
+    let OperationKind::IntegerStructuralField { field, .. } =
+        &mut wrong_field.machines[0].blocks[1].operations[0].kind
+    else {
+        panic!("integer read");
+    };
+    *field = id(99);
+    assert!(reconstruct_operation_obligations(&wrong_field).is_err());
+
+    let mut wrong_carrier = original;
+    let StructuralTypeShape::Record { fields } = &mut wrong_carrier.structural_types[1].shape
+    else {
+        panic!("record carrier");
+    };
+    fields[0].field_type = StructuralFieldType::BoundedInteger(
+        semantic_vocabulary::BoundedIntegerType::new(
+            IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+            IntegerValue::Unsigned(12),
+            IntegerValue::Unsigned(100),
+        )
+        .unwrap(),
+    );
+    assert!(reconstruct_operation_obligations(&wrong_carrier).is_err());
+}
+
 #[test]
 fn owned_successors_reject_same_arity_aliases_and_transfer_after_disposal() {
     let mut original = block_reader(integer_type(), StructuralMultiplicity::Affine);

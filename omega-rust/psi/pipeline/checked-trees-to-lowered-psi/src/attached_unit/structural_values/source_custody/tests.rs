@@ -378,3 +378,33 @@ fn owned_record_child_replay_rejects_same_carrier_parameter_substitution() {
             .contains("substituted its parameter")
     );
 }
+
+#[test]
+fn whole_record_root_replay_rejects_same_carrier_source_substitution() {
+    let mut checked = checked_source(
+        "data Value [copy] { value: u64; } machine copy(first: Value, second: Value) -> Value { first }",
+    );
+    let (machine, state, operation) = operation(&checked);
+    validate(&checked, machine, state, &operation).expect("whole record source");
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation else {
+        panic!("whole record binding");
+    };
+    let CheckedStructuralValueKind::Place(argument) = &mut checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .get_mut(value)
+        .kind
+    else {
+        panic!("whole record operand");
+    };
+    argument.source =
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
+    assert!(
+        validate(&checked, machine, state, &operation)
+            .unwrap_err()
+            .to_string()
+            .contains("substituted its parameter")
+    );
+}

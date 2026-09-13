@@ -227,12 +227,16 @@ generic-data synthesis. Pre-resolution typed probes retain structured interval
 observations and original carrier/constant selection; syntax substitution keeps
 the authored constrained type. After full typing, application replay recomputes
 interval equality independently with the same numeric query. Literal and named
-constant range fields reach Terminal execution. The fixture's equivalent-instance
-copy, full-width bounded record field, and nested forwarding examples check and
-execute at build time but still lack a source-independent checked scalar control
-plan for Terminal. The focused `declared_range_inference` canaries preserve those
-examples and nongeneric controls; close their local record copy/construction and
-range-proof lowering rather than adding a generic-specific fallback.
+constant range fields, equivalent-instance copies, and full-width bounded fields
+reach Terminal execution. Whole record copies use the existing owned block edge:
+unrestricted payloads get independent backing, while affine payloads transfer.
+Bounded field reads recover the declared interval on their fresh scalar result;
+they do not need equality with the original constructor's initializer. Field
+bounds remain proof integers until intersected with the signed or unsigned carrier.
+Nested forwarding still lacks a source-independent checked scalar control plan.
+The focused `declared_range_inference` canaries retain this example and nongeneric
+nested-projection and local-mutation controls; connect their shared storage
+operations rather than adding a generic-specific fallback.
 
 Closed integer endpoints share typed trees' `type_system/closed_numeric.rs`
 through validation's `closed_integer_range_bound` and

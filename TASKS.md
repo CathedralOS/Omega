@@ -1377,12 +1377,13 @@ Owners include
   after complete typing; substitution retains the original constrained argument.
   Finish open/template-dependent and machine-computed argument ranges, type
   equations and omitted data binders without a source-display identity key.
-  The fixture's `generic_equivalent_bound`, `generic_wide_bound` and
-  `generic_forwarded_bound` check and execute at build time but Terminal still
-  rejects the missing checked scalar control plan. Nongeneric controls reproduce
-  the local record-copy, full-width bounded-field and nested-construction gaps.
-  Connect those shared lowering operations, then require the unchanged functions
-  to execute from canonical Terminal bytes; do not invent generic-specific plans.
+  The fixture's `generic_forwarded_bound` checks and executes at build time but
+  Terminal still rejects the missing checked scalar control plan. Nongeneric
+  controls reproduce nested record projection and local record mutation gaps;
+  whole local copies and full-width bounded fields already execute. Connect the
+  remaining shared storage operations, then require the unchanged function and
+  copy-after-mutation controls to execute from canonical Terminal bytes; do not
+  invent generic-specific plans.
 
   Extend remaining named computations through build-time admission, using
   `typed-trees/src/typed_trees/type_system/closed_numeric.rs` and its existing

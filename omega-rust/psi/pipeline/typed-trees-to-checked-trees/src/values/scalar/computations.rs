@@ -115,8 +115,16 @@ pub(crate) fn build_checked_value_computation_plans(
                     StatementNode::Expression(expression) => Some((*expression, state.return_type)),
                     _ => None,
                 };
+                // A whole owned place is a structural value just like a
+                // constructor operand. Let the same builder check its selected
+                // type and storage; local copies must not lose their operation
+                // merely because they are the root of an initializer.
                 if let Some((expression, expected)) = construction_destination
                     && (validation::is_scalar_case_value(program, expression, expected)
+                        || matches!(
+                            program.expression_table.expression(expression),
+                            ExpressionNode::Name(_)
+                        )
                         || matches!(program.expression_table.expression(expression), ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none()))
                     && let Some(root) =
                         builder.structural_value(expression, expected, &mut structural_values, pure)

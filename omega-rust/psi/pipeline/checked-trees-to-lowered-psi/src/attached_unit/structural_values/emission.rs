@@ -140,6 +140,21 @@ pub(crate) fn emit(
         owners,
     };
     let place = emission.value(*value, None)?;
+    let place = if emission.sources.is_empty()
+        && matches!(
+            checked
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .get(*value)
+                .kind,
+            CheckedStructuralValueKind::Place(_)
+        ) {
+        emission.materialize_place(place)?
+    } else {
+        place
+    };
     // Private arm producers are not authored result ordinals. Publish exactly
     // one completed place for this binding, whether a direct producer or join.
     let declaration = emission
@@ -776,6 +791,54 @@ impl Emission<'_, '_, '_> {
                 .iter()
                 .any(|source| source.place == owner.value.place)
         })
+    }
+
+    /// Whole-value assignment uses ordinary owned edge transport. Returning the
+    /// source place directly would alias unrestricted records instead of copying
+    /// their backing, and would republish an earlier result's declaration.
+    /// The existing block binder copies unrestricted payloads and transfers
+    /// affine ownership; source replay has already checked the exact operand.
+    fn materialize_place(&mut self, source: PlaceId) -> Result<PlaceId, LoweringError> {
+        let block = block_id(allocate_dense(self.next_block)?);
+        let place = place_id(allocate_dense(self.next_place)?);
+        let parameters = self
+            .values
+            .iter()
+            .map(|value| {
+                Ok(ValueDeclaration {
+                    id: value_id(allocate_dense(self.next_value)?),
+                    ..*value
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        self.temporary_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::BlockParameter { block, position: 0 },
+        });
+        let continuation = ValueContinuation {
+            block,
+            parameters,
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place,
+                position: 0,
+                is_self: false,
+                structural_type: self.structural_type,
+                multiplicity: self.multiplicity,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            }],
+            place,
+            remaining_owners: Vec::new(),
+            pass_through: Vec::new(),
+            residuals: Vec::new(),
+        };
+        self.complete_value(source, &continuation)?;
+        self.start(block);
+        *self.values = continuation.parameters.clone();
+        self.evaluation.parameters = continuation.parameters;
+        self.evaluation.block_structural_parameters = continuation.structural_parameters;
+        Ok(place)
     }
 
     fn complete_value(

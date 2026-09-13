@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use proof_admission::{Obligation, ObligationClass};
-use semantic_vocabulary::{MachineId, Proposition, ScalarType, ValueId};
+use semantic_vocabulary::{MachineId, Proposition, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, TerminalMachine, TerminalModule};
 use terminal_semantics::{
     GoalFreeScalarLeafSemantics, goal_free_scalar_leaf_semantics,
@@ -179,6 +179,24 @@ pub(super) fn append_operation(
         }
         if let Some(equation) = observation.local_equation() {
             axioms.push(equation.clone());
+        }
+        if let Some(bounds) =
+            crate::validation::integer_structural_field_read_range(module, machine, operation)
+            && let Some(result) = operation.result.scalar_ref()
+        {
+            // A valid referent retains its declared interval. Capture that
+            // invariant on this read's SSA value, which survives later writes
+            // without asserting that the mutable field keeps its old value.
+            let value = ScalarTerm::value(result.id, result.scalar_type);
+            let endpoint = |value| ScalarTerm::Integer {
+                scalar_type: bounds.integer_type(),
+                value,
+            };
+            axioms.push(Proposition::LessOrEqual(
+                endpoint(bounds.minimum()),
+                value.clone(),
+            ));
+            axioms.push(Proposition::LessOrEqual(value, endpoint(bounds.maximum())));
         }
         if let Some(equation) =
             byte_extent::length_equation(module, machine, operation, &observation)?

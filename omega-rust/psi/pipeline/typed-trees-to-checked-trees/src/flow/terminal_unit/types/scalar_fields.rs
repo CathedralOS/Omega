@@ -1,6 +1,9 @@
 //! Closed numeric field restrictions retained independently of the raw carrier.
+//! Intersect exact proof-integer endpoints before converting to the field's
+//! signed or unsigned carrier; an authored endpoint can exceed that carrier.
 
 use super::*;
+use numerics::bignum::BigInt;
 use semantic_vocabulary::{BoundedIntegerType, IntegerSign, IntegerType, IntegerValue};
 
 pub(super) fn retain_scalar_field(
@@ -9,7 +12,7 @@ pub(super) fn retain_scalar_field(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     primitive: PrimitiveType,
 ) -> Option<CheckedUnitStructuralFieldType> {
-    let mut declared_bounds: Option<(i128, i128)> = None;
+    let mut declared_bounds: Option<(BigInt, BigInt)> = None;
     let mut has_non_exact_domain = false;
     loop {
         match program.type_reference_table.type_reference(type_reference) {
@@ -32,17 +35,12 @@ pub(super) fn retain_scalar_field(
                     {
                         // Use the same closed-expression evaluation as source range
                         // validation. Failure is unsupported, never an unbounded field.
-                        let lower = i128::from(
-                            validation::closed_integer_range_bound(program, *minimum)?.to_i64()?,
-                        );
-                        let upper = i128::from(
-                            validation::closed_integer_range_maximum(
-                                program,
-                                *maximum,
-                                *end_inclusive,
-                            )?
-                            .to_i64()?,
-                        );
+                        let lower = validation::closed_integer_range_bound(program, *minimum)?;
+                        let upper = validation::closed_integer_range_maximum(
+                            program,
+                            *maximum,
+                            *end_inclusive,
+                        )?;
                         declared_bounds = Some(match declared_bounds {
                             Some((previous_lower, previous_upper)) => {
                                 (previous_lower.max(lower), previous_upper.min(upper))
@@ -88,16 +86,20 @@ pub(super) fn retain_scalar_field(
     let integer_type = IntegerType::new(sign, bits).ok()?;
     let (minimum, maximum) = match (integer_type.minimum_value(), integer_type.maximum_value()) {
         (IntegerValue::Signed(carrier_minimum), IntegerValue::Signed(carrier_maximum)) => (
-            IntegerValue::Signed(minimum.max(carrier_minimum)),
-            IntegerValue::Signed(maximum.min(carrier_maximum)),
+            IntegerValue::Signed(i128::from(
+                minimum.max(BigInt::from_i128(carrier_minimum)).to_i64()?,
+            )),
+            IntegerValue::Signed(i128::from(
+                maximum.min(BigInt::from_i128(carrier_maximum)).to_i64()?,
+            )),
         ),
         (IntegerValue::Unsigned(carrier_minimum), IntegerValue::Unsigned(carrier_maximum)) => (
-            IntegerValue::Unsigned(
-                u128::try_from(minimum.max(i128::try_from(carrier_minimum).ok()?)).ok()?,
-            ),
-            IntegerValue::Unsigned(
-                u128::try_from(maximum.min(i128::try_from(carrier_maximum).ok()?)).ok()?,
-            ),
+            IntegerValue::Unsigned(u128::from(
+                minimum.max(BigInt::from_u128(carrier_minimum)).to_u64()?,
+            )),
+            IntegerValue::Unsigned(u128::from(
+                maximum.min(BigInt::from_u128(carrier_maximum)).to_u64()?,
+            )),
         ),
         _ => return None,
     };
@@ -150,6 +152,30 @@ mod tests {
                 PrimitiveType::U64,
                 IntegerValue::Unsigned(0),
                 IntegerValue::Unsigned(500),
+            ),
+            (
+                "u64 [0..=18446744073709551615]",
+                PrimitiveType::U64,
+                IntegerValue::Unsigned(0),
+                IntegerValue::Unsigned(u128::from(u64::MAX)),
+            ),
+            (
+                "u64 [0..18446744073709551616]",
+                PrimitiveType::U64,
+                IntegerValue::Unsigned(0),
+                IntegerValue::Unsigned(u128::from(u64::MAX)),
+            ),
+            (
+                "u64 [18446744073709551615..18446744073709551616]",
+                PrimitiveType::U64,
+                IntegerValue::Unsigned(u128::from(u64::MAX)),
+                IntegerValue::Unsigned(u128::from(u64::MAX)),
+            ),
+            (
+                "u64 [0..=18446744073709551616]",
+                PrimitiveType::U64,
+                IntegerValue::Unsigned(0),
+                IntegerValue::Unsigned(u128::from(u64::MAX)),
             ),
             (
                 "i16 [0 - 3..=10 * 2]",
@@ -225,7 +251,14 @@ mod tests {
         for (spelling, primitive) in [
             ("f32 [0..=1]", PrimitiveType::F32),
             ("addr [0..=1]", PrimitiveType::Addr),
-            ("u64 [0..=18446744073709551615]", PrimitiveType::U64),
+            (
+                "u64 [18446744073709551616..=18446744073709551617]",
+                PrimitiveType::U64,
+            ),
+            (
+                "u64 [18446744073709551615..18446744073709551615]",
+                PrimitiveType::U64,
+            ),
             ("u8 [256..=300]", PrimitiveType::U8),
             ("u8 [0..0]", PrimitiveType::U8),
             ("i8 [-128..-128]", PrimitiveType::I8),
