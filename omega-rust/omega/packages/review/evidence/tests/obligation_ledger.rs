@@ -4,6 +4,142 @@ use compiler::CheckedCompileRequest;
 use support::*;
 
 #[test]
+fn accepted_claim_results_join_encoded_keys_without_reordering_callables() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write("main.omg", "boundary machine aa() -> u64 ensures result == 0;\nboundary machine z() -> u64 ensures result == 1;\n");
+    package.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+    );
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
+    .expect("two distinct accepted boundary claims check");
+    let fresh = package_evidence::ledger::reconstruct_package_review(&checked)
+        .expect("accepted claims rejoin their own canonical rows");
+    let claims = fresh.results.open_accepted_claims();
+    assert_eq!(
+        claims
+            .iter()
+            .map(|claim| claim.callable().identity().path())
+            .collect::<Vec<_>>(),
+        ["aa", "z"]
+    );
+    let rows = fresh
+        .canonical_rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 2);
+    assert!(rows[0].key_bytes().ends_with(b"z"));
+    assert!(rows[1].key_bytes().ends_with(b"aa"));
+    for claim in claims {
+        let row = rows
+            .iter()
+            .find(|row| {
+                row.key_bytes()
+                    .ends_with(claim.callable().identity().path().as_bytes())
+            })
+            .expect("the exact nominal-key row exists");
+        assert_eq!(claim.row().key_bytes(), row.key_bytes());
+        assert_eq!(claim.row().canonical_bytes(), row.canonical_bytes());
+    }
+}
+
+#[test]
+fn dangerous_authority_results_join_service_keys_not_class_order() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub boundary trait FilesystemHost {}
+pub boundary trait Console {
+    machine exit_process(return_code: i32) reaches Console;
+}
+pub data ConsoleNativeProvider {}
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+pub machine expose() reaches Console + FilesystemHost {}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.package("review-fixture");
+    builder.select_provider<Console, ConsoleNativeProvider>();
+}
+"#,
+    );
+    let candidate = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("linux_x86_64"))
+    })
+    .expect("two exposed service candidates check");
+    let filesystem = candidate
+        .candidate_service_binding(
+            AcceptedSemanticBindingRole::FilesystemHostService,
+            package_identity(),
+            "FilesystemHost",
+        )
+        .expect("derive exact filesystem binding");
+    let plan = candidate
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == "Console")
+        .expect("selected Console plan");
+    let console = package_compilation::AcceptedSemanticBinding::new(
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+        package_identity(),
+        "Console",
+        plan.schema.identity_digest(),
+        plan.identity_digest(),
+    )
+    .expect("derive exact Console binding");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            package_inputs(&package.0)
+                .with_accepted_semantic_bindings(vec![filesystem, console])
+                .expect("both bindings belong to the fixture package"),
+        ),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("linux_x86_64"))
+    })
+    .expect("both accepted service identities check");
+    let fresh = package_evidence::ledger::reconstruct_package_review(&checked)
+        .expect("dangerous authorities rejoin their own canonical rows");
+    let authorities = fresh.results.open_dangerous_authorities();
+    assert_eq!(
+        authorities
+            .iter()
+            .map(|authority| authority.authority().service().path())
+            .collect::<Vec<_>>(),
+        ["FilesystemHost", "Console"]
+    );
+    let rows = fresh
+        .canonical_rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::DangerousAuthority)
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 2);
+    assert!(rows[0].key_bytes().ends_with(b"Console"));
+    assert!(rows[1].key_bytes().ends_with(b"FilesystemHost"));
+    for authority in authorities {
+        let row = rows
+            .iter()
+            .find(|row| {
+                row.key_bytes()
+                    .ends_with(authority.authority().service().path().as_bytes())
+            })
+            .expect("the exact service-key row exists");
+        assert_eq!(authority.row().key_bytes(), row.key_bytes());
+        assert_eq!(authority.row().canonical_bytes(), row.canonical_bytes());
+    }
+}
+
+#[test]
 fn obligation_ledger_binds_and_recovers_application_root_role() {
     let Some(target) = host_target_name() else {
         return;

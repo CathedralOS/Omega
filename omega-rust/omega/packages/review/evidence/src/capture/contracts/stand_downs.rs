@@ -142,6 +142,8 @@ pub(in crate::capture) fn project_package_contract_entailment_assumption_dischar
     Vec<ProjectedReviewRow<PackageReviewContractEntailmentAssumptionDischarge>>,
     Vec<Diagnostic>,
 > {
+    // The package caller passes the rows sorted by the open-obligation
+    // producer above. This join coordinate is a prefix of that row order.
     let mut projected = Vec::new();
     for certificate in &compilation
         .facts
@@ -167,16 +169,24 @@ pub(in crate::capture) fn project_package_contract_entailment_assumption_dischar
         })?;
         let callable = nominal_identity(compilation, certificate.machine_symbol())?;
         let commitment = certificate.machine_contract_commitment().as_bytes();
-        let matching = open_obligations
-            .iter()
-            .filter(|open| {
-                open.row.callable == callable
-                    && open.row.contract_position == certificate.contract_position()
-                    && open.row.fact_position == certificate.fact_position()
-                    && open.row.machine_contract_commitment == commitment
-            })
-            .collect::<Vec<_>>();
-        let [open] = matching.as_slice() else {
+        let key = (
+            &callable,
+            certificate.contract_position(),
+            certificate.fact_position(),
+            commitment,
+        );
+        let compare = |open: &ProjectedReviewRow<PackageReviewContractEntailmentOpenObligation>| {
+            (
+                &open.row.callable,
+                open.row.contract_position,
+                open.row.fact_position,
+                open.row.machine_contract_commitment,
+            )
+                .cmp(&key)
+        };
+        let start = open_obligations.partition_point(|open| compare(open).is_lt());
+        let end = start + open_obligations[start..].partition_point(|open| compare(open).is_eq());
+        let [open] = &open_obligations[start..end] else {
             return Err(vec![Diagnostic::error(
                 "contract-entailment assumption certificate does not rejoin exactly one package-evidence obligation",
             )]);

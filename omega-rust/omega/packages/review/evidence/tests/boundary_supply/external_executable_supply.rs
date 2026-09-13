@@ -211,6 +211,35 @@ pub machine DispatchTable::table_leaf()
         .filter(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply)
         .collect::<Vec<_>>();
     assert_eq!(supply_rows.len(), expected_count);
+    let results = reconstruct_ordinary_package_obligation_results(&checked)
+        .expect("external supplies rejoin exact encoded keys rather than typed order");
+    assert_eq!(
+        results.open_external_executable_supplies().len(),
+        expected_count
+    );
+    for (result, supply) in results
+        .open_external_executable_supplies()
+        .iter()
+        .zip(review.external_executable_supply())
+    {
+        assert_eq!(result.supply(), supply);
+        // Nominal identity is the first key field; this independent prefix
+        // selects the source fixture's unique callable before its signature.
+        let name = supply.callable().path().as_bytes();
+        let mut prefix = vec![0];
+        prefix.extend_from_slice(&package_identity().digest());
+        prefix.extend_from_slice(&(name.len() as u64).to_le_bytes());
+        prefix.extend_from_slice(name);
+        let matching = supply_rows
+            .iter()
+            .filter(|row| row.key_bytes().starts_with(&prefix))
+            .collect::<Vec<_>>();
+        let [row] = matching.as_slice() else {
+            panic!("one canonical row for the fixture callable")
+        };
+        assert_eq!(result.row().key_bytes(), row.key_bytes());
+        assert_eq!(result.row().canonical_bytes(), row.canonical_bytes());
+    }
     assert!(supply_rows.iter().all(|row| {
         row.risk() == PackageReviewCanonicalRowRisk::OpaqueBlocking
             && row.source().authored_locations().is_some_and(|locations| {
