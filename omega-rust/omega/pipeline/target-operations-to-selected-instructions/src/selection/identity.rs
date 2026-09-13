@@ -116,7 +116,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::BitwiseXorI64 => 49,
         SelectedInstructionKind::SaturatingSubtractU64 => 51,
         SelectedInstructionKind::SaturatingAddU64 => 52,
-        SelectedInstructionKind::ExactDivideU64 { .. } => 53,
+        SelectedInstructionKind::ExactDivideU64 { .. } => 54,
         SelectedInstructionKind::LoadPacked { .. } => 46,
         SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::CallAggregate { .. } => 35,
@@ -528,5 +528,48 @@ fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) 
     encode_len(bytes, values.len());
     for value in values {
         bytes.extend_from_slice(&value.to_le_bytes());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn arithmetic_and_compare_instruction_identity_discriminants_are_distinct() {
+        let kinds = [
+            SelectedInstructionKind::SaturatingSubtractU64,
+            SelectedInstructionKind::SaturatingAddU64,
+            SelectedInstructionKind::CompareI64Immediate {
+                immediate: semantic_vocabulary::IntegerValue::Unsigned(4095),
+            },
+            SelectedInstructionKind::ExactDivideU64 {
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [0x5a; 32],
+                ),
+            },
+        ];
+        let discriminants = kinds.map(|kind| {
+            let instruction = SelectedInstruction {
+                id: SelectedInstructionId(7),
+                kind,
+                constraint: RegisterConstraintKey {
+                    family: register_model::RegisterConstraintFamily::Instruction,
+                    variant: 7,
+                },
+                operands: Vec::new(),
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: SelectedInstructionProvenance::default(),
+            };
+            let mut bytes = Vec::new();
+            encode_instruction(&mut bytes, &instruction);
+            let identity = instruction.id.0.to_le_bytes();
+            assert_eq!(&bytes[..identity.len()], &identity);
+            bytes[identity.len()]
+        });
+        assert_eq!(discriminants, [51, 52, 53, 54]);
     }
 }

@@ -76,12 +76,12 @@ before subsequent calls or stores. Independent target and selected replay
 reconstructs the field offset and exact-width load from the declaration; a
 same-typed field or later reload cannot substitute for the retained observation.
 
-Register-passed owned record and sum observations use one `StructuralParameter` local slot
-keyed by the exact incoming place. Entry stores every captured register
-fragment before authored operations; the ordinary field load then snapshots its
-scalar value. Borrowed calls use that same home, and subsequent whole returns or
-nested copies read its current bytes rather than stale entry fragments. A borrowed
-input still denotes its original referent and is never copied into this slot.
+Register-passed owned record inputs that need field reads, and record or sum
+inputs lent to calls, use one `StructuralParameter` local slot keyed by the exact
+incoming place. Entry stores every captured register fragment before authored
+operations. Field reads and borrowed calls use that same home; subsequent whole
+returns or nested copies read its current bytes rather than stale entry fragments.
+A borrowed input still denotes its original referent and is never copied into this slot.
 Register inputs used only for whole-value transport retain fragment-only storage.
 Independent replay reconstructs the input slot, extent, writes and every observation.
 Shared calls on constructed or call-returned sums similarly use their original
