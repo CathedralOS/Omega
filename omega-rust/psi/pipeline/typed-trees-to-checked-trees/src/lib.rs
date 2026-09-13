@@ -13,6 +13,7 @@ mod lookup;
 mod lowerer;
 mod monomorphization;
 mod operators;
+mod product_pruning;
 mod validation;
 mod values;
 
@@ -341,6 +342,12 @@ pub fn derive_checked_contract_expression_evidence_instantiation(
         parameter,
     )
 }
+
+pub use product_pruning::{
+    CheckedTreeProductPruning, CheckedTreeProductPruningOutcome, CheckedTreeProductRoots,
+    CheckedTreeProductRootsError, CheckedTreeProductSelection, CheckedTreeProductSelectionIdentity,
+    prune_checked_tree_product,
+};
 
 #[cfg(test)]
 pub(crate) use lowerer::lower_typed_trees_for_crash_fact_inspection;
