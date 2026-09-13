@@ -10,43 +10,31 @@ local and bounded. Each promoted head gets at most three minutes. See landing.md
 import argparse
 from datetime import datetime, timedelta, timezone
 import json
-import os
 from pathlib import Path
 import random
 import re
-import subprocess
 import sys
 import time
 import uuid
+
+# Sibling-script import; both files live in tools/.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import coordination
 
 CLAIM_REF = "refs/coordination/omega-landing/main"
 MAIN_REF = "refs/heads/main"
 LEASE_SECONDS = 180
 
-
-class LandingError(Exception):
-    pass
-
-
-def object_id(value, name):
-    if not value or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", value):
-        raise LandingError(f"{name} requires a full lowercase Git object ID.")
+LandingError = coordination.CoordinationError
+object_id = coordination.object_id
+now = coordination.now
+utc = coordination.utc
+emit = coordination.emit
 
 
 def ticket_id(value):
     if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value):
         raise LandingError("Supply the 32-character ticket returned by enqueue; enqueue before claiming.")
-
-
-def now():
-    return datetime.now(timezone.utc).isoformat()
-
-
-def utc(value):
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        raise ValueError("UTC timestamp requires an offset")
-    return parsed.astimezone(timezone.utc)
 
 
 def promote_head(record):
@@ -64,48 +52,24 @@ def expired(record):
     return bool(record["entries"]) and datetime.now(timezone.utc) >= utc(record["head_expires_utc"])
 
 
-def emit(record):
-    print(json.dumps(record, ensure_ascii=True, separators=(",", ":")))
-
-
 class Landing:
     def __init__(self, repository, remote):
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", remote):
-            raise LandingError("Invalid remote name.")
         self.repository = Path(repository).resolve()
-        self.git("rev-parse", "--show-toplevel")
-        urls = self.git("remote", "get-url", "--push", "--all", remote).stdout.splitlines()
-        if len(urls) != 1 or not urls[0]:
-            raise LandingError("Exactly one push URL is required.")
-        self.push_url = urls[0]
+        self.push_url = coordination.push_url(self.repository, remote)
 
     def git(self, *arguments, input_text="", allow_failure=False):
-        result = subprocess.run(
-            ["git", "-C", str(self.repository), *arguments],
-            input=input_text, capture_output=True, text=True, encoding="utf-8",
-            errors="replace", env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
-        )
-        result.stdout = result.stdout.rstrip()
-        result.stderr = result.stderr.rstrip()
-        if result.returncode and not allow_failure:
-            raise LandingError(f"Git failed ({result.returncode}): {result.stderr} {result.stdout}")
-        return result
+        return coordination.git(self.repository, *arguments, input_text=input_text,
+                                allow_failure=allow_failure)
 
     def references(self):
-        result = self.git("ls-remote", "--refs", self.push_url, MAIN_REF, CLAIM_REF)
-        references = {}
-        for line in result.stdout.splitlines():
-            parts = line.split("\t")
-            if len(parts) != 2:
-                raise LandingError("Unexpected remote reference response.")
-            object_id(parts[0], "Remote reference")
-            references[parts[1]] = parts[0]
+        references = coordination.remote_refs(self.repository, self.push_url,
+                                              MAIN_REF, CLAIM_REF)
         if MAIN_REF not in references:
             raise LandingError("Remote main does not exist.")
         return references
 
     def fetch(self, identity):
-        self.git("fetch", "--no-tags", "--no-write-fetch-head", self.push_url, identity)
+        coordination.fetch_object(self.repository, self.push_url, identity)
 
     def snapshot(self):
         references = self.references()
@@ -179,20 +143,14 @@ class Landing:
             raise LandingError("Checkpoint tracked and untracked changes before enqueueing, reserving, or publishing.")
 
     def queue_object(self, record, parent):
-        record.update(updated_utc=now(), nonce=uuid.uuid4().hex)
-        tree = self.git("mktree").stdout
-        arguments = ["commit-tree", tree, "-F", "-"]
-        if parent:
-            arguments.extend(("-p", parent))
-        return self.git(*arguments, input_text=json.dumps(record, ensure_ascii=True)).stdout
+        return coordination.commit_record(self.repository, record, parent)
 
     def legacy_release(self, options, snapshot):
         if options.command not in ("release", "recover") or options.claim != snapshot["version"]:
             raise LandingError("A legacy reservation is active. Finish with the v1 client or "
                                "release its exact claim before using FIFO.")
-        result = self.git("-c", "push.followTags=false", "push", "--atomic", "--porcelain",
-                          f"--force-with-lease={CLAIM_REF}:{options.claim}", self.push_url,
-                          f":{CLAIM_REF}", allow_failure=True)
+        result = coordination.push_atomic(self.repository, self.push_url,
+                                          [f":{CLAIM_REF}"], lease=(CLAIM_REF, options.claim))
         if result.returncode:
             raise LandingError(f"Legacy release uncertain; inspect status. {result.stderr}")
         return {"state": "released", "claim": options.claim, "action": options.command, "reason": options.reason}
@@ -237,9 +195,9 @@ class Landing:
         else:
             return False
         updated = self.queue_object(record, snapshot["version"])
-        result = self.git("-c", "push.followTags=false", "push", "--atomic", "--porcelain",
-                          f"--force-with-lease={CLAIM_REF}:{snapshot['version']}", self.push_url,
-                          f"{updated}:{CLAIM_REF}", allow_failure=True)
+        result = coordination.push_atomic(self.repository, self.push_url,
+                                          [f"{updated}:{CLAIM_REF}"],
+                                          lease=(CLAIM_REF, snapshot["version"]))
         if result.returncode:
             after = self.references().get(CLAIM_REF, "")
             if after == snapshot["version"]:
@@ -327,16 +285,15 @@ class Landing:
                 promote_head(record)
 
             updated = self.queue_object(record, snapshot["version"])
-            arguments = ["-c", "push.followTags=false", "push", "--atomic", "--porcelain",
-                         f"--force-with-lease={CLAIM_REF}:{snapshot['version']}", self.push_url,
-                         f"{updated}:{CLAIM_REF}"]
+            refspecs = [f"{updated}:{CLAIM_REF}"]
             if options.command == "publish":
-                arguments.append(f"{options.candidate}:{MAIN_REF}")
+                refspecs.append(f"{options.candidate}:{MAIN_REF}")
                 # The record above now describes the successor, so use the
                 # pre-mutation lease retained separately for this last check.
                 if datetime.now(timezone.utc) >= utc(lease_deadline):
                     raise LandingError("The three-minute head lease expired before push. Rejoin.")
-            mutation = self.git(*arguments, allow_failure=True)
+            mutation = coordination.push_atomic(self.repository, self.push_url, refspecs,
+                                                lease=(CLAIM_REF, snapshot["version"]))
             if not mutation.returncode:
                 emit(result)
                 return 0

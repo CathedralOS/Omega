@@ -3,11 +3,14 @@
 `launch.py` fans "advance the compiler" out to Devin Cloud sessions: the
 coordinator writes a wave manifest that pre-assigns one board item per session,
 the launcher creates one session per entry, and each session runs the ordinary
-`advance` skill restricted to that item, landing through `tools/landing.py`.
+`advance` skill restricted to that item, registering its assignment in the
+shared claims registry ([tools/claims](../claims.md)) and landing through
+`tools/landing.py`.
 
 The launcher writes no board text, holds no landing claim, creates no Git refs,
 and keeps receipts only under the ignored `build/swarm/<wave>/` directory.
-Partitioning lives in the manifest, not in any ownership system.
+Partitioning lives in the manifest, checked against the claims registry's live
+assignments.
 
 ## Prerequisites
 
@@ -41,14 +44,18 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
    worked example).
 2. `plan --manifest <file>` — validates the manifest, runs `host_gates` and
    the omega-route check, probes owning-path freshness (including each path's
-   crate), renders one prompt per session to `build/swarm/<wave>/prompts/`, and
-   prints the exact request bodies. Review the prompts. Use
-   `--skip-host-gates` or `--skip-route-check` when the coordinator deliberately
-   does not run those checks.
-3. `launch --manifest <file>` — creates one session per entry and records
-   `receipts.json`. A name with an existing receipt is skipped; pass
-   `--relaunch <name>` to recreate just that session. `--dry-run` prints the
-   bodies without network.
+   crate), checks each item and its owning paths against the live claims
+   registry, renders one prompt per session to `build/swarm/<wave>/prompts/`,
+   and prints the exact request bodies. Review the prompts. Use
+   `--skip-host-gates`, `--skip-route-check`, or `--skip-claims-check` when
+   the coordinator deliberately does not run those checks. An unreachable
+   registry reports `unavailable` per session rather than failing `plan`'s
+   offline use; a reachable registry with a conflicting live claim fails like
+   a host gate.
+3. `launch --manifest <file>` — re-runs the claims check, then creates one
+   session per entry and records `receipts.json`. A name with an existing
+   receipt is skipped; pass `--relaunch <name>` to recreate just that session.
+   `--dry-run` prints the bodies without network.
 4. `status --wave <id>` — polls each session's status and ACU consumption.
 5. `report --wave <id>` — merges receipts and structured output into
    `build/swarm/<wave>/report.md`, the input for a `retrospect` pass.
@@ -66,9 +73,11 @@ edit a launched wave to reassign its running sessions.
 Pick items that are:
 
 - runnable on Linux x86-64 (no Windows/macOS/QEMU acceptance required),
-- non-overlapping: review parent/child paths and shared dependencies as well as
-  identical `owning_paths` entries; the launcher's exact-path check is not enough,
-- not in this wave's `exclusions` or another session's active edit assignment,
+- non-overlapping: the launcher rejects parent/child `owning_paths` overlaps
+  inside a manifest and conflicts with live claims; still review shared
+  dependencies, since path checks cannot catch every semantic coupling,
+- not in this wave's `exclusions` and not under another session's or machine's
+  live claim (`python tools/claims.py status`),
 - named in a board the launcher knows (`TASKS.md`, `TASKS_BOOTSTRAP.md`,
   `TASKS_OPTIMIZER.md`), with the item present as `**<item>.**`.
 - ready to attempt on the assigned host: `host_gates` are environment/access and
@@ -111,9 +120,10 @@ Before the first wave, a human with org access must:
   crates.io downloads, the registry index, build scripts, and unchanged leaf
   crates; at this repository's commit velocity the first `cargo check` still
   rebuilds most of the workspace. Blueprints rebuild roughly every 24 hours.
-- The launcher holds no ownership. The coordinator must reconcile assignments
-  with other active waves and local work before launch and on overlap reports.
-  A manifest partitions only its own sessions, and exact path checks cannot catch
-  every shared dependency. The landing protocol serializes publication; it does
-  not prevent competing implementations. Unknown ownership needs coordination,
-  not an inferred claim from an old manifest or worktree.
+- The claims registry is an advisory fence, not a lock. It makes live
+  assignments visible across machines and waves, and `plan`/`launch` refuse a
+  manifest that collides with a reachable claim — but a session that never
+  claims, a `--skip-claims-check` launch, or plain direct work can still
+  collide. The landing protocol serializes publication; it does not prevent
+  competing implementations. Reconcile assignments before launch and on
+  overlap reports; an old manifest or worktree is not a claim.

@@ -29,12 +29,16 @@ import time
 import urllib.error
 import urllib.request
 
+# Sibling-tool import; claims.py lives in tools/.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import claims
+
 DEFAULT_BASE_URL = "https://api.devin.ai/v3"
 BOARDS = ("TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md")
 MAX_ATTEMPTS = 3
 PROMPT_FIELDS = ("name", "wave", "item", "board", "owner_label", "exclusions",
                  "max_acu_limit", "suggested_first_slice_block",
-                 "probe_block", "structured_output_schema")
+                 "probe_block", "claim_command", "structured_output_schema")
 
 STRUCTURED_OUTPUT_SCHEMA = {
     "type": "object",
@@ -114,7 +118,7 @@ def validate_manifest(manifest, repository):
     sessions = manifest["sessions"]
     if not isinstance(sessions, list) or not sessions:
         raise SwarmError("manifest.sessions must be a non-empty list.")
-    claimed = {}
+    claimed = []
     for session in sessions:
         where = f"session {session.get('name', '?')!r}"
         require_fields(session, ("name", "board", "item", "host", "owning_paths"), where)
@@ -137,10 +141,11 @@ def validate_manifest(manifest, repository):
         if "probe_only" in session and not isinstance(session["probe_only"], bool):
             raise SwarmError(f"{session['name']}: probe_only must be a boolean.")
         for path in session["owning_paths"]:
-            if path in claimed:
-                raise SwarmError(f"Owning path {path} is claimed by both "
-                                 f"{claimed[path]} and {session['name']}.")
-            claimed[path] = session["name"]
+            for existing_path, existing_name in claimed:
+                if claims.paths_overlap(path, existing_path):
+                    raise SwarmError(f"Owning path {path} ({session['name']}) overlaps "
+                                     f"{existing_path} claimed by {existing_name}.")
+            claimed.append((path, session["name"]))
         board_text_path = repository / session["board"]
         if not board_text_path.is_file():
             raise SwarmError(f"{session['name']}: board file {session['board']} not found.")
@@ -301,6 +306,33 @@ def freshness_probe(repository, session, crates=None):
     return lines
 
 
+def claims_report(repository, sessions, skip=False):
+    """Live registry conflicts per session; "unavailable" when unreachable."""
+    if skip:
+        return {session["name"]: "skipped" for session in sessions}
+    try:
+        registry = claims.Claims(repository, "origin")
+        snapshot = registry.snapshot()
+    except Exception:
+        return {session["name"]: "unavailable" for session in sessions}
+    report = {}
+    failures = []
+    for session in sessions:
+        found = registry.conflicts(snapshot["record"], session["item"],
+                                   session["owning_paths"])
+        report[session["name"]] = found
+        for conflict in found:
+            failures.append(
+                f"{session['name']}: {session['item']} conflicts with a live "
+                f"claim by {conflict['owner']} ({conflict['reason']}, ticket "
+                f"{conflict['ticket']}, expires {conflict['expires_utc']})")
+    if failures:
+        raise SwarmError("\n".join(failures) +
+                         "\nWait for those claims, coordinate a handoff, or "
+                         "pass --skip-claims-check.")
+    return report
+
+
 def route_check(sessions, freshness_by_name):
     failures = []
     for session in sessions:
@@ -333,12 +365,16 @@ def render_prompt(template, manifest, session):
             "witnessed rejection, the exact missing seam, and the next "
             "acceptance in `remaining_dependency` is a planned success here, "
             "not a failure; still land a bounded improvement if one exists.")
+    paths = " ".join(f"--path {path}" for path in session["owning_paths"])
     values = {
         "name": session["name"],
         "wave": manifest["wave"],
         "item": session["item"],
         "board": session["board"],
         "owner_label": owner_label,
+        "claim_command": (f"python3 tools/claims.py claim --board {session['board']} "
+                          f"--item {session['item']} --owner \"{owner_label}\""
+                          + (f" {paths}" if paths else "")),
         "exclusions": ", ".join(manifest["exclusions"]),
         "max_acu_limit": manifest["max_acu_limit"],
         "suggested_first_slice_block": slice_block,
@@ -439,6 +475,8 @@ def command_plan(arguments, repository):
     }
     if not skip_route_check:
         route_check(manifest["sessions"], freshness)
+    claims_state = claims_report(repository, manifest["sessions"],
+                                 skip=arguments.skip_claims_check)
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
         encoding="utf-8")
     wave_directory = build_directory(repository, manifest["wave"])
@@ -460,6 +498,7 @@ def command_plan(arguments, repository):
             "board": session["board"],
             "prompt": str(prompt_path.relative_to(repository)),
             "host_gates": gate_results[session["name"]],
+            "claims": claims_state[session["name"]],
             "probe_only": bool(session.get("probe_only", False)),
             "freshness": freshness[session["name"]],
             "body": request_body(manifest, session, prompt),
@@ -480,6 +519,8 @@ def command_launch(arguments, repository):
         }
         if not arguments.skip_route_check:
             route_check(manifest["sessions"], freshness)
+        claims_report(repository, manifest["sessions"],
+                      skip=arguments.skip_claims_check)
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
         encoding="utf-8")
     wave_directory = build_directory(repository, manifest["wave"])
@@ -627,11 +668,13 @@ def main(argv=None):
     plan.add_argument("--manifest", required=True)
     plan.add_argument("--skip-host-gates", action="store_true")
     plan.add_argument("--skip-route-check", action="store_true")
+    plan.add_argument("--skip-claims-check", action="store_true")
     launch = subparsers.add_parser("launch")
     launch.add_argument("--manifest", required=True)
     launch.add_argument("--dry-run", action="store_true")
     launch.add_argument("--skip-host-gates", action="store_true")
     launch.add_argument("--skip-route-check", action="store_true")
+    launch.add_argument("--skip-claims-check", action="store_true")
     launch.add_argument("--relaunch")
     status = subparsers.add_parser("status")
     status.add_argument("--wave", required=True)

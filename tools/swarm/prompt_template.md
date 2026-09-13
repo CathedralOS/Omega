@@ -19,12 +19,26 @@ says `mbx`. `cargo nextest` is installed. Windows, macOS, and QEMU acceptance
 is unavailable on this host and must be reported as unavailable, never as
 passing.
 
+## Coordination
+
+Register your assignment before editing so other machines, waves, and local
+sessions see it:
+
+`{claim_command}`
+
+Retain the returned ticket. Exit 2 lists a live conflicting claim — stop and
+report `blocked` with the named owner and reason; do not retry with
+`--allow-overlap` or work around it. If you approach the lease expiry,
+`python3 tools/claims.py renew --ticket <ticket>`. Release with
+`release --ticket <ticket>` when you finish for any reason.
+
 ## Collision rules
 
 Edit only your item's board text. Never touch these excluded items: {exclusions}.
 If your fix needs a path owned by another item in the wave, stop and report
 `blocked` with the needed path so the coordinator can arrange a handoff. Apply
-the same rule to a confirmed active assignment outside this wave. Multiple
+the same rule to a confirmed active claim outside this wave
+(`tools/claims.py status`). Multiple
 unassigned stages may belong to your slice; do not stop merely at a crate boundary.
 
 Refetch `origin/main` before you `enqueue`. If the item's acceptance already
