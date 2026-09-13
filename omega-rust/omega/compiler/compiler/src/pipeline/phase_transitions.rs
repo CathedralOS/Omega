@@ -25,6 +25,7 @@ pub(super) struct CheckedProgramSurface {
 /// Checked semantics after selected execution has been settled in the exact
 /// compiler-owned dispatch order. This surface owns the now-closed review
 /// provenance alongside every checked-phase sidecar.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct SelectedExecutionSettlementSurface {
     pub(super) program: Arc<CheckedProgram>,
     pub(super) dispatch_source_edits: selected_dispatch::SelectedDispatchSourceEdits,

@@ -505,11 +505,13 @@ fn specialized_fixed_operator_physical_custody_canary_compiles() {
         0,
     );
 
-    let mut substituted = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+    let substituted = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &canary.join("main.omg"),
         Some("linux_x86_64"),
     ))
     .expect("specialized fixed-token false twin should reach checked custody");
+    let selected_provider_plans = substituted.selected_provider_plans().clone();
+    let mut substituted = substituted.into_program();
     let [application] = substituted
         .facts
         .operators
@@ -527,7 +529,7 @@ fn specialized_fixed_operator_physical_custody_canary_compiles() {
     let diagnostics =
         selected_dispatch::derive_checked_specialized_operator_application_realizations(
             &substituted,
-            substituted.selected_provider_plans(),
+            &selected_provider_plans,
         )
         .expect_err("a substituted fixed-token D29 application must reject");
     assert!(
@@ -602,7 +604,7 @@ fn specialized_structural_fixed_operator_terminal_custody_canary_compiles() {
     };
     assert_eq!(realization.application_arguments, application.arguments);
 
-    let mut substituted = checked.clone();
+    let mut substituted = checked.clone().into_program();
     let [substituted_application] = substituted
         .facts
         .operators
@@ -622,7 +624,7 @@ fn specialized_structural_fixed_operator_terminal_custody_canary_compiles() {
     let diagnostics =
         selected_dispatch::derive_checked_specialized_operator_application_realizations(
             &substituted,
-            substituted.selected_provider_plans(),
+            checked.selected_provider_plans(),
         )
         .expect_err("a substituted structural const application must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -631,7 +633,7 @@ fn specialized_structural_fixed_operator_terminal_custody_canary_compiles() {
             .contains("resolves to 0 exact specializations for one application")
     }));
 
-    let mut drifted_plan = checked.clone();
+    let mut drifted_plan = checked.clone().into_program();
     let [selected_structural] = drifted_plan
         .facts
         .flow
@@ -660,14 +662,16 @@ fn nested_checked_boundary_operator_physical_custody_canary_compiles() {
         1,
     );
 
-    let mut missing_helper_contract = compile_reviewed_repository_fixture(
-        CheckedCompileRequest::new(&canary.join("main.omg"), Some("linux_x86_64")),
-    )
+    let missing_helper_contract = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
     .expect("nested checked-body false twin should reach checked custody");
     let entry = missing_helper_contract
         .selected_program_entry_machine()
         .expect("nested checked-body false twin retains its entry")
         .to_owned();
+    let mut missing_helper_contract = missing_helper_contract.into_program();
     let helper = missing_helper_contract
         .machines()
         .iter()
@@ -775,7 +779,7 @@ fn runtime_selected_provider_adapter_exit_canary_runs() {
 }
 
 fn fused_service_field_mut(
-    checked: &mut CheckedCompilation,
+    checked: &mut checked_trees::CheckedTrees,
 ) -> &mut checked_trees::CheckedUnitStructuralFieldType {
     for structural_type in &mut checked.facts.flow.terminal_unit_effects.structural_types {
         let checked_trees::CheckedUnitStructuralTypeShape::Record { fields } =
@@ -796,7 +800,7 @@ fn fused_service_field_mut(
 }
 
 fn fused_service_parameter_mut(
-    checked: &mut CheckedCompilation,
+    checked: &mut checked_trees::CheckedTrees,
 ) -> &mut checked_trees::CheckedUnitStructuralParameterPlan {
     fused_service_parameter_plan_mut(checked)
         .structural_parameters
@@ -806,7 +810,7 @@ fn fused_service_parameter_mut(
 }
 
 fn fused_service_parameter_plan_mut(
-    checked: &mut CheckedCompilation,
+    checked: &mut checked_trees::CheckedTrees,
 ) -> &mut checked_trees::CheckedUnitEffectMachinePlan {
     checked
         .facts
@@ -824,7 +828,7 @@ fn fused_service_parameter_plan_mut(
 }
 
 fn unit_effect_plan_named<'a>(
-    checked: &'a CheckedCompilation,
+    checked: &'a checked_trees::CheckedTrees,
     name: &str,
 ) -> &'a checked_trees::CheckedUnitEffectMachinePlan {
     let machine = checked
@@ -841,7 +845,7 @@ fn unit_effect_plan_named<'a>(
 }
 
 fn unit_effect_plan_named_mut<'a>(
-    checked: &'a mut CheckedCompilation,
+    checked: &'a mut checked_trees::CheckedTrees,
     name: &str,
 ) -> &'a mut checked_trees::CheckedUnitEffectMachinePlan {
     let symbol = checked
@@ -986,7 +990,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         "both ordered Service calls must consume the exact Terminal scalar parameter"
     );
 
-    let mut parameter_downgrade = baseline.clone();
+    let mut parameter_downgrade = baseline.clone().into_program();
     fused_service_parameter_mut(&mut parameter_downgrade).fused_service_erasure = None;
     let parameter_downgrade_error = selected_dispatch::validate_fused_service_terminal_custody(
         &parameter_downgrade,
@@ -1007,7 +1011,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             .contains("lost its Fused erasure receipt")
     );
 
-    let mut scalar_parameter_removal = baseline.clone();
+    let mut scalar_parameter_removal = baseline.clone().into_program();
     fused_service_parameter_plan_mut(&mut scalar_parameter_removal)
         .scalar_parameters
         .clear();
@@ -1032,7 +1036,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         )
     );
 
-    let mut parameter_symbol_substitution = baseline.clone();
+    let mut parameter_symbol_substitution = baseline.clone().into_program();
     fused_service_parameter_mut(&mut parameter_symbol_substitution)
         .fused_service_erasure
         .as_mut()
@@ -1052,7 +1056,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
                 .contains("rejoins 0 exact typed parameters")
     }));
 
-    let mut parameter_access_substitution = baseline.clone();
+    let mut parameter_access_substitution = baseline.clone().into_program();
     fused_service_parameter_mut(&mut parameter_access_substitution).access =
         checked_trees::CheckedStructuralAccess::SharedBorrow;
     let parameter_access_error = selected_dispatch::validate_fused_service_terminal_custody(
@@ -1066,7 +1070,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             .contains("not the exact direct owned affine source parameter")
     }));
 
-    let mut parameter_operation_removal = baseline.clone();
+    let mut parameter_operation_removal = baseline.clone().into_program();
     let parameter_machine = parameter_operation_removal
         .facts
         .flow
@@ -1102,7 +1106,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             .contains("expected one ordered operation per call")
     }));
 
-    let mut classifier_twins = baseline.clone();
+    let mut classifier_twins = baseline.clone().into_program();
     let service_field_type = {
         let main = classifier_twins
             .typed
@@ -1179,7 +1183,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
     .expect_err("a Service carrier with an extra constraint must reject");
     assert!(constraint_error.contains("may carry only the exact toolchain-owned `Bound` domain"));
 
-    let mut downgraded = baseline.clone();
+    let mut downgraded = baseline.clone().into_program();
     let provider_type_identity = match fused_service_field_mut(&mut downgraded) {
         checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked {
             provider_type_identity,
@@ -1200,7 +1204,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             .contains("lost its exact Fused erasure settlement")
     }));
 
-    let mut digest_substitution = baseline.clone();
+    let mut digest_substitution = baseline.clone().into_program();
     let (requirement, substituted_digest) = match fused_service_field_mut(&mut digest_substitution)
     {
         checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked { erasure, .. } => {
@@ -1227,7 +1231,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             .contains("rejoins 0 exact Fused selected-provider plans")
     }));
 
-    let mut requirement_substitution = baseline.clone();
+    let mut requirement_substitution = baseline.clone().into_program();
     let other = requirement_substitution
         .traits()
         .iter()
@@ -1251,7 +1255,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             .contains("substituted its boundary requirement")
     }));
 
-    let mut missing_authority = baseline.clone();
+    let mut missing_authority = baseline.clone().into_program();
     missing_authority.typed.fused_service_erasures.clear();
     let authority_error =
         selected_dispatch::validate_fused_service_terminal_custody(&missing_authority, &provenance)
@@ -1301,7 +1305,7 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
     .expect("the selected root receipt should independently rederive");
     assert_eq!(derived, selected.fused_service_establishments());
 
-    let mut substituted = baseline.clone();
+    let mut substituted = baseline.clone().into_program();
     match fused_service_field_mut(&mut substituted) {
         checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked { erasure, .. } => {
             erasure.provider_plan_digest[0] ^= 1
@@ -1474,7 +1478,7 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
         })
     }));
 
-    let assert_rejects = |mutated: &CheckedCompilation, label: &str| {
+    let assert_rejects = |mutated: &checked_trees::CheckedTrees, label: &str| {
         let Err(diagnostics) =
             selected_dispatch::validate_fused_service_terminal_custody(mutated, &provenance)
         else {
@@ -1486,7 +1490,7 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
         };
     };
 
-    let mut wrong_source = baseline.clone();
+    let mut wrong_source = baseline.clone().into_program();
     let checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
         structural_arguments,
         ..
@@ -1498,7 +1502,7 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
     assert_rejects(&wrong_source, "a substituted forwarding source index");
 
-    let mut projected = baseline.clone();
+    let mut projected = baseline.clone().into_program();
     let checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
         structural_arguments,
         ..
@@ -1513,7 +1517,7 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
         ));
     assert_rejects(&projected, "a projected forwarding carrier");
 
-    let mut digest_drift = baseline.clone();
+    let mut digest_drift = baseline.clone().into_program();
     unit_effect_plan_named_mut(&mut digest_drift, "forwarding_terminal").structural_parameters
         [0]
     .fused_service_erasure
@@ -1522,7 +1526,7 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
     .provider_plan_digest[0] ^= 1;
     assert_rejects(&digest_drift, "a target selected-plan substitution");
 
-    let mut duplicate = baseline.clone();
+    let mut duplicate = baseline.clone().into_program();
     let forwarding_call =
         unit_effect_plan_named(&duplicate, "forwarding_once").operations[0].clone();
     unit_effect_plan_named_mut(&mut duplicate, "forwarding_once")

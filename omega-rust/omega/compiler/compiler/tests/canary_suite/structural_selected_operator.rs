@@ -220,7 +220,7 @@ fn specialized_structural_fixed_operator_hosted_local_transfer_rejects_drift() {
         Drift::BorrowedAccess,
         Drift::RestoredDiscard,
     ] {
-        let mut drifted = checked.clone();
+        let mut drifted = checked.clone().into_program();
         let plan = drifted
             .facts
             .flow
@@ -443,7 +443,7 @@ fn specialized_structural_fixed_operator_unit_terminal_custody_rejects_drift() {
         Drift::MissingProviderPlan,
         Drift::RestoredDiscard,
     ] {
-        let mut drifted = checked.clone();
+        let mut drifted = checked.clone().into_program();
         let plan = drifted
             .facts
             .flow
@@ -1014,7 +1014,7 @@ fn specialized_mixed_structural_result_operator_rejects_terminal_custody_drift()
         Drift::RetainedAffineResult,
         Drift::CoordinatedParameterPartition,
     ] {
-        let mut drifted = checked.clone();
+        let mut drifted = checked.clone().into_program();
         let (realization_machine, realization_state) = {
             let plan = drifted
                 .facts
@@ -1102,7 +1102,7 @@ fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
         Drift::SubstitutedScalar,
         Drift::StructuralSource,
     ] {
-        let mut drifted = checked.clone();
+        let mut drifted = checked.clone().into_program();
         if matches!(drift, Drift::CoordinatedParameterPartition) {
             let (realization_machine, realization_state) = {
                 let plan = drifted

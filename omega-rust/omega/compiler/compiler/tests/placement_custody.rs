@@ -1051,7 +1051,8 @@ fn source_placement_custody_rejects_the_wrong_multiplicity() {
 fn placement_custody_revalidation_rejects_policy_decision_drift() {
     let main = write_program("policy-drift", &source("    authority: Evidence;"));
     let mut checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
-        .expect("baseline custody must compile");
+        .expect("baseline custody must compile")
+        .into_program();
     let plan = checked
         .typed
         .placed_view_plans

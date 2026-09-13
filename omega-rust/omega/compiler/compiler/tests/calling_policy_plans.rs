@@ -1863,7 +1863,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         language_semantics::QualificationEvidenceOrigin::Propagated,
         "the checked adapter fact remains an ordinary parameter precondition until occurrence admission"
     );
-    let mut drifted_checked = checked.clone();
+    let mut drifted_checked = checked.clone().into_program();
     drifted_checked
         .facts
         .semantic
@@ -1874,7 +1874,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     assert!(
         selected_external_root_entry_fact_bindings(
             &drifted_checked,
-            drifted_checked.selected_provider_plans(),
+            checked.selected_provider_plans(),
             "TimerRoot",
         )
         .expect_err("a non-precondition fact must not satisfy installed-root entry binding")

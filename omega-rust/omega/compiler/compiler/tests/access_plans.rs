@@ -1377,7 +1377,8 @@ data Main {}
     );
     let main = write_program("placed-view-exact-identities", &source);
     let mut checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
-        .expect("exact placed-view identities should compile");
+        .expect("exact placed-view identities should compile")
+        .into_program();
     let [view] = checked.typed.placed_view_plans.as_slice() else {
         panic!("fixture should derive exactly one placed view")
     };
@@ -2100,7 +2101,8 @@ fn checked_atomic_resident_contract_replays_observing_axes_and_result_shapes() {
         );
     let main = write_program("placed-atomic-resident-contract", &source);
     let mut checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
-        .expect("copyable resident should retain both observing result contracts");
+        .expect("copyable resident should retain both observing result contracts")
+        .into_program();
     let view_index = checked
         .typed
         .placed_view_plans
@@ -2507,7 +2509,7 @@ machine Main::main(&mut self) {}
     let access = joined.into_atomic_access();
     assert_eq!(request_snapshot(&access), snapshot);
 
-    let mut drifted = checked.clone();
+    let mut drifted = checked.clone().into_program();
     let drifted_view_symbol = view.data_symbol;
     let drifted_field_symbol = field.field_symbol;
     {

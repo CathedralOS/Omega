@@ -1,0 +1,253 @@
+//! Settle build-selected execution against the final typed program.
+//! The resulting checked program and its sidecars remain one owned handoff.
+
+use super::build_continuation::BuiltCheckedProgram;
+use super::const_evaluation;
+use crate::pipeline::PackageCompilationInputs;
+use crate::pipeline::phase_transitions::{
+    SelectedExecutionSettlementInput, SelectedExecutionSettlementSurface,
+    TypedToCheckedSettlementInput, settle_selected_execution, typed_trees_to_checked_trees,
+};
+use crate::pipeline::timing::CompileTimings;
+use diagnostics::Diagnostic;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct CheckedExecution {
+    pub(super) settled: SelectedExecutionSettlementSurface,
+    pub(super) const_evaluation: const_evaluation::SelectedConstEvaluation,
+    pub(super) subsystem: u16,
+    pub(super) application_intent: Option<build_evaluation::HostedApplicationIntent>,
+    pub(super) pcc_requests: build_evaluation::PccRequests,
+    pub(super) selected_target_profile: Option<target::TargetProfile>,
+    pub(super) selected_native_target: Option<target::NativeTarget>,
+    pub(super) x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    pub(super) x86_scalar_fma_plan_associations:
+        Vec<crate::pipeline::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation>,
+    pub(super) selected_program_entry: Option<build_evaluation::SelectedCompilerProgramEntry>,
+    pub(super) selected_build_machine_symbol: Option<symbols::SymbolHandle>,
+    pub(super) selected_build_machine_identity: Option<String>,
+    pub(super) opaque_representation_selections:
+        Vec<representation_planning::OpaqueRepresentationSelection>,
+    pub(super) boundary_calling_plan_realizations:
+        Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
+    pub(super) optimization:
+        crate::pipeline::optimization::checked_handoff::CheckedOptimizationHandoff,
+    pub(super) provider_plans: Vec<effects::provider_plan::ProviderPlan>,
+    pub(super) evaluated_via_bindings:
+        provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
+    pub(super) external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
+    pub(super) root_grants: Vec<String>,
+    pub(super) build_evaluation_usage: Option<crate::pipeline::build_config::BuildEvaluationUsage>,
+    pub(super) build_observation_summary:
+        Option<crate::pipeline::build_config::BuildObservationSummary>,
+}
+
+pub(super) fn check_selected_execution(
+    built: BuiltCheckedProgram,
+    selected_target_profile: Option<target::TargetProfile>,
+    package_inputs: Option<&PackageCompilationInputs>,
+    timings: &mut CompileTimings,
+) -> Result<CheckedExecution, Vec<Diagnostic>> {
+    let BuiltCheckedProgram {
+        mut typed,
+        selected_target_machine_declarations,
+        pending_pre_checks,
+        computed_build_config,
+        selected_build_machine_symbol,
+        selected_build_machine_identity,
+    } = built;
+    let build_evaluation_usage = computed_build_config.evaluation_usage;
+    let build_observation_summary = computed_build_config.observation_summary;
+    let optimization_report = computed_build_config.optimization_report_request;
+    let build_config = computed_build_config.config;
+    let selected_native_target = selected_target_profile
+        .map(target::TargetProfile::native_target)
+        .unwrap_or_else(target::NativeTarget::host);
+    let mut boundary_calling_plan_realizations =
+        crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(
+            &mut typed,
+            selected_native_target,
+            &build_config.opaque_representation_selections,
+            package_inputs,
+        )?;
+    let opaque_representation_selections = build_config.opaque_representation_selections.clone();
+    let x86_scalar_fma_provider = build_config.x86_scalar_fma_provider;
+    let subsystem = build_config.subsystem;
+    let application_intent = build_config.application_intent;
+    let optimization =
+        crate::pipeline::optimization::checked_handoff::CheckedOptimizationHandoff::retain(
+            build_config.optimizations.clone(),
+            optimization_report,
+        );
+    // Compatibility demands are semantic checks, not report-mode behavior.
+    // Validate them on the canonical checked route even when no auxiliary
+    // artifact writer is requested by the outer compiler coordinator.
+    crate::pipeline::reporting::wire::validate_wire_protocol(
+        &typed,
+        &build_config.wire_compatibility_demands,
+    )?;
+    // A semantic-only checked compilation has no selected target and therefore
+    // no storage root. Authored bindings remain available in the evaluated
+    // build configuration, but only an exact target selection may activate one
+    // for interpreter or production execution.
+    let program_entry_binding_role = selected_target_profile
+        .map(|profile| profile.program_entry_slot())
+        .and_then(|slot| slot.physical_contract_package)
+        .map(crate::pipeline::build_config::program_entry_semantic_binding_role);
+    let mut selected_program_entry = crate::pipeline::build_config::select_compiler_program_entry(
+        &typed,
+        &build_config,
+        selected_target_profile,
+        &boundary_calling_plan_realizations,
+        package_inputs.and_then(|inputs| {
+            program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
+        }),
+    )?;
+    let crate::pipeline::provider_selection::CheckedProviderSelection {
+        provider_plans,
+        evaluated_via_bindings,
+        selected_provider_plan_facts,
+        selected_provider_provenance,
+        external_binding_rows,
+    } = crate::pipeline::provider_selection::settle_checked_providers(
+        &mut typed,
+        selected_target_machine_declarations,
+        selected_target_profile,
+        package_inputs,
+        &build_config.provider_selections,
+        &boundary_calling_plan_realizations,
+    )?;
+    let selected_native_target = selected_target_profile.map(target::TargetProfile::native_target);
+    let provider_selection_target =
+        selected_native_target.unwrap_or_else(target::NativeTarget::host);
+    let mut const_evaluation = const_evaluation::SelectedConstEvaluation::default();
+    if !pending_pre_checks.is_empty() {
+        validation::land_float_literal_destinations(&mut typed);
+        const_evaluation.operators =
+            const_evaluation::selected_operators(&typed, &selected_provider_plan_facts)?;
+        for pre_check in pending_pre_checks {
+            const_evaluation.folds.extend(
+                pre_check
+                    .evaluate_with_selected_operators(&mut typed, &const_evaluation.operators)?,
+            );
+        }
+    }
+    const_evaluation::require_evaluated_array_lengths(&typed)?;
+    let root_grants = build_config
+        .grants
+        .iter()
+        .map(|grant| grant.selector.clone())
+        .collect::<Vec<_>>();
+    if package_inputs.is_some() {
+        trust_model::reject_package_non_provider_grants(
+            &typed,
+            &root_grants,
+            &provider_plans,
+            &selected_provider_plan_facts,
+        )?;
+    }
+    let checked = typed_trees_to_checked_trees(
+        typed,
+        timings,
+        TypedToCheckedSettlementInput {
+            native_target: selected_native_target,
+            package_inputs,
+            selected_build_machine: selected_build_machine_symbol,
+            boundary_calling_plan_realizations: &mut boundary_calling_plan_realizations,
+            opaque_representation_selections: &opaque_representation_selections,
+            provider_plans: &provider_plans,
+            selected_provider_plan_facts,
+            root_grants: &root_grants,
+            authored_root_grants: &build_config.grants,
+        },
+    )?;
+    const_evaluation.validate(
+        &checked.program,
+        &checked.selected_provider_plan_facts,
+        package_inputs,
+    )?;
+    if let Some(package_inputs) = package_inputs {
+        crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
+            &checked.program,
+            package_inputs,
+        )?;
+    }
+    let exact_component_progress_root = selected_program_entry.as_ref().map(|entry| {
+        let source = entry.source_signature();
+        crate::pipeline::component_progress::ExactComponentProgressRoot::new(
+            source.machine_symbol(),
+            source.normalized_callable_identity(),
+        )
+    });
+    let selected_execution_settlement = settle_selected_execution(
+        checked,
+        SelectedExecutionSettlementInput {
+            exact_component_progress_root,
+            provider_selection_target,
+            selected_target_profile,
+            selected_provider_provenance,
+            opaque_representation_selections: &opaque_representation_selections,
+            accepted_console_binding: package_inputs.and_then(|inputs| {
+                inputs.accepted_semantic_binding(
+                    package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+                )
+            }),
+            accepted_process_exit_binding: package_inputs.and_then(|inputs| {
+                inputs.accepted_semantic_binding(
+                    package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+                )
+            }),
+            accepted_filesystem_binding: package_inputs.and_then(|inputs| {
+                inputs.accepted_semantic_binding(
+                    package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
+                )
+            }),
+            accepted_entry_binding: package_inputs.and_then(|inputs| {
+                program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
+            }),
+        },
+    )?;
+    let x86_scalar_fma_plan_associations =
+        crate::pipeline::x86_fma_plan_association::bind_checked_x86_scalar_fma_plan_associations(
+            &selected_execution_settlement.program,
+            &selected_execution_settlement.selected_provider_plan_facts,
+            &selected_execution_settlement.selected_provider_provenance,
+            x86_scalar_fma_provider,
+            selected_target_profile,
+        )?;
+
+    if let Some(entry) = selected_program_entry.as_mut() {
+        let establishments = selected_dispatch::derive_fused_program_entry_establishments(
+            &selected_execution_settlement.program,
+            entry.source_signature(),
+            &selected_execution_settlement.selected_provider_provenance,
+        )?;
+        entry
+            .bind_fused_service_establishments(establishments)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+    }
+
+    Ok(CheckedExecution {
+        settled: selected_execution_settlement,
+        const_evaluation,
+        subsystem,
+        application_intent,
+        pcc_requests: build_config.pcc,
+        selected_target_profile,
+        selected_native_target,
+        x86_scalar_fma_provider,
+        x86_scalar_fma_plan_associations,
+        selected_program_entry,
+        selected_build_machine_symbol,
+        selected_build_machine_identity,
+        opaque_representation_selections,
+        boundary_calling_plan_realizations,
+        optimization,
+        provider_plans,
+        evaluated_via_bindings,
+        external_binding_rows,
+        root_grants,
+        build_evaluation_usage,
+        build_observation_summary,
+    })
+}

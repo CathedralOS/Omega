@@ -808,6 +808,54 @@ fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
 }
 
 #[test]
+fn checked_compilation_retains_settlement_and_source_custody() {
+    let root = workspace_root().join("omega-rust/omega/compiler/compiler/src/pipeline");
+    let entrance = std::fs::read_to_string(root.join("checked_entry.rs"))
+        .expect("read checked compilation entrance");
+    let build = entrance
+        .find("build_continuation::evaluate_build_and_continue(")
+        .unwrap();
+    let check = entrance
+        .find("execution_settlement::check_selected_execution(")
+        .unwrap();
+    let seal = entrance.find("CheckedCompilation::seal(").unwrap();
+    assert!(
+        build < check && check < seal,
+        "build, checking and custody sealing must remain ordered"
+    );
+
+    let execution = std::fs::read_to_string(root.join("checked_entry/execution_settlement.rs"))
+        .expect("read selected execution owner");
+    assert!(execution.contains("settled: SelectedExecutionSettlementSurface"));
+    assert!(execution.contains("settled: selected_execution_settlement"));
+    let result = std::fs::read_to_string(root.join("checked_entry/checked_compilation.rs"))
+        .expect("read checked result owner");
+    assert!(result.contains("execution: CheckedExecution"));
+    assert!(result.contains("sources: CheckedSourceCustody"));
+    assert!(result.contains("validate_canonical_source_metadata()?"));
+    assert!(result.contains("package_compilation::verify_current_files("));
+}
+
+#[test]
+fn package_source_snapshot_has_a_physical_capture_owner() {
+    let root = workspace_root().join("omega-rust/omega/build/package-compilation/src");
+    let inputs = std::fs::read_to_string(root.join("package_compilation.rs"))
+        .expect("read package compilation owner");
+    assert!(inputs.contains("source_snapshot::capture("));
+    assert!(inputs.contains("source_snapshot::validate_current("));
+    assert!(!inputs.contains("Sha256"));
+    assert!(!inputs.contains("std::fs::read_dir("));
+    let snapshot = std::fs::read_to_string(root.join("source_snapshot.rs"))
+        .expect("read complete source snapshot owner");
+    assert!(
+        snapshot.contains("let observed = capture(root)?"),
+        "freshness must reconstruct, not trust retained rows"
+    );
+    assert!(snapshot.contains("hash_canonical_source_file("));
+    assert!(snapshot.contains("CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT"));
+}
+
+#[test]
 fn checked_observations_consume_admission_without_owning_it() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");
@@ -990,7 +1038,7 @@ fn package_compilation_inputs_are_not_owned_or_reexported_by_the_compiler() {
         "package graph and source-consumption custody must not return to compiler"
     );
 
-    let owner = root.join("omega-rust/omega/build/package-compilation/src/lib.rs");
+    let owner = root.join("omega-rust/omega/build/package-compilation/src/package_compilation.rs");
     assert!(
         owner.is_file(),
         "package-compilation must own package compilation inputs"
