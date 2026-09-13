@@ -1,6 +1,8 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
-use language_semantics::{MachineSupplyMode, TerminationGuarantee, TerminationInterface};
+use language_semantics::{
+    MachineSupplyMode, ReferenceAccess, TerminationGuarantee, TerminationInterface,
+};
 use std::collections::BTreeSet;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -330,8 +332,10 @@ fn mutable_reference_targets(
             mutable_reference_targets(program, *base_type, expected_self_symbol)
         }
         TypeReferenceNode::Reference {
-            referee, access, ..
-        } if access.is_exclusive() => named_type_matches(program, *referee, expected_self_symbol),
+            referee,
+            access: ReferenceAccess::Mutable,
+            ..
+        } => named_type_matches(program, *referee, expected_self_symbol),
         _ => false,
     }
 }
