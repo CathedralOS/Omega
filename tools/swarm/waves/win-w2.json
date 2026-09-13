@@ -1,0 +1,239 @@
+{
+  "wave": "win-w2",
+  "max_acu_limit": 10,
+  "devin_mode": "fusion",
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "win-w2"],
+  "owner_label_prefix": "Jarod / win-w2",
+  "exclusions": [
+    "CODEC-LINEAGE-CLOSURE",
+    "BUILD-SNAPSHOT-OUTPUTS",
+    "DEPENDENT-SERVICE-REACH-FIXTURES",
+    "GENERAL-CYCLIC-EXECUTION",
+    "SAMPLE-CORPUS",
+    "CLI-INSTALLED-CALL-TRANSPORT",
+    "CLI-CALL-ORIGIN-CONSUMERS",
+    "ARTIFACT-REPORT-DISCOVERY",
+    "BORROW-PROOF-CONVERGENCE",
+    "MODULE-NAMESPACE-RESOLUTION",
+    "TERMINATION-RANKING-CHECKS"
+  ],
+  "sessions": [
+    {
+      "name": "float-providers",
+      "board": "TASKS.md",
+      "item": "FLOAT-PROVIDERS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/contracts",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/authored_selections",
+        "omega-rust/omega/compiler/compiler/tests/canary_suite/providers_float_and_console",
+        "tests/omega/pass/float"
+      ],
+      "suggested_first_slice": "Continuation: the win-w1 worker left substantial uncommitted contract-checking edits in the win-w1-float worktree; finish the in-flight FloatMeaning slice from that state."
+    },
+    {
+      "name": "stdlib-bindings",
+      "board": "TASKS.md",
+      "item": "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/package-compilation/src/semantic_bindings.rs",
+        "omega-rust/omega/compiler/compiler/src/pipeline/package",
+        "tests/omega/pass/arithmetic/narrowing_flow_and_widen_permitted"
+      ],
+      "suggested_first_slice": "Continuation: the win-w1 worker left an uncommitted narrowing fixture change in the win-w1-stdlib worktree; finish the in-flight stdlib-binding slice from that state."
+    },
+    {
+      "name": "plan-laid-views",
+      "board": "TASKS.md",
+      "item": "PLAN-LAID-VIEWS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact",
+        "omega-rust/psi/semantics/build-time-evaluation/src/plan_laid.rs"
+      ],
+      "suggested_first_slice": "Rejoin one plan-laid view's layout identity, backing, range, access, or lifetime at a use site so a stale substitution rejects with a checked witness."
+    },
+    {
+      "name": "symbolic-materialization",
+      "board": "TASKS.md",
+      "item": "SYMBOLIC-MATERIALIZATION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/foundation/layout-plans",
+        "omega-rust/psi/semantics/build-time-evaluation/src/layout_plans.rs"
+      ],
+      "suggested_first_slice": "Materialize one symbolic layout-plan case through build-time evaluation without baking in a concrete address."
+    },
+    {
+      "name": "topology-verification",
+      "board": "TASKS.md",
+      "item": "TOPOLOGY-PLAN-VERIFICATION",
+      "host": "linux",
+      "probe_only": true,
+      "owning_paths": [
+        "omega-rust/omega/packages/topology",
+        "tests/fixtures/packages"
+      ],
+      "suggested_first_slice": "Implement or extend one fixed no_route/only_via normalization or bypass-rejection witness on the payment graph fixtures."
+    },
+    {
+      "name": "package-prep-reuse",
+      "board": "TASKS.md",
+      "item": "PACKAGE-PREPARATION-REUSE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/packages/manager/src/review/candidate",
+        "tests/omega/pass/effects"
+      ],
+      "suggested_first_slice": "Reuse one already-verified package preparation result instead of recompiling, with the effects canaries witnessing the route."
+    },
+    {
+      "name": "strict-float-ranges",
+      "board": "TASKS.md",
+      "item": "STRICT-FLOAT-RANGES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/proof",
+        "tests/omega/pass/ranges"
+      ],
+      "suggested_first_slice": "Extend one proof obligation so a float range claim requires strict evidence rather than permissive widening."
+    },
+    {
+      "name": "proof-kernel-core",
+      "board": "TASKS.md",
+      "item": "PROOF-KERNEL-CORE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/proof-admission"
+      ],
+      "suggested_first_slice": "Move one kernel check into proof-admission so admitted proofs carry their inductive profile rather than inferred context."
+    },
+    {
+      "name": "write-only-borrow",
+      "board": "TASKS.md",
+      "item": "WRITE-ONLY-BORROW",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/validation/src/write_only_borrows.rs"
+      ],
+      "suggested_first_slice": "Converge one write-only borrow rule with the shared borrow-proof machinery; a prior worktree exists but this session starts from origin/main."
+    },
+    {
+      "name": "crash-contract",
+      "board": "TASKS.md",
+      "item": "CRASH-CONTRACT",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/crashes"
+      ],
+      "suggested_first_slice": "Make one crash-path contract explicit in the crashes check so a crash cannot silently bypass an ordinary return obligation."
+    },
+    {
+      "name": "operator-supply",
+      "board": "TASKS.md",
+      "item": "OPERATOR-MACHINE-SUPPLY",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/operator.rs",
+        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/machine",
+        "tests/omega/pass/expressions/declared_operator_match_result"
+      ],
+      "suggested_first_slice": "Supply one missing declared-operator machine case through the ordinary operator resolution path."
+    },
+    {
+      "name": "structural-generics",
+      "board": "TASKS.md",
+      "item": "STRUCTURAL-GENERIC-MATCHING",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/type_reference",
+        "tests/omega/pass/generics/declared_range_endpoint_inference"
+      ],
+      "suggested_first_slice": "Extend structural generic matching for one declared-range endpoint or type-reference shape the board names."
+    },
+    {
+      "name": "finite-dispatch",
+      "board": "TASKS.md",
+      "item": "FINITE-GENERIC-DISPATCH",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/selected-dispatch"
+      ],
+      "suggested_first_slice": "Extend finite generic dispatch selection for one enumerated case set while keeping dispatch evidence explicit."
+    },
+    {
+      "name": "atomic-memory",
+      "board": "TASKS.md",
+      "item": "ATOMIC-MEMORY-MODEL",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/representations/abstract-operations",
+        "tests/omega/pass/atomics"
+      ],
+      "suggested_first_slice": "Add or tighten one atomic abstract-operation shape with its ordering evidence and a pass canary."
+    },
+    {
+      "name": "bump-allocator",
+      "board": "TASKS.md",
+      "item": "BUMP-ALLOCATOR-CANARY",
+      "host": "linux",
+      "owning_paths": [
+        "tests/omega/pass/memory/bump_allocator_canary"
+      ],
+      "suggested_first_slice": "Extend the bump-allocator canary with one placed-access or bound case; claim additional allocator code paths as needed."
+    },
+    {
+      "name": "spill-realization",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "SPILL-REALIZATION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes"
+      ],
+      "suggested_first_slice": "Realize one spill/reload decision in register-home assignment with explicit storage evidence."
+    },
+    {
+      "name": "general-licm",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "GENERAL-LICM",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations"
+      ],
+      "suggested_first_slice": "Hoist one loop-invariant abstract operation class with its safety evidence rather than a pattern match."
+    },
+    {
+      "name": "psi-pre-terminal-opt",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "PSI-PRE-TERMINAL-OPTIMIZATION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi"
+      ],
+      "suggested_first_slice": "Add or generalize one target-neutral lowered-Psi optimization preserving the representation's invariants."
+    },
+    {
+      "name": "selected-abi-validation",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "SELECTED-ABI-VALIDATION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/representations/calling-conventions"
+      ],
+      "suggested_first_slice": "Validate one selected calling-convention decision against the declared ABI rather than trusting the selector."
+    },
+    {
+      "name": "target-matrices",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "TARGET-MATRICES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/backend/instruction_set_architectures"
+      ],
+      "suggested_first_slice": "Extend one target capability matrix entry so selection consults declared ISA evidence instead of defaults."
+    }
+  ]
+}
