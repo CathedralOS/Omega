@@ -97,7 +97,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   or role-swapped children; only verified eliminated occurrences need no child.
   General calls depend on `FRAME-LAYOUT` and `GENERAL-CALL-CLOBBERS` below.
   These are native compiler guarantees, independent of package locks or
-  `PackageInstance` construction. Landed: one source-reachable
+  `PackageInstance` construction. One source-reachable
   selected-lowering operation now carries nonempty physical evidence through
   the common physical stages to native emission and independent replay —
   `optimizer_opt_in.rs::
@@ -217,7 +217,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `COMPARE_IMMEDIATE_U12` pair rule, the flag-defining/no-`Def` fold action
   (`LiteralFoldAction.result: Option`, codec v4), flag-shape immediate-row
   validation in compute and independent replay, and firing/corruption/replay
-  coverage on both Linux targets. Landed: selected-lowering selections now
+  coverage on both Linux targets. Selected-lowering selections now
   execute through the common physical stages — the staging gate resolves the
   exact catalog instead of rejecting the phase
   (`native-realization/.../physical_pipeline/phase_selections.rs`), and fixed-frame
