@@ -38,6 +38,25 @@ fn declared_range_endpoints_select_const_arguments_before_compatibility() {
 }
 
 #[test]
+fn literal_exclusive_and_inclusive_ranges_keep_the_same_type_identity() {
+    let checked = accepts(
+        "machine compare(first: u64[0..8], second: u64[0..=7], different: u64[0..9]) -> u64 { first }",
+    );
+    let program = &checked.typed;
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let parameters = program.state_parameters(state);
+    assert_eq!(
+        program.normalized_type_identity(parameters[0].type_reference),
+        program.normalized_type_identity(parameters[1].type_reference)
+    );
+    assert_ne!(
+        program.normalized_type_identity(parameters[0].type_reference),
+        program.normalized_type_identity(parameters[2].type_reference)
+    );
+}
+
+#[test]
 fn declared_range_checks_use_the_same_exact_arithmetic_as_inference() {
     let checked = accepts(
         "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
