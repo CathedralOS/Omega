@@ -120,6 +120,26 @@ pub(crate) fn validate_shared_argument_at(
     position: usize,
     symbol: SymbolHandle,
 ) -> Result<(), LoweringError> {
+    validate_shared_place_argument_at(
+        checked,
+        call,
+        position,
+        &checked_trees::CapturedPlace {
+            root_symbol: symbol,
+            segments: Vec::new(),
+        },
+    )
+}
+
+/// Rejoin one shared occurrence after the complete ordered access roster was
+/// independently replayed. A projected argument retains its original referent,
+/// not the similarly typed root or a sibling field.
+pub(crate) fn validate_shared_place_argument_at(
+    checked: &CheckedTrees,
+    call: &BorrowCallFact,
+    position: usize,
+    place: &checked_trees::CapturedPlace,
+) -> Result<(), LoweringError> {
     let borrow = &checked.facts.borrow;
     let accesses =
         borrow
@@ -131,17 +151,16 @@ pub(crate) fn validate_shared_argument_at(
     let argument = accesses.get(position).ok_or(LoweringError::Unsupported(
         "shared primitive borrow lost its argument occurrence",
     ))?;
-    if !symbol.is_valid()
-        || argument.root_symbol != symbol
+    if !place.root_symbol.is_valid()
+        || argument.root_symbol != place.root_symbol
         || argument.kind != BorrowAccessKind::Read
-        || !argument.segments.is_empty()
         || borrow
             .access_segments
             .span(argument.segments)
-            .is_none_or(|path| !path.is_empty())
-        || accesses
-            .iter()
-            .any(|candidate| candidate.root_symbol == symbol && candidate.kind.is_exclusive())
+            .is_none_or(|path| path != place.segments)
+        || accesses.iter().any(|candidate| {
+            candidate.root_symbol == place.root_symbol && candidate.kind.is_exclusive()
+        })
     {
         return Err(LoweringError::Unsupported(
             "shared primitive borrow substituted its occurrence or access",

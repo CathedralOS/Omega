@@ -300,6 +300,11 @@ occurrence, not a fabricated explicit argument observation. Scalar computations
 own initializer, tail, and nested calls; source replay checks their complete call
 roster without scheduling a second call. Scalar-result callees retain declared
 shared `self` independently of body reads.
+Explicit shared record arguments may select nested fields just as receivers do.
+Both retain the original backing root and the complete field path; equal referent
+types do not authorize substituting a sibling or another parameter. Source replay
+joins each explicit argument to its exact captured borrow observation, while the
+implicit receiver remains outside that ordered explicit-argument roster.
 Direct integer and Boolean field reads resolve the exact declared field against
 the local's current place, including after an unrelated owned selection. Each
 read materializes its own scalar observation before subsequent operands or calls;

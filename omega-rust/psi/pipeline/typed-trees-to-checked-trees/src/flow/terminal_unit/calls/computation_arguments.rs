@@ -207,9 +207,9 @@ fn shared_record_argument(
     {
         return None;
     }
-    if !target.is_self && !place.segments.is_empty() {
-        return None;
-    }
+    // A shared formal borrows the selected record at its existing root/path.
+    // Receiver syntax does not confer additional projection authority; both
+    // lanes rejoin exact source type and the captured access occurrence below.
     let TypeReferenceNode::Reference {
         access: language_semantics::ReferenceAccess::Shared,
         referee,
