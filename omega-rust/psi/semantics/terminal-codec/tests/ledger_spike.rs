@@ -390,6 +390,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
                         scalar_type: ScalarType::Boolean,
                     },
                     OperationKind::BooleanStructuralField {
+                        path: Vec::new(),
                         source: input,
                         field,
                     },

@@ -1388,13 +1388,13 @@ Owners include
   after complete typing; substitution retains the original constrained argument.
   Finish open/template-dependent and machine-computed argument ranges, type
   equations and omitted data binders without a source-display identity key.
-  The fixture's `generic_forwarded_bound` checks and executes at build time but
-  Terminal still rejects the missing checked scalar control plan. Nongeneric
-  controls reproduce nested record projection and local record mutation gaps;
-  whole local copies and full-width bounded fields already execute. Connect the
-  remaining shared storage operations, then require the unchanged function and
-  copy-after-mutation controls to execute from canonical Terminal bytes; do not
-  invent generic-specific plans.
+  Connect local record mutation and direct state-transition storage joins;
+  `declared_range_inference_local_effects_retain_pending_terminal_boundaries`
+  retains nongeneric reproductions of their missing checked scalar control plans.
+  Require copy-after-mutation controls and nested reads in direct transition
+  guards/arguments to execute from canonical Terminal bytes. Ordinary calls,
+  whole local copies/moves and nested integer/Boolean reads already share the
+  storage route; do not invent generic-specific plans.
 
   Extend remaining named computations through build-time admission, using
   `typed-trees/src/typed_trees/type_system/closed_numeric.rs` and its existing
@@ -1405,8 +1405,11 @@ Owners include
   pipeline map records the maintained customer and remaining native boundary.
   Its hosted `Main::main` now produces Terminal; native publication reaches the
   retained receiver-provisioning rejection. Resume `ENTRY-CONTENT-ROOTS` for the
-  physical bridge, then require this unchanged program to exit 70. The focused
-  Resume evidence at `4641c0f055`: `cargo nextest run -p compiler --test
+  physical bridge, then require this unchanged program to exit 70. Native scalar
+  reads also need canonical carrier paths and bounded leaf types retained through
+  abstract operations, layout, instruction selection and independent replay;
+  `terminal-psi-to-abstract-operations` explicitly rejects nested paths today.
+  Resume command: `cargo nextest run -p compiler --test
   canary_suite -E 'test(declared_range_inference)' --no-fail-fast` exercises the
   reviewed fixture and this boundary on macOS AArch64; it does not establish
   native execution.

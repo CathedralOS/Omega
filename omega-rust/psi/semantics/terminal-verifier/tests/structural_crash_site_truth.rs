@@ -65,6 +65,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
             scalar_type: ScalarType::Boolean,
         }),
         kind: OperationKind::BooleanStructuralField {
+            path: Vec::new(),
             source: id(1),
             field: id(1),
         },

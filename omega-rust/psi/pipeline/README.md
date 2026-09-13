@@ -238,10 +238,14 @@ unrestricted payloads get independent backing, while affine payloads transfer.
 Bounded field reads recover the declared interval on their fresh scalar result;
 they do not need equality with the original constructor's initializer. Field
 bounds remain proof integers until intersected with the signed or unsigned carrier.
-Nested forwarding still lacks a source-independent checked scalar control plan.
-The focused `declared_range_inference` canaries retain this example and nongeneric
-nested-projection and local-mutation controls; connect their shared storage
-operations rather than adding a generic-specific fallback.
+Nested forwarding retains each declaration-local carrier field and the final
+scalar field through canonical bytes, proof equations and original record backing.
+The same route handles same-typed siblings, deeper integer/Boolean observations
+and affine moves. Native reads still need these paths and bounded leaf types
+carried through abstract operations, layout and independent replay; they reject
+explicitly at that boundary today. The focused `declared_range_inference` canaries
+retain local mutation and direct state-transition storage-join gaps. Connect those
+shared operations rather than adding a generic-specific fallback.
 
 Closed integer endpoints share typed trees' `type_system/closed_numeric.rs`
 through validation's `closed_integer_range_bound` and

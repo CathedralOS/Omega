@@ -64,6 +64,7 @@ pub(super) fn resolve_shared_boolean_member_fields(
                 ))?;
             LoweredBooleanReturnExpression::StructuralField {
                 source: parameter.place,
+                path: Vec::new(),
                 field: field.id,
             }
         }

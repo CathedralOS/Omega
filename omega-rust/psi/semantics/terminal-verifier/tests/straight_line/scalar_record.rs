@@ -212,6 +212,7 @@ fn read() -> Operation {
             qualifications: Default::default(),
         }),
         kind: OperationKind::BooleanStructuralField {
+            path: Vec::new(),
             source: PlaceId::new(1).unwrap(),
             field: StructuralFieldId::new(2).unwrap(),
         },
@@ -354,6 +355,7 @@ fn runtime_scalar_record_shared_getter_preserves_exclusive_overlap_rejection() {
             qualifications: Default::default(),
         }),
         kind: OperationKind::BooleanStructuralField {
+            path: Vec::new(),
             source: PlaceId::new(11).unwrap(),
             field: StructuralFieldId::new(2).unwrap(),
         },

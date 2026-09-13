@@ -671,6 +671,7 @@ fn admits_an_unrestricted_shared_boolean_field_realization() {
         field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
     });
     module.machines[1].blocks[0].operations[0].kind = OperationKind::BooleanStructuralField {
+        path: Vec::new(),
         source: id::<PlaceId>(2),
         field: id::<semantic_vocabulary::StructuralFieldId>(2),
     };
@@ -702,6 +703,7 @@ fn rejects_a_write_only_boolean_field_realization() {
     };
     structural_arguments[0].access = StructuralAccess::WriteOnlyBorrow;
     module.machines[1].blocks[0].operations[0].kind = OperationKind::BooleanStructuralField {
+        path: Vec::new(),
         source: id::<PlaceId>(2),
         field: id::<semantic_vocabulary::StructuralFieldId>(2),
     };

@@ -109,6 +109,79 @@ fn read_bounds(minimum: i128, maximum: i128) -> [Proposition; 2] {
     ]
 }
 
+fn nest_block_read(module: &mut TerminalModule) {
+    let machine = &mut module.machines[0];
+    machine.structural_parameters[0].structural_type = id(1);
+    machine.blocks[1].structural_parameters[0].structural_type = id(1);
+    match &mut machine.blocks[1].operations[0].kind {
+        OperationKind::IntegerStructuralField { path, .. }
+        | OperationKind::BooleanStructuralField { path, .. } => {
+            *path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                id(1),
+            )];
+        }
+        _ => unreachable!(),
+    }
+}
+
+#[test]
+fn nested_block_reads_validate_exact_carriers_and_preserve_bounded_snapshots() {
+    for multiplicity in [
+        StructuralMultiplicity::Unrestricted,
+        StructuralMultiplicity::Affine,
+    ] {
+        for scalar_type in [integer_type(), ScalarType::Boolean] {
+            let mut module = block_reader(scalar_type, multiplicity);
+            nest_block_read(&mut module);
+            validate_module(&module).expect("nested field under transferred whole record");
+        }
+        let mut module = bounded_block_reader(multiplicity);
+        nest_block_read(&mut module);
+        let obligations = reconstruct_operation_obligations(&module).unwrap();
+        for bound in read_bounds(12, 100) {
+            assert!(obligations[0].semantic_axioms.contains(&bound));
+        }
+        let ScalarType::Integer(integer) = integer_type() else {
+            unreachable!();
+        };
+        let full_path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(id(1)); 2];
+        let equation = Proposition::Equal(
+            ScalarTerm::value(id(4), integer_type()),
+            ScalarTerm::integer_field_path(id(3), full_path, integer),
+        );
+        assert!(obligations[0].semantic_axioms.contains(&equation));
+    }
+}
+
+#[test]
+fn nested_block_reads_reject_truncated_erased_and_nonrecord_carrier_paths() {
+    use semantic_vocabulary::CanonicalStructuralPathSegment;
+    for scalar_type in [integer_type(), ScalarType::Boolean] {
+        let mut original = block_reader(scalar_type, StructuralMultiplicity::Affine);
+        nest_block_read(&mut original);
+        for replacement in [
+            Vec::new(),
+            vec![CanonicalStructuralPathSegment::Field(id(99))],
+            vec![CanonicalStructuralPathSegment::FixedIndex(0)],
+            vec![CanonicalStructuralPathSegment::Case(id(1))],
+            vec![CanonicalStructuralPathSegment::Field(id(1)); 2],
+        ] {
+            let mut module = original.clone();
+            match &mut module.machines[0].blocks[1].operations[0].kind {
+                OperationKind::IntegerStructuralField { path, .. }
+                | OperationKind::BooleanStructuralField { path, .. } => *path = replacement,
+                _ => unreachable!(),
+            }
+            assert!(validate_module(&module).is_err());
+        }
+        let StructuralTypeShape::Record { fields } = &mut original.structural_types[0].shape else {
+            unreachable!();
+        };
+        fields[0].relevance = BindingRelevance::Erased;
+        assert!(validate_module(&original).is_err());
+    }
+}
+
 #[test]
 fn bounded_block_reads_capture_declared_range_on_the_fresh_scalar() {
     for multiplicity in [
@@ -139,6 +212,50 @@ fn bounded_block_reads_capture_declared_range_on_the_fresh_scalar() {
                 }),
             "range facts describe the captured SSA value, not a mutable-place alias"
         );
+    }
+}
+
+#[test]
+fn nested_block_read_redirection_cannot_reuse_sibling_range_facts() {
+    let mut module = bounded_block_reader(StructuralMultiplicity::Unrestricted);
+    nest_block_read(&mut module);
+    let mut sibling = module.structural_types[1].clone();
+    sibling.id = id(3);
+    sibling.identity = "test::OtherItem".into();
+    let StructuralTypeShape::Record { fields } = &mut sibling.shape else {
+        unreachable!();
+    };
+    fields[0].field_type = StructuralFieldType::BoundedInteger(
+        semantic_vocabulary::BoundedIntegerType::new(
+            IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+            IntegerValue::Signed(13),
+            IntegerValue::Signed(99),
+        )
+        .unwrap(),
+    );
+    module.structural_types.push(sibling);
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!();
+    };
+    let mut redirected = fields[0].clone();
+    redirected.id = id(2);
+    redirected.identity = "other".into();
+    redirected.field_type = StructuralFieldType::Structural(id(3));
+    fields.push(redirected);
+    let OperationKind::IntegerStructuralField { path, .. } =
+        &mut module.machines[0].blocks[1].operations[0].kind
+    else {
+        unreachable!();
+    };
+    *path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+        id(2),
+    )];
+    let obligations = reconstruct_operation_obligations(&module).unwrap();
+    for stale in read_bounds(12, 100) {
+        assert!(!obligations[0].semantic_axioms.contains(&stale));
+    }
+    for actual in read_bounds(13, 99) {
+        assert!(obligations[0].semantic_axioms.contains(&actual));
     }
 }
 

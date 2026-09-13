@@ -65,7 +65,8 @@ fn canonical_loop_field_reads_reject_block_declaration_and_custody_drift() {
                     .flat_map(|block| &mut block.operations)
                     .find(|operation| operation.id == read.id)
                     .unwrap();
-                let OperationKind::IntegerStructuralField { source, field } = &mut operation.kind
+                let OperationKind::IntegerStructuralField { source, field, .. } =
+                    &mut operation.kind
                 else {
                     unreachable!();
                 };

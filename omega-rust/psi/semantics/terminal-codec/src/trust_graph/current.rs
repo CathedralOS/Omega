@@ -26,10 +26,10 @@ use super::{
     PROPOSITION_VALUE_IDS_SOURCE, RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE,
     TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE,
     TERMINAL_FIXED_BYTE_VIEW_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
-    TERMINAL_REPRESENTATION_SOURCE_CLOSURE, TERMINAL_SCALAR_ARRAY_SOURCE,
-    TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
-    TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
-    VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
+    TERMINAL_RECORD_FIELD_SOURCE, TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
+    TERMINAL_SCALAR_ARRAY_SOURCE, TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE,
+    TrustAcceptingPolicy, TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus,
+    TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
     VERIFIER_SOURCE_CLOSURE, VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE,
     ValidatedTerminalTrustGraph, validate_terminal_trust_graph,
 };
@@ -50,7 +50,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-95-vocabulary-106"
+    "root:canonical-terminal-bytes-format-96-vocabulary-107"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -543,6 +543,10 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
             }
             if row.tag() == terminal_semantics::OperationSemanticTag::EstablishScalarArray {
                 exact_sources.push(("terminal-semantics/scalar_array.rs", TERMINAL_SCALAR_ARRAY_SOURCE));
+            }
+            if matches!(row.tag(), terminal_semantics::OperationSemanticTag::IntegerStructuralField
+                | terminal_semantics::OperationSemanticTag::BooleanStructuralField) {
+                exact_sources.push(("terminal-semantics/record_field.rs", TERMINAL_RECORD_FIELD_SOURCE));
             }
             if matches!(row.tag(), terminal_semantics::OperationSemanticTag::ByteSequenceRead
                 | terminal_semantics::OperationSemanticTag::ByteSequenceWrite

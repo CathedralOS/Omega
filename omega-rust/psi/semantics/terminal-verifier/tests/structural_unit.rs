@@ -245,6 +245,7 @@ fn unused_provider_attachment_verifier_rejects_runtime_scalar_field_projection()
             scalar_type: ScalarType::Boolean,
         }),
         kind: OperationKind::BooleanStructuralField {
+            path: Vec::new(),
             source: place_id(2),
             field: provider_field_id(),
         },

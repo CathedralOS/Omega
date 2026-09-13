@@ -233,6 +233,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                         }),
                         kind: OperationKind::IntegerStructuralField {
                             source: realization_self,
+                            path: Vec::new(),
                             field: value_field,
                         },
                     }],
@@ -254,6 +255,59 @@ fn lower(
     let semantic = encode_module(module).expect("semantic module encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
     lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+}
+
+#[test]
+fn canonical_nested_scalar_reads_reject_before_losing_the_carrier_path() {
+    for scalar_type in [integer_type(), ScalarType::Boolean] {
+        let mut module = structural_scalar_field_module();
+        let mut machine = module.machines.pop().unwrap();
+        module.entry = machine.id;
+        let owner_type = id::<StructuralTypeId>(1);
+        machine.attachment = Some(owner_type);
+        machine.structural_parameters[0].structural_type = owner_type;
+        let TerminalMachineResult::Scalar(result) = &mut machine.result else {
+            unreachable!()
+        };
+        result.scalar_type = scalar_type;
+        let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+            unreachable!()
+        };
+        fields[0].field_type = StructuralFieldType::Scalar(scalar_type);
+        let operation = &mut machine.blocks[0].operations[0];
+        let OperationResult::Scalar(result) = &mut operation.result else {
+            unreachable!()
+        };
+        result.scalar_type = scalar_type;
+        let source = machine.structural_parameters[0].place;
+        let path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+            id::<StructuralFieldId>(1),
+        )];
+        let field = id::<StructuralFieldId>(1);
+        operation.kind = if scalar_type == ScalarType::Boolean {
+            OperationKind::BooleanStructuralField {
+                source,
+                path,
+                field,
+            }
+        } else {
+            OperationKind::IntegerStructuralField {
+                source,
+                path,
+                field,
+            }
+        };
+        let identity = operation.id;
+        module.machines = vec![machine];
+        // `lower` first encodes and independently verifies the nested read.
+        // Native rejection must name its missing path carrier, not flatten it.
+        assert!(matches!(
+            lower(&module),
+            Err(ArtifactLoweringError::Lowering(
+                terminal_psi_to_abstract_operations::LoweringError::UnsupportedNestedStructuralFieldRead(actual)
+            )) if actual == identity
+        ));
+    }
 }
 
 #[test]
@@ -329,6 +383,7 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
             }),
             kind: OperationKind::IntegerStructuralField {
                 source: place,
+                path: Vec::new(),
                 field: id::<StructuralFieldId>(1),
             },
         },
@@ -489,6 +544,7 @@ fn retains_direct_mutable_self_store_in_scalar_function() {
             }),
             kind: OperationKind::IntegerStructuralField {
                 source: self_place,
+                path: Vec::new(),
                 field,
             },
         },

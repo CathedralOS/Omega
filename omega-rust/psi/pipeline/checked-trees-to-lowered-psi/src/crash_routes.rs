@@ -2411,8 +2411,16 @@ fn checked_boolean_scalar_term_from_lowered(
                     "crash predicate Boolean value has a non-Boolean type",
                 ))
         }
-        LoweredBooleanReturnExpression::StructuralField { source, field } => {
-            Ok(ScalarTerm::boolean_field(*source, *field))
+        LoweredBooleanReturnExpression::StructuralField {
+            source,
+            path,
+            field,
+        } => {
+            let mut path = path.clone();
+            path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                *field,
+            ));
+            Ok(ScalarTerm::boolean_field_path(*source, path))
         }
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
             unsupported("unresolved structural field crossed crash-predicate lowering")

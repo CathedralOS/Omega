@@ -113,6 +113,8 @@ const TERMINAL_STRUCTURAL_EFFECT_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/structural_effect.rs");
 const TERMINAL_SCALAR_ARRAY_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/scalar_array.rs");
+const TERMINAL_RECORD_FIELD_SOURCE: &[u8] =
+    include_bytes!("../../terminal-semantics/src/record_field.rs");
 const TERMINAL_BYTE_EXTENT_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/structural_effect/byte_extent.rs");
 const PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE: &[u8] =

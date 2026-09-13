@@ -2606,19 +2606,28 @@ impl TerminalExecution {
                             TerminalScalarValue::Boolean(value.result_case == case),
                         );
                     }
-                    OperationKind::BooleanStructuralField { source, field } => {
+                    OperationKind::BooleanStructuralField {
+                        source,
+                        path,
+                        field,
+                    } => {
                         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
                         let structural_value = self.structural_values.get(&source).ok_or(
                             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
                         )?;
+                        let carrier = terminal_semantics::record_field_carrier(
+                            self.structural_types.values(),
+                            structural_value.structural_type,
+                            &path,
+                        )
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let mut parent = StructuralRuntimePlace::from(structural_value);
+                        parent.path.extend(carrier.path);
                         let value = self
                             .structural_scalar_fields
-                            .get(&StructuralScalarRuntimeField {
-                                parent: StructuralRuntimePlace::from(structural_value),
-                                field,
-                            })
+                            .get(&StructuralScalarRuntimeField { parent, field })
                             .copied()
                             .ok_or(TerminalInterpretError::StructuralBooleanFieldMissing {
                                 source,
@@ -2632,7 +2641,11 @@ impl TerminalExecution {
                             TerminalScalarValue::Boolean(value),
                         );
                     }
-                    OperationKind::IntegerStructuralField { source, field } => {
+                    OperationKind::IntegerStructuralField {
+                        source,
+                        path,
+                        field,
+                    } => {
                         let result = operation.result.expect_scalar();
                         if !matches!(result.scalar_type, ScalarType::Integer(_)) {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -2640,20 +2653,25 @@ impl TerminalExecution {
                         let structural_value = self.structural_values.get(&source).ok_or(
                             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
                         )?;
+                        let carrier = terminal_semantics::record_field_carrier(
+                            self.structural_types.values(),
+                            structural_value.structural_type,
+                            &path,
+                        )
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         if direct_scalar_field_type(
                             &self.structural_types,
-                            structural_value.structural_type,
+                            carrier.structural_type,
                             field,
                         ) != Some(result.scalar_type)
                         {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
+                        let mut parent = StructuralRuntimePlace::from(structural_value);
+                        parent.path.extend(carrier.path);
                         let value = self
                             .structural_scalar_fields
-                            .get(&StructuralScalarRuntimeField {
-                                parent: StructuralRuntimePlace::from(structural_value),
-                                field,
-                            })
+                            .get(&StructuralScalarRuntimeField { parent, field })
                             .copied()
                             .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
                                 source,

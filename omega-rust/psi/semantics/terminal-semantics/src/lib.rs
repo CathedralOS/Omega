@@ -16,11 +16,13 @@ use terminal_psi::{Operation, OperationKind};
 
 mod call_composition;
 mod proof_bearing_scalar;
+mod record_field;
 mod scalar_array;
 mod structural_effect;
 
 pub use call_composition::*;
 pub use proof_bearing_scalar::*;
+pub use record_field::{RecordFieldCarrier, record_field_carrier};
 pub use scalar_array::scalar_array_leaf_shape;
 pub use structural_effect::*;
 

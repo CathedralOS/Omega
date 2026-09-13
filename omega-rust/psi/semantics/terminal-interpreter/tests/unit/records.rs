@@ -114,6 +114,7 @@ fn record_module() -> TerminalModule {
         id: operation_id(10),
         result: OperationResult::Scalar(output),
         kind: OperationKind::IntegerStructuralField {
+            path: Vec::new(),
             source: place_id(10),
             field: structural_field_id(1),
         },
@@ -248,6 +249,64 @@ fn nested_record_fields_survive_borrowed_call_and_every_fuel_pause() {
             ));
             meter.replenish(total - split).unwrap();
             assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+        }
+    }
+}
+
+#[test]
+fn nested_scalar_reads_use_the_original_owned_record_backing_from_canonical_bytes() {
+    for boolean in [false, true] {
+        let mut module = record_module();
+        module.machines.truncate(1);
+        let machine = &mut module.machines[0];
+        let read = &mut machine.blocks[0].operations[2];
+        let path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+            structural_field_id(1),
+        )];
+        read.kind = if boolean {
+            OperationKind::BooleanStructuralField {
+                source: place_id(2),
+                path,
+                field: structural_field_id(2),
+            }
+        } else {
+            OperationKind::IntegerStructuralField {
+                source: place_id(2),
+                path,
+                field: structural_field_id(1),
+            }
+        };
+        let scalar_type = if boolean {
+            ScalarType::Boolean
+        } else {
+            integer()
+        };
+        read.result.scalar_mut().unwrap().scalar_type = scalar_type;
+        let TerminalMachineResult::Scalar(result) = &mut machine.result else {
+            unreachable!();
+        };
+        result.scalar_type = scalar_type;
+        let bytes = encode_module(&module).unwrap();
+        assert_eq!(decode_module(&bytes).unwrap(), module);
+        let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+        for value in [0, u64::MAX] {
+            let mut execution = TerminalExecution::start_artifact(
+                &bytes,
+                &proof,
+                &AdmissionProfile::default(),
+                &[scalar(value), TerminalScalarValue::Boolean(true)],
+            )
+            .unwrap();
+            let mut meter = TerminalFuelMeter::with_allowance(100);
+            let expected = if boolean {
+                TerminalScalarValue::Boolean(true)
+            } else {
+                scalar(value)
+            };
+            assert_eq!(
+                execution.resume(&mut meter).unwrap(),
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(expected))
+            );
         }
     }
 }

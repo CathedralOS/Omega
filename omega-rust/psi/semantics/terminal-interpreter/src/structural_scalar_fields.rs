@@ -91,8 +91,12 @@ pub(crate) fn bind(
     for operation in machine.blocks.values().flat_map(|block| &block.operations) {
         // Preserve the Boolean entry contract. Integer fields can be initialized
         // by earlier stores; their existing runtime read checks missing contents.
-        let (source, field) = match operation.kind {
-            OperationKind::BooleanStructuralField { source, field } => (source, field),
+        let (source, path, field) = match operation.kind {
+            OperationKind::BooleanStructuralField {
+                source,
+                ref path,
+                field,
+            } => (source, path, field),
             _ => continue,
         };
         if !machine
@@ -105,10 +109,15 @@ pub(crate) fn bind(
         let root = structural_values.get(&source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )?;
-        if !values.contains_key(&StructuralScalarRuntimeField {
-            parent: StructuralRuntimePlace::from(root),
-            field,
-        }) {
+        let carrier = terminal_semantics::record_field_carrier(
+            structural_types.values(),
+            root.structural_type,
+            path,
+        )
+        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let mut parent = StructuralRuntimePlace::from(root);
+        parent.path.extend(carrier.path);
+        if !values.contains_key(&StructuralScalarRuntimeField { parent, field }) {
             return Err(TerminalInterpretError::StructuralBooleanFieldMissing { source, field });
         }
     }

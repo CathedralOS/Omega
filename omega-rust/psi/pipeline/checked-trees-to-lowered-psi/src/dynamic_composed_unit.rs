@@ -2612,6 +2612,7 @@ fn lower_realization_operations(
             }),
             kind: OperationKind::BooleanStructuralField {
                 source: parameter.place,
+                path: Vec::new(),
                 field: field.id,
             },
         });
@@ -2661,6 +2662,7 @@ fn lower_realization_operations(
             }),
             kind: OperationKind::IntegerStructuralField {
                 source: parameter.place,
+                path: Vec::new(),
                 field: field.id,
             },
         });

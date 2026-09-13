@@ -15,11 +15,6 @@ fn fixture() -> (TypedTrees, SymbolHandle, SymbolHandle, ExpressionHandle) {
 fn local_field_rejects_unrepresented_sibling_storage() {
     for (declarations, field, value) in [
         (
-            "data Nested { value: u64; }",
-            "extra: Nested;",
-            "Nested { value: 1 }",
-        ),
-        (
             "data Evidence { case Only; }",
             "extra [erased]: Evidence;",
             "Evidence::Only",
@@ -39,6 +34,59 @@ fn local_field_rejects_unrepresented_sibling_storage() {
             "the selected scalar field cannot admit unsupported sibling storage: {field}"
         );
     }
+}
+
+#[test]
+fn local_field_retains_each_nested_declaration_and_allows_nested_siblings() {
+    for (expression, path) in [
+        ("record.payload", Vec::new()),
+        ("record.extra.value", vec!["extra"]),
+    ] {
+        let (program, machine, state, expression) = typed_source(&format!(
+            "data Nested {{ value: u64; }}
+             data Record {{ payload: u64; extra: Nested; }}
+             machine observe(payload: u64) -> u64 {{
+                 let record: Record = Record {{ payload: payload, extra: Nested {{ value: 1 }} }};
+                 {expression}
+             }}"
+        ));
+        let source = local_scalar_record_field(&program, machine, state, 1, expression)
+            .expect("nested storage is retained by complete record construction");
+        assert_eq!(source.path, path);
+    }
+}
+
+#[test]
+fn local_field_rejects_a_foreign_intermediate_declaration() {
+    let (mut program, machine, state, expression) = typed_source(
+        "data Child { value: u64; } data Other { child: Child; }
+         data Record { child: Child; }
+         machine observe() -> u64 {
+             let record: Record = Record { child: Child { value: 1 } };
+             record.child.value
+         }",
+    );
+    let read =
+        local_scalar_record_field(&program, machine, state, 1, expression).expect("nested read");
+    assert_eq!(read.path, ["child"]);
+    let other = program
+        .data_definitions()
+        .iter()
+        .find(|record| record.name.as_str() == "Other")
+        .unwrap();
+    let DataMember::Field(field) = &program.data_members(other)[0] else {
+        panic!("other child")
+    };
+    let foreign = field.symbol;
+    let ExpressionNode::Member(leaf) = program.expression_table.expression(expression) else {
+        panic!("leaf")
+    };
+    let parent = leaf.receiver;
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(parent) else {
+        panic!("carrier")
+    };
+    member.member_symbol = foreign;
+    assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_none());
 }
 
 #[test]

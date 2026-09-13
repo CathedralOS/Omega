@@ -237,6 +237,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                             scalar_type: integer,
                         }),
                         kind: OperationKind::IntegerStructuralField {
+                            path: Vec::new(),
                             source: realization_self,
                             field: id::<StructuralFieldId>(1),
                         },

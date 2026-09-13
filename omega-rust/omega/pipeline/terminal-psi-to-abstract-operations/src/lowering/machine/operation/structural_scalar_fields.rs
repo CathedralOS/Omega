@@ -35,7 +35,18 @@ pub(super) fn lower(
             *field,
             *value,
         ),
-        OperationKind::IntegerStructuralField { source, field } => {
+        OperationKind::IntegerStructuralField {
+            source,
+            path,
+            field,
+        } => {
+            // Abstract reads cannot retain the carrier path yet. Never reduce
+            // a nested observation to a same-numbered field on its root.
+            if !path.is_empty() {
+                return Err(LoweringError::UnsupportedNestedStructuralFieldRead(
+                    operation.id,
+                ));
+            }
             lower_integer_read(operation, machine, structural_types, *source, *field)
         }
         _ => unreachable!("structural scalar-field router is exhaustive"),

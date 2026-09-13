@@ -4,9 +4,9 @@ use crate::{
     StructuralResultClaimTransfer, ValueDeclaration,
 };
 use semantic_vocabulary::{
-    BoundaryMachineId, ClaimId, IeeeFloatValue, IntegerValue, MachineId, ObligationId, OperationId,
-    PlaceId, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
-    ValueId,
+    BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, IeeeFloatValue, IntegerValue,
+    MachineId, ObligationId, OperationId, PlaceId, ServiceId, StructuralCaseId, StructuralDomainId,
+    StructuralFieldId, StructuralTypeId, ValueId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -429,19 +429,23 @@ pub enum OperationKind {
         right: ValueId,
         addend: ValueId,
     },
-    /// Read one direct relevant Boolean field from an entry structural
-    /// parameter. The canonical field identity, rather than an authored name
+    /// Read one relevant Boolean field from a readable structural root.
+    /// The carrier path retains each enclosing record field, excluding the
+    /// final field. The canonical field identity, rather than an authored name
     /// or native byte offset, is part of terminal-Psi semantics; Omega selects
     /// and validates the target ABI load.
     BooleanStructuralField {
         source: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
     },
-    /// Read one direct relevant integer field from a structural parameter.
+    /// Read one relevant integer field from a readable structural root.
+    /// The carrier path excludes the final field; empty denotes a direct read.
     /// The exact integer type is carried by the scalar result declaration;
     /// the field identity remains type-local Terminal custody.
     IntegerStructuralField {
         source: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
     },
     BooleanNot {

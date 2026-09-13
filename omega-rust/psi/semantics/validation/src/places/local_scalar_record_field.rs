@@ -16,18 +16,23 @@ mod tests;
 
 /// Source identities only; this does not grant ownership or establish loan
 /// validity. Checked flow and the consuming replay still validate availability.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalScalarRecordField {
     pub local: SymbolHandle,
     pub local_statement_ordinal: u32,
+    /// Whole local declaration, before any field projection.
     pub type_reference: TypeReferenceHandle,
+    /// Record containing the final scalar field.
+    pub carrier_type_reference: TypeReferenceHandle,
+    /// Declared carrier-field identities, excluding the final scalar field.
+    pub path: Vec<String>,
     pub field: SymbolHandle,
     pub primitive_type: PrimitiveType,
 }
 
-/// Resolve a direct field of one prior, whole immutable plain-owned local.
+/// Resolve a field path below one prior, whole immutable plain-owned local.
 /// The caller must bind the expression to this authored statement's evaluation
-/// graph. Nested projections, generic/qualified owners, erased fields and
+/// graph. Open generic/qualified owners, erased fields and
 /// nominally qualified or policy-bearing scalar fields require additional facts.
 /// Closed integer ranges keep their bounded declaration and construction proof;
 /// observing the established field uses its underlying scalar carrier.
@@ -38,29 +43,62 @@ pub fn local_scalar_record_field(
     statement_ordinal: u32,
     expression: ExpressionHandle,
 ) -> Option<LocalScalarRecordField> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if member.case_variant.is_some() {
-        return None;
+    let mut members = Vec::new();
+    let mut receiver = expression;
+    while let ExpressionNode::Member(member) = program.expression_table.expression(receiver) {
+        if members.len() >= program.expression_table.expression_count()
+            || member.case_variant.is_some()
+        {
+            return None;
+        }
+        members.push(member);
+        receiver = member.receiver;
     }
+    let leaf = *members.first()?;
     let local = local_plain_record(
         program,
         machine,
         state,
         statement_ordinal,
         expression,
-        member.receiver,
+        receiver,
     )?;
+    let mut carrier = local.type_reference;
+    let mut path = Vec::new();
+    // Every step is resolved under its own declaration. Reusing only the final
+    // field spelling would confuse identically shaped children of this root.
+    for member in members.iter().rev().take(members.len() - 1) {
+        let record = program
+            .data_definitions()
+            .iter()
+            .find(|record| record.symbol == program.type_reference_symbol(carrier))?;
+        let field = super::exact_data_member_field(
+            program,
+            record,
+            member.member_symbol,
+            member.member.as_str(),
+            None,
+        )?;
+        if field.relevance.is_erased() {
+            return None;
+        }
+        path.push(
+            field
+                .identity
+                .map(|identity| format!("#{identity}"))
+                .unwrap_or_else(|| field.name.as_str().to_owned()),
+        );
+        carrier = field.type_reference;
+    }
     let record = program
         .data_definitions()
         .iter()
-        .find(|record| record.symbol == program.type_reference_symbol(local.type_reference))?;
+        .find(|record| record.symbol == program.type_reference_symbol(carrier))?;
     let field = super::exact_data_member_field(
         program,
         record,
-        member.member_symbol,
-        member.member.as_str(),
+        leaf.member_symbol,
+        leaf.member.as_str(),
         None,
     )?;
     if program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
@@ -90,6 +128,8 @@ pub fn local_scalar_record_field(
         local: local.local,
         local_statement_ordinal: local.local_statement_ordinal,
         type_reference: local.type_reference,
+        carrier_type_reference: carrier,
+        path,
         field: field.symbol,
         primitive_type,
     })
@@ -228,7 +268,7 @@ fn local_plain_record(
     let record = records.next()?;
     if records.next().is_some()
         || !program.data_type_parameters(record).is_empty()
-        || !has_realized_scalar_fields(program, record)
+        || !has_realized_record_fields(program, record, &mut Vec::new())
     {
         return None;
     }
@@ -239,26 +279,40 @@ fn local_plain_record(
     })
 }
 
-/// The current local record constructor retains one runtime scalar per field.
-/// Plain ownership alone also permits nested, erased and qualified storage;
-/// those shapes remain outside this local field route until their construction
-/// and custody are represented. Call receiver admission has its own owner.
-fn has_realized_scalar_fields(
+/// Construction retains the entire nested record, including unread siblings.
+/// Validate their declaration rosters as well; selecting a scalar cannot erase
+/// an unsupported sibling, an ownership shell or a recursive storage cycle.
+fn has_realized_record_fields(
     program: &TypedTrees,
     record: &typed_trees::data::DataDefinition,
+    active: &mut Vec<SymbolHandle>,
 ) -> bool {
+    if active.contains(&record.symbol)
+        || !program.data_type_parameters(record).is_empty()
+        || program.symbols.get(record.symbol).kind != symbols::SymbolKind::Data
+        || program
+            .data_definitions()
+            .iter()
+            .filter(|candidate| candidate.symbol == record.symbol)
+            .count()
+            != 1
+    {
+        return false;
+    }
+    active.push(record.symbol);
     let members = program.data_members(record);
-    members.iter().enumerate().all(|(ordinal, member)| {
-        let DataMember::Field(field) = member else {
-            return false;
-        };
-        !field.relevance.is_erased()
+    let valid = members.len() == record.members.count() as usize
+        && members.iter().enumerate().all(|(ordinal, member)| {
+            let DataMember::Field(field) = member else {
+                return false;
+            };
+            !field.relevance.is_erased()
             && program.symbols.get(field.symbol).kind == symbols::SymbolKind::Field
             && program.symbols.get(field.symbol).parent == record.symbol
             && !members[..ordinal].iter().any(
                 |prior| matches!(prior, DataMember::Field(prior) if prior.symbol == field.symbol),
             )
-            && matches!(
+            && (matches!(
                 realized_scalar_carrier(program, field.type_reference),
                 Some(
                     typed_trees::types::PrimitiveType::Bool
@@ -273,8 +327,13 @@ fn has_realized_scalar_fields(
                         | typed_trees::types::PrimitiveType::F32
                         | typed_trees::types::PrimitiveType::F64
                 )
-            )
-    })
+            ) || matches!(program.type_reference_table.type_reference(field.type_reference),
+                TypeReferenceNode::Named { symbol, .. } if program.data_definitions().iter()
+                    .find(|nested| nested.symbol == *symbol)
+                    .is_some_and(|nested| has_realized_record_fields(program, nested, active))))
+        });
+    active.pop();
+    valid
 }
 
 /// Only range shells may use the bounded-record construction/replay route.

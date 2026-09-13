@@ -1261,7 +1261,7 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
     assert!(entry.blocks.iter().any(|block| {
         block.operations.iter().any(|operation| {
             matches!(operation.kind,
-                OperationKind::BooleanStructuralField { source, field }
+                OperationKind::BooleanStructuralField { source, field, .. }
                     if source == token.place && field == ready.id)
         })
     }));

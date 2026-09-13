@@ -64,6 +64,7 @@ fn declared_range_inference_returns_the_selected_endpoint() {
         ("generic_named_bound", vec![], 256),
         ("generic_equivalent_bound", vec![], 256),
         ("generic_wide_bound", vec![], -1),
+        ("generic_forwarded_bound", vec![], 256),
         ("field_scoped_exclusive", vec![], 511),
     ] {
         let machine = checked
@@ -139,57 +140,13 @@ fn declared_range_inference_returns_the_selected_endpoint() {
 }
 
 #[test]
-fn declared_range_inference_generic_instances_retain_pending_terminal_boundaries() {
-    let canary = pass_canary("generics/declared_range_endpoint_inference");
-    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
-        &canary.join("main.omg"),
-        None,
-    ))
-    .expect("equivalent inclusive, exclusive and arithmetic applications share a carrier");
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed);
-    {
-        let (name, expected) = ("generic_forwarded_bound", 256);
-        let machine = checked
-            .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == name)
-            .unwrap();
-        assert_eq!(
-            admission
-                .evaluate_machine_symbol_for_invocation_measured(
-                    &checked.typed,
-                    machine.symbol,
-                    Vec::new(),
-                    build_time_evaluation::BuildTimeInvocationCustody::Symbol(machine.symbol),
-                )
-                .unwrap()
-                .value(),
-            &build_time_evaluation::BuildTimeValue::Int(expected)
-        );
-        let result =
-            terminal_production::TerminalProductionRequest::new(&checked, name).produce_artifact();
-        assert!(
-            matches!(
-                result,
-                Err(terminal_production::TerminalArtifactProductionError::Lowering(_))
-            ),
-            "{result:?}"
-        );
-
-        assert!(format!("{result:?}").contains("source-independent checked scalar control plan"));
-    }
+fn declared_range_inference_local_effects_retain_pending_terminal_boundaries() {
     // Attribute the remaining Terminal boundary without generic machinery.
-    // Keep nested projection and local mutation customers intact until their
-    // ordinary storage operations are connected.
+    // Keep mutation and direct-transition customers until their storage joins connect.
     let scratch = unique_no_output_build_dir();
     fs::create_dir_all(&scratch).unwrap();
     let path = scratch.join("main.omg");
     for (name, text) in [
-        (
-            "nested",
-            "data Value [copy] { value: u64; } data Outer [copy] { inner: Value; } machine nested() -> u64 { let bounded: Outer = Outer { inner: Value { value: 256 } }; bounded.inner.value }",
-        ),
         (
             "local_store",
             "data Value [copy] { value: u64; } machine local_store() -> u64 { let mut first: Value = Value { value: 256 }; let second: Value = first; first.value = 5; second.value }",
@@ -197,6 +154,10 @@ fn declared_range_inference_generic_instances_retain_pending_terminal_boundaries
         (
             "borrowed_store",
             "data Value [copy] { value: u64; } machine change(value: &mut Value) { value.value = 5; } machine borrowed_store() -> u64 { let mut first: Value = Value { value: 256 }; let second: Value = first; change(&mut first); second.value }",
+        ),
+        (
+            "local_transition",
+            "data Value [copy] { value: u64; flag: bool; } data Outer [copy] { inner: Value; } machine local_transition() -> u64 { let bounded: Outer = Outer { inner: Value { value: 256, flag: true } }; transition bounded.inner.flag { true -> yes(bounded.inner.value) _ -> no() } state yes(value: u64) { value } state no() { 0 } }",
         ),
     ] {
         fs::write(&path, text).unwrap();
@@ -249,6 +210,26 @@ fn declared_range_inference_record_copies_and_full_width_fields_execute() {
             "moved",
             "data Owned { value: u64; } machine moved() -> u64 { let keep: Owned = Owned { value: 17 }; let first: Owned = Owned { value: 256 }; let second: Owned = first; keep.value ^ second.value }",
             273,
+        ),
+        (
+            "nested",
+            "data Value [copy] { value: u64; } data Outer [copy] { inner: Value; } machine nested() -> u64 { let bounded: Outer = Outer { inner: Value { value: 256 } }; bounded.inner.value }",
+            256,
+        ),
+        (
+            "siblings",
+            "data Value [copy] { value: u64; } data Outer [copy] { left: Value; right: Value; } machine siblings() -> u64 { let bounded: Outer = Outer { left: Value { value: 17 }, right: Value { value: 256 } }; bounded.left.value ^ bounded.right.value }",
+            273,
+        ),
+        (
+            "deep",
+            "data Value [copy] { value: u64[0..18446744073709551616]; flag: bool; } data Middle [copy] { inner: Value; } data Outer [copy] { middle: Middle; } machine choose(flag: bool, value: u64) -> u64 { transition flag { true -> yes(value) _ -> no() } state yes(value: u64) { value } state no() { 0 } } machine deep() -> u64 { let bounded: Outer = Outer { middle: Middle { inner: Value { value: 18446744073709551615, flag: true } } }; choose(bounded.middle.inner.flag, bounded.middle.inner.value) }",
+            u128::from(u64::MAX),
+        ),
+        (
+            "nested_move",
+            "data Value { value: u64; } data Outer { inner: Value; } machine nested_move() -> u64 { let first: Outer = Outer { inner: Value { value: 256 } }; let second: Outer = first; second.inner.value }",
+            256,
         ),
     ] {
         fs::write(&path, text).unwrap();
