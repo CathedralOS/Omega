@@ -1158,12 +1158,21 @@ Owners include
   two coexisting allocations and full-return recomposition over a package
   `ExtentPartition` boundary (Linux x86-64,
   `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canaries_compile`).
-  Discovered contract gaps, recorded in the canary header: a record returned by
-  an ordinary machine does not carry its fields' `in Granted` facts to the
-  caller, an ordinary machine cannot restate a boundary's `separate` law as its
-  own `ensures`, and multi-input recomposition is admitted only through one
-  record parameter. Next acceptance: chain `allocate`/`reset` as ordinary
-  package machines with conserved custody, then a `Vec<T>` over that chain.
+  `exercise` now chains `allocate`/`reset` as ordinary package machines with
+  conserved custody, beside the direct-boundary `exercise_boundary` control.
+  Discovered contract edges, recorded in the canary header: a record returned
+  by a call does not surface its fields' `in Granted` facts on the result's
+  field places, so each qualified field is restated through an exactly typed
+  `let`, and the restated fields of one record share custody — consuming a
+  restated sibling retires the record's other restated facts, so a container
+  must order custody or keep the family in one record consumed atomically;
+  an ordinary machine cannot restate a boundary's `separate` law as its own
+  `ensures`; multi-input recomposition is admitted only through one record
+  parameter at a boundary. Next acceptance: a `Vec<T>`-style container over
+  the chain — blocked on placement operations: `Vacant`/`Resident<P,T>` are
+  declared vocabulary without place/take/read operations
+  (wiki/spec/resources/placed_access.md), so no element can be established
+  inside an issued extent.
 
 - **ADDRESS-TRANSLATION-CANARY.** Continue Cathedral's page-table hierarchy,
   backing, policy, installation, and teardown in Omega source. Existing numeric
