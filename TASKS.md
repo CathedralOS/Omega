@@ -196,17 +196,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `array_index_from_call` i64-widened operands, `math_proofs` `embed()`
   ensures arithmetic, `uefi_hello` `&mut self` receiver, and
   `dungeon_crawler_cli`'s `==`/`!=` guard pair rewritten as a boolean
-  transition. `all_samples_reach_checked_trees` now reports 19/140 failing,
-  each attributed to a named dependency below — reach failures are gone.
+  transition. The last full `all_samples_reach_checked_trees` run reported
+  19/140 failing, attributed below; scoped rechecks are not a new full baseline.
   Samples still failing earlier phases may hide additional undeclared
   reaches; their owners should rerun and read the printed sets.
 
-  Residual distribution (19 samples): text/field proofs —
+  Remaining checked-stage dependencies from that run: text/field proofs —
   `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`,
   `dice_histogram`, `calendar`, `dungeon_render` (cannot prove byte writes
   preserve the `Utf8` field domain across state edges). Receiver/aggregate
-  loans — `recursive_sum`, `slice_accum_probe`, `subslice_sum`,
-  `dual_accumulator_recursion`, `framed_payload` (retained-argument loan
+  loans — `slice_accum_probe`, `subslice_sum`, `framed_payload` (retained-argument loan
   origin vs mutable receiver); `dutch_flag`, `generic_counters`,
   `dungeon_render`, `wire_protocol` (non-copy transfer out of borrowed
   storage). Index/subslice proofs — `mandelbrot`, `mandelbrot_zoom`,
@@ -219,6 +218,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Match custody —
   `dungeon_crawler_cli` (case-literal construction and branch-local
   transfer joins unsupported). `math_proofs` — its owned Bag/multiset row.
+
+  Native resume for `recursive_sum`: at `d3ff511372` (2026-09-13, macOS ARM64),
+  `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=recursive_sum cargo nextest
+  run -p compiler --test samples_compile --no-fail-fast
+  -E 'test(=samples_with_documented_exit_run_correctly)'` reaches
+  `InvalidUnitMachinePlan` for `Main::main` (missing checked transitive plan).
+  `recursive_slice_samples_reach_checked_trees` covers the unchanged
+  `recursive_sum` and `dual_accumulator_recursion` sources. Continue through
+  **GENERAL-CYCLIC-EXECUTION** and ordinary checked call-plan production;
+  derived-argument place comparison no longer needs a receiver-ancestry fix.
+  The exit-70 native oracle remains open.
 
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |
