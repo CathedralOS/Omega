@@ -102,21 +102,12 @@ pub fn argument_matches_type_reference_handle(
     // permissive scalar-call or implicit-shared syntax fallbacks erase it.
     if let ExpressionNode::Call(call) = program.expression_table.expression(argument)
         && let Some(actual) = crate::calls::resolved_call_result_type(program, call)
-        && let TypeReferenceNode::Reference {
-            access: actual_access,
-            referee: actual_referee,
-            ..
-        } = program.type_reference_table.type_reference(actual)
+        && matches!(
+            program.type_reference_table.type_reference(actual),
+            TypeReferenceNode::Reference { .. }
+        )
     {
-        if program.normalized_type_identity(actual)
-            == program.normalized_type_identity(type_reference)
-        {
-            return true;
-        }
-        return matches!(program.type_reference_table.type_reference(type_reference),
-            TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, referee, .. }
-                if *actual_access == language_semantics::ReferenceAccess::Mutable
-                    && program.normalized_type_identity(*actual_referee) == program.normalized_type_identity(*referee));
+        return reference_values::reference_type_matches(program, actual, type_reference, &[]);
     }
 
     // An element projection selects a stored value; a range constructs a view
@@ -140,36 +131,46 @@ pub fn argument_matches_type_reference_handle(
 
     // A reference already stored in a named parameter/local is a value of its
     // declared reference type. Forwarding that value does not form a new loan,
-    // so it has no `Borrow` syntax node to inspect. Match the complete
-    // normalized type here: transparent forwarding requires exact access and
-    // referee identity, while elided lifetime spelling remains operationally
-    // transparent as it is everywhere else in normalized type identity. The
-    // established mutable-to-shared attenuation is handled separately below;
-    // `&write` never participates in it.
-    if let TypeReferenceNode::Reference {
-        access: required_access,
-        ..
-    } = program.type_reference_table.type_reference(type_reference)
-        && let ExpressionNode::Name(path) = program.expression_table.expression(argument)
+    // so it has no `Borrow` syntax node to inspect. Use the same exact reference
+    // and array-view correspondence as projected and call-produced references.
+    // Falling through to permissive name matching could change element types;
+    // requiring whole reference identity would reject ordinary array views.
+    if matches!(
+        program.type_reference_table.type_reference(type_reference),
+        TypeReferenceNode::Reference { .. }
+    ) && let ExpressionNode::Name(path) = program.expression_table.expression(argument)
         && let Some(actual) = named_value_type_reference(program, path)
-        && let TypeReferenceNode::Reference {
-            access: actual_access,
-            ..
-        } = program.type_reference_table.type_reference(actual)
+        && matches!(
+            program.type_reference_table.type_reference(actual),
+            TypeReferenceNode::Reference { .. }
+        )
     {
-        if program.normalized_type_identity(actual)
-            == program.normalized_type_identity(type_reference)
+        // An authored shared &T slot remains open during generic-call
+        // inference, as the Named type-parameter case below does. It is not a
+        // closed nominal mismatch: application checking must still bind T.
+        // Preserve this existing shared inference path without allowing a
+        // concrete referee mismatch or widening write-only permission.
+        if let TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Shared,
+            referee,
+            ..
+        } = program.type_reference_table.type_reference(type_reference)
+            && let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(*referee)
+            && symbol.is_valid()
+            && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+            && matches!(
+                program.type_reference_table.type_reference(actual),
+                TypeReferenceNode::Reference {
+                    access: language_semantics::ReferenceAccess::Shared
+                        | language_semantics::ReferenceAccess::Mutable,
+                    ..
+                }
+            )
         {
             return true;
         }
-        // Write-only access has no implicit relationship to either readable
-        // mode, and acquiring it from mutable access is likewise explicit.
-        // Preserve the ordinary mutable-to-shared read attenuation below.
-        if *actual_access == language_semantics::ReferenceAccess::WriteOnly
-            || *required_access == language_semantics::ReferenceAccess::WriteOnly
-        {
-            return false;
-        }
+        return reference_values::reference_type_matches(program, actual, type_reference, &[]);
     }
 
     let argument_node = program.expression_table.expression(argument);

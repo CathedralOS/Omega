@@ -65,6 +65,13 @@ access, the callee declaration's access and type, their reconstructed shape,
 the callee plan row placement, and caller-parameter roots with field-only
 paths' root type and projected byte offset.
 
+For a mutable fixed-byte-array view, the projected storage type is the array
+while the callee receives a view descriptor. Validation reconstructs the exact
+byte element, array extent and unit stride alongside the original root and
+offset; neither descriptor type equality nor a producer-supplied length suffices.
+The source/native regression is
+`cargo nextest run -p omega-native-differential-test --test terminal_byte_views --no-fail-fast mutable_writes::fixed_arrays`.
+
 Graph operations retain original invocation places, projections and widths.
 Byte views retain their backing pointer, length, checked slice derivation, and
 bounds obligations. Mutable stores address the original referent. Calls retain
