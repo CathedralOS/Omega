@@ -49,79 +49,36 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   then the real supplied-byte scan/filtered-result path. The submodule's TASKS
   owns port work; this board owns compiler blockers exposed by the unchanged app.
 
-  Available for end-to-end integration under the existing design; no owner
-  decision is required to take this work. The pause below rejects isolated helper
-  milestones, not the customer. Coordinate one integration owner for the getter,
-  count caller, and application command, checking live assignments to the shared
-  **MATCH-SELECTIVE-LOWERING** and **STATE-LOCAL-VALUE-FRONTIER** paths before edits.
-  Past swarm exclusions are not standing reservations. Recheck the recorded
-  failure on fresh main, then state the revised integration plan before resuming.
-
   Acceptance: `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <binary>`
-  executes the selected application with correct results. Package audit/source
-  checking are separate evidence, not the native bar. Current invocation output
-  is retained under the application's ignored `build/verification/`; record the
-  owning diagnostic before expanding compiler work. Initialization is explicit
-  and requires private repository access during in-house development.
-  With compiler `1c320cc667` and temporary producer tracing on macOS ARM64, Python 3.13 and
-  `RUST_MIN_STACK=67108864`, the native invocation completes ordinary package
-  acceptance, then exits 200 at Terminal production after 206.802 seconds:
-  `InvalidUnitMachinePlan` for `Main::main`, with reason
-  `attached Unit closure is missing a checked transitive machine plan`.
-  The application is at `7a272a896c85`
-  with standard-package pin `a91d878cb9252647d977c45787969b16e6ef937a`.
-  Trace the missing ordinary/composed checked body consumed by
-  `checked-trees-to-lowered-psi/src/attached_unit/bodies.rs` through its producer;
-  preserve exact closure validation and the authored multi-state geometry checks.
+  must execute the unchanged application and print `Squalr geometry: PASS`.
+  Package acceptance and verified Terminal production do not establish native
+  execution. Invocation output lives under its ignored `build/verification/`.
+  Initialization is explicit and needs private repository access.
+
+  Resume evidence: compiler `aa6c20a74f`, macOS ARM64, Python 3.13 and
+  `RUST_MIN_STACK=67108864` reaches verified Terminal production and abstract
+  lowering, then exits 200 after 199.419 seconds at `ProgramEntry receiver
+  provisioning`: the executable entry retains `self`, but no root-backed bridge
+  constructs and lends its receiver. The app is at `7a272a896c85`, with standard
+  package pin `a91d878cb9252647d977c45787969b16e6ef937a`.
   The application lock records its reviewed macOS baseline. Checkout-specific
   local identities require ordinary update/review when relocated; see its README.
-  Geometry execution remains unverified. The existing harness timeout option
-  permits the measured package passes without changing compiler checking.
 
-  Scope pause: do not publish another isolated getter/setter or argument helper
-  milestone. The unchanged application's trace admits all 14 state signatures
-  and constructs `aligned`, then stops at entry statement 1:
-  `count = aligned.get_element_count(4, MemoryAlignment::Alignment4)`.
-  This loses the caller plan before closure pruning; later mutation states are
-  not the observed first cause. The mixed call needs a fresh owned case operand
-  beside a shared local receiver and scalar actual, not a fabricated source
-  place for the static case name.
+  Next dependency: **ENTRY-CONTENT-ROOTS** and
+  **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION**, owned by
+  `native-realization/src/realization/native_artifact.rs`, `program-entry-plan`
+  and `external-roots`, under [entry roots](wiki/spec/build/entry_roots.md).
+  Supply the actual installed backing, receiver partition, activation loan and
+  completion contract; retain the native rejection until that bridge exists.
+  A test-supplied receiver or zero-payload provider layout is not provisioning.
 
-  Before resuming implementation, plan one coherent integration through the
-  actual four-case `MemoryAlignment::get_size_in_bytes` getter, its unchanged
-  count caller, and the full application. Checked scalar terminators currently
-  retain only binary conditional destinations; they cannot represent that
-  getter's ordered guarded returns. The existing `state_graph/closed_sum.rs`
-  route consumes an owned affine subject and routes payloads to named successor
-  states. It cannot implement a borrowed tag observation. Consolidate guarded
-  destinations with ordinary scalar evaluation and Terminal case observations;
-  independently retain exact source guards, coverage, selected operands, and
-  the getter's `u64[1..=8]` return obligations. No new Terminal operation or
-  weakening of case custody is implied. The checked control representation,
-  `flow/terminal_scalar.rs`, scalar graph lowering, and source replay own this
-  join; **MATCH-SELECTIVE-LOWERING** shares its required semantics.
-
-  A local experiment connecting case call operands reached the getter's missing
-  body in source-to-artifact probes, but did not close execution; broad
-  initializer rerouting also regressed established-result consumers. That
-  experiment was backed out, not published as support. Resume with existing
-  value homes and one complete call evaluation order. Also account for the
-  remaining mutable-local setter/read and explicit shared-projection fences in
-  `flow/terminal_unit/{state_graph.rs,calls/computation_arguments.rs}` before
-  committing to another application integration attempt. These remain engineering
-  dependencies, not owner questions. Independent board work remains actionable.
-
-  Reuse the ordinary structural-value/evaluation path in
-  `checked-trees-to-lowered-psi/src/attached_unit/structural_values/record.rs`
-  and the unified Terminal `EstablishRecord` operands for nested owned fields.
-  Local receivers retain their original structural homes through ordinary calls,
-  including mutable nested fields; shared projected getters retain exact paths.
-  **STATE-LOCAL-VALUE-FRONTIER** owns remaining joins exposed by the actual
-  application. Preserve authored operation order and the full package graph;
-  keep build-only packages explicitly unported. Source admission and focused
-  native receiver coverage do not establish the application's remaining sum,
-  refined-result, state-transition, and provider execution paths. This is
-  engineering work, with `Squalr geometry: PASS` as the native acceptance marker.
+  Keep one integration owner and this application command across the bridge
+  and subsequent native/provider failures. Do not restart isolated getter/setter
+  helper milestones: the ordinary/composed Psi route now serves this application.
+  Preserve its operation order, complete package graph and independent evidence;
+  **MATCH-SELECTIVE-LOWERING** and **STATE-LOCAL-VALUE-FRONTIER** own any newly
+  witnessed operation joins. These are engineering dependencies, not owner
+  questions. Keep build-only packages explicitly unported.
 
 - **MACOS-APPLICATION-PUBLICATION.** Implement the
   [settled publication contract](wiki/spec/build/macos_application.md)
