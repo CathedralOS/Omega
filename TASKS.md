@@ -1265,7 +1265,7 @@ Owners include
   established. Explicit arguments alone do not establish all callee reads;
   preserved numeric captures must remain independent of subsequent source writes.
 
-  First slice landed at 300c9b4760: `slice_tail_strictly_decreases`
+  First slice landed at e47adbb9eb: `slice_tail_strictly_decreases`
   (`omega-rust/psi/semantics/validation/src/slice_ranking.rs`) now routes the
   tail start and `len` guard bound through the shared immutable-integer-bound
   normalization, admitting `param[k..]` (literal or immutable local copy,
