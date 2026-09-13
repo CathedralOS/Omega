@@ -246,9 +246,11 @@ carried through abstract operations, layout and independent replay; they reject
 explicitly at that boundary today. Fresh record locals also participate in the
 scalar graph's ordered statement effects: their field computations finish in
 authored order, and nested guards/selected arguments observe the completed root
-before affine cleanup. The focused `declared_range_inference` canaries retain
-local mutation gaps; whole-place record initializers before direct transitions
-still need their transfer join. Cyclic record construction remains rejected by
+before affine cleanup. Unrestricted whole-place and nested-field copies join that
+sequence through ordinary owned block arguments and fresh destination homes.
+The focused `declared_range_inference` canaries retain local mutation gaps;
+affine moves before direct transitions still need their surviving-owner frontier
+and cleanup join. Cyclic record construction remains rejected by
 Terminal's cycle admission until repeated establishment and per-iteration custody
 are independently closed. Connect those shared operations rather than adding a
 generic-specific fallback.
