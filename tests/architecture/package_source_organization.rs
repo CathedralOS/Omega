@@ -8,13 +8,14 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const PACKAGE_ROOT_ENTRIES: &[&str] = &["README.md", "manager", "review", "sources"];
+const PACKAGE_ROOT_ENTRIES: &[&str] = &["README.md", "manager", "review", "sources", "topology"];
 const PACKAGE_CRATES: &[&str] = &[
     "manager",
     "review/advisory",
     "review/evidence",
     "sources/acquisition",
     "sources/execution",
+    "topology",
 ];
 const MANAGER_OWNERS: &[&str] = &[
     "admission",
@@ -115,7 +116,7 @@ fn packages_exposes_one_reader_route_per_subsystem_responsibility() {
     let readme = fs::read_to_string(packages.join("README.md"))
         .expect("read package subsystem README entrance");
     assert!(readme.starts_with("# Omega Package Subsystem"));
-    for area_name in ["manager", "review", "sources"] {
+    for area_name in ["manager", "review", "sources", "topology"] {
         assert!(
             readme.contains(&format!("{area_name}/")),
             "packages/README.md must advertise {area_name}"

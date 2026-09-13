@@ -2217,6 +2217,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "topology-plan"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
 name = "trust-ledger"
 version = "0.1.0"
 dependencies = [

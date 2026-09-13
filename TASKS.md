@@ -500,6 +500,17 @@ an implementation shortcut.
   selected predicates. Typechecking a graph algorithm alone is not correctness
   evidence, and successful publication is not an installation claim.
 
+  Resume evidence: the Rust reference slice landed as `topology-plan`
+  (`omega-rust/omega/packages/topology`): canonical model, bounded
+  normalization, `no_route`/`only_via` with structural certificates and
+  checked violation witnesses, versioned codec with golden
+  `tests/fixtures/payment.{request,plan}`, producer `compose_plan`, and
+  source-free `verify_plan` covering the acceptance rejection matrix (46
+  package tests). Remaining: the build-only Omega package and composition
+  project itself, consuming verified component descriptions over the scoped
+  build output route — the crate deliberately does not accept hand-authored
+  endpoint inventories as verified evidence.
+
 - **TOPOLOGY-PRIVATE-PIPE-INSTALLATION.** Build the package-owned installer and
   Windows/macOS pipe adapters for three checked local payment processes. Depends
   on plan verification, complete component admission, and generic executable

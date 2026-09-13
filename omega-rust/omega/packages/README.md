@@ -8,7 +8,8 @@ packages/
 ├── README.md             subsystem map
 ├── manager/              package workflows, declarations, graph, and lock
 ├── sources/              repository acquisition and immutable source snapshots
-└── review/               compiler-derived findings and optional audit advice
+├── review/               compiler-derived findings and optional audit advice
+└── topology/             checked deployment-plan composition and verification
 ```
 
 The goal is Cargo-like repository install/update with compiler-derived
@@ -72,6 +73,14 @@ or changed acceptance uses ordinary install/update review, not a second native
 approval file. Its proof, reachability, ABI, and artifact checks are not an additional
 install/update certification requirement. Invalid or unsupported source still
 rejects during candidate checking.
+
+[`topology/`](topology/README.md) is the reference implementation of the
+checked deployment-plan contract: an ordinary build-only package composes a
+finite instance graph over verified component artifacts, evaluates the fixed
+`no_route`/`only_via` policy set with checkable certificates, and serializes a
+versioned plan an independent consumer can verify and replay without source.
+Plan bytes prove checked composition only — not installation or runtime
+confinement.
 
 Design and acquisition references:
 
