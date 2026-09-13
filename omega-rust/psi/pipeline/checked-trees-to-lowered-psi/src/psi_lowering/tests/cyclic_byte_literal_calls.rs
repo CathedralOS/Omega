@@ -1,6 +1,7 @@
 //! Published cyclic Unit calls preserve literal contents through resumable execution.
 
 use super::checked_source;
+use crate::{LoweringError, lower_machine};
 mod mixed_and_custody;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
@@ -158,4 +159,39 @@ impl TerminalEffectHandler for ByteTrace {
         self.0.push(bytes.clone());
         Ok(())
     }
+}
+
+/// `self.place` is replaced every iteration, so the divide's nonzero-divisor
+/// obligation `1 <= self.place` can only be discharged by a cyclic invariant
+/// naming field state. Scalar block invariants admit scalar terms over
+/// machine and block parameters only, so this remains
+/// `OperationProofUnavailable` until storage-observation invariants exist
+/// (see TASKS.md GENERAL-CYCLIC-EXECUTION).
+#[test]
+fn cyclic_field_divisor_awaits_storage_observation_invariants() {
+    let checked = checked_source(
+        r#"
+boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
+data Main { counter: u64 in Wrapping; place: u32 in Wrapping; sq: u32 in Wrapping; d: u32 in Wrapping; }
+machine Main::main(&mut self) reaches Trace {
+    self.sq = 81;
+    self.place = 100;
+    transition { _ -> head() }
+    state head(&mut self) {
+        transition self.counter < 3 { true -> digit() _ -> done() }
+    }
+    state digit(&mut self) {
+        self.d = self.sq / self.place;
+        self.place = self.place / 10;
+        self.counter = self.counter + 1;
+        transition { _ -> head() }
+    }
+    state done(&mut self) { Trace::write("done"); }
+}
+"#,
+    );
+    assert!(matches!(
+        lower_machine(&checked, "Main::main"),
+        Err(LoweringError::OperationProofUnavailable(_))
+    ));
 }

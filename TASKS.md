@@ -948,12 +948,28 @@ Owners include
   boundary results, and exact result custody/cleanup; shared inline byte
   fields present to boundary byte-view parameters end to end. Store fact
   invalidation is now scoped to the canonical written path, so disjoint
-  sibling-field observations survive (`repro_cyclic` b0-b8). The probe now
-  stops inside native proof production at `OperationProofUnavailable` for
-  field-state obligations — the nonzero divisor on `WrappingIntegerDivide`,
-  indexed-write bounds, and increment overflow — because scalar block
-  invariants still cannot name storage observations such as
-  `IntegerField`; that field-invariant scope gap is the next slice.
+  sibling-field observations survive (`repro_cyclic` b0-b8). Scalar field
+  stores now publish the exact `field == stored value` equation on the
+  canonical write path (`terminal-verifier` `operation_facts` reconstruction;
+  `structural_scalar_store` field-obligation tests), so obligations whose
+  subject was stored on the dominating path — e.g. `x / self.place` after
+  `self.place = 100` — prove through the existing kernel-checked equality
+  transport; a covering write expires the equation, so stale bounds cannot
+  leak.
+
+  The remaining probe stop is the genuinely cyclic case: `digit_div`'s
+  `self.sq / self.place` reads `place` written by a previous iteration, so
+  its `1 <= place` obligation needs a cyclic invariant naming storage
+  observations (`IntegerField`/`BooleanField` terms rooted at the machine's
+  own structural parameters). Scalar block invariants admit scalar terms
+  over machine and block parameters only. Note a plain `place >= 1` at
+  `itoa_loop` is not inductive — the last iteration stores `place = 0`
+  before the guard exits — so producer synthesis must propose the
+  lockstep/disjunctive form (`p < 3 -> place >= 1`, or the `place`/`p`
+  case enumeration); `ImplicationElimination` already exists in the
+  kernel for the arrival proofs. Next slice: storage-observation
+  invariant scope plus that synthesis; indexed byte-field writes also
+  still need composed-Unit closure coverage.
 
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
   operators, nested structural paths, calls, cycles, execution and package review.
