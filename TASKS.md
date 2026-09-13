@@ -1654,6 +1654,15 @@ Owners include
   subject, ordered first match, branch-local execution and exact result owners;
   do not flatten conditional ownership into a statement-wide move roster.
 
+  Indexed affine tag observation reaches checked trees without copying the
+  element (macOS ARM64, `51dc05abf5`; `cargo nextest run -p
+  typed-trees-to-checked-trees --lib --no-fail-fast -E
+  'test(multiplicity::borrowed_case_payloads)'`). Retain the once-captured
+  borrowed subject and exact source-state loan closure when producing/replaying
+  successor plans; checker acceptance is not Terminal lifecycle publication.
+  The `dutch_flag` native command above still stops at the missing transitive
+  `Main::main` plan; preserve its exit-70 oracle and explicit copyable swap values.
+
   Selected-operator and semantic-domain result types need full instantiated
   identity; input predicates are not arithmetic result facts. Indexed
   predicate/theorem and package membership applications need exact static
