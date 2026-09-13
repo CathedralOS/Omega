@@ -2,7 +2,10 @@
 
 Contract: [native products and component publication](../../../../wiki/spec/build/component_publication.md).
 
-[lib.rs](src/lib.rs) sequences deployment above compilation. A
+[component_deployment.rs](src/component_deployment.rs) is the starting point:
+preflight and claim installation, seal providers, close progress, then finalize
+the runnable. [flat_output.rs](src/flat_output.rs) separately owns filesystem
+publication and receipt replay; [lib.rs](src/lib.rs) only wires the public API. A
 `ComponentDeploymentSession` retains the candidate parts, real `InstalledCode`,
 and claimed `InstalledRootLedger`. Provider/progress closure and finalization
 consume typed sessions; failure preserves the current session and remaining inputs.
