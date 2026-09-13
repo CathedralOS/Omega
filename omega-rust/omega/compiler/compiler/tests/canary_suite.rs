@@ -394,6 +394,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "arithmetic/bounded_guarded_increment",
     "arithmetic/bounded_guard_only_increment",
     "arithmetic/bounded_guarded_subtraction",
+    "arithmetic/bounded_guarded_remainder",
     "arithmetic/typed_integer_remainder",
     "arithmetic/bounded_member_guard_arrival_compile",
     "constraints/mutable_scalar_value_reads",

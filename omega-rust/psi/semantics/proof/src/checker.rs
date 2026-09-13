@@ -1,8 +1,8 @@
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, FloatRange, IntegerRange,
-    ProofConstraint, ProofObligation, ProofPlan, dehoisted_condition, dehoisted_operand,
-    integer_binary_range,
+    ProofConstraint, ProofObligation, ProofPlan, declared_integer_range, dehoisted_condition,
+    dehoisted_operand, integer_binary_range,
 };
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -988,45 +988,28 @@ fn guarded_integer_range_for_assignment_with_context(
         // above is place-vs-LITERAL only, so neither reaches this shape.
         if let TransitionGuardNode::When(condition) = guard
             && let Some(operands) = &obligation.binary_operands
-        {
-            let operand_range = |declared: Option<IntegerRange>, handle: ExpressionHandle| {
-                let base = declared.unwrap_or_else(neutral_range);
-                let mut narrowed = apply_source_condition(
+            && let (Some(left), Some(right)) = (
+                guard_narrowed_operand_range(
                     proof_plan,
-                    base,
-                    handle,
+                    obligation,
                     *condition,
-                    obligation.machine_symbol,
-                    obligation.state_guard_source,
-                );
-                // R4: an ensures-witnessed OPERAND place clamps here; an
-                // unsigned place's type floor supplies the lower end.
-                let operand_display = proof_plan.program.expression_table.display_name(handle);
-                for (place, bound) in &obligation.ensures_witness_bounds {
-                    if place == &operand_display {
-                        let bound = BigInt::from_i64(*bound);
-                        if narrowed.maximum > bound {
-                            narrowed.maximum = bound;
-                        }
-                        if narrowed.minimum < BigInt::zero()
-                            && operand_is_unsigned(proof_plan, obligation, handle)
-                        {
-                            narrowed.minimum = BigInt::zero();
-                        }
-                    }
-                }
-                (narrowed != neutral_range()).then_some(narrowed)
+                    operands.left,
+                    operands.left_range.clone(),
+                ),
+                guard_narrowed_operand_range(
+                    proof_plan,
+                    obligation,
+                    *condition,
+                    operands.right,
+                    operands.right_range.clone(),
+                ),
+            )
+            && let Some(folded) = integer_binary_range(operands.operator, left, right)
+        {
+            range = IntegerRange {
+                minimum: range.minimum.max(folded.minimum),
+                maximum: range.maximum.min(folded.maximum),
             };
-            if let (Some(left), Some(right)) = (
-                operand_range(operands.left_range.clone(), operands.left),
-                operand_range(operands.right_range.clone(), operands.right),
-            ) && let Some(folded) = integer_binary_range(operands.operator, left, right)
-            {
-                range = IntegerRange {
-                    minimum: range.minimum.max(folded.minimum),
-                    maximum: range.maximum.min(folded.maximum),
-                };
-            }
         }
     }
 
@@ -1036,6 +1019,96 @@ fn guarded_integer_range_for_assignment_with_context(
         return None;
     }
     Some(range)
+}
+
+/// One guard-narrowed OPERAND range for the assignment refold. The whole-
+/// operand match handles operands spelled exactly as the guard spells them
+/// (`self.dir` under `dir >= 0`); a NESTED binary operand needs one more
+/// refold, because the guard constrains the places INSIDE it, never the
+/// operand itself. `(self.col - 28) % 8` under `col >= 28 && col < 60`
+/// proves `local_x: [-4..=11]` only when `col` narrows inside the
+/// subtraction: [28..=59] - 28 refolds to [0..=31], and the remainder fold
+/// then yields [0..=7]. Skipping the recursion keeps the build-time
+/// [-28..=35] fold, whose truncating-remainder [-7..=7] fails the target.
+///
+/// The stability gate ran once on the whole guard above, so a fact that
+/// reaches an inner place is as sound here as on the outer operand; the
+/// refold only intersects, and an operand the guard leaves at its declared
+/// range refolds exactly what the build-time fold already claimed.
+fn guard_narrowed_operand_range(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedAssignmentObligation,
+    condition: ExpressionHandle,
+    handle: ExpressionHandle,
+    declared: Option<IntegerRange>,
+) -> Option<IntegerRange> {
+    let mut narrowed = apply_source_condition(
+        proof_plan,
+        declared.unwrap_or_else(neutral_range),
+        handle,
+        condition,
+        obligation.machine_symbol,
+        obligation.state_guard_source,
+    );
+
+    // R4: an ensures-witnessed OPERAND place clamps here; an unsigned place's
+    // type floor supplies the lower end.
+    let operand_display = proof_plan.program.expression_table.display_name(handle);
+    for (place, bound) in &obligation.ensures_witness_bounds {
+        if place == &operand_display {
+            let bound = BigInt::from_i64(*bound);
+            if narrowed.maximum > bound {
+                narrowed.maximum = bound;
+            }
+            if narrowed.minimum < BigInt::zero()
+                && operand_is_unsigned(proof_plan, obligation, handle)
+            {
+                narrowed.minimum = BigInt::zero();
+            }
+        }
+    }
+
+    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(handle)
+    else {
+        return (narrowed != neutral_range()).then_some(narrowed);
+    };
+
+    let Some((machine, state)) = proof_plan
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == obligation.machine_symbol)
+        .and_then(|machine| {
+            proof_plan
+                .program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == obligation.state_symbol)
+                .map(|state| (machine, state))
+        })
+    else {
+        return (narrowed != neutral_range()).then_some(narrowed);
+    };
+
+    let nested = |sub_operand: ExpressionHandle| {
+        let sub_operand = dehoisted_operand(proof_plan.program, state, sub_operand);
+        guard_narrowed_operand_range(
+            proof_plan,
+            obligation,
+            condition,
+            sub_operand,
+            declared_integer_range(proof_plan.program, machine, state, sub_operand),
+        )
+    };
+    if let (Some(left), Some(right)) = (nested(binary.left), nested(binary.right))
+        && let Some(folded) = integer_binary_range(binary.operator, left, right)
+    {
+        narrowed = IntegerRange {
+            minimum: narrowed.minimum.max(folded.minimum),
+            maximum: narrowed.maximum.min(folded.maximum),
+        };
+    }
+    (narrowed != neutral_range()).then_some(narrowed)
 }
 
 /// Invocation-local custody for assignment-range queries over one immutable
