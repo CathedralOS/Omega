@@ -61,6 +61,7 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConstDefinition, DataMember, Item};
 
 mod carrier;
+pub(crate) mod initializer_dependencies;
 pub(crate) mod initializer_normalization;
 
 /// Find unfinished values without claiming a carrier or constructor selection.
@@ -419,6 +420,48 @@ fn has_scalar_initializer(syntax: &SyntaxTrees, definition: &ConstDefinition) ->
     )
 }
 
+/// Select a constant through the ordinary source-scoped path before its value
+/// is substituted. Initializer dependency discovery uses the same selection:
+/// module body names need not yet carry their finalized constant ledger rows.
+pub(crate) fn selected_expression_constant(
+    program: &SymbolResolvedTrees,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
+) -> Option<(SourceSpan, symbols::SymbolHandle)> {
+    use symbol_resolved_trees::expression::ExpressionNode;
+    let table = &program.tables.bodies.expressions;
+    let ExpressionNode::Name(path) = table.expression(expression) else {
+        return None;
+    };
+    if path.is_self_value
+        || matches!(
+            program.symbols.get(path.head_symbol).kind,
+            SymbolKind::Local
+                | SymbolKind::Parameter
+                | SymbolKind::MachineParameter
+                | SymbolKind::TypeParameter
+                | SymbolKind::ConformanceParameter
+        )
+    {
+        return None;
+    }
+    let members = table.name_path_members(path.members);
+    let first = members.first()?;
+    let last = members.last()?;
+    let reference = SourceSpan::new(
+        first.source_span().source_id,
+        Span::new(first.source_span().span.start, last.source_span().span.end),
+    );
+    let name = members
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let selected = program
+        .symbols
+        .find_top_level_by_name_and_kinds_from_source(&name, &[SymbolKind::Const], reference)?;
+    Some((reference, selected))
+}
+
 pub(crate) fn substitute_resolved_constants(
     program: &mut SymbolResolvedTrees,
     authored: &[crate::lowerer::PendingAuthoredExpression],
@@ -545,49 +588,8 @@ pub(crate) fn substitute_resolved_constants(
         })
         .collect::<Vec<_>>();
     for occurrence in authored {
-        let ExpressionNode::Name(path) = program
-            .tables
-            .bodies
-            .expressions
-            .expression(occurrence.expression)
-        else {
-            continue;
-        };
-        if path.is_self_value
-            || matches!(
-                program.symbols.get(path.head_symbol).kind,
-                SymbolKind::Local
-                    | SymbolKind::Parameter
-                    | SymbolKind::MachineParameter
-                    | SymbolKind::TypeParameter
-                    | SymbolKind::ConformanceParameter
-            )
-        {
-            continue;
-        }
-        let members = program
-            .tables
-            .bodies
-            .expressions
-            .name_path_members(path.members);
-        let Some(first) = members.first() else {
-            continue;
-        };
-        let Some(last) = members.last() else {
-            continue;
-        };
-        let reference = SourceSpan::new(
-            first.source_span().source_id,
-            Span::new(first.source_span().span.start, last.source_span().span.end),
-        );
-        let name = members
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
-        let Some(selected) = program
-            .symbols
-            .find_top_level_by_name_and_kinds_from_source(&name, &[SymbolKind::Const], reference)
+        let Some((reference, selected)) =
+            selected_expression_constant(program, occurrence.expression)
         else {
             continue;
         };
@@ -671,6 +673,14 @@ pub(crate) fn substitute_resolved_constants(
             .bodies
             .expressions
             .expression_mut(occurrence.expression) = value;
+        // The replacement remains this exact authored use, not the dependency's
+        // declaration root. Replay distinguishes direct substituted values from
+        // inherited transitive selection rows by this resolved occurrence.
+        program
+            .tables
+            .bodies
+            .expressions
+            .set_source_span(occurrence.expression, reference);
         selections.push(crate::lowerer::PendingConstSelection {
             expression: occurrence.expression,
             source_span: reference,

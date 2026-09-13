@@ -21,6 +21,7 @@ use syntax_trees::{SyntaxTrees, item::ConstDefinition, types::ConstArgumentOrigi
 pub(crate) struct PendingInitializer {
     declaration: SourceSpan,
     materialized: ExpressionHandle,
+    pub(crate) authored: ExpressionHandle,
     references: Vec<(SourceSpan, String)>,
     operators: Vec<SourceSpan>,
     receipt: syntax_trees::item::ConstInitializerNormalization,
@@ -114,6 +115,13 @@ pub(crate) fn retain(
                 pending.push(binary.right);
                 pending.push(binary.left);
             }
+            ExpressionNode::Call(call) => {
+                let arguments = syntax.expressions.expression_handles(call.arguments);
+                if arguments.len() != call.arguments.len() {
+                    return Err(error(reference, "authored call has a stale argument span"));
+                }
+                pending.extend(arguments.iter().rev().copied());
+            }
             ExpressionNode::ArrayLiteral(elements) => {
                 pending.extend(
                     syntax
@@ -163,6 +171,7 @@ pub(crate) fn retain(
     lowerer.pending_const_initializers.push(PendingInitializer {
         declaration: definition.name.source_span(),
         materialized,
+        authored: original,
         references,
         operators,
         receipt: receipt.clone(),
@@ -192,6 +201,7 @@ fn reconstruct(
                 operators.push(*operator);
             }
         }
+        let mut dependencies = Vec::new();
         for (reference, name) in &record.references {
             let selected = program
                 .symbols
@@ -203,14 +213,32 @@ fn reconstruct(
                 .ok_or_else(|| {
                     error(*reference, "dependency no longer selects an exact constant")
                 })?;
+            dependencies.push((*reference, selected));
+        }
+        let closure = super::initializer_dependencies::collect(program, record.authored)
+            .map_err(|reason| error(record.declaration, &reason))?;
+        for (reference, declaration) in closure.constants {
+            let selected = program
+                .const_declarations
+                .iter()
+                .find(|candidate| {
+                    program.symbols.symbol_source_span(candidate.symbol) == Some(declaration)
+                })
+                .ok_or_else(|| error(reference, "closure dependency lost its exact declaration"))?
+                .symbol;
+            if !dependencies.contains(&(reference, selected)) {
+                dependencies.push((reference, selected));
+            }
+        }
+        for (reference, selected) in &dependencies {
             let declaration = program
                 .const_declarations
                 .iter()
-                .find(|declaration| declaration.symbol == selected)
+                .find(|declaration| declaration.symbol == *selected)
                 .ok_or_else(|| error(*reference, "selected dependency lost its declaration"))?;
             let source = program
                 .symbols
-                .symbol_source_span(selected)
+                .symbol_source_span(*selected)
                 .ok_or_else(|| error(*reference, "selected dependency lost its source"))?;
             if !declaration.is_public && !program.symbols.same_source_package(*reference, source) {
                 return Err(error(
@@ -274,6 +302,15 @@ fn append_retained_custody(
             .ok_or_else(|| error(root, "retained initializer lost its exact selection"))?;
         let reference = selection.source_span();
         match (selection.kind(), selection.target()) {
+            (Kind::Call, Target::Resolved(selected))
+                if matches!(
+                    program.symbols.get(selected.selected_symbol()).kind,
+                    SymbolKind::Machine | SymbolKind::State
+                ) =>
+            {
+                // The detached original rederives call custody. A copied call
+                // selection is neither a constant origin nor a builtin premise.
+            }
             (Kind::Operator, Target::Intrinsic(Intrinsic::BuiltinOperator)) => {
                 if !operators.contains(&reference) {
                     operators.push(reference);
@@ -408,6 +445,9 @@ pub(crate) fn finalize(
 ) -> Result<(), Diagnostic> {
     for (ordinal, record) in records.iter().enumerate() {
         let (origins, operators) = reconstruct(program, records, ordinal)?;
+        let call_custody = super::initializer_dependencies::collect(program, record.authored)
+            .map_err(|reason| error(record.declaration, &reason))?;
+        let calls = &call_custody.calls;
         if origins.len() != record.receipt.selections.len()
             || origins
                 .iter()
@@ -416,6 +456,10 @@ pub(crate) fn finalize(
             || operators
                 .iter()
                 .any(|operator| !record.receipt.builtin_operators.contains(operator))
+            || calls.len() != record.receipt.call_selections.len()
+            || calls
+                .iter()
+                .any(|call| !record.receipt.call_selections.contains(call))
         {
             return Err(error(
                 record.declaration,
@@ -423,6 +467,18 @@ pub(crate) fn finalize(
             ));
         }
         let mut occurrences = Vec::new();
+        for (reference, selected) in call_custody.call_targets {
+            occurrences.push(
+                program
+                    .record_resolved_authored_declaration_selection(
+                        reference,
+                        Exposure::PrivateImplementation,
+                        Kind::Call,
+                        selected,
+                    )
+                    .map_err(super::const_selection_record_diagnostic)?,
+            );
+        }
         for origin in origins {
             let selected = program
                 .const_declarations
@@ -484,6 +540,111 @@ mod tests {
         item::{ConstInitializerNormalization, Item},
     };
 
+    #[test]
+    fn normalized_calls_rejoin_literal_and_computed_helper_dependencies_before_table_rebuild() {
+        for base_value in ["7", "7 / 2 * 2"] {
+            let text = format!(
+                "const BASE: u64 = {base_value}; machine size() -> u64 {{ BASE }} const SIZE: u64 = size();"
+            );
+            let mut sources = source::SourceMap::default();
+            let source = sources
+                .add(
+                    std::path::PathBuf::from("helper-dependency.omg"),
+                    text.clone(),
+                )
+                .source_id;
+            let sources = std::sync::Arc::new(sources);
+            let tokens = source_files_to_tokens::Lexer::new(&text)
+                .tokenize()
+                .expect("tokens");
+            let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens)
+                .expect("syntax");
+            let definitions = syntax
+                .root_item_handles()
+                .iter()
+                .filter_map(|item| match syntax.root_item(*item) {
+                    Item::Const(definition) => Some((*item, definition.clone())),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let preparation = crate::lower_syntax_trees_for_const_initializer_selection(
+                &syntax,
+                Some(sources.clone()),
+                Vec::new(),
+            )
+            .expect("preparation");
+            let dependencies = preparation
+                .initializer_dependencies(&syntax, &definitions[1].1)
+                .expect("helper dependencies");
+            assert_eq!(dependencies.constants.len(), 1);
+            let encoding =
+                language_semantics::const_value::CanonicalConstIdentity::integer("u64", 7).encoding;
+            let mut operators = Vec::new();
+            let mut pending = vec![definitions[0].1.value];
+            while let Some(expression) = pending.pop() {
+                if let ExpressionNode::Binary(binary) = syntax.expressions.expression(expression) {
+                    operators.push(syntax.expressions.source_span(expression));
+                    pending.extend([binary.left, binary.right]);
+                }
+            }
+            for (ordinal, (item, definition)) in definitions.iter().enumerate() {
+                if ordinal == 0 && operators.is_empty() {
+                    continue;
+                }
+                let mut definition = definition.clone();
+                let original = definition.value;
+                let materialized = syntax.expressions.insert(ExpressionNode::Integer(
+                    numerics::literals::IntegerLiteral::from_value(7),
+                ));
+                let original_source = syntax.expressions.source_span(original);
+                syntax
+                    .expressions
+                    .set_source_span(materialized, original_source);
+                definition.value = materialized;
+                definition.normalization = Some(ConstInitializerNormalization {
+                    authored_expression: original,
+                    canonical_result_encoding: encoding.clone(),
+                    selections: if ordinal == 0 {
+                        Vec::new()
+                    } else {
+                        vec![ConstArgumentOrigin {
+                            reference: dependencies.constants[0].0,
+                            declaration: definitions[0].1.name.source_span(),
+                            initializer: syntax.expressions.source_span(definitions[0].1.value),
+                            canonical_value_encoding: encoding.clone(),
+                        }]
+                    },
+                    builtin_operators: operators.clone(),
+                    call_selections: if ordinal == 0 {
+                        Vec::new()
+                    } else {
+                        dependencies.calls.clone()
+                    },
+                });
+                syntax.items.replace_item(*item, Item::Const(definition));
+            }
+            crate::lower_syntax_trees_with_sources(&syntax, sources.clone())
+                .expect("complete resolution must visit authoritative helper statements");
+            let mut changed = syntax.clone();
+            let Item::Const(mut declaration) = changed.root_item(definitions[1].0).clone() else {
+                panic!("SIZE")
+            };
+            declaration
+                .normalization
+                .as_mut()
+                .expect("receipt")
+                .selections
+                .clear();
+            changed
+                .items
+                .replace_item(definitions[1].0, Item::Const(declaration));
+            assert!(
+                crate::lower_syntax_trees_with_sources(&changed, sources).is_err(),
+                "omitted helper dependency must not validate"
+            );
+        }
+    }
+
     fn normalized() -> (SyntaxTrees, syntax_trees::item::ItemHandle) {
         let tokens = source_files_to_tokens::Lexer::new(
             "const BASE: u64 = 2; pub const COUNT: u64 = BASE + 1; machine main() -> u64 { COUNT }",
@@ -535,6 +696,7 @@ mod tests {
                 canonical_value_encoding: encoding,
             }],
             builtin_operators: vec![syntax.expressions.source_span(original)],
+            call_selections: Vec::new(),
         });
         syntax.items.replace_item(item, Item::Const(definition));
         (syntax, item)
@@ -661,15 +823,17 @@ mod tests {
         let receipt = definition.normalization.clone().expect("receipt");
         let operator = receipt.builtin_operators[0];
         let mut program = crate::lower_syntax_trees(&syntax).expect("retained base");
-        let materialized = program
+        let declaration = program
             .const_declarations
             .iter()
             .find(|declaration| program.symbols.name(declaration.symbol) == "COUNT")
-            .expect("COUNT")
-            .initializer;
+            .expect("COUNT");
+        let materialized = declaration.initializer;
+        let authored = declaration.authored_initializer;
         let record = PendingInitializer {
             declaration: definition.name.source_span(),
             materialized,
+            authored,
             references: Vec::new(),
             operators: vec![operator],
             receipt,
@@ -812,6 +976,7 @@ mod tests {
                         .encoding,
                     selections,
                     builtin_operators: operators,
+                    call_selections: Vec::new(),
                 });
                 syntax.items.replace_item(item, Item::Const(definition));
             };

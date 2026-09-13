@@ -12,6 +12,8 @@
 //! cannot bypass that obligation and let later canonicalization erase a runtime
 //! operand. Nonscalar values retain their existing materialization path.
 
+mod call_custody;
+pub(crate) use call_custody::DependencyValue;
 pub(super) mod lexical_selection;
 pub(super) mod value;
 
@@ -363,6 +365,15 @@ pub(super) fn expression_custody(
                 .authored_declaration_selections()
                 .get(occurrence)
                 .ok_or("evaluated expression lost an authored selection")?;
+            if selection.kind() == Kind::Call {
+                if !inherits_normalized_constant_call(program, expression, occurrence) {
+                    return Err("call-free index expression has no owning normalized constant for its call receipt".into());
+                }
+                // This remains an ordinary Call selection for package admission
+                // and independent initializer replay, not an operator or const
+                // reference. The selected constant below supplies value origin.
+                continue;
+            }
             if selection.kind() == Kind::Operator {
                 let builtin = matches!(
                     selection.target(),
@@ -450,8 +461,72 @@ pub(super) fn expression_custody(
     Ok((origins, operators))
 }
 
-/// Evaluate one source-owned scalar probe. Both declaration initializers and
-/// index arguments use this same admission, all-operand custody and landing cut.
+fn inherits_normalized_constant_call(
+    program: &typed_trees::TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+    call_occurrence: typed_trees::AuthoredDeclarationSelectionOccurrenceId,
+) -> bool {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
+    if matches!(
+        program.expression_table.expression(expression),
+        typed_trees::expression::ExpressionNode::Call(_)
+    ) {
+        return false;
+    }
+    program
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .any(|occurrence| {
+            let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+                return false;
+            };
+            let Target::Resolved(selected) = selection.target() else {
+                return false;
+            };
+            let mut declarations = program
+                .const_declarations()
+                .iter()
+                .filter(|declaration| declaration.symbol == selected.selected_symbol());
+            let Some(declaration) = declarations.next() else {
+                return false;
+            };
+            declarations.next().is_none()
+                && declaration.canonical_value_encoding.is_some()
+                && program
+                    .expression_table
+                    .expression_is_valid(declaration.authored_initializer)
+                && program
+                    .expression_table
+                    .expression_is_valid(declaration.materialized_initializer)
+                && program
+                    .expression_table
+                    .authored_selection_occurrences(declaration.materialized_initializer)
+                    .any(|owned| owned == call_occurrence)
+        })
+}
+
+/// Detect invocation demand from actual initializer nodes while validating the
+/// complete expression graph, independently of retained selection receipts.
+pub(crate) fn initializer_contains_call(
+    program: &typed_trees::TypedTrees,
+    root: typed_trees::expression::ExpressionHandle,
+) -> Result<bool, String> {
+    call_custody::contains_call(program, root)
+}
+
+/// Rejoin a normalized initializer's exact call roster using only retained typed
+/// roots; materialization does not replace original invocation custody.
+pub(crate) fn validate_retained_initializer_call_custody(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    root: typed_trees::expression::ExpressionHandle,
+    materialized: typed_trees::expression::ExpressionHandle,
+) -> Result<Vec<DependencyValue>, String> {
+    call_custody::validate_retained(program, machine, state, root, materialized)
+}
+
+/// Evaluate a call-free source-owned scalar probe.
 pub(super) fn evaluate_probe(
     typed: &typed_trees::TypedTrees,
     reference: SourceSpan,
@@ -459,6 +534,47 @@ pub(super) fn evaluate_probe(
     authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
     expected_origins: Option<&[ConstArgumentOrigin]>,
     syntax: &SyntaxTrees,
+) -> Result<ScalarProbeResult, String> {
+    evaluate_probe_internal(
+        typed,
+        reference,
+        public,
+        authority,
+        expected_origins,
+        syntax,
+        None,
+    )
+}
+
+pub(super) fn evaluate_probe_with_calls(
+    typed: &typed_trees::TypedTrees,
+    reference: SourceSpan,
+    public: bool,
+    authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    expected_origins: Option<&[ConstArgumentOrigin]>,
+    syntax: &SyntaxTrees,
+    expected_calls: &[(SourceSpan, SourceSpan)],
+    calls: &dyn value::ConstantCalls,
+) -> Result<ScalarProbeResult, String> {
+    evaluate_probe_internal(
+        typed,
+        reference,
+        public,
+        authority,
+        expected_origins,
+        syntax,
+        Some((expected_calls, calls)),
+    )
+}
+
+fn evaluate_probe_internal(
+    typed: &typed_trees::TypedTrees,
+    reference: SourceSpan,
+    public: bool,
+    authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    expected_origins: Option<&[ConstArgumentOrigin]>,
+    syntax: &SyntaxTrees,
+    calls: Option<(&[(SourceSpan, SourceSpan)], &dyn value::ConstantCalls)>,
 ) -> Result<ScalarProbeResult, String> {
     let mut machines = typed
         .machines()
@@ -487,8 +603,20 @@ pub(super) fn evaluate_probe(
         "constant destination requires an unconstrained exact builtin integer or Boolean carrier",
     )?;
     crate::admission::require_const_expression_selection(typed, machine, reference, authority)?;
-    let (origins, operators) =
-        expression_custody(typed, machine, state, *expression, public, syntax)?;
+    let (origins, operators) = if let Some((expected_calls, _)) = calls {
+        let custody = call_custody::collect(typed, machine, state, *expression, public, syntax)?;
+        if custody.calls.len() != expected_calls.len()
+            || custody
+                .calls
+                .iter()
+                .any(|call| !expected_calls.contains(call))
+        {
+            return Err("standalone probe changed the original call declaration selection".into());
+        }
+        (custody.origins, custody.operators)
+    } else {
+        expression_custody(typed, machine, state, *expression, public, syntax)?
+    };
     if expected_origins.is_some_and(|expected| {
         origins.len() != expected.len() || origins.iter().any(|origin| !expected.contains(origin))
     }) {
@@ -497,7 +625,11 @@ pub(super) fn evaluate_probe(
                 .to_owned(),
         );
     }
-    let (value, warnings) = value::evaluate(typed, machine, state, *expression, destination)?;
+    let (value, warnings) = if let Some((_, calls)) = calls {
+        value::evaluate_with_calls(typed, machine, state, *expression, destination, calls)?
+    } else {
+        value::evaluate(typed, machine, state, *expression, destination)?
+    };
     if value.type_name != destination.name() {
         return Err(format!(
             "landed `{}` result cannot initialize `{}`",

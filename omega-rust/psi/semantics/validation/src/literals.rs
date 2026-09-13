@@ -82,6 +82,7 @@ pub use constant_arrays::{
     ScalarArrayElements, closed_constant_array_elements, closed_literal_array_elements,
     is_closed_primitive_array_type, scalar_array_elements,
 };
+pub(crate) use record_projection::closed_record_integer_projection;
 pub use record_projection::closed_record_scalar_projection;
 mod integer_landing;
 mod integer_remainder;

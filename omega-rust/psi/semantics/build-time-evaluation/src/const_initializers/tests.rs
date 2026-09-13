@@ -49,6 +49,79 @@ fn integer_encoding(syntax: &SyntaxTrees, name: &str, value: i128) {
     ));
 }
 
+#[test]
+fn ordinary_machine_initializers_retain_calls_and_exact_scalar_composition() {
+    let evaluated = evaluate(
+        "machine size() -> u64 { 7 }
+        machine identity(value: u64) -> u64 { value }
+        machine enabled(value: bool) -> bool { value }
+        const SIZE: u64 = identity(size()) * 2;
+        const ENABLED: bool = enabled(SIZE == 14) && true;",
+    )
+    .expect("ordinary checked scalar calls");
+    integer_encoding(&evaluated, "SIZE", 14);
+    assert!(
+        !constant(&evaluated, "SIZE")
+            .normalization
+            .as_ref()
+            .unwrap()
+            .call_selections
+            .is_empty()
+    );
+    assert!(matches!(
+        evaluated
+            .expressions
+            .expression(constant(&evaluated, "ENABLED").value),
+        ExpressionNode::Boolean(true)
+    ));
+}
+
+#[test]
+fn machine_initializer_dependencies_are_ready_before_helper_execution() {
+    let evaluated = evaluate(
+        "machine size() -> u64 { BASE }
+        const SIZE: u64 = size();
+        const BASE: u64 = 7 / 2 * 2;",
+    )
+    .expect("helper dependency is evaluated before its invocation");
+    integer_encoding(&evaluated, "SIZE", 7);
+}
+
+#[test]
+fn machine_initializers_transport_full_width_integers_without_relanding() {
+    let evaluated = evaluate(
+        "machine identity(value: u64) -> u64 { value }
+        const MAXIMUM: u64 = identity(18446744073709551615);",
+    )
+    .expect("full-width unsigned interpreter snapshot");
+    integer_encoding(&evaluated, "MAXIMUM", i128::from(u64::MAX));
+    for source in [
+        "machine narrow() -> u8 { 7 } const VALUE: u64 = narrow();",
+        "machine identity(value: u64) -> u64 { value } const VALUE: u64 = identity(7u8);",
+        "machine ignore(value: u8) -> bool { true } const VALUE: bool = false && ignore(256);",
+        "machine ignore(value: u8) -> bool { true } const VALUE: bool = false && ignore(7 / 2);",
+    ] {
+        assert!(
+            evaluate(source).is_err(),
+            "invalid source argument/carrier accepted: {source}"
+        );
+    }
+}
+
+#[test]
+fn machine_initializer_calls_compose_in_nominal_and_array_leaves() {
+    let evaluated = evaluate(
+        "data Config [copy] { size: u64; enabled: bool; }
+        machine size() -> u64 { 7 }
+        machine enabled() -> bool { true }
+        const CONFIG: Config = Config { size: size() * 2, enabled: enabled() };
+        const SIZES: [u64; 2] = [size(), size() * 2];",
+    )
+    .expect("ordinary calls preserve aggregate leaf custody");
+    assert!(constant(&evaluated, "CONFIG").normalization.is_some());
+    assert!(constant(&evaluated, "SIZES").normalization.is_some());
+}
+
 fn array_leaves(
     syntax: &SyntaxTrees,
     expression: syntax_trees::expression::ExpressionHandle,
@@ -333,17 +406,198 @@ fn computed_array_leaves_owe_their_declared_landing_even_when_private_and_unused
 }
 
 #[test]
-fn computed_array_leaves_stay_call_free() {
-    let errors = evaluate(
+fn computed_array_leaves_admit_checked_machine_calls() {
+    let evaluated = evaluate(
         "const CALL: [u64; 1] = [read()];
          machine read() -> u64 { 1 }",
     )
-    .expect_err("array calls are outside initializer evaluation");
-    assert!(errors.iter().any(|error| {
-        error
-            .message
-            .contains("call-free integer/Boolean expressions")
-    }));
+    .expect("array leaves use ordinary invocation admission");
+    let declaration = constant(&evaluated, "CALL");
+    assert_eq!(
+        array_leaves(&evaluated, declaration.value),
+        vec![ExpressionNode::Integer(
+            numerics::literals::IntegerLiteral::from_value(1)
+        )]
+    );
+}
+
+#[test]
+fn retained_invocation_replay_rejects_changed_or_erased_computation_and_results() {
+    let (syntax, sources) = parse(
+        "machine size() -> u64 { 7 }
+        machine unrelated() -> u64 { 7 }
+        const SIZE: u64 = size();",
+    );
+    let evaluated =
+        super::evaluate(syntax, Some(sources.clone()), &[], None).expect("evaluated call");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&evaluated, sources)
+            .expect("retained call source resolution");
+    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("retained call typing");
+    super::validate_retained_invocations(&typed, None).expect("unchanged invocation replay");
+    let declaration = typed.const_declarations()[0].clone();
+    for mutation in 0..6 {
+        let mut changed = typed.clone();
+        match mutation {
+            0 => {
+                *changed
+                    .expression_table
+                    .expression_mut(declaration.authored_initializer) =
+                    typed_trees::expression::ExpressionNode::Integer(
+                        numerics::literals::IntegerLiteral::from_value(7),
+                    )
+            }
+            1 => {
+                *changed
+                    .expression_table
+                    .expression_mut(declaration.materialized_initializer) =
+                    typed_trees::expression::ExpressionNode::Integer(
+                        numerics::literals::IntegerLiteral::from_value(8),
+                    )
+            }
+            2 => {
+                let other = changed
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == "unrelated")
+                    .unwrap();
+                let target = changed.machine_states(other)[0].symbol;
+                let typed_trees::expression::ExpressionNode::Call(call) = changed
+                    .expression_table
+                    .expression_mut(declaration.authored_initializer)
+                else {
+                    panic!("retained original call")
+                };
+                call.target_symbol = target;
+            }
+            3 => {
+                let span = changed.roots.const_declarations;
+                let retained = &mut changed.tables.const_declarations.span_mut_or_empty(span)[0];
+                retained.authored_initializer =
+                    typed_trees::expression::ExpressionHandle::invalid();
+                retained.materialized_initializer =
+                    typed_trees::expression::ExpressionHandle::invalid();
+            }
+            4 => {
+                let machine = changed
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == "size")
+                    .unwrap();
+                let state = &changed.machine_states(machine)[0];
+                let value = match &changed.statement_table.statements(state.statement_nodes)[0] {
+                    typed_trees::statement::StatementNode::Expression(value) => *value,
+                    typed_trees::statement::StatementNode::Transition(transition) => {
+                        let typed_trees::statement::TransitionTargetNode::Value(value) =
+                            changed.statement_table.transition_target(transition.target)
+                        else {
+                            panic!("value return")
+                        };
+                        *value
+                    }
+                    _ => panic!("value body"),
+                };
+                *changed.expression_table.expression_mut(value) =
+                    typed_trees::expression::ExpressionNode::Integer(
+                        numerics::literals::IntegerLiteral::from_value(8),
+                    );
+            }
+            5 => {
+                let value = changed.expression_table.insert(
+                    typed_trees::expression::ExpressionNode::Integer(
+                        numerics::literals::IntegerLiteral::from_value(7),
+                    ),
+                );
+                changed
+                    .expression_table
+                    .set_source_span(value, declaration.initializer_source_span);
+                let span = changed.roots.const_declarations;
+                changed.tables.const_declarations.span_mut_or_empty(span)[0]
+                    .materialized_initializer = value;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            super::validate_retained_invocations(&changed, None).is_err(),
+            "mutation {mutation} bypassed replay"
+        );
+    }
+}
+
+#[test]
+fn retained_invocation_replay_rejoins_helper_constant_values() {
+    let (syntax, sources) = parse(
+        "const BASE: u64 = 7;
+        machine size() -> u64 { BASE }
+        const SIZE: u64 = size();",
+    );
+    let evaluated =
+        super::evaluate(syntax, Some(sources.clone()), &[], None).expect("evaluated dependency");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&evaluated, sources)
+            .expect("retained dependency");
+    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("typed dependency");
+    super::validate_retained_invocations(&typed, None).expect("unchanged dependency");
+    for mutate_value in [false, true] {
+        let mut changed = typed.clone();
+        let span = changed.roots.const_declarations;
+        let dependency = &mut changed.tables.const_declarations.span_mut_or_empty(span)[0];
+        dependency.canonical_value_encoding =
+            Some(CanonicalConstIdentity::integer("u64", 8).encoding);
+        if mutate_value {
+            let root = dependency.materialized_initializer;
+            *changed.expression_table.expression_mut(root) =
+                typed_trees::expression::ExpressionNode::Integer(
+                    numerics::literals::IntegerLiteral::from_value(8),
+                );
+        }
+        assert!(
+            super::validate_retained_invocations(&changed, None).is_err(),
+            "helper constant drift bypassed receiving replay (value changed: {mutate_value})"
+        );
+    }
+}
+
+#[test]
+fn retained_invocation_replay_checks_payloadless_constructor_siblings() {
+    let (syntax, sources) = parse(
+        "data Mode [copy] { case On; case Off; }
+        data Config [copy] { mode: Mode; count: u64; }
+        machine size() -> u64 { 7 }
+        const CONFIG: Config = Config { mode: Mode::On, count: size() };",
+    );
+    let evaluated =
+        super::evaluate(syntax, Some(sources.clone()), &[], None).expect("evaluated record");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&evaluated, sources)
+            .expect("retained record");
+    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("typed record");
+    let declaration = &typed.const_declarations()[0];
+    assert!(typed.expression_table.authored_selection_occurrences(declaration.materialized_initializer)
+        .filter_map(|occurrence| typed.authored_declaration_selections().get(occurrence))
+        .any(|selection| selection.kind() == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call), "materialized constructor retains its complete call roster");
+    super::validate_retained_invocations(&typed, None).expect("payloadless sibling replay");
+}
+
+#[test]
+fn retained_composed_invocation_rejects_erased_roots() {
+    let (syntax, sources) = parse("machine size() -> u64 { 7 } const SIZE: u64 = size() * 2;");
+    let evaluated =
+        super::evaluate(syntax, Some(sources.clone()), &[], None).expect("evaluated composition");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&evaluated, sources)
+            .expect("retained composition");
+    let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("typed composition");
+    super::validate_retained_invocations(&typed, None).expect("unchanged composition");
+    let span = typed.roots.const_declarations;
+    let declaration = &mut typed.tables.const_declarations.span_mut_or_empty(span)[0];
+    declaration.authored_initializer = typed_trees::expression::ExpressionHandle::invalid();
+    declaration.materialized_initializer = typed_trees::expression::ExpressionHandle::invalid();
+    assert!(super::validate_retained_invocations(&typed, None).is_err());
 }
 
 #[test]

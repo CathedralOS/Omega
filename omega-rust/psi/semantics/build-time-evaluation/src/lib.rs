@@ -350,7 +350,7 @@ fn evaluate_pre_resolution_with_optional_sources(
         syntax_trees,
         sources.clone(),
         source_scoped_top_level_bindings,
-        selection_authority.as_deref(),
+        selection_authority.clone(),
     )?;
     let syntax_trees = const_generic_expressions::evaluate(
         syntax_trees,
@@ -439,6 +439,7 @@ fn evaluate_pre_check_with_optional_authority(
     evaluate_const_array_lengths_with_authority(typed, selection_authority.clone())?;
     evaluate_const_range_endpoints_with_authority(typed, selection_authority.clone())?;
     evaluate_const_domain_facts_with_authority(typed, selection_authority.clone())?;
+    const_initializers::validate_retained_invocations(typed, selection_authority.clone())?;
     compute_plan_laid_layouts_with_authority(
         typed,
         plan_laid_records,

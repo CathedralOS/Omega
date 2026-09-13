@@ -12,6 +12,13 @@
 //! completed value and the original selection. Only evaluated literals and
 //! declaration-owned receipts leave this module.
 //!
+//! Ordinary calls extend that same scalar evaluation sequence. Their selected
+//! helper closure contributes dependencies before readiness is decided; helper
+//! bodies undergo ordinary checking and invocation admission before execution.
+//! The synthetic scalar expression is not checked as a runtime body: a call's
+//! concrete result can establish arithmetic that its full return-type range
+//! cannot. Final typing retains both initializer roots for independent replay.
+//!
 //! The graph is prepared once; independent declarations share a typed probe batch.
 //! Deep dependency chains still require one frontend pass per dependency layer.
 //! That is a performance limitation, not a reason to erase declared landings or
@@ -22,11 +29,10 @@ use std::sync::Arc;
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
-use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
-use source::{SourceMap, SourceSpan, Span};
+use source::{SourceMap, SourceSpan};
 use symbols::SourceScopedTopLevelBinding;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ConstDefinition, ConstInitializerNormalization, Item, ItemHandle};
 use syntax_trees::types::{ConstArgumentOrigin, TypeReferenceNode};
@@ -34,10 +40,16 @@ use syntax_trees::types::{ConstArgumentOrigin, TypeReferenceNode};
 #[cfg(test)]
 mod tests;
 
+mod invocations;
+mod replay;
+
+pub(super) use replay::validate as validate_retained_invocations;
+
 struct PendingLeaf {
     expression: ExpressionHandle,
     destination: syntax_trees::types::TypeReferenceHandle,
     dependencies: Vec<(SourceSpan, usize)>,
+    calls: Vec<(SourceSpan, SourceSpan)>,
 }
 
 struct Declaration {
@@ -51,7 +63,7 @@ pub(super) fn evaluate(
     mut syntax: SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
     bindings: &[SourceScopedTopLevelBinding],
-    authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     use syntax_trees_to_symbol_resolved_trees::requires_const_initializer_evaluation;
     if !syntax.root_items().any(|item| {
@@ -92,6 +104,7 @@ pub(super) fn evaluate(
                 expression,
                 destination,
                 dependencies: Vec::new(),
+                calls: Vec::new(),
             })
             .collect();
         declarations.push(Declaration {
@@ -108,57 +121,26 @@ pub(super) fn evaluate(
         let leaf_count = declarations[ordinal].leaves.len();
         for leaf_ordinal in 0..leaf_count {
             let expression = declarations[ordinal].leaves[leaf_ordinal].expression;
-            let references = operand_references(&syntax, expression)?;
+            let selected = preparation.initializer_expression_dependencies(
+                &syntax,
+                &declarations[ordinal].definition,
+                expression,
+            )?;
             let mut dependencies = Vec::new();
-            for reference in references {
-                let mut selected_ordinal = None;
-                for selection in resolved
-                    .authored_declaration_selections()
+            for (reference, declaration) in selected.constants {
+                let dependency = declarations
                     .iter()
-                    .filter(|selection| selection.source_span() == reference)
-                {
-                    let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target()
-                    else {
-                        continue;
-                    };
-                    let Some(declaration) = resolved
-                        .const_declarations
-                        .iter()
-                        .find(|declaration| declaration.symbol == selected.selected_symbol())
-                    else {
-                        continue;
-                    };
-                    let candidate = declarations
-                        .iter()
-                        .position(|candidate| {
-                            Some(candidate.definition.name.source_span())
-                                == resolved.symbols.symbol_source_span(declaration.symbol)
-                        })
-                        .ok_or_else(|| {
-                            failure(
-                                reference,
-                                "selected initializer dependency lost its declaration",
-                            )
-                        })?;
-                    if selected_ordinal.is_some_and(|previous| previous != candidate) {
-                        return Err(failure(
-                            reference,
-                            "initializer dependency has conflicting declaration selections",
-                        ));
-                    }
-                    selected_ordinal = Some(candidate);
-                }
-                dependencies.push((
-                    reference,
-                    selected_ordinal.ok_or_else(|| {
+                    .position(|candidate| candidate.definition.name.source_span() == declaration)
+                    .ok_or_else(|| {
                         failure(
                             reference,
-                            "initializer operand must select an exact constant declaration",
+                            "selected initializer dependency lost its declaration",
                         )
-                    })?,
-                ));
+                    })?;
+                dependencies.push((reference, dependency));
             }
             declarations[ordinal].leaves[leaf_ordinal].dependencies = dependencies;
+            declarations[ordinal].leaves[leaf_ordinal].calls = selected.calls;
         }
     }
     while declarations
@@ -270,11 +252,47 @@ pub(super) fn evaluate(
         let resolved = crate::lower_probe_with_optional_sources(&probe, sources.clone(), bindings)?;
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .map_err(|error| vec![error])?;
+        let checked = ready
+            .iter()
+            .any(|ordinal| {
+                declarations[*ordinal]
+                    .leaves
+                    .iter()
+                    .any(|leaf| !leaf.calls.is_empty())
+            })
+            .then(|| {
+                let mut symbols = Vec::new();
+                for ordinal in &ready {
+                    for leaf in &declarations[*ordinal].leaves {
+                        let reference = syntax.expressions.source_span(leaf.expression);
+                        let matching = typed
+                            .machines()
+                            .iter()
+                            .filter(|machine| {
+                                typed.symbols.symbol_source_span(machine.symbol) == Some(reference)
+                            })
+                            .collect::<Vec<_>>();
+                        let [machine] = matching.as_slice() else {
+                            return Err(failure(
+                                reference,
+                                "initializer probe lost its unique source owner",
+                            ));
+                        };
+                        symbols.push(machine.symbol);
+                    }
+                }
+                invocations::CheckedInitializers::prepare(&typed, authority.clone(), &symbols)
+            })
+            .transpose()?;
+        let typed = checked
+            .as_ref()
+            .map_or(&typed, invocations::CheckedInitializers::typed);
         for ordinal in ready {
             let authored_expression = declarations[ordinal].definition.value;
             let mut replacements = HashMap::new();
             let mut selections = Vec::new();
             let mut builtin_operators = Vec::new();
+            let mut call_selections = Vec::new();
             let mut scalar_encoding = None;
             for leaf in &declarations[ordinal].leaves {
                 let reference = syntax.expressions.source_span(leaf.expression);
@@ -303,15 +321,39 @@ pub(super) fn evaluate(
                         }
                     }
                 }
-                let result = crate::const_generic_expressions::evaluate_probe(
-                    &typed,
-                    reference,
-                    false,
-                    authority,
-                    Some(&expected),
-                    &syntax,
-                )
+                let result = if leaf.calls.is_empty() {
+                    crate::const_generic_expressions::evaluate_probe(
+                        typed,
+                        reference,
+                        false,
+                        authority.as_deref(),
+                        Some(&expected),
+                        &syntax,
+                    )
+                } else {
+                    let checked = checked
+                        .as_ref()
+                        .expect("call-bearing declaration has checked preparation");
+                    let calls = checked
+                        .calls_for_source(reference)
+                        .map_err(|reason| failure(reference, reason))?;
+                    crate::const_generic_expressions::evaluate_probe_with_calls(
+                        typed,
+                        reference,
+                        false,
+                        authority.as_deref(),
+                        Some(&expected),
+                        &syntax,
+                        &leaf.calls,
+                        &calls,
+                    )
+                }
                 .map_err(|reason| failure(reference, reason))?;
+                for selection in &leaf.calls {
+                    if !call_selections.contains(selection) {
+                        call_selections.push(*selection);
+                    }
+                }
                 for origin in result.origins {
                     if !selections.contains(&origin) {
                         selections.push(origin);
@@ -384,6 +426,7 @@ pub(super) fn evaluate(
                 canonical_result_encoding,
                 selections,
                 builtin_operators,
+                call_selections,
             });
             definition.value = value;
             syntax
@@ -443,58 +486,4 @@ fn materialize_value(
     let handle = syntax.expressions.insert(value);
     syntax.expressions.set_source_span(handle, source_span);
     Ok(handle)
-}
-
-fn operand_references(
-    syntax: &SyntaxTrees,
-    root: ExpressionHandle,
-) -> Result<Vec<SourceSpan>, Vec<Diagnostic>> {
-    let mut pending = vec![root];
-    let mut visited = Vec::new();
-    let mut references = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
-        match syntax.expressions.expression(expression) {
-            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => {}
-            ExpressionNode::Name(path) => {
-                let members = syntax.expressions.identifier_path_members(*path);
-                let (Some(first), Some(last)) = (members.first(), members.last()) else {
-                    return Err(failure(
-                        syntax.expressions.source_span(expression),
-                        "initializer name lost its path",
-                    ));
-                };
-                let reference = SourceSpan::new(
-                    first.source_span().source_id,
-                    Span::new(first.source_span().span.start, last.source_span().span.end),
-                );
-                if !references.contains(&reference) {
-                    references.push(reference);
-                }
-            }
-            ExpressionNode::Binary(binary) => {
-                pending.push(binary.right);
-                pending.push(binary.left);
-            }
-            ExpressionNode::Match(dispatch) => {
-                for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
-                    pending.push(arm.value);
-                    if let MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                }
-                pending.push(dispatch.subject);
-            }
-            _ => {
-                return Err(failure(
-                    syntax.expressions.source_span(expression),
-                    "computed scalar declarations currently require call-free integer/Boolean expressions",
-                ));
-            }
-        }
-    }
-    Ok(references)
 }

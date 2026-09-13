@@ -11,4 +11,9 @@ pub struct ConstDeclaration {
     /// review source custody after const substitution.
     pub initializer_source_span: source::SourceSpan,
     pub canonical_value_encoding: Option<String>,
+    /// Detached authored evidence; absent only when no normalization occurred.
+    pub authored_initializer: crate::expression::ExpressionHandle,
+    /// Every declaration retains its materialized evidence root, including
+    /// literal-only declarations. This is never runtime constant storage.
+    pub materialized_initializer: crate::expression::ExpressionHandle,
 }

@@ -1,4 +1,5 @@
 use super::*;
+use typed_trees::statement::StatementNode;
 
 mod fields;
 mod selected_meaning;
@@ -10,6 +11,162 @@ fn typed(source: &str) -> TypedTrees {
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
     let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+}
+
+#[test]
+fn closed_record_fields_share_exact_bounds_and_keep_projection_custody() {
+    let original = typed(
+        "data Config [copy] { size: u64; enabled: bool; }
+        data Foreign [copy] { size: u64; enabled: bool; }
+        const CONFIG: Config = Config { size: 14, enabled: true };
+        machine read() -> u64 { CONFIG.size + 7u64 }
+        machine effect() -> bool { true }
+        machine caller() -> bool { effect() && true }",
+    );
+    let machine = &original.machines()[0];
+    let state = &original.machine_states(machine)[0];
+    let StatementNode::Expression(expression) =
+        original.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("arithmetic source");
+    };
+    let ExpressionNode::Binary(binary) = original.expression_table.expression(expression) else {
+        panic!("arithmetic source");
+    };
+    let projection = binary.left;
+    let ExpressionNode::Member(member) = original.expression_table.expression(projection) else {
+        panic!("field projection");
+    };
+    let constructor = member.receiver;
+    let ExpressionNode::StructLiteral(literal) = original.expression_table.expression(constructor)
+    else {
+        panic!("record constructor");
+    };
+    let sibling = original
+        .expression_table
+        .struct_fields(literal.fields)
+        .iter()
+        .find(|field| field.name.as_str() == "enabled")
+        .unwrap()
+        .value;
+    let diagnose = |program: &TypedTrees| {
+        let mut diagnostics = Vec::new();
+        crate::arithmetic_domains::validate_arithmetic_domains(
+            program,
+            machine,
+            Some(state),
+            expression,
+            &ValueEnv::default(),
+            Some(PrimitiveType::U64),
+            ArithmeticDomain::Exact,
+            "projection arithmetic",
+            &mut diagnostics,
+        );
+        diagnostics
+    };
+    assert_eq!(
+        immutable_integer_expression_bounds(&original, machine, state, expression),
+        Some((21, 21))
+    );
+    assert!(
+        diagnose(&original).is_empty(),
+        "exact arithmetic uses the closed field point"
+    );
+    let point = crate::literals::closed_record_integer_projection(&original, projection).unwrap();
+    assert_eq!(point.primitive, Some(PrimitiveType::U64));
+    assert_eq!(point.value.to_i64(), Some(14));
+
+    let foreign = &original.data_definitions()[1];
+    let typed_trees::data::DataMember::Field(foreign_field) = &original.data_members(foreign)[0]
+    else {
+        panic!("foreign field");
+    };
+    for symbol in [SymbolHandle::invalid(), foreign_field.symbol] {
+        let mut changed = original.clone();
+        let ExpressionNode::Member(member) = changed.expression_table.expression_mut(projection)
+        else {
+            panic!("projection");
+        };
+        member.member_symbol = symbol;
+        assert!(crate::literals::closed_record_integer_projection(&changed, projection).is_none());
+        assert_eq!(
+            immutable_integer_expression_bounds(&changed, machine, state, expression),
+            None
+        );
+        assert!(
+            !diagnose(&changed).is_empty(),
+            "foreign or missing field cannot supply a point bound"
+        );
+    }
+    let mut changed = original.clone();
+    let call = original
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, node)| matches!(node, ExpressionNode::Call(_)).then_some(node.clone()))
+        .unwrap();
+    *changed.expression_table.expression_mut(sibling) = call;
+    assert!(crate::literals::closed_record_integer_projection(&changed, projection).is_none());
+    assert_eq!(
+        immutable_integer_expression_bounds(&changed, machine, state, expression),
+        None
+    );
+    assert!(
+        !diagnose(&changed).is_empty(),
+        "an unselected call cannot be suppressed by bounds"
+    );
+}
+
+#[test]
+fn projected_integer_landing_keeps_node_overflow_and_full_width_points() {
+    let program = typed(
+        "data Config [copy] { size: u8; }
+        const CONFIG: Config = Config { size: 255 };
+        machine read() -> u8 { CONFIG.size + 1 }",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let StatementNode::Expression(expression) =
+        program.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("arithmetic source");
+    };
+    assert_eq!(
+        immutable_integer_expression_bounds(&program, machine, state, expression),
+        None
+    );
+    let mut diagnostics = Vec::new();
+    crate::arithmetic_domains::validate_arithmetic_domains(
+        &program,
+        machine,
+        Some(state),
+        expression,
+        &ValueEnv::default(),
+        Some(PrimitiveType::U8),
+        ArithmeticDomain::Exact,
+        "projection overflow",
+        &mut diagnostics,
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("overflow"))
+    );
+
+    let program = typed(
+        "data Config [copy] { size: u64; }
+        const CONFIG: Config = Config { size: 18446744073709551615u64 };
+        machine read() -> u64 { CONFIG.size }",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let StatementNode::Expression(expression) =
+        program.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("field source");
+    };
+    let point = crate::literals::closed_record_integer_projection(&program, expression).unwrap();
+    assert_eq!(point.value.to_u64(), Some(u64::MAX));
+    assert_eq!(point.primitive, Some(PrimitiveType::U64));
 }
 
 #[test]

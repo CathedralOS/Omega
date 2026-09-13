@@ -1274,9 +1274,15 @@ Owners include
   The [source pipeline map](omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization)
   owns the current probes.
 
-  Complete machine-call, aggregate-producing, constrained/target-dependent and floating/NaN
-  declaration evaluation, including unused initializers. Calls need full
-  invocation admission and floating identities need determined bits.
+  Complete concrete invocation discharge for machine-call declarations whose
+  checked callee summary still contains failure routes, plus specialized
+  generic/provider applications, aggregate-producing, constrained/target-dependent
+  and floating/NaN declaration evaluation, including unused initializers.
+  `build-time-evaluation/src/const_initializers/invocations.rs` currently requires
+  a complete empty checked callee failure summary; evaluating safe concrete
+  arguments does not by itself discharge those routes. Floating identities need
+  determined bits. Preserve the source-free `machine_initializers::` module/index
+  and scalar-composition checks in `compiler --test module_machine_indices`.
   `const_generic_expressions/value/match_dispatch.rs` still needs nonconstant
   divisor integrality beyond singleton sign intervals, nonzero proofs beyond
   retained lattice gaps, and exact fractional-warning evidence for

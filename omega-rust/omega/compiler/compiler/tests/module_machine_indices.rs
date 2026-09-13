@@ -64,6 +64,9 @@ mod computed_declarations;
 #[path = "module_machine_indices/computed_nominal.rs"]
 mod computed_nominal;
 
+#[path = "module_machine_indices/machine_initializers.rs"]
+mod machine_initializers;
+
 static NEXT_TREE: AtomicU64 = AtomicU64::new(0);
 const BUFFER: &str = "pub data Buffer<const N: u64> { value: [u8; N]; }";
 

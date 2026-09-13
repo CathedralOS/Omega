@@ -16,6 +16,40 @@ pub fn closed_record_scalar_projection(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, PrimitiveType)> {
+    let (selected, selected_type) = closed_scalar_projection(program, expression)?;
+    Some((selected, program.primitive_type_reference(selected_type)?))
+}
+
+/// A projected integer is already landed at its declared field, even when its
+/// constructor spelled that leaf anonymously. Bounds retain that exact carrier.
+pub(crate) fn closed_record_integer_projection(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<typed_trees::closed_numeric::ClosedIntegerValue> {
+    let (selected, reference) = closed_scalar_projection(program, expression)?;
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    program.symbols.builtin_type_atom(*symbol)?;
+    let primitive = program.primitive_type_reference(reference)?;
+    let value = program.closed_integer_value_in(selected, symbols::SymbolHandle::invalid())?;
+    if value.primitive.is_some_and(|landed| landed != primitive) {
+        return None;
+    }
+    typed_trees::closed_numeric::land_integer(&value.value, primitive)?;
+    Some(typed_trees::closed_numeric::ClosedIntegerValue {
+        value: value.value,
+        primitive: Some(primitive),
+        type_reference: Some(reference),
+    })
+}
+
+fn closed_scalar_projection(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
     let mut members = Vec::new();
     let mut root = expression;
     while let ExpressionNode::Member(member) = program.expression_table.expression(root) {
@@ -50,8 +84,8 @@ pub fn closed_record_scalar_projection(
         selected = actual.value;
         selected_type = field.type_reference;
     }
-    let primitive = program.primitive_type_reference(selected_type)?;
-    Some((selected, primitive))
+    program.primitive_type_reference(selected_type)?;
+    Some((selected, selected_type))
 }
 
 fn record_constructor(

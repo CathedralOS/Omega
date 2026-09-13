@@ -202,6 +202,7 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
             canonical_value_encoding: "boolean5:false".to_owned(),
         }],
         builtin_operators: vec![span(20)],
+        call_selections: Vec::new(),
     };
     let constant = Item::Const(crate::item::ConstDefinition {
         name: Identifier::generated("ENABLED"),
