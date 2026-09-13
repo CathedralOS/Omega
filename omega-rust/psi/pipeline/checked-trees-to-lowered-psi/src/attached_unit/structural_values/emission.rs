@@ -454,11 +454,6 @@ impl Emission<'_, '_, '_> {
                 Ok(continuation.place)
             }
             CheckedStructuralValueKind::Case(construction) => {
-                if !self.sources.is_empty() {
-                    return unsupported(
-                        "mixed fresh and existing ownership requires a join carrying unequal residual counts",
-                    );
-                }
                 let source = validation::scalar_case_constructor(
                     &self.checked.typed,
                     construction.expression,
@@ -549,11 +544,7 @@ impl Emission<'_, '_, '_> {
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     let mut structural_parameters = Vec::new();
-                    let first_candidate = self.owners.iter().position(|owner| {
-                        self.sources
-                            .iter()
-                            .any(|source| source.place == owner.value.place)
-                    });
+                    let first_candidate = self.first_candidate();
                     let mut remaining_owners = self
                         .owners
                         .iter()
@@ -738,16 +729,36 @@ impl Emission<'_, '_, '_> {
         }
     }
 
+    fn first_candidate(&self) -> Option<usize> {
+        self.owners.iter().position(|owner| {
+            self.sources
+                .iter()
+                .any(|source| source.place == owner.value.place)
+        })
+    }
+
     fn complete_value(
         &mut self,
         selected: PlaceId,
         continuation: &ValueContinuation,
     ) -> Result<(), LoweringError> {
+        // A fresh result cannot occupy a source's residual slot, so the
+        // unselected source the result slot displaced dies on this edge.
+        // Plain-affine contents have no cleanup, making it a trivial discard,
+        // and the join frontier is identical on every incoming path.
+        let displaced = (!self.sources.is_empty()
+            && !self.sources.iter().any(|source| source.place == selected))
+        .then(|| self.first_candidate())
+        .flatten();
+        let mut trivial_affine_discards = Vec::new();
         let mut structural_arguments = self
             .owners
             .iter()
-            .filter(|owner| owner.value.place != selected)
-            .map(|owner| StructuralArgument {
+            .enumerate()
+            .filter(|(position, owner)| {
+                owner.value.place != selected && Some(*position) != displaced
+            })
+            .map(|(_, owner)| StructuralArgument {
                 place: owner.value.place,
                 path: Vec::new(),
                 access: StructuralAccess::Owned,
@@ -761,17 +772,21 @@ impl Emission<'_, '_, '_> {
         if structural_arguments.len() != continuation.structural_parameters.len() {
             return unsupported("structural value has unequal residual ownership at its join");
         }
-        let edge = self.edge(
+        if let Some(position) = displaced {
+            trivial_affine_discards.push(self.owners[position].value.place);
+        }
+        let mut edge = self.edge(
             continuation.block,
             self.values.iter().map(|value| value.id).collect(),
             structural_arguments,
         )?;
+        edge.trivial_affine_discards = trivial_affine_discards.clone();
         self.finish(Terminator::Jump {
             edge: edge.edge,
             target: edge.target,
             arguments: edge.arguments,
             structural_arguments: edge.structural_arguments,
-            trivial_affine_discards: Vec::new(),
+            trivial_affine_discards,
             residual_affine_discards: Vec::new(),
         });
         Ok(())

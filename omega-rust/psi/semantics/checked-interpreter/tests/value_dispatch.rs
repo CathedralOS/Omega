@@ -92,3 +92,17 @@ fn indexed_float_subject_cannot_bypass_selected_equality_custody() {
         .expect("projection metadata cannot choose builtin equality");
     assert!(error.contains("Match equality"), "{error}");
 }
+
+#[test]
+fn mixed_fresh_and_existing_owned_arms_execute() {
+    for (selected, expected) in [("true", 7), ("false", 0)] {
+        let outcome = execute(&format!(
+            "{}\nmachine main() -> i32 {{ transition choose({selected}) {{ true -> 7 false -> 0 }} }}",
+            include_str!(
+                "../../../../../tests/omega/pass/expressions/owned_match_mixed_values/main.omg"
+            ),
+        ));
+        assert_eq!(outcome.error, None, "selected={selected}");
+        assert_eq!(outcome.exit_code, expected, "selected={selected}");
+    }
+}

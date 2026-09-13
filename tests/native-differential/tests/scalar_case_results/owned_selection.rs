@@ -198,6 +198,18 @@ fn owned_match_transfers_existing_locals_through_native_execution() {
 }
 
 #[test]
+fn owned_match_mixed_fresh_and_existing_arms_execute_natively() {
+    let artifact = produce_source(
+        "choose",
+        include_str!("../../../omega/pass/expressions/owned_match_mixed_values/main.omg"),
+    );
+    membership::execute(
+        &artifact,
+        "#include <stdbool.h>\nextern bool omega_entry(bool selected);\nint main(void) { return omega_entry(true) && !omega_entry(false) ? 0 : 1; }",
+    );
+}
+
+#[test]
 fn owned_match_preserves_the_selected_sources_full_width_payload() {
     let artifact = produce_source(
         "choose",

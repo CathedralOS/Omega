@@ -240,8 +240,9 @@ fn owned_selection_in_call_argument_is_rejected_or_retains_a_receipt() {
 }
 
 #[test]
-fn owned_selection_keeps_fresh_existing_and_borrowed_custody_fences() {
-    assert!(lower("let result: Choice = match selected { true -> left, false -> Choice::Empty }; result in Choice::Some").is_err());
+fn owned_selection_admits_fresh_arms_and_keeps_the_borrowed_custody_fence() {
+    lower("let result: Choice = match selected { true -> left, false -> Choice::Empty }; result in Choice::Some")
+        .expect("a fresh exact-type arm joins an existing source");
     assert!(lower("let view: &Choice = &left; let result: Choice = match selected { true -> left, false -> right }; result in Choice::Some").is_err());
 }
 

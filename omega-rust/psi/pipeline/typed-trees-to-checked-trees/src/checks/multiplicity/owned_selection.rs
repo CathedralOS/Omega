@@ -1,6 +1,8 @@
 //! Conditional whole-local transfers, keyed by existing source selection nodes.
 //! Availability is conservative; residual custody remains in the receipts until
-//! the actual death edge. No selected source is disposed at expression join.
+//! the actual death edge. On paths that construct a fresh result the unselected
+//! sources are discarded at the join edge; on paths that select an existing
+//! source the complement stays in the receipt until the actual death edge.
 
 use super::*;
 use arena::Handle;
@@ -86,6 +88,9 @@ pub(super) fn record_statement(
         Handle::invalid(),
         &mut leaves,
     )?;
+    if leaves.is_empty() {
+        return Err(unsupported());
+    }
     let mut sources = Vec::new();
     for (_, _, symbol) in &leaves {
         if sources
@@ -229,7 +234,7 @@ pub(super) fn apply_availability(
 
 fn unsupported() -> Diagnostic {
     Diagnostic::error(
-        "owned match requires one existing whole plain-affine local per path and an immutable local or return destination; fresh/existing mixtures, projections, calls and borrowed/linear custody require additional ownership evidence",
+        "owned match requires one existing whole plain-affine local per path and an immutable local or return destination; projections, calls and borrowed/linear custody require additional ownership evidence",
     )
 }
 
@@ -266,10 +271,16 @@ fn collect_leaves(
 ) -> Result<(), Diagnostic> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) if source_arm.is_valid() => {
-            let symbol = validation::scalar_case_value_source(program, expression, type_reference)
-                .ok_or_else(unsupported)?;
-            leaves.push((expression, source_arm, symbol));
-            Ok(())
+            match validation::scalar_case_value_source(program, expression, type_reference) {
+                Some(symbol) => {
+                    leaves.push((expression, source_arm, symbol));
+                    Ok(())
+                }
+                None => fresh_leaf(program, machine, state, expression, type_reference),
+            }
+        }
+        ExpressionNode::StructLiteral(_) if source_arm.is_valid() => {
+            fresh_leaf(program, machine, state, expression, type_reference)
         }
         ExpressionNode::Match(dispatch) => {
             // Selection predicates cannot introduce ownership effects hidden
@@ -313,13 +324,56 @@ fn collect_leaves(
                     leaves,
                 )?;
             }
-            if leaves.is_empty() {
-                return Err(unsupported());
-            }
             Ok(())
         }
         _ => Err(unsupported()),
     }
+}
+
+// A fresh arm constructs the exact result type and contributes no source and
+// no transfer; its field operands obey the same no-hidden-ownership rules as
+// selection predicates.
+fn fresh_leaf(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    type_reference: TypeReferenceHandle,
+) -> Result<(), Diagnostic> {
+    let constructor =
+        validation::scalar_case_constructor(program, expression).ok_or_else(unsupported)?;
+    if program.normalized_type_identity(constructor.type_reference)
+        != program.normalized_type_identity(type_reference)
+    {
+        return Err(unsupported());
+    }
+    let operands = constructor
+        .fields
+        .iter()
+        .flat_map(|(_, value, _)| expression_nodes(program, *value))
+        .collect::<Vec<_>>();
+    if operands.iter().any(|operand| {
+        matches!(
+            program.expression_table.expression(*operand),
+            ExpressionNode::Call(_) | ExpressionNode::Borrow(_) | ExpressionNode::Atomic(_)
+        )
+    }) {
+        return Err(unsupported());
+    }
+    if operands.iter().any(|operand| {
+        matches!(
+            program.expression_table.expression(*operand),
+            ExpressionNode::Name(_)
+        ) && validation::expression_result_type_reference(program, machine, state, *operand)
+            .is_none_or(|reference| {
+                program.type_multiplicity(reference) != Multiplicity::Unrestricted
+            })
+    }) {
+        return Err(Diagnostic::error(
+            "owned match fresh fields require unrestricted operands without hidden ownership transfers",
+        ));
+    }
+    Ok(())
 }
 
 fn names_symbol(
