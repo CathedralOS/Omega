@@ -308,6 +308,48 @@ fn terminal_handoff_rejects_callbacks_outside_the_emitted_entry_closure() {
 }
 
 #[test]
+fn repeated_callback_registrars_keep_distinct_ordered_terminal_occurrences() {
+    let fixture = Fixture::direct();
+    let source = fs::read_to_string(&fixture.main).expect("read direct callback");
+    let call = "HookRegistrar::install<HookProvider::call>(1u64, 2u64);";
+    assert_eq!(source.matches(call).count(), 1);
+    let source = source.replace(
+        call,
+        &format!("{call}\n    HookRegistrar::install<HookProvider::call>(3u64, 4u64);"),
+    );
+    let source = source.replace(
+        "machine Main::main(&mut self) {",
+        "machine Main::main(&mut self) reaches HookRegistrar {",
+    );
+    fs::write(&fixture.main, source).expect("write repeated callback calls");
+    let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "repeated"))
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .expect("two callback calls should retain their own custody");
+    let retained = terminal
+        .into_retained_terminal_artifact()
+        .expect("Terminal product");
+    let placements = retained.callback_placements();
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("native proposal");
+    let occurrences = proposal.callback_occurrences();
+    assert_eq!(placements.len(), 2);
+    assert_eq!(occurrences.len(), 2);
+    assert_ne!(placements[0].site, placements[1].site);
+    assert_ne!(
+        occurrences[0].terminal_operation(),
+        occurrences[1].terminal_operation()
+    );
+    for (position, occurrence) in occurrences.iter().enumerate() {
+        assert_eq!(occurrence.placement_index(), position);
+        assert_eq!(
+            Some(occurrence.callback_thunk_identity()),
+            backend_plan::canonical_callback_thunk_identity(position, &placements[position]),
+        );
+    }
+}
+
+#[test]
 fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     let fixture = Fixture::direct();
     let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "terminal"))
