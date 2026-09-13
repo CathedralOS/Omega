@@ -2,7 +2,7 @@
 // raw->domained constructor (`from_utf8`). Probes whether `ensures result in Utf8`
 // resolves to the `[u8]::Utf8` domain (membership over a slice-carrier domain).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8]::Utf8
 requires
