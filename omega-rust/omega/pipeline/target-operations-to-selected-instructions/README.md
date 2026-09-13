@@ -38,6 +38,13 @@ become fictional source values. Compiler condition tests, copies and address
 work do not invent Psi operations or logical charges. Returns retain their exact
 Unit/scalar/aggregate role, complete result constraints, and edge fuel.
 
+Unsigned 64-bit saturation and exact division retain their arithmetic policy on
+this graph. Division preserves its accepted nonzero-divisor obligation; x86-64
+additionally materializes the zero high half under explicit scratch constraints.
+That target setup adds no source operation or fuel charge. The
+[arithmetic controls](../../../../tests/native-differential/tests/scalar_case_results/u64_kernels.rs)
+exercise full-width values, proof substitution and four-target publication.
+
 Fresh scalar sums use activation-local carriers in this graph. Construction
 initializes the complete carrier, including padding and inactive payload bytes,
 then writes the declared tag and exact-width fields. The carrier-address
@@ -69,14 +76,16 @@ before subsequent calls or stores. Independent target and selected replay
 reconstructs the field offset and exact-width load from the declaration; a
 same-typed field or later reload cannot substitute for the retained observation.
 
-Register-passed owned record input observations use one `StructuralParameter` local slot
+Register-passed owned record and sum observations use one `StructuralParameter` local slot
 keyed by the exact incoming place. Entry stores every captured register
 fragment before authored operations; the ordinary field load then snapshots its
 scalar value. Borrowed calls use that same home, and subsequent whole returns or
 nested copies read its current bytes rather than stale entry fragments. A borrowed
 input still denotes its original referent and is never copied into this slot.
 Register inputs used only for whole-value transport retain fragment-only storage.
-Independent replay reconstructs the input slot, extent, writes and every field observation.
+Independent replay reconstructs the input slot, extent, writes and every observation.
+Shared calls on constructed or call-returned sums similarly use their original
+operation-result home; copyability does not authorize lending a payload snapshot.
 The [source/native parameter cases](../../../../tests/native-differential/tests/scalar_case_results/record_reads/parameters.rs)
 cover full-width values across calls, signed and Boolean subfields, and inline
 stack input backing.

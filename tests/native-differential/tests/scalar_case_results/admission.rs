@@ -2,8 +2,13 @@
 use super::*;
 
 #[test]
-fn indirect_aggregate_returns_remain_an_explicit_realization_limit() {
+fn windows_indirect_aggregate_returns_retain_destination_and_shifted_arguments() {
+    use calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};
+    use target_operations_to_selected_instructions::{
+        legalize_target_operations, validate_legalized_operations,
+    };
     let artifact = produce("choose");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let selections = OptimizationSelections::new([]).unwrap();
     let optimized = optimize_artifact_sections(
         artifact.semantic_bytes(),
@@ -15,19 +20,85 @@ fn indirect_aggregate_returns_remain_an_explicit_realization_limit() {
     let target = NativeTarget::windows_x64();
     let compiled = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
         optimized, target,
+    )
+    .expect("indirect result reaches ordinary lowering");
+    let legalized = legalize_target_operations(
+        compiled.target_operations(),
+        compiled.optimized().plan(),
+        compiled.optimized(),
+    )
+    .unwrap();
+    let function = legalized
+        .plan()
+        .scalar_functions
+        .iter()
+        .find(|function| function.machine == module.entry)
+        .unwrap();
+    let result = function.call_plan.result.as_ref().unwrap();
+    assert_eq!(result.shape.byte_size, 16);
+    assert_eq!(result.shape.alignment, 8);
+    assert_eq!(
+        result.locations,
+        [ValueLocation::Indirect {
+            pointer: IndirectPointerLocation::Register(MachineRegister::X86Rcx),
+            copy_stack_byte_offset: None,
+            byte_size: 16,
+            alignment: 8,
+        }]
     );
-    if let Ok(compiled) = compiled {
-        let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
-        assert!(
-            target_operations_to_selected_instructions::stage_optimized_instruction_selection(
-                compiled,
-                environment
-            )
-            .is_err(),
-            "a Windows indirect aggregate cannot silently use the direct register-return implementation"
+    assert_eq!(function.call_plan.parameters.len(), 2);
+    for (parameter, register) in function
+        .call_plan
+        .parameters
+        .iter()
+        .zip([MachineRegister::X86Rdx, MachineRegister::X86R8])
+    {
+        assert_eq!(
+            parameter.locations,
+            [ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }]
         );
     }
+    // The hidden destination occupies the first physical argument slot. Neither
+    // a redirected destination nor unshifted scalar arguments preserve that ABI.
+    for redirect_result in [true, false] {
+        let mut changed = legalized.plan().clone();
+        let function = changed
+            .scalar_functions
+            .iter_mut()
+            .find(|function| function.machine == module.entry)
+            .unwrap();
+        if redirect_result {
+            let ValueLocation::Indirect { pointer, .. } =
+                &mut function.call_plan.result.as_mut().unwrap().locations[0]
+            else {
+                panic!("indirect destination");
+            };
+            *pointer = IndirectPointerLocation::Register(MachineRegister::X86Rdx);
+        } else {
+            let ValueLocation::Register { register, .. } =
+                &mut function.call_plan.parameters[0].locations[0]
+            else {
+                panic!("scalar argument");
+            };
+            *register = MachineRegister::X86Rcx;
+        }
+        assert!(
+            validate_legalized_operations(
+                compiled.target_operations(),
+                compiled.optimized().plan(),
+                compiled.optimized(),
+                changed,
+            )
+            .is_err()
+        );
+    }
+    // Includes physical replay, PE publication and installation-plan tampering.
+    // Cross-publication is not a Windows runtime claim.
+    publish(&artifact, target);
 }
 
 pub(super) fn installation_cannot_change_call_or_result(
