@@ -10,10 +10,15 @@ artifact envelope/manifest, debug map, installation payload, optimization
 execution, obligation ledger, and observation profile have distinct owners.
 Do not infer one section's identity from another section's current version.
 
-Current implementation markers are semantic format/vocabulary `91/102`, proof
-format `33`, artifact envelope `2`, and manifest `3`. The image-emission owner
-maintains the separately encoded installation payload (currently `93`).
-These are current codec facts, not a chronology or a promise of older acceptance.
+Current markers live with their owners: semantic format in [lib.rs](src/lib.rs),
+vocabulary in [VocabularyMarker](../../representations/terminal-psi/src/terminal_module/identity/vocabulary.rs),
+proof format in [proof_bundle.rs](src/proof_bundle.rs), envelope in
+[canonical_artifact.rs](src/canonical_artifact.rs), and manifest in
+[artifact_manifest.rs](src/artifact_manifest.rs). The image-emission owner
+maintains the separate [installation format](../../../omega/backend/images/image-emission/src/installation.rs).
+Codec-owned [current-format tests](src/current_format_tests.rs) pin canonical
+bytes and incompatible-marker rejection. Source-lowering tests check semantic
+round trips without duplicating a transient wire-version number.
 
 Scalar declarations encode their exact qualification-set identity. The semantic
 module encodes the predicate-/route-free domain catalog, canonical nonempty sets,
