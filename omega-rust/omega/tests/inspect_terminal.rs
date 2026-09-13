@@ -70,7 +70,10 @@ fn unknown_fuel_reason(stdout: &str) -> &str {
 }
 
 #[test]
-fn exact_ranked_u32_countdown_reports_its_replayed_fixed_fuel_ceiling() {
+fn natural_u32_cycle_reports_its_replayed_fixed_fuel_ceiling() {
+    // The old exact-countdown source now rides the ordinary `Natural` carrier:
+    // the retired `UnsignedCountdown` route is not restored, and the common
+    // graph's blocks, operations, and calls set the replayed ceiling.
     let source = temporary_source(
         "ranked-u32",
         r#"
@@ -100,14 +103,29 @@ fn exact_ranked_u32_countdown_reports_its_replayed_fixed_fuel_ceiling() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("selected_machine=Root::countdown"));
-    assert!(stdout.contains("ceiling_units=25769803775"), "{stdout}");
+    assert!(stdout.contains("ceiling_units=25769803778"), "{stdout}");
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("selected machine");
+    assert!(
+        matches!(
+            machine.ranked_scc,
+            Some(terminal_psi::TerminalRankedScc::Natural(_))
+        ),
+        "the ranked cycle must stay on the common Natural carrier"
+    );
     let fuel = evidence::inspect(&lowered.semantic_module, &lowered.proof_bundle)
-        .expect("verify and replay the countdown certificate");
+        .expect("verify and replay the Natural certificate");
     let evidence::FixedFuel::Available(certificate) = fuel else {
-        panic!("u32 countdown lost its fixed-fuel certificate: {fuel:?}");
+        panic!("u32 Natural cycle lost its fixed-fuel certificate: {fuel:?}");
     };
     assert_eq!(certificate.entry(), lowered.semantic_module.entry);
-    assert_eq!(certificate.ceiling_units(), 25_769_803_775);
+    // Two three-unit member blocks iterated at most 2^32 times, plus the
+    // preheader and return edges on the condensed common graph.
+    assert_eq!(certificate.ceiling_units(), 25_769_803_778);
 }
 
 #[test]

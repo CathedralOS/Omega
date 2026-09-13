@@ -58,9 +58,12 @@ fn slice_ranked_writer_retains_its_witness_through_serialized_execution() {
     assert!(synopsis.contains("control-cycle"));
     assert!(synopsis.contains("Preserving"));
     assert!(synopsis.contains("Strict"));
+    // A slice-length rank rides the u64 carrier, so the composed cycle bound
+    // exists mathematically but cannot fit a u64 ceiling: the writer reports
+    // an analysis limit rather than fabricating a certificate.
     assert!(matches!(
         terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
-        Err(terminal_fixed_fuel::FixedFuelError::ControlCycle(_))
+        Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
     ));
     assert!(matches!(
         terminal_verifier::verify_module_for_native_ranked_countdown(

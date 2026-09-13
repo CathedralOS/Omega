@@ -5,9 +5,12 @@
 //! Ordinary terminal verification accepts acyclic control flow, so the checker
 //! derives an exact maximum entry-to-terminal-exit cost without precondition
 //! assumptions and partitions the complete reachable graph at every reachable
-//! explicit edge. A separate fixed-fuel carrier admits the first exact
-//! ranked unsigned countdown and derives its whole-entry ceiling without
-//! widening the acyclic segment or native-lowering authorities.
+//! explicit edge. A verified `Natural`-ranked machine also admits a whole-entry
+//! ceiling: the components partition the cyclic topology, every cycle crosses a
+//! strict rank descent, and the condensed graph is acyclic. A separate
+//! fixed-fuel carrier admits the first exact ranked unsigned countdown and
+//! derives its whole-entry ceiling without widening the acyclic segment or
+//! native-lowering authorities.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -15,7 +18,8 @@ use semantic_vocabulary::{BlockId, EdgeId, IntegerValue, MachineId, OperationId,
 use terminal_codec::{CodecError, TerminalPsiIdentity, terminal_psi_identity};
 use terminal_fuel::{FuelScheduleIdentity, TerminalFuelSchedule};
 use terminal_psi::{
-    OperationKind, TerminalAffineCleanupAction, TerminalMachine, TerminalModule, Terminator,
+    OperationKind, TerminalAffineCleanupAction, TerminalMachine, TerminalModule,
+    TerminalNaturalCycle, TerminalRankedScc, Terminator,
 };
 use terminal_verifier::{VerifiedFixedFuelTerminalModule, VerifiedTerminalModule};
 
@@ -828,22 +832,331 @@ fn maximum_machine_outcomes(
         .iter()
         .map(|block| (block.id, block))
         .collect::<BTreeMap<_, _>>();
-    outcome_bounds_from(
-        machine,
-        machine_semantics.entry,
-        &blocks,
-        machines,
-        dynamic_call_targets,
-        schedule,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-        memoized_machines,
-        active_machines,
-    )
-    .inspect(|bounds| {
+    let result = match &machine_semantics.ranked_scc {
+        Some(TerminalRankedScc::Natural(components)) => natural_machine_outcomes(
+            machine_semantics,
+            components,
+            &blocks,
+            machines,
+            dynamic_call_targets,
+            schedule,
+            memoized_machines,
+            active_machines,
+        ),
+        _ => outcome_bounds_from(
+            machine,
+            machine_semantics.entry,
+            &blocks,
+            machines,
+            dynamic_call_targets,
+            schedule,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+            memoized_machines,
+            active_machines,
+        ),
+    };
+    result.inspect(|bounds| {
         active_machines.remove(&machine);
         memoized_machines.insert(machine, *bounds);
     })
+}
+
+/// Maximum entry-to-outcome bound for a verified `Natural`-ranked machine.
+///
+/// The verifier's components partition the machine's complete cyclic topology.
+/// Within one component every cycle crosses a strict edge that decreases an
+/// unsigned rank value, while preserving edges alone cannot close a cycle.
+/// Each member block therefore executes at most `rank_maximum + 1` times per
+/// component entry, and a component cannot be re-entered once left (an edge
+/// back would make the outside block part of the same component). The
+/// condensation of components and ordinary blocks is acyclic, so a
+/// longest-path bound over it covers every admitted execution's operation,
+/// call, edge, and cleanup costs. The rank bound is the carrier's type
+/// maximum, the same all-input bound the ranked-countdown certificate uses.
+fn natural_machine_outcomes(
+    machine: &TerminalMachine,
+    components: &[TerminalNaturalCycle],
+    blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
+    schedule: TerminalFuelSchedule,
+    memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
+    active_machines: &mut BTreeSet<MachineId>,
+) -> Result<OutcomeBounds, FixedFuelError> {
+    let mut member_of = BTreeMap::new();
+    for (index, component) in components.iter().enumerate() {
+        for rank in &component.ranks {
+            if member_of.insert(rank.block, index).is_some() {
+                return Err(FixedFuelError::InvalidRankedScc(machine.id));
+            }
+        }
+    }
+    let mut visit_units = BTreeMap::new();
+    for block in &machine.blocks {
+        visit_units.insert(
+            block.id,
+            block_visit_units(
+                machine,
+                block,
+                machines,
+                dynamic_call_targets,
+                schedule,
+                memoized_machines,
+                active_machines,
+            )?,
+        );
+    }
+    let mut component_units = Vec::with_capacity(components.len());
+    for component in components {
+        let IntegerValue::Unsigned(rank_maximum) = component.rank_type.maximum_value() else {
+            return Err(FixedFuelError::InvalidRankedScc(machine.id));
+        };
+        let member_units = component.ranks.iter().try_fold(0_u128, |units, rank| {
+            let visit = visit_units
+                .get(&rank.block)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
+            units
+                .checked_add(u128::from(visit))
+                .ok_or(FixedFuelError::BoundOverflow)
+        })?;
+        component_units.push(
+            rank_maximum
+                .checked_add(1)
+                .and_then(|visits| visits.checked_mul(member_units))
+                .ok_or(FixedFuelError::BoundOverflow)?,
+        );
+    }
+    let entry_node = member_of
+        .get(&machine.entry)
+        .map_or(NaturalGraphNode::Block(machine.entry), |&index| {
+            NaturalGraphNode::Component(index)
+        });
+    let bound = natural_condensed_bound(
+        entry_node,
+        machine,
+        components,
+        &member_of,
+        &visit_units,
+        &component_units,
+        blocks,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
+    let ceiling = u64::try_from(bound).map_err(|_| FixedFuelError::BoundOverflow)?;
+    // One ceiling covers both outcomes: the bound counts every admitted path,
+    // so it upper-bounds returning and crashing paths alike.
+    Ok(OutcomeBounds {
+        returned: Some(ceiling),
+        crashed: Some(ceiling),
+    })
+}
+
+/// One condensed node: an ordinary block or a complete cyclic component.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum NaturalGraphNode {
+    Block(BlockId),
+    Component(usize),
+}
+
+/// Longest-path bound over the condensed control DAG. A verified component
+/// partition makes this graph acyclic; the active set is defense against
+/// malformed input, not a search mechanism.
+#[allow(clippy::too_many_arguments)]
+fn natural_condensed_bound(
+    node: NaturalGraphNode,
+    machine: &TerminalMachine,
+    components: &[TerminalNaturalCycle],
+    member_of: &BTreeMap<BlockId, usize>,
+    visit_units: &BTreeMap<BlockId, u64>,
+    component_units: &[u128],
+    blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
+    memoized: &mut BTreeMap<NaturalGraphNode, u128>,
+    active: &mut BTreeSet<NaturalGraphNode>,
+) -> Result<u128, FixedFuelError> {
+    if let Some(bound) = memoized.get(&node) {
+        return Ok(*bound);
+    }
+    if !active.insert(node) {
+        let cycle_block = match node {
+            NaturalGraphNode::Block(block) => block,
+            NaturalGraphNode::Component(index) => components
+                .get(index)
+                .and_then(|component| component.ranks.first())
+                .map_or(machine.entry, |rank| rank.block),
+        };
+        return Err(FixedFuelError::ControlCycle(cycle_block));
+    }
+    let (self_units, successors) = match node {
+        NaturalGraphNode::Block(block) => {
+            let block_semantics = blocks
+                .get(&block)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(block))?;
+            (
+                u128::from(
+                    visit_units
+                        .get(&block)
+                        .copied()
+                        .ok_or(FixedFuelError::UnknownBlock(block))?,
+                ),
+                terminator_targets(&block_semantics.terminator),
+            )
+        }
+        NaturalGraphNode::Component(index) => {
+            let component = components
+                .get(index)
+                .ok_or(FixedFuelError::InvalidRankedScc(machine.id))?;
+            let mut exits = Vec::new();
+            for rank in &component.ranks {
+                let block = blocks
+                    .get(&rank.block)
+                    .copied()
+                    .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
+                exits.extend(
+                    terminator_targets(&block.terminator)
+                        .into_iter()
+                        .filter(|target| member_of.get(target) != Some(&index)),
+                );
+            }
+            (
+                component_units
+                    .get(index)
+                    .copied()
+                    .ok_or(FixedFuelError::InvalidRankedScc(machine.id))?,
+                exits,
+            )
+        }
+    };
+    let mut continuation = 0_u128;
+    for target in successors {
+        let next = member_of
+            .get(&target)
+            .map_or(NaturalGraphNode::Block(target), |&index| {
+                NaturalGraphNode::Component(index)
+            });
+        continuation = continuation.max(natural_condensed_bound(
+            next,
+            machine,
+            components,
+            member_of,
+            visit_units,
+            component_units,
+            blocks,
+            memoized,
+            active,
+        )?);
+    }
+    let bound = self_units
+        .checked_add(continuation)
+        .ok_or(FixedFuelError::BoundOverflow)?;
+    active.remove(&node);
+    memoized.insert(node, bound);
+    Ok(bound)
+}
+
+/// Maximum work one execution of `block` can charge: every operation, each
+/// call's worst outcome (return or crash; a crash ends the path, so one
+/// charge covers it), the terminator edge, and nominal cleanup machines the
+/// terminator invokes.
+fn block_visit_units(
+    machine: &TerminalMachine,
+    block: &terminal_psi::Block,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
+    schedule: TerminalFuelSchedule,
+    memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
+    active_machines: &mut BTreeSet<MachineId>,
+) -> Result<u64, FixedFuelError> {
+    let mut units = block
+        .operations
+        .iter()
+        .try_fold(0_u64, |units, operation| {
+            units
+                .checked_add(schedule.operation_units(&operation.kind))
+                .ok_or(FixedFuelError::BoundOverflow)
+        })?;
+    for operation in &block.operations {
+        if let Some(callee) = operation_callee(machine.id, operation, dynamic_call_targets) {
+            let callee_bounds = maximum_machine_outcomes(
+                callee,
+                machines,
+                dynamic_call_targets,
+                schedule,
+                memoized_machines,
+                active_machines,
+            )?;
+            units = units
+                .checked_add(
+                    callee_bounds
+                        .maximum()
+                        .ok_or(FixedFuelError::NoTerminalPath(callee))?,
+                )
+                .ok_or(FixedFuelError::BoundOverflow)?;
+        }
+    }
+    units = units
+        .checked_add(schedule.terminator_units(&block.terminator))
+        .ok_or(FixedFuelError::BoundOverflow)?;
+    for cleanup_machine in terminator_cleanup_machines(&block.terminator) {
+        let cleanup_bounds = maximum_machine_outcomes(
+            cleanup_machine,
+            machines,
+            dynamic_call_targets,
+            schedule,
+            memoized_machines,
+            active_machines,
+        )?;
+        units = units
+            .checked_add(
+                cleanup_bounds
+                    .maximum()
+                    .ok_or(FixedFuelError::NoTerminalPath(cleanup_machine))?,
+            )
+            .ok_or(FixedFuelError::BoundOverflow)?;
+    }
+    Ok(units)
+}
+
+fn terminator_targets(terminator: &Terminator) -> Vec<BlockId> {
+    match terminator {
+        Terminator::Jump { target, .. } => vec![*target],
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => vec![when_true.target, when_false.target],
+        Terminator::StructuralCase { cases, .. } => cases.iter().map(|case| case.target).collect(),
+        Terminator::Return { .. }
+        | Terminator::ReturnUnit { .. }
+        | Terminator::ReturnUnitPartialAffine { .. }
+        | Terminator::ReturnUnitNominalAffine { .. }
+        | Terminator::ReturnStructural { .. }
+        | Terminator::Crash { .. } => Vec::new(),
+    }
+}
+
+fn terminator_cleanup_machines(terminator: &Terminator) -> Vec<MachineId> {
+    match terminator {
+        Terminator::Return {
+            cleanup_actions, ..
+        } => cleanup_actions
+            .iter()
+            .filter_map(|action| match action {
+                TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                    Some(cleanup.cleanup_machine)
+                }
+                TerminalAffineCleanupAction::DiscardRoot(_)
+                | TerminalAffineCleanupAction::DiscardResidual(_) => None,
+            })
+            .collect(),
+        Terminator::ReturnUnitNominalAffine { cleanups, .. } => cleanups
+            .iter()
+            .map(|cleanup| cleanup.cleanup_machine)
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 fn outcome_bounds_from(
@@ -1219,6 +1532,9 @@ pub enum FixedFuelError {
     },
     NoTerminalPath(MachineId),
     NotRankedCountdown(MachineId),
+    /// The retained `Natural` component is malformed — a hard failure like any
+    /// other broken semantic invariant, not an analysis limitation.
+    InvalidRankedScc(MachineId),
     BoundOverflow,
     CertificateMismatch,
 }
@@ -1320,6 +1636,258 @@ mod tests {
                     std::slice::from_ref(&mutation),
                 ),
                 Err(FixedFuelError::CertificateMismatch)
+            );
+        }
+    }
+
+    mod natural_cycle {
+        use super::*;
+        use semantic_vocabulary::{ContractId, IntegerSign, IntegerType, ValueId};
+        use terminal_psi::{
+            Block, MachineContract, Operation, OperationResult, TerminalBlockNaturalRank,
+            TerminalMachineResult, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
+        };
+
+        fn id<T: semantic_vocabulary::PsiSemanticId>(raw: u64) -> T {
+            T::new(raw).expect("test identities are nonzero")
+        }
+
+        fn block(block_id: u64, operations: Vec<Operation>, terminator: Terminator) -> Block {
+            Block {
+                structural_parameters: Vec::new(),
+                id: id(block_id),
+                parameters: Vec::new(),
+                operations,
+                terminator,
+            }
+        }
+
+        fn machine(
+            machine_id: u64,
+            entry_block: u64,
+            blocks: Vec<Block>,
+            ranked_scc: Option<TerminalRankedScc>,
+        ) -> TerminalMachine {
+            TerminalMachine {
+                closed_reach_application: None,
+                declared_service_reach: Vec::new(),
+                id: id(machine_id),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                parameters: Vec::new(),
+                ranked_scc,
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: id(entry_block),
+                blocks,
+                contract: MachineContract {
+                    id: id::<ContractId>(machine_id),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }
+        }
+
+        fn module(entry: u64, machines: Vec<TerminalMachine>) -> TerminalModule {
+            TerminalModule {
+                scalar_qualifications: Default::default(),
+                scalar_block_invariants: Vec::new(),
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                entry: id(entry),
+                structural_types: Vec::new(),
+                structural_domains: Vec::new(),
+                services: Vec::new(),
+                root_service_reach: Default::default(),
+                placed_view_inputs: Vec::new(),
+                reborrow_root_handoffs: Vec::new(),
+                reborrow_restored_call_uses: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                float_meaning_projections: Vec::new(),
+                float_meaning_equalities: Vec::new(),
+                proposition_declarations: Vec::new(),
+                proposition_applications: Vec::new(),
+                evidence_terms: Vec::new(),
+                evidence_contract_lanes: Vec::new(),
+                proof_output_calls: Vec::new(),
+                proof_recursive_components: Vec::new(),
+                closed_conformance_applications: Vec::new(),
+                dynamic_dispatch: Default::default(),
+                suspension_call_plan_count: 0,
+                suspension_call_sites: Vec::new(),
+                suspension_call_plans: Vec::new(),
+                quotient_correspondences: Vec::new(),
+                machines,
+            }
+        }
+
+        fn jump(edge: u64, target: u64) -> Terminator {
+            Terminator::Jump {
+                edge: id(edge),
+                target: id(target),
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+                residual_affine_discards: Vec::new(),
+            }
+        }
+
+        fn conditional(
+            edge_true: u64,
+            target_true: u64,
+            edge_false: u64,
+            target_false: u64,
+        ) -> Terminator {
+            let successor = |edge, target| terminal_psi::SuccessorEdge {
+                edge: id::<EdgeId>(edge),
+                target: id::<BlockId>(target),
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            };
+            Terminator::Conditional {
+                condition: id(9_000),
+                when_true: successor(edge_true, target_true),
+                when_false: successor(edge_false, target_false),
+            }
+        }
+
+        fn return_unit(edge: u64) -> Terminator {
+            Terminator::ReturnUnit {
+                edge: id(edge),
+                trivial_affine_discards: Vec::new(),
+            }
+        }
+
+        fn call_unit(operation_id: u64, callee: u64) -> Operation {
+            Operation {
+                static_reach_binding: None,
+                id: id(operation_id),
+                result: OperationResult::Unit,
+                kind: OperationKind::CallUnit {
+                    callee: id(callee),
+                    arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }
+        }
+
+        fn rank_edge(
+            edge: u64,
+            source: u64,
+            target: u64,
+            comparison: TerminalNaturalRankComparison,
+        ) -> TerminalNaturalRankEdge {
+            TerminalNaturalRankEdge {
+                edge: id(edge),
+                source: id(source),
+                target: id(target),
+                successor_rank: id::<ValueId>(7_000),
+                comparison,
+            }
+        }
+
+        /// One `Natural` component {2,3}: header 2 conditionally enters work 3
+        /// or exits to 4; work 3 jumps back to 2 (strict descent). Entry 1
+        /// jumps into the cycle; the cycle exits to return block 4.
+        fn cyclic_machine(rank_bits: u16, work_operations: Vec<Operation>) -> TerminalMachine {
+            let mut semantic = machine(
+                1,
+                1,
+                vec![
+                    block(1, Vec::new(), jump(1, 2)),
+                    block(2, Vec::new(), conditional(2, 3, 3, 4)),
+                    block(3, work_operations, jump(4, 2)),
+                    block(4, Vec::new(), return_unit(5)),
+                ],
+                None,
+            );
+            semantic.ranked_scc = Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type: IntegerType::new(IntegerSign::Unsigned, rank_bits)
+                    .expect("fixed unsigned rank type"),
+                ranks: [2, 3]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id::<ValueId>(7_000),
+                    })
+                    .collect(),
+                edges: vec![
+                    rank_edge(2, 2, 3, TerminalNaturalRankComparison::Preserving),
+                    rank_edge(4, 3, 2, TerminalNaturalRankComparison::Strict),
+                ],
+            }]));
+            semantic
+        }
+
+        #[test]
+        fn natural_cycle_bound_replays_actual_operations_and_calls() {
+            // walk calls callee (one ReturnUnit block = 1 unit) inside the
+            // loop; caller invokes walk once from a straight-line block.
+            let walk = cyclic_machine(32, vec![call_unit(10, 5)]);
+            let callee = machine(5, 5, vec![block(5, Vec::new(), return_unit(6))], None);
+            let caller = machine(
+                6,
+                6,
+                vec![block(6, vec![call_unit(11, 1)], return_unit(7))],
+                None,
+            );
+            let module = module(6, vec![walk, callee, caller]);
+
+            // Member visits: header 1 (conditional edge) + work (1 call op +
+            // 1 callee unit + 1 jump edge) = 4. Iterations: u32 rank admits at
+            // most 2^32 member visits.
+            let component = 4_u128 * (u128::from(u32::MAX) + 1);
+            let walk_bound = 1 + component + 1; // entry edge + component + exit edge
+            assert_eq!(
+                derive_maximum_entry_bound(&module, id(1)),
+                Ok(u64::try_from(walk_bound).expect("fits u64"))
+            );
+            // The caller composes the callee's bound into its own call.
+            assert_eq!(
+                derive_maximum_entry_bound(&module, id(6)),
+                Ok(u64::try_from(2 + walk_bound).expect("fits u64"))
+            );
+        }
+
+        #[test]
+        fn natural_cycle_with_wide_rank_reports_bound_overflow() {
+            let walk = cyclic_machine(64, Vec::new());
+            let module = module(1, vec![walk]);
+            assert_eq!(
+                derive_maximum_entry_bound(&module, id(1)),
+                Err(FixedFuelError::BoundOverflow)
+            );
+        }
+
+        #[test]
+        fn natural_cycle_calling_itself_still_reports_call_cycle() {
+            let walk = cyclic_machine(32, vec![call_unit(10, 1)]);
+            let module = module(1, vec![walk]);
+            assert_eq!(
+                derive_maximum_entry_bound(&module, id(1)),
+                Err(FixedFuelError::CallCycle(id(1)))
+            );
+        }
+
+        #[test]
+        fn unranked_cycle_still_reports_control_cycle() {
+            let mut walk = cyclic_machine(32, Vec::new());
+            walk.ranked_scc = None;
+            let module = module(1, vec![walk]);
+            assert_eq!(
+                derive_maximum_entry_bound(&module, id(1)),
+                Err(FixedFuelError::ControlCycle(id(2)))
             );
         }
     }

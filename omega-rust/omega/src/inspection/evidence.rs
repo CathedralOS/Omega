@@ -106,6 +106,7 @@ mod tests {
         for reason in [
             FixedFuelError::UnknownBlock(block),
             FixedFuelError::UnknownEntry(machine),
+            FixedFuelError::InvalidRankedScc(machine),
             FixedFuelError::CertificateMismatch,
         ] {
             let result = retain_bound(Err(reason.clone()), |_| panic!("no certificate to replay"));
