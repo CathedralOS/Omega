@@ -51,6 +51,17 @@ pub(super) fn check_statement_borrows(
             continue;
         };
 
+        if let typed_trees::statement::StatementNode::RootBinding(binding) = statement_node {
+            super::calls::check_exclusive_place_use(
+                program,
+                facts,
+                state_flow,
+                statement,
+                binding.receiver,
+                diagnostics,
+            );
+        }
+
         for (forming_loan_handle, loan) in facts.borrow.loans.iter().filter(|(handle, loan)| {
             facts.borrow.state_owns_loan(borrow_state, *handle)
                 && loan.statement_index == statement.statement_index

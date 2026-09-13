@@ -345,6 +345,26 @@ fn collect_state_mutation_summary_places(
         .iter()
         .enumerate()
     {
+        if let StatementNode::RootBinding(binding) = statement {
+            let receiver = canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                binding.receiver,
+            )?;
+            let places = super::local_origins::rebase_local_write_places(
+                program,
+                state.symbol,
+                statement_index,
+                receiver,
+            )?;
+            for place in places {
+                if state_summary_exposes_place(program, state, &place) && !writes.contains(&place) {
+                    writes.push(place);
+                }
+            }
+            continue;
+        }
         let StatementNode::Assignment(_) = statement else {
             continue;
         };

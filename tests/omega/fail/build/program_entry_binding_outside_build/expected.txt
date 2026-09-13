@@ -1,1 +1,1 @@
-root-binding implementation supports only
+root binding requires a compiler-issued &mut Build place

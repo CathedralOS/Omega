@@ -37,9 +37,9 @@
 //!   hosted console default.
 //! - `optimizations` is an exact set of individually named transformations.
 //!   It is empty by default; duplicates reject rather than acting like levels.
-//! - `builder.roots.bind(target::ProgramEntry, Exact::machine);` is a static
-//!   declaration harvested from the same authoritative build machine. It
-//!   selects the exact source entry and performs no name-based discovery.
+//! - `builder.roots.bind(target::ProgramEntry, Exact::machine);` executes
+//!   through the original Build activation, including local helpers/reborrows.
+//!   Executed requests rejoin their lexical owner before exact product selection.
 
 mod configuration;
 mod declarations;
@@ -130,7 +130,7 @@ pub use selection::{
 };
 
 pub use selection::root_bindings::RootBinding;
-use selection::root_bindings::harvest_root_bindings;
+use selection::root_bindings::collect_root_bindings;
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -355,7 +355,6 @@ pub fn admit_build_program(
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
     selected_target_profile: Option<target::TargetProfile>,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
-    selection::root_bindings::validate_root_binding_owners(typed, build_source_id)?;
     let prepared = PreparedBuildMachineProgram::prepare(typed)?;
     let typed = prepared.typed();
     let operational_plan = validation::infer_operational_may(typed);
@@ -876,6 +875,7 @@ pub fn execute_admitted_build_program(
         })?;
         if replayed.value() != measured.value()
             || replayed.observations() != measured.observations()
+            || replayed.executed_root_bindings() != measured.executed_root_bindings()
         {
             return Err(vec![Diagnostic::error(format!(
                 "build-time replay of `{machine_name}` changed its result or operation record"
@@ -1285,6 +1285,7 @@ pub fn execute_admitted_build_program(
         .map_err(|diagnostic| vec![diagnostic])?;
     let filesystem_host_observed = measured.observations().filesystem_host_observed();
     let build_log = measured.observations().build_log().to_vec();
+    let root_bindings = collect_root_bindings(typed, machine, measured.executed_root_bindings())?;
     let mut arguments = measured.into_value();
     let augmented = arguments.pop().ok_or_else(|| {
         vec![Diagnostic::error(format!(
@@ -1308,7 +1309,7 @@ pub fn execute_admitted_build_program(
     config.opaque_representation_selections =
         representation_planning::harvest_opaque_representation_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
-    config.root_bindings = harvest_root_bindings(typed, machine)?;
+    config.root_bindings = root_bindings;
     let captured_output_tree = filesystem_scope.staged_output_tree(filesystem_reachable)?;
     let (staged_output_tree, complete_replay_verified) = match (
         replayed_output_tree,

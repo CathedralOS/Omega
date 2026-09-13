@@ -1,0 +1,4 @@
+module setup;
+pub machine bind_entry(options: &mut Build) {
+    options.roots.bind(windows_x86_64::ProgramEntry, launch);
+}

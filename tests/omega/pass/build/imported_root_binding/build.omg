@@ -1,0 +1,5 @@
+use setup;
+machine build(builder: &mut Build) {
+    builder.application("imported-root-binding");
+    setup::bind_entry(builder);
+}

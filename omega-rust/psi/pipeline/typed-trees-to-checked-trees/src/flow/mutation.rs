@@ -308,8 +308,8 @@ pub(crate) fn statement_mutated_place(
     Some(place)
 }
 
-/// Storage writes for fact invalidation. Non-assignment statements have no
-/// direct store; an unresolved assignment origin requires full invalidation.
+/// Storage writes for fact invalidation, including compiler-owned operations
+/// on borrowed receivers. An unresolved origin requires full invalidation.
 pub(crate) fn statement_storage_writes(
     program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
@@ -318,16 +318,29 @@ pub(crate) fn statement_storage_writes(
     statement: &StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    if !matches!(statement, StatementNode::Assignment(_)) {
+    if !matches!(
+        statement,
+        StatementNode::Assignment(_) | StatementNode::RootBinding(_)
+    ) {
         return Some(Vec::new());
     }
-    let places = local_origins::assignment_storage_places(
-        program,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        statement,
-    )?;
+    let places = if let StatementNode::RootBinding(binding) = statement {
+        let place = canonical_place_from_expression_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            binding.receiver,
+        )?;
+        local_origins::rebase_local_write_places(program, state_symbol, statement_index, place)?
+    } else {
+        local_origins::assignment_storage_places(
+            program,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            statement,
+        )?
+    };
     local_origins::close_storage_places_over_aliases_with_resolver(
         program,
         machine_symbol,

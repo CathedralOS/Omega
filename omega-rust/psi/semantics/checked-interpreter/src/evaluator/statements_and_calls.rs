@@ -10,7 +10,10 @@ impl<'program> Evaluator<'program> {
         match statement {
             // Assembly facts are compile-time assertions and have no runtime
             // evaluation in either interpreter or native execution.
-            StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => Ok(()),
+            StatementNode::AssemblyFact(_) => Ok(()),
+            StatementNode::RootBinding(_) => Err(Halt::Trap(
+                "root binding requires its executed statement identity".to_owned(),
+            )),
             StatementNode::Assignment(assignment) => {
                 if self.assign_array_window(assignment.target, assignment.value, frame)? {
                     return Ok(());
