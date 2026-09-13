@@ -227,13 +227,10 @@ fn set_open_snapshot_directory_read_only(
     directory: &CapabilityDirectory,
     path: &Path,
 ) -> Result<(), SourceResolveError> {
-    use std::os::unix::fs::PermissionsExt;
+    use cap_std::fs::PermissionsExt;
 
     directory
-        .try_clone()
-        .map_err(|error| io_error(path, error))?
-        .into_std_file()
-        .set_permissions(std::fs::Permissions::from_mode(0o555))
+        .set_permissions(".", cap_std::fs::Permissions::from_mode(0o555))
         .map_err(|error| io_error(path, error))
 }
 
