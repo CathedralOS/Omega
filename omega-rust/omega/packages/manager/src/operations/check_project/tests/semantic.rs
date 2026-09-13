@@ -42,7 +42,7 @@ machine build(builder: &mut Build) {
 use ordinary_console::main;
 use omega::language::core::service;
 data Main { console: Service<Console> in Bound; }
-machine Main::main(&mut self) { self.console.exit_process(70); }
+machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
 "#,
     );
     let (entry, closure, _) = project.prepare("application/entry.omg").into_review_parts();
