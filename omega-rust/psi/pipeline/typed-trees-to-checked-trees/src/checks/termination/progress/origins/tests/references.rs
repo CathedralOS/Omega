@@ -106,3 +106,51 @@ fn a_foreign_same_spelling_root_cannot_supply_a_reference_origin() {
     name.symbol = foreign;
     assert_eq!(fixture.query(subject), None);
 }
+
+#[test]
+fn record_construction_field_arrives_from_its_initializer() {
+    let fixture = Fixture::new(
+        "let built: Context = Context { scheduler: replacement.scheduler };",
+        "built.scheduler",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("built", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn owned_load_from_constructed_record_arrives_from_its_initializer() {
+    let fixture = Fixture::new(
+        "let built: Context = Context { scheduler: replacement.scheduler }; let saved: SchedulerHandle = built.scheduler;",
+        "saved",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn nested_record_construction_projects_through_the_constructed_field() {
+    let fixture = Fixture::new(
+        "let built: Holder = Holder { view: replacement };",
+        "built.view.scheduler",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("built", &[("Holder", "view"), ("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn record_construction_without_the_selected_field_has_no_origin() {
+    let fixture = Fixture::new(
+        "let built: Holder = Holder { view: replacement };",
+        "built.view.scheduler",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("built", &[("Context", "scheduler")])),
+        None
+    );
+}

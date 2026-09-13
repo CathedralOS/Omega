@@ -209,3 +209,27 @@ fn a_ranked_field_swap_cycle_retains_both_finite_entry_origins() {
         );
     }
 }
+
+#[test]
+fn constructed_record_field_arrives_from_its_initializer_premise() {
+    let program = fixture_with_extra(
+        "let holder: Holder = Holder { scheduler: replacement.scheduler };
+         context.scheduler = holder.scheduler;",
+        true,
+        false,
+        "data Holder { scheduler: SchedulerHandle; }",
+    );
+    assert_subjects(&program, &["replacement"]);
+}
+
+#[test]
+fn constructed_record_does_not_lend_a_sibling_field_its_premise() {
+    let program = fixture_with_extra(
+        "let holder: Holder = Holder { scheduler: replacement.scheduler, spare: context.scheduler };
+         context.scheduler = holder.spare;",
+        true,
+        false,
+        "data Holder { scheduler: SchedulerHandle; spare: SchedulerHandle; }",
+    );
+    assert_subjects(&program, &["context"]);
+}

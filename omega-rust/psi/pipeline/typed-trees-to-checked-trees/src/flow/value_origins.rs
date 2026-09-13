@@ -3,7 +3,10 @@
 use crate::flow::{self, CanonicalPlace};
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
-use typed_trees::{TypedTrees, machine::Machine, statement::StatementNode};
+use typed_trees::{
+    TypedTrees, expression::ExpressionHandle, machine::Machine, statement::StatementNode,
+    types::TypeReferenceHandle,
+};
 
 pub(crate) fn value_origin_at_call(
     program: &TypedTrees,
@@ -62,13 +65,14 @@ pub(crate) fn value_origin_at_call(
                     // The right-hand side is captured before this store. Keep
                     // tracing from that earlier point even if its slot changes
                     // again before the eventual qualified call.
-                    let mut source = flow::canonical_place_from_expression_in_state(
+                    let source = captured_source_place(
                         program,
-                        state.state_symbol,
+                        state,
                         index,
                         assignment.value,
+                        stored_type,
+                        suffix,
                     )?;
-                    source.segments.extend_from_slice(suffix);
                     place = flow::local_reference_storage_before_statement(
                         program, &frames, machine, state, index, source,
                     )?;
@@ -92,13 +96,14 @@ pub(crate) fn value_origin_at_call(
                 if !frames.proof_value_is_caller_isolated(local.type_reference) {
                     return None;
                 }
-                let mut source = flow::canonical_place_from_expression_in_state(
+                let source = captured_source_place(
                     program,
-                    state.state_symbol,
+                    state,
                     index,
                     local.initial_value,
+                    local.type_reference,
+                    &place.segments,
                 )?;
-                source.segments.extend_from_slice(&place.segments);
                 place = flow::local_reference_storage_before_statement(
                     program, &frames, machine, state, index, source,
                 )?;
@@ -125,6 +130,34 @@ pub(crate) fn value_origin_at_call(
         )?;
     }
     Some(place)
+}
+
+/// A constructor has no storage of its own: a projection into a captured
+/// record or array literal arrives from the selected field or element
+/// expression, so the origin continues from that operand with the remaining
+/// projection. Any other expression keeps the whole projection.
+fn captured_source_place(
+    program: &TypedTrees,
+    state: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+    stored_type: TypeReferenceHandle,
+    suffix: &[PlaceSegment],
+) -> Option<CanonicalPlace> {
+    let mut projections =
+        flow::literal_value_projections(program, value, stored_type, suffix, false)?;
+    let projection = projections.pop()?;
+    if !projections.is_empty() {
+        return None;
+    }
+    let mut source = flow::canonical_place_from_expression_in_state(
+        program,
+        state.state_symbol,
+        statement_index,
+        projection.expression,
+    )?;
+    source.segments.extend_from_slice(&projection.remaining);
+    Some(source)
 }
 
 fn exact_suffix<'place>(
