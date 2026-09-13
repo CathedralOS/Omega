@@ -41,12 +41,23 @@ impl PlaceIntegerBounds<'_> {
 }
 
 impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
-    fn binding(&mut self, position: usize) -> Option<IntegerRange> {
-        self.storage(*self.symbols.get(position)?)
+    fn binding(&mut self, position: usize, primitive_type: PrimitiveType) -> Option<IntegerRange> {
+        self.storage(*self.symbols.get(position)?, primitive_type)
     }
 
-    fn storage(&mut self, symbol: SymbolHandle) -> Option<IntegerRange> {
-        self.bounds(&canonical_place_from_symbol(symbol)?)
+    fn storage(
+        &mut self,
+        symbol: SymbolHandle,
+        primitive_type: PrimitiveType,
+    ) -> Option<IntegerRange> {
+        let place = canonical_place_from_symbol(symbol)?;
+        self.bounds(&place).or_else(|| {
+            // A binding still has its complete carrier range when no narrower
+            // value snapshot is live. This is not a domain-membership or
+            // initialization proof; a live snapshot takes precedence because
+            // it is tighter.
+            primitive_range(primitive_type)
+        })
     }
 
     fn structural_field(

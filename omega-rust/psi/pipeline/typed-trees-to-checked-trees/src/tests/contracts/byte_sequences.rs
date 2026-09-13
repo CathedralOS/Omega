@@ -1,5 +1,20 @@
 use super::*;
 
+fn check(source: &str, accepted: bool) {
+    match lower_typed_trees(parse_typed_trees(source)) {
+        Ok(_) => assert!(accepted, "unproved indexed byte write accepted:\n{source}"),
+        Err(diagnostics) => {
+            assert!(!accepted, "{diagnostics:#?}\n{source}");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("cannot prove ensures")),
+                "expected an unproved caller guarantee: {diagnostics:#?}\n{source}"
+            );
+        }
+    }
+}
+
 #[test]
 fn copied_byte_predicates_follow_materialized_storage() {
     for (body, succeeds) in [
@@ -97,6 +112,48 @@ fn direct_computed_byte_stores_use_selected_arithmetic() {
                 "{body}: {diagnostics:#?}"
             );
         }
+    }
+}
+
+#[test]
+fn unknown_scalar_inputs_bound_conversion_results_by_their_carrier() {
+    for (callee_body, statement, accepted) in [
+        (
+            "((value % 10 + 48) as u8 in Wrapping) as u8",
+            "output[position] = digit(unknown);",
+            true,
+        ),
+        (
+            "((value % 200 + 48) as u8 in Wrapping) as u8",
+            "output[position] = digit(unknown);",
+            false,
+        ),
+        (
+            "0",
+            "output[position] = ((unknown % 10 + 48) as u8 in Wrapping) as u8;",
+            true,
+        ),
+        (
+            "0",
+            "output[position] = ((unknown % 200 + 48) as u8 in Wrapping) as u8;",
+            false,
+        ),
+        (
+            "0",
+            "let copy: u64 = unknown; output[position] = ((copy % 10 + 48) as u8 in Wrapping) as u8;",
+            true,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Ascii requires ascii_only(self);
+            machine digit(value: u64) -> u8 {{ {callee_body} }}
+            machine write(output: &mut [u8; 4], position: u64 [0..=3], unknown: u64)
+            requires output in Ascii
+            ensures output in Ascii {{ {statement} }}
+            "#
+        );
+        check(&source, accepted);
     }
 }
 

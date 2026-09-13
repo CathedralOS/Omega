@@ -140,11 +140,19 @@ impl CapturedValue for IntegerRange {
 }
 
 impl crate::values::bounds::IntegerBoundsSource for CallValues<IntegerRange> {
-    fn binding(&mut self, position: usize) -> Option<IntegerRange> {
+    fn binding(
+        &mut self,
+        position: usize,
+        _: typed_trees::types::PrimitiveType,
+    ) -> Option<IntegerRange> {
         self.bindings.get(position)?.clone()
     }
 
-    fn storage(&mut self, symbol: SymbolHandle) -> Option<IntegerRange> {
+    fn storage(
+        &mut self,
+        symbol: SymbolHandle,
+        _: typed_trees::types::PrimitiveType,
+    ) -> Option<IntegerRange> {
         self.storage
             .iter()
             .find(|(candidate, _)| *candidate == symbol)
