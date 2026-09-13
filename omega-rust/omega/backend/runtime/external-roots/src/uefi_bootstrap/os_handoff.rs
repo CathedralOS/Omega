@@ -306,18 +306,46 @@ impl UefiOsHandoffMapAcquired {
     pub const fn map_key(&self) -> UefiMemoryMapKeyId {
         self.key
     }
+
+    /// Report identity of the handoff attempt this map belongs to. The
+    /// ExitBootServices provider edge joins it to live invocation custody
+    /// before binding the physical key operand.
+    pub const fn handoff_id(&self) -> UefiOsHandoffId {
+        self.arrival.handoff
+    }
+
+    pub const fn physical_invocation(&self) -> UefiPhysicalInvocationId {
+        self.arrival.invocation
+    }
 }
 
 /// Opaque result supplied by the target-specific provider adapter for one
-/// exact acquired map. External code cannot construct either outcome; native
-/// provider invocation remains the sole future issuance boundary.
+/// exact acquired map. External code cannot construct either outcome; the
+/// `exit_boot_services` provider edge is the sole issuance boundary and the
+/// ledger consumes each result exactly once.
 pub struct UefiExitBootServicesProviderResult {
     kind: UefiExitBootServicesProviderResultKind,
 }
 
-// Construction stays private until the native provider invocation owns it.
-// The state-model tests exercise both outcomes inside this module.
-#[allow(dead_code)]
+impl UefiExitBootServicesProviderResult {
+    /// Sole stale-key issuance route. `pub(super)` keeps minting inside the
+    /// UEFI bootstrap module family: only the executed provider edge may
+    /// classify a firmware status into this result.
+    pub(super) fn stale_map_key() -> Self {
+        Self {
+            kind: UefiExitBootServicesProviderResultKind::StaleMapKey,
+        }
+    }
+
+    /// Sole success issuance route, binding the receipt the provider edge
+    /// derived from its exact executed operands.
+    pub(super) fn succeeded(receipt: UefiExitBootServicesReceiptId) -> Self {
+        Self {
+            kind: UefiExitBootServicesProviderResultKind::Succeeded { receipt },
+        }
+    }
+}
+
 enum UefiExitBootServicesProviderResultKind {
     StaleMapKey,
     Succeeded {

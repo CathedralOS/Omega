@@ -33,6 +33,8 @@ mod handle_protocol_provider;
 pub use handle_protocol_provider::*;
 mod os_handoff;
 pub use os_handoff::*;
+mod exit_boot_services;
+pub use exit_boot_services::*;
 
 static NEXT_LEDGER_AUTHORITY: AtomicU64 = AtomicU64::new(1);
 
