@@ -1093,6 +1093,25 @@ Owners include
   independently reconstructible and no target placement leaks back into
   Terminal Psi.
 
+  Resume: `&dyn Trait` boundary parameters now normalize to the two-word
+  `{instance, table}` descriptor shape (`Reference`, 2*pointer_size) in
+  `provider-planning/src/calling_policy_plans.rs::value_shape_from_type`,
+  witnessed by
+  `compiler/tests/calling_policy_plans.rs::borrowed_dynamic_trait_parameter_materializes_fat_descriptor_shape`.
+  Next dependency: `TargetUnitOperation::NormalizedForeignCall` and the
+  dynamic/installed-provider op carriers are produced upstream but have no
+  consumer in `target-operations-to-selected-instructions` (currently a
+  custody-mismatch catch-all), and the common native route rejects callback
+  transport in `native-realization/src/realization/object.rs`. The emission
+  chain (selection -> register homes -> machine emission -> object import
+  plans -> image custody -> physical derivation) is the next bounded slice;
+  its paths were under live claims (SQUALR-HEADLESS) this cycle. Normalized
+  foreign lowering, machine-code custody, image replay, and artifact
+  derivation still bound foreign arguments/results to fixed-width integers;
+  widening them needs a coordinated lane once emission exists. Adjacent
+  same-pattern gap for FRAME-LAYOUT's owner: `backend/layout/src/builder.rs`
+  `referee_unsized` also misses `DynamicTrait`.
+
 - **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete [representation agreement](wiki/spec/build/opaque_representations.md) at
   independently compiled by-value exchanges. Dependency-first review compilation
   now rejoins each consumer's actual foreign opaque uses to the producer review's

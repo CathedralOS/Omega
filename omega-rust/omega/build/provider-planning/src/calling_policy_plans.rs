@@ -2300,8 +2300,11 @@ fn value_shape_from_type(
             {
                 referee = substituted_type_reference(typed, *base_type, bindings);
             }
+            // An unsized referee needs a two-word descriptor: `{ptr, len}` for
+            // slices and `string`, `{instance, table}` for `dyn Trait` — the
+            // same pair ordinary dynamic-descriptor arguments expand to.
             let is_fat = match typed.type_reference_table.type_reference(referee) {
-                TypeReferenceNode::Slice { .. } => true,
+                TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => true,
                 TypeReferenceNode::Named { name, .. } => name.as_str() == "string",
                 _ => false,
             };
