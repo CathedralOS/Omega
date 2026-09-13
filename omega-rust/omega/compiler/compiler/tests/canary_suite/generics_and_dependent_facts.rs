@@ -240,6 +240,16 @@ fn declared_range_inference_record_copies_and_full_width_fields_execute() {
             "data Value [copy] { value: u64[0..18446744073709551616]; } machine wide() -> u64 { let bounded: Value = Value { value: 18446744073709551615 }; bounded.value }",
             u128::from(u64::MAX),
         ),
+        (
+            "survivor",
+            "data Owned { value: u64; } data Copy [copy] { value: u64; } machine survivor() -> u64 { let keep: Owned = Owned { value: 17 }; let first: Copy = Copy { value: 256 }; let second: Copy = first; keep.value ^ first.value ^ second.value }",
+            17,
+        ),
+        (
+            "moved",
+            "data Owned { value: u64; } machine moved() -> u64 { let keep: Owned = Owned { value: 17 }; let first: Owned = Owned { value: 256 }; let second: Owned = first; keep.value ^ second.value }",
+            273,
+        ),
     ] {
         fs::write(&path, text).unwrap();
         let checked =

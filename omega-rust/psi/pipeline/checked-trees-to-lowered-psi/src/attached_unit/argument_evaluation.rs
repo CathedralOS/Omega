@@ -50,6 +50,7 @@ pub(crate) struct Evaluation {
 
 /// Replace candidate roots only at their normal death edge. Both rosters are
 /// in reverse establishment order; physical source declarations stay intact.
+/// An ordinary move has no residual candidates and only rebinds survivors.
 pub(crate) struct SelectionCleanup {
     pub(crate) selected: PlaceId,
     pub(crate) sources: Vec<PlaceId>,
@@ -278,6 +279,21 @@ impl Evaluation {
                 .ok_or(LoweringError::Unsupported(
                     "selected cleanup result is absent from its operation roster",
                 ))?;
+            if cleanup.sources.is_empty() {
+                if !cleanup.remaining.is_empty() {
+                    return unsupported("owned move cannot fabricate residual cleanup roots");
+                }
+                for (place, _) in &mut roots {
+                    if let Some((_, target)) = cleanup
+                        .pass_through
+                        .iter()
+                        .find(|(source, _)| source == place)
+                    {
+                        *place = *target;
+                    }
+                }
+                continue;
+            }
             let start = roots
                 .iter()
                 .position(|(place, _)| cleanup.sources.contains(place))

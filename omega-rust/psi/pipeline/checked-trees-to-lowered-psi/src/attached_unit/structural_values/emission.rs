@@ -801,6 +801,62 @@ impl Emission<'_, '_, '_> {
     fn materialize_place(&mut self, source: PlaceId) -> Result<PlaceId, LoweringError> {
         let block = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.next_place)?);
+        if self.multiplicity == StructuralMultiplicity::Affine {
+            // The return frontier orders operation results before block owners.
+            // Transport surviving affine locals together so a moved result and
+            // its older survivors retain their declaration-ordered cleanup.
+            self.owners = prepare_owners(
+                self.checked,
+                self.machine,
+                self.state,
+                self.statement,
+                self.structural_types,
+                self.evaluation,
+                self.operations,
+            )?;
+        }
+        let mut remaining_owners = self
+            .owners
+            .iter()
+            .filter(|owner| owner.value.place != source)
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut pass_through = Vec::new();
+        let mut structural_parameters = Vec::new();
+        for owner in &mut remaining_owners {
+            let target = place_id(allocate_dense(self.next_place)?);
+            let position = u32::try_from(structural_parameters.len()).map_err(|_| {
+                LoweringError::Unsupported("owned move parameter count exceeds u32")
+            })?;
+            self.temporary_places.push(StructuralPlaceDeclaration {
+                id: target,
+                kind: StructuralPlaceKind::BlockParameter { block, position },
+            });
+            structural_parameters.push(StructuralParameterDeclaration {
+                place: target,
+                position,
+                is_self: false,
+                structural_type: owner.value.structural_type,
+                multiplicity: owner.value.multiplicity,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            });
+            pass_through.push((owner.value.place, target));
+            owner.value.place = target;
+        }
+        let position = u32::try_from(structural_parameters.len())
+            .map_err(|_| LoweringError::Unsupported("owned move parameter count exceeds u32"))?;
+        structural_parameters.push(StructuralParameterDeclaration {
+            place,
+            position,
+            is_self: false,
+            structural_type: self.structural_type,
+            multiplicity: self.multiplicity,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
         let parameters = self
             .values
             .iter()
@@ -813,28 +869,44 @@ impl Emission<'_, '_, '_> {
             .collect::<Result<Vec<_>, LoweringError>>()?;
         self.temporary_places.push(StructuralPlaceDeclaration {
             id: place,
-            kind: StructuralPlaceKind::BlockParameter { block, position: 0 },
+            kind: StructuralPlaceKind::BlockParameter { block, position },
         });
         let continuation = ValueContinuation {
             block,
             parameters,
-            structural_parameters: vec![StructuralParameterDeclaration {
-                place,
-                position: 0,
-                is_self: false,
-                structural_type: self.structural_type,
-                multiplicity: self.multiplicity,
-                access: StructuralAccess::Owned,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-            }],
+            structural_parameters,
             place,
-            remaining_owners: Vec::new(),
-            pass_through: Vec::new(),
+            remaining_owners,
+            pass_through,
             residuals: Vec::new(),
         };
         self.complete_value(source, &continuation)?;
         self.start(block);
+        if self.multiplicity == StructuralMultiplicity::Affine {
+            self.evaluation
+                .structural_locals
+                .retain(|(_, argument)| argument.place != source);
+            for (_, argument) in &mut self.evaluation.structural_locals {
+                if let Some((_, target)) = continuation
+                    .pass_through
+                    .iter()
+                    .find(|(source, _)| *source == argument.place)
+                {
+                    argument.place = *target;
+                }
+            }
+            self.evaluation.structural_value_owners = continuation.remaining_owners;
+            self.evaluation
+                .selection_cleanups
+                .push(argument_evaluation::SelectionCleanup {
+                    selected: place,
+                    sources: Vec::new(),
+                    remaining: Vec::new(),
+                    pass_through: continuation.pass_through,
+                    next_operation: self.operations.next_identity,
+                });
+            self.rebind_local_cases()?;
+        }
         *self.values = continuation.parameters.clone();
         self.evaluation.parameters = continuation.parameters;
         self.evaluation.block_structural_parameters = continuation.structural_parameters;
