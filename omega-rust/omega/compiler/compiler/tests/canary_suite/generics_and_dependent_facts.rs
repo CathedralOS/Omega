@@ -55,6 +55,10 @@ fn declared_range_inference_returns_the_selected_endpoint() {
         ("nested_fractional", vec![BuildTimeValue::Int(0)], 256),
         ("nested_full_width", vec![BuildTimeValue::Int(0)], -1),
         ("surrounding_full_width", vec![BuildTimeValue::Int(0)], 511),
+        ("constrained_argument", vec![BuildTimeValue::Int(0)], 256),
+        ("constrained_result", vec![BuildTimeValue::Int(0)], 256),
+        ("constrained_composition", vec![BuildTimeValue::Int(0)], 256),
+        ("constrained_wide", vec![BuildTimeValue::Int(0)], -1),
         ("field_bound", vec![], 256),
         ("field_scoped_exclusive", vec![], 511),
     ] {
@@ -191,6 +195,26 @@ fn declared_range_inference_nested_results_keep_source_type_errors() {
           machine endpoint(ignored: u64) -> u64 {256}
           machine bounded(value: u64[0..=endpoint(open())]) {}",
             "closed integer expression",
+        ),
+        (
+            "machine endpoint(ignored: u64[1..=256]) -> u64 {256}
+          machine bounded(value: u64[0..=endpoint(257)]) {}",
+            "outside declared range",
+        ),
+        (
+            "machine endpoint() -> u64[0..=256] {257}
+          machine bounded(value: u64[0..=endpoint()]) {}",
+            "outside declared range",
+        ),
+        (
+            "machine endpoint(value: u64[0..0]) -> u64 {256}
+          machine bounded(value: u64[0..=endpoint(0)]) {}",
+            "outside declared range",
+        ),
+        (
+            "machine endpoint() -> u8 {256}
+          machine bounded(value: u64[0..=endpoint()]) {}",
+            "integer",
         ),
     ] {
         let scratch = unique_no_output_build_dir();

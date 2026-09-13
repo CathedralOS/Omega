@@ -7,16 +7,21 @@ service; it does not reinterpret its language semantics.
 
 [Range endpoints](src/range_endpoints.rs) evaluate exact resolved machine calls
 before type checking. Their [arguments](src/range_endpoints/arguments.rs) must be
-closed integer expressions received by exact unconstrained builtin integer
-parameters. The shared numeric query establishes context-independent arithmetic;
-the scalar constant evaluator retains carrier checks and fractional warnings.
+closed integer expressions received by exact builtin integer parameters, including
+closed range refinements. The shared numeric query establishes context-independent
+arithmetic; the scalar constant evaluator retains carrier checks and fractional warnings.
 Each argument keeps its own selection admission before the callee's common
 floor is checked. Record and case-payload types receive exact call identities
 from ordinary declaration-scope resolution before this service runs. Nested calls
 and surrounding integer arithmetic share this route: admitted call results keep
 their exact integer carriers, while the prepared execution graph and original
 selection occurrences remain unchanged. Failed folds restore every temporary
-call substitution. Constrained arguments/results and generic applications remain
+call substitution. [Integer positions](src/range_endpoints/integer_type.rs) admit
+the original bound selections and check every declared range against the concrete
+argument/result, preserving full-width carriers and proof-integer exclusive bounds.
+Calls computing signature bounds run before the consuming invocation, regardless
+of declaration order; cyclic dependencies reject. These value checks do not replace
+ordinary body checking. Nominal/policy qualifications and generic applications remain
 outside this route; surrounding endpoint arithmetic retains ordinary checking.
 
 The public ownership-taking pre-resolution and pre-check conveyors keep these
