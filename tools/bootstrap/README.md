@@ -27,6 +27,15 @@ materialize any other bytes; those identities are those audited in
 `bootstrap/2_gamma/EVALUATOR_PROFILE.md`. A digest match is an identity check,
 not a proof.
 
+`tools/bootstrap/delta/compiler_env.sh` binds the Delta edge's request entry,
+source manifest, `GammaComposedV1` record, and repacked canonical closure the
+same way against `bootstrap/3_delta/README.md` and `delta_compiler.composed`;
+it also checks the record names the selected evaluator tape and packed
+closure. `tools/bootstrap/epsilon/evaluator_env.sh` binds the
+`epsilon_compiler.delta.sources` manifest and repacked evaluator closure
+against `bootstrap/4_epsilon/README.md`. Both refuse before writing when the
+bound bytes differ, including a changed manifest or member.
+
 `check-chain-hygiene.sh` is the single repository-topology gate. It positively
 enumerates the implemented compiler source/tape identities, inventories every
 retained source, test, and bootstrap-tool owner, rejects alternate bootstrap
@@ -70,6 +79,8 @@ remain under their language owner.
 | `alpha/` | Alpha seed selection and tape stamping used by current tests and tools. | Delete only when every caller has an equally direct canonical invocation. |
 | `beta/` | Trusted Beta compiler materialization with the bound-identity check, and disposable program builds. | Delete only when every caller has an equally direct canonical invocation. |
 | `gamma/evaluator_env.sh` | Selected Beta-authored functional Gamma evaluator materialization. | Delete only when every caller has an equally direct canonical invocation. |
+| `delta/compiler_env.sh` | Bound identity and canonical closure materialization for the Gamma-authored Delta compiler. | Delete only when every caller has an equally direct canonical invocation. |
+| `epsilon/evaluator_env.sh` | Bound identity and canonical closure materialization for the Delta-authored Epsilon evaluator. | Delete only when every caller has an equally direct canonical invocation. |
 | `source_closure.py` | Byte-exact assembly of the Delta-written Epsilon evaluator and Epsilon-written Omega D source closures. | Delete only when the selected lower compilers accept the same canonical member closures directly. |
 
 The retired `verify-lattice.sh`, `test-paths.sh`, historical bootstrap-role facade,

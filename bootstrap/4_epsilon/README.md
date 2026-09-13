@@ -146,6 +146,12 @@ from the shared role registry rather than reading the entrance as the full sourc
 
 The packed evaluator is 12,097 lines / 617,354 bytes, SHA-256
 `4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e`.
+The manifest itself is 15,163 bytes, SHA-256
+`717e6bdc90850b9cacc0858279f3483d10c93f3289f43d9ff83ac27b4e862061`;
+`tools/bootstrap/epsilon/evaluator_env.sh` checks both identities against every
+materialization and `tests/bootstrap/epsilon-identity.sh` covers the refusals.
+A digest is an identity check on the bytes being evaluated, not a proof that
+the evaluator implements Epsilon.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.
