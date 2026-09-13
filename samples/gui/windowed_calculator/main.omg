@@ -88,7 +88,7 @@ data Main {
     shade: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console + Gui + Input {
     // "#32770\0" -- the predefined dialog class. The earlier window samples
     // used "STATIC\0", but that is a control class and does not behave like a
     // real top-level app window in practice.

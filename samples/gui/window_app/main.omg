@@ -57,7 +57,7 @@ data Main {
     c: i32;
     px: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console + Gui + Input {
     // "#32770\0" -- the predefined dialog class. Unlike the STATIC control
     // class, this behaves like a draggable top-level app window in practice.
     self.cls[0] = 35;

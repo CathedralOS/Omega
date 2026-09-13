@@ -83,7 +83,7 @@ data Main {
     pumped: i32 [0..=16];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console + FilesystemHost + Gui + Input {
     // "#32770\0" -- the predefined dialog class (draggable top-level window).
     self.cls[0] = 35;
     self.cls[1] = 51;
