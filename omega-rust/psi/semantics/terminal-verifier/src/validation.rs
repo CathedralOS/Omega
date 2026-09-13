@@ -95,6 +95,7 @@ pub(crate) use structural_byte_sequence_store::capacity as structural_byte_seque
 pub(crate) use structural_operations::{
     exact_payloadless_case_return_exits, structural_argument_canonical_prefix,
 };
+pub(crate) use structural_scalar_fields::integer_structural_field_read_range;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatedTerminalModule<'module> {

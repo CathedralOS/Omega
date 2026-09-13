@@ -3,12 +3,14 @@
 //! Type substitution can introduce another range shell. Intersect all declared
 //! intervals and the fixed carrier, retaining a bounded field even if its range
 //! spans that carrier. Unsupported bounds or policies must not become raw scalars.
+//! Endpoint intersection precedes conversion to the signed or unsigned carrier.
 
 use checked_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use checked_trees::{CheckedTrees, CheckedUnitStructuralFieldType};
 use numerics::arithmetic::ArithmeticDomain;
+use numerics::bignum::BigInt;
 use semantic_vocabulary::{BoundedIntegerType, IntegerValue, ScalarType};
 use symbols::SymbolHandle;
 
@@ -18,7 +20,7 @@ pub(super) fn reconstruct(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     primitive: PrimitiveType,
 ) -> Option<CheckedUnitStructuralFieldType> {
-    let mut bounds: Option<(i128, i128)> = None;
+    let mut bounds: Option<(BigInt, BigInt)> = None;
     let mut non_exact = false;
     let mut visited = Vec::new();
     loop {
@@ -49,18 +51,13 @@ pub(super) fn reconstruct(
                             maximum,
                             end_inclusive,
                         } => {
-                            let minimum = i128::from(
-                                validation::closed_integer_range_bound(&checked.typed, *minimum)?
-                                    .to_i64()?,
-                            );
-                            let maximum = i128::from(
-                                validation::closed_integer_range_maximum(
-                                    &checked.typed,
-                                    *maximum,
-                                    *end_inclusive,
-                                )?
-                                .to_i64()?,
-                            );
+                            let minimum =
+                                validation::closed_integer_range_bound(&checked.typed, *minimum)?;
+                            let maximum = validation::closed_integer_range_maximum(
+                                &checked.typed,
+                                *maximum,
+                                *end_inclusive,
+                            )?;
                             bounds = Some(match bounds {
                                 Some((prior_minimum, prior_maximum)) => {
                                     (minimum.max(prior_minimum), maximum.min(prior_maximum))
@@ -102,16 +99,20 @@ pub(super) fn reconstruct(
     };
     let (minimum, maximum) = match (integer.minimum_value(), integer.maximum_value()) {
         (IntegerValue::Signed(carrier_minimum), IntegerValue::Signed(carrier_maximum)) => (
-            IntegerValue::Signed(minimum.max(carrier_minimum)),
-            IntegerValue::Signed(maximum.min(carrier_maximum)),
+            IntegerValue::Signed(i128::from(
+                minimum.max(BigInt::from_i128(carrier_minimum)).to_i64()?,
+            )),
+            IntegerValue::Signed(i128::from(
+                maximum.min(BigInt::from_i128(carrier_maximum)).to_i64()?,
+            )),
         ),
         (IntegerValue::Unsigned(carrier_minimum), IntegerValue::Unsigned(carrier_maximum)) => (
-            IntegerValue::Unsigned(
-                u128::try_from(minimum.max(i128::try_from(carrier_minimum).ok()?)).ok()?,
-            ),
-            IntegerValue::Unsigned(
-                u128::try_from(maximum.min(i128::try_from(carrier_maximum).ok()?)).ok()?,
-            ),
+            IntegerValue::Unsigned(u128::from(
+                minimum.max(BigInt::from_u128(carrier_minimum)).to_u64()?,
+            )),
+            IntegerValue::Unsigned(u128::from(
+                maximum.min(BigInt::from_u128(carrier_maximum)).to_u64()?,
+            )),
         ),
         _ => return None,
     };

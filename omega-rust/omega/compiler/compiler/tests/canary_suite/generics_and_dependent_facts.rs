@@ -62,6 +62,8 @@ fn declared_range_inference_returns_the_selected_endpoint() {
         ("field_bound", vec![], 256),
         ("generic_field_bound", vec![], 256),
         ("generic_named_bound", vec![], 256),
+        ("generic_equivalent_bound", vec![], 256),
+        ("generic_wide_bound", vec![], -1),
         ("field_scoped_exclusive", vec![], 511),
     ] {
         let machine = checked
@@ -145,11 +147,8 @@ fn declared_range_inference_generic_instances_retain_pending_terminal_boundaries
     ))
     .expect("equivalent inclusive, exclusive and arithmetic applications share a carrier");
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed);
-    for (name, expected) in [
-        ("generic_equivalent_bound", 256),
-        ("generic_wide_bound", -1),
-        ("generic_forwarded_bound", 256),
-    ] {
+    {
+        let (name, expected) = ("generic_forwarded_bound", 256);
         let machine = checked
             .typed
             .machines()
@@ -181,22 +180,23 @@ fn declared_range_inference_generic_instances_retain_pending_terminal_boundaries
         assert!(format!("{result:?}").contains("source-independent checked scalar control plan"));
     }
     // Attribute the remaining Terminal boundary without generic machinery.
-    // Keep the customer intact until local record-copy sequencing is connected.
+    // Keep nested projection and local mutation customers intact until their
+    // ordinary storage operations are connected.
     let scratch = unique_no_output_build_dir();
     fs::create_dir_all(&scratch).unwrap();
     let path = scratch.join("main.omg");
     for (name, text) in [
         (
-            "copied",
-            "data Value [copy] { value: u64; } machine copied() -> u64 { let first: Value = Value { value: 256 }; let second: Value = first; second.value }",
-        ),
-        (
-            "wide",
-            "data Value [copy] { value: u64[0..18446744073709551616]; } machine wide() -> u64 { let bounded: Value = Value { value: 0 }; bounded.value }",
-        ),
-        (
             "nested",
             "data Value [copy] { value: u64; } data Outer [copy] { inner: Value; } machine nested() -> u64 { let bounded: Outer = Outer { inner: Value { value: 256 } }; bounded.inner.value }",
+        ),
+        (
+            "local_store",
+            "data Value [copy] { value: u64; } machine local_store() -> u64 { let mut first: Value = Value { value: 256 }; let second: Value = first; first.value = 5; second.value }",
+        ),
+        (
+            "borrowed_store",
+            "data Value [copy] { value: u64; } machine change(value: &mut Value) { value.value = 5; } machine borrowed_store() -> u64 { let mut first: Value = Value { value: 256 }; let second: Value = first; change(&mut first); second.value }",
         ),
     ] {
         fs::write(&path, text).unwrap();
@@ -214,6 +214,59 @@ fn declared_range_inference_generic_instances_retain_pending_terminal_boundaries
         assert!(
             format!("{plain:?}").contains("source-independent checked scalar control plan"),
             "{name}: {plain:?}"
+        );
+    }
+    fs::remove_dir_all(scratch).unwrap();
+}
+
+#[test]
+fn declared_range_inference_record_copies_and_full_width_fields_execute() {
+    let scratch = unique_no_output_build_dir();
+    fs::create_dir_all(&scratch).unwrap();
+    let path = scratch.join("main.omg");
+    for (name, text, expected) in [
+        (
+            "copied",
+            "data Value [copy] { value: u64; } machine copied() -> u64 { let first: Value = Value { value: 256 }; let second: Value = first; first.value ^ second.value }",
+            0_u128,
+        ),
+        (
+            "sequenced",
+            "data Value [copy] { value: u64; } machine sequenced() -> u64 { let before: u64 = 7; let first: Value = Value { value: 256 }; let second: Value = first; let third: Value = second; before ^ first.value ^ second.value ^ third.value }",
+            263,
+        ),
+        (
+            "wide",
+            "data Value [copy] { value: u64[0..18446744073709551616]; } machine wide() -> u64 { let bounded: Value = Value { value: 18446744073709551615 }; bounded.value }",
+            u128::from(u64::MAX),
+        ),
+    ] {
+        fs::write(&path, text).unwrap();
+        let checked =
+            compile_reviewed_repository_fixture(CheckedCompileRequest::new(&path, None)).unwrap();
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, name)
+            .produce_artifact()
+            .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        let result = terminal_interpreter::interpret_terminal_artifact_measured(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+        )
+        .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        assert_eq!(
+            result.value(),
+            terminal_interpreter::TerminalExecutionResult::Scalar(
+                terminal_interpreter::TerminalScalarValue::Integer {
+                    scalar_type: semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64
+                    )
+                    .unwrap(),
+                    value: semantic_vocabulary::IntegerValue::Unsigned(expected),
+                }
+            ),
+            "{name}"
         );
     }
     fs::remove_dir_all(scratch).unwrap();

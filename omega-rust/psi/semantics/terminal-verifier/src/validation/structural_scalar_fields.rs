@@ -75,6 +75,34 @@ fn readable_parameter_for(
     parameter_for(machine, place).or_else(|| super::block_views::parameter(machine, place))
 }
 
+/// Recover the invariant of the exact field observed by a validated read.
+/// Construction proves it, entry checks it, and raw bounded-field stores reject.
+pub(crate) fn integer_structural_field_read_range(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Option<semantic_vocabulary::BoundedIntegerType> {
+    let OperationKind::IntegerStructuralField { source, field } = operation.kind else {
+        return None;
+    };
+    let signature = super::structural_result_contracts::source_signature(machine, source)?;
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == signature.structural_type)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    let declaration = fields
+        .iter()
+        .find(|declaration| declaration.id == field && !declaration.relevance.is_erased())?;
+    let StructuralFieldType::BoundedInteger(bounds) = declaration.field_type else {
+        return None;
+    };
+    (operation.result.scalar_ref()?.scalar_type == ScalarType::Integer(bounds.integer_type()))
+        .then_some(bounds)
+}
+
 fn has_readable_structural_access(access: StructuralAccess) -> bool {
     matches!(
         access,
