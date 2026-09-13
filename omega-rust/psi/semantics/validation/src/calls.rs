@@ -455,15 +455,15 @@ pub(crate) fn validate_call_node(
                     &requirement,
                     diagnostics,
                 );
-                validate_call_arguments_handles(
+                generic_requirement::validate_requirement_call_arguments(
                     program,
                     current_machine,
                     current_state,
                     value_env,
                     arguments,
-                    signature.name.as_str(),
                     program.state_signature_parameters(signature),
-                    None,
+                    Some(type_reference),
+                    &requirement,
                     writable_roots,
                     diagnostics,
                 );
@@ -800,6 +800,41 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
     argument_environments: &[ValueEnv],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_call_arguments_with_type_correspondence(
+        program,
+        current_machine,
+        current_state,
+        value_env,
+        arguments,
+        target_name,
+        parameters,
+        callee_state,
+        writable_roots,
+        retain_arithmetic_policy,
+        argument_environments,
+        |argument, required| argument_matches_type_reference_handle(program, argument, required),
+        diagnostics,
+    );
+}
+
+/// The selected requirement owns type substitution; permission and value/domain
+/// validation remain common to ordinary and bounded calls.
+#[allow(clippy::too_many_arguments)]
+fn validate_call_arguments_with_type_correspondence(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
+    value_env: &ValueEnv,
+    arguments: &[ExpressionHandle],
+    target_name: &str,
+    parameters: &[StateParameter],
+    callee_state: Option<&State>,
+    writable_roots: &WritableRoots<'_, '_>,
+    retain_arithmetic_policy: bool,
+    argument_environments: &[ValueEnv],
+    type_matches: impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     if report_argument_count_mismatch(target_name, parameters, arguments, diagnostics) {
         return;
     }
@@ -918,7 +953,7 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
         let expected_type =
             program.display_type_reference_with_constraints(parameter.type_reference);
 
-        if !argument_matches_type_reference_handle(program, *argument, parameter.type_reference) {
+        if !type_matches(*argument, parameter.type_reference) {
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for state `{}` expects `{}`, got `{}`",
                 parameter.name,

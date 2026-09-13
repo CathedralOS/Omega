@@ -3062,21 +3062,23 @@ fn generic_call_searches_all_conformance_bounds() {
 
 #[test]
 fn generic_bound_arguments_specialize_requirement_parameters() {
-    let typed = typed_program_from_source(
-        r#"
-        trait Encoder<Message> {
-            machine encode(&self, out: &mut Message);
-        }
-        machine encode<T, M>(subject: &T, out: &mut M)
-        where T satisfies Encoder<M>
-        {
-            subject.encode(out);
-        }
-        "#,
-    );
+    for required_access in ["&mut", "&"] {
+        let typed = typed_program_from_source(&format!(
+            r#"
+            trait Encoder<Message> {{
+                machine encode(&self, out: {required_access} Message);
+            }}
+            machine encode<T, M>(subject: &T, out: &mut M)
+            where T satisfies Encoder<M>
+            {{
+                subject.encode(out);
+            }}
+            "#,
+        ));
 
-    validate_program(&typed)
-        .expect("the bound argument M should instantiate Encoder's Message parameter");
+        validate_program(&typed)
+            .expect("bound reference arguments preserve substitution and shared attenuation");
+    }
 }
 
 #[test]
