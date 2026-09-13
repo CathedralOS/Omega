@@ -63,6 +63,7 @@ pub fn realize_program_entry_native_artifact(
         artifact,
         NativeRealizationRequest {
             checked_scope: Some(&checked_scope),
+            program_entry: request.program_entry.with_checked_entry(&checked_entry),
             ..request
         },
     )?;

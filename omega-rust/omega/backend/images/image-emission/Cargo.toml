@@ -13,6 +13,7 @@ test-support = []
 installed-artifact = ["dep:executable-installation", "dep:layout-plans"]
 
 [dependencies]
+program-entry-plan = { path = "../../plans/program-entry-plan" }
 legalized-operations = { path = "../../../representations/legalized-operations" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
 calling-conventions = { path = "../../../representations/calling-conventions" }

@@ -58,7 +58,7 @@ fn realize_image(
         Some(prepared) => prepared.reopen(&artifact, request)?,
         None => lower_realization_input(semantic_bytes, proof_bytes, request.profile)?,
     };
-    validate_executable_entry_receiver(input.plan(), request.program_entry.source())?;
+    let provision_receiver = validate_executable_entry_receiver(input.plan(), &artifact, request)?;
     let AdmittedNativeProviders {
         settlements,
         executions,
@@ -78,6 +78,7 @@ fn realize_image(
         installation,
         &settlements,
         boundary_application_coverage.as_ref(),
+        provision_receiver.then_some(request.program_entry),
         request,
     )?;
     assemble_requested_native_artifact(
@@ -96,8 +97,9 @@ fn realize_image(
 
 fn validate_executable_entry_receiver(
     plan: &abstract_operations::AbstractOperationPlan,
-    source: &program_entry_plan::SelectedProgramEntrySourceSignature,
-) -> Result<(), Vec<Diagnostic>> {
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    request: &NativeRealizationRequest<'_>,
+) -> Result<bool, Vec<Diagnostic>> {
     // Settlement retains the entry declaration, not an installed receiver.
     // Every route through realize_image emits an executable image; callable
     // lowering and explicit semantic wrappers retain their own boundaries.
@@ -112,7 +114,7 @@ fn validate_executable_entry_receiver(
     // The source selection decides whether provisioning is required; the
     // retained callable must agree before either executable route is selected.
     let source_has_receiver = matches!(
-        source.receiver(),
+        request.program_entry.source().receiver(),
         program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
     );
     if has_receiver != source_has_receiver {
@@ -121,13 +123,44 @@ fn validate_executable_entry_receiver(
             "lowered entry does not preserve the source-selected receiver mode",
         ));
     }
-    if has_receiver {
+    if !has_receiver {
+        return Ok(false);
+    }
+    if request.target != target::NativeTarget::macos_arm64() {
         return Err(realization_error(
             "ProgramEntry receiver provisioning",
             "the executable entry retains a self parameter, but no root-backed bridge constructs and lends its receiver; source-entry settlement alone does not provision receiver storage",
         ));
     }
-    Ok(())
+    let checked_entry = request.program_entry.checked_entry.ok_or_else(|| {
+        realization_error(
+            "ProgramEntry receiver provisioning",
+            "hosted receiver requires exact checked initialization and cleanup custody",
+        )
+    })?;
+    let settled = crate::validate_native_program_entry_settlement(
+        artifact,
+        checked_entry,
+        request.program_entry,
+        request.target,
+    )
+    .map_err(|error| realization_error("ProgramEntry receiver custody", error))?;
+    if settled.checked_entry().receiver_eligibility().is_none() {
+        return Err(realization_error(
+            "ProgramEntry receiver provisioning",
+            "hosted receiver requires a checked ZII-valid value with no executable nominal cleanup",
+        ));
+    }
+    if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
+        return Err(realization_error(
+            "ProgramEntry receiver provisioning",
+            "hosted private-stack entry does not yet admit callback occupancy",
+        ));
+    }
+    // This only permits physical construction to begin. The object binder and
+    // final image replay must still prove the disjoint backing, exact entry
+    // pointer, stack switch, and normal-return continuation before publication.
+    Ok(true)
 }
 
 #[cfg(test)]

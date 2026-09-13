@@ -211,6 +211,17 @@ fn validate_terminal_image_with_import_count(
     }
     if let Some(shim) = scalar_exit_shim {
         match shim {
+            super::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset } => {
+                super::hosted_receiver::validate_image(
+                    artifact,
+                    object,
+                    text_bytes,
+                    relocations,
+                    symbol,
+                    offset,
+                    output,
+                )?;
+            }
             super::hosted_unit_entry::EntryShim::LinuxScalar(shim) => {
                 validate_linux_x86_scalar_exit_shim(artifact, object, text_bytes, shim, output)?
             }

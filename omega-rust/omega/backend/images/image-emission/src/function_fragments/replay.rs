@@ -19,6 +19,33 @@ impl PartialEq for FragmentReplay {
 
 impl Eq for FragmentReplay {}
 
+#[cfg(any(test, feature = "test-support"))]
+impl crate::ObjectArtifact {
+    pub fn fragment_source_for_test(
+        &self,
+    ) -> Option<&StagedOptimizedRelocationFreeObjectContainer> {
+        self.fragment_replay
+            .as_ref()
+            .map(|replay| replay.0.as_ref())
+    }
+}
+
+pub(crate) fn entry_source(
+    artifact: &crate::ObjectArtifact,
+) -> Result<
+    (
+        &abstract_operations::AbstractFunction,
+        &target_operations::TargetFunction,
+    ),
+    diagnostics::Diagnostic,
+> {
+    let replay = artifact.fragment_replay.as_ref().ok_or_else(|| {
+        diagnostics::Diagnostic::error("hosted receiver requires current fragment replay")
+    })?;
+    super::source::function(&replay.0, artifact.entry)
+        .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
+}
+
 pub(crate) fn has_free_unit_entry(
     artifact: &crate::ObjectArtifact,
 ) -> Result<bool, diagnostics::Diagnostic> {

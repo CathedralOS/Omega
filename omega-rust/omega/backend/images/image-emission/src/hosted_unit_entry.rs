@@ -14,6 +14,10 @@ use object_file::{
 
 #[derive(Clone, Copy)]
 pub(super) enum EntryShim {
+    DarwinReceiver {
+        symbol: ObjectSymbolHandle,
+        offset: usize,
+    },
     LinuxScalar(crate::LinuxX86ScalarExitShim),
     DarwinUnit {
         symbol: ObjectSymbolHandle,
@@ -25,14 +29,31 @@ pub(super) enum EntryShim {
     },
 }
 
+pub(super) struct PreparedEntry {
+    pub object: ObjectPlan,
+    pub text: Vec<u8>,
+    pub relocations: object_file::RelocationPlan,
+    pub shim: EntryShim,
+}
+
 pub(super) fn prepare(
     artifact: &crate::ObjectArtifact,
-) -> Result<Option<(ObjectPlan, Vec<u8>, EntryShim)>, Diagnostic> {
+) -> Result<Option<PreparedEntry>, Diagnostic> {
+    if artifact.hosted_receiver_binding().is_some() {
+        return crate::hosted_receiver::prepare(artifact).map(Some);
+    }
     if !crate::function_fragments::replay::has_free_unit_entry(artifact)? {
         return Ok(None);
     }
     if artifact.target == target::NativeTarget::macos_arm64() {
-        return prepare_darwin(artifact).map(Some);
+        return prepare_darwin(artifact).map(|(object, text, shim)| {
+            Some(PreparedEntry {
+                object,
+                text,
+                shim,
+                relocations: artifact.relocations.clone(),
+            })
+        });
     }
     // `NativeTarget` deliberately collapses hosted Windows and UEFI x86-64 into
     // one PE32+ layout. A free Unit entry carries no parameters or entry claims,
@@ -41,7 +62,14 @@ pub(super) fn prepare(
     // EFI image entry maps it to EFI_STATUS. Returning zero is success under
     // either contract; parameterized EFI arrivals are not free Unit entries.
     if artifact.target == target::NativeTarget::windows_x64() {
-        return prepare_windows(artifact).map(Some);
+        return prepare_windows(artifact).map(|(object, text, shim)| {
+            Some(PreparedEntry {
+                object,
+                text,
+                shim,
+                relocations: artifact.relocations.clone(),
+            })
+        });
     }
     Ok(None)
 }
@@ -181,7 +209,7 @@ fn decode_windows(bytes: &[u8], offset: usize) -> Option<usize> {
     .ok()
 }
 
-fn unique_region(
+pub(super) fn unique_region(
     object: &ObjectPlan,
     symbol: ObjectSymbolHandle,
     offset: usize,
@@ -368,7 +396,7 @@ fn pe_entry_points_to(bytes: &[u8], shim_offset: usize, expected_shim: &[u8]) ->
     bytes.get(raw_start..raw_end) == Some(expected_shim)
 }
 
-fn main_points_to(bytes: &[u8], shim_offset: usize) -> bool {
+pub(super) fn main_points_to(bytes: &[u8], shim_offset: usize) -> bool {
     fn word(bytes: &[u8], offset: usize) -> Option<u32> {
         Some(u32::from_le_bytes(
             bytes.get(offset..offset.checked_add(4)?)?.try_into().ok()?,

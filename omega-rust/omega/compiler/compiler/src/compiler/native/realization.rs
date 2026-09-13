@@ -143,7 +143,8 @@ pub(super) fn realize(
         admission.program_entry.source_signature(),
         calling_plans,
         admission.program_entry.fused_service_establishments(),
-    );
+    )
+    .with_checked_entry(&checked_program_entry);
     let _validated_program_entry = native_realization::validate_native_program_entry_settlement(
         &artifact,
         &checked_program_entry,

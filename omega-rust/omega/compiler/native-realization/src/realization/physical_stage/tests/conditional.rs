@@ -215,6 +215,7 @@ fn publish(
     let (published, _scope) = emit_optimized_fragments(
         physical,
         OptimizedFragmentPublicationRequest {
+            hosted_receiver: None,
             boundary_application_coverage: None,
             optimized_plan: &plan,
             terminal: validation.psi(),

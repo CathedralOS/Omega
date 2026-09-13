@@ -14,6 +14,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CanaryCompileProduct {
     Check,
+    NativeArtifact,
     NativeArtifactAndPublish,
 }
 
@@ -45,7 +46,9 @@ fn production_compile(
     let build_dir = options.build_dir();
     let requested_product = match product {
         CanaryCompileProduct::Check => RequestedCompileProduct::Check,
-        CanaryCompileProduct::NativeArtifactAndPublish => RequestedCompileProduct::NativeArtifact,
+        CanaryCompileProduct::NativeArtifact | CanaryCompileProduct::NativeArtifactAndPublish => {
+            RequestedCompileProduct::NativeArtifact
+        }
     };
     let package_inputs = reviewed_repository_fixture_package_inputs(
         &options.root_path,
@@ -71,7 +74,7 @@ fn production_compile(
     let report =
         compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
     match product {
-        CanaryCompileProduct::Check => Ok(report),
+        CanaryCompileProduct::Check | CanaryCompileProduct::NativeArtifact => Ok(report),
         CanaryCompileProduct::NativeArtifactAndPublish => report
             .publish_retained_native_artifact(&build_dir)
             .map_err(|error| vec![diagnostics::Diagnostic::error(error)]),
@@ -86,7 +89,9 @@ fn compile_with_artifact_policy(
     let build_dir = options.build_dir();
     let requested_product = match product {
         CanaryCompileProduct::Check => RequestedCompileProduct::Check,
-        CanaryCompileProduct::NativeArtifactAndPublish => RequestedCompileProduct::NativeArtifact,
+        CanaryCompileProduct::NativeArtifact | CanaryCompileProduct::NativeArtifactAndPublish => {
+            RequestedCompileProduct::NativeArtifact
+        }
     };
     let package_inputs = reviewed_repository_fixture_package_inputs(
         &options.root_path,
@@ -114,7 +119,7 @@ fn compile_with_artifact_policy(
     let report =
         compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
     match product {
-        CanaryCompileProduct::Check => Ok(report),
+        CanaryCompileProduct::Check | CanaryCompileProduct::NativeArtifact => Ok(report),
         CanaryCompileProduct::NativeArtifactAndPublish => report
             .publish_retained_native_artifact(&build_dir)
             .map_err(|error| vec![Diagnostic::error(error)]),
@@ -3072,13 +3077,30 @@ mod console_acceptance;
 #[path = "support/process_exit_acceptance.rs"]
 mod process_exit_acceptance;
 
+#[path = "support/macos_entry_acceptance.rs"]
+mod macos_entry_acceptance;
+
 fn reviewed_repository_fixture_package_inputs(
     root_path: &Path,
     target_name: Option<&str>,
 ) -> Result<Option<PackageCompilationInputs>, Vec<Diagnostic>> {
-    let Some(package_inputs) = repository_fixture_package_inputs(root_path) else {
+    let Some(mut package_inputs) = repository_fixture_package_inputs(root_path) else {
         return Ok(None);
     };
+    let mut bindings = Vec::new();
+    if target_name == Some("macos_arm64") {
+        bindings.push(macos_entry_acceptance::candidate_macos_entry_binding(
+            &repo_root().join("source/library/std"),
+            fixture_package_identity(2),
+        )?);
+        package_inputs = package_inputs
+            .with_accepted_semantic_bindings(bindings.clone())
+            .map_err(|errors| {
+                vec![Diagnostic::error(format!(
+                    "entry fixture acceptance: {errors:?}"
+                ))]
+            })?;
+    }
     let accepts_filesystem = fixture_accepts_filesystem_service(root_path);
     let accepts_console_exit = fixture_accepts_console_exit(root_path);
     let accepts_console_output = fixture_accepts_console_output(root_path);
@@ -3102,7 +3124,6 @@ fn reviewed_repository_fixture_package_inputs(
         package_inputs: Some(package_inputs.clone()),
         ..CheckedCompileRequest::new(root_path, target_name)
     })?;
-    let mut bindings = Vec::new();
     if accepts_filesystem {
         bindings.push(
             preliminary

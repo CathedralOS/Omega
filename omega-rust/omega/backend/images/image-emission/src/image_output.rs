@@ -110,14 +110,26 @@ pub fn emit_executable_image(
         )));
     }
     let prepared_entry = super::hosted_unit_entry::prepare(artifact)?;
-    let (object, text_bytes, entry_shim) = prepared_entry.as_ref().map_or(
-        (&artifact.object, artifact.text_bytes.as_slice(), None),
-        |(object, text, shim)| (object, text.as_slice(), Some(*shim)),
+    let (object, text_bytes, relocations, entry_shim) = prepared_entry.as_ref().map_or(
+        (
+            &artifact.object,
+            artifact.text_bytes.as_slice(),
+            &artifact.relocations,
+            None,
+        ),
+        |prepared| {
+            (
+                &prepared.object,
+                prepared.text.as_slice(),
+                &prepared.relocations,
+                Some(prepared.shim),
+            )
+        },
     );
     let image = image::build_final_image(FinalImageInput {
         target: artifact.target,
         object,
-        relocations: &artifact.relocations,
+        relocations,
         text_bytes,
         data_bytes: artifact.data_bytes(),
     });
@@ -142,7 +154,7 @@ pub fn emit_executable_image(
     let text_validation = validate_terminal_image(
         artifact,
         object,
-        &artifact.relocations,
+        relocations,
         text_bytes,
         entry_shim,
         &output,
@@ -202,14 +214,26 @@ pub fn validate_executable_image(
         ));
     }
     let prepared_entry = super::hosted_unit_entry::prepare(artifact)?;
-    let (object, text_bytes, entry_shim) = prepared_entry.as_ref().map_or(
-        (artifact.object(), artifact.text_bytes(), None),
-        |(object, text, shim)| (object, text.as_slice(), Some(*shim)),
+    let (object, text_bytes, relocations, entry_shim) = prepared_entry.as_ref().map_or(
+        (
+            artifact.object(),
+            artifact.text_bytes(),
+            artifact.relocations(),
+            None,
+        ),
+        |prepared| {
+            (
+                &prepared.object,
+                prepared.text.as_slice(),
+                &prepared.relocations,
+                Some(prepared.shim),
+            )
+        },
     );
     let replayed_final_image = image::build_final_image(FinalImageInput {
         target: artifact.target(),
         object,
-        relocations: artifact.relocations(),
+        relocations,
         text_bytes,
         data_bytes: artifact.data_bytes(),
     });
@@ -221,7 +245,7 @@ pub fn validate_executable_image(
     let recomputed = validate_terminal_image(
         artifact,
         object,
-        artifact.relocations(),
+        relocations,
         text_bytes,
         entry_shim,
         image.output(),

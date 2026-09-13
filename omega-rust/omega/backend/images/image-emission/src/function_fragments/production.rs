@@ -176,6 +176,7 @@ pub fn build_function_fragment_object_artifact(
         }
     }
     let artifact = ObjectArtifact {
+        hosted_receiver: None,
         requires_graph_storage_replay,
         fragment_replay: Some(super::replay::FragmentReplay(Arc::clone(&replay))),
         psi: text.psi,

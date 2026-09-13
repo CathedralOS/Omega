@@ -104,6 +104,8 @@ fn request<'request>(
 fn executable_entry_rejects_lost_source_receiver_projection() {
     let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
     let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
     let artifact = produced.artifact();
     let input =
         super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
@@ -123,8 +125,12 @@ fn executable_entry_rejects_lost_source_receiver_projection() {
     for parameter in &mut entry.structural_parameters {
         parameter.is_self = false;
     }
-    let diagnostics = super::validate_executable_entry_receiver(&plan, &signature)
-        .expect_err("lowering cannot change the source-selected receiver mode");
+    let diagnostics = super::validate_executable_entry_receiver(
+        &plan,
+        artifact,
+        &request(&signature, &profile, &optimizations, &providers),
+    )
+    .expect_err("lowering cannot change the source-selected receiver mode");
     assert!(
         diagnostics
             .iter()

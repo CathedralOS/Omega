@@ -1,6 +1,9 @@
 use super::*;
 use compiler::CheckedCompileRequest;
 
+#[path = "entry_and_abi/hosted_receiver.rs"]
+mod hosted_receiver;
+
 #[path = "../fixture_rosters/entry_and_abi.rs"]
 pub(super) mod fixture_roster;
 

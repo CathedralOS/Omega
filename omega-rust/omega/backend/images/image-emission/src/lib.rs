@@ -23,10 +23,14 @@ mod final_image_validation;
 mod forwarded_dynamic_descriptor;
 mod forwarded_dynamic_parameter;
 mod function_fragments;
+mod hosted_receiver;
 mod hosted_unit_entry;
 pub use function_fragments::{
     FunctionFragmentObjectArtifactError, build_function_fragment_object_artifact,
     validate_function_fragment_object_artifact,
+};
+pub use hosted_receiver::{
+    HostedReceiverBinding, HostedReceiverPartitions, bind_macos_hosted_receiver,
 };
 mod image_output;
 mod installation;
@@ -137,6 +141,7 @@ use terminal_psi::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectArtifact {
+    hosted_receiver: Option<HostedReceiverBinding>,
     /// Primitive storage operations require retained initialization and access
     /// evidence even when no borrowed call exposes their local residence.
     requires_graph_storage_replay: bool,
@@ -168,6 +173,9 @@ pub struct ObjectArtifact {
 }
 
 impl ObjectArtifact {
+    pub const fn hosted_receiver_binding(&self) -> Option<&HostedReceiverBinding> {
+        self.hosted_receiver.as_ref()
+    }
     #[cfg(any(test, feature = "test-support"))]
     pub fn clear_fragment_replay_for_test(&mut self) {
         self.fragment_replay = None;
@@ -3094,6 +3102,7 @@ fn build_object_artifact_with_x86_feature_profile(
     }
 
     Ok(ObjectArtifact {
+        hosted_receiver: None,
         requires_graph_storage_replay: false,
         fragment_replay: None,
         psi: plan.psi,

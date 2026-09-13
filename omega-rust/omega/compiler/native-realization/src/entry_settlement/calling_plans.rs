@@ -10,7 +10,9 @@
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use effects::provider_plan::ServiceMethod;
 use program_entry_plan::{SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan};
-use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
+use provider_planning::calling_policy_plans::{
+    BoundaryCallingPlanRealization, BoundaryValueClass, MaterializedBoundarySignature,
+};
 
 pub(crate) fn validate_paired_calling_plans(
     source: &SelectedProgramEntrySourceSignature,
@@ -83,12 +85,14 @@ pub(crate) fn validate_paired_calling_plans(
         }
         target::ProgramEntrySchema::HostedApplication => {
             source.visible_parameters().is_empty()
+                && semantic_method.parameter_count == 2
                 && semantic_method.parameter_type_identities.len() == 2
                 && semantic_method
                     .parameter_type_identities
                     .iter()
                     .all(|identity| identity == &semantic_method.parameter_type_identities[0])
                 && semantic_shapes == [calling_conventions::ValueShape::integer(16, 8); 2]
+                && has_internal_storage_signature(semantic.materialized_signature())
         }
     };
     if !semantic_source_pairing
@@ -114,6 +118,47 @@ pub(crate) fn validate_paired_calling_plans(
         return Err("selected ProgramEntry physical plan drifted from its target contract".into());
     }
     Ok(())
+}
+
+// ABI-sized scalars cannot substitute for the adapter's internal Extent records.
+// Exact accepted schema/application custody above supplies semantic identity;
+// this independent graph check establishes geometry, not storage authority.
+fn has_internal_storage_signature(signature: &MaterializedBoundarySignature) -> bool {
+    signature.parameters().len() == 2
+        && signature.result().is_none()
+        && signature.parameters().iter().all(|root| {
+            let Some(shape) = signature.shapes().get(usize::from(*root)) else {
+                return false;
+            };
+            let BoundaryValueClass::Record {
+                first_field,
+                field_count: 2,
+            } = shape.class()
+            else {
+                return false;
+            };
+            if shape.byte_size() != 16 || shape.alignment() != 8 {
+                return false;
+            }
+            let Some(fields) = signature
+                .fields()
+                .get(usize::from(first_field)..)
+                .and_then(|fields| fields.get(..2))
+            else {
+                return false;
+            };
+            fields.iter().zip([0, 8]).all(|(field, offset)| {
+                field.byte_offset() == offset
+                    && signature
+                        .shapes()
+                        .get(usize::from(field.shape()))
+                        .is_some_and(|word| {
+                            word.class() == BoundaryValueClass::Integer
+                                && word.byte_size() == 8
+                                && word.alignment() == 8
+                        })
+            })
+        })
 }
 
 fn selected_method<'schema>(

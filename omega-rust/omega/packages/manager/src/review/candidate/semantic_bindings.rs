@@ -260,6 +260,71 @@ pub(super) fn candidate_service_bindings(
     )])
 }
 
+/// A checked dependency can nominate its target entry schema before an
+/// application is checked. The proposal grants no entry authority: the
+/// application's bound compilation must replay the exact package/schema and
+/// calling pair, and the resulting review still requires consumer acceptance.
+pub(super) fn candidate_target_entry_binding(
+    checked: &CheckedCompilation,
+    owner: &PackageKey,
+    target: target::TargetProfile,
+) -> Result<Option<SemanticBindingReviewCandidate>, CompileResolvedPackageReviewsError> {
+    let slot = target.program_entry_slot();
+    let (Some(package), Some(schema_name)) = (slot.physical_contract_package, slot.boundary_schema)
+    else {
+        return Ok(None);
+    };
+    let role = match package {
+        target::ProgramEntryPhysicalContractPackage::UefiX64 => {
+            AcceptedSemanticBindingRole::UefiX64ProgramEntry
+        }
+        target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
+            AcceptedSemanticBindingRole::MacosArm64ProgramEntry
+        }
+    };
+    let mut definitions = checked.traits().iter().filter(|definition| {
+        definition.is_boundary
+            && definition.name.as_str() == schema_name
+            && checked
+                .typed
+                .symbols
+                .symbol_package_identity(definition.symbol)
+                == Some(owner.identity())
+    });
+    let Some(definition) = definitions.next() else {
+        return Ok(None);
+    };
+    if definitions.next().is_some() {
+        return Err(
+            CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
+                consumer: owner.clone(),
+                role,
+                candidate_count: 2,
+            },
+        );
+    }
+    let path = checked.typed.symbols.display_path(definition.symbol, "::");
+    let binding = checked
+        .candidate_service_binding(role, owner.identity(), &path)
+        .map_err(
+            |_| CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                consumer: owner.clone(),
+                role,
+            },
+        )?;
+    let service_schema = provider_planning::service_schema::from_typed(&checked.typed, definition)
+        .ok_or_else(
+            || CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                consumer: owner.clone(),
+                role,
+            },
+        )?;
+    Ok(Some(SemanticBindingReviewCandidate::new(
+        binding,
+        service_schema,
+    )))
+}
+
 fn callable_service_references(
     callable: &CheckedPackageCallableReview,
 ) -> Vec<&PackageReviewNominalIdentity> {

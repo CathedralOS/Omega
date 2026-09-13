@@ -65,6 +65,29 @@ pub fn validate_native_program_entry_settlement(
     if entry_count != 1 {
         return Err(NativeProgramEntrySettlementError::TerminalEntryMultiplicity(entry_count));
     }
+    if let Some(eligibility) = checked_entry.receiver_eligibility() {
+        let entry = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .ok_or(NativeProgramEntrySettlementError::ReceiverEligibilityDrift)?;
+        let mut receivers = entry
+            .structural_parameters
+            .iter()
+            .filter(|parameter| parameter.is_self);
+        let receiver = receivers
+            .next()
+            .ok_or(NativeProgramEntrySettlementError::ReceiverEligibilityDrift)?;
+        if receivers.next().is_some()
+            || program_entry.source.receiver().normalized_type_identity()
+                != Some(eligibility.source_receiver_type_identity())
+            || receiver.place != eligibility.terminal_self()
+            || receiver.structural_type != eligibility.terminal_receiver_type()
+            || entry.attachment != Some(receiver.structural_type)
+        {
+            return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
+        }
+    }
     service_establishment::validate_terminal_rows(&module, program_entry)?;
     Ok(ValidatedNativeProgramEntrySettlement {
         checked_entry: checked_entry.clone(),

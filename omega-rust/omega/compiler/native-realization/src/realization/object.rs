@@ -24,6 +24,7 @@ pub(crate) fn emit_realization_object(
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
+    hosted_receiver: Option<crate::NativeProgramEntrySettlement<'_>>,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
     if !request.callback_thunks.is_empty() || !request.native_callbacks.is_empty() {
@@ -50,6 +51,7 @@ pub(crate) fn emit_realization_object(
         physical.physical,
         OptimizedFragmentPublicationRequest {
             boundary_application_coverage,
+            hosted_receiver,
             optimized_plan: &physical.optimized_plan,
             terminal: physical.terminal,
             validation: physical.validation,

@@ -7,7 +7,9 @@ use super::super::custody::{
     dependency_first_package_order, package_build_root, verify_selected_source_custody,
 };
 use super::super::rows::RetainedReviewRows;
-use super::super::semantic_bindings::candidate_service_bindings;
+use super::super::semantic_bindings::{
+    SemanticBindingReviewCandidate, candidate_service_bindings, candidate_target_entry_binding,
+};
 use super::super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
@@ -42,6 +44,15 @@ pub(super) enum PackageSourcePreparation<'a> {
     Consume(&'a mut [Option<compiler::PreparedCheckedSource>]),
 }
 
+/// Only the preliminary Discover pass may propose an already-checked
+/// dependency's target entry schema. Source checkpoint reuse is independent:
+/// final and Explicit passes consume exactly their supplied bindings.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum TargetEntryDiscovery {
+    Disabled,
+    Dependencies,
+}
+
 pub(super) fn compile_dependency_closure(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_session_root: &Path,
@@ -49,6 +60,7 @@ pub(super) fn compile_dependency_closure(
     evaluation_sponsor: &BuildEvaluationSponsor,
     semantic_bindings_by_consumer: &BTreeMap<PackageKey, Vec<AcceptedSemanticBinding>>,
     retained_root_entry: Option<&Path>,
+    discovery: TargetEntryDiscovery,
     mut source_preparation: PackageSourcePreparation<'_>,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
@@ -58,6 +70,7 @@ pub(super) fn compile_dependency_closure(
     let mut checked_root = None;
     let mut retained_obligation_ledger_total = 0usize;
     let mut retained_policy_canonical_total = 0usize;
+    let mut target_entry_candidates = Vec::<SemanticBindingReviewCandidate>::new();
     for key in dependency_first_package_order(closure) {
         let scope = PackageCompilationScope::new(closure, &key);
         verify_selected_source_custody(&scope, PackageSourceVerificationPhase::BeforeCompilation)?;
@@ -70,13 +83,42 @@ pub(super) fn compile_dependency_closure(
                 errors,
             }
         })?;
+        let mut semantic_bindings = semantic_bindings_by_consumer
+            .get(&key)
+            .cloned()
+            .unwrap_or_default();
+        let mut proposed_entry = None;
+        if discovery == TargetEntryDiscovery::Dependencies
+            && inputs.root_role() == package_compilation::BuildDeclarationKind::Application
+        {
+            let candidates = target_entry_candidates
+                .iter()
+                .filter(|candidate| {
+                    inputs.package_root(candidate.binding().package()).is_some()
+                        && !semantic_bindings
+                            .iter()
+                            .any(|binding| binding.role() == candidate.binding().role())
+                })
+                .collect::<Vec<_>>();
+            match candidates.as_slice() {
+                [] => {}
+                [candidate] => {
+                    semantic_bindings.push(candidate.binding().clone());
+                    proposed_entry = Some((*candidate).clone());
+                }
+                _ => {
+                    return Err(
+                        CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
+                            consumer: key.clone(),
+                            role: candidates[0].binding().role(),
+                            candidate_count: candidates.len(),
+                        },
+                    );
+                }
+            }
+        }
         let inputs = inputs
-            .with_accepted_semantic_bindings(
-                semantic_bindings_by_consumer
-                    .get(&key)
-                    .cloned()
-                    .unwrap_or_default(),
-            )
+            .with_accepted_semantic_bindings(semantic_bindings)
             .map_err(
                 |errors| CompileResolvedPackageReviewsError::CompilationInputs {
                     package: key.clone(),
@@ -265,7 +307,16 @@ pub(super) fn compile_dependency_closure(
                 },
             )?;
         retained_policy_canonical_total = policy_total;
-        let semantic_binding_candidates = candidate_service_bindings(&checked, &projection, &key)?;
+        let mut semantic_binding_candidates =
+            candidate_service_bindings(&checked, &projection, &key)?;
+        semantic_binding_candidates.extend(proposed_entry);
+        if discovery == TargetEntryDiscovery::Dependencies {
+            target_entry_candidates.extend(candidate_target_entry_binding(
+                &checked,
+                &key,
+                target_closure.target_profile(),
+            )?);
+        }
         let canonical_review_bytes = projection.canonical_review_bytes().map_err(|error| {
             CompileResolvedPackageReviewsError::Encoding {
                 package: key.clone(),
