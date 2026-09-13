@@ -10,7 +10,7 @@ pub(super) fn plain_type(module: &TerminalModule, root: StructuralTypeId) -> boo
 /// Local construction can relocate checked reference carriers. Keep this
 /// separate from plain payload classification: plain calls and returns do not
 /// thereby acquire recursive reference transfer semantics.
-fn constructible_type(module: &TerminalModule, root: StructuralTypeId) -> bool {
+pub(super) fn constructible_type(module: &TerminalModule, root: StructuralTypeId) -> bool {
     record_type(module, root, true)
 }
 

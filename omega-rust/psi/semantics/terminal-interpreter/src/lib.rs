@@ -1501,7 +1501,7 @@ impl TerminalExecution {
             .zip(&callee.structural_parameters)
             .any(|(argument, parameter)| {
                 !argument.path.is_empty()
-                    && !(argument.path == [StructuralPathSegment::Referent]
+                    && !(argument.path.last() == Some(&StructuralPathSegment::Referent)
                         && argument.access != StructuralAccess::Owned
                         && parameter.access == argument.access
                         && prepared_arguments

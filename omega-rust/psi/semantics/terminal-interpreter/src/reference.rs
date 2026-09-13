@@ -213,56 +213,83 @@ impl TerminalExecution {
         signature: &StructuralResultDeclaration,
         carrier: &TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
-        if !matches!(
-            self.structural_types
-                .get(&signature.structural_type)
-                .map(|declaration| &declaration.shape),
-            Some(StructuralTypeShape::Reference { .. })
-        ) {
-            return if signature.reference_sources.is_empty() {
-                Ok(())
-            } else {
+        if signature.reference_sources.is_empty() {
+            return if matches!(
+                self.structural_types
+                    .get(&signature.structural_type)
+                    .map(|declaration| &declaration.shape),
+                Some(StructuralTypeShape::Reference { .. })
+            ) {
                 Err(TerminalInterpretError::VerifiedOperationMalformed)
+            } else {
+                Ok(())
             };
         }
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let referent_type = self.mutable_primitive_referent(signature.structural_type)?;
         if self.call_stack.is_empty() {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "host reference results require an explicit loan carrier interface",
             ));
         }
-        let [origin] = signature.reference_sources.as_slice() else {
+        if !carrier.path.is_empty()
+            || self
+                .reference_referents
+                .keys()
+                .filter(|key| {
+                    key.opaque_identity == carrier.opaque_identity
+                        && key.path.starts_with(&carrier.path)
+                })
+                .count()
+                != signature.reference_sources.len()
+        {
             return Err(invalid());
-        };
+        }
         let machine = self
             .machines
             .get(&self.current_machine)
             .ok_or_else(invalid)?;
-        let parameter = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| {
-                parameter.place == origin.source.place
-                    && parameter.structural_type == referent_type
-                    && parameter.access == StructuralAccess::MutableBorrow
-            })
-            .ok_or_else(invalid)?;
-        let expected = self
-            .structural_values
-            .get(&parameter.place)
-            .ok_or_else(invalid)?;
-        let actual = self
-            .reference_referents
-            .get(&StructuralRuntimePlace::from(carrier))
-            .ok_or_else(invalid)?;
-        if !origin.path.is_empty()
-            || !origin.source.path.is_empty()
-            || origin.source.access != StructuralAccess::MutableBorrow
-            || !carrier.path.is_empty()
-            || expected != actual
-        {
-            return Err(invalid());
+        // The verifier reconstructs the complete typed result roster. Runtime
+        // preflight compares each captured backing against the callee's actual
+        // bound formal before the return charge. The ordinary return then moves
+        // this same owner identity; its descriptor subtree is never discarded.
+        for (ordinal, origin) in signature.reference_sources.iter().enumerate() {
+            if signature.reference_sources[..ordinal]
+                .iter()
+                .any(|previous| previous.path == origin.path)
+                || origin
+                    .path
+                    .iter()
+                    .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+                || !origin.source.path.is_empty()
+                || origin.source.access != StructuralAccess::MutableBorrow
+            {
+                return Err(invalid());
+            }
+            let leaf_type = resolve_structural_path_type(
+                &self.structural_types,
+                signature.structural_type,
+                &origin.path,
+            )?;
+            let referent_type = self.mutable_primitive_referent(leaf_type)?;
+            let parameter = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| {
+                    parameter.place == origin.source.place
+                        && parameter.structural_type == referent_type
+                        && parameter.access == StructuralAccess::MutableBorrow
+                })
+                .ok_or_else(invalid)?;
+            let expected = self
+                .structural_values
+                .get(&parameter.place)
+                .ok_or_else(invalid)?;
+            let mut key = StructuralRuntimePlace::from(carrier);
+            key.path.extend_from_slice(&origin.path);
+            let actual = self.reference_referents.get(&key).ok_or_else(invalid)?;
+            if expected != actual {
+                return Err(invalid());
+            }
         }
         Ok(())
     }
