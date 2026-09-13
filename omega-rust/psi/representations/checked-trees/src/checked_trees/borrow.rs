@@ -86,12 +86,18 @@ pub enum BorrowCompatibilitySelectorPosition {
 
 /// Value retained by the checked structural selector tactic.
 ///
-/// An exact folded integer may enter this vocabulary. Mutable names and
-/// unresolved computed values never do.
+/// An exact folded integer or exact symbolic constant offset may enter this
+/// vocabulary. Mutable names and unresolved computed values never do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BorrowCompatibilitySelectorValue {
     Integer(i64),
     Symbol(SymbolHandle),
+    /// `symbol + offset` under Exact arithmetic. `offset` is never zero; a
+    /// zero offset is the plain `Symbol` row.
+    SymbolOffset {
+        symbol: SymbolHandle,
+        offset: i64,
+    },
 }
 
 /// One formation-frozen normalized selector value.

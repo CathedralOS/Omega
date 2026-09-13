@@ -463,6 +463,8 @@ Automatic non-interference retains zero-premise structural certificates with
 formation coordinates, state-owned loan identities, frozen places, normalized
 conclusions, and ordered selector snapshots. Replay normalizes the original
 typed expression and reconstructs spatial relations and access compatibility.
+Selector snapshots retain shared immutable-symbol boundaries with constant
+offsets, ordered as mathematical integers only under Exact arithmetic.
 This precursor does not implement general proof-premise admission or portable
 compatibility evidence.
 
