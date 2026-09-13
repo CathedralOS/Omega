@@ -350,10 +350,14 @@ fn ordered_scalar_targets_retain_exact_signatures_across_candidate_order() {
              let result: u8 = leaf(value);
              let row: [u8; 2] = [7u8, 9u8];
              answer(row, result)
+         }
+         machine unit_caller(value: u8) {
+             let result: u8 = leaf(value);
          }",
     );
     let leaf = machine_symbol(&checked, "leaf");
     let middle = machine_symbol(&checked, "middle");
+    let unit_caller = machine_symbol(&checked, "unit_caller");
     assert!(
         checked
             .facts
@@ -362,12 +366,20 @@ fn ordered_scalar_targets_retain_exact_signatures_across_candidate_order() {
             .for_machine(leaf)
             .is_none()
     );
-    let caller = checked
+    checked
         .facts
         .flow
         .terminal_unit_effects
         .for_machine(middle)
         .expect("scalar caller survives pruning with its real ordered callee");
+    // The scalar-returning caller now owns its initializer as a computation.
+    // Exercise direct-result availability through the Unit result owner too.
+    let caller = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(unit_caller)
+        .expect("Unit caller retains its direct result operation");
     let operation = caller.operations.iter().find(|operation| matches!(operation,
         CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } if *target_machine == leaf
     )).expect("ordinary scalar call to the operation body");

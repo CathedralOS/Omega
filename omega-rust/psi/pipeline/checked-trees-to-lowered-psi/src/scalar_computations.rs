@@ -14,6 +14,7 @@ use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
 pub(crate) mod arrays;
 mod calls;
+pub(super) use calls::lower_inline_call;
 pub(crate) mod cases;
 pub(crate) mod comparisons;
 mod dispatch;

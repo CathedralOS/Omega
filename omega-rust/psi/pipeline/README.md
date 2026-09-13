@@ -204,10 +204,23 @@ The checked customer is `cargo run -p omega -- --check
 tests/omega/pass/generics/declared_range_endpoint_inference/main.omg` (use `mbx`
 instead of Cargo when available). The `canary_suite` test
 `generics_and_dependent_facts::declared_range_inference_returns_the_selected_endpoint`
-executes its inferred calls through the compile-time evaluator. Terminal/native
-execution remains separate: `lower_machine` on the literal `inferred` caller fails
-scalar graph lowering's requirement for exactly one `requires` and one `ensures`
-clause.
+executes its inferred calls through the compile-time evaluator. Terminal
+execution is checked separately: the same test decodes canonical Terminal bytes
+and executes each endpoint case with fresh scalar inputs. Local scalar calls
+without an outer result-operation owner use the shared computation plan even
+when their arguments are pure; operand purity cannot exclude them from ordinary
+state-local sequencing.
+
+The same fixture has an authored hosted entry and `build.omg`. Its
+`generics_and_dependent_facts::declared_range_inference_hosted_entry_reaches_receiver_provisioning`
+canary produces Terminal for `Main::main`, then verifies that native publication
+retains the `ProgramEntry receiver provisioning failed` rejection. Native
+execution still depends on `ENTRY-CONTENT-ROOTS`: the real physical bridge must
+construct and lend the receiver, not receive a test-supplied `self`. Once that
+bridge exists, compile the unchanged fixture for the matching hosted target and
+require exit 70 (the branch confirming `inferred(0) == 256`), not exit 71. A raw
+CLI invocation also needs the ordinary local-package review; the canary uses
+the repository's reviewed-fixture harness, not a package-admission bypass.
 
 Closed integer endpoints share typed trees' `type_system/closed_numeric.rs`
 through validation's `closed_integer_range_bound` and
