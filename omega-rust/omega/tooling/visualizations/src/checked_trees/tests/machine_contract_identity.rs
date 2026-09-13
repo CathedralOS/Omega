@@ -134,6 +134,10 @@ fn machine_contract_manifest_keeps_interface_and_witness_separate() {
         &mut program.facts.service_reaches.root_machines,
         MachineServiceReachRows {
             machine: symbol,
+            dependency: flow_effects::ServiceReachDependency {
+                concrete: language_semantics::ServiceReachRowTable::EMPTY_ROW,
+                parameters: Default::default(),
+            },
             interface: language_semantics::ServiceReachInterface::PublishedCeiling(service_row),
             published_ceiling: service_row,
             inferred_direct: service_row,
