@@ -63,16 +63,20 @@ pub(super) fn eliminate(
         }
     }
     // Block parameters survive removal only in machines without ranking
-    // evidence that are not bound by `StructuralCase` payload positions.
-    // Entry blocks declare no parameters and crash continuations declare
-    // only empty parameter tables, so neither needs special handling.
+    // evidence, outside `StructuralCase` payload targets, and with at least
+    // one inventoried incoming edge. Entry blocks declare no parameters and
+    // crash continuations declare only empty parameter tables, so neither
+    // needs special handling.
     let mut parameter_owner: BTreeMap<ValueId, (BlockId, usize)> = BTreeMap::new();
     let mut parameter_eligible = BTreeSet::new();
     for block in &machine.blocks {
         for (position, parameter) in block.parameters.iter().enumerate() {
             parameter_owner.insert(parameter.id, (block.id, position));
         }
-        if machine.ranked_scc.is_none() && !structural_case_targets.contains(&block.id) {
+        if machine.ranked_scc.is_none()
+            && !structural_case_targets.contains(&block.id)
+            && incoming_arguments.contains_key(&block.id)
+        {
             parameter_eligible.insert(block.id);
         } else {
             pending.extend(block.parameters.iter().map(|parameter| parameter.id));
@@ -511,6 +515,74 @@ mod tests {
                 .map(|parameter| parameter.id)
                 .collect::<Vec<_>>(),
             vec![ValueId::new(20).unwrap()]
+        );
+    }
+
+    #[test]
+    fn block_without_inventoried_incoming_edges_keeps_its_parameters() {
+        use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, ScalarType};
+        use terminal_psi::{Block, MachineContract, TerminalMachineResult, ValueDeclaration};
+
+        let declaration = |ordinal: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: ValueId::new(ordinal).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        };
+        let mut machine = TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: MachineId::new(1).unwrap(),
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(1).unwrap(),
+            blocks: vec![
+                Block {
+                    structural_parameters: Vec::new(),
+                    id: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: EdgeId::new(1).unwrap(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    structural_parameters: Vec::new(),
+                    id: BlockId::new(2).unwrap(),
+                    parameters: vec![declaration(20)],
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: EdgeId::new(2).unwrap(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ],
+            contract: MachineContract {
+                id: ContractId::new(1).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        };
+        eliminate(&mut machine, &[], &[]);
+        assert_eq!(
+            machine.blocks[1]
+                .parameters
+                .iter()
+                .map(|parameter| parameter.id)
+                .collect::<Vec<_>>(),
+            vec![ValueId::new(20).unwrap()],
+            "a parameterized block no inventoried edge reaches stays live"
         );
     }
 
