@@ -274,3 +274,175 @@ fn dead_scalar_elimination_keeps_the_transitive_returned_value_chain() {
     .unwrap();
     assert_eq!(optimized.lowered(), &lowered);
 }
+
+fn dead_block_parameter_fixture() -> LoweredPsi {
+    let checked = checked_source(
+        "data Main { value: i32; }\n\
+         machine Main::compute(a: i32, b: i32) -> i32 {\n\
+             let unused: bool = a < b;\n\
+             let dead_const: i32 = 7;\n\
+             transition {\n\
+                 a == b -> (1)\n\
+                 _ -> (2)\n\
+             }\n\
+         }\n\
+         machine Main::main(&mut self) {\n\
+             self.value = Main::compute(1, 2);\n\
+         }\n",
+    );
+    lower_machine(&checked, "Main::compute").expect("transition source lowers")
+}
+
+#[test]
+fn selected_dead_scalar_elimination_removes_unused_block_parameters_and_edge_arguments() {
+    let lowered = dead_block_parameter_fixture();
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::DeadPureScalarElimination]).unwrap(),
+    )
+    .expect("selected elimination executes");
+    let before = &lowered.semantic_module;
+    let after = &optimized.lowered().semantic_module;
+    terminal_verifier::validate_dead_scalar_elimination(before, after)
+        .expect("the independent check accepts the rewrite");
+    let machine = &after.machines[0];
+    for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+        assert!(
+            !matches!(operation.kind, OperationKind::IntegerLessThan { .. }),
+            "the dead comparison is removed"
+        );
+        assert!(
+            !matches!(
+                operation.kind,
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Signed(7)
+                }
+            ),
+            "the dead constant is removed"
+        );
+    }
+    let conditional = machine
+        .blocks
+        .iter()
+        .find(|block| matches!(block.terminator, Terminator::Conditional { .. }))
+        .expect("the equality dispatch survives");
+    let Terminator::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = &conditional.terminator
+    else {
+        unreachable!()
+    };
+    assert!(
+        conditional.operations.iter().any(|operation| matches!(
+            operation.kind,
+            OperationKind::IntegerEqual { .. }
+        ) && operation
+            .result
+            .scalar()
+            .is_some_and(|result| result.id == *condition)),
+        "the conditional still reads its IntegerEqual condition"
+    );
+    let old_machine = &before.machines[0];
+    for edge in [when_true, when_false] {
+        let old_block = old_machine
+            .blocks
+            .iter()
+            .find(|block| block.id == edge.target)
+            .unwrap();
+        let new_block = machine
+            .blocks
+            .iter()
+            .find(|block| block.id == edge.target)
+            .unwrap();
+        // The forwarded `unused` and `dead_const` bindings die, and the
+        // forwarded `a`/`b` copies die transitively through the merge block.
+        assert_eq!(new_block.parameters.len() + 4, old_block.parameters.len());
+        assert_eq!(edge.arguments.len(), new_block.parameters.len());
+        let old_edge_arguments = old_machine
+            .blocks
+            .iter()
+            .find_map(|block| match &block.terminator {
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => [when_true, when_false]
+                    .into_iter()
+                    .find(|successor| successor.edge == edge.edge)
+                    .map(|successor| successor.arguments.clone()),
+                _ => None,
+            })
+            .expect("the same edge exists before the rewrite");
+        assert_eq!(edge.arguments.len() + 4, old_edge_arguments.len());
+    }
+    let old_parameters: usize = old_machine
+        .blocks
+        .iter()
+        .map(|block| block.parameters.len())
+        .sum();
+    let new_parameters: usize = machine
+        .blocks
+        .iter()
+        .map(|block| block.parameters.len())
+        .sum();
+    assert!(
+        new_parameters < old_parameters,
+        "dead block parameters are removed module-wide"
+    );
+}
+
+#[test]
+fn dead_scalar_check_rejects_mismatched_parameter_and_edge_argument_removal() {
+    let before = dead_block_parameter_fixture().semantic_module;
+    let machine = &before.machines[0];
+    // The merge block declares five parameters and is reached by two jumps.
+    let merge = machine
+        .blocks
+        .iter()
+        .find(|block| matches!(block.terminator, Terminator::Return { .. }))
+        .expect("merge block");
+    // Removing an unused parameter while dropping a different argument
+    // position keeps arity and scalar types consistent (both neighbors are
+    // i32), so the independent check itself must reject the misaligned edge.
+    let mut after = before.clone();
+    after.machines[0]
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == merge.id)
+        .unwrap()
+        .parameters
+        .remove(0);
+    for block in &mut after.machines[0].blocks {
+        if let Terminator::Jump {
+            target, arguments, ..
+        } = &mut block.terminator
+            && *target == merge.id
+        {
+            arguments.remove(1);
+        }
+    }
+    let result = terminal_verifier::validate_dead_scalar_elimination(&before, &after);
+    assert!(
+        matches!(
+            result,
+            Err(terminal_verifier::DeadScalarRewriteError::ChangedEdgeArguments(_))
+        ),
+        "expected ChangedEdgeArguments, observed {result:?}"
+    );
+    // Declaring a surviving parameter with a different declaration is also
+    // rejected even when every edge stays aligned.
+    let mut after = before.clone();
+    let retained = after.machines[0]
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == merge.id)
+        .unwrap();
+    retained.parameters[0].scalar_type = ScalarType::Boolean;
+    let result = terminal_verifier::validate_dead_scalar_elimination(&before, &after);
+    assert!(
+        result.is_err(),
+        "a mutated surviving parameter declaration must reject: {result:?}"
+    );
+}

@@ -1,7 +1,9 @@
 //! Backward scalar demand through current operation results and control edges.
+//! Block parameters are demand sites, not uses: an edge argument is live only
+//! when the parameter it feeds is live.
 
-use semantic_vocabulary::ValueId;
-use std::collections::BTreeSet;
+use semantic_vocabulary::{BlockId, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{OperationKind as O, TerminalMachine, Terminator};
 
 pub(super) fn eliminate(
@@ -24,25 +26,56 @@ pub(super) fn eliminate(
             return;
         }
     }
+    let mut incoming_arguments: BTreeMap<BlockId, Vec<Vec<ValueId>>> = BTreeMap::new();
+    let mut structural_case_targets = BTreeSet::new();
     for block in &machine.blocks {
         match &block.terminator {
-            Terminator::Jump { arguments, .. } => pending.extend(arguments),
+            Terminator::Jump {
+                target, arguments, ..
+            } => {
+                incoming_arguments
+                    .entry(*target)
+                    .or_default()
+                    .push(arguments.clone());
+            }
             Terminator::Conditional {
                 condition,
                 when_true,
                 when_false,
             } => {
                 pending.push(*condition);
-                pending.extend(&when_true.arguments);
-                pending.extend(&when_false.arguments);
+                for edge in [when_true, when_false] {
+                    incoming_arguments
+                        .entry(edge.target)
+                        .or_default()
+                        .push(edge.arguments.clone());
+                }
             }
             Terminator::Return { value, .. } => pending.push(*value),
             Terminator::Crash { .. } => return, // Retain exact guard-term inputs.
+            Terminator::StructuralCase { cases, .. } => {
+                structural_case_targets.extend(cases.iter().map(|case| case.target));
+            }
             Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }
             | Terminator::ReturnUnitNominalAffine { .. }
-            | Terminator::ReturnStructural { .. }
-            | Terminator::StructuralCase { .. } => {}
+            | Terminator::ReturnStructural { .. } => {}
+        }
+    }
+    // Block parameters survive removal only in machines without ranking
+    // evidence that are not bound by `StructuralCase` payload positions.
+    // Entry blocks declare no parameters and crash continuations declare
+    // only empty parameter tables, so neither needs special handling.
+    let mut parameter_owner: BTreeMap<ValueId, (BlockId, usize)> = BTreeMap::new();
+    let mut parameter_eligible = BTreeSet::new();
+    for block in &machine.blocks {
+        for (position, parameter) in block.parameters.iter().enumerate() {
+            parameter_owner.insert(parameter.id, (block.id, position));
+        }
+        if machine.ranked_scc.is_none() && !structural_case_targets.contains(&block.id) {
+            parameter_eligible.insert(block.id);
+        } else {
+            pending.extend(block.parameters.iter().map(|parameter| parameter.id));
         }
     }
     for occurrence in source_calls {
@@ -68,11 +101,19 @@ pub(super) fn eliminate(
                 .result
                 .scalar()
                 .is_some_and(|result| result.id == value)
-        }) && !inputs(&producer.kind, &mut pending)
+        }) {
+            if !inputs(&producer.kind, &mut pending) {
+                return;
+            }
+        } else if let Some(&(block, position)) = parameter_owner.get(&value)
+            && let Some(edges) = incoming_arguments.get(&block)
         {
-            return;
+            for arguments in edges {
+                pending.push(arguments[position]);
+            }
         }
     }
+    let mut removed_positions: BTreeMap<BlockId, Vec<usize>> = BTreeMap::new();
     for block in &mut machine.blocks {
         block.operations.retain(|operation| {
             !terminal_semantics::is_unconditionally_total_scalar(&operation.kind)
@@ -81,7 +122,51 @@ pub(super) fn eliminate(
                     .scalar()
                     .is_none_or(|result| live.contains(&result.id))
         });
+        if parameter_eligible.contains(&block.id) {
+            let removed = block
+                .parameters
+                .iter()
+                .enumerate()
+                .filter_map(|(position, parameter)| {
+                    (!live.contains(&parameter.id)).then_some(position)
+                })
+                .collect::<Vec<_>>();
+            if !removed.is_empty() {
+                removed_positions.insert(block.id, removed);
+            }
+            block
+                .parameters
+                .retain(|parameter| live.contains(&parameter.id));
+        }
     }
+    for block in &mut machine.blocks {
+        match &mut block.terminator {
+            Terminator::Jump {
+                target, arguments, ..
+            } => drop_removed(arguments, removed_positions.get(target)),
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for edge in [when_true, when_false] {
+                    drop_removed(&mut edge.arguments, removed_positions.get(&edge.target));
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Drop the listed old positions from one edge's scalar arguments.
+fn drop_removed(arguments: &mut Vec<ValueId>, removed: Option<&Vec<usize>>) {
+    let Some(removed) = removed else { return };
+    let mut position = 0;
+    arguments.retain(|_| {
+        let retained = !removed.contains(&position);
+        position += 1;
+        retained
+    });
 }
 
 /// False means the operand inventory is indirect and the machine is retained.
@@ -331,6 +416,102 @@ mod tests {
                 O::EstablishScalarArray { elements }
             );
         }
+    }
+
+    #[test]
+    fn returned_block_parameter_survives_while_an_unused_one_drops_its_argument() {
+        use semantic_vocabulary::{
+            BlockId, ContractId, EdgeId, MachineId, OperationId, ScalarType,
+        };
+        use terminal_psi::{
+            Block, MachineContract, Operation, OperationResult, TerminalMachineResult,
+            ValueDeclaration,
+        };
+
+        let declaration = |ordinal: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: ValueId::new(ordinal).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        };
+        let operations = [10, 11]
+            .map(|ordinal| Operation {
+                static_reach_binding: None,
+                id: OperationId::new(ordinal).unwrap(),
+                result: OperationResult::Scalar(declaration(ordinal)),
+                kind: O::BooleanConstant { value: true },
+            })
+            .to_vec();
+        let target = BlockId::new(2).unwrap();
+        let mut machine = TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: MachineId::new(1).unwrap(),
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Scalar(declaration(3)),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(1).unwrap(),
+            blocks: vec![
+                Block {
+                    structural_parameters: Vec::new(),
+                    id: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    operations,
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1).unwrap(),
+                        target,
+                        arguments: vec![ValueId::new(10).unwrap(), ValueId::new(11).unwrap()],
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    structural_parameters: Vec::new(),
+                    id: target,
+                    parameters: vec![declaration(20), declaration(21)],
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(2).unwrap(),
+                        value: ValueId::new(20).unwrap(),
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+            ],
+            contract: MachineContract {
+                id: ContractId::new(1).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        };
+        eliminate(&mut machine, &[], &[]);
+        let entry = &machine.blocks[0];
+        assert_eq!(entry.operations.len(), 1);
+        assert_eq!(
+            entry.operations[0].result.scalar().unwrap().id,
+            ValueId::new(10).unwrap()
+        );
+        let Terminator::Jump { arguments, .. } = &entry.terminator else {
+            panic!("entry terminator remains a jump");
+        };
+        assert_eq!(arguments, &[ValueId::new(10).unwrap()]);
+        assert_eq!(
+            machine.blocks[1]
+                .parameters
+                .iter()
+                .map(|parameter| parameter.id)
+                .collect::<Vec<_>>(),
+            vec![ValueId::new(20).unwrap()]
+        );
     }
 
     #[test]
