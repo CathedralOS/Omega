@@ -60,13 +60,10 @@ impl SourceStorage {
     }
 
     /// Register one exact source path as closed toolchain contract custody.
-    /// A hosted entry contract is target-owned definition seeded by the
-    /// compiler, never an authored package dependency: the file keeps the
-    /// package root it physically sits under so `package_relative_source`
-    /// still strips to the contract's canonical relative path, while its
-    /// identity and origin are toolchain regardless of the containing
-    /// package. Ordinary imports of the same path load first and therefore
-    /// keep their own package custody.
+    /// Used only for the bundled hosted-entry fallback. The file keeps its
+    /// contract root so `package_relative_source` retains the canonical path.
+    /// A reconciled supplier must not be registered here: doing so would erase
+    /// its ordinary package identity and defeat accepted-binding replay.
     pub fn register_toolchain_contract_root(&mut self, path: PathBuf, contract_root: PathBuf) {
         self.toolchain_contract_roots.insert(
             normalize_directory(path),

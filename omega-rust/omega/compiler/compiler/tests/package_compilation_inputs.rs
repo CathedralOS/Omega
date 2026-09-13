@@ -5813,6 +5813,51 @@ machine Boot::launch(
 }
 
 #[test]
+fn standalone_macos_entry_loads_exact_authored_contract_without_an_import() {
+    let tree = TempTree::new();
+    let root = tree.package("standalone-macos-entry");
+    TempTree::write(
+        root.join("main.omg"),
+        "data Main {}\nmachine Main::main() {}\n",
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.application(\"standalone-macos-entry\"); builder.roots.bind(macos_arm64::ProgramEntry, Main::main); }\n",
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &root.join("main.omg"),
+        Some("macos_arm64"),
+    ))
+    .expect("standalone target selection loads the exact bundled contract");
+    let plans = checked
+        .selected_program_entry()
+        .and_then(|entry| entry.calling_plans())
+        .expect("standalone entry retains both calling applications");
+    plans
+        .semantic_calling_application
+        .replayed_validated_application()
+        .expect("standalone semantic application replays");
+    plans
+        .physical_calling_application
+        .replayed_validated_application()
+        .expect("standalone physical application replays");
+    let physical = plans
+        .storage_entry
+        .physical_contract()
+        .expect("physical contract");
+    assert!(physical.matches_exact_macos_arm64_physical_contract());
+    assert!(physical.guaranteed_entry_stack().is_none());
+    let contract_source = checked
+        .typed
+        .symbols
+        .source_files()
+        .find(|source| source.path.ends_with("targets/macos_arm64/entry.omg"))
+        .expect("bundled entry contract source is retained");
+    assert_eq!(contract_source.origin, source::SourceOrigin::Toolchain);
+    assert_eq!(contract_source.package_identity, None);
+}
+
+#[test]
 fn accepted_package_macos_binding_selects_exact_ordinary_schema() {
     let tree = TempTree::new();
     let root = tree.package("macos-application");
@@ -5903,7 +5948,7 @@ machine Boot::launch(&mut self) {
     let diagnostics = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(
             base_inputs()
-                .with_accepted_semantic_bindings(vec![stale])
+                .with_accepted_semantic_bindings(vec![stale.clone()])
                 .expect("stale binding still names a package in the closure"),
         ),
         ..CheckedCompileRequest::new(&root.join("main.omg"), Some("macos_arm64"))
@@ -5951,6 +5996,86 @@ machine Boot::launch(&mut self) {
     assert_eq!(
         macos_source.package_identity,
         Some(standard_library_package),
+    );
+
+    // Selecting the entry without an authored import must retain the same
+    // ordinary supplier custody, not relabel that file as toolchain source.
+    let source =
+        std::fs::read_to_string(root.join("main.omg")).expect("read explicit-import fixture");
+    let source = source
+        .strip_prefix("use ordinary_std::targets::macos_arm64::entry;\n")
+        .expect("fixture begins with the exact contract import being removed");
+    TempTree::write(root.join("main.omg"), source);
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(base_inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("macos_arm64"))
+    })
+    .expect_err("auto-seeded ordinary contract still requires exact consumer acceptance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("accepted package-owned macOS ARM64 binding")),
+        "unexpected auto-seeded missing-binding diagnostics: {diagnostics:#?}",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![stale])
+                .expect("stale binding still names the exact supplier"),
+        ),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("macos_arm64"))
+    })
+    .expect_err("auto-seeding cannot repair a stale accepted schema");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not match the exact accepted")),
+        "unexpected auto-seeded stale-binding diagnostics: {diagnostics:#?}",
+    );
+    let seeded = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![binding.clone()])
+                .expect("exact accepted ordinary supplier"),
+        ),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("macos_arm64"))
+    })
+    .expect("auto-seeded ordinary contract settles with exact consumer acceptance");
+    assert_eq!(
+        seeded
+            .resolved_semantic_binding(AcceptedSemanticBindingRole::MacosArm64ProgramEntry)
+            .expect("auto-seeded entry consumes the accepted binding")
+            .accepted(),
+        &binding,
+    );
+    let plans = seeded
+        .selected_program_entry()
+        .and_then(|entry| entry.calling_plans())
+        .expect("auto-seeded entry retains both calling applications");
+    plans
+        .semantic_calling_application
+        .replayed_validated_application()
+        .expect("semantic application independently replays");
+    plans
+        .physical_calling_application
+        .replayed_validated_application()
+        .expect("physical application independently replays");
+    let seeded_contract = plans
+        .storage_entry
+        .physical_contract()
+        .expect("auto-seeded entry retains exact physical contract");
+    assert!(seeded_contract.matches_exact_macos_arm64_physical_contract());
+    assert_eq!(seeded_contract, physical_contract);
+    let seeded_source = seeded
+        .typed
+        .symbols
+        .source_files()
+        .find(|source| source.path.ends_with("targets/macos_arm64/entry.omg"))
+        .expect("auto-seeded ordinary contract source is retained");
+    assert_eq!(seeded_source.origin, source::SourceOrigin::User);
+    assert_eq!(
+        seeded_source.package_identity,
+        Some(standard_library_package)
     );
 }
 
