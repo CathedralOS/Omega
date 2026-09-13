@@ -1318,6 +1318,26 @@ Owners include
   FINITE-GENERIC-DISPATCH below. The initial runtime-binder slice does not depend
   on completing that dynamic-interface work or general reflection.
 
+  Resume evidence (8c0d4dbb45, Linux x86-64, debug `omega --check` on a
+  std-free probe): `machine Main::prefix_count<Count: u32>(&self, base: u32)
+  -> u32 { Count }` rejects in the parser with "expected `satisfies`, found
+  punctuation `>`", because `tokens-to-syntax-trees/src/parser/data.rs`
+  reads `<Name: X ...>` only as the `T: Subject satisfies Carrier`
+  conformance-binder form; the same program under `<const Count: u32>` with a
+  static `<3>` argument compiles. Every representation carries one value-binder
+  kind, `TypeParameterKind::Const { type_reference }` (syntax, symbol-resolved
+  and typed trees), and conformance, callable-shape and review-evidence
+  signature comparisons key on that variant, so a parser-only spelling that
+  reuses `Const` would silently strengthen the public binder to `const`.
+  Next acceptance: add the runtime-capable staging to the value-binder kind in
+  all three representations and their identity/snapshot readers (about 55
+  Rust files match `TypeParameterKind::Const {` without `..`), parse
+  `<Count: u32>` into it, route static arguments through the existing const
+  specialization, and reject a runtime argument with a diagnostic naming the
+  missing dynamic realization; pin `tests/omega/pass/generics/` and
+  `tests/omega/fail/generics/` fixtures for both. The one-body dynamic
+  realization follows that representation landing.
+
 - **STRUCTURAL-GENERIC-MATCHING.** Implement
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
   [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference),
