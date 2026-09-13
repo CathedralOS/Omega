@@ -75,6 +75,12 @@ fn terminal_summary(
             declaration.id.get(),
             declaration.identity,
             match &declaration.shape {
+                terminal_psi::StructuralTypeShape::Reference { referent, access } => {
+                    format!(
+                        "reference(referent=type:{},access={access:?})",
+                        referent.get()
+                    )
+                }
                 terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                     format!("primitive_scalar({scalar_type:?})")
                 }
