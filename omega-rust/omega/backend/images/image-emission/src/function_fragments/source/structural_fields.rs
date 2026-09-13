@@ -16,17 +16,19 @@ pub(super) fn retained(
     operation: &AbstractOperation,
     target: &TargetFunction,
 ) -> bool {
-    let (identity, result, place, field) = match operation {
+    let (identity, result, place, path, field) = match operation {
         AbstractOperation::IntegerStructuralField {
             psi_operation,
             result,
             source,
+            path,
             field,
-        } => (*psi_operation, *result, *source, *field),
+        } => (*psi_operation, *result, *source, path, *field),
         AbstractOperation::BooleanStructuralField {
             psi_operation,
             result,
             source,
+            path,
             field,
         } => (
             *psi_operation,
@@ -35,17 +37,48 @@ pub(super) fn retained(
                 scalar_type: ScalarType::Boolean,
             },
             *source,
+            path,
             *field,
         ),
         _ => return false,
     };
-    let Some(access) = read_access(function, target, place) else {
+    let Some((access, mut carrier)) = read_access(function, target, place) else {
         return false;
     };
+    let mut runtime_path = Vec::with_capacity(path.len());
+    for segment in path {
+        let semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) = segment else {
+            return false;
+        };
+        let Some(declaration) = target
+            .graph
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == carrier)
+        else {
+            return false;
+        };
+        let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return false;
+        };
+        let Some(selected) = fields
+            .iter()
+            .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())
+        else {
+            return false;
+        };
+        let terminal_psi::StructuralFieldType::Structural(child) = selected.field_type else {
+            return false;
+        };
+        runtime_path.push(terminal_psi::StructuralPathSegment::Field(
+            selected.identity.clone(),
+        ));
+        carrier = child;
+    }
     let expected_source = StructuralArgument {
         place,
         access,
-        path: Vec::new(),
+        path: runtime_path,
     };
     let mut reads = target
         .graph
@@ -72,7 +105,10 @@ fn read_access(
     function: &AbstractFunction,
     target: &TargetFunction,
     place: semantic_vocabulary::PlaceId,
-) -> Option<terminal_psi::StructuralAccess> {
+) -> Option<(
+    terminal_psi::StructuralAccess,
+    semantic_vocabulary::StructuralTypeId,
+)> {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
     let mut access = None;
     for (position, parameter) in function
@@ -97,7 +133,9 @@ fn read_access(
             || retained.access != parameter.access
             || retained.multiplicity != parameter.multiplicity
             || retained.projected_qualifications != parameter.projected_qualifications
-            || access.replace(parameter.access).is_some()
+            || access
+                .replace((parameter.access, parameter.structural_type))
+                .is_some()
         {
             return None;
         }
@@ -119,7 +157,9 @@ fn read_access(
                             .iter()
                             .any(|retained| retained == parameter)
                 })
-                || access.replace(parameter.access).is_some()
+                || access
+                    .replace((parameter.access, parameter.structural_type))
+                    .is_some()
             {
                 return None;
             }
@@ -162,7 +202,9 @@ fn read_access(
                             actual == producer && declaration == result
                         })
                 })
-            || access.replace(StructuralAccess::Owned).is_some()
+            || access
+                .replace((StructuralAccess::Owned, result.structural_type))
+                .is_some()
         {
             return None;
         }

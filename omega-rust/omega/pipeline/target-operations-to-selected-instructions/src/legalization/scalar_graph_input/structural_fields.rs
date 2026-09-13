@@ -10,17 +10,19 @@ pub(in crate::legalization) fn read(
     terminal_psi::StructuralArgument,
     semantic_vocabulary::StructuralFieldId,
 )> {
-    let (operation, result, place, field) = match operation {
+    let (operation, result, place, path, field) = match operation {
         AbstractOperation::IntegerStructuralField {
             psi_operation,
             result,
             source,
+            path,
             field,
-        } => (*psi_operation, *result, *source, *field),
+        } => (*psi_operation, *result, *source, path, *field),
         AbstractOperation::BooleanStructuralField {
             psi_operation,
             result,
             source,
+            path,
             field,
         } => (
             *psi_operation,
@@ -29,6 +31,7 @@ pub(in crate::legalization) fn read(
                 scalar_type: ScalarType::Boolean,
             },
             *source,
+            path,
             *field,
         ),
         _ => return None,
@@ -80,13 +83,38 @@ pub(in crate::legalization) fn read(
             terminal_psi::StructuralAccess::Owned,
         )
     };
+    let mut carrier = structural_type;
+    let mut runtime_path = Vec::with_capacity(path.len());
+    for segment in path {
+        let semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) = segment else {
+            return None;
+        };
+        let terminal_psi::StructuralTypeShape::Record { fields } = &types
+            .iter()
+            .find(|declaration| declaration.id == carrier)?
+            .shape
+        else {
+            return None;
+        };
+        let selected = fields
+            .iter()
+            .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
+        let terminal_psi::StructuralFieldType::Structural(child) = selected.field_type else {
+            return None;
+        };
+        runtime_path.push(terminal_psi::StructuralPathSegment::Field(
+            selected.identity.clone(),
+        ));
+        carrier = child;
+    }
     let source = terminal_psi::StructuralArgument {
         place,
         access,
-        path: Vec::new(),
+        path: runtime_path,
     };
     crate::structural_reference_input::field_read(
         structural_type,
+        &source.path,
         field,
         result.scalar_type,
         types,

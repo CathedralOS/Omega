@@ -39,16 +39,7 @@ pub(super) fn lower(
             source,
             path,
             field,
-        } => {
-            // Abstract reads cannot retain the carrier path yet. Never reduce
-            // a nested observation to a same-numbered field on its root.
-            if !path.is_empty() {
-                return Err(LoweringError::UnsupportedNestedStructuralFieldRead(
-                    operation.id,
-                ));
-            }
-            lower_integer_read(operation, machine, structural_types, *source, *field)
-        }
+        } => lower_integer_read(operation, machine, structural_types, *source, path, *field),
         _ => unreachable!("structural scalar-field router is exhaustive"),
     }
 }
@@ -101,13 +92,17 @@ fn lower_integer_read(
     machine: &TerminalMachine,
     structural_types: &[StructuralTypeDeclaration],
     source: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     field: StructuralFieldId,
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidIntegerStructuralField(operation.id);
     let structural_type = readable_source_type(machine, source).ok_or_else(invalid)?;
+    let carrier =
+        terminal_semantics::record_field_carrier(structural_types.iter(), structural_type, path)
+            .ok_or_else(invalid)?;
     let result = operation.result.scalar().ok_or_else(invalid)?;
     if !matches!(result.scalar_type, ScalarType::Integer(_))
-        || direct_relevant_scalar_field(structural_types, structural_type, field)
+        || direct_relevant_scalar_field(structural_types, carrier.structural_type, field)
             != Some(result.scalar_type)
     {
         return Err(invalid());
@@ -119,6 +114,7 @@ fn lower_integer_read(
             scalar_type: result.scalar_type,
         },
         source,
+        path: path.to_vec(),
         field,
     })
 }

@@ -1507,6 +1507,111 @@ pub(super) fn ordinary_projected_call_is_supported(
 
     let caller_source_parameters = program.state_parameters(caller_state);
     let target_source_parameters = program.state_parameters(target_state);
+    let target_parameters = target_source_parameters
+        .iter()
+        .filter(|parameter| {
+            !(parameter.is_self && is_reference(program, parameter.type_reference))
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .collect::<Vec<_>>();
+    if target_parameters.len() != arguments.len() {
+        return false;
+    }
+    let has_content_evidence = |machine, state| {
+        facts
+            .qualifications
+            .content
+            .identity_reshuffles
+            .iter()
+            .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
+            || facts
+                .qualifications
+                .content
+                .partition_compositions
+                .iter()
+                .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
+    };
+    if has_content_evidence(caller_machine.symbol, caller_state.symbol)
+        || has_content_evidence(target_machine.symbol, target_state.symbol)
+        || arguments
+            .iter()
+            .zip(&target_parameters)
+            .any(|(argument, parameter)| {
+                !argument.path.is_empty()
+                    && target_contract_mentions_projected_parameter(
+                        program,
+                        facts,
+                        target_machine,
+                        target_state,
+                        parameter,
+                    )
+            })
+    {
+        return false;
+    }
+
+    // Argument construction has already rejoined each canonical place, exact
+    // referent type, and authored loan. Borrowed projections compose per
+    // argument; neither the number of sibling loans nor the caller's state
+    // count grants or removes access to those places.
+    if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+        && arguments
+            .iter()
+            .zip(&target_parameters)
+            .all(|(argument, target)| {
+                if argument.path.is_empty() {
+                    return true;
+                }
+                let Some(source) = argument
+                    .source_parameter_index()
+                    .and_then(|index| caller_parameters.get(index as usize))
+                else {
+                    return false;
+                };
+                if !source.qualifications.is_empty()
+                    || target.is_self
+                    || caller_source_parameters
+                        .get(source.position as usize)
+                        .is_none()
+                    || structural_access_for_type_reference(program, target.type_reference)
+                        != Some(argument.access)
+                {
+                    return false;
+                }
+                let field_path = checked_nonempty_field_path(&argument.path);
+                let indexed_fields = checked_literal_index_path(&argument.path);
+                match argument.access {
+                    CheckedStructuralAccess::SharedBorrow => {
+                        source.multiplicity == Multiplicity::Unrestricted
+                            && crate::checks::type_multiplicity(program, target.type_reference)
+                                == Multiplicity::Unrestricted
+                            && (field_path
+                                || indexed_fields.is_some_and(|fields| {
+                                    !fields.is_empty() && argument.path.len() == fields.len() + 1
+                                }))
+                    }
+                    CheckedStructuralAccess::MutableBorrow => {
+                        source.access == CheckedStructuralAccess::MutableBorrow
+                            && ((source.multiplicity == Multiplicity::Unrestricted && field_path)
+                                || ((field_path
+                                    || indexed_fields.is_some_and(|fields| !fields.is_empty()))
+                                    && byte_sequence_carrier(program, target.type_reference, &[])
+                                        == Some(
+                                            checked_trees::CheckedByteSequenceCarrier::BorrowedView,
+                                        )))
+                    }
+                    CheckedStructuralAccess::WriteOnlyBorrow => {
+                        source.access == CheckedStructuralAccess::WriteOnlyBorrow
+                            && (field_path || indexed_fields.is_some())
+                    }
+                    CheckedStructuralAccess::Owned => false,
+                }
+            })
+    {
+        return true;
+    }
     if arguments.len() != 1 {
         return false;
     }
@@ -1554,123 +1659,17 @@ pub(super) fn ordinary_projected_call_is_supported(
     let literal_index_fields = checked_literal_index_path(&arguments[0].path);
     let literal_index_path = literal_index_fields.is_some();
     let literal_indexed_field_path = literal_index_fields.is_some_and(|fields| !fields.is_empty());
-    let write_only_subloan_path = (field_path || literal_index_path)
-        && !result_projection
-        && caller_parameter
-            .is_some_and(|parameter| parameter.access == CheckedStructuralAccess::WriteOnlyBorrow)
-        && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
-    let shared_subloan_path = (field_path
-        || literal_index_fields.is_some_and(|fields| {
-            !fields.is_empty() && arguments[0].path.len() == fields.len() + 1
-        }))
-        && !result_projection
-        && caller_parameter
-            .is_some_and(|parameter| parameter.multiplicity == Multiplicity::Unrestricted)
-        && arguments[0].access == CheckedStructuralAccess::SharedBorrow;
-    let mutable_byte_subloan_path = (field_path || literal_indexed_field_path)
-        && !result_projection
-        && caller_parameter.is_some_and(|parameter| {
-            parameter.access == CheckedStructuralAccess::MutableBorrow
-                && parameter.qualifications.is_empty()
-        })
-        && arguments[0].access == CheckedStructuralAccess::MutableBorrow
-        && target_source_parameters
-            .iter()
-            .filter(|parameter| {
-                program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-            })
-            .all(|parameter| {
-                structural_access_for_type_reference(program, parameter.type_reference)
-                    == Some(CheckedStructuralAccess::MutableBorrow)
-                    && byte_sequence_carrier(program, parameter.type_reference, &[])
-                        == Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
-            });
-    if caller_source_parameters.len() != 1
-        && !write_only_subloan_path
-        && !mutable_byte_subloan_path
-        && !result_projection
-    {
+    if caller_source_parameters.len() != 1 && !result_projection {
         return false;
     }
-    if field_path
-        && !allow_field_path_projection
-        && !write_only_subloan_path
-        && !shared_subloan_path
-        && !mutable_byte_subloan_path
-    {
+    if field_path && !allow_field_path_projection {
         return false;
     }
-    if literal_indexed_field_path
-        && !write_only_subloan_path
-        && !shared_subloan_path
-        && !owned_affine_projection
-        && !mutable_byte_subloan_path
-    {
+    if literal_indexed_field_path && !owned_affine_projection {
         return false;
     }
     if !field_path && !literal_index_path && !owned_affine_projection {
         return false;
-    }
-
-    let has_content_evidence = |machine, state| {
-        facts
-            .qualifications
-            .content
-            .identity_reshuffles
-            .iter()
-            .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
-            || facts
-                .qualifications
-                .content
-                .partition_compositions
-                .iter()
-                .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
-    };
-    if has_content_evidence(caller_machine.symbol, caller_state.symbol)
-        || has_content_evidence(target_machine.symbol, target_state.symbol)
-    {
-        return false;
-    }
-
-    let target_parameters = target_source_parameters
-        .iter()
-        .filter(|parameter| {
-            !(parameter.is_self && is_reference(program, parameter.type_reference))
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .collect::<Vec<_>>();
-    if target_parameters.len() != arguments.len() {
-        return false;
-    }
-
-    if target_contract_mentions_projected_parameter(
-        program,
-        facts,
-        target_machine,
-        target_state,
-        target_parameters[0],
-    ) {
-        return false;
-    }
-
-    if write_only_subloan_path || shared_subloan_path || mutable_byte_subloan_path {
-        let [target_parameter] = target_parameters.as_slice() else {
-            return false;
-        };
-        return target_machine.supply_mode == MachineSupplyMode::CheckedBody
-            && !target_parameter.is_self
-            && structural_access_for_type_reference(program, target_parameter.type_reference)
-                == Some(arguments[0].access)
-            && (!shared_subloan_path
-                || crate::checks::type_multiplicity(program, target_parameter.type_reference)
-                    == Multiplicity::Unrestricted)
-            && (mutable_byte_subloan_path || program.machine_states(caller_machine).len() == 1)
-            && (mutable_byte_subloan_path || program.machine_states(target_machine).len() == 1)
-            && caller_parameters[0].qualifications.is_empty();
     }
 
     if field_path || owned_affine_projection {
@@ -2349,15 +2348,27 @@ pub(super) fn structural_call_arguments(
                     || (target_machine.supply_mode == MachineSupplyMode::CheckedBody
                         && caller_parameters.get(source_index)?.multiplicity
                             == Multiplicity::Unrestricted
-                        && structural_access_for_type_reference(
+                        && match structural_access_for_type_reference(
                             program,
                             target.type_reference,
-                        )? == CheckedStructuralAccess::SharedBorrow
-                        && (segments.iter().all(|segment| {
-                            matches!(segment, facts::PlaceSegment::Field { .. })
-                        }) || place_literal_index_path(segments).is_some_and(|fields| {
-                            !fields.is_empty() && segments.len() == fields.len() + 1
-                        })))
+                        )? {
+                            CheckedStructuralAccess::SharedBorrow => {
+                                segments.iter().all(|segment| {
+                                    matches!(segment, facts::PlaceSegment::Field { .. })
+                                }) || place_literal_index_path(segments).is_some_and(|fields| {
+                                    !fields.is_empty() && segments.len() == fields.len() + 1
+                                })
+                            }
+                            CheckedStructuralAccess::MutableBorrow => {
+                                caller_parameters.get(source_index)?.access
+                                    == CheckedStructuralAccess::MutableBorrow
+                                    && segments.iter().all(|segment| {
+                                        matches!(segment, facts::PlaceSegment::Field { .. })
+                                    })
+                            }
+                            CheckedStructuralAccess::Owned
+                            | CheckedStructuralAccess::WriteOnlyBorrow => false,
+                        })
                     || (target_machine.supply_mode == MachineSupplyMode::CheckedBody
                         && caller_parameters.get(source_index)?.access
                             == CheckedStructuralAccess::WriteOnlyBorrow

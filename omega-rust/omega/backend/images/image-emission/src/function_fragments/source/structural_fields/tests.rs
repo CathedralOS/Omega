@@ -41,12 +41,14 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
         ScalarType::Boolean => AbstractOperation::BooleanStructuralField {
             psi_operation,
             result: result.value,
+            path: Vec::new(),
             source: parameter.place,
             field,
         },
         ScalarType::Integer(_) => AbstractOperation::IntegerStructuralField {
             psi_operation,
             result,
+            path: Vec::new(),
             source: parameter.place,
             field,
         },
@@ -134,6 +136,80 @@ fn field_types() -> [ScalarType; 3] {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
         ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 16).unwrap()),
     ]
+}
+
+#[test]
+fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
+    for scalar in field_types() {
+        let (mut function, mut target) = field_fixture(scalar);
+        let carrier_field = StructuralFieldId::new(1).unwrap();
+        let child = StructuralTypeId::new(2).unwrap();
+        match &mut function.operations[0] {
+            AbstractOperation::BooleanStructuralField { path, .. }
+            | AbstractOperation::IntegerStructuralField { path, .. } => path.push(
+                semantic_vocabulary::CanonicalStructuralPathSegment::Field(carrier_field),
+            ),
+            _ => unreachable!(),
+        }
+        target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
+            id: function.structural_parameters[0].structural_type,
+            identity: "Root".into(),
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: carrier_field,
+                    identity: "child".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Structural(child),
+                }],
+            },
+        }]
+        .into();
+        target
+            .graph
+            .structural_types
+            .make_mut()
+            .push(terminal_psi::StructuralTypeDeclaration {
+                id: child,
+                identity: "Child".into(),
+                shape: terminal_psi::StructuralTypeShape::Record {
+                    fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        id: carrier_field,
+                        identity: "value".into(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
+                    }],
+                },
+            });
+        let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
+            &mut target.graph.blocks[0].operations[0]
+        else {
+            unreachable!()
+        };
+        source
+            .path
+            .push(StructuralPathSegment::Field("child".into()));
+        assert!(retained(&function, &function.operations[0], &target));
+        for path in [
+            Vec::new(),
+            vec![StructuralPathSegment::Field("other".into())],
+        ] {
+            let mut changed = target.clone();
+            let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
+                &mut changed.graph.blocks[0].operations[0]
+            else {
+                unreachable!()
+            };
+            source.path = path;
+            assert!(!retained(&function, &function.operations[0], &changed));
+        }
+        let terminal_psi::StructuralTypeShape::Record { fields } =
+            &mut target.graph.structural_types.make_mut()[0].shape
+        else {
+            unreachable!()
+        };
+        fields[0].relevance = terminal_psi::BindingRelevance::Erased;
+        assert!(!retained(&function, &function.operations[0], &target));
+    }
 }
 
 fn owned_field_fixture(

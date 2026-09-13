@@ -1136,15 +1136,16 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
             if !matches!(scalar_type, ScalarType::Integer(_)) {
                 return unsupported("runtime scalar field observation requires an integer field");
             }
-            let (source, field) = crate::psi_lowering::scalar_bindings::structural_fields::resolve(
-                structural_fields,
-                *parameter_position,
-                path,
-                scalar_type,
-            )?;
+            let (source, path, field) =
+                crate::psi_lowering::scalar_bindings::structural_fields::resolve(
+                    structural_fields,
+                    *parameter_position,
+                    path,
+                    scalar_type,
+                )?;
             Ok(LoweredDirectExpression::StructuralField {
                 source,
-                path: Vec::new(),
+                path,
                 field,
                 scalar_type,
             })
@@ -1407,7 +1408,7 @@ fn lower_checked_boolean_expression_with_parameters(
             path,
         } => {
             if !structural_fields.is_empty() {
-                let (source, field) =
+                let (source, path, field) =
                     crate::psi_lowering::scalar_bindings::structural_fields::resolve(
                         structural_fields,
                         *parameter_position,
@@ -1416,7 +1417,7 @@ fn lower_checked_boolean_expression_with_parameters(
                     )?;
                 return Ok(LoweredBooleanReturnExpression::StructuralField {
                     source,
-                    path: Vec::new(),
+                    path,
                     field,
                 });
             }

@@ -18,7 +18,7 @@ impl Drop for HostedProject {
     }
 }
 
-fn compile_and_run_hosted_receiver(explicit_exit: bool, bound_service: bool) {
+fn compile_and_run_hosted_receiver(explicit_exit: bool, bound_service: bool, copy_fields: bool) {
     let directory = unique_no_output_build_dir();
     fs::create_dir(&directory).expect("create exclusively owned hosted-entry project");
     let project = HostedProject(directory);
@@ -49,15 +49,31 @@ fn compile_and_run_hosted_receiver(explicit_exit: bool, bound_service: bool) {
     } else {
         "Console"
     };
+    let extra_fields = if copy_fields {
+        "source: Counter; destination: Counter;"
+    } else {
+        ""
+    };
+    let initialization = if copy_fields {
+        "self.source.value = 65; copy_counter(&self.source, &mut self.destination); self.value = self.destination.value;"
+    } else {
+        "self.value = 65;"
+    };
     fs::write(
         project.0.join("main.omg"),
         format!(
             r#"use omega_language_std::console;
 use omega::language::core::service;
 
+data Counter {{ value: i32; }}
+machine copy_counter(source: &Counter, destination: &mut Counter) {{
+    destination.value = source.value;
+}}
+
 data Main {{
     value: i32;
     bytes: [u8; 256];
+    {extra_fields}
     console: {console_type};
 }}
 
@@ -67,7 +83,7 @@ machine Main::main(&mut self) reaches Console {{
         false -> failed()
     }}
     state initialized(&mut self) {{
-        self.value = 65;
+        {initialization}
         transition self.value == 65 {{
             true -> observed()
             false -> failed()
@@ -114,7 +130,7 @@ machine Main::main(&mut self) reaches Console {{
         .expect("retain exact provisioned receiver");
     assert_eq!(
         receiver.receiver_byte_count(),
-        260,
+        if copy_fields { 268 } else { 260 },
         "scalar and fixed array both occupy the image-backed receiver"
     );
     if !explicit_exit {
@@ -201,15 +217,20 @@ fn assert_hosted_binding_replay_rejects_corruption(report: &CompileReport) {
 
 #[test]
 fn hosted_receiver_normal_return_provisions_zii_storage_and_fused_console() {
-    compile_and_run_hosted_receiver(false, true);
+    compile_and_run_hosted_receiver(false, true, false);
 }
 
 #[test]
 fn hosted_receiver_explicit_process_exit_preserves_its_distinct_outcome() {
-    compile_and_run_hosted_receiver(true, true);
+    compile_and_run_hosted_receiver(true, true, false);
 }
 
 #[test]
 fn hosted_receiver_rejects_bare_interface_without_bound_establishment() {
-    compile_and_run_hosted_receiver(false, false);
+    compile_and_run_hosted_receiver(false, false, false);
+}
+
+#[test]
+fn hosted_receiver_observes_copy_between_disjoint_borrowed_records() {
+    compile_and_run_hosted_receiver(false, true, true);
 }

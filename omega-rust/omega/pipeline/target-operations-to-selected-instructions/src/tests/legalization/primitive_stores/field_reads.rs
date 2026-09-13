@@ -7,15 +7,20 @@ mod indirect_inputs;
 
 #[test]
 fn field_observations_replay_parameter_field_offset_and_result() {
-    field_observations(StructuralAccess::SharedBorrow);
+    field_observations(StructuralAccess::SharedBorrow, false);
 }
 
 #[test]
 fn owned_field_observations_replay_value_abi_home_and_exact_initialization() {
-    field_observations(StructuralAccess::Owned);
+    field_observations(StructuralAccess::Owned, false);
 }
 
-fn field_observations(access: StructuralAccess) {
+#[test]
+fn nested_field_observations_replay_declaration_local_ids_and_original_root() {
+    field_observations(StructuralAccess::SharedBorrow, true);
+}
+
+fn field_observations(access: StructuralAccess, nested: bool) {
     for scalar in [
         integer(IntegerSign::Signed, 8),
         integer(IntegerSign::Unsigned, 64),
@@ -39,6 +44,35 @@ fn field_observations(access: StructuralAccess) {
                     })
                     .to_vec(),
             };
+            let path = if nested {
+                let mut child = declaration.clone();
+                child.id = StructuralTypeId::new(99).unwrap();
+                child.identity = "NestedReadCarrier".into();
+                declaration.shape = StructuralTypeShape::Record {
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: "padding".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(scalar),
+                        },
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(2).unwrap(),
+                            identity: "nested".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(child.id),
+                        },
+                    ],
+                };
+                let mut types = source.structural_types.to_vec();
+                types.push(child);
+                source.structural_types = types.into();
+                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                    StructuralFieldId::new(2).unwrap(),
+                )]
+            } else {
+                Vec::new()
+            };
             let function = &mut source.functions[0];
             function.parameters.clear();
             function.structural_parameters[0].access = access;
@@ -51,6 +85,7 @@ fn field_observations(access: StructuralAccess) {
                     AbstractOperation::BooleanStructuralField {
                         psi_operation,
                         result,
+                        path: path.clone(),
                         source: parameter.place,
                         field,
                     }
@@ -61,6 +96,7 @@ fn field_observations(access: StructuralAccess) {
                             value: result,
                             scalar_type: scalar,
                         },
+                        path: path.clone(),
                         source: parameter.place,
                         field,
                     }
@@ -236,7 +272,7 @@ fn field_observations(access: StructuralAccess) {
                 )
                 .is_err()
             );
-            for mutation in ["field", "access", "source", "result"] {
+            for mutation in ["field", "access", "source", "result", "path"] {
                 let mut changed = target.clone();
                 let TargetUnitOperation::StructuralScalarFieldRead {
                     field,
@@ -252,6 +288,17 @@ fn field_observations(access: StructuralAccess) {
                     "access" => argument.access = StructuralAccess::MutableBorrow,
                     "source" => argument.place = PlaceId::new(99).unwrap(),
                     "result" => result.value = ValueId::new(1).unwrap(),
+                    "path" => {
+                        if nested {
+                            argument.path.clear();
+                        } else {
+                            argument
+                                .path
+                                .push(terminal_psi::StructuralPathSegment::Field(
+                                    "invented".into(),
+                                ));
+                        }
+                    }
                     _ => unreachable!(),
                 }
                 assert!(

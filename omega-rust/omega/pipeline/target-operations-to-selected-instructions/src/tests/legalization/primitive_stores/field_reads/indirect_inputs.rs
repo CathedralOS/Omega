@@ -48,6 +48,7 @@ fn input(
                 scalar_type: scalar,
             },
             source: place,
+            path: Vec::new(),
             field: StructuralFieldId::new(3).unwrap(),
         },
         AbstractOperation::Return {

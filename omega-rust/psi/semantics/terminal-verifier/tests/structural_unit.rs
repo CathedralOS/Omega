@@ -37,6 +37,9 @@ mod result_residuals;
 #[path = "structural_unit/write_only_attenuation.rs"]
 mod write_only_attenuation;
 
+#[path = "structural_unit/disjoint_borrowed_projections.rs"]
+mod disjoint_borrowed_projections;
+
 #[path = "structural_unit/boundary_buffers.rs"]
 mod boundary_buffers;
 

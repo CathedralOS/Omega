@@ -320,15 +320,18 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: ValueId,
         source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
     },
-    /// Read one exact relevant integer field of the retained structural root.
+    /// Read one exact relevant integer field below the retained structural root.
+    /// The canonical carrier path excludes the final declaration-local field.
     /// Source custody is reconstructed from the parameter/result/block catalog;
     /// the observation retains its own value identity and integer type.
     IntegerStructuralField {
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
     },
     BooleanNot {

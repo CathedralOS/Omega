@@ -497,6 +497,7 @@ pub(crate) fn explicit_local_same_block_use_before_definition_unit() -> PsiOptim
     observation.operation = AbstractOperation::BooleanStructuralField {
         psi_operation: id(4_642, OperationId::new),
         result: id(4_643, ValueId::new),
+        path: Vec::new(),
         source: local,
         field: id(4_644, semantic_vocabulary::StructuralFieldId::new),
     };

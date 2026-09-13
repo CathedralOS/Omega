@@ -294,10 +294,22 @@ fn build_structural_field_store_at(
     }) {
         return Some(CheckedUnitEffectOperationPlan::ByteSequenceWrite(write));
     }
-    let [destination] = structural_parameters else {
-        return None;
-    };
-    if destination.position != 0
+    let source_parameters = program.state_parameters(state);
+    let target_place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        usize::try_from(statement_index).ok()?,
+        assignment.target,
+    )?;
+    // The assignment selects its destination; unrelated borrowed inputs do not
+    // change that root's authority or require it to occupy position zero.
+    let mut destinations = structural_parameters.iter().filter_map(|destination| {
+        let parameter = source_parameters.get(destination.position as usize)?;
+        (target_place.root == facts::PlaceRoot::Symbol(parameter.symbol))
+            .then_some((destination, parameter))
+    });
+    let (destination, parameter) = destinations.next()?;
+    if destinations.next().is_some()
         || destination.multiplicity == Multiplicity::Linear
         || !matches!(
             destination.access,
@@ -307,9 +319,7 @@ fn build_structural_field_store_at(
     {
         return None;
     }
-    let source_parameters = program.state_parameters(state);
-    let parameter = source_parameters.first()?;
-    if source_parameters.len() != scalar_parameters.len() + 1
+    if source_parameters.len() != scalar_parameters.len() + structural_parameters.len()
         || parameter.is_self != destination.is_self
         || parameter.is_const
         || !parameter.is_mutable

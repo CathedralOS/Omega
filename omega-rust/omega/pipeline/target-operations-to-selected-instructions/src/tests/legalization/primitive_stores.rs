@@ -25,6 +25,106 @@ mod field_reads;
 mod locals;
 mod scalar_returns;
 
+#[test]
+fn multiple_record_inputs_keep_exact_field_store_destination_through_replay() {
+    let scalar = integer(IntegerSign::Signed, 32);
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let (mut source, _, _) = fixture(native, scalar, true);
+        let field = StructuralFieldId::new(1).unwrap();
+        source.structural_types.make_mut()[0].shape = StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: field,
+                identity: "value".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(scalar),
+            }],
+        };
+        let mut other = source.functions[0].structural_parameters[0].clone();
+        other.place = PlaceId::new(2).unwrap();
+        other.position = 1;
+        // A second independently writable record is a valid store destination
+        // in isolation, but cannot replace this occurrence's selected target.
+        other.access = StructuralAccess::MutableBorrow;
+        source.functions[0]
+            .structural_parameters
+            .push(other.clone());
+        let store = source.functions[0]
+            .operations
+            .iter_mut()
+            .find(|operation| {
+                matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
+            })
+            .unwrap();
+        let AbstractOperation::WriteOnlyPrimitiveStore {
+            psi_operation,
+            destination,
+            value,
+        } = store
+        else {
+            unreachable!()
+        };
+        *store = AbstractOperation::StructuralScalarFieldStore {
+            psi_operation: *psi_operation,
+            destination: destination.clone(),
+            value: *value,
+            path: Vec::new(),
+            field,
+        };
+        let target =
+            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
+                .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let legalized = legalize_target_operations(&target, &source, &unit)
+            .unwrap()
+            .plan()
+            .clone();
+        validate_legalized_operations(&target, &source, &unit, legalized.clone()).unwrap();
+        let mut changed = target.clone();
+        let store = changed.functions[0].graph.blocks[0]
+            .operations
+            .iter_mut()
+            .find_map(|operation| {
+                if let TargetUnitOperation::StructuralScalarFieldStore { destination, .. } =
+                    operation
+                {
+                    Some(destination)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        *store = other.clone();
+        reject_target(&source, &changed, &unit, &legalized);
+        let mut changed = legalized;
+        let store = changed.scalar_functions[0].blocks[0]
+            .instructions
+            .iter_mut()
+            .find_map(|row| {
+                if let LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+                    destination,
+                    ..
+                } = &mut row.kind
+                {
+                    Some(destination)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        *store = other;
+        assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());
+    }
+}
+
 fn integer(sign: IntegerSign, bits: u16) -> ScalarType {
     ScalarType::Integer(IntegerType::new(sign, bits).unwrap())
 }

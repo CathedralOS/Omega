@@ -77,6 +77,7 @@ pub(crate) fn boolean_structural_field_unit() -> PsiOptimizationUnit {
                         AbstractOperation::BooleanStructuralField {
                             psi_operation: id(4_707, OperationId::new),
                             result,
+                            path: Vec::new(),
                             source: place,
                             field,
                         },
@@ -208,6 +209,7 @@ pub(crate) fn direct_realization_integer_structural_field_unit() -> PsiOptimizat
             value: result,
             scalar_type: integer,
         },
+        path: Vec::new(),
         source: source.place,
         field,
     };

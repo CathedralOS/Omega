@@ -242,12 +242,20 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   operands, result and completion custody. Preserve the canonical Bound Console,
   both writes and original 256-byte input buffer when closing the remaining routes.
 
-  Fixed primitive-array receiver storage now has checked eligibility and image
-  replay; the hosted canary provisions 260 bytes and executes its existing scalar
-  mutation and completion checks. This does not establish indexed operations:
-  a valid variation branching on `self.bytes[255] == 0`, then assigning the byte
-  in a successor state, loses the checked Main body/attachment before Terminal
-  production. **STATE-LOCAL-VALUE-FRONTIER** owns that operation/control join.
+  Fixed primitive-array receiver storage has checked eligibility and image
+  replay, but direct indexed operations need primitive projection vocabulary.
+  At `95458524da` on macOS ARM64, the hosted receiver variation branching on
+  `self.bytes[255] == 0`, storing 65 in a successor state and rereading it
+  rejects with zero Terminal attachment identities. Checked indexed expressions
+  exist, but `scalar_graph_lowering.rs` admits only whole byte-view parameters;
+  raw array elements have no scalar field ID. **STATE-LOCAL-VALUE-FRONTIER**
+  owns canonical paths on primitive reads/stores, with independent fixed-index
+  bounds, access and ownership checks through Terminal, interpreter and native
+  replay. Storage-version facts must distinguish elements or invalidate the
+  whole root conservatively. Coordinate with the current proof-reconstruction
+  owner before changing those shared consumers; do not relax record-field reads
+  or invent a field ID for an element. Acceptance includes native caller-visible
+  mutation, nested fixed-array paths, out-of-bounds and write-only-read rejection.
   Keep this limitation distinct from the original sample's passing native route;
   neither test-owned acceptance nor the storage canary closes the real CLI route.
 

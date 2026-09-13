@@ -121,9 +121,6 @@ pub(super) fn read_geometry(
             if !signature.entry_claims.is_empty() {
                 return None;
             }
-            if !argument.path.is_empty() {
-                return None;
-            }
             let structural_type = if let Some(parameter) = signature
                 .parameters
                 .iter()
@@ -182,6 +179,7 @@ pub(super) fn read_geometry(
             };
             let (offset, _) = crate::structural_reference_input::field_read(
                 structural_type,
+                &argument.path,
                 *field,
                 scalar,
                 &signature.structural_types,

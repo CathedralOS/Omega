@@ -285,13 +285,15 @@ fn indexed_write_only_record_receivers_reject_alias_overlap() {
     call_arguments(&mut module).push(argument);
     assert_eq!(
         validate_module(&module).unwrap_err(),
-        ModuleError::ProjectedUnitCallOutsideBoundedSlice {
+        ModuleError::OverlappingExclusiveStructuralArguments {
             operation: operation_id(1),
+            first_argument: 0,
+            second_argument: 1,
         }
     );
 
-    // Scalar calls already admit multiple structural arguments, so they reach
-    // the common overlap check after exact path, type, and access validation.
+    // Scalar calls reach the same overlap check after exact path, type, and
+    // access validation.
     give_receiver_call_scalar_result(&mut module);
     assert_eq!(
         validate_module(&module).unwrap_err(),

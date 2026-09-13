@@ -209,8 +209,15 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn retain_call_targ
         // parameter of the referent type. Source custody above checks the
         // authored path; common transfer-shape validation before emission
         // checks the projected type and byte-view presentation independently.
+        // A mutable parent may lend a shared observation of its original
+        // referent. The exact authored loan above, not equality of root and
+        // callee access, supplies that temporary attenuation. The reverse is
+        // never valid: shared storage cannot supply a mutable argument.
+        let access_matches = source.access == target.access
+            || (source.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                && target.access == checked_trees::CheckedStructuralAccess::SharedBorrow);
         if argument.access != target.access
-            || source.access != target.access
+            || !access_matches
             || (argument.path.is_empty()
                 && (source.type_identity != target.type_identity
                     || source.multiplicity != target.multiplicity))

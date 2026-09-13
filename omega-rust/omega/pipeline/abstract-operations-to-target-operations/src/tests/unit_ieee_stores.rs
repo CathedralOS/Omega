@@ -5,6 +5,43 @@ use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
 
 mod literals;
 
+#[test]
+fn field_store_keeps_its_destination_among_other_borrowed_parameters() {
+    let mut source = plan(IeeeFloatFormat::Binary32, true);
+    let mut other = source.functions[0].structural_parameters[0].clone();
+    other.place = PlaceId::new(2).unwrap();
+    other.position = 2;
+    other.access = StructuralAccess::SharedBorrow;
+    source.functions[0].structural_parameters.push(other);
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let lowered = crate::lower_to_target_operations(&source, target)
+            .expect("another borrowed input does not change the store destination");
+        crate::validate_abstract_to_target_translation(&source, target, &lowered)
+            .expect("replay exact store destination and placement");
+        let store = lowered.functions[0].graph.blocks[0]
+            .operations
+            .iter()
+            .find_map(|operation| {
+                if let TargetUnitOperation::StructuralScalarFieldStore { destination, .. } =
+                    operation
+                {
+                    Some(destination)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        assert_eq!(store, &source.functions[0].structural_parameters[0]);
+        // Whole-plan validation checks rosters. Hostile operation substitutions
+        // are exercised by downstream primitive_stores legalization/replay tests.
+    }
+}
+
 fn plan(format: IeeeFloatFormat, field_store: bool) -> AbstractOperationPlan {
     let machine = MachineId::new(1).unwrap();
     let block = BlockId::new(1).unwrap();
