@@ -68,7 +68,7 @@ fn natural_owned_scalar_cycle_reports_verified_ranking_without_a_fixed_ceiling()
     let fuel = evidence::inspect(module, &lowered.proof_bundle)
         .expect("Natural proof verification succeeds without a quantitative bound");
     let evidence::FixedFuel::Unavailable(reason) = fuel else {
-        panic!("Natural ranking must not manufacture a fixed-fuel certificate: {fuel:?}");
+        panic!("a u64-rank bound cannot fit a u64 ceiling and must stay unknown: {fuel:?}");
     };
     assert_eq!(unknown_fuel_reason(&stdout), reason.to_string());
 }
@@ -100,6 +100,54 @@ fn unranked_owned_scalar_cycle_inspects_without_manufacturing_ranking_or_fuel() 
         "{stdout}"
     );
     unknown_fuel_reason(&stdout);
+}
+
+#[test]
+fn natural_cycle_with_a_narrow_rank_reports_a_replayed_fixed_ceiling() {
+    // Same customer shape, but the rank rides a u32 carrier: the rank bound
+    // and the replayed operation/call costs fit a u64 ceiling, so the
+    // common-graph loop reports an exact independently checked bound.
+    let narrow = CUSTOMER
+        .replace("limit: u64;", "limit: u32;")
+        .replace("divisor: u64 [3..=5];", "divisor: u32 [3..=5];")
+        .replace("remaining: u64 [0..=5]", "remaining: u32 [0..=5]")
+        .replace(
+            "-> u64 {\n    let mut scratch",
+            "-> u32 {\n    let mut scratch",
+        );
+    assert_ne!(narrow, CUSTOMER);
+    let source = temporary_source("natural-narrow-rank", &narrow);
+    let output = inspect("walk", &source);
+    let lowered = lower_source("walk", &source);
+    remove_fixture(source);
+
+    assert!(
+        output.status.success(),
+        "narrow-rank Natural customer inspection failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let module = &lowered.semantic_module;
+    let walk = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    assert!(
+        matches!(walk.ranked_scc, Some(TerminalRankedScc::Natural(_))),
+        "the narrow-rank walk must stay on the ordinary Natural carrier"
+    );
+    let fuel = evidence::inspect(module, &lowered.proof_bundle)
+        .expect("Natural proof verification succeeds");
+    let evidence::FixedFuel::Available(certificate) = fuel else {
+        panic!("a u32-ranked Natural cycle must derive a fixed-fuel ceiling: {fuel:?}");
+    };
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.lines().any(|line| line.starts_with("fixed_fuel ")
+            && line.contains(&format!("ceiling_units={}", certificate.ceiling_units()))),
+        "inspection must print the replayed ceiling, not a producer claim: {stdout}"
+    );
+    assert!(!stdout.contains("status=unknown"), "{stdout}");
 }
 
 #[test]

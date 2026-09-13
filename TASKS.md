@@ -1013,6 +1013,21 @@ Owners include
   failure to derive a bound reports `Unknown` or `NoFiniteGuarantee` without
   changing execution.
 
+  Landed: `derive_fixed_entry_fuel` now bounds a verified `Natural`-ranked
+  machine through the condensed common graph. Verified components partition
+  the cyclic topology, every cycle crosses a strict unsigned-rank descent,
+  and a component cannot be re-entered once left, so each member block runs
+  at most `rank_maximum + 1` times; the longest path over the resulting DAG
+  charges actual operations, calls, edges, and nominal cleanups. The
+  certificate is the ordinary `FixedEntryFuelCertificate`, so
+  `bind_installed_entry_fuel` and provider-summary composition accept it
+  unchanged. A bound that cannot fit `u64` reports `BoundOverflow`/`Unknown`;
+  unranked cycles still report `ControlCycle`. No runtime meter, native
+  authority, or countdown-native custody was added. Witnessed by
+  `terminal-fixed-fuel`'s `natural_cycle` unit tests and `omega`'s
+  `inspect_terminal` narrow-rank cases (`ceiling_units=77309411330` for the
+  u32 `walk`, `ceiling_units=25769803778` for the u32 receiver cycle).
+
 - **PROOF-RELEVANCE-MIGRATION.** Finish `[erased]` noninterference and
   erased-stripped layout across remaining carriers. Erased terms remain in
   semantic/proof identity but contribute no runtime storage, tags, ABI
