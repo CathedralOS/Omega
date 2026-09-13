@@ -90,6 +90,9 @@ pub fn prove_ranking_range_edge(
 /// non-self formal order and names the entry symbol represented by each slot.
 /// Entry parameters may be absent or repeated. Required scalar copies carry an
 /// equality invariant checked at every arrival; ancestry alone is not equality.
+/// An invalid handle marks a slot with no entry role: a payload computed from
+/// several auxiliary inputs. It binds nothing, so no template premise can reach
+/// it, and a required symbol folded into it is rejected as a missing premise.
 #[derive(Clone, Copy)]
 pub struct RankingRangeState<'program> {
     pub state: &'program State,
@@ -299,13 +302,14 @@ fn prove_edge(
             .filter(|parameter| !parameter.is_self)
             .zip(entry_parameters)
         {
-            if entry_parameters
-                .iter()
-                .filter(|candidate| *candidate == entry_symbol)
-                .take(2)
-                .count()
-                != 1
-                && !required_symbols.contains(entry_symbol)
+            if !entry_symbol.is_valid()
+                || (entry_parameters
+                    .iter()
+                    .filter(|candidate| *candidate == entry_symbol)
+                    .take(2)
+                    .count()
+                    != 1
+                    && !required_symbols.contains(entry_symbol))
             {
                 // The two current slots remain independent. Do not choose a
                 // copy or infer equality from their shared entry ancestry.
@@ -506,16 +510,18 @@ fn prove_edge(
         {
             continue;
         }
-        if destination.is_some_and(|destination| {
-            destination
-                .entry_parameters
-                .iter()
-                .filter(|candidate| **candidate == source_symbol)
-                .take(2)
-                .count()
-                != 1
-                && !required_symbols.contains(&source_symbol)
-        }) {
+        if !source_symbol.is_valid()
+            || destination.is_some_and(|destination| {
+                destination
+                    .entry_parameters
+                    .iter()
+                    .filter(|candidate| **candidate == source_symbol)
+                    .take(2)
+                    .count()
+                    != 1
+                    && !required_symbols.contains(&source_symbol)
+            })
+        {
             // No first/last-wins substitution for duplicated destinations.
             // apply_argument_map rejects an omitted atom if the proof uses it.
             continue;
@@ -777,13 +783,7 @@ fn validate_mapping(
         .filter(|parameter| !parameter.is_self)
         .zip(entry_parameters)
     {
-        let entry = root_parameters
-            .iter()
-            .find(|entry| !entry.is_self && entry.symbol == *entry_symbol)?;
-        if !entry.symbol.is_valid()
-            || !parameter.symbol.is_valid()
-            || entry.is_mutable
-            || entry.is_const
+        if !parameter.symbol.is_valid()
             || parameter.is_mutable
             || parameter.is_const
             || parameters
@@ -797,6 +797,19 @@ fn validate_mapping(
                     .iter()
                     .any(|entry| entry.symbol == parameter.symbol))
             || (state.symbol == root.symbol && parameter.symbol != *entry_symbol)
+        {
+            return None;
+        }
+        if !entry_symbol.is_valid() {
+            // No entry role: the slot's own typed binding still serves guards,
+            // but no root spelling and no entry constraint can reach it.
+            continue;
+        }
+        let entry = root_parameters
+            .iter()
+            .find(|entry| !entry.is_self && entry.symbol == *entry_symbol)?;
+        if entry.is_mutable
+            || entry.is_const
             || exact_integer_parameter(program, entry.type_reference)
                 != exact_integer_parameter(program, parameter.type_reference)
         {

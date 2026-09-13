@@ -108,7 +108,10 @@ pub(super) fn prove<'program>(
 
 /// Identity transfers anchor the first closure. Computations can then establish
 /// remaining telescopes from one dependency or the already-authored rank
-/// subject, including its copies, without selecting a new witness.
+/// subject, including its copies, without selecting a new witness. A payload
+/// computed from several auxiliary inputs receives no entry role at all; the
+/// edge judgment then rejects any required symbol that only that payload could
+/// have carried.
 /// Each state enters the worklist once per tier. Every eligible incoming edge
 /// checks its proposal, including edges to already-processed destinations, so
 /// provisional discovery order cannot resolve conflicting correspondences.
@@ -224,7 +227,7 @@ fn argument_mapping(
                 parameter.symbol == *subject && !parameter.is_mutable && !parameter.is_const
             })?;
             let entry_symbol = source_mapping[source_position];
-            if subjects.len() == 1 || entry_symbol == rank_subject {
+            if subjects.len() == 1 || (rank_subject.is_valid() && entry_symbol == rank_subject) {
                 // Discover the authored role, not equality of current values.
                 // The edge judgment independently establishes equality of all
                 // required rank copies on every arrival before using it as an
@@ -235,7 +238,10 @@ fn argument_mapping(
                 selected_entry = Some(entry_symbol);
             }
         }
-        parameters.push(selected_entry?);
+        // Auxiliary-only arithmetic over several inputs names no single role.
+        // Choosing an operand would let its entry constraints reach a value
+        // they never described; an absent role keeps the slot premise-free.
+        parameters.push(selected_entry.unwrap_or_default());
     }
     Some(parameters)
 }

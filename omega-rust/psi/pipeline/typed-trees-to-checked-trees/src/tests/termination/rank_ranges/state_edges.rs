@@ -234,21 +234,44 @@ fn auxiliary_dependencies_do_not_replace_the_authored_rank_subject() {
     reject(&source.replace("remaining + (other - other)", "other"));
     reject(&source.replace("remaining + (other - other)", "remaining - other"));
 
-    // Copying a root subject into two current slots does not make arithmetic
-    // over both slots a single-current-parameter computation.
-    reject(
+    // Arithmetic over two auxiliary slots names no entry role. The payload
+    // slot stays premise-free while the rank slot keeps its exact mapping.
+    prove(
         r#"
-        machine walk(remaining: u32 [0..=5], payload: u32)
+        machine walk(remaining: u32 [0..=5], payload: u32 [0..=5])
         terminates by remaining in 0..=5;
         -> u32 {
             transition { _ -> prepare(remaining, payload, payload) }
-            state prepare(pending: u32, left: u32, right: u32) {
+            state prepare(pending: u32 [0..=5], left: u32 [0..=5], right: u32 [0..=5]) {
                 transition { _ -> finish(pending, left + (right - right)) }
             }
-            state finish(result: u32, spare: u32) { result }
+            state finish(result: u32 [0..=5], spare: u32 [0..=5]) { result }
         }
     "#,
     );
+}
+
+const AUXILIARY_PAYLOAD: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/termination/auxiliary_payload_computed_arrival/main.omg"
+));
+
+#[test]
+fn computed_only_auxiliary_payloads_carry_no_entry_role() {
+    prove(AUXILIARY_PAYLOAD);
+    // The same reading with a single auxiliary dependency remains valid.
+    prove(&AUXILIARY_PAYLOAD.replace("base + step", "base"));
+    // A role-less payload can never establish the rank slot's mapping.
+    reject(
+        &AUXILIARY_PAYLOAD
+            .replace("count > 0", "count > 0 && total > 0 && total < 6")
+            .replace("tally(count - 1, total)", "tally(total - 1, count)"),
+    );
+    // Folding a pinned endpoint into the payload drops its only carrier.
+    reject(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/omega/fail/termination/endpoint_folded_into_payload/main.omg"
+    )));
 }
 
 #[test]

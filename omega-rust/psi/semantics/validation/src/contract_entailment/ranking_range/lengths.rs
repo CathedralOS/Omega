@@ -69,7 +69,8 @@ pub(super) fn bindings(
         bindings.push((parameter.symbol, identity.clone()));
         if let Some(entries) = entry_parameters {
             let entry = entries[position];
-            if entry != parameter.symbol
+            if entry.is_valid()
+                && entry != parameter.symbol
                 && entries
                     .iter()
                     .filter(|candidate| **candidate == entry)

@@ -148,6 +148,11 @@ impl<'program> FieldCoordinates<'program> {
                         .filter(|parameter| !parameter.is_self)
                         .zip(entries)
                         .find(|(parameter, _)| parameter.symbol == coordinate.parameter.symbol)?;
+                    if !entry.is_valid() {
+                        // A role-less record serves its own guards only; its
+                        // fields never rewrite a template coordinate.
+                        continue;
+                    }
                     coordinate.at_arrival(
                         program,
                         RankingRangeState {

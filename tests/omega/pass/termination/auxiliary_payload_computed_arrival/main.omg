@@ -1,0 +1,13 @@
+// A named state reached only through a computed arrival whose auxiliary
+// payload combines two entry inputs. The rank and its endpoints stay exact.
+machine walk(remaining: u32 [0..=5], base: u32 [0..=5], step: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> tally(remaining, base + step) }
+    state tally(count: u32 [0..=5], total: u32 [0..=10]) {
+        transition count > 0 {
+            true -> tally(count - 1, total)
+            false -> total
+        }
+    }
+}
