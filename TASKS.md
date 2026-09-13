@@ -652,6 +652,24 @@ Owners include
   valid views survive codec/native replay and stale plan, range, access, or
   backing substitutions reject.
 
+  Resume evidence: `9d894f8bf2` landed custody-owning artifact entrances.
+  `lower_replay_artifact_sections_with_placed_view_inputs` replays the
+  obligation ledger against the exact decoded module and returns
+  `AbstractOperationPlanWithPlacedViewInputs`;
+  `lower_artifact_sections_for_native_realization_with_placed_view_inputs`
+  returns `VerifiedNativeArtifactInputWithPlacedViewInputs` beside the verified
+  native authority (both in
+  `omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact/`).
+  Non-owning replay/native entrances still reject placed-view modules with
+  `PlacedViewInputsRequireCustodyLowering`. Witnessed on macOS arm64 by
+  `direct_placed_view_input_survives_codec_and_native_replay` in
+  `compiler/tests/access_plans.rs` (43/43 target pass): exact roster retention
+  across codec replay and native admission, stale-commitment ledger rejection,
+  canonical-encode rejection of a zeroed commitment. Remaining: realize the
+  retained roster through native-realization optimization stages and end-to-end
+  native placement; the roster is semantic custody only and still grants no
+  backing, range, access, or lifetime authority by itself.
+
 - **SYMBOLIC-MATERIALIZATION.** Complete symbolic field/index materialization
   and its target-dependent realization. Preserve exact paths and bounds until
   assignment; physical lowering may choose locations but not change semantic
