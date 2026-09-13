@@ -34,6 +34,9 @@ pub(super) fn require_function(
     if actual.edge_transfers != expected.edge_transfers {
         return Err(LiveRangeError::FunctionMismatch { function });
     }
+    if actual.copy_affinities != expected.copy_affinities {
+        return Err(LiveRangeError::FunctionMismatch { function });
+    }
     require_early_clobber_rows(function, &actual.early_clobbers, &expected.early_clobbers)?;
     if actual.architectural_units != expected.architectural_units {
         let unit = expected

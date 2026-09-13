@@ -37,7 +37,8 @@ use selected_instructions::{
     LivenessPosition, VirtualFixedConstraint, VirtualOccurrence,
 };
 use selected_instructions::{
-    DistinctUseDefTie, FunctionLiveRanges, LiveRangeFragment, LiveRangeIdentity, LiveRangePoint,
-    LivenessIdentity, VirtualFixedConstraintSite, VirtualInterference, VirtualLiveRange,
+    CopyAffinity, DistinctUseDefTie, FunctionLiveRanges, LiveRangeFragment, LiveRangeIdentity,
+    LiveRangePoint, LivenessIdentity, VirtualFixedConstraintSite, VirtualInterference,
+    VirtualLiveRange,
 };
 pub use selected_instructions_to_selected_instructions::*;

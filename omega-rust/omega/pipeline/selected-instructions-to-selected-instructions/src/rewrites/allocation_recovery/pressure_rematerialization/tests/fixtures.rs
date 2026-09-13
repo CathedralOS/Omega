@@ -179,6 +179,7 @@ pub(crate) fn fixture() -> (
                 edge_connectors: Vec::new(),
             }],
             edge_transfers: Vec::new(),
+            copy_affinities: Vec::new(),
             tied_pairs: Vec::new(),
             early_clobbers: Vec::new(),
             architectural_units: Vec::new(),

@@ -48,10 +48,10 @@ pub mod test_support;
 
 use selected_instructions::{
     ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
-    BlockLiveness, BlockPointDomain, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
-    EdgeRegisterTransfer, FunctionLiveRanges, FunctionLiveness, LiveRangeEdgeConnector,
-    LiveRangeFragment, LiveRangeIdentity, LiveRangePlan, LiveRangePoint, LivenessIdentity,
-    LivenessPosition, OperandPosition, SuccessorLiveness, VirtualFixedConstraint,
+    BlockLiveness, BlockPointDomain, CopyAffinity, DistinctUseDefTie, EarlyClobberConstraint,
+    EarlyClobberUse, EdgeRegisterTransfer, FunctionLiveRanges, FunctionLiveness,
+    LiveRangeEdgeConnector, LiveRangeFragment, LiveRangeIdentity, LiveRangePlan, LiveRangePoint,
+    LivenessIdentity, LivenessPosition, OperandPosition, SuccessorLiveness, VirtualFixedConstraint,
     VirtualFixedConstraintSite, VirtualInterference, VirtualLiveRange, VirtualOccurrence,
     live_range_identity,
 };

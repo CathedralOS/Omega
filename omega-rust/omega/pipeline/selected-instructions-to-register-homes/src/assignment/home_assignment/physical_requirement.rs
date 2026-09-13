@@ -42,6 +42,10 @@ pub(super) fn validate(
             .edge_transfers
             .iter()
             .any(|edge| edge.argument == register || edge.parameter == register)
+        || ranges
+            .copy_affinities
+            .iter()
+            .any(|affinity| affinity.source == register || affinity.destination == register)
         || ranges.early_clobbers.iter().any(|early| {
             early.def_virtual_register == register
                 || early

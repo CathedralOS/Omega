@@ -15,6 +15,7 @@ pub(super) fn compute_function(
         .collect::<Result<Vec<_>, _>>()?;
     let tied_pairs = derive_tied_pairs(function_index, liveness)?;
     let edge_transfers = super::edge_transfers::derive(function_index, selected, liveness)?;
+    let copy_affinities = super::copy_affinities::derive(function_index, selected)?;
     let early_clobbers = derive_early_clobbers(function_index, liveness)?;
 
     let mut virtual_rows = Vec::with_capacity(selected.virtual_registers.len());
@@ -106,6 +107,7 @@ pub(super) fn compute_function(
         virtual_registers: virtual_rows,
         tied_pairs,
         edge_transfers,
+        copy_affinities,
         early_clobbers,
         architectural_units,
         interference: interference.into_iter().collect(),

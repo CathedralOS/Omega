@@ -1,7 +1,8 @@
 use register_model::RegisterViewId;
+use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 
 use super::{compute_function, fixtures::*, validate};
-use crate::RegisterHomeError;
+use crate::{CopyAffinity, RegisterHomeError};
 
 #[test]
 fn flexible_competitors_rank_stably_expire_and_fail_at_exact_pressure() {
@@ -52,6 +53,71 @@ fn noninterfering_vertex_reuses_a_home_while_overlapping_vertices_conflict() {
             .map(|assignment| assignment.view)
             .collect::<Vec<_>>(),
         vec![RegisterViewId(0), RegisterViewId(1), RegisterViewId(0)]
+    );
+    assert_eq!(
+        validate::replay_function(0, &legality, &ranges, &physical).unwrap(),
+        homes
+    );
+}
+
+fn copy_ranges(interference: &[(u32, u32)]) -> crate::FunctionLiveRanges {
+    let mut ranges = ranges(2, interference);
+    ranges.copy_affinities.push(CopyAffinity {
+        block: SelectedBlockId(0),
+        instruction: SelectedInstructionId(0),
+        source: VirtualRegisterId(0),
+        destination: VirtualRegisterId(1),
+    });
+    ranges
+}
+
+#[test]
+fn copy_affinity_prefers_the_assigned_partner_home() {
+    let physical = physical();
+    let mut legality = legality(&[(0, 2), (0, 2)]);
+    set_candidates(&mut legality, 0, &[1]);
+    let ranges = copy_ranges(&[]);
+
+    let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+    assert_eq!(
+        homes
+            .assignments
+            .iter()
+            .map(|assignment| assignment.view)
+            .collect::<Vec<_>>(),
+        vec![RegisterViewId(1), RegisterViewId(1)]
+    );
+    assert_eq!(
+        validate::replay_function(0, &legality, &ranges, &physical).unwrap(),
+        homes
+    );
+
+    let mut uncoalesced = homes.clone();
+    uncoalesced.assignments[1].view = RegisterViewId(0);
+    assert!(matches!(
+        validate::validate_function(0, &uncoalesced, &legality, &ranges, &physical),
+        Err(RegisterHomeError::VirtualRegisterMismatch {
+            function: 0,
+            register: 1,
+        })
+    ));
+}
+
+#[test]
+fn copy_affinity_never_overrides_interference() {
+    let physical = physical();
+    let mut legality = legality(&[(0, 2), (0, 2)]);
+    set_candidates(&mut legality, 0, &[1]);
+    let ranges = copy_ranges(&[(0, 1)]);
+
+    let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+    assert_eq!(
+        homes
+            .assignments
+            .iter()
+            .map(|assignment| assignment.view)
+            .collect::<Vec<_>>(),
+        vec![RegisterViewId(1), RegisterViewId(0)]
     );
     assert_eq!(
         validate::replay_function(0, &legality, &ranges, &physical).unwrap(),

@@ -75,6 +75,11 @@ pub(super) fn build_receipt(plan: &LiveRangePlan) -> LiveRangeValidationReceipt 
             .map(|row| row.interference.len())
             .sum(),
         tied_pair_count: plan.functions.iter().map(|row| row.tied_pairs.len()).sum(),
+        copy_affinity_count: plan
+            .functions
+            .iter()
+            .map(|row| row.copy_affinities.len())
+            .sum(),
         tied_component_count: plan
             .functions
             .iter()

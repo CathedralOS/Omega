@@ -51,6 +51,7 @@ pub struct FunctionLiveRanges {
     /// Explicit same-home edge transfers for the transition-free allocator.
     /// These are not instruction use/def ties and retain the semantic edge.
     pub edge_transfers: Vec<EdgeRegisterTransfer>,
+    pub copy_affinities: Vec<CopyAffinity>,
     pub early_clobbers: Vec<EarlyClobberConstraint>,
     pub architectural_units: Vec<ArchitecturalUnitLiveRange>,
     pub interference: Vec<VirtualInterference>,
@@ -64,6 +65,17 @@ pub struct EdgeRegisterTransfer {
     pub argument: VirtualRegisterId,
     pub parameter: VirtualRegisterId,
     pub class: RegisterClassId,
+}
+
+/// One register-to-register copy whose operands may share a home. Sharing is a
+/// placement preference, never a constraint: interference, fixed views, and
+/// ties still decide legality.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CopyAffinity {
+    pub block: SelectedBlockId,
+    pub instruction: SelectedInstructionId,
+    pub source: VirtualRegisterId,
+    pub destination: VirtualRegisterId,
 }
 
 /// One exact instruction phase where a definition writes at the before point

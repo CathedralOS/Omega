@@ -19,6 +19,7 @@ const LIVE_RANGE_TYPES: &[&str] = &[
     "LiveRangePlan",
     "FunctionLiveRanges",
     "EdgeRegisterTransfer",
+    "CopyAffinity",
     "EarlyClobberConstraint",
     "EarlyClobberUse",
     "DistinctUseDefTie",
@@ -56,7 +57,7 @@ fn selected_analysis_schemas_and_identities_have_one_representation_owner() {
             "live_ranges",
             LIVE_RANGE_TYPES,
             "live_range_identity",
-            "omega.terminal-live-range-fragments.v10",
+            "omega.terminal-live-range-fragments.v11",
         ),
     ] {
         assert!(program_root.contains(&format!("mod {module};")));

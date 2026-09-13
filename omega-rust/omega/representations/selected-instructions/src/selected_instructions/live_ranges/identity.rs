@@ -8,7 +8,7 @@ use crate::{
 
 pub fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v10\0");
+    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v11\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.liveness.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -80,6 +80,13 @@ pub fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
                 bytes.extend_from_slice(&edge.argument.0.to_le_bytes());
                 bytes.extend_from_slice(&edge.parameter.0.to_le_bytes());
                 bytes.extend_from_slice(&edge.class.0.to_le_bytes());
+            }
+            encode_len(&mut bytes, function.copy_affinities.len());
+            for affinity in &function.copy_affinities {
+                bytes.extend_from_slice(&affinity.block.0.to_le_bytes());
+                bytes.extend_from_slice(&affinity.instruction.0.to_le_bytes());
+                bytes.extend_from_slice(&affinity.source.0.to_le_bytes());
+                bytes.extend_from_slice(&affinity.destination.0.to_le_bytes());
             }
             for tie in &function.tied_pairs {
                 bytes.extend_from_slice(&tie.block.0.to_le_bytes());
@@ -239,6 +246,7 @@ mod tests {
                         edge_connectors: vec![connector],
                     }],
                     edge_transfers: Vec::new(),
+                    copy_affinities: Vec::new(),
                     tied_pairs: vec![DistinctUseDefTie {
                         block: SelectedBlockId(0),
                         position: LivenessPosition(0),
@@ -293,6 +301,7 @@ mod tests {
                     }],
                     virtual_registers: Vec::new(),
                     edge_transfers: Vec::new(),
+                    copy_affinities: Vec::new(),
                     tied_pairs: Vec::new(),
                     early_clobbers: Vec::new(),
                     architectural_units: vec![ArchitecturalUnitLiveRange {
