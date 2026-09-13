@@ -1081,6 +1081,144 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
+fn terminal_product_propagates_copies_through_block_parameters() {
+    let root = project(
+        "terminal-copy-propagation",
+        Some(
+            r#"
+machine build(builder: &mut Build) {
+    builder.application("terminal-copy-propagation");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::CopyPropagation);
+}
+"#,
+        ),
+    );
+    std::fs::write(
+        root.join("main.omg"),
+        "data Main { value: i32; }\n\
+         machine Main::compute(a: i32, b: i32) -> i32 {\n\
+             let unused: bool = a < b;\n\
+             let dead_const: i32 = 7;\n\
+             transition {\n\
+                 a == b -> (1)\n\
+                 _ -> (2)\n\
+             }\n\
+         }\n\
+         machine Main::main(&mut self) {\n\
+             self.value = Main::compute(1, 2);\n\
+         }\n",
+    )
+    .expect("write forwarded-copy source");
+    let request = || {
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: None,
+            target_name: Some("windows_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
+    };
+    let identity = compiler::compile(request().with_optimization_rollback(
+        OptimizationRollback::new([Optimization::CopyPropagation]).unwrap(),
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("rollback executes the identity stage");
+    let selected = compiler::compile(request())
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .expect("selected pre-Terminal pass executes");
+    selected.artifact().unwrap().validate().unwrap();
+    let identity_module =
+        terminal_codec::decode_module(identity.artifact().unwrap().semantic_bytes())
+            .expect("identity artifact decodes");
+    let selected_module =
+        terminal_codec::decode_module(selected.artifact().unwrap().semantic_bytes())
+            .expect("selected artifact decodes");
+    let compute_id = |module: &terminal_psi::TerminalModule| {
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match &operation.kind {
+                terminal_psi::OperationKind::Call { callee, .. } => Some(*callee),
+                _ => None,
+            })
+            .expect("main calls compute")
+    };
+    fn machine(
+        module: &terminal_psi::TerminalModule,
+        id: semantic_vocabulary::MachineId,
+    ) -> &terminal_psi::TerminalMachine {
+        module
+            .machines
+            .iter()
+            .find(|machine| machine.id == id)
+            .expect("compute machine exists")
+    }
+    let old_compute = machine(&identity_module, compute_id(&identity_module));
+    let new_compute = machine(&selected_module, compute_id(&selected_module));
+    let scalar_wiring = |machine: &terminal_psi::TerminalMachine| -> (usize, usize) {
+        let parameters = machine
+            .blocks
+            .iter()
+            .map(|block| block.parameters.len())
+            .sum();
+        let arguments = machine
+            .blocks
+            .iter()
+            .map(|block| match &block.terminator {
+                terminal_psi::Terminator::Jump { arguments, .. } => arguments.len(),
+                terminal_psi::Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => when_true.arguments.len() + when_false.arguments.len(),
+                _ => 0,
+            })
+            .sum();
+        (parameters, arguments)
+    };
+    let (old_parameters, old_arguments) = scalar_wiring(old_compute);
+    let (new_parameters, new_arguments) = scalar_wiring(new_compute);
+    assert!(
+        new_parameters < old_parameters,
+        "selected compute collapses forwarded copies: {old_parameters} -> {new_parameters}"
+    );
+    assert!(
+        new_arguments < old_arguments,
+        "selected compute drops matching edge arguments: {old_arguments} -> {new_arguments}"
+    );
+    let dispatch = new_compute
+        .blocks
+        .iter()
+        .find(|block| {
+            matches!(
+                block.terminator,
+                terminal_psi::Terminator::Conditional { .. }
+            )
+        })
+        .expect("the equality dispatch survives");
+    let equal = dispatch
+        .operations
+        .iter()
+        .find_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::IntegerEqual { left, right } => Some((*left, *right)),
+            _ => None,
+        })
+        .expect("the dispatch condition survives");
+    assert_eq!(
+        equal,
+        (new_compute.parameters[0].id, new_compute.parameters[1].id),
+        "the equality reads the machine parameters directly"
+    );
+    assert_ne!(
+        identity.artifact().unwrap().semantic_bytes(),
+        selected.artifact().unwrap().semantic_bytes(),
+        "copy propagation changes the published semantic bytes"
+    );
+}
+
+#[test]
 fn terminal_product_retains_the_exact_pending_physical_selection() {
     let root = project(
         "selected-terminal-physical-proposal",

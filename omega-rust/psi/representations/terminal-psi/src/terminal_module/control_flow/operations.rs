@@ -577,3 +577,142 @@ pub enum OperationKind {
         right: ValueId,
     },
 }
+
+impl OperationKind {
+    /// Rewrite every scalar operand `ValueId` use site through `map`.
+    ///
+    /// This is a mechanical inventory of direct scalar uses, not a semantic
+    /// decision: result declarations, structural places, and value identities
+    /// carried inside propositions (crash continuations, site guards) or other
+    /// proof evidence are not uses and are never visited. Consumers replacing
+    /// a value must handle those carriers separately.
+    pub fn map_scalar_uses(&mut self, map: &mut impl FnMut(ValueId) -> ValueId) {
+        match self {
+            Self::EstablishScalarArray { elements } => {
+                for element in elements {
+                    *element = map(*element);
+                }
+            }
+            Self::EstablishScalarCase { fields, .. } => {
+                for field in fields {
+                    field.value = map(field.value);
+                }
+            }
+            Self::EstablishRecord { fields } => {
+                for field in fields {
+                    if let crate::RecordFieldValue::Scalar { value, .. } = &mut field.value {
+                        *value = map(*value);
+                    }
+                }
+            }
+            Self::EstablishPrimitiveLocal { value }
+            | Self::WriteOnlyPrimitiveStore { value, .. }
+            | Self::StructuralScalarFieldStore { value, .. }
+            | Self::BooleanNot { operand: value }
+            | Self::IntegerBitwiseNot { operand: value }
+            | Self::IntegerWiden { operand: value }
+            | Self::IntegerExactCast { operand: value, .. } => *value = map(*value),
+            Self::StructuralByteSequenceFieldStore { length, .. } => {
+                *length = map(*length);
+            }
+            Self::StructuralByteSequenceFieldByteStore {
+                index,
+                value,
+                length,
+                ..
+            }
+            | Self::ByteSequenceWrite {
+                index,
+                value,
+                length,
+                ..
+            } => {
+                *index = map(*index);
+                *value = map(*value);
+                *length = map(*length);
+            }
+            Self::ByteSequenceRead { index, length, .. } => {
+                *index = map(*index);
+                *length = map(*length);
+            }
+            Self::ByteSequenceSubslice {
+                start, end, length, ..
+            } => {
+                *start = map(*start);
+                *end = map(*end);
+                *length = map(*length);
+            }
+            Self::BooleanEqual { left, right }
+            | Self::IeeeFloatCompare { left, right, .. }
+            | Self::IntegerEqual { left, right }
+            | Self::IntegerLessThan { left, right }
+            | Self::IntegerLessOrEqual { left, right }
+            | Self::IntegerBitwiseAnd { left, right }
+            | Self::IntegerBitwiseOr { left, right }
+            | Self::IntegerBitwiseXor { left, right }
+            | Self::WrappingIntegerAdd { left, right }
+            | Self::SaturatingIntegerAdd { left, right }
+            | Self::WrappingIntegerSubtract { left, right }
+            | Self::SaturatingIntegerSubtract { left, right }
+            | Self::WrappingIntegerMultiply { left, right }
+            | Self::SaturatingIntegerMultiply { left, right }
+            | Self::ExactIntegerAdd { left, right, .. }
+            | Self::ExactIntegerSubtract { left, right, .. }
+            | Self::ExactIntegerMultiply { left, right, .. }
+            | Self::ExactIntegerDivide { left, right, .. }
+            | Self::ExactIntegerRemainder { left, right, .. }
+            | Self::WrappingIntegerDivide { left, right, .. }
+            | Self::WrappingIntegerRemainder { left, right, .. }
+            | Self::SaturatingIntegerDivide { left, right, .. }
+            | Self::SaturatingIntegerRemainder { left, right, .. } => {
+                *left = map(*left);
+                *right = map(*right);
+            }
+            Self::WrappingIntegerShiftLeft { value, count }
+            | Self::WrappingIntegerShiftRight { value, count }
+            | Self::ExactIntegerShiftLeft { value, count, .. }
+            | Self::ExactIntegerShiftRight { value, count, .. } => {
+                *value = map(*value);
+                *count = map(*count);
+            }
+            Self::NearestIeeeFloatFusedMultiplyAdd {
+                left,
+                right,
+                addend,
+            } => {
+                *left = map(*left);
+                *right = map(*right);
+                *addend = map(*addend);
+            }
+            Self::Call { arguments, .. }
+            | Self::CallUnit { arguments, .. }
+            | Self::CallStructuralScalar { arguments, .. }
+            | Self::CallStructuralWithScalarArguments { arguments, .. }
+            | Self::BoundaryCall { arguments, .. } => {
+                for argument in arguments {
+                    *argument = map(*argument);
+                }
+            }
+            Self::EstablishReference { .. }
+            | Self::ReleaseReference { .. }
+            | Self::PrimitiveScalarRead { .. }
+            | Self::StructuralCaseMembership { .. }
+            | Self::EstablishByteSequenceLiteral { .. }
+            | Self::ByteSequenceLength { .. }
+            | Self::StructuralByteSequenceFieldLength { .. }
+            | Self::EstablishTrivialAffineLocal { .. }
+            | Self::StoreDynamicDescriptor { .. }
+            | Self::CallDynamicScalar { .. }
+            | Self::CallDynamicParameterScalar { .. }
+            | Self::CallDynamicUnit { .. }
+            | Self::CallDynamicParameterUnit { .. }
+            | Self::CallStructural { .. }
+            | Self::PortWrite { .. }
+            | Self::IntegerConstant { .. }
+            | Self::BooleanConstant { .. }
+            | Self::IeeeFloatConstant { .. }
+            | Self::BooleanStructuralField { .. }
+            | Self::IntegerStructuralField { .. } => {}
+        }
+    }
+}
