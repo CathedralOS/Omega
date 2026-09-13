@@ -4,6 +4,7 @@ use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_git_package_closure_with_storage,
 };
 use package_manager::resolution::source::resolve_git_package_source_with_storage;
+use package_manager::review::SemanticBindingReview;
 use package_manager::review::compile_resolved_package_reviews;
 use package_source::{
     GitSourceRequest, LocalSourceLimits, SourceLineage, SourceResolverStorage,
@@ -290,14 +291,17 @@ fn verify_remote_pins(pins: Vec<RemotePin>, target: target::TargetProfile) {
         assert_eq!(custody.resolution(), declared.resolution());
 
         let compiler_build = cache.join("compiler-build");
-        let reviews =
-            compile_resolved_package_reviews(&closure.for_exact_target(target), &compiler_build)
-                .unwrap_or_else(|error| {
-                    panic!(
-                        "remote fixture {} should compile through package-aware review: {error:#?}",
-                        pin.package
-                    )
-                });
+        let reviews = compile_resolved_package_reviews(
+            &closure.for_exact_target(target),
+            &compiler_build,
+            SemanticBindingReview::Explicit(&[]),
+        )
+        .unwrap_or_else(|error| {
+            panic!(
+                "remote fixture {} should compile through package-aware review: {error:#?}",
+                pin.package
+            )
+        });
         let issued = reviews
             .review(&expected_key)
             .expect("compiler review must retain the exact normalized root package key");

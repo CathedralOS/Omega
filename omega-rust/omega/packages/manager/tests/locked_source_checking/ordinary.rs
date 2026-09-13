@@ -4,6 +4,7 @@ use package_evidence::record::PackagePolicyBaseline;
 use package_manager::resolution::graph::{
     ResolveLockedPackageClosureError, resolve_external_local_project_closure_with_storage,
 };
+use package_manager::review::SemanticBindingReview;
 use package_manager::review::{
     CompileResolvedPackageReviewsError, LockedPolicyComparisonError,
     compare_locked_package_policies,
@@ -255,6 +256,7 @@ fn independent_compiler_reviews_require_exact_target_resolution_and_coverage() {
     let wrong_target = compile_resolved_package_reviews(
         &closure.for_exact_target(TargetProfile::LinuxArm64),
         &tree.path("wrong-target-build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .unwrap();
     assert_eq!(
@@ -275,6 +277,7 @@ fn independent_compiler_reviews_require_exact_target_resolution_and_coverage() {
     let only_leaf = compile_resolved_package_reviews(
         &leaf.for_exact_target(TARGET),
         &tree.path("only-leaf-build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .unwrap();
     assert_eq!(only_leaf.reviews().len(), 1);
@@ -309,6 +312,7 @@ fn independent_compiler_reviews_require_exact_target_resolution_and_coverage() {
     let advanced_reviews = compile_resolved_package_reviews(
         &advanced.for_exact_target(TARGET),
         &tree.path("advanced-source-build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .unwrap();
     let index = accepted

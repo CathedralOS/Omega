@@ -1,4 +1,5 @@
 use super::*;
+use package_manager::review::SemanticBindingReview;
 
 #[test]
 // Clearing readonly is the exact Windows operation needed to exercise custody
@@ -39,6 +40,7 @@ fn review_compilation_rejects_snapshot_tampering_before_compiler_consumption() {
     let error = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &cache.join("compiler-build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect_err("tampered resolver custody must not reach compilation");
 

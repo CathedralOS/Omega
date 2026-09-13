@@ -1,4 +1,5 @@
 use super::*;
+use package_manager::review::SemanticBindingReview;
 
 pub(super) struct ExactCompilerRowScenario {
     pub(super) live: PathBuf,
@@ -47,6 +48,7 @@ impl ExactCompilerRowScenario {
         let baseline_reviews = compile_resolved_package_reviews(
             &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
             &build_root,
+            SemanticBindingReview::Explicit(&[]),
         )
         .expect("compile baseline review");
 
@@ -70,6 +72,7 @@ pub proposition ready();
         let stale_baseline_reviews = compile_resolved_package_reviews(
             &stale_baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
             &build_root,
+            SemanticBindingReview::Explicit(&[]),
         )
         .expect("compile alternate baseline review");
 
@@ -94,6 +97,7 @@ pub proposition settled();
         let candidate_reviews = compile_resolved_package_reviews(
             &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
             &build_root,
+            SemanticBindingReview::Explicit(&[]),
         )
         .expect("compile candidate review");
 

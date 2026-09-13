@@ -4,6 +4,7 @@ use package_evidence::record::{
 use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
 };
+use package_manager::review::SemanticBindingReview;
 use package_manager::review::{
     PackageTriageDisposition, PackageTriageReason, ReviewOnlyCapabilityConflictChange,
     ReviewOnlyCapabilityConflictLimits, compare_review_only_capabilities,
@@ -92,6 +93,7 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &tree.path("compiler-workspace"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile baseline provider evidence");
 
@@ -109,6 +111,7 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &tree.path("compiler-workspace"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile candidate provider evidence");
 

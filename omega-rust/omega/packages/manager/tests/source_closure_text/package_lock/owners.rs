@@ -3,6 +3,7 @@
 use super::*;
 use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
 use package_evidence::record::{PackagePolicyBaseline, PackagePolicyCallableRole};
+use package_manager::review::SemanticBindingReview;
 
 fn resolve_chain(tree: &TempTree) -> ResolvedPackageSourceClosure {
     let sources = tree.path("sources");
@@ -67,9 +68,12 @@ fn lock_rejects_absent_owners_inside_canonical_types_and_callable_coordinates() 
     let tree = TempTree::new();
     let closure = resolve_chain(&tree);
     let target = TargetProfile::WindowsX64;
-    let reviews =
-        compile_resolved_package_reviews(&closure.for_exact_target(target), &tree.path("build"))
-            .unwrap();
+    let reviews = compile_resolved_package_reviews(
+        &closure.for_exact_target(target),
+        &tree.path("build"),
+        SemanticBindingReview::Explicit(&[]),
+    )
+    .unwrap();
     let source = subject_for(&closure, target);
     let baselines: Vec<_> = source
         .packages()

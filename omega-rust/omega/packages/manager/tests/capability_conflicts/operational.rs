@@ -1,4 +1,5 @@
 use super::*;
+use package_manager::review::SemanticBindingReview;
 
 #[test]
 fn invocation_changes_render_exact_authored_target_locations() {
@@ -33,6 +34,7 @@ invokes {service};
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile invocation baseline");
 
@@ -48,6 +50,7 @@ invokes {service};
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile invocation candidate");
 
@@ -111,6 +114,7 @@ reaches {service}
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile service-reach baseline");
 
@@ -126,6 +130,7 @@ reaches {service}
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile service-reach candidate");
 
@@ -180,6 +185,7 @@ fn operational_changes_render_exact_authored_clause_locations() {
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile operational baseline");
 
@@ -195,6 +201,7 @@ fn operational_changes_render_exact_authored_clause_locations() {
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile operational candidate");
 
@@ -259,6 +266,7 @@ pub machine invoke_leaf()
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile external-supply baseline");
 
@@ -332,6 +340,7 @@ pub machine invoke_leaf()
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile external-supply candidate");
 
@@ -401,6 +410,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile transparent proposition baseline");
 
@@ -416,6 +426,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile transparent proposition candidate");
 
@@ -484,6 +495,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public domain baseline");
 
@@ -502,6 +514,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile public domain candidate");
 

@@ -1,4 +1,5 @@
 use super::*;
+use package_manager::review::SemanticBindingReview;
 
 #[test]
 fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
@@ -16,9 +17,10 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             PackageSourceClosureLimits::default(),
         )
         .unwrap_or_else(|error| panic!("{package} source closure should resolve: {error}"));
-        let reviews = compile_resolved_package_candidate_reviews(
+        let reviews = compile_resolved_package_reviews(
             &closure.for_exact_target(target::TargetProfile::WindowsX64),
             &cache.join("compiler-build"),
+            SemanticBindingReview::Discover,
         )
         .unwrap_or_else(|error| panic!("{package} package reviews should close: {error:#?}"));
         assert!(
@@ -379,9 +381,10 @@ fn process_exit_fixture_retains_exact_closed_console_leaves_and_unresolved_sibli
     )
     .expect("process-exit source closure should resolve");
 
-    let reviews = compile_resolved_package_candidate_reviews(
+    let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &cache.join("compiler-build"),
+        SemanticBindingReview::Discover,
     )
     .expect(
         "process-exit compiler review should retain unresolved siblings without authorizing them",

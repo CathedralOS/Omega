@@ -1,5 +1,6 @@
 use super::fixture::ExactCompilerRowScenario;
 use super::*;
+use package_manager::review::SemanticBindingReview;
 
 pub(super) fn assert_candidate_binding(
     scenario: &ExactCompilerRowScenario,
@@ -35,6 +36,7 @@ ensures result == 0;
     let accepted_claim_baseline_reviews = compile_resolved_package_reviews(
         &accepted_claim_baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &scenario.build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile accepted-claim baseline");
     let initial_claim_conflicts = compare_review_only_initial_capabilities(
@@ -82,6 +84,7 @@ ensures result == 1;
     let accepted_claim_candidate_reviews = compile_resolved_package_reviews(
         &accepted_claim_candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &scenario.build_root,
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile changed accepted claim");
     let accepted_claim_conflicts = compare_review_only_capabilities(

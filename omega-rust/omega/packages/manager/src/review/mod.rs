@@ -23,11 +23,8 @@ pub use candidate::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompilerIssuedPackageReviewSet, ConsumerScopedSemanticBindingReviewInput,
     PackageSourceVerificationPhase, ReviewOnlySourceConsumptionCommitment,
-    ReviewedPackageProductionCandidate, SemanticBindingReviewCandidate,
-    compile_resolved_package_candidate_for_production,
-    compile_resolved_package_candidate_for_production_with_semantic_bindings,
-    compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
-    compile_resolved_package_reviews_with_semantic_bindings,
+    ReviewedPackageProductionCandidate, SemanticBindingReview, SemanticBindingReviewCandidate,
+    compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
 };
 pub use compare::{
     LockedPolicyComparisonError, PackagePolicyChangeError, PackagePolicyChangeFingerprint,

@@ -8,9 +8,10 @@ use crate::resolution::graph::{
     resolve_external_local_project_closure_with_options,
     resolve_locked_local_project_closure_with_storage,
 };
+use crate::review::SemanticBindingReview;
 use crate::review::{
     CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits, PackagePolicyChangeSet,
-    compare_package_policy_changes, compile_resolved_package_candidate_reviews,
+    compare_package_policy_changes, compile_resolved_package_reviews,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
@@ -169,11 +170,12 @@ fn check(
         .map_err(failure)?
     };
     let exact = closure.for_exact_target(target);
-    let reviews = compile_resolved_package_candidate_reviews(
+    let reviews = compile_resolved_package_reviews(
         &exact,
         &project_root
             .join("build/package-manager")
             .join(format!("audit-{}", target.target_name())),
+        SemanticBindingReview::Discover,
     )
     .map_err(failure)?;
     let changes = compare_package_policy_changes(

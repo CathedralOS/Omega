@@ -63,7 +63,7 @@ length behavior, including exact-fit output; it claims no unseen suffix.
 Provisions below are current compiler defaults, not language limits or host
 memory/CPU isolation. Aggregate build work, BuildLog, attempts, live resources,
 cells/Text, and result limits are installed by the
-[package-review session](../../packages/manager/src/review/candidate/session.rs);
+[package-review session](../../packages/manager/src/review/candidate/compilation/session.rs);
 standalone compilation does not thereby acquire a package-closure account.
 Check before allocation, copying, or provider mutation;
 use checked count conversion. Failures retain partial usage rather than a

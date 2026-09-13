@@ -16,6 +16,7 @@ use package_manager::resolution::graph::{
     resolve_workspace_package_closure_with_storage,
 };
 use package_manager::resolution::source::ResolvePackageSourceError;
+use package_manager::review::SemanticBindingReview;
 use package_manager::review::{
     CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionLimits,
     FreshPackageRootPolicyError, LocallyComposedPackageObligationResults,
@@ -23,8 +24,7 @@ use package_manager::review::{
     PackagePolicyDecisionSubject, ReviewOnlyCapabilityConflictLimits,
     ReviewOnlyRootPolicyDisposition, bind_fresh_package_root_policy,
     compare_package_policy_changes, compare_review_only_initial_capabilities,
-    compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
-    resolve_package_policy_decisions,
+    compile_resolved_package_reviews, resolve_package_policy_decisions,
 };
 use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
@@ -107,9 +107,10 @@ fn graph_workbench_question() -> (
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve graph-workbench source closure");
-    let reviews = compile_resolved_package_candidate_reviews(
+    let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.join("build"),
+        SemanticBindingReview::Discover,
     )
     .expect("compile graph-workbench package reviews");
     let question = CanonicalPackageReconstructionQuestion::from_resolved_and_reviews(
@@ -142,6 +143,7 @@ fn claim_free_review_fixture(
     let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.join("build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile source-only review");
     (temporary, closure, reviews)
@@ -258,8 +260,12 @@ fn all_fresh_association_paths_reject_stale_review_for_same_named_source() {
             .is_err()
     );
 
-    let fresh_reviews = compile_resolved_package_reviews(&target, &temporary.join("changed-build"))
-        .expect("compile the changed source at its own immutable resolution");
+    let fresh_reviews = compile_resolved_package_reviews(
+        &target,
+        &temporary.join("changed-build"),
+        SemanticBindingReview::Explicit(&[]),
+    )
+    .expect("compile the changed source at its own immutable resolution");
     let evidence = accept_ordinary_closure_evidence(
         &target,
         &fresh_reviews,
@@ -440,6 +446,7 @@ machine build(builder: &mut Build) {
     let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.join("build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile claim-free package");
 
@@ -537,6 +544,7 @@ machine build(builder: &mut Build) {
     let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.join("build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile custody-canary review");
     let policy = accepted_policy_fixture::accepted_policy(
@@ -619,6 +627,7 @@ machine build(builder: &mut Build) {
     let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.join("build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile two-package claim closure");
     let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
@@ -748,6 +757,7 @@ machine build(builder: &mut Build) {
     let source_only_reviews = compile_resolved_package_reviews(
         &source_only_closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.join("source-only-build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile source-only claim change");
     let reused = accept_ordinary_closure_evidence(
@@ -781,6 +791,7 @@ ensures result == 1;
     let changed_reviews = compile_resolved_package_reviews(
         &changed_closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.join("changed-build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile changed claim closure");
     let error = accept_ordinary_closure_evidence(
@@ -875,6 +886,7 @@ machine build(builder: &mut Build) {
     let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.join("build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile external-supply closure");
     let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
@@ -1019,6 +1031,7 @@ machine build(builder: &mut Build) {
     let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.join("build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile unresolved contract-entailment closure");
     let reconstruction_limits = CanonicalPackageReconstructionQuestionLimits::default();
@@ -1169,6 +1182,7 @@ machine build(builder: &mut Build) {
     let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target),
         &temporary.join("build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("compile assumption-discharged contract closure");
     let reconstruction_limits = CanonicalPackageReconstructionQuestionLimits::default();

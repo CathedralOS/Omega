@@ -2,6 +2,8 @@
 
 use crate::declarations::PackageKey;
 use crate::review::CompilerIssuedPackageReview;
+#[cfg(test)]
+use crate::review::SemanticBindingReview;
 use package_evidence::record::PackageReviewCanonicalRow;
 use package_source::ImmutableSourceResolution;
 
@@ -105,6 +107,7 @@ mod tests {
             let issued = compile_resolved_package_reviews(
                 &closure.for_exact_target(target::TargetProfile::WindowsX64),
                 &temporary.join("build"),
+                SemanticBindingReview::Explicit(&[]),
             )
             .unwrap();
             let review = &issued.reviews()[0];

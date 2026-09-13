@@ -19,8 +19,8 @@ use package_manager::review::{
     CompileResolvedPackageReviewsError, PackageSourceVerificationPhase, PackageTriageDisposition,
     PackageTriageReason, ReviewOnlyCapabilityConflictLimits, assemble_initial_source_review,
     assemble_update_source_review, compare_review_only_initial_capabilities,
-    compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
-    triage_initial_install, triage_review_update, triage_update_without_admission_baseline,
+    compile_resolved_package_reviews, triage_initial_install, triage_review_update,
+    triage_update_without_admission_baseline,
 };
 use package_source::{
     LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolveError, SourceResolverStorage,

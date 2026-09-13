@@ -9,6 +9,7 @@ use package_manager::resolution::graph::{
     resolve_workspace_package_closure_with_storage,
 };
 use package_manager::resolution::source::ResolvePackageSourceError;
+use package_manager::review::SemanticBindingReview;
 use package_manager::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
     ReviewOnlyCapabilityConflictLimits, compile_resolved_package_candidate_for_production,
@@ -76,6 +77,7 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
         compile_resolved_package_candidate_for_production(
             &closure.for_exact_target(target::TargetProfile::WindowsX64),
             &temporary.join("invalid-native-production"),
+            SemanticBindingReview::Discover
         ),
         Err(
             CompileResolvedPackageReviewsError::InvalidProductionRootRole {
@@ -88,6 +90,7 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
     let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.join("compiler-build"),
+        SemanticBindingReview::Explicit(&[]),
     )
     .expect("dependency generated source should enter consumer compilation");
 

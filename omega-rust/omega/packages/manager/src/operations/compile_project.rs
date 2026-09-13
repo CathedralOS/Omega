@@ -1,5 +1,7 @@
 //! Accepted native production for one already-prepared local project.
 
+use crate::review::SemanticBindingReview;
+
 use super::PreparedLocalProject;
 use crate::admission::{
     AcceptedNativeInput, AcceptedNativeRealizationRequest, AcceptedOrdinaryEvidenceError,
@@ -152,8 +154,12 @@ pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
     } = request;
     let (entry_path, source_closure, accepted_target) = prepared.into_review_parts();
     let target_closure = source_closure.for_exact_target(target_profile);
-    let candidate = compile_resolved_package_candidate_for_production(&target_closure, &build_dir)
-        .map_err(CompilePreparedLocalProjectNativeError::Review)?;
+    let candidate = compile_resolved_package_candidate_for_production(
+        &target_closure,
+        &build_dir,
+        SemanticBindingReview::Discover,
+    )
+    .map_err(CompilePreparedLocalProjectNativeError::Review)?;
     let evidence = accept_ordinary_closure_evidence(
         &target_closure,
         candidate.reviews(),

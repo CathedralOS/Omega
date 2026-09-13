@@ -1,5 +1,7 @@
 //! Candidate checking, project review, and a proposed source lock section.
 
+use crate::review::SemanticBindingReview;
+
 mod error;
 pub use error::PackageChangeError;
 
@@ -13,7 +15,7 @@ use crate::resolution::graph::{
 use crate::review::{
     CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits, PackagePolicyChangeSet,
     PackagePolicyResolution, PackageSourceVerificationPhase, compare_package_policy_changes,
-    compile_resolved_package_candidate_reviews, verify_transitive_source_custody,
+    compile_resolved_package_reviews, verify_transitive_source_custody,
 };
 use std::path::Path;
 use target::TargetProfile;
@@ -126,8 +128,12 @@ pub fn review_package_change(
         ));
     }
     let target_closure = source_closure.for_exact_target(target);
-    let reviews = compile_resolved_package_candidate_reviews(&target_closure, build_root)
-        .map_err(PackageChangeError::Compilation)?;
+    let reviews = compile_resolved_package_reviews(
+        &target_closure,
+        build_root,
+        SemanticBindingReview::Discover,
+    )
+    .map_err(PackageChangeError::Compilation)?;
     for review in reviews.reviews() {
         let count = review
             .obligation_results()

@@ -9,6 +9,7 @@ use package_manager::lock::{
 use package_manager::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
 };
+use package_manager::review::SemanticBindingReview;
 use package_manager::review::{
     ReviewOnlyCapabilityConflictSet, ReviewOnlyRootPolicyDisposition,
     compile_resolved_package_reviews,
@@ -77,8 +78,12 @@ pub(super) fn assert_complete_lock(
     let linux_closure = scenario
         .candidate_sources
         .for_exact_target(TargetProfile::LinuxX64);
-    let linux_reviews =
-        compile_resolved_package_reviews(&linux_closure, &scenario.build_root).unwrap();
+    let linux_reviews = compile_resolved_package_reviews(
+        &linux_closure,
+        &scenario.build_root,
+        SemanticBindingReview::Explicit(&[]),
+    )
+    .unwrap();
     let linux_source =
         CanonicalSourceClosureSubject::from_resolved(&linux_closure, source_limits).unwrap();
     assert!(windows_source.same_source_graph(&linux_source));

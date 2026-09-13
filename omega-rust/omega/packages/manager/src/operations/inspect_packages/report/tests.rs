@@ -4,9 +4,9 @@ use crate::resolution::graph::{
     CanonicalSourceClosureSubjectLimits, PackageSourceClosureLimits,
     resolve_external_local_project_closure_with_storage,
 };
+use crate::review::SemanticBindingReview;
 use crate::review::{
-    PackagePolicyChangeLimits, compare_package_policy_changes,
-    compile_resolved_package_candidate_reviews,
+    PackagePolicyChangeLimits, compare_package_policy_changes, compile_resolved_package_reviews,
 };
 use package_evidence::record::PackagePolicyBaseline;
 use package_source::{
@@ -136,9 +136,10 @@ impl Project {
         )
         .unwrap();
         let exact = closure.for_exact_target(TARGET);
-        let reviews = compile_resolved_package_candidate_reviews(
+        let reviews = compile_resolved_package_reviews(
             &exact,
             &self.0.join(format!("{label}-build")),
+            SemanticBindingReview::Discover,
         )
         .unwrap();
         let changes = compare_package_policy_changes(

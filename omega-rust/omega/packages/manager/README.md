@@ -152,8 +152,19 @@ It has no codec, `omega.lock` mutation route, or transaction
 authority. Its promotion layer is current implementation, not a requirement to
 add `PackageInstance` certification before implementing install/update.
 
-`compile_resolved_package_candidate_reviews` is the install/update candidate
-entrance. Each package uses its authored `main.omg` when present, otherwise
+Start candidate compilation at
+[`compilation.rs`](src/review/candidate/compilation.rs): product selection,
+binding discovery, final checking, session disposal, then result handoff.
+Its `package_pass.rs` owns dependency-order compilation and projection;
+session, policy budgeting, and ledger budgeting live beneath that same owner.
+[`review_set.rs`](src/review/candidate/review_set.rs) describes the issued output.
+
+`compile_resolved_package_reviews` with `SemanticBindingReview::Discover` is
+the install/update candidate entrance. `Explicit(inputs)` checks exactly the
+supplied bindings in one pass, without discovery; `Explicit(&[])` is the
+unbound review used to inspect candidates. Binding mode is an input to the same
+workflow, not a separate implementation or an acceptance decision.
+Each package uses its authored `main.omg` when present, otherwise
 its authored `build.omg` through the compiler's existing build-file entrance.
 This creates no source exports: missing imported modules still reject. Explicit
 root check entries and native application entry requirements remain unchanged.

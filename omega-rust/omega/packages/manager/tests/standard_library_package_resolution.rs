@@ -7,9 +7,9 @@ use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
 };
 use package_manager::resolution::package_compilation_inputs;
+use package_manager::review::SemanticBindingReview;
 use package_manager::review::{
-    ConsumerScopedSemanticBindingReviewInput, compile_resolved_package_candidate_reviews,
-    compile_resolved_package_reviews, compile_resolved_package_reviews_with_semantic_bindings,
+    ConsumerScopedSemanticBindingReviewInput, compile_resolved_package_reviews,
 };
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use source::SourceOrigin;
@@ -223,9 +223,10 @@ fn real_standard_library_has_a_complete_ordinary_review_entry() {
     )
     .expect("resolve the standard library as an ordinary package root");
 
-    let reviews = compile_resolved_package_candidate_reviews(
+    let reviews = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &tree.0.join("review-build"),
+        SemanticBindingReview::Discover,
     )
     .expect("compile the complete ordinary standard-library review entry");
     let review = reviews
@@ -279,9 +280,12 @@ fn real_filesystem_host_schema_accepts_settled_portable_facet_rows() {
     )
     .expect("resolve consumer with the real standard library");
     let target = closure.for_exact_target(target::TargetProfile::LinuxX64);
-    let preliminary =
-        compile_resolved_package_reviews(&target, &tree.0.join("filesystem-preliminary-build"))
-            .expect("compile preliminary filesystem review");
+    let preliminary = compile_resolved_package_reviews(
+        &target,
+        &tree.0.join("filesystem-preliminary-build"),
+        SemanticBindingReview::Explicit(&[]),
+    )
+    .expect("compile preliminary filesystem review");
     let root = closure.graph().root();
     let root_review = preliminary.review(root).expect("preliminary root review");
     let candidates = root_review
@@ -508,13 +512,13 @@ fn real_filesystem_host_schema_accepts_settled_portable_facet_rows() {
         .clone()
         .with_terminal_authority_permissions(permissions)
         .expect("attach explicit facets to exact real FilesystemHost requirements");
-    let final_reviews = compile_resolved_package_reviews_with_semantic_bindings(
+    let final_reviews = compile_resolved_package_reviews(
         &target,
         &tree.0.join("filesystem-policy-build"),
-        &[ConsumerScopedSemanticBindingReviewInput::new(
+        SemanticBindingReview::Explicit(&[ConsumerScopedSemanticBindingReviewInput::new(
             root.clone(),
             binding,
-        )],
+        )]),
     )
     .expect("recompile real FilesystemHost policy through the checked review route");
     let final_root = final_reviews.review(root).expect("final root review");

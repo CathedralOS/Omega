@@ -5,6 +5,7 @@ use crate::resolution::graph::{
     resolve_staged_external_local_project_closure_with_git_pins,
 };
 use crate::resolution::source::ResolvePackageSourceError;
+use crate::review::SemanticBindingReview;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
 use package_source::{ExternalLocalLineage, SourceResolveError};
@@ -254,8 +255,12 @@ fn staged_project_adds_relative_and_nested_path_dependencies_from_live_directori
     )
     .expect("recover staged source graph");
     crate::resolution::package_compilation_inputs(&candidate).expect("staged compiler inputs");
-    let reviews = compile_resolved_package_candidate_reviews(&exact, &fixture.path("compiler"))
-        .expect("check all staged packages through ordinary compiler reviews");
+    let reviews = compile_resolved_package_reviews(
+        &exact,
+        &fixture.path("compiler"),
+        SemanticBindingReview::Discover,
+    )
+    .expect("check all staged packages through ordinary compiler reviews");
     for custody in candidate.custodies() {
         assert!(reviews.review(custody.key()).is_some());
     }
