@@ -63,8 +63,20 @@ pub(super) fn domain_definition_by_name<'program>(
         .find(|definition| definition.name.as_str() == name)
         .filter(|definition| {
             !definition.where_facts.is_empty()
+                || data_has_case_where_facts(program, definition)
                 || crate::data::data_requires_establishment(program, definition)
         })
+}
+
+/// CASE-CONSTRAINTS (ch12): does any case of `definition` carry `where`
+/// facts? A constrained case's facts extend the default domain while that
+/// case is active, so its writes join the same invariant-window net as a
+/// `where`-carrying record's.
+pub(super) fn data_has_case_where_facts(program: &TypedTrees, definition: &DataDefinition) -> bool {
+    program.data_members(definition).iter().any(|member| {
+        matches!(member, typed_trees::data::DataMember::Variant(variant)
+            if !variant.where_facts.is_empty())
+    })
 }
 
 /// Resolve the data value denoted by an expression. `declared_place_type`
@@ -127,9 +139,19 @@ pub(super) fn field_is_where_mentioned(
     definition: &DataDefinition,
     field: &str,
 ) -> bool {
+    fact_span_mentions_field(program, definition.where_facts, field)
+}
+
+/// Whether any fact in `facts` names `field` -- the write-target test shared
+/// by type-wide `where` facts and a constrained case's own fact span.
+pub(super) fn fact_span_mentions_field(
+    program: &TypedTrees,
+    facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
+    field: &str,
+) -> bool {
     program
         .proof_facts
-        .span_or_empty(definition.where_facts)
+        .span_or_empty(facts)
         .iter()
         .any(|fact| match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {

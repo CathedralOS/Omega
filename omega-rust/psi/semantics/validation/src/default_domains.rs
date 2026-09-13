@@ -31,8 +31,9 @@ mod tests;
 
 use call_summaries::{collect_call_summaries, machine_symbol_for_state};
 use place_queries::{
-    data_definition_for_expression, domain_definition_by_name, field_is_where_mentioned,
-    is_self_rooted, membership_field_name, self_place_spelling,
+    data_definition_for_expression, data_has_case_where_facts, domain_definition_by_name,
+    fact_span_mentions_field, field_is_where_mentioned, is_self_rooted, membership_field_name,
+    self_place_spelling,
 };
 use state_flow::{PlaceValuation, canonicalize_valuations, meet_valuations, state_edges};
 use symbolic_values::{
@@ -434,6 +435,12 @@ struct TrackedPlace<'program> {
     /// left the facts FALSE; every consumption point (a read of the place,
     /// a call, state exit) refuses until a later write folds them true.
     window_open: bool,
+    /// CASE-CONSTRAINTS (ch12): the place's currently established case, when
+    /// a case literal (or a transported valuation) proves it. Case-local
+    /// `where` facts fold on payload writes exactly as type-wide facts fold
+    /// on common-field writes; `None` means the case is unknown and a
+    /// fact-mentioned payload write joins every candidate case's facts.
+    active_case: Option<symbols::SymbolHandle>,
 }
 
 /// Walk one state (write obligations + the access gate), seeded with the
@@ -642,15 +649,21 @@ fn walk_state(
     let mut exit_valuations: Vec<PlaceValuation> = tracked
         .iter()
         .filter(|place| is_self_rooted(&place.spelling))
-        .map(|place| (place.spelling.clone(), place.fields.clone()))
+        .map(|place| {
+            (
+                place.spelling.clone(),
+                place.fields.clone(),
+                place.active_case,
+            )
+        })
         .collect();
     if !poisoned_all {
-        for (spelling, fields) in entry_valuations {
+        for (spelling, fields, active_case) in entry_valuations {
             let poisoned = poisoned_paths
                 .iter()
                 .any(|written| crate::calls::frame_paths_overlap(spelling, written));
-            if !poisoned && !exit_valuations.iter().any(|(name, _)| name == spelling) {
-                exit_valuations.push((spelling.clone(), fields.clone()));
+            if !poisoned && !exit_valuations.iter().any(|(name, _, _)| name == spelling) {
+                exit_valuations.push((spelling.clone(), fields.clone(), *active_case));
             }
         }
     }
@@ -781,6 +794,10 @@ fn handle_assignment<'program>(
             established: true,
             born_zero: place_born_zero,
             window_open: false,
+            // The literal's selected case replaces the place's active case:
+            // the previous case's facts lapse with its payload, and the new
+            // case's facts were already proven at construction.
+            active_case: literal.case_symbol,
         });
         return;
     }
@@ -799,6 +816,7 @@ fn handle_assignment<'program>(
         return;
     };
     if definition.where_facts.is_empty()
+        && !data_has_case_where_facts(program, definition)
         && !crate::data::data_requires_establishment(program, definition)
     {
         return;
@@ -819,13 +837,13 @@ fn handle_assignment<'program>(
             || poisoned_paths
                 .iter()
                 .any(|written| crate::calls::frame_paths_overlap(&receiver_spelling, written));
-        let seeded_fields = if poisoned {
-            Vec::new()
+        let (seeded_fields, seeded_case) = if poisoned {
+            (Vec::new(), None)
         } else {
             entry_valuations
                 .iter()
-                .find(|(name, _)| *name == receiver_spelling)
-                .map(|(_, fields)| fields.clone())
+                .find(|(name, _, _)| *name == receiver_spelling)
+                .map(|(_, fields, active_case)| (fields.clone(), *active_case))
                 .unwrap_or_default()
         };
         let self_rooted = is_self_rooted(&receiver_spelling);
@@ -844,6 +862,7 @@ fn handle_assignment<'program>(
                 || !self_rooted,
             born_zero: born_zero && self_rooted,
             window_open: false,
+            active_case: seeded_case,
         });
         let last = tracked.len() - 1;
         &mut tracked[last]
@@ -874,7 +893,16 @@ fn handle_assignment<'program>(
                 }
                 _ => None,
             });
+    // CASE-CONSTRAINTS (ch12): the facts a field write must re-prove include
+    // the ACTIVE case's `where` facts. A known active case contributes its
+    // own fact set only when the write touches a fact-mentioned name; an
+    // unknown active case joins the facts of every case whose fact set
+    // mentions the field (a payload write is only meaningful under a case
+    // that owns the name, so demanding each candidate's facts is the
+    // conservative meet).
+    let case_fact_spans = case_fact_spans_mentioning(program, place, &field_name);
     if !field_is_where_mentioned(program, place.definition, &field_name)
+        && case_fact_spans.is_empty()
         && !field_type
             .is_some_and(|field_type| crate::data::type_requires_establishment(program, field_type))
     {
@@ -886,10 +914,9 @@ fn handle_assignment<'program>(
         .map(|(name, value)| (name.as_str(), *value))
         .collect();
     let mut all_hold = range_gates_hold(program, place);
-    for fact in program
-        .proof_facts
-        .span_or_empty(place.definition.where_facts)
-    {
+    let fact_spans =
+        std::iter::once(place.definition.where_facts).chain(case_fact_spans.iter().copied());
+    for fact in fact_spans.flat_map(|span| program.proof_facts.span_or_empty(span)) {
         match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
                 match fold_with_valuation(
@@ -958,6 +985,41 @@ fn handle_assignment<'program>(
     } else {
         place.window_open = true;
     }
+}
+
+/// CASE-CONSTRAINTS (ch12): the case-local `where` fact spans a field write
+/// must re-prove. When the place's active case is known, only that case's
+/// facts apply -- and only when the written field is one the facts name
+/// (an unrelated write preserves the current window state, exactly as an
+/// unrelated common-field write does). When the active case is unknown, the
+/// write joins every case whose fact set names the field: a payload write is
+/// only meaningful under a case owning that binding, so requiring each
+/// candidate's facts is the conservative meet. A known case without facts
+/// (or whose facts ignore the field) contributes nothing -- an omitted case
+/// clause contributes true.
+fn case_fact_spans_mentioning(
+    program: &TypedTrees,
+    place: &TrackedPlace<'_>,
+    field_name: &str,
+) -> Vec<arena::HandleSpan<typed_trees::domain::ProofFact>> {
+    program
+        .data_members(place.definition)
+        .iter()
+        .filter_map(|member| {
+            let typed_trees::data::DataMember::Variant(variant) = member else {
+                return None;
+            };
+            if variant.where_facts.is_empty()
+                || !fact_span_mentions_field(program, variant.where_facts, field_name)
+                || place
+                    .active_case
+                    .is_some_and(|active| active != variant.symbol)
+            {
+                return None;
+            }
+            Some(variant.where_facts)
+        })
+        .collect()
 }
 
 /// R2 rung 3 slice 2: refuse reads of an unestablished GATED place. V1

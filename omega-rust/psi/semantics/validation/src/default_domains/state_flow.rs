@@ -8,27 +8,38 @@ use typed_trees::TypedTrees;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
-/// One place's transported field valuation (`None` value = known-unknown).
-pub(super) type PlaceValuation = (String, Vec<(String, Option<i128>)>);
+/// One place's transported field valuation (`None` value = known-unknown)
+/// and its transported ACTIVE CASE (`None` = unknown or case-free). The case
+/// rides the same must-meet as the literal fields: a constrained case's
+/// `where` facts are only knowable when every predecessor agrees which case
+/// is active.
+pub(super) type PlaceValuation = (
+    String,
+    Vec<(String, Option<i128>)>,
+    Option<symbols::SymbolHandle>,
+);
 
 /// Give semantic maps one publication order without changing their facts.
 /// Missing fields and explicitly unknown values retain their existing meaning.
 pub(super) fn canonicalize_valuations(valuations: &mut [PlaceValuation]) {
     valuations.sort_by(|left, right| left.0.cmp(&right.0));
-    for (_, fields) in valuations {
+    for (_, fields, _) in valuations {
         fields.sort_by(|left, right| left.0.cmp(&right.0));
     }
 }
 
 /// MUST meet of two exit valuations: a place survives only when present in
 /// both; a field survives only when both sides agree on the SAME literal.
+/// The active case survives only when both sides agree on the SAME case.
 pub(super) fn meet_valuations(
     left: &[PlaceValuation],
     right: &[PlaceValuation],
 ) -> Vec<PlaceValuation> {
     let mut result = Vec::new();
-    for (spelling, left_fields) in left {
-        let Some((_, right_fields)) = right.iter().find(|(name, _)| name == spelling) else {
+    for (spelling, left_fields, left_case) in left {
+        let Some((_, right_fields, right_case)) =
+            right.iter().find(|(name, _, _)| name == spelling)
+        else {
             continue;
         };
         let mut fields = Vec::new();
@@ -40,7 +51,8 @@ pub(super) fn meet_valuations(
                 fields.push((field.clone(), *left_value));
             }
         }
-        result.push((spelling.clone(), fields));
+        let active_case = (left_case == right_case).then_some(*left_case).flatten();
+        result.push((spelling.clone(), fields, active_case));
     }
     result
 }
