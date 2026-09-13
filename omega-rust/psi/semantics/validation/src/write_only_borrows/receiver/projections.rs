@@ -5,12 +5,31 @@ use super::*;
 #[cfg(test)]
 mod tests;
 
+/// How far a non-observing projected address may descend through fixed-array
+/// elements. `MembersOnly` serves content-independent record-field places:
+/// every receiver is an admitted plain record and every selected field is
+/// relevant. `LiteralIndexes` additionally freezes each element hop at a
+/// literal in-bounds index; local formation admits only frozen coordinates.
+/// `RuntimeIndexes` admits element hops whose selector evaluation and range
+/// bounds stay with the ordinary receiver-dispatch checks.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(in crate::write_only_borrows) enum ProjectionAdmission {
+    MembersOnly,
+    LiteralIndexes,
+    RuntimeIndexes,
+}
+
 pub(super) fn record<'program>(
     program: &'program TypedTrees,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> Option<&'program DataDefinition> {
-    let (root, referee, attached_root) = projected(program, expression, roots, false)?;
+    let (root, referee, attached_root) = projected(
+        program,
+        expression,
+        roots,
+        ProjectionAdmission::RuntimeIndexes,
+    )?;
     if attached_root {
         super::record(program, root)
     } else {
@@ -25,15 +44,20 @@ pub(in crate::write_only_borrows) fn captured_type(
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> Option<TypeReferenceHandle> {
-    let (_, referee, attached_root) = projected(program, expression, roots, true)?;
+    let (_, referee, attached_root) = projected(
+        program,
+        expression,
+        roots,
+        ProjectionAdmission::LiteralIndexes,
+    )?;
     (!attached_root && is_supported_checked_referee(program, referee)).then_some(referee)
 }
 
-fn projected<'roots>(
+pub(in crate::write_only_borrows) fn projected<'roots>(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &'roots [WriteOnlyRoot],
-    literal_indexes: bool,
+    admission: ProjectionAdmission,
 ) -> Option<(&'roots WriteOnlyRoot, TypeReferenceHandle, bool)> {
     let mut cursor = expression;
     let mut projections = Vec::new();
@@ -84,12 +108,15 @@ fn projected<'roots>(
                 referee = field.type_reference;
             }
             ExpressionNode::Indexed(indexed) => {
+                if admission == ProjectionAdmission::MembersOnly {
+                    return None;
+                }
                 // Do not peel a reference stored in the referent: following
                 // that pointer would observe prior contents. The array shape
                 // and its element address must come from the declared type.
                 let (element, length) =
                     fixed_unrestricted_write_only_array_shape(program, referee)?;
-                if literal_indexes {
+                if admission == ProjectionAdmission::LiteralIndexes {
                     if !program.expression_table.expression_is_valid(indexed.index) {
                         return None;
                     }

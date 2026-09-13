@@ -310,75 +310,27 @@ fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoo
 }
 
 /// Resolve `root.record_field...leaf`, where every receiver is an admitted
-/// plain record and every selected field is relevant and unconstrained. This
-/// is a content-independent place judgment: expression traversal rejects reading
-/// the same path, and sum payloads never enter this content-independent walk.
+/// plain record and every selected field is relevant and unconstrained, through
+/// the same non-observing projection walk that receiver dispatch, projected
+/// subloans, and local formation share — restricted here to member hops. This
+/// is a content-independent place judgment: expression traversal rejects
+/// reading the same path, and sum payloads never enter this walk.
 fn write_only_record_field_type(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> Option<TypeReferenceHandle> {
-    let mut cursor = expression;
-    let mut members = Vec::new();
-    while let ExpressionNode::Member(member) = program.expression_table.expression(cursor) {
-        if member.case_variant.is_some() {
-            return None;
-        }
-        members.push(cursor);
-        cursor = member.receiver;
-    }
-    let (root, mut receiver_type, starts_at_receiver) =
-        if let Some(root) = direct_write_only_root(program, cursor, roots) {
-            (root, root.referee, true)
-        } else {
-            let (root, field) = receiver::bare_field(program, cursor, roots)?;
-            if field.relevance.is_erased() {
-                return None;
-            }
-            if members.is_empty() {
-                return Some(field.type_reference);
-            }
-            (root, field.type_reference, false)
-        };
-    if members.is_empty() {
+    // A bare root name denotes the whole referent, not a field path.
+    if direct_write_only_root(program, expression, roots).is_some() {
         return None;
     }
-
-    for (index, member_handle) in members.iter().rev().enumerate() {
-        let ExpressionNode::Member(member) = program.expression_table.expression(*member_handle)
-        else {
-            unreachable!("member path was collected above")
-        };
-        let definition = if index == 0 && starts_at_receiver && root.receiver_machine.is_valid() {
-            receiver::record(program, root)?
-        } else {
-            write_only_record(program, receiver_type)?
-        };
-        let field = if index == 0 && starts_at_receiver && root.receiver_machine.is_valid() {
-            receiver::field(program, root, *member_handle)?
-        } else {
-            program
-                .data_members(definition)
-                .iter()
-                .find_map(|candidate| {
-                    let DataMember::Field(field) = candidate else {
-                        return None;
-                    };
-                    ((member.member_symbol.is_valid() && field.symbol == member.member_symbol)
-                        || (!member.member_symbol.is_valid()
-                            && field.name.as_str() == member.member.as_str()))
-                    .then_some(field)
-                })?
-        };
-        if field.relevance.is_erased() {
-            return None;
-        }
-        if index + 1 == members.len() {
-            return Some(field.type_reference);
-        }
-        receiver_type = field.type_reference;
-    }
-    None
+    receiver::projected(
+        program,
+        expression,
+        roots,
+        receiver::ProjectionAdmission::MembersOnly,
+    )
+    .map(|(_, leaf, _)| leaf)
 }
 
 /// The final displaced record-path leaf must be an unrestricted primitive, a
