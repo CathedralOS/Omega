@@ -493,7 +493,11 @@ fn noncrashing_provider_does_not_narrow_boundary_crash_permission() {
     module.machines[0].contract.crash_routes = module.boundary_machines[0].crash_routes.clone();
     validate_module(&module).expect("crash-free provider refines wider boundary permission");
 
+    // A candidate publishing exactly the ceiling is the tightest conforming
+    // provider; guarded refinement admits it without narrowing callers.
     module.machines[1].contract.crash_routes = module.boundary_machines[0].crash_routes.clone();
+    validate_module(&module).expect("ceiling-identical provider crash routes refine the boundary");
+    module.machines[1].contract.crash_routes[0].cause = CrashCause::Abort;
     assert_eq!(
         validate_module(&module).unwrap_err(),
         ModuleError::InvalidProviderCandidate {

@@ -159,6 +159,56 @@ pub(super) fn validate_call_crash_coverage(
     Ok(())
 }
 
+/// A checked provider may publish crash routes only where the boundary ceiling
+/// already permits them. Positional scalar formals translate the ceiling into
+/// the candidate's parameter namespace, then the same cause/alternative
+/// coverage used for call continuations applies. A crash-free candidate
+/// refines any ceiling; a guarded candidate route needs the identical guard in
+/// the published bucket or an unconditional ceiling.
+pub(super) fn provider_crash_routes_refine_boundary(
+    boundary: &BoundaryMachineDeclaration,
+    candidate: &TerminalMachine,
+) -> bool {
+    if candidate.contract.crash_routes.is_empty() {
+        return true;
+    }
+    let Some(parameters) = boundary.scalar_contract_parameters() else {
+        return false;
+    };
+    if parameters.len() != candidate.parameters.len() {
+        return false;
+    }
+    // Formal identities belong to the boundary's scalar telescope; the
+    // candidate's own parameters are the invocation actuals here. The scalar
+    // signature check already established positional type agreement.
+    let substitutions = parameters
+        .iter()
+        .zip(&candidate.parameters)
+        .map(|(parameter, actual)| {
+            (
+                parameter.id,
+                ScalarTerm::value(actual.id, parameter.scalar_type),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let ceiling = normalized_crash_routes(&substitute_crash_routes(
+        &boundary.crash_routes,
+        &substitutions,
+    ));
+    normalized_crash_routes(&candidate.contract.crash_routes)
+        .iter()
+        .all(|continuation| {
+            ceiling.iter().any(|published| {
+                published.cause == continuation.cause
+                    && (published.alternatives == [CrashRouteGuard::Truth]
+                        || continuation
+                            .alternatives
+                            .iter()
+                            .all(|route| published.alternatives.contains(route)))
+            })
+        })
+}
+
 pub(super) fn crash_routes_match(
     actual: &[CrashRouteBucket],
     expected: &[CrashRouteBucket],

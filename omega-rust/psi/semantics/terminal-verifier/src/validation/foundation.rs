@@ -596,10 +596,10 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 .all(|(boundary, candidate)| *boundary == candidate.scalar_type);
         if attachment.identity.is_empty()
             || !scalar_signature_matches
-            // A crash-free checked candidate refines any may-crash ceiling.
-            // Wider candidate contracts need independent guarded refinement,
-            // which this bounded provider-conformance lane does not yet carry.
-            || !candidate.contract.crash_routes.is_empty()
+            // A crash-free checked candidate refines any may-crash ceiling;
+            // guarded candidate routes need the same positional substitution
+            // and ceiling coverage that call continuations use.
+            || !super::crash::provider_crash_routes_refine_boundary(boundary, candidate)
             || !provider_result::matches(boundary, candidate)
             || row.signature.parameters != boundary_signature
             || row.signature.parameters != candidate_signature

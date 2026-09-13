@@ -1,7 +1,8 @@
 use super::*;
 use terminal_psi::{
-    BoundaryMachineResult, BoundaryStructuralResultDeclaration, ProviderParameterRefinement,
-    ProviderSignatureParameter, StructuralAccess, StructuralParameterDeclaration,
+    BoundaryMachineResult, BoundaryStructuralResultDeclaration, CrashPredicateTerm,
+    ProviderParameterRefinement, ProviderSignatureParameter, StructuralAccess,
+    StructuralParameterDeclaration,
 };
 
 fn provider_module() -> TerminalModule {
@@ -151,4 +152,115 @@ fn provider_result_conformance_rejects_signature_and_contract_drift() {
             "mutation {mutation}"
         );
     }
+}
+
+fn crashing_provider_module() -> TerminalModule {
+    let mut module = provider_candidate_module();
+    // The caller does not exercise this boundary; provider conformance is the
+    // subject under test.
+    module.machines[0].blocks[0].operations.clear();
+    // The ceiling guard belongs to the boundary's scalar telescope: the first
+    // formal is value 1. The candidate contract names its own parameter,
+    // value 2; positional substitution joins the two namespaces.
+    module.boundary_machines[0].crash_routes = vec![CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            Proposition::Equal(boolean_value(1), ScalarTerm::boolean(true)),
+        ))],
+    }];
+    module.machines[1].contract.crash_routes = vec![CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            Proposition::Equal(boolean_value(2), ScalarTerm::boolean(true)),
+        ))],
+    }];
+    module
+}
+
+#[test]
+fn provider_crash_refinement_admits_candidate_routes_covered_by_the_ceiling() {
+    let module = crashing_provider_module();
+    validate_module(&module).expect("guarded provider route refines the identical ceiling");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("provider crash coverage is independently reconstructed");
+}
+
+#[test]
+fn provider_crash_refinement_lets_an_unconditional_ceiling_cover_guarded_routes() {
+    let mut module = crashing_provider_module();
+    module.boundary_machines[0].crash_routes[0].alternatives = vec![CrashRouteGuard::Truth];
+    validate_module(&module).expect("an unconditional ceiling covers same-cause guards");
+    module.machines[1].contract.crash_routes[0].alternatives = vec![CrashRouteGuard::Truth];
+    validate_module(&module).expect("an unconditional candidate refines an unconditional ceiling");
+}
+
+#[test]
+fn provider_crash_refinement_rejects_routes_outside_the_boundary_ceiling() {
+    let baseline = crashing_provider_module();
+    validate_module(&baseline).unwrap();
+    for mutation in 0..4 {
+        let mut module = baseline.clone();
+        match mutation {
+            // A cause the ceiling does not publish.
+            0 => module.machines[1].contract.crash_routes[0].cause = CrashCause::Abort,
+            // A guarded alternative the ceiling does not list after
+            // positional substitution.
+            1 => {
+                module.machines[1].contract.crash_routes[0].alternatives =
+                    vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                        Proposition::Equal(boolean_value(2), ScalarTerm::boolean(false)),
+                    ))]
+            }
+            // An unconditional route needs an unconditional ceiling.
+            2 => {
+                module.machines[1].contract.crash_routes[0].alternatives =
+                    vec![CrashRouteGuard::Truth]
+            }
+            // A crash-free ceiling cannot publish a crashing provider.
+            3 => module.boundary_machines[0].crash_routes.clear(),
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            validate_module(&module).unwrap_err(),
+            ModuleError::InvalidProviderCandidate {
+                boundary: boundary_id(1),
+                candidate: machine_id(2)
+            },
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn provider_crash_refinement_applies_to_structural_results() {
+    use semantic_vocabulary::IntegerValue;
+    let mut module = provider_module();
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let guard = |value: u64| {
+        CrashRouteGuard::Predicate(CrashPredicateTerm::new(Proposition::Equal(
+            ScalarTerm::value(value_id(value), ScalarType::Integer(integer_type)),
+            ScalarTerm::integer(integer_type, IntegerValue::Unsigned(7)).unwrap(),
+        )))
+    };
+    module.boundary_machines[0].crash_routes = vec![CrashRouteBucket {
+        cause: CrashCause::Abort,
+        alternatives: vec![guard(1)],
+    }];
+    module.machines[1].contract.crash_routes = vec![CrashRouteBucket {
+        cause: CrashCause::Abort,
+        alternatives: vec![guard(2)],
+    }];
+    validate_module(&module).expect("structural provider guarded crash refines the ceiling");
+    module.machines[1].contract.crash_routes[0].cause = CrashCause::Trap;
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::InvalidProviderCandidate {
+            boundary: boundary_id(1),
+            candidate: machine_id(2)
+        }
+    );
 }
