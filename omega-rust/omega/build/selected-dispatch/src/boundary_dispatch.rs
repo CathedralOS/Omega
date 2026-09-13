@@ -21,6 +21,42 @@ struct AdapterRow {
     forward_receiver: bool,
 }
 
+/// A selected requirement that declares local generic binders. Under the
+/// dynamic-dispatch contract it is a family of rows keyed by canonical value
+/// tuple, not one exact overload; finite generic method families are not yet
+/// implemented, so the requirement is dynamically ineligible. Ineligibility
+/// is individual: the requirement supplies no dispatch row, sibling
+/// requirements still settle, and a call targeting it rejects below instead
+/// of silently dispatching every tuple to the unbound generic template.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GenericBoundaryRequirement {
+    receiver_trait: symbols::SymbolHandle,
+    provider_plan_digest: [u8; 32],
+    requirement_symbol: symbols::SymbolHandle,
+    requirement_identity: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ResolvedAdapterRow {
+    /// One exact nongeneric checked realization of the requirement.
+    Adapter(AdapterRow),
+    /// The requirement is dynamically ineligible for want of tuple rows.
+    GenericRequirement(GenericBoundaryRequirement),
+}
+
+#[cfg(test)]
+impl ResolvedAdapterRow {
+    fn expect_adapter(self) -> AdapterRow {
+        match self {
+            Self::Adapter(row) => row,
+            Self::GenericRequirement(requirement) => panic!(
+                "requirement `{}` is dynamically ineligible, not an exact adapter",
+                requirement.requirement_identity
+            ),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct BoundaryField {
     symbol: symbols::SymbolHandle,
@@ -54,11 +90,12 @@ fn plan_selected_boundary_adapter_dispatch(
 ) -> Result<Vec<checked_trees::CheckedBoundaryAdapterDispatch>, Vec<Diagnostic>> {
     let typed = &checked.typed;
     let mut adapters = Vec::new();
+    let mut generic_requirements: Vec<GenericBoundaryRequirement> = Vec::new();
     let mut diagnostics = Vec::new();
     for plan in selected_plans.plans() {
         for row in &plan.rows {
             match resolve_selected_adapter_row(typed, plan, row) {
-                Ok(Some(adapter)) => {
+                Ok(Some(ResolvedAdapterRow::Adapter(adapter))) => {
                     if let Some(existing) = adapters.iter().find(|existing: &&AdapterRow| {
                         existing.receiver_trait == adapter.receiver_trait
                             && existing.requirement_symbol == adapter.requirement_symbol
@@ -73,12 +110,21 @@ fn plan_selected_boundary_adapter_dispatch(
                         adapters.push(adapter);
                     }
                 }
+                Ok(Some(ResolvedAdapterRow::GenericRequirement(requirement))) => {
+                    if !generic_requirements.iter().any(|existing| {
+                        existing.receiver_trait == requirement.receiver_trait
+                            && existing.requirement_symbol == requirement.requirement_symbol
+                            && existing.provider_plan_digest == requirement.provider_plan_digest
+                    }) {
+                        generic_requirements.push(requirement);
+                    }
+                }
                 Ok(None) => {}
                 Err(diagnostic) => diagnostics.push(diagnostic),
             }
         }
     }
-    if adapters.is_empty() {
+    if adapters.is_empty() && generic_requirements.is_empty() {
         return diagnostics.is_empty().then(Vec::new).ok_or(diagnostics);
     }
 
@@ -99,6 +145,9 @@ fn plan_selected_boundary_adapter_dispatch(
                 if !adapters.iter().any(|adapter| {
                     adapter.receiver_trait == requirement
                         && adapter.provider_plan_digest == authorization.provider_plan_digest
+                }) && !generic_requirements.iter().any(|selected| {
+                    selected.receiver_trait == requirement
+                        && selected.provider_plan_digest == authorization.provider_plan_digest
                 }) {
                     diagnostics.push(Diagnostic::error(format!(
                         "routed service field `{}::{}` has no exact Fused selected-provider-plan join",
@@ -119,6 +168,9 @@ fn plan_selected_boundary_adapter_dispatch(
             if !adapters
                 .iter()
                 .any(|adapter| adapter.receiver_trait == symbol)
+                && !generic_requirements
+                    .iter()
+                    .any(|selected| selected.receiver_trait == symbol)
             {
                 continue;
             }
@@ -238,9 +290,12 @@ fn plan_selected_boundary_adapter_dispatch(
                     || !typed.traits().iter().any(|definition| {
                         definition.symbol == trait_symbol && definition.is_boundary
                     })
-                    || !adapters
+                    || (!adapters
                         .iter()
                         .any(|adapter| adapter.receiver_trait == trait_symbol)
+                        && !generic_requirements
+                            .iter()
+                            .any(|selected| selected.receiver_trait == trait_symbol))
                 {
                     continue;
                 }
@@ -284,6 +339,9 @@ fn plan_selected_boundary_adapter_dispatch(
             if !adapters.iter().any(|adapter| {
                 adapter.receiver_trait == receipt.requirement
                     && adapter.provider_plan_digest == receipt.provider_plan_digest
+            }) && !generic_requirements.iter().any(|selected| {
+                selected.receiver_trait == receipt.requirement
+                    && selected.provider_plan_digest == receipt.provider_plan_digest
             }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "routed service parameter {:?} has no exact Fused selected-provider-plan join",
@@ -321,6 +379,7 @@ fn plan_selected_boundary_adapter_dispatch(
                 if let typed_trees::statement::StatementNode::Call(call) = statement {
                     resolve_adapter_call(
                         &adapters,
+                        &generic_requirements,
                         &boundary_fields,
                         call.receiver_symbol,
                         call.target_symbol,
@@ -342,6 +401,7 @@ fn plan_selected_boundary_adapter_dispatch(
         };
         resolve_adapter_call(
             &adapters,
+            &generic_requirements,
             &boundary_fields,
             receiver,
             call.target_symbol,
@@ -370,7 +430,7 @@ fn resolve_selected_adapter_row(
     typed: &TypedTrees,
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
-) -> Result<Option<AdapterRow>, Diagnostic> {
+) -> Result<Option<ResolvedAdapterRow>, Diagnostic> {
     use effects::provider_plan::ProviderBinding;
 
     let ProviderBinding::CheckedAdapter {
@@ -436,6 +496,21 @@ fn resolve_selected_adapter_row(
         )));
     }
 
+    // Requirement-local binders make this a family of rows keyed by canonical
+    // value tuple, not one exact overload. Tuple-keyed family dispatch is not
+    // implemented, so exclude the requirement individually before any
+    // realization check: its row cannot produce an executable adapter.
+    if !typed.state_signature_type_parameters(signature).is_empty() {
+        return Ok(Some(ResolvedAdapterRow::GenericRequirement(
+            GenericBoundaryRequirement {
+                receiver_trait: receiver_trait.symbol,
+                provider_plan_digest: *plan.identity_digest().as_bytes(),
+                requirement_symbol: signature.symbol,
+                requirement_identity: method.requirement_identity.clone(),
+            },
+        )));
+    }
+
     if plan.provider_type.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
@@ -454,6 +529,14 @@ fn resolve_selected_adapter_row(
     if !adapter.supply_mode.is_checked_body() {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` is not a checked body",
+        )));
+    }
+    // A generic machine cannot be the exact realization of a nongeneric
+    // requirement: its unbound binders have no tuple to close them.
+    if !typed.machine_type_parameters(adapter).is_empty() {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` is generic over {} machine binders; only an exact nongeneric realization can settle a boundary row",
+            typed.machine_type_parameters(adapter).len(),
         )));
     }
     let Some(entry) = typed.machine_states(adapter).first() else {
@@ -518,7 +601,7 @@ fn resolve_selected_adapter_row(
         }
     };
 
-    Ok(Some(AdapterRow {
+    Ok(Some(ResolvedAdapterRow::Adapter(AdapterRow {
         receiver_trait: receiver_trait.symbol,
         provider_plan_digest: *plan.identity_digest().as_bytes(),
         receiver_trait_name: receiver_trait.name.as_str().to_owned(),
@@ -528,7 +611,7 @@ fn resolve_selected_adapter_row(
         adapter_target: adapter.name.as_str().to_owned(),
         symbol: entry.symbol,
         forward_receiver,
-    }))
+    })))
 }
 
 fn exact_conformance_requirement_identity(
@@ -634,6 +717,7 @@ fn exact_adapter_receiver_shape(
 
 fn resolve_adapter_call<'adapter>(
     adapters: &'adapter [AdapterRow],
+    generic_requirements: &[GenericBoundaryRequirement],
     fields: &[BoundaryField],
     receiver_symbol: symbols::SymbolHandle,
     target_symbol: symbols::SymbolHandle,
@@ -643,6 +727,17 @@ fn resolve_adapter_call<'adapter>(
     let Some(field) = field else {
         return Ok(None);
     };
+    // A generic requirement supplies no row; without tuple-keyed families a
+    // call to it would silently reach the unbound template at every width.
+    if let Some(requirement) = generic_requirements.iter().find(|requirement| {
+        requirement.receiver_trait == field.trait_symbol
+            && requirement.requirement_symbol == target_symbol
+    }) {
+        return Err(Diagnostic::error(format!(
+            "boundary call `{target_name}` selects generic requirement `{}`; finite generic method families are unimplemented, so the requirement supplies no executable dispatch row",
+            requirement.requirement_identity,
+        )));
+    }
     let matches = adapters
         .iter()
         .filter(|adapter| {
@@ -693,6 +788,7 @@ fn resolve_adapter_call<'adapter>(
 #[cfg(test)]
 mod tests {
     mod borrowed_parameters;
+    mod generic_requirements;
     mod source_retention;
 
     use super::*;
@@ -944,7 +1040,8 @@ mod tests {
                 None => {
                     let adapter = result
                         .expect("exact row resolves")
-                        .expect("checked row yields adapter");
+                        .expect("checked row yields adapter")
+                        .expect_adapter();
                     assert_eq!(adapter.receiver_trait_name, "Echo");
                     assert_eq!(adapter.adapter_target, "EchoProvider::echo_adapter");
                     assert!(!adapter.forward_receiver);
@@ -961,7 +1058,8 @@ mod tests {
 
         let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row)
             .expect("concrete provider self is an exact realization receiver")
-            .expect("checked row yields adapter");
+            .expect("checked row yields adapter")
+            .expect_adapter();
         assert_eq!(adapter.adapter_target, "StatefulProvider::touch");
         assert!(!adapter.forward_receiver);
     }
@@ -974,7 +1072,8 @@ mod tests {
 
         let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row)
             .expect("exact leading boundary binding resolves")
-            .expect("checked row yields adapter");
+            .expect("checked row yields adapter")
+            .expect_adapter();
         assert_eq!(adapter.adapter_target, "ForwardProvider::send_adapter");
         assert!(adapter.forward_receiver);
     }
@@ -1122,7 +1221,7 @@ mod tests {
             (symbol(99), first_requirement, "echo", None, None),
         ];
         for (field, target, name, expected_adapter, expected_error) in cases {
-            let result = resolve_adapter_call(&adapters, &exact_fields, field, target, name);
+            let result = resolve_adapter_call(&adapters, &[], &exact_fields, field, target, name);
             match (expected_adapter, expected_error) {
                 (Some(expected), None) => assert_eq!(
                     result
@@ -1146,6 +1245,7 @@ mod tests {
         assert!(
             resolve_adapter_call(
                 &[adapters[0].clone(), duplicate],
+                &[],
                 &exact_fields,
                 first_field,
                 first_requirement,
