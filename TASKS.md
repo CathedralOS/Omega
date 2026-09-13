@@ -777,43 +777,24 @@ Owners include
   and stale sidecar reject; exhaustion reports `Incomplete`; no partial or
   uncertified success. Extend standalone output framing explicitly for pairs.
 
-  Resume evidence: the bounded slice is landed end-to-end on this branch.
-  `Build.pcc.psi`/`Build.pcc.native` normalize as two independent
-  off-by-default requests through `build-evaluation`'s `PccRequests` into
-  `CheckedCompilation`; a check-only stop with any request and a Terminal
-  stop with a native request reject as configuration errors. The canonical
-  `.proof` codec lives in `terminal-codec/src/proof_sidecar.rs` (product
-  kind, artifact commitment, semantic/checker profile identities,
-  guarantees and premises, evidence, assumption closure, exact dependency
-  inventory, receiver policy) with canonical ordering, duplicate,
-  trailing-byte and malformed rejection and named resource limits;
-  `verify_psi_proof_sidecar` is independently callable against the
-  receiver's pinned policy. `compilation-report/src/pcc.rs` carries native
-  custody: the publication certificate chain binds post-finalization
-  container bytes and the declared target, and the strong typed digests
-  (`FinalImageSymbolDigest`, `CompilerTextDerivationDigest`,
-  `CompilerFunctionValidationDigest`,
-  `PlacedExecutableRegionInventoryDigest`) remain the authority while
-  receivers reconstruct them through `from_digest`. Publication stages,
-  validates and replays every requested pair before the report transitions;
-  receipts keep separate artifact/sidecar byte sizes and the compile/run
-  CLI prints each pair. Witnessed on macOS arm64: `compiler --test
-  pcc_publication` 8/8 (all four request combinations, adjacent placement,
-  separate sizes, independent verification after source/build deletion,
-  exact omitted-dependency possession, stale and substituted bytes, wrong
-  premises, policy and assumptions, forged custody, exhaustion reporting
-  `Incomplete`); `proof_sidecar` codec tests 10/10; native custody tests
-  2/2; `omega-architecture-test` 453/453; `cargo fmt --all -- --check`
-  clean; scoped `mbx check`/`mbx clippy` clean on touched crates. Remaining:
-  general claims still depend on `PROOF-KERNEL-CORE`,
-  `PROOF-CERTIFICATION-BRIDGE` and completed profile rules; the macOS
-  inner-executable case is satisfied by construction — sidecars derive from
-  the actual published executable path — but no `.app` bundle production
-  route exists yet to exercise it. Pre-existing and unrelated: seven
-  terminal-codec fixture tests (`ledger_spike`, `publication`,
-  `quotient_correspondence`) are red on the base revision and `origin/main`
-  because upstream bumped `FORMAT_MARKER` to 96 without regenerating the
-  marker-94 fixtures.
+  Reuse the normalized off-by-default requests, canonical sidecar envelope,
+  receiver policy, publication receipts, and bounded Psi verifier. The Psi
+  verifier reconstructs its exact supported claim, profiles, trust closure and
+  dependency inventory; accepting a producer label is not evidence of that
+  claim. Dependency commitments bind service meanings, not module-local IDs.
+
+  Native PCC remains unsupported. Implement standalone evidence and checking in
+  `compilation-report` and the native semantic/certification owners: reconstruct
+  executable behavior against exact bytes, including instruction/entry coverage,
+  control flow and indirect targets, premises, and lowering correspondence (or a
+  direct native proof). Hashes of producer validation reports and an unrelated
+  valid Psi artifact cannot establish that argument. Until it exists, native-only
+  and both-product publication must report `Incomplete`, never a custody-only
+  success. Keep ordinary native and Psi-only publication working. Acceptance must
+  include arbitrary native bytes paired with valid Psi and recomputed producer
+  hashes; the receiver must not return `Complete`. Exercise real macOS bundle
+  placement when that production route exists; path construction alone is not a
+  runtime acceptance test.
 
 - **PSIIR.** Extend Terminal Psi only in complete vertical slices through
   canonical encoding, independent reconstruction, verification,
