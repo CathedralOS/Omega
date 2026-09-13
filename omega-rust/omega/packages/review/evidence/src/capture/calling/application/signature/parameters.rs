@@ -26,7 +26,8 @@ pub(crate) fn instantiate(
     }
     for parameter in parameters {
         match &mut parameter.kind {
-            TypeParameterKind::Const { type_reference } => {
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => {
                 *type_reference = types::instantiate(
                     compilation,
                     *type_reference,

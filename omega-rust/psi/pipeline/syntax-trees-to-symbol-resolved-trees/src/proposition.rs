@@ -63,6 +63,12 @@ fn lower_proposition_binders(
                     )?,
                 }
             }
+            syntax::item::TypeParameterKind::Value { .. } => {
+                return Err(Diagnostic::error(format!(
+                    "proposition declaration binder `{}` cannot be a runtime-capable value binder; value binders are legal only on machine signature generics",
+                    binder.name.as_str()
+                )));
+            }
             syntax::item::TypeParameterKind::Machine { .. } => PropositionBinderKind::Machine,
             syntax::item::TypeParameterKind::Proposition { .. } => {
                 return Err(Diagnostic::error(format!(

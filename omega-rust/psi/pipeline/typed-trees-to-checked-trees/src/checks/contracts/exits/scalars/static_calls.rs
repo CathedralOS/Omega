@@ -116,7 +116,8 @@ impl ExitScalars<'_, '_> {
                     }) else {
                         continue;
                     };
-                    let TypeParameterKind::Const { type_reference } = parameters[position].kind
+                    let (TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference }) = parameters[position].kind
                     else {
                         continue;
                     };
@@ -174,7 +175,9 @@ impl ExitScalars<'_, '_> {
         parameter: &TypeParameter,
         argument: &StaticMachineArgument,
     ) -> Option<StaticResult> {
-        let TypeParameterKind::Const { type_reference } = parameter.kind else {
+        let (TypeParameterKind::Const { type_reference }
+        | TypeParameterKind::Value { type_reference }) = parameter.kind
+        else {
             return None;
         };
         if argument.application.is_some() || argument.evidence_projection.is_some() {
@@ -193,9 +196,12 @@ impl ExitScalars<'_, '_> {
             .machine_type_parameters(self.machine)
             .iter()
             .find(|caller| caller.symbol.is_valid() && caller.symbol == argument.symbol)?;
-        let TypeParameterKind::Const {
+        let (TypeParameterKind::Const {
             type_reference: caller_type,
-        } = caller.kind
+        }
+        | TypeParameterKind::Value {
+            type_reference: caller_type,
+        }) = caller.kind
         else {
             return None;
         };

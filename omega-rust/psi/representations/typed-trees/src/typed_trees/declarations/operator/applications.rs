@@ -153,7 +153,8 @@ fn closed_application_for_operands(
                     }
                     ClosedOperatorApplicationArgument::Const { .. } => false,
                 }),
-            crate::data::TypeParameterKind::Const { type_reference } => const_bindings
+            crate::data::TypeParameterKind::Const { type_reference }
+            | crate::data::TypeParameterKind::Value { type_reference } => const_bindings
                 .iter()
                 .find_map(|OperatorConstBinding { symbol, value }| {
                     (*symbol == parameter.symbol).then_some(

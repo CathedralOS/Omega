@@ -61,6 +61,7 @@ pub(super) fn type_parameter(reader: &mut Reader<'_>) -> Result<PackageReviewTyp
     let kind = match reader.byte()? {
         0 => PackageReviewTypeParameterKind::Type,
         1 => PackageReviewTypeParameterKind::Const(type_identity(reader)?),
+        4 => PackageReviewTypeParameterKind::Value(type_identity(reader)?),
         2 => PackageReviewTypeParameterKind::Machine(machine_contract(reader)?),
         3 => PackageReviewTypeParameterKind::Proposition(
             PackageReviewPropositionParameterSignature {

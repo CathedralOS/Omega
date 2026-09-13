@@ -424,7 +424,8 @@ fn count_type_parameter(
     count_declaration_name(&parameter.name, counts);
     match &parameter.kind {
         crate::data::TypeParameterKind::Type => {}
-        crate::data::TypeParameterKind::Const { type_reference } => {
+        crate::data::TypeParameterKind::Const { type_reference }
+        | crate::data::TypeParameterKind::Value { type_reference } => {
             count_type_reference_handle(&typed_trees.type_reference_table, *type_reference, counts);
         }
         crate::data::TypeParameterKind::Machine { contract } => {

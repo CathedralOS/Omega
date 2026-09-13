@@ -798,28 +798,28 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, false, false, false, false)
+    parse_type_parameters_in(syntax_trees, input, false, false, false, false, false)
 }
 
 pub(super) fn parse_trait_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, true, true, true, true)
+    parse_type_parameters_in(syntax_trees, input, true, true, true, true, false)
 }
 
 pub(super) fn parse_machine_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, true, false, false, false)
+    parse_type_parameters_in(syntax_trees, input, true, false, false, false, false)
 }
 
 pub(super) fn parse_machine_declaration_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, true, false, true, false)
+    parse_type_parameters_in(syntax_trees, input, true, false, true, false, true)
 }
 
 fn parse_type_parameters_in<'tokens, 'source>(
@@ -829,6 +829,7 @@ fn parse_type_parameters_in<'tokens, 'source>(
     allow_proposition_parameters: bool,
     allow_conformance_binders: bool,
     trait_requirement_parameters: bool,
+    allow_value_parameters: bool,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok((ParsedGenericParameters::default(), input));
@@ -897,7 +898,7 @@ fn parse_type_parameters_in<'tokens, 'source>(
             ));
         }
 
-        let (name, kind, next) = if input.at_contextual("const") {
+        let (name, mut kind, next) = if input.at_contextual("const") {
             let input = input.take_contextual("const")?;
             let (name, input) = input.take_identifier()?;
             let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
@@ -943,10 +944,22 @@ fn parse_type_parameters_in<'tokens, 'source>(
         }
         declared_names.push(name.as_str().to_owned());
 
-        if matches!(kind, TypeParameterKind::Type)
+        // `Binder: Subject satisfies Carrier<args>` is a generic conformance
+        // binder; `Name: TypeRef` is a runtime-capable value binder. Where
+        // value binders are admitted, the mandatory `satisfies` after the
+        // single-identifier subject separates the two shapes, so probe it on
+        // a copy before committing. Elsewhere the colon commits to the
+        // conformance shape exactly as before.
+        let is_conformance_binder = matches!(kind, TypeParameterKind::Type)
             && allow_conformance_binders
             && input.at_punctuation(PunctuationKind::Colon)
-        {
+            && (!allow_value_parameters
+                || input
+                    .take_punctuation(PunctuationKind::Colon, ":")
+                    .and_then(|rest| rest.take_identifier().map(|(_, rest)| rest))
+                    .map(|rest| rest.at_contextual("satisfies"))
+                    .unwrap_or(false));
+        if is_conformance_binder {
             let rest = input.take_punctuation(PunctuationKind::Colon, ":")?;
             let (subject, rest) = rest.take_identifier()?;
             let rest = rest.take_contextual("satisfies")?;
@@ -983,6 +996,19 @@ fn parse_type_parameters_in<'tokens, 'source>(
                 },
                 input,
             ));
+        }
+
+        // `Name: TypeRef` — a runtime-capable value binder, admitted only on
+        // machine signature generics. Its carrier type parses exactly like a
+        // const binder's; brackets after it attach to the type, not the name.
+        if matches!(kind, TypeParameterKind::Type)
+            && allow_value_parameters
+            && input.at_punctuation(PunctuationKind::Colon)
+        {
+            let rest = input.take_punctuation(PunctuationKind::Colon, ":")?;
+            let (type_reference, rest) = parse_type_reference_handle(syntax_trees, rest)?;
+            kind = TypeParameterKind::Value { type_reference };
+            input = rest;
         }
 
         // Rust-style `<T: copy>` is rejected with the bracket spelling

@@ -95,7 +95,8 @@ pub(super) fn is_supported(
                                 argument,
                             )
                         }
-                        symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
+                        symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+                        | symbol_resolved_trees::data::TypeParameterKind::Value { .. } => {
                             super::seeded_local_instances::structured_const_parameter_is_supported(
                                 source,
                                 definition.symbol,

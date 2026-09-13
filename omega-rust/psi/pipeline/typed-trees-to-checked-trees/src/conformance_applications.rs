@@ -186,7 +186,8 @@ pub fn close_conformance_application(
                 substitutions.push((parameter.symbol, identity.clone()));
                 type_arguments.push(identity);
             }
-            TypeParameterKind::Const { type_reference } => {
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => {
                 let (argument, substitution_identity) = close_const_argument(
                     program,
                     declaration_name,

@@ -120,14 +120,16 @@ pub(crate) fn retain_closed_reach_applications(
                         ))?
                         .clone(),
                 },
-                TypeParameterKind::Const { .. } => ClosedReachParameter::Const {
-                    argument: constants
-                        .next()
-                        .ok_or(LoweringError::Unsupported(
-                            "closed reach telescope lost a const argument",
-                        ))?
-                        .clone(),
-                },
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+                    ClosedReachParameter::Const {
+                        argument: constants
+                            .next()
+                            .ok_or(LoweringError::Unsupported(
+                                "closed reach telescope lost a const argument",
+                            ))?
+                            .clone(),
+                    }
+                }
                 TypeParameterKind::Machine { contract } => {
                     let (selected, commitment) =
                         machines.next().ok_or(LoweringError::Unsupported(
@@ -516,14 +518,16 @@ fn closed_call_application(
                     ))?
                     .clone(),
             ),
-            TypeParameterKind::Const { .. } => ClosedReachArgument::Const(
-                constants
-                    .next()
-                    .ok_or(LoweringError::Unsupported(
-                        "schema call lost a const argument",
-                    ))?
-                    .clone(),
-            ),
+            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+                ClosedReachArgument::Const(
+                    constants
+                        .next()
+                        .ok_or(LoweringError::Unsupported(
+                            "schema call lost a const argument",
+                        ))?
+                        .clone(),
+                )
+            }
             TypeParameterKind::Machine { .. } => {
                 let (selected, commitment) = machines.next().ok_or(LoweringError::Unsupported(
                     "schema call lost a machine argument",

@@ -709,6 +709,10 @@ fn validate_machine_top_level_requirement_conformance(
                     TypeParameterKind::Const { .. }
                 )
                 | (
+                    TypeParameterKind::Value { .. },
+                    TypeParameterKind::Value { .. }
+                )
+                | (
                     TypeParameterKind::Machine { .. },
                     TypeParameterKind::Machine { .. }
                 )
@@ -758,6 +762,10 @@ fn validate_machine_top_level_requirement_conformance(
                         TypeParameterKind::Const { .. },
                         TypeParameterKind::Const { .. }
                     )
+                    | (
+                        TypeParameterKind::Value { .. },
+                        TypeParameterKind::Value { .. }
+                    )
             )
         })
         .map(|(required, actual)| TraitTypeBinding {
@@ -771,14 +779,22 @@ fn validate_machine_top_level_requirement_conformance(
         .zip(actual_type_parameters)
         .enumerate()
     {
-        let (
+        let ((
             TypeParameterKind::Const {
                 type_reference: required_type,
             },
             TypeParameterKind::Const {
                 type_reference: actual_type,
             },
-        ) = (&required.kind, &actual.kind)
+        )
+        | (
+            TypeParameterKind::Value {
+                type_reference: required_type,
+            },
+            TypeParameterKind::Value {
+                type_reference: actual_type,
+            },
+        )) = (&required.kind, &actual.kind)
         else {
             continue;
         };
@@ -1584,6 +1600,9 @@ fn indexed_carrier_parameter_matches(
                     (
                         TypeParameterKind::Const {
                             type_reference: carrier_type,
+                        }
+                        | TypeParameterKind::Value {
+                            type_reference: carrier_type,
                         },
                         typed_trees::proposition::PropositionBinderKind::Const {
                             type_reference: binder_type,
@@ -2362,6 +2381,10 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
                         TypeParameterKind::Const { .. }
                     )
                     | (
+                        TypeParameterKind::Value { .. },
+                        TypeParameterKind::Value { .. }
+                    )
+                    | (
                         TypeParameterKind::Machine { .. },
                         TypeParameterKind::Machine { .. }
                     )
@@ -2440,6 +2463,10 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
                             TypeParameterKind::Const { .. },
                             TypeParameterKind::Const { .. }
                         )
+                        | (
+                            TypeParameterKind::Value { .. },
+                            TypeParameterKind::Value { .. }
+                        )
                 )
             })
             .map(|(required, actual)| TraitTypeBinding {
@@ -2469,6 +2496,14 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
                     type_reference: required_type,
                 },
                 TypeParameterKind::Const {
+                    type_reference: actual_type,
+                },
+            )
+            | (
+                TypeParameterKind::Value {
+                    type_reference: required_type,
+                },
+                TypeParameterKind::Value {
                     type_reference: actual_type,
                 },
             ) if !type_references_match_with_trait_bindings(

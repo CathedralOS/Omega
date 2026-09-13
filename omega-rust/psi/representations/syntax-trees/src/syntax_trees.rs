@@ -608,6 +608,11 @@ impl SyntaxTrees {
                             type_reference: this.copy_type_reference_handle(other, *type_reference),
                         }
                     }
+                    crate::item::TypeParameterKind::Value { type_reference } => {
+                        crate::item::TypeParameterKind::Value {
+                            type_reference: this.copy_type_reference_handle(other, *type_reference),
+                        }
+                    }
                     crate::item::TypeParameterKind::Machine { contract } => {
                         crate::item::TypeParameterKind::Machine {
                             contract: contract.as_ref().map(|contract| match contract {

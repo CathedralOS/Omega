@@ -728,7 +728,8 @@ fn count_type_parameter_kind(
 ) {
     match kind {
         crate::item::TypeParameterKind::Type => {}
-        crate::item::TypeParameterKind::Const { type_reference } => {
+        crate::item::TypeParameterKind::Const { type_reference }
+        | crate::item::TypeParameterKind::Value { type_reference } => {
             count_type_reference_handle(syntax_trees, *type_reference, counts);
         }
         crate::item::TypeParameterKind::Machine { contract } => {

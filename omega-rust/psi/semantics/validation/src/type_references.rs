@@ -638,7 +638,8 @@ fn validate_type_reference_handle_with_context(
                 }
                 for (parameter, argument) in parameters.iter().zip(argument_handles) {
                     match &parameter.kind {
-                        TypeParameterKind::Const { type_reference } => {
+                        TypeParameterKind::Const { type_reference }
+                        | TypeParameterKind::Value { type_reference } => {
                             validate_const_data_argument(
                                 program,
                                 base_name,

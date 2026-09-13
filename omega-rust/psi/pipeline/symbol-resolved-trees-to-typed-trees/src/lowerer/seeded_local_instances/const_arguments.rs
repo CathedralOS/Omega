@@ -25,7 +25,8 @@ pub(super) fn parameter_is_supported(
         && source.symbols.name(parameter.symbol) == parameter.name.as_str()
         && match &parameter.kind {
             TypeParameterKind::Type => true,
-            TypeParameterKind::Const { type_reference } => {
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => {
                 parameter.bounds == symbol_resolved_trees::data::DataProperties::default()
                     && (scalar_carrier(source, type_reference).is_some()
                         || super::structured_const_arguments::carrier_is_supported(
@@ -42,7 +43,9 @@ pub(super) fn closed_argument_is_supported(
     parameter: &TypeParameter,
     argument: &TypeReference,
 ) -> bool {
-    let TypeParameterKind::Const { type_reference } = &parameter.kind else {
+    let (TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference }) =
+        &parameter.kind
+    else {
         return false;
     };
     let TypeReference::Named { symbol, name } = argument else {
@@ -74,9 +77,12 @@ pub(super) fn template_argument_is_supported(
     if closed_argument_is_supported(source, parameter, argument) {
         return true;
     }
-    let TypeParameterKind::Const {
+    let (TypeParameterKind::Const {
         type_reference: required_carrier,
-    } = &parameter.kind
+    }
+    | TypeParameterKind::Value {
+        type_reference: required_carrier,
+    }) = &parameter.kind
     else {
         return false;
     };
@@ -92,6 +98,7 @@ pub(super) fn template_argument_is_supported(
                 && matches!(
                     &candidate.kind,
                     TypeParameterKind::Const { type_reference }
+                        | TypeParameterKind::Value { type_reference }
                         if type_reference == required_carrier
                 )
         })
@@ -155,6 +162,7 @@ pub(super) fn array_length_is_supported(
                         && matches!(
                             &parameter.kind,
                             TypeParameterKind::Const { type_reference }
+                                | TypeParameterKind::Value { type_reference }
                                 if integer_carrier(source, type_reference).is_some()
                         )
                         && parameter_is_supported(source, owner, parameter)

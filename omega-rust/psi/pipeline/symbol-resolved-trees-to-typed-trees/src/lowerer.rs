@@ -676,7 +676,8 @@ fn exact_extension_machine_symbol(
                         parameter,
                     )
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
+                symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+                | symbol_resolved_trees::data::TypeParameterKind::Value { .. } => {
                     seeded_local_instances::const_parameter_is_supported(
                         source,
                         machine.symbol,

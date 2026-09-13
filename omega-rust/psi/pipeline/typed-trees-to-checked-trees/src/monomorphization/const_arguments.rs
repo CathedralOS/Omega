@@ -107,7 +107,10 @@ pub(super) fn forwarded_type(
         .iter()
         .flat_map(|machine| program.machine_type_parameters(machine))
         .find_map(|parameter| match parameter.kind {
-            TypeParameterKind::Const { type_reference } if parameter.symbol == argument.symbol => {
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference }
+                if parameter.symbol == argument.symbol =>
+            {
                 Some(type_reference)
             }
             _ => None,
@@ -131,16 +134,35 @@ fn validate_arguments(
             && forwarded_type.is_none()
             && spelling(program, argument).is_none()
         {
-            if !candidate.const_parameters.is_empty()
-                && candidate.type_parameters.is_empty()
-                && argument.symbol.is_valid()
+            let type_shaped = argument.symbol.is_valid()
                 && matches!(
                     program.symbols.get(argument.symbol).kind,
                     SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
-                )
+                );
+            if !candidate.const_parameters.is_empty()
+                && candidate.type_parameters.is_empty()
+                && type_shaped
             {
                 return Err(Diagnostic::error(format!(
                     "machine `{}` requires a const value, not type `{}`",
+                    candidate.template_name,
+                    argument.display_name()
+                )));
+            }
+            // A `Value` binder admits static arguments through the ordinary
+            // const specialization path only. A spelled name that resolved to
+            // no static declaration denotes a runtime value; dynamic
+            // realization is deferred until the runtime-value path exists.
+            if candidate.value_const_parameters.contains(&const_index)
+                && argument.application.is_none()
+                && argument.evidence_projection.is_none()
+                && !type_shaped
+            {
+                let parameter_name = &candidate.const_parameters[const_index].1;
+                return Err(Diagnostic::error(format!(
+                    "value parameter `{parameter_name}` of machine `{}` received runtime \
+                     argument `{}`; dynamic realization of value generic arguments is not \
+                     yet supported, so the argument must be a static const value",
                     candidate.template_name,
                     argument.display_name()
                 )));

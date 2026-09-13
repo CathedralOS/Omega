@@ -8,6 +8,7 @@ pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candid
     let mut type_parameters = Vec::new();
     let mut parameter_bounds = Vec::new();
     let mut const_parameters = Vec::new();
+    let mut value_const_parameters = Vec::new();
     let mut machine_parameters = Vec::new();
     for parameter in parameters {
         match &parameter.kind {
@@ -22,6 +23,16 @@ pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candid
                 parameter.name.as_str().to_owned(),
                 *type_reference,
             )),
+            // A `Value` binder binds through the static const path while its
+            // argument is statically known; dynamic realization is deferred.
+            TypeParameterKind::Value { type_reference } => {
+                value_const_parameters.push(const_parameters.len());
+                const_parameters.push((
+                    parameter.symbol,
+                    parameter.name.as_str().to_owned(),
+                    *type_reference,
+                ));
+            }
             TypeParameterKind::Machine { contract } => {
                 let signature = program
                     .machine_parameter_contract_view(contract)
@@ -61,6 +72,7 @@ pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candid
         parameter_bounds,
         conformance_bounds: machine.conformance_bounds.clone(),
         const_parameters,
+        value_const_parameters,
         machine_parameters,
         evidence_parameters,
         inferred_conformance_arguments: Vec::new(),

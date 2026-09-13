@@ -118,7 +118,9 @@ pub(super) fn validate_symbolic_array_length(
         )));
         return;
     };
-    let TypeParameterKind::Const { type_reference } = parameter.kind else {
+    let (TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference }) =
+        parameter.kind
+    else {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} uses type parameter `{name}` as a fixed-array length; array lengths \
              must name a `const` parameter"
@@ -153,7 +155,9 @@ pub fn validate_closed_const_argument(
     parameter: &TypeParameter,
     argument: TypeReferenceHandle,
 ) -> Result<(), Vec<Diagnostic>> {
-    let TypeParameterKind::Const { type_reference } = parameter.kind else {
+    let (TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference }) =
+        parameter.kind
+    else {
         return Err(vec![Diagnostic::error(format!(
             "parameter `{}` of `{owner}` is not a const parameter",
             parameter.name,
@@ -295,9 +299,12 @@ pub(super) fn validate_const_data_argument(
         }));
         return;
     };
-    let TypeParameterKind::Const {
+    let (TypeParameterKind::Const {
         type_reference: forwarded_type,
-    } = forwarded.kind
+    }
+    | TypeParameterKind::Value {
+        type_reference: forwarded_type,
+    }) = forwarded.kind
     else {
         diagnostics.push(Diagnostic::error(format!(
             "const parameter `{}` of `{base_name}` requires a value, not a type",

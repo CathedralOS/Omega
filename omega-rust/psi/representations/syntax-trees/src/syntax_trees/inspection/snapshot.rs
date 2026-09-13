@@ -1195,6 +1195,16 @@ fn snapshot_type_parameter(
                 None,
                 None,
             ),
+            crate::item::TypeParameterKind::Value { type_reference } => (
+                "value",
+                Some(snapshot_type_reference_handle(
+                    syntax_trees,
+                    *type_reference,
+                )),
+                None,
+                None,
+                None,
+            ),
             crate::item::TypeParameterKind::Machine { contract } => match contract {
                 Some(crate::item::MachineParameterContract::RequirementIdentity) => {
                     ("machine_requirement", None, None, None, None)

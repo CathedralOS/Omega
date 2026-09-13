@@ -666,7 +666,8 @@ fn closed_record_generic_origin_is_eligible(
                 typed_trees::data::TypeParameterKind::Type => {
                     closed_raw_generic_type_argument_is_eligible(program, *argument)
                 }
-                typed_trees::data::TypeParameterKind::Const { type_reference } => {
+                typed_trees::data::TypeParameterKind::Const { type_reference }
+                | typed_trees::data::TypeParameterKind::Value { type_reference } => {
                     closed_raw_generic_const_argument_is_eligible(
                         program,
                         type_reference,

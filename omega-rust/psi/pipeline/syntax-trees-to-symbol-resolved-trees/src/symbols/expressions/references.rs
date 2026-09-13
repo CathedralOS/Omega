@@ -294,6 +294,7 @@ pub(in crate::symbols) fn assign_name_symbol(
                             && (matches!(
                                 parameter.kind,
                                 symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+                                    | symbol_resolved_trees::data::TypeParameterKind::Value { .. }
                             ) || !suffix.is_empty())
                     })
                     .map(|parameter| parameter.symbol)

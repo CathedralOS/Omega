@@ -80,6 +80,12 @@ pub(crate) fn encode_type_parameter(
                     encode_type_identity(encoder, type_identity)
                 })?;
             }
+            PackageReviewTypeParameterKind::Value(type_identity) => {
+                encoder.tag("value", 4);
+                encoder.field("type_identity", |encoder| {
+                    encode_type_identity(encoder, type_identity)
+                })?;
+            }
             PackageReviewTypeParameterKind::Machine(contract) => {
                 encoder.tag("machine", 2);
                 encoder.field("contract", |encoder| {

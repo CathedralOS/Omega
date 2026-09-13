@@ -43,7 +43,8 @@ impl Scope<'_> {
                     .get(local)
                     .map(|parameter| match &parameter.kind {
                         PackagePolicyTypeParameterKind::Type => BinderKind::Type,
-                        PackagePolicyTypeParameterKind::Const(_) => BinderKind::Const,
+                        PackagePolicyTypeParameterKind::Const(_)
+                        | PackagePolicyTypeParameterKind::Value(_) => BinderKind::Const,
                         PackagePolicyTypeParameterKind::Machine(_) => BinderKind::Machine,
                         PackagePolicyTypeParameterKind::Proposition(signature) => {
                             BinderKind::Proposition(signature)
@@ -64,7 +65,8 @@ impl Scope<'_> {
                 .get(local)
                 .map(|parameter| match &parameter.kind {
                     PackageReviewTypeParameterKind::Type => BinderKind::Type,
-                    PackageReviewTypeParameterKind::Const(_) => BinderKind::Const,
+                    PackageReviewTypeParameterKind::Const(_)
+                    | PackageReviewTypeParameterKind::Value(_) => BinderKind::Const,
                     PackageReviewTypeParameterKind::Machine(_) => BinderKind::Machine,
                     PackageReviewTypeParameterKind::Proposition(signature) => {
                         BinderKind::Proposition(signature)

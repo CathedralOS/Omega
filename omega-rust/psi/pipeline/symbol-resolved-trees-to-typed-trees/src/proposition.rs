@@ -367,7 +367,8 @@ fn classify_proposition_static_symbol(
                         resolved::data::TypeParameterKind::Type => {
                             Some(typed::proposition::PropositionBinderArgumentKind::Type)
                         }
-                        resolved::data::TypeParameterKind::Const { .. } => {
+                        resolved::data::TypeParameterKind::Const { .. }
+                        | resolved::data::TypeParameterKind::Value { .. } => {
                             Some(typed::proposition::PropositionBinderArgumentKind::Const)
                         }
                         resolved::data::TypeParameterKind::Machine { .. } => {
@@ -431,7 +432,8 @@ fn proposition_const_symbol_type<'a>(
                 .map(|(_, parameter)| parameter)
                 .find(|parameter| parameter.symbol == symbol)
                 .and_then(|parameter| match &parameter.kind {
-                    resolved::data::TypeParameterKind::Const { type_reference } => {
+                    resolved::data::TypeParameterKind::Const { type_reference }
+                    | resolved::data::TypeParameterKind::Value { type_reference } => {
                         Some(type_reference)
                     }
                     resolved::data::TypeParameterKind::Type

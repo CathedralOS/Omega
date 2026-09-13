@@ -407,7 +407,7 @@ fn normalized_signature_and_aggregate_unknown_tags_reject() {
     );
     assert_eq!(
         signatures::type_parameter(
-            &mut Reader::new(&[4], PackagePolicyRecoveryLimits::default()).unwrap()
+            &mut Reader::new(&[5], PackagePolicyRecoveryLimits::default()).unwrap()
         ),
         Err(Error::InvalidTag)
     );

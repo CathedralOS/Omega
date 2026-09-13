@@ -123,8 +123,14 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                         .type_parameters(machine.type_parameters)
                         .iter()
                         .all(|parameter| {
-                            let method_is_const =
-                                matches!(parameter.kind, TypeParameterKind::Const { .. });
+                            // A runtime-capable value binder counts as
+                            // const-shaped here: it can only lawfully pair
+                            // with a data `const` binder (a static argument),
+                            // never with a data type binder.
+                            let method_is_const = matches!(
+                                parameter.kind,
+                                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                            );
                             data_parameters.iter().any(|(name, data_is_const)| {
                                 name == parameter.name.as_str() && *data_is_const == method_is_const
                             })

@@ -21,6 +21,12 @@ pub(in crate::encoding::encode) fn type_parameter(
                     encode_type_identity(encoder, value)
                 })?;
             }
+            PackagePolicyTypeParameterKind::Value(value) => {
+                encoder.tag("value", 4);
+                encoder.field("type_identity", |encoder| {
+                    encode_type_identity(encoder, value)
+                })?;
+            }
             PackagePolicyTypeParameterKind::Machine(value) => {
                 encoder.tag("machine", 2);
                 encoder.field("contract", |encoder| machine_contract(encoder, value))?;

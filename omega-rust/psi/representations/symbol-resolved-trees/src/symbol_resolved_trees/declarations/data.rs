@@ -135,6 +135,12 @@ pub enum TypeParameterKind {
     Const {
         type_reference: TypeReference,
     },
+    /// Runtime-capable value binder (`Count: u32`); unlike `Const` it may be
+    /// supplied at runtime. Dynamic realization is not implemented, so only
+    /// static arguments specialize through the const path.
+    Value {
+        type_reference: TypeReference,
+    },
     /// Static machine-symbol parameter with its mandatory authored
     /// requirement. Structural contracts carry their signature inline;
     /// nominal contracts retain the exact canonical trait-requirement row.
