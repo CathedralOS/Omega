@@ -151,7 +151,23 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   selection, extension elimination, and constant materialization one exact
   named family at a time. Each family needs a disjoint source grammar,
   independent validator, target applicability, corruption controls, and
-  publication replay.
+  publication replay. Resume evidence (verified at `8c0d4dbb45`, Linux
+  x86-64): the only existing family seam is the selected-lowering literal
+  fold in `selected-instructions-to-selected-instructions`
+  (`rewrites/selected_lowering/literal_fold`). It is not a general peephole:
+  it fires only from a pressure-recovery
+  `ImmediateU64RematerializationCandidate` with `Incoming` role, folds one
+  `MaterializeI64` into the `[left, result]` consumer at operand 1 with a
+  `Def` result and u12 immediate, and both `SelectedInstructionPairRule` and
+  the inline validator (`validate/replay.rs`) assume that shape. Compare with
+  a zero literal is already selected directly as `CompareI64Zero`
+  (`target-operations-to-selected-instructions` `zero_compare.rs`), so no
+  compare/zero fold has a customer. The next compare/branch family
+  (`CompareI64` + u12 literal → `CompareI64Immediate`) needs a new
+  `SelectedInstructionKind` across `selected-instructions`, both ISA encoders,
+  `register-environment`, selection identity, and the optimizer vocabulary,
+  plus a fold action for flag-defining consumers without a `Def` result. Land
+  the instruction kind and encoders first, then the fold family.
 
 - **SELECTED-ABI-VALIDATION.** Validate ABI operands, calls, clobbers, effects,
   traps, provenance, cleanup, and logical fuel across every selected rule.
