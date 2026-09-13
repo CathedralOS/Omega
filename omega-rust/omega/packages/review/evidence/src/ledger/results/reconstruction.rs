@@ -11,8 +11,8 @@ use crate::ledger::{
     ordinary_package_obligation_ledger_from_compiler_rows,
 };
 use crate::record::{
-    CheckedPackageReviewProjection, PackageReviewCallableSupply, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRisk,
+    CheckedPackageReviewProjection, PackageReviewCallableSupply, PackageReviewCanonicalRow,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
 };
 
 /// Join one exact locally reconstructed ledger to its typed compiler
@@ -53,17 +53,21 @@ pub fn ordinary_package_obligation_results_from_projection(
         ));
     }
 
+    results_from_matching_projection(ledger, projection)
+}
+
+// Only the validated join above and the fresh, single-owner reconstruction
+// below may bypass canonical-row comparison.
+fn results_from_matching_projection(
+    ledger: &OrdinaryPackageObligationLedger,
+    projection: &CheckedPackageReviewProjection,
+) -> Result<OrdinaryPackageObligationResultSet, OrdinaryPackageObligationLedgerRecoveryError> {
     let accepted_callables = projection
         .callables()
         .iter()
-        .filter(|callable| callable.supply() == PackageReviewCallableSupply::AdmissionClaim)
-        .collect::<Vec<_>>();
-    let accepted_rows = ledger
-        .rows()
-        .iter()
-        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
-        .collect::<Vec<_>>();
-    if accepted_callables.len() != accepted_rows.len() {
+        .filter(|callable| callable.supply() == PackageReviewCallableSupply::AdmissionClaim);
+    let accepted_rows = ledger.rows_of_kind(PackageReviewCanonicalRowKind::AcceptedClaim);
+    if accepted_callables.clone().count() != accepted_rows.len() {
         return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
             "ordinary package accepted claims are not bijective with their canonical rows",
         ));
@@ -77,7 +81,7 @@ pub fn ordinary_package_obligation_results_from_projection(
                 "ordinary package accepted-claim result allocation failed",
             )
         })?;
-    for (callable, row) in accepted_callables.into_iter().zip(accepted_rows) {
+    for (callable, row) in accepted_callables.zip(accepted_rows) {
         if row.risk() != PackageReviewCanonicalRowRisk::Blocking {
             return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
                 "ordinary package accepted claim is not blocking",
@@ -90,11 +94,8 @@ pub fn ordinary_package_obligation_results_from_projection(
     }
 
     let contract_entailment_obligations = projection.contract_entailment_open_obligations();
-    let contract_entailment_rows = ledger
-        .rows()
-        .iter()
-        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation)
-        .collect::<Vec<_>>();
+    let contract_entailment_rows =
+        ledger.rows_of_kind(PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation);
     if contract_entailment_obligations.len() != contract_entailment_rows.len() {
         return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
             "ordinary package contract-entailment obligations are not bijective with their canonical rows",
@@ -126,11 +127,8 @@ pub fn ordinary_package_obligation_results_from_projection(
     }
 
     let external_supplies = projection.external_executable_supply();
-    let external_supply_rows = ledger
-        .rows()
-        .iter()
-        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply)
-        .collect::<Vec<_>>();
+    let external_supply_rows =
+        ledger.rows_of_kind(PackageReviewCanonicalRowKind::ExternalExecutableSupply);
     if external_supplies.len() != external_supply_rows.len() {
         return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
             "ordinary package external executable supplies are not bijective with their canonical rows",
@@ -158,11 +156,8 @@ pub fn ordinary_package_obligation_results_from_projection(
     }
 
     let dangerous_authorities = projection.dangerous_authorities();
-    let dangerous_authority_rows = ledger
-        .rows()
-        .iter()
-        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::DangerousAuthority)
-        .collect::<Vec<_>>();
+    let dangerous_authority_rows =
+        ledger.rows_of_kind(PackageReviewCanonicalRowKind::DangerousAuthority);
     if dangerous_authorities.len() != dangerous_authority_rows.len() {
         return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
             "ordinary package dangerous authorities are not bijective with their canonical rows",
@@ -190,11 +185,8 @@ pub fn ordinary_package_obligation_results_from_projection(
     }
 
     let terminal_authority_permissions = projection.terminal_authority_permissions();
-    let terminal_authority_permission_rows = ledger
-        .rows()
-        .iter()
-        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::TerminalAuthorityPermission)
-        .collect::<Vec<_>>();
+    let terminal_authority_permission_rows =
+        ledger.rows_of_kind(PackageReviewCanonicalRowKind::TerminalAuthorityPermission);
     if terminal_authority_permissions.len() != terminal_authority_permission_rows.len() {
         return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
             "ordinary package terminal-authority permissions are not bijective with their canonical rows",
@@ -240,10 +232,31 @@ pub fn ordinary_package_obligation_results_from_projection(
     })
 }
 
+/// Fresh review products constructed together from one checked compilation.
+/// These remain review findings, not package acceptance or supplied evidence.
+pub struct ReconstructedPackageReview {
+    pub projection: CheckedPackageReviewProjection,
+    pub canonical_rows: Vec<PackageReviewCanonicalRow>,
+    pub ledger: OrdinaryPackageObligationLedger,
+    pub results: OrdinaryPackageObligationResultSet,
+}
+
 /// Reconstruct the result set from one checked package compilation.
 pub fn reconstruct_ordinary_package_obligation_results(
     compilation: &compiler::CheckedCompilation,
 ) -> Result<OrdinaryPackageObligationResultSet, Vec<diagnostics::Diagnostic>> {
+    reconstruct_package_review(compilation).map(|review| review.results)
+}
+
+/// Project, encode, and construct the ledger once, then join its results and
+/// recheck compiler-issued discharge certificates. Callers retain these fresh
+/// products instead of reconstructing the same compilation for each output.
+///
+/// This takes checked semantics, never caller-supplied projections or rows.
+/// Validation of supplied evidence still independently reconstructs locally.
+pub fn reconstruct_package_review(
+    compilation: &compiler::CheckedCompilation,
+) -> Result<ReconstructedPackageReview, Vec<diagnostics::Diagnostic>> {
     let projection = crate::project_checked_package_review(compilation)?;
     let canonical_rows = projection.canonical_rows().map_err(|error| {
         vec![diagnostics::Diagnostic::error(format!(
@@ -264,12 +277,11 @@ pub fn reconstruct_ordinary_package_obligation_results(
             "ordinary package obligation result reconstruction produced an invalid ledger: {error}"
         ))]
     })?;
-    let mut results = ordinary_package_obligation_results_from_projection(&ledger, &projection)
-        .map_err(|error| {
-            vec![diagnostics::Diagnostic::error(format!(
-                "ordinary package obligation result reconstruction failed: {error}"
-            ))]
-        })?;
+    let mut results = results_from_matching_projection(&ledger, &projection).map_err(|error| {
+        vec![diagnostics::Diagnostic::error(format!(
+            "ordinary package obligation result reconstruction failed: {error}"
+        ))]
+    })?;
     apply_contract_entailment_assumption_discharges(
         compilation,
         &projection,
@@ -281,7 +293,12 @@ pub fn reconstruct_ordinary_package_obligation_results(
             "ordinary package contract-entailment discharge reconstruction failed: {error}"
         ))]
     })?;
-    Ok(results)
+    Ok(ReconstructedPackageReview {
+        projection,
+        canonical_rows,
+        ledger,
+        results,
+    })
 }
 
 fn apply_contract_entailment_assumption_discharges(
@@ -291,13 +308,8 @@ fn apply_contract_entailment_assumption_discharges(
     results: &mut OrdinaryPackageObligationResultSet,
 ) -> Result<(), OrdinaryPackageObligationLedgerRecoveryError> {
     let package = results.package;
-    let evidence_rows = ledger
-        .rows()
-        .iter()
-        .filter(|row| {
-            row.kind() == PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge
-        })
-        .collect::<Vec<_>>();
+    let evidence_rows =
+        ledger.rows_of_kind(PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge);
     if evidence_rows.len() != projection.contract_entailment_assumption_discharges().len() {
         return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
             "ordinary package contract-entailment discharges are not bijective with their canonical rows",
@@ -371,7 +383,7 @@ fn apply_contract_entailment_assumption_discharges(
             OrdinaryPackageContractEntailmentAssumptionDischarge {
                 obligation: open.obligation,
                 row: open.row,
-                evidence_row: (*evidence_row).clone(),
+                evidence_row: evidence_row.clone(),
                 assumptions: discharge.assumptions().to_vec(),
                 goal: discharge.goal().clone(),
                 selected_assumption_position: discharge.selected_assumption_position(),

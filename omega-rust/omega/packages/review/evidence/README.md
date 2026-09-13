@@ -91,6 +91,13 @@ local reconstruction question: recovered producer rows remain inert until the
 selected local compiler reconstructs the complete row set and requires exact
 equality.
 
+Fresh manager review uses `ledger::reconstruct_package_review`: one checked
+compilation produces its projection, canonical rows, ledger, and results
+together. Result lanes borrow the ledger's sorted kind ranges; discharge
+certificates are still rejoined and rechecked. Supplied projections, ledgers,
+and results do not enter this construction shortcut: their validation retains
+independent local reconstruction and exact comparison.
+
 `project_checked_external_supply_policy` captures an exact checked machine's
 external executable supplies, retaining
 the complete callable signature, requirement, binding, target, and producer

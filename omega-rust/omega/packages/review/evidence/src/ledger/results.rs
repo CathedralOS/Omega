@@ -13,8 +13,9 @@ use target::TargetProfile;
 mod reconstruction;
 
 pub use reconstruction::{
-    ordinary_package_obligation_results_from_projection,
-    reconstruct_ordinary_package_obligation_results, validate_ordinary_package_obligation_results,
+    ReconstructedPackageReview, ordinary_package_obligation_results_from_projection,
+    reconstruct_ordinary_package_obligation_results, reconstruct_package_review,
+    validate_ordinary_package_obligation_results,
 };
 
 /// Closed result status for the supported ordinary package-obligation lanes.

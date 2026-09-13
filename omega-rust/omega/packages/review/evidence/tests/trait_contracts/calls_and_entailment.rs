@@ -330,8 +330,12 @@ ensures
             .any(|diagnostic| { diagnostic.message.contains("ledger row count") })
     );
 
-    let results = reconstruct_ordinary_package_obligation_results(&checked)
-        .expect("package evidence independently rechecks the compiler certificate");
+    let fresh = package_evidence::ledger::reconstruct_package_review(&checked)
+        .expect("fresh review independently rechecks the compiler certificate");
+    assert_eq!(fresh.projection, projection);
+    assert_eq!(fresh.canonical_rows, rows);
+    assert_eq!(fresh.ledger, ledger);
+    let results = fresh.results;
     package_evidence::ledger::validate_ordinary_package_obligation_results(&results, &checked)
         .expect("public result validation accepts the exact checked discharge");
     assert!(results.open_contract_entailment_obligations().is_empty());
@@ -367,6 +371,11 @@ ensures
         .expect("a missing certificate must leave the obligation open");
     let missing_projection = project_checked_package_review(&missing)
         .expect("missing certificate retains only the open obligation");
+    package_evidence::ledger::ordinary_package_obligation_results_from_projection(
+        &ledger,
+        &missing_projection,
+    )
+    .expect_err("supplied ledger cannot use the fresh-construction shortcut");
     assert!(
         missing_projection
             .contract_entailment_assumption_discharges()

@@ -37,11 +37,7 @@ use checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
 use compiler::compile_to_checked;
 use diagnostics::Diagnostic;
 use package_compilation::{AcceptedSemanticBinding, PackageCompilationInputError};
-use package_evidence::ledger::{
-    ordinary_package_obligation_ledger_from_compiler_rows,
-    reconstruct_ordinary_package_obligation_results,
-};
-use package_evidence::project_checked_package_review;
+use package_evidence::ledger::{ReconstructedPackageReview, reconstruct_package_review};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -331,7 +327,12 @@ fn compile_resolved_package_reviews_in_session(
         {
             return Err(CompileResolvedPackageReviewsError::IdentityMismatch { package: key });
         }
-        let projection = project_checked_package_review(&checked).map_err(|diagnostics| {
+        let ReconstructedPackageReview {
+            projection,
+            canonical_rows,
+            ledger: obligations,
+            results: obligation_results,
+        } = reconstruct_package_review(&checked).map_err(|diagnostics| {
             CompileResolvedPackageReviewsError::Projection {
                 package: key.clone(),
                 diagnostics,
@@ -354,41 +355,6 @@ fn compile_resolved_package_reviews_in_session(
                 error,
             }
         })?;
-        let canonical_rows = projection.canonical_rows().map_err(|error| {
-            CompileResolvedPackageReviewsError::Encoding {
-                package: key.clone(),
-                error,
-            }
-        })?;
-        let dependency_closure = checked.dependency_closure().cloned().ok_or_else(|| {
-            CompileResolvedPackageReviewsError::Projection {
-                package: key.clone(),
-                diagnostics: vec![Diagnostic::error(
-                    "package-aware review compilation emitted no dependency closure",
-                )],
-            }
-        })?;
-        let obligations = ordinary_package_obligation_ledger_from_compiler_rows(
-            dependency_closure,
-            &canonical_rows,
-        )
-        .map_err(|error| CompileResolvedPackageReviewsError::Projection {
-            package: key.clone(),
-            diagnostics: vec![Diagnostic::error(format!(
-                "compiler-issued ordinary package obligation ledger is structurally invalid: {error}"
-            ))],
-        })?;
-        // Reconstruct results once, including certificate association and proof
-        // rechecking. Fresh outputs need no second reconstruction against this
-        // unchanged checked compilation; external evidence validators remain
-        // responsible for comparing supplied results with current semantics.
-        let obligation_results = reconstruct_ordinary_package_obligation_results(&checked)
-            .map_err(
-                |diagnostics| CompileResolvedPackageReviewsError::Projection {
-                    package: key.clone(),
-                    diagnostics,
-                },
-            )?;
         let obligations_bytes =
             retained_obligation_ledger_bytes(&obligations).ok_or_else(|| {
                 CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {

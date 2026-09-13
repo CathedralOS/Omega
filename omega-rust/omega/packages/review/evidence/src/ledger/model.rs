@@ -145,6 +145,17 @@ impl OrdinaryPackageObligationLedger {
         &self.rows
     }
 
+    /// Construction and recovery require strict (kind, key) ordering, so
+    /// each result lane borrows its existing range without a filtered vector.
+    pub(super) fn rows_of_kind(
+        &self,
+        kind: PackageReviewCanonicalRowKind,
+    ) -> &[OrdinaryPackageObligationRow] {
+        let start = self.rows.partition_point(|row| row.kind() < kind);
+        let count = self.rows[start..].partition_point(|row| row.kind() == kind);
+        &self.rows[start..start + count]
+    }
+
     pub(super) fn from_parts(
         schema: OrdinaryPackageObligationSchemaIdentity,
         package: PackageKeyIdentity,
