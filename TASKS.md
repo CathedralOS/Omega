@@ -218,8 +218,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`,
   `dice_histogram`, `calendar`, `dungeon_render` (cannot prove byte writes
   preserve the `Utf8` field domain across state edges). Receiver/aggregate
-  loans — `slice_accum_probe`, `subslice_sum`, `framed_payload` (retained-argument loan
-  origin vs mutable receiver); `dutch_flag`, `generic_counters`,
+  loans — `dutch_flag`, `generic_counters`,
   `dungeon_render`, `wire_protocol` (non-copy transfer out of borrowed
   storage). Index/subslice proofs — `mandelbrot`, `mandelbrot_zoom`,
   `wire_protocol`. `heat_grid` checks again: its `__hoist_N` temps were
@@ -238,10 +237,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   -E 'test(=samples_with_documented_exit_run_correctly)'` reaches
   `InvalidUnitMachinePlan` for `Main::main` (missing checked transitive plan).
   `recursive_slice_samples_reach_checked_trees` covers the unchanged
-  `recursive_sum` and `dual_accumulator_recursion` sources. Continue through
+  `recursive_sum`, `dual_accumulator_recursion`, `subslice_sum`,
+  `slice_accum_probe`, and `framed_payload` sources. Continue through
   **GENERAL-CYCLIC-EXECUTION** and ordinary checked call-plan production;
   derived-argument place comparison no longer needs a receiver-ancestry fix.
   The exit-70 native oracle remains open.
+
+  `framed_payload` also reaches the missing `Main::main` Terminal-plan error
+  on macOS ARM64 with the same native command and
+  `OMEGA_SAMPLE_RUNTIME_FILTER=framed_payload`; its exit-60 oracle remains open.
+  Its indexed `self.frame.bytes` stores need the primitive projection work below,
+  not weaker receiver/argument overlap checking. The read-only checksum receiver
+  and its live shared payload view must remain compatible.
 
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |

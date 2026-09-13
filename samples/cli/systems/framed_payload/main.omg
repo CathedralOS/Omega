@@ -15,7 +15,9 @@ data Frame {
     bytes: [i32 in Wrapping; 5];
 }
 
-machine Frame::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
+// The payload may borrow this frame's bytes. A read-only sum must not request
+// exclusive access to the enclosing frame while that shared view is live.
+machine Frame::sum(&self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
     transition s.len > 0 {
         true -> sum(s[1..], acc + s[0])
         false -> (acc)
