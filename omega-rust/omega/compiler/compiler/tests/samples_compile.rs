@@ -999,6 +999,21 @@ fn all_samples_reach_checked_trees() {
 }
 
 #[test]
+fn recursive_slice_samples_reach_checked_trees() {
+    // Keep the original recursive calls, borrowed sibling fields, and result
+    // consumers. Native acceptance remains the separate documented-exit test.
+    for relative in [
+        "cli/arithmetic/recursive_sum",
+        "cli/probes/dual_accumulator_recursion",
+    ] {
+        let main_path = repo_root().join("samples").join(relative).join("main.omg");
+        compile_sample_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!("recursive slice sample {relative} should check: {diagnostics:#?}")
+        });
+    }
+}
+
+#[test]
 fn named_integer_conversion_samples_reach_checked_trees() {
     for relative in [
         "cli/probes/width_mixer",
