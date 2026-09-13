@@ -581,10 +581,17 @@ impl InstalledProgramLocalRootOccurrence<'_, '_> {
 }
 
 /// Installation-owned ledger for the non-minting occurrence prebinding.
+///
+/// The ledger derives the complete eligible set itself: callers cannot choose
+/// which required slots enter the aggregate. One derivation enumerates every
+/// statically enumerable installed parameter occurrence against the sealed
+/// required-slot closure, so the later epoch cohort's expected rows are
+/// installation evidence rather than a trusted caller roster.
 #[derive(Debug)]
 pub struct ProgramLocalRootInstallationLedger {
     installed_required_slots: InstalledRequiredRootSlotClosure,
     prebindings: BTreeMap<ProgramLocalRootPrebindingId, ProgramLocalRootInstalledPrebinding>,
+    eligible_prebindings_derived: bool,
     prebindings_frozen: bool,
     lifecycle_bindings: BTreeMap<LifecycleFamilyKey, ComponentEraLedgerId>,
     active_occurrences: BTreeSet<InstalledProgramLocalRootOccurrenceId>,
@@ -600,6 +607,7 @@ impl ProgramLocalRootInstallationLedger {
         Self {
             installed_required_slots,
             prebindings: BTreeMap::new(),
+            eligible_prebindings_derived: false,
             prebindings_frozen: false,
             lifecycle_bindings: BTreeMap::new(),
             active_occurrences: BTreeSet::new(),
@@ -613,31 +621,59 @@ impl ProgramLocalRootInstallationLedger {
         &self.installed_required_slots
     }
 
-    /// Join every authorized schema on the installed root's exact requirement
-    /// to the live slot, provider execution, admission, and artifact
-    /// occurrence. The join is transactional and replay rejecting.
-    pub fn prebind<TerminalArtifact: ObjectEvidence>(
+    /// Derive the complete eligible prebinding set from the sealed required
+    /// slot closure, one verified producer catalog, and the exact installed
+    /// artifact.
+    ///
+    /// The enumerable set is not a caller roster. The caller must present the
+    /// live handle of every root occupying a sealed required slot: a missing
+    /// member leaves an exact installed parameter occurrence unenumerated, and
+    /// a runtime-open or substituted root is not part of the closure. Either
+    /// failure rejects transactionally before any prebinding commits. The
+    /// derivation then joins every authorized schema on each retained required
+    /// root's exact requirement to its live slot, provider execution,
+    /// admission, and artifact occurrence, so the epoch cohort's expected set
+    /// cannot silently understate this installed artifact instance.
+    pub fn derive_eligible_prebindings<'root, 'code: 'root, TerminalArtifact: ObjectEvidence>(
         &mut self,
         catalog: &VerifiedProgramLocalRootProducerCatalog,
         artifact: &TerminalArtifact,
-        root: &InstalledExternalRoot<'_>,
+        roots: impl IntoIterator<Item = &'root InstalledExternalRoot<'code>>,
     ) -> Result<Vec<ProgramLocalRootInstalledPrebinding>, ExternalRootDiagnostic> {
         if self.prebindings_frozen {
             return Err(ExternalRootDiagnostic(
                 "program-local root prebindings are frozen after epoch-cohort sealing".into(),
             ));
         }
-        let Some(installed_slot) = self.installed_required_slots.slot(root.slot) else {
+        if self.eligible_prebindings_derived {
             return Err(ExternalRootDiagnostic(
-                "program-local root prebinding names a slot outside the sealed required closure"
-                    .into(),
+                "the complete eligible program-local prebinding set was already derived".into(),
             ));
-        };
-        if self.installed_required_slots.installed_code() != root.installed_code.identity()
-            || !installed_slot.matches_root(root)
-        {
+        }
+        let mut presented = BTreeMap::new();
+        for root in roots {
+            let Some(installed_slot) = self.installed_required_slots.slot(root.slot) else {
+                return Err(ExternalRootDiagnostic(
+                    "program-local root enumeration names a slot outside the sealed required closure"
+                        .into(),
+                ));
+            };
+            if self.installed_required_slots.installed_code() != root.installed_code.identity()
+                || !installed_slot.matches_root(root)
+            {
+                return Err(ExternalRootDiagnostic(
+                    "program-local root enumeration substituted the installed required root".into(),
+                ));
+            }
+            if presented.insert(root.slot, root).is_some() {
+                return Err(ExternalRootDiagnostic(
+                    "program-local root enumeration repeats one installed required slot".into(),
+                ));
+            }
+        }
+        if presented.len() != self.installed_required_slots.slots().len() {
             return Err(ExternalRootDiagnostic(
-                "program-local root prebinding substituted the installed required root".into(),
+                "program-local root enumeration omits a sealed required root slot".into(),
             ));
         }
         let psi = catalog.terminal_psi();
@@ -646,93 +682,101 @@ impl ProgramLocalRootInstallationLedger {
                 "program-local root catalog does not match the terminal artifact identity".into(),
             ));
         }
-        let text_offset = artifact
-            .function_text_offset(catalog.terminal_entry())
-            .ok_or_else(|| {
-                ExternalRootDiagnostic(
-                    "terminal artifact has no installed entry for the program-local root catalog"
-                        .into(),
-                )
-            })?;
-        bind_terminal_function(
-            artifact,
-            root.installed_code,
-            root.evidence.root.candidate.entry,
-            text_offset,
-        )?;
-        let requirement_identity = &root.evidence.root.candidate.requirement_identity;
-        let schemas = catalog
-            .schemas()
-            .iter()
-            .filter(|schema| schema.boundary_requirement_identity() == requirement_identity)
-            .collect::<Vec<_>>();
-        let mut pending = Vec::with_capacity(schemas.len());
-        let mut local_schema_keys = BTreeSet::new();
-        for verified_schema in schemas {
-            let schema = verified_schema.schema();
-            let schema_digest = program_local_root_schema_digest(verified_schema);
-            if root
-                .evidence
-                .root
-                .boundary
-                .plan()
-                .call
-                .parameters
-                .get(schema.argument_index as usize)
-                .is_none()
-                || !root
+        let mut pending = Vec::new();
+        for installed_slot in self.installed_required_slots.slots() {
+            let root = presented
+                .get(&installed_slot.required().slot())
+                .copied()
+                .expect("the complete presented required-root set was verified");
+            let requirement_identity = &root.evidence.root.candidate.requirement_identity;
+            let schemas = catalog
+                .schemas()
+                .iter()
+                .filter(|schema| schema.boundary_requirement_identity() == requirement_identity)
+                .collect::<Vec<_>>();
+            if schemas.is_empty() {
+                continue;
+            }
+            let text_offset = artifact
+                .function_text_offset(catalog.terminal_entry())
+                .ok_or_else(|| {
+                    ExternalRootDiagnostic(
+                        "terminal artifact has no installed entry for the program-local root catalog"
+                            .into(),
+                    )
+                })?;
+            bind_terminal_function(
+                artifact,
+                root.installed_code,
+                root.evidence.root.candidate.entry,
+                text_offset,
+            )?;
+            let mut local_schema_keys = BTreeSet::new();
+            for verified_schema in schemas {
+                let schema = verified_schema.schema();
+                let schema_digest = program_local_root_schema_digest(verified_schema);
+                if root
                     .evidence
                     .root
-                    .candidate
-                    .entry_claims
-                    .iter()
-                    .any(|claim| {
-                        claim.parameter_index == schema.argument_index as usize
-                            && claim.domain == verified_schema.qualification_identity()
-                    })
-            {
-                return Err(ExternalRootDiagnostic(
-                    "program-local root schema does not match an exact installed entry claim and ABI position"
-                        .into(),
-                ));
-            }
-            if !local_schema_keys.insert((schema.source_parameter_position, schema_digest)) {
-                return Err(ExternalRootDiagnostic(
-                    "program-local root producer schemas repeat one semantic occurrence".into(),
-                ));
-            }
-            let identity = ProgramLocalRootPrebindingId {
-                installed_code: root.installed_code.identity(),
-                root: root.root,
-                slot: root.slot,
-                schema_digest,
-            };
-            if self.prebindings.contains_key(&identity) {
-                return Err(ExternalRootDiagnostic(
-                    "program-local root installed occurrence was already prebound".into(),
-                ));
-            }
-            pending.push((
-                identity,
-                ProgramLocalRootInstalledPrebinding {
+                    .boundary
+                    .plan()
+                    .call
+                    .parameters
+                    .get(schema.argument_index as usize)
+                    .is_none()
+                    || !root
+                        .evidence
+                        .root
+                        .candidate
+                        .entry_claims
+                        .iter()
+                        .any(|claim| {
+                            claim.parameter_index == schema.argument_index as usize
+                                && claim.domain == verified_schema.qualification_identity()
+                        })
+                {
+                    return Err(ExternalRootDiagnostic(
+                        "program-local root schema does not match an exact installed entry claim and ABI position"
+                            .into(),
+                    ));
+                }
+                if !local_schema_keys.insert((schema.source_parameter_position, schema_digest)) {
+                    return Err(ExternalRootDiagnostic(
+                        "program-local root producer schemas repeat one semantic occurrence".into(),
+                    ));
+                }
+                let identity = ProgramLocalRootPrebindingId {
+                    installed_code: root.installed_code.identity(),
+                    root: root.root,
+                    slot: root.slot,
+                    schema_digest,
+                };
+                debug_assert!(
+                    !self.prebindings.contains_key(&identity),
+                    "the eligible set is derived at most once"
+                );
+                pending.push((
                     identity,
-                    psi,
-                    installed_root_evidence: root.evidence.clone(),
-                    owner: root.owner,
-                    artifact: root.installed_code.artifact(),
-                    admission: root.evidence.admission,
-                    provider_execution: root.evidence.provider_execution.identity,
-                    requirement_identity: requirement_identity.clone(),
-                    argument_index: schema.argument_index,
-                    source_parameter_position: schema.source_parameter_position,
-                    qualification_identity: verified_schema.qualification_identity().to_owned(),
-                    carrier_identity: verified_schema.carrier_identity().to_owned(),
-                    projection: schema.projection,
-                    schema_compatibility_report_identity: schema.compatibility_report_identity,
-                    algebra: schema.algebra.clone(),
-                    per_occurrence_capacity: schema.capacity.clone(),
-                },
-            ));
+                    ProgramLocalRootInstalledPrebinding {
+                        identity,
+                        psi,
+                        installed_root_evidence: root.evidence.clone(),
+                        owner: root.owner,
+                        artifact: root.installed_code.artifact(),
+                        admission: root.evidence.admission,
+                        provider_execution: root.evidence.provider_execution.identity,
+                        requirement_identity: requirement_identity.clone(),
+                        argument_index: schema.argument_index,
+                        source_parameter_position: schema.source_parameter_position,
+                        qualification_identity: verified_schema.qualification_identity().to_owned(),
+                        carrier_identity: verified_schema.carrier_identity().to_owned(),
+                        projection: schema.projection,
+                        schema_compatibility_report_identity: schema.compatibility_report_identity,
+                        algebra: schema.algebra.clone(),
+                        per_occurrence_capacity: schema.capacity.clone(),
+                    },
+                ));
+            }
         }
 
         let joined = pending
@@ -742,6 +786,7 @@ impl ProgramLocalRootInstallationLedger {
         for (key, occurrence) in pending {
             self.prebindings.insert(key, occurrence);
         }
+        self.eligible_prebindings_derived = true;
         Ok(joined)
     }
 
@@ -829,6 +874,12 @@ impl ProgramLocalRootInstallationLedger {
             return reject(
                 members,
                 "program-local root epoch cohort was already sealed",
+            );
+        }
+        if !self.eligible_prebindings_derived {
+            return reject(
+                members,
+                "program-local root epoch cohort precedes the derived eligible prebinding set",
             );
         }
 
