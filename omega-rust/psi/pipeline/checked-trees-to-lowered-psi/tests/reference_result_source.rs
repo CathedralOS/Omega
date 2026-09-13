@@ -91,6 +91,29 @@ fn stored_reference_result_still_requires_terminal_custody() {
 }
 
 #[test]
+fn reference_release_processing_preserves_empty_helpers() {
+    let program = typed("machine empty() {} machine exercise() { empty(); }");
+    let checked =
+        typed_trees_to_checked_trees::lower_typed_trees(program).expect("check empty helper");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_artifact()
+        .expect("empty helper has no last-statement release boundary");
+    drop(checked);
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &Default::default(),
+        &[],
+    )
+    .expect("reload empty helper closure");
+    let mut meter = TerminalFuelMeter::with_allowance(8);
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+}
+
+#[test]
 fn reference_result_rejects_conflicting_access_before_last_use() {
     let program = typed(
         "machine relay(value: &mut i32) -> &mut i32 { value }

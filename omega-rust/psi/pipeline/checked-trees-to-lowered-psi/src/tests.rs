@@ -78,8 +78,7 @@ fn selected_operator_crash_invocations_reject_direct_terminal_lowering() {
              pub machine compare(left: i32, right: i32) -> bool {caller_contract} {{ left == right }}"
         ));
         let error = lower_machine(&checked, "compare")
-            .err()
-            .expect("direct Terminal lowering must retain its execution fence");
+            .expect_err("direct Terminal lowering must retain its execution fence");
         assert!(
             format!("{error:?}")
                 .contains("selected operator crash invocations have no Terminal replay support")
