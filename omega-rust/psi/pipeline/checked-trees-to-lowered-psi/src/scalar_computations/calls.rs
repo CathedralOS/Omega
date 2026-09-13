@@ -357,7 +357,7 @@ impl Expansion<'_> {
                         }
                         completed_fields.push((
                             *identity,
-                            parameter(field_types.len(), qualified_type.clone()),
+                            parameter(field_types.len(), qualified_type),
                         ));
                         field_types.push(qualified_type);
                     }
