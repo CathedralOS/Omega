@@ -87,12 +87,12 @@ pub use proof_bundle::{
     render_verified_proof_synopsis,
 };
 pub use proof_sidecar::{
-    NATIVE_CERTIFIED_CUSTODY_GUARANTEE, PSI_TERMINAL_VERIFIED_GUARANTEE, PccDependency,
-    PccGuarantee, PccIncompleteness, PccProductKind, PccProofSidecar, PccReceiverPolicy,
-    PccRejection, PccVerificationOutcome, PccVerifiedProduct, admission_profile_identity,
-    build_psi_proof_sidecar, pcc_artifact_commitment, pcc_dependency_content_commitment,
-    psi_semantic_profile_identity, terminal_assumption_closure, verify_pcc_claim_fields,
-    verify_psi_proof_sidecar, verify_terminal_artifact_proof,
+    PSI_TERMINAL_VERIFIED_GUARANTEE, PccDependency, PccGuarantee, PccIncompleteness,
+    PccProductKind, PccProofSidecar, PccReceiverPolicy, PccRejection, PccVerificationOutcome,
+    PccVerifiedProduct, admission_profile_identity, build_psi_proof_sidecar,
+    pcc_artifact_commitment, pcc_dependency_content_commitment, psi_semantic_profile_identity,
+    terminal_assumption_closure, verify_pcc_claim_fields, verify_psi_proof_sidecar,
+    verify_terminal_artifact_proof,
 };
 pub use publication::{
     PublishedTerminalSemanticArtifact, TerminalSemanticArtifactPublication,

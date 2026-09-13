@@ -32,6 +32,8 @@ use terminal_psi::{
 
 #[path = "artifact/control_cycles.rs"]
 mod control_cycles;
+#[path = "artifact/pcc.rs"]
+mod pcc;
 
 fn canonical_artifact(
     module: &TerminalModule,
@@ -44,40 +46,6 @@ fn canonical_artifact(
         .expect("canonical Terminal artifact")
 }
 
-#[test]
-fn review_pcc_rejects_unproved_guarantee_and_omitted_assumptions() {
-    use terminal_codec::{
-        PccGuarantee, PccProofSidecar, PccReceiverPolicy, PccVerificationOutcome,
-        build_psi_proof_sidecar, verify_psi_proof_sidecar,
-    };
-    let artifact = canonical_artifact(&semantic_module(), &kernel_bundle(), None);
-    let profile = AdmissionProfile::default();
-    let honest = build_psi_proof_sidecar(&artifact, &profile, &artifact.to_bytes())
-        .expect("honest sidecar");
-    assert!(!honest.assumptions().is_empty());
-    let mut policy = PccReceiverPolicy::for_offered_claim(&honest, profile);
-    policy.required_guarantees = vec!["review.unproved-guarantee".to_owned()];
-    policy.admitted_assumptions.clear();
-    let forged = PccProofSidecar::new(
-        honest.product(),
-        *honest.artifact_commitment(),
-        honest.semantic_profile().to_owned(),
-        honest.checker_profile().to_owned(),
-        vec![PccGuarantee {
-            identity: "review.unproved-guarantee".to_owned(),
-            premises: Vec::new(),
-        }],
-        Vec::new(),
-        Vec::new(),
-        Vec::new(),
-    )
-    .expect("forged claim encodes");
-    let outcome = verify_psi_proof_sidecar(&artifact.to_bytes(), &forged.to_bytes(), &policy);
-    assert!(
-        matches!(outcome, PccVerificationOutcome::Reject(_)),
-        "{outcome:?}"
-    );
-}
 use terminal_verifier::{
     ObligationEvidence, ProofBundle, RecursiveComponentEvidence,
     proof_recursive_component_identity, reconstruct_proof_recursive_component_obligations,

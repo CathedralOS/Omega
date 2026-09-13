@@ -42,11 +42,6 @@ const DEPENDENCY_CONTENT_DOMAIN: &[u8] = b"omega.pcc.dependency-content.sha256.v
 /// named by their own guarantee identities when their evidence lands.
 pub const PSI_TERMINAL_VERIFIED_GUARANTEE: &str = "omega.terminal-verified-module.v1";
 
-/// The bounded guarantee a native sidecar offers today: the publication
-/// certificate chain binds the exact executable bytes to a Psi artifact that
-/// itself verifies under the sidecar's checker profile.
-pub const NATIVE_CERTIFIED_CUSTODY_GUARANTEE: &str = "omega.native-certified-custody.v1";
-
 /// The product this `.proof` companion certifies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PccProductKind {
@@ -88,21 +83,39 @@ pub struct PccDependency {
 
 impl PccDependency {
     /// The exact content commitment of one installation-reach dependency: the
-    /// canonical requirement identity plus its ordered upper-bound service
-    /// closure.
-    pub fn from_installation_reach(dependency: &terminal_psi::InstallationReachDependency) -> Self {
+    /// canonical requirement identity plus its named upper-bound service
+    /// closure. Module-local ServiceIds cannot identify receiver-held material.
+    pub fn from_installation_reach(
+        dependency: &terminal_psi::InstallationReachDependency,
+        services: &[terminal_psi::ServiceDeclaration],
+    ) -> Result<Self, CodecError> {
+        let mut identities = dependency
+            .upper_bound
+            .iter()
+            .map(|identity| {
+                services
+                    .iter()
+                    .find(|service| service.id == *identity)
+                    .map(|service| service.identity.as_str())
+                    .ok_or(CodecError::MalformedStructuralFoundation(
+                        "installation reach references an undeclared service",
+                    ))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        identities.sort_unstable();
         let mut digest = Sha256::new();
-        digest.update(DEPENDENCY_CONTENT_DOMAIN);
+        digest.update(b"omega.pcc.installation-reach.sha256.v2\0");
         digest.update((dependency.requirement_identity.len() as u64).to_le_bytes());
         digest.update(dependency.requirement_identity.as_bytes());
-        digest.update((dependency.upper_bound.len() as u64).to_le_bytes());
-        for service in &dependency.upper_bound {
-            digest.update(service.get().to_le_bytes());
+        digest.update((identities.len() as u64).to_le_bytes());
+        for identity in identities {
+            digest.update((identity.len() as u64).to_le_bytes());
+            digest.update(identity.as_bytes());
         }
-        Self {
+        Ok(Self {
             identity: dependency.requirement_identity.clone(),
             content_commitment: digest.finalize().into(),
-        }
+        })
     }
 }
 
@@ -478,8 +491,8 @@ pub fn build_psi_proof_sidecar(
         .root_service_reach
         .installation_dependencies
         .iter()
-        .map(PccDependency::from_installation_reach)
-        .collect();
+        .map(|dependency| PccDependency::from_installation_reach(dependency, &module.services))
+        .collect::<Result<_, _>>()?;
     PccProofSidecar::new(
         PccProductKind::Psi,
         pcc_artifact_commitment(artifact_bytes),
@@ -609,11 +622,12 @@ impl PccRejection {
     }
 }
 
-/// A named resource/search limit, per the contract's Incomplete outcome.
+/// A resource limit or unsupported evidence, per the contract's Incomplete outcome.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PccIncompleteness {
     ArtifactBytes { actual: u64, limit: u64 },
     EvidenceBytes { actual: u64, limit: u64 },
+    UnsupportedEvidence { product: PccProductKind },
 }
 
 /// The three-way verification outcome the contract fixes: complete verified
@@ -788,6 +802,45 @@ pub fn verify_psi_proof_sidecar(
     };
     if let Err(rejection) = verify_terminal_artifact_proof(&artifact, &policy.admission_profile) {
         return PccVerificationOutcome::Reject(rejection);
+    }
+    // Replay establishes this exact bounded claim, not arbitrary labels offered
+    // by the producer. Reconstruct its profiles and full trust/dependency closure
+    // independently, including entries the sidecar might have omitted.
+    let established =
+        match build_psi_proof_sidecar(&artifact, &policy.admission_profile, artifact_bytes) {
+            Ok(established) => established,
+            Err(error) => {
+                return PccVerificationOutcome::reject(
+                    "psi claim reconstruction",
+                    format!("cannot reconstruct the verified claim: {error}"),
+                );
+            }
+        };
+    for (subject, matches) in [
+        (
+            "semantic profile",
+            sidecar.semantic_profile == established.semantic_profile,
+        ),
+        (
+            "checker profile",
+            sidecar.checker_profile == established.checker_profile,
+        ),
+        ("guarantees", sidecar.guarantees == established.guarantees),
+        (
+            "assumption closure",
+            sidecar.assumptions == established.assumptions,
+        ),
+        (
+            "dependency inventory",
+            sidecar.dependencies == established.dependencies,
+        ),
+    ] {
+        if !matches {
+            return PccVerificationOutcome::reject(
+                subject,
+                "offered claim differs from the claim independently established by Psi verification",
+            );
+        }
     }
     PccVerificationOutcome::Complete(PccVerifiedProduct {
         product: sidecar.product,
