@@ -1691,12 +1691,19 @@ Owners include
   NaN payloads erase only in the meaning projection and signed zeros remain
   distinct there.
 
-- **STRICT-FLOAT-RANGES.** Proof, validation, and cast readers now retain the
-  strict endpoint through `omega-rust/psi/semantics/proof/src/obligations.rs`
-  via `ProofConstraint::FloatRange::maximum_inclusive`. Remaining acceptance
-  work is retained entry predicates and independent Terminal Psi replay of
-  float ranges; no float range predicate exists in checked-trees/lowered-psi/
-  terminal-verifier yet, so even inclusive float ranges remain proof-time only.
+- **STRICT-FLOAT-RANGES.** Implement exclusive floating range evidence in
+  validation's type-reference/cast readers, proof constraints and retained
+  entry predicates. Preserve the authored endpoint and IEEE order; integer
+  predecessor arithmetic is not floating range normalization. Accept values
+  below the endpoint and reject the endpoint itself and NaN, including
+  call/store delivery and independent replay. See
+  [numeric qualifications](wiki/spec/language/numeric_values.md#value-qualifications-and-policy-adapters).
+  Resume: the declaration, proof (`ProofConstraint::FloatRange::maximum_inclusive`
+  in `omega-rust/psi/semantics/proof/src/obligations.rs`) and cast readers now
+  retain the strict endpoint for call/store/return delivery
+  (`tests/omega/{pass,fail}/float/exclusive_float_range_*`). Open: retained
+  entry predicates and independent Terminal Psi replay; no float range
+  predicate exists in checked-trees/lowered-psi/terminal-verifier yet.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that
