@@ -8,7 +8,9 @@
 
 mod copy_propagation;
 mod dead_scalar_elimination;
+mod global_value_numbering;
 mod model;
+mod retained;
 mod validation;
 
 use optimization::{PsiOptimization, PsiOptimizationSelections};
@@ -33,6 +35,9 @@ pub fn run_psi_optimization(
         match selected {
             PsiOptimization::CopyPropagation => {
                 lowered = copy_propagation::propagate(lowered)?;
+            }
+            PsiOptimization::GlobalValueNumbering => {
+                lowered = global_value_numbering::number(lowered)?;
             }
             PsiOptimization::DeadPureScalarElimination => {
                 lowered = dead_scalar_elimination::eliminate(lowered)?;

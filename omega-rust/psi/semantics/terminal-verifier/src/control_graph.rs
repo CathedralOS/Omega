@@ -91,6 +91,29 @@ pub(crate) fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> 
     components
 }
 
+/// Reachable blocks in reverse postorder: every dominator precedes each block
+/// it dominates, so a scan in this order meets every definition before its
+/// dominated uses.
+pub(crate) fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
+    let outgoing = successors(machine);
+    let mut entered = BTreeSet::from([machine.entry]);
+    let mut finished = Vec::new();
+    let mut pending = vec![(machine.entry, 0usize)];
+    while let Some((block, position)) = pending.last_mut() {
+        let Some((_, target)) = outgoing[block].get(*position).copied() else {
+            finished.push(*block);
+            pending.pop();
+            continue;
+        };
+        *position += 1;
+        if entered.insert(target) {
+            pending.push((target, 0));
+        }
+    }
+    finished.reverse();
+    finished
+}
+
 /// A cyclic block definition is available only when it dominates the use in
 /// the full graph, not merely the first traversal with backedges removed.
 pub(crate) fn dominators(machine: &TerminalMachine) -> BTreeMap<BlockId, BTreeSet<BlockId>> {

@@ -50,7 +50,9 @@ fn every_unported_nonempty_selection_fails_closed() {
     for optimization in PsiOptimization::ALL {
         if matches!(
             optimization,
-            PsiOptimization::CopyPropagation | PsiOptimization::DeadPureScalarElimination
+            PsiOptimization::CopyPropagation
+                | PsiOptimization::GlobalValueNumbering
+                | PsiOptimization::DeadPureScalarElimination
         ) {
             continue;
         }
@@ -757,5 +759,242 @@ fn dead_scalar_check_rejects_mismatched_parameter_and_edge_argument_removal() {
     assert!(
         result.is_err(),
         "a mutated surviving parameter declaration must reject: {result:?}"
+    );
+}
+
+fn global_value_numbering_fixture() -> LoweredPsi {
+    let checked = checked_source("data Main {} machine Main::answer() {}");
+    let mut lowered = lower_machine(&checked, "Main::answer").expect("Unit source lowers");
+    let operand = ValueId::new(2001).unwrap();
+    let first = ValueId::new(2002).unwrap();
+    let duplicate = ValueId::new(2003).unwrap();
+    let consumer = ValueId::new(2004).unwrap();
+    lowered.semantic_module.machines[0].blocks[0]
+        .operations
+        .extend([
+            Operation {
+                static_reach_binding: None,
+                id: OperationId::new(2001).unwrap(),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: operand,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::BooleanConstant { value: true },
+            },
+            Operation {
+                static_reach_binding: None,
+                id: OperationId::new(2002).unwrap(),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: first,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::BooleanNot { operand },
+            },
+            Operation {
+                static_reach_binding: None,
+                id: OperationId::new(2003).unwrap(),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: duplicate,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::BooleanNot { operand },
+            },
+            Operation {
+                static_reach_binding: None,
+                id: OperationId::new(2004).unwrap(),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: consumer,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::BooleanNot { operand: duplicate },
+            },
+        ]);
+    let identity = terminal_psi_identity(&lowered.semantic_module).unwrap();
+    if let Some(debug) = lowered.debug_map.as_mut() {
+        debug.semantic = identity;
+        let span = debug.sites[0].span;
+        debug.sites.extend([
+            DebugSite {
+                subject: DebugSubject::Operation(OperationId::new(2003).unwrap()),
+                span,
+            },
+            DebugSite {
+                subject: DebugSubject::Value(duplicate),
+                span,
+            },
+        ]);
+        debug.sites.sort_by_key(|site| site.subject);
+    }
+    lowered
+}
+
+#[test]
+fn selected_global_value_numbering_collapses_dominating_duplicates_before_publication() {
+    let lowered = global_value_numbering_fixture();
+    let input =
+        run_psi_optimization(lowered.clone(), PsiOptimizationSelections::default()).unwrap();
+    let original = finalize_terminal_artifact(&input).unwrap();
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::GlobalValueNumbering]).unwrap(),
+    )
+    .expect("selected numbering executes");
+    let before = &lowered.semantic_module;
+    let after = &optimized.lowered().semantic_module;
+    terminal_verifier::validate_global_value_numbering(before, after)
+        .expect("the independent check accepts the rewrite");
+    let block = &after.machines[0].blocks[0];
+    assert!(
+        block
+            .operations
+            .iter()
+            .all(|operation| operation.id != OperationId::new(2003).unwrap()),
+        "the same-block duplicate is removed"
+    );
+    let consumer = block
+        .operations
+        .iter()
+        .find(|operation| operation.id == OperationId::new(2004).unwrap())
+        .expect("the duplicate's consumer survives");
+    assert_eq!(
+        consumer.kind,
+        OperationKind::BooleanNot {
+            operand: ValueId::new(2002).unwrap()
+        },
+        "the canonical survivor substitutes the duplicate's uses"
+    );
+    assert_eq!(optimized.lowered().proof_bundle, lowered.proof_bundle);
+    assert_eq!(
+        optimized.lowered().source_call_occurrences,
+        lowered.source_call_occurrences
+    );
+    if let Some(debug) = optimized.lowered().debug_map.as_ref() {
+        for site in &debug.sites {
+            assert_ne!(
+                site.subject,
+                DebugSubject::Operation(OperationId::new(2003).unwrap())
+            );
+            assert_ne!(
+                site.subject,
+                DebugSubject::Value(ValueId::new(2003).unwrap())
+            );
+        }
+        assert_eq!(
+            debug.semantic,
+            terminal_psi_identity(&optimized.lowered().semantic_module).unwrap()
+        );
+    }
+    assert_ne!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic()
+    );
+    let published = finalize_terminal_artifact(&optimized).expect("optimized result publishes");
+    assert_eq!(
+        published.manifest().semantic(),
+        optimized.execution().output_semantic()
+    );
+    let profile = proof_admission::AdmissionProfile::default();
+    let expected = terminal_interpreter::interpret_terminal_artifact(
+        original.semantic_bytes(),
+        original.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .unwrap();
+    let actual = terminal_interpreter::interpret_terminal_artifact(
+        published.semantic_bytes(),
+        published.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .unwrap();
+    assert_eq!(
+        actual, expected,
+        "fresh interpretation consumes only published bytes"
+    );
+    let reconverged = run_psi_optimization(
+        optimized.lowered().clone(),
+        PsiOptimizationSelections::new([PsiOptimization::GlobalValueNumbering]).unwrap(),
+    )
+    .expect("the optimized artifact is a legal second input");
+    assert_eq!(
+        reconverged.lowered(),
+        optimized.lowered(),
+        "a second selection is the identity: no duplicate remains"
+    );
+}
+
+#[test]
+fn independent_global_value_numbering_check_rejects_unjustified_removal_and_substitution() {
+    let before = global_value_numbering_fixture().semantic_module;
+    // Removing a unique computation has no dominating equivalent to justify it.
+    let mut after = before.clone();
+    after.machines[0].blocks[0]
+        .operations
+        .retain(|operation| operation.id != OperationId::new(2004).unwrap());
+    assert!(matches!(
+        terminal_verifier::validate_global_value_numbering(&before, &after),
+        Err(
+            terminal_verifier::GlobalValueNumberingRewriteError::MissingDominatingEquivalent(id)
+        ) if id == OperationId::new(2004).unwrap()
+    ));
+    // A justified removal must substitute the re-derived canonical survivor:
+    // replacing the duplicate with any other live value is a different program.
+    let mut after = before.clone();
+    after.machines[0].blocks[0]
+        .operations
+        .retain(|operation| operation.id != OperationId::new(2003).unwrap());
+    let removed = ValueId::new(2003).unwrap();
+    let wrong = ValueId::new(2001).unwrap();
+    for block in &mut after.machines[0].blocks {
+        for operation in &mut block.operations {
+            operation.kind.map_scalar_uses(&mut |value| {
+                if value == removed { wrong } else { value }
+            });
+        }
+        block.terminator.map_scalar_uses(&mut |value| {
+            if value == removed { wrong } else { value }
+        });
+    }
+    assert!(matches!(
+        terminal_verifier::validate_global_value_numbering(&before, &after),
+        Err(terminal_verifier::GlobalValueNumberingRewriteError::ChangedMachine(id))
+            if id == before.machines[0].id
+    ));
+}
+
+#[test]
+fn global_value_numbering_preserves_proof_questions_and_keeps_proof_bearing_identities() {
+    let mut lowered = global_value_numbering_fixture();
+    lowered.semantic_module.machines[0]
+        .contract
+        .ensures
+        .push(ContractClause {
+            obligation: ObligationId::new(2001).unwrap(),
+            proposition: Proposition::Truth,
+        });
+    if let Some(debug) = lowered.debug_map.as_mut() {
+        debug.semantic = terminal_psi_identity(&lowered.semantic_module).unwrap();
+    }
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::GlobalValueNumbering]).unwrap(),
+    )
+    .expect("proof-bearing closure remains unchanged");
+    assert_eq!(optimized.lowered(), &lowered);
+    // The independent check still rejects relation violations inside a
+    // proof-bearing module: a removed unique computation is not a duplicate
+    // rewrite even when every identity is otherwise consistent.
+    let mut after = lowered.semantic_module.clone();
+    after.machines[0].blocks[0]
+        .operations
+        .retain(|operation| operation.id != OperationId::new(2004).unwrap());
+    assert!(
+        terminal_verifier::validate_global_value_numbering(&lowered.semantic_module, &after)
+            .is_err()
     );
 }

@@ -57,6 +57,7 @@ impl PsiOptimizationStageResult {
 pub enum PsiOptimizationStageError {
     InvalidCopyPropagationRewrite(terminal_verifier::CopyPropagationRewriteError),
     InvalidDeadScalarRewrite(terminal_verifier::DeadScalarRewriteError),
+    InvalidGlobalValueNumberingRewrite(terminal_verifier::GlobalValueNumberingRewriteError),
     InvalidModule(ModuleError),
     InvalidSemantic(CodecError),
     InvalidProof(ProofCodecError),
@@ -73,6 +74,12 @@ impl std::fmt::Display for PsiOptimizationStageError {
             }
             Self::InvalidDeadScalarRewrite(error) => {
                 write!(formatter, "invalid dead scalar rewrite: {error:?}")
+            }
+            Self::InvalidGlobalValueNumberingRewrite(error) => {
+                write!(
+                    formatter,
+                    "invalid global value numbering rewrite: {error:?}"
+                )
             }
             Self::InvalidModule(error) => write!(formatter, "invalid optimization input: {error}"),
             Self::InvalidSemantic(error) => {
