@@ -113,6 +113,7 @@ fn function_ranges() -> FunctionLiveRanges {
         ],
         tied_pairs: Vec::new(),
         edge_transfers: Vec::new(),
+        copy_affinities: Vec::new(),
         early_clobbers: vec![early(0, 0, 5)],
         architectural_units: Vec::new(),
         interference: Vec::new(),

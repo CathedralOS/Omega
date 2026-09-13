@@ -25,6 +25,7 @@ pub struct LiveRangeValidationReceipt {
     pub(crate) architectural_edge_connector_count: usize,
     pub(crate) interference_count: usize,
     pub(crate) tied_pair_count: usize,
+    pub(crate) copy_affinity_count: usize,
     pub(crate) tied_component_count: usize,
     pub(crate) early_clobber_count: usize,
     pub(crate) early_clobber_use_count: usize,
@@ -84,6 +85,9 @@ impl LiveRangeValidationReceipt {
     }
     pub const fn tied_pair_count(self) -> usize {
         self.tied_pair_count
+    }
+    pub const fn copy_affinity_count(self) -> usize {
+        self.copy_affinity_count
     }
     pub const fn tied_component_count(self) -> usize {
         self.tied_component_count

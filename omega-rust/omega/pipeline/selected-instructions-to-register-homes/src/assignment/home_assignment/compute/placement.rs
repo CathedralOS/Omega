@@ -10,7 +10,7 @@ use super::{
     domain::{AllocationDomain, build_domains},
     prepared_conflicts::PreparedConflicts,
 };
-use crate::{FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
+use crate::{CopyAffinity, FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
 
 pub(crate) fn compute_function(
     function: usize,
@@ -24,7 +24,7 @@ pub(crate) fn compute_function(
     let domains = build_domains(function, legality, ranges)?;
     let conflicts = PreparedConflicts::new(&domains, ranges, physical);
     let mut unassigned = (0..domains.len()).collect::<Vec<_>>();
-    let mut assigned = Vec::<(usize, RegisterViewId)>::new();
+    let mut homes = BTreeMap::<VirtualRegisterId, RegisterViewId>::new();
     // Preserve the original first selection's domain/candidate validation order.
     // Thereafter all views are known, and immutable pair constraints only remove
     // candidates: an older assignment cannot make a rejected view viable again.
@@ -58,15 +58,22 @@ pub(crate) fn compute_function(
     while !unassigned.is_empty() {
         let position = select_domain(&unassigned, &viable, &degrees, &domains);
         let domain_index = unassigned.remove(position);
-        let view =
-            viable[domain_index]
-                .first()
-                .copied()
-                .ok_or(RegisterHomeError::NoCompatibleHome {
-                    function,
-                    register: domains[domain_index].leader().0,
-                })?;
-        assigned.push((domain_index, view));
+        // Affinity only reorders among already-legal candidates: aliases,
+        // liveness, and interference facts are untouched, and domain selection
+        // order is unchanged.
+        let view = preferred_view(
+            &domains[domain_index],
+            &viable[domain_index],
+            &homes,
+            &ranges.copy_affinities,
+        )
+        .ok_or(RegisterHomeError::NoCompatibleHome {
+            function,
+            register: domains[domain_index].leader().0,
+        })?;
+        for member in &domains[domain_index].members {
+            homes.insert(member.virtual_register, view);
+        }
         for &remaining in &unassigned {
             if !conflicts.constrained(remaining, domain_index) {
                 continue;
@@ -90,12 +97,6 @@ pub(crate) fn compute_function(
             candidates.truncate(retained);
         }
     }
-    let mut homes = BTreeMap::<VirtualRegisterId, RegisterViewId>::new();
-    for (domain_index, view) in assigned {
-        for member in &domains[domain_index].members {
-            homes.insert(member.virtual_register, view);
-        }
-    }
     Ok(FunctionRegisterHomes {
         machine: legality.machine,
         assignments: legality
@@ -109,6 +110,30 @@ pub(crate) fn compute_function(
             })
             .collect(),
     })
+}
+
+fn preferred_view(
+    domain: &AllocationDomain<'_>,
+    viable: &[RegisterViewId],
+    homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
+    affinities: &[CopyAffinity],
+) -> Option<RegisterViewId> {
+    viable
+        .iter()
+        .copied()
+        .find(|view| {
+            affinities.iter().any(|affinity| {
+                let partner = if domain.contains(affinity.source) {
+                    affinity.destination
+                } else if domain.contains(affinity.destination) {
+                    affinity.source
+                } else {
+                    return false;
+                };
+                homes.get(&partner) == Some(view)
+            })
+        })
+        .or_else(|| viable.first().copied())
 }
 
 fn select_domain(

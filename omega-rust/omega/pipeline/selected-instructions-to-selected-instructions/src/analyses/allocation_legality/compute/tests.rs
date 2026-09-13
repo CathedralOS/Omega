@@ -132,6 +132,7 @@ fn computes_before_phase_candidates_for_each_early_clobber_row() {
         block_domains: Vec::new(),
         virtual_registers: vec![range(0, 0, 1), range(1, 1, 3), range(2, 3, 4)],
         edge_transfers: Vec::new(),
+        copy_affinities: Vec::new(),
         tied_pairs: Vec::<DistinctUseDefTie>::new(),
         early_clobbers: vec![early(0, 0, 1), early(1, 1, 2)],
         architectural_units: Vec::new(),
@@ -199,6 +200,7 @@ fn computes_before_phase_legality_for_early_definition_in_tied_component() {
             range(3, 3, 4),
         ],
         edge_transfers: Vec::new(),
+        copy_affinities: Vec::new(),
         tied_pairs: vec![
             DistinctUseDefTie {
                 block: SelectedBlockId(0),

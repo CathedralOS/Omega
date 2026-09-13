@@ -7,7 +7,7 @@ use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
 
 use super::{conflicts, domain};
-use crate::{FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
+use crate::{CopyAffinity, FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
 
 pub(in crate::assignment::home_assignment) fn validate_function(
     function: usize,
@@ -102,15 +102,15 @@ pub(crate) fn replay_function(
             .next()
             .expect("nonempty unassigned roster has a ranked domain");
         let domain = &domains[selected_domain];
-        let view =
-            domain
-                .candidates
-                .first()
-                .copied()
-                .ok_or(RegisterHomeError::NoCompatibleHome {
-                    function,
-                    register: domain.leader.0,
-                })?;
+        // Affinity only reorders among already-legal candidates: aliases,
+        // liveness, and interference facts are untouched, and domain selection
+        // order is unchanged.
+        let view = preferred_view(domain, &assigned, &ranges.copy_affinities).ok_or(
+            RegisterHomeError::NoCompatibleHome {
+                function,
+                register: domain.leader.0,
+            },
+        )?;
         let mut newly_assigned = BTreeMap::new();
         for register in &domain.registers {
             assigned.insert(*register, view);
@@ -146,6 +146,30 @@ pub(crate) fn replay_function(
             })
             .collect(),
     })
+}
+
+fn preferred_view(
+    domain: &domain::ReplayDomain,
+    assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
+    affinities: &[CopyAffinity],
+) -> Option<RegisterViewId> {
+    domain
+        .candidates
+        .iter()
+        .copied()
+        .find(|view| {
+            affinities.iter().any(|affinity| {
+                let partner = if domain.registers.contains(&affinity.source) {
+                    affinity.destination
+                } else if domain.registers.contains(&affinity.destination) {
+                    affinity.source
+                } else {
+                    return false;
+                };
+                assigned.get(&partner) == Some(view)
+            })
+        })
+        .or_else(|| domain.candidates.first().copied())
 }
 
 fn validate_assignment_order(

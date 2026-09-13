@@ -17,6 +17,10 @@ pub(super) fn validate(function: usize, actual: &FunctionLiveRanges) -> Result<(
             .windows(2)
             .any(|rows| rows[0] >= rows[1])
         || actual
+            .copy_affinities
+            .windows(2)
+            .any(|rows| rows[0] >= rows[1])
+        || actual
             .early_clobbers
             .windows(2)
             .any(|rows| rows[0] >= rows[1])

@@ -11,7 +11,7 @@ use super::{
     },
 };
 use crate::{
-    ArchitecturalUnitLiveRange, BlockLiveness, FunctionLiveRanges, FunctionLiveness,
+    ArchitecturalUnitLiveRange, BlockLiveness, CopyAffinity, FunctionLiveRanges, FunctionLiveness,
     InstructionLiveness, LiveRangeError, LiveRangeFragment, LiveRangePoint, LivenessPosition,
     OperandPosition, VirtualInterference, VirtualLiveRange,
 };
@@ -52,6 +52,7 @@ fn function() -> FunctionLiveRanges {
             edge_connectors: Vec::new(),
         }],
         edge_transfers: Vec::new(),
+        copy_affinities: Vec::new(),
         tied_pairs: Vec::new(),
         early_clobbers: Vec::new(),
         architectural_units: vec![ArchitecturalUnitLiveRange {
@@ -84,6 +85,37 @@ fn canonical_validation_rejects_nonmaximal_fragments_and_reversed_pairs() {
         lower: VirtualRegisterId(2),
         higher: VirtualRegisterId(1),
     });
+    assert!(matches!(
+        validate_canonical(0, &reversed),
+        Err(LiveRangeError::NonCanonicalRows { .. })
+    ));
+}
+
+#[test]
+fn copy_affinity_replay_rejects_drifted_missing_and_unordered_rows() {
+    let mut expected = function();
+    expected.copy_affinities = vec![
+        CopyAffinity {
+            block: SelectedBlockId(0),
+            instruction: selected_instructions::SelectedInstructionId(0),
+            source: VirtualRegisterId(0),
+            destination: VirtualRegisterId(1),
+        },
+        CopyAffinity {
+            block: SelectedBlockId(0),
+            instruction: selected_instructions::SelectedInstructionId(1),
+            source: VirtualRegisterId(2),
+            destination: VirtualRegisterId(3),
+        },
+    ];
+    let mut changed = expected.clone();
+    changed.copy_affinities[0].destination = VirtualRegisterId(9);
+    assert!(super::comparison::require_function(0, &changed, &expected).is_err());
+    let mut missing = expected.clone();
+    missing.copy_affinities.clear();
+    assert!(super::comparison::require_function(0, &missing, &expected).is_err());
+    let mut reversed = expected.clone();
+    reversed.copy_affinities.reverse();
     assert!(matches!(
         validate_canonical(0, &reversed),
         Err(LiveRangeError::NonCanonicalRows { .. })

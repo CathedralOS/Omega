@@ -17,6 +17,7 @@ pub(super) fn replay_function(
     constraints::reject_unsupported(function, live)?;
     let tied_pairs = constraints::derive_ties(function, live)?;
     let edge_transfers = replay_edge_transfers(function, selected, live)?;
+    let copy_affinities = replay_copy_affinities(function, selected)?;
     let early_clobbers = constraints::derive_early_clobbers(function, live)?;
     let block_domains = fragments::block_domains(function, live)?;
 
@@ -116,10 +117,39 @@ pub(super) fn replay_function(
         virtual_registers,
         tied_pairs,
         edge_transfers,
+        copy_affinities,
         early_clobbers,
         architectural_units,
         interference,
     })
+}
+
+fn replay_copy_affinities(
+    function: usize,
+    selected: &selected_instructions::SelectedFunction,
+) -> Result<Vec<crate::CopyAffinity>, LiveRangeError> {
+    use selected_instructions::SelectedInstructionKind;
+    let mut affinities = Vec::new();
+    for block in &selected.blocks {
+        for row in &block.instructions {
+            if row.kind != SelectedInstructionKind::CopyI64 {
+                continue;
+            }
+            let [input, output] = row.operands.as_slice() else {
+                return Err(LiveRangeError::FunctionMismatch { function });
+            };
+            if input.virtual_register == output.virtual_register {
+                continue;
+            }
+            affinities.push(crate::CopyAffinity {
+                block: block.id,
+                instruction: row.id,
+                source: input.virtual_register,
+                destination: output.virtual_register,
+            });
+        }
+    }
+    Ok(affinities)
 }
 
 fn replay_edge_transfers(
