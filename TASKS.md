@@ -719,6 +719,17 @@ Owners include
   groups reject. **SAMPLE-CORPUS** owns whole-customer execution and its current
   strategy pause; interpreted loops or isolated graph tests cannot close it.
 
+  Linux x86-64 resume evidence: `print_squares`'s `Main::main` now declares
+  `reaches Console` (the direct-boundary rule in
+  [effects](wiki/spec/language/effects.md)); before that, every Console sample
+  stopped at source checking with `publishes service reach <none>`. The
+  filtered `samples_with_documented_exit_run_correctly` probe now stops at
+  Terminal production: `InvalidUnitMachinePlan` for `Main::main`, "attached
+  Unit closure is missing a checked transitive machine plan". The absent plan
+  is source production in `flow/terminal_unit/` (its Option-based builders do
+  not retain which local requirement failed), not the verifier or Omega
+  lowering; identify that requirement before touching cyclic verification.
+
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
   operators, nested structural paths, calls, cycles, execution and package review.
   Owners include `facts/operator_crashes.rs`, `CrashPlan::checked_operators`,
