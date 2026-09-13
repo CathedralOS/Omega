@@ -709,3 +709,234 @@ fn dependent_pairs_flow_through_call_arguments() {
     let expected = variable(&mut arena, 4);
     assert!(arena.structurally_equal(inferred, expected));
 }
+
+#[test]
+fn function_eta_converts_a_neutral_with_its_wrapper() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context A : Type 0, f : Π(x : A). A. In depth 2, A is index 1 and f
+    // is index 0. f's binding is well-scoped in its length-1 prefix:
+    // domain A is index 0, codomain A under the binder is index 1.
+    let type_zero = type_sort(&mut arena, 0);
+    let domain_in_prefix = variable(&mut arena, 0);
+    let codomain_in_prefix = variable(&mut arena, 1);
+    let function_type = pi(&mut arena, domain_in_prefix, codomain_in_prefix);
+    let context = Context::empty().extend(type_zero).extend(function_type);
+
+    // Shared type Π(x : A). A in depth 2: domain A is index 1, codomain A
+    // under the binder is index 2.
+    let shared_domain = variable(&mut arena, 1);
+    let shared_codomain = variable(&mut arena, 2);
+    let shared_type = pi(&mut arena, shared_domain, shared_codomain);
+
+    // λ(x : A). f x — under the binder f is index 1 and x is index 0.
+    let lambda_domain = variable(&mut arena, 1);
+    let f_under = variable(&mut arena, 1);
+    let bound = variable(&mut arena, 0);
+    let body = apply(&mut arena, f_under, bound);
+    let wrapped = lambda(&mut arena, lambda_domain, body);
+    let f = variable(&mut arena, 0);
+
+    // x ↦ f x ≡ f and f ≡ x ↦ f x at the checked function type.
+    assert!(convertible(&mut arena, &context, wrapped, f, shared_type, &mut budget,).unwrap());
+    assert!(convertible(&mut arena, &context, f, wrapped, shared_type, &mut budget,).unwrap());
+
+    // Add g : Π(x : A). A, a distinct neutral. In depth 3, A is index 2,
+    // f is index 1 and g is index 0; under the binder f is index 2.
+    let g_domain = variable(&mut arena, 1);
+    let g_codomain = variable(&mut arena, 2);
+    let g_type = pi(&mut arena, g_domain, g_codomain);
+    let context = context.extend(g_type);
+    let shared_domain = variable(&mut arena, 2);
+    let shared_codomain = variable(&mut arena, 3);
+    let shared_type = pi(&mut arena, shared_domain, shared_codomain);
+
+    // Eta grants no pointwise collapse: x ↦ f x does not convert to g.
+    let lambda_domain = variable(&mut arena, 2);
+    let f_under = variable(&mut arena, 2);
+    let bound = variable(&mut arena, 0);
+    let body = apply(&mut arena, f_under, bound);
+    let wrapped_f = lambda(&mut arena, lambda_domain, body);
+    let g = variable(&mut arena, 0);
+    assert!(!convertible(&mut arena, &context, wrapped_f, g, shared_type, &mut budget,).unwrap());
+
+    // The same construction around g itself does convert.
+    let lambda_domain = variable(&mut arena, 2);
+    let g_under = variable(&mut arena, 1);
+    let bound = variable(&mut arena, 0);
+    let body = apply(&mut arena, g_under, bound);
+    let wrapped_g = lambda(&mut arena, lambda_domain, body);
+    assert!(convertible(&mut arena, &context, wrapped_g, g, shared_type, &mut budget,).unwrap());
+
+    // A wrapper whose body drops the application is a different function:
+    // x ↦ x is not f merely because both are functions.
+    let lambda_domain = variable(&mut arena, 2);
+    let bound = variable(&mut arena, 0);
+    let identity = lambda(&mut arena, lambda_domain, bound);
+    let f = variable(&mut arena, 1);
+    assert!(!convertible(&mut arena, &context, identity, f, shared_type, &mut budget,).unwrap());
+}
+
+#[test]
+fn function_eta_applies_across_admitted_sort_combinations() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context P : Strict 0, A : Type 0, f : Π(p : P). A. In depth 3, P is
+    // index 2, A is index 1 and f is index 0. A strict domain with a
+    // relevant codomain is an admitted Π formation; the Π itself is
+    // relevant, so eta — not irrelevance — decides this conversion.
+    let strict_zero = strict_sort(&mut arena, 0);
+    let type_zero = type_sort(&mut arena, 0);
+    let p_in_prefix = variable(&mut arena, 1);
+    let a_under = variable(&mut arena, 1);
+    let function_type = pi(&mut arena, p_in_prefix, a_under);
+    let context = Context::empty()
+        .extend(strict_zero)
+        .extend(type_zero)
+        .extend(function_type);
+
+    // Shared type Π(p : P). A in depth 3: domain P is index 2, codomain A
+    // under the binder is index 2.
+    let shared_domain = variable(&mut arena, 2);
+    let shared_codomain = variable(&mut arena, 2);
+    let shared_type = pi(&mut arena, shared_domain, shared_codomain);
+    let sort = infer_sort(&mut arena, &context, shared_type, &mut budget).unwrap();
+    assert_eq!(sort, Sort::Type(Level(0)));
+
+    // λ(p : P). f p — under the binder f is index 1 and p is index 0.
+    let lambda_domain = variable(&mut arena, 2);
+    let f_under = variable(&mut arena, 1);
+    let bound = variable(&mut arena, 0);
+    let body = apply(&mut arena, f_under, bound);
+    let wrapped = lambda(&mut arena, lambda_domain, body);
+    let f = variable(&mut arena, 0);
+    assert!(convertible(&mut arena, &context, wrapped, f, shared_type, &mut budget,).unwrap());
+    assert!(convertible(&mut arena, &context, f, wrapped, shared_type, &mut budget,).unwrap());
+
+    // A dependent codomain keeps the same rule. Context
+    // B : Type 0, Q : Π(y : B). Type 0, h : Π(y : B). Q y. In depth 3,
+    // B is index 2, Q is index 1 and h is index 0.
+    let b_in_prefix = variable(&mut arena, 0);
+    let type_zero_body = type_sort(&mut arena, 0);
+    let predicate_type = pi(&mut arena, b_in_prefix, type_zero_body);
+    let b_domain = variable(&mut arena, 1);
+    let q_under = variable(&mut arena, 1);
+    let y_under = variable(&mut arena, 0);
+    let qy_under = apply(&mut arena, q_under, y_under);
+    let dependent_function_type = pi(&mut arena, b_domain, qy_under);
+    let context = Context::empty()
+        .extend(type_zero)
+        .extend(predicate_type)
+        .extend(dependent_function_type);
+
+    // Shared type Π(y : B). Q y in depth 3: domain B is index 2; under the
+    // binder Q is index 2 and y is index 0. Its sort is relevant Type 0:
+    // the dependent codomain Q y inhabits Type 0, so the maximum is 0.
+    let shared_domain = variable(&mut arena, 2);
+    let q_shared = variable(&mut arena, 2);
+    let y_shared = variable(&mut arena, 0);
+    let qy_shared = apply(&mut arena, q_shared, y_shared);
+    let shared_type = pi(&mut arena, shared_domain, qy_shared);
+    let sort = infer_sort(&mut arena, &context, shared_type, &mut budget).unwrap();
+    assert_eq!(sort, Sort::Type(Level(0)));
+
+    // λ(y : B). h y ≡ h at the dependent Π.
+    let lambda_domain = variable(&mut arena, 2);
+    let h_under = variable(&mut arena, 1);
+    let bound = variable(&mut arena, 0);
+    let body = apply(&mut arena, h_under, bound);
+    let wrapped = lambda(&mut arena, lambda_domain, body);
+    let h = variable(&mut arena, 0);
+    assert!(convertible(&mut arena, &context, wrapped, h, shared_type, &mut budget,).unwrap());
+}
+
+#[test]
+fn function_eta_composes_inside_dependent_type_conversion() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context A : Type 0, R : Π(h : Π(x : A). A). Type 0, f : Π(x : A). A.
+    // In depth 3, A is index 2, R is index 1 and f is index 0.
+    let type_zero = type_sort(&mut arena, 0);
+    let inner_domain = variable(&mut arena, 0);
+    let inner_codomain = variable(&mut arena, 1);
+    let inner_pi = pi(&mut arena, inner_domain, inner_codomain);
+    let result_sort = type_sort(&mut arena, 0);
+    let family_type = pi(&mut arena, inner_pi, result_sort);
+    let f_domain = variable(&mut arena, 1);
+    let f_codomain = variable(&mut arena, 2);
+    let function_type = pi(&mut arena, f_domain, f_codomain);
+    let context = Context::empty()
+        .extend(type_zero)
+        .extend(family_type)
+        .extend(function_type);
+
+    // R f ≡ R (x ↦ f x) as types at Type 0: the argument conversion runs
+    // at R's Π domain, where the eta rule sees the function type.
+    let r = variable(&mut arena, 1);
+    let f = variable(&mut arena, 0);
+    let direct = apply(&mut arena, r, f);
+    let lambda_domain = variable(&mut arena, 2);
+    let f_under = variable(&mut arena, 1);
+    let bound = variable(&mut arena, 0);
+    let body = apply(&mut arena, f_under, bound);
+    let wrapped = lambda(&mut arena, lambda_domain, body);
+    let r_again = variable(&mut arena, 1);
+    let eta_expanded = apply(&mut arena, r_again, wrapped);
+    let shared_type = type_sort(&mut arena, 0);
+    assert!(
+        convertible(
+            &mut arena,
+            &context,
+            direct,
+            eta_expanded,
+            shared_type,
+            &mut budget,
+        )
+        .unwrap()
+    );
+
+    // A different function argument still distinguishes the types.
+    let g_domain = variable(&mut arena, 2);
+    let g_codomain = variable(&mut arena, 3);
+    let g_type = pi(&mut arena, g_domain, g_codomain);
+    let context = context.extend(g_type);
+    let r = variable(&mut arena, 2);
+    let f = variable(&mut arena, 1);
+    let left = apply(&mut arena, r, f);
+    let r_again = variable(&mut arena, 2);
+    let g = variable(&mut arena, 0);
+    let right = apply(&mut arena, r_again, g);
+    assert!(!convertible(&mut arena, &context, left, right, shared_type, &mut budget,).unwrap());
+}
+
+#[test]
+fn function_eta_never_deletes_an_untyped_wrapper() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context A : Type 0, f : Π(x : A). A. In depth 2, A is index 1 and f
+    // is index 0.
+    let type_zero = type_sort(&mut arena, 0);
+    let domain_in_prefix = variable(&mut arena, 0);
+    let codomain_in_prefix = variable(&mut arena, 1);
+    let function_type = pi(&mut arena, domain_in_prefix, codomain_in_prefix);
+    let context = Context::empty().extend(type_zero).extend(function_type);
+
+    // The same wrapper that converted at Π(x : A). A does not collapse at
+    // a non-function shared type: the rule is a conversion judgment at a
+    // checked Π, never a syntactic `x ↦ f x` deletion.
+    let lambda_domain = variable(&mut arena, 1);
+    let f_under = variable(&mut arena, 1);
+    let bound = variable(&mut arena, 0);
+    let body = apply(&mut arena, f_under, bound);
+    let wrapped = lambda(&mut arena, lambda_domain, body);
+    let f = variable(&mut arena, 0);
+    let neutral_type = variable(&mut arena, 1);
+    assert!(!convertible(&mut arena, &context, wrapped, f, neutral_type, &mut budget,).unwrap());
+
+    // Nor does an eta-expanded comparison succeed in the other direction.
+    assert!(!convertible(&mut arena, &context, f, wrapped, neutral_type, &mut budget,).unwrap());
+}
