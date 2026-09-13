@@ -1005,6 +1005,9 @@ fn recursive_slice_samples_reach_checked_trees() {
     for relative in [
         "cli/arithmetic/recursive_sum",
         "cli/probes/dual_accumulator_recursion",
+        "cli/collections/subslice_sum",
+        "cli/collections/slice_accum_probe",
+        "cli/systems/framed_payload",
     ] {
         let main_path = repo_root().join("samples").join(relative).join("main.omg");
         compile_sample_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
