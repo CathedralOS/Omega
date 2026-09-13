@@ -18,9 +18,16 @@ impl<'program> Evaluator<'program> {
                 mutable_recast: Some(recast),
             });
         }
-        let mutable_recast = self
-            .mutable_recast_path(argument, frame)?
-            .map(|(recast, _)| recast);
+        let mutable_recast =
+            self.mutable_recast_path(argument, frame)?
+                .and_then(|(recast, path)| {
+                    // A scalar field observation is not the enclosing recast view.
+                    // Attaching that descriptor would reinterpret the callee's
+                    // scalar parameter as the whole record on its next read.
+                    let scalar_observation = !path.is_empty()
+                        && self.program.primitive_type_reference(destination).is_some();
+                    (!scalar_observation).then_some(recast)
+                });
         Ok(EvaluatedArgument {
             cell: if let Some(value) = self.anonymous_integer_landing_value(
                 argument,
@@ -46,6 +53,15 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> Option<TypeReferenceHandle> {
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Call(call) if call.target_symbol.is_valid() => {
+                self.program.machines().iter().find_map(|machine| {
+                    self.program
+                        .machine_states(machine)
+                        .iter()
+                        .find(|state| state.symbol == call.target_symbol)
+                        .map(|state| state.return_type)
+                })
+            }
             ExpressionNode::ArrayLiteral(_) => {
                 validation::declared_constant_array_type(self.program, expression)
             }

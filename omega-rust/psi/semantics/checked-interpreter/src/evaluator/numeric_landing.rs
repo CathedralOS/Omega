@@ -2,7 +2,8 @@ use super::*;
 
 impl Evaluator<'_> {
     /// Preserve aggregate destinations until each literal element reaches its
-    /// own scalar type. Existing values and references keep ordinary evaluation.
+    /// own scalar type, and reference destinations until their alias is retained.
+    /// A scalar observation must not replace a reference-valued field or result.
     pub(super) fn eval_expression_at_type(
         &mut self,
         expression: ExpressionHandle,
@@ -15,6 +16,17 @@ impl Evaluator<'_> {
             self.tick()?;
             let selected = self.select_match_arm(expression, &dispatch, frame)?;
             return self.eval_expression_at_type(selected, destination, frame);
+        }
+        if matches!(
+            self.program
+                .type_reference_table
+                .type_reference(destination),
+            TypeReferenceNode::Reference { .. }
+        ) {
+            // A reference result/field retains the selected Ref, not a scalar
+            // observation of its referent. The same selection serves arguments.
+            let cell = self.eval_read_cell(expression, frame)?;
+            return Ok(cell.borrow().clone());
         }
         if let ExpressionNode::ArrayLiteral(_) =
             self.program.expression_table.expression(expression)

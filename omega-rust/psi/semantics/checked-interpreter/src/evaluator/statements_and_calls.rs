@@ -772,26 +772,11 @@ impl<'program> Evaluator<'program> {
                 self.allocate_cell(Value::Ref(target))
             }
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-                // A bare place argument that is ALREADY a reference (a forwarded `&mut`
-                // parameter, e.g. `out_room` of type `&mut Room`) must keep aliasing the
-                // same underlying cell -- otherwise a chain of forwarding calls silently
-                // detaches the write. If the place resolves and holds a `Ref`, forward that
-                // cell; otherwise evaluate the expression normally (handles enum-value name
-                // paths, plain values, etc.).
-                if let Ok(place) = self.resolve_place(argument, frame) {
-                    let forwarded = match &*place.borrow() {
-                        Value::Ref(target) => Some(target.clone()),
-                        _ => None,
-                    };
-                    if let Some(target) = forwarded {
-                        // Keep the Ref WRAPPER (not the bare target cell) so reference-ness
-                        // survives the NEXT hop too: the callee's param must itself look like
-                        // a `&mut` binding when it forwards the bare name onward (e.g. a
-                        // transition arm `gate_title(out_line)` two machines deep).
-                        return self.allocate_cell(Value::Ref(target));
-                    }
-                }
-                let value = self.eval_expression(argument, frame)?;
+                // Select once: a speculative place lookup followed by value
+                // evaluation would replay effectful indices. Retain any Ref
+                // wrapper so forwarding aliases the original referent.
+                let cell = self.eval_read_cell(argument, frame)?;
+                let value = cell.borrow().clone();
                 self.allocate_cell(value)
             }
             _ => {
