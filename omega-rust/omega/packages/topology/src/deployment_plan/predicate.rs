@@ -13,8 +13,8 @@
 //! path in the right graph. `evaluate_policy` independently computes the
 //! verdict a selected verifier must reach; `verify` uses both legs.
 
-use crate::graph::NormalizedGraph;
-use crate::model::{
+use crate::deployment_plan::graph::NormalizedGraph;
+use crate::deployment_plan::{
     Certificate, InstanceName, PolicyCall, PolicyOutcome, PolicyPredicate, PolicySelector,
     Violation,
 };
@@ -112,7 +112,7 @@ pub fn validate_selector(
     if selector.members.is_empty() {
         return Err(SelectorError::Empty { role });
     }
-    if selector.members.len() > crate::codec::MAX_SELECTOR_MEMBERS {
+    if selector.members.len() > crate::deployment_plan::codec::MAX_SELECTOR_MEMBERS {
         return Err(SelectorError::LimitExceeded { role });
     }
     let mut resolved = BTreeSet::new();
@@ -477,7 +477,7 @@ pub fn canonical_policy_order(calls: &mut [PolicyCall]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::*;
+    use crate::deployment_plan::*;
 
     fn identity(byte: u8) -> Identity {
         [byte; 32]

@@ -13,151 +13,17 @@
 //! deliberately not an `installation admitted` value — this crate binds no
 //! endpoints, admits no executable, and grants no activation.
 
-use crate::codec::{CodecError, decode_plan, decode_request};
-use crate::graph::{GraphError, NormalizedGraph};
-use crate::model::{
+use crate::deployment_plan::codec::{CodecError, decode_plan, decode_request};
+use crate::deployment_plan::graph::{GraphError, NormalizedGraph};
+use crate::deployment_plan::predicate::{
+    CertificateRejection, PolicyEvaluation, SelectorError, check_outcome, evaluate_policy,
+};
+use crate::deployment_plan::{
     Completeness, DeploymentPlan, Identity, InstanceName, PolicyCall, PolicyOutcome,
     TopologyRequest, plan_subject, request_commitment,
 };
-use crate::predicate::{
-    CertificateRejection, PolicyEvaluation, SelectorError, check_outcome, evaluate_policy,
-};
 use std::collections::BTreeMap;
 use std::fmt;
-
-/// Why a candidate plan is rejected. Categories stay distinct so a caller can
-/// report the actual failure instead of a generic "invalid".
-#[derive(Debug)]
-pub enum PlanRejection {
-    /// The request bytes themselves are malformed.
-    MalformedRequest(CodecError),
-    /// The plan bytes are malformed or corrupt.
-    MalformedPlan(CodecError),
-    /// A completeness tag the codec names but never admits was supplied:
-    /// producer-declared or early-frontier records are not verified closure.
-    UnverifiedCompleteness { tag: u8 },
-    /// The plan's recorded request commitment differs from the current
-    /// authorized request — including a correctly formed but superseded one.
-    StaleRequest { expected: Identity, found: Identity },
-    /// The plan roster differs from the request roster: an instance was
-    /// added, renamed, removed, or bound to a different component subject.
-    RosterMismatch { detail: String },
-    /// A component description relies on an assumption the owner did not
-    /// accept.
-    UnacceptedAssumption {
-        instance: InstanceName,
-        assumption: Identity,
-    },
-    /// A binding selects a transport outside the request's allowed profile.
-    UnselectedTransport { binding: usize },
-    /// A policy row names an executable other than the selected verifier.
-    /// Rejected by identity comparison; the named code is never loaded.
-    UnselectedPolicyExecutable { policy: usize },
-    /// The plan omits a policy the owner required.
-    MissingRequiredPolicy { call: Box<PolicyCall> },
-    /// The plan records a policy the owner did not require.
-    UnexpectedPolicy { call: Box<PolicyCall> },
-    /// A recorded policy row is malformed for this graph (bad selectors).
-    InvalidPolicy {
-        index: usize,
-        errors: Vec<SelectorError>,
-    },
-    /// A policy row records a violated outcome — no successful composition
-    /// exists to publish.
-    PolicyNotSatisfied { index: usize },
-    /// The recorded verdict does not survive independent replay on the
-    /// reconstructed graph.
-    ReplayMismatch { index: usize },
-    /// The recorded certificate fails structural checking against the real
-    /// edges.
-    InvalidCertificate {
-        index: usize,
-        reason: CertificateRejection,
-    },
-    /// The plan's records do not normalize into a complete bounded graph.
-    InvalidGraph(GraphError),
-}
-
-impl fmt::Display for PlanRejection {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MalformedRequest(error) => write!(formatter, "malformed request: {error}"),
-            Self::MalformedPlan(error) => write!(formatter, "malformed plan: {error}"),
-            Self::UnverifiedCompleteness { tag } => write!(
-                formatter,
-                "a component description supplies completeness tag {tag}, not verified closure"
-            ),
-            Self::StaleRequest { .. } => {
-                formatter.write_str("plan answers a request that is not the current authorization")
-            }
-            Self::RosterMismatch { detail } => {
-                write!(formatter, "plan roster differs from the request: {detail}")
-            }
-            Self::UnacceptedAssumption { instance, .. } => {
-                write!(
-                    formatter,
-                    "instance `{instance}` needs an assumption the owner did not accept"
-                )
-            }
-            Self::UnselectedTransport { binding } => {
-                write!(
-                    formatter,
-                    "binding {binding} selects a transport outside the allowed profile"
-                )
-            }
-            Self::UnselectedPolicyExecutable { policy } => write!(
-                formatter,
-                "policy row {policy} names an executable the owner did not select"
-            ),
-            Self::MissingRequiredPolicy { .. } => {
-                formatter.write_str("plan omits a required policy")
-            }
-            Self::UnexpectedPolicy { .. } => {
-                formatter.write_str("plan records a policy the owner did not require")
-            }
-            Self::InvalidPolicy { index, .. } => {
-                write!(formatter, "policy row {index} has invalid selectors")
-            }
-            Self::PolicyNotSatisfied { index } => {
-                write!(
-                    formatter,
-                    "policy row {index} records an unsatisfied outcome"
-                )
-            }
-            Self::ReplayMismatch { index } => {
-                write!(
-                    formatter,
-                    "policy row {index} does not survive independent replay"
-                )
-            }
-            Self::InvalidCertificate { index, reason } => {
-                write!(
-                    formatter,
-                    "policy row {index} carries invalid evidence: {reason}"
-                )
-            }
-            Self::InvalidGraph(error) => write!(formatter, "plan graph is invalid: {error}"),
-        }
-    }
-}
-
-impl std::error::Error for PlanRejection {}
-
-/// `composition checked`: the plan reconstructs to a complete graph that
-/// satisfies the current owner request under the selected predicates. This
-/// is not an installation verdict — no endpoint was bound and no authority
-/// was granted.
-#[derive(Debug)]
-pub struct CheckedPlan {
-    /// The plan's external identity: the digest of its canonical bytes.
-    pub subject: Identity,
-    /// The independently reconstructed, normalized graph.
-    pub graph: NormalizedGraph,
-    /// The decoded plan records.
-    pub plan: DeploymentPlan,
-    /// The decoded current request the plan was checked against.
-    pub request: TopologyRequest,
-}
 
 /// Reconstruct and independently check a candidate plan against the current
 /// owner request. All policies are checked in canonical order; the first
@@ -297,4 +163,138 @@ pub fn verify_plan(plan_bytes: &[u8], request_bytes: &[u8]) -> Result<CheckedPla
         plan,
         request,
     })
+}
+
+/// Why a candidate plan is rejected. Categories stay distinct so a caller can
+/// report the actual failure instead of a generic "invalid".
+#[derive(Debug)]
+pub enum PlanRejection {
+    /// The request bytes themselves are malformed.
+    MalformedRequest(CodecError),
+    /// The plan bytes are malformed or corrupt.
+    MalformedPlan(CodecError),
+    /// A completeness tag the codec names but never admits was supplied:
+    /// producer-declared or early-frontier records are not verified closure.
+    UnverifiedCompleteness { tag: u8 },
+    /// The plan's recorded request commitment differs from the current
+    /// authorized request — including a correctly formed but superseded one.
+    StaleRequest { expected: Identity, found: Identity },
+    /// The plan roster differs from the request roster: an instance was
+    /// added, renamed, removed, or bound to a different component subject.
+    RosterMismatch { detail: String },
+    /// A component description relies on an assumption the owner did not
+    /// accept.
+    UnacceptedAssumption {
+        instance: InstanceName,
+        assumption: Identity,
+    },
+    /// A binding selects a transport outside the request's allowed profile.
+    UnselectedTransport { binding: usize },
+    /// A policy row names an executable other than the selected verifier.
+    /// Rejected by identity comparison; the named code is never loaded.
+    UnselectedPolicyExecutable { policy: usize },
+    /// The plan omits a policy the owner required.
+    MissingRequiredPolicy { call: Box<PolicyCall> },
+    /// The plan records a policy the owner did not require.
+    UnexpectedPolicy { call: Box<PolicyCall> },
+    /// A recorded policy row is malformed for this graph (bad selectors).
+    InvalidPolicy {
+        index: usize,
+        errors: Vec<SelectorError>,
+    },
+    /// A policy row records a violated outcome — no successful composition
+    /// exists to publish.
+    PolicyNotSatisfied { index: usize },
+    /// The recorded verdict does not survive independent replay on the
+    /// reconstructed graph.
+    ReplayMismatch { index: usize },
+    /// The recorded certificate fails structural checking against the real
+    /// edges.
+    InvalidCertificate {
+        index: usize,
+        reason: CertificateRejection,
+    },
+    /// The plan's records do not normalize into a complete bounded graph.
+    InvalidGraph(GraphError),
+}
+
+impl fmt::Display for PlanRejection {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MalformedRequest(error) => write!(formatter, "malformed request: {error}"),
+            Self::MalformedPlan(error) => write!(formatter, "malformed plan: {error}"),
+            Self::UnverifiedCompleteness { tag } => write!(
+                formatter,
+                "a component description supplies completeness tag {tag}, not verified closure"
+            ),
+            Self::StaleRequest { .. } => {
+                formatter.write_str("plan answers a request that is not the current authorization")
+            }
+            Self::RosterMismatch { detail } => {
+                write!(formatter, "plan roster differs from the request: {detail}")
+            }
+            Self::UnacceptedAssumption { instance, .. } => {
+                write!(
+                    formatter,
+                    "instance `{instance}` needs an assumption the owner did not accept"
+                )
+            }
+            Self::UnselectedTransport { binding } => {
+                write!(
+                    formatter,
+                    "binding {binding} selects a transport outside the allowed profile"
+                )
+            }
+            Self::UnselectedPolicyExecutable { policy } => write!(
+                formatter,
+                "policy row {policy} names an executable the owner did not select"
+            ),
+            Self::MissingRequiredPolicy { .. } => {
+                formatter.write_str("plan omits a required policy")
+            }
+            Self::UnexpectedPolicy { .. } => {
+                formatter.write_str("plan records a policy the owner did not require")
+            }
+            Self::InvalidPolicy { index, .. } => {
+                write!(formatter, "policy row {index} has invalid selectors")
+            }
+            Self::PolicyNotSatisfied { index } => {
+                write!(
+                    formatter,
+                    "policy row {index} records an unsatisfied outcome"
+                )
+            }
+            Self::ReplayMismatch { index } => {
+                write!(
+                    formatter,
+                    "policy row {index} does not survive independent replay"
+                )
+            }
+            Self::InvalidCertificate { index, reason } => {
+                write!(
+                    formatter,
+                    "policy row {index} carries invalid evidence: {reason}"
+                )
+            }
+            Self::InvalidGraph(error) => write!(formatter, "plan graph is invalid: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for PlanRejection {}
+
+/// `composition checked`: the plan reconstructs to a complete graph that
+/// satisfies the current owner request under the selected predicates. This
+/// is not an installation verdict — no endpoint was bound and no authority
+/// was granted.
+#[derive(Debug)]
+pub struct CheckedPlan {
+    /// The plan's external identity: the digest of its canonical bytes.
+    pub subject: Identity,
+    /// The independently reconstructed, normalized graph.
+    pub graph: NormalizedGraph,
+    /// The decoded plan records.
+    pub plan: DeploymentPlan,
+    /// The decoded current request the plan was checked against.
+    pub request: TopologyRequest,
 }

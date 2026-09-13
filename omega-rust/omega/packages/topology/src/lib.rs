@@ -13,7 +13,7 @@
 //!
 //! Trust boundary (what this code may and may not decide):
 //!
-//! - The plan is package data, not a compiler verdict. `compose` is the
+//! - The plan is package data, not a compiler verdict. `plan_composition` is the
 //!   producer-side reference for the eventual build-only Omega package; it
 //!   emits bytes only after every required policy evaluates satisfied, so a
 //!   partial or failed composition cannot fabricate a checked result.
@@ -33,7 +33,7 @@
 //!   loaded or run by this crate.
 //! - `composition checked` and `installation admitted` stay distinct.
 //!   Publication of exact plan bytes is not an installation claim; only the
-//!   `install` module's gated activation produces the second, and its
+//!   `topology_installation` module's gated activation produces the second, and its
 //!   receipt binds the plan, artifacts, physical endpoint mapping, provider
 //!   assumptions, and installation occurrence — evidence for one
 //!   generation, never a reusable authorization.
@@ -47,30 +47,27 @@
 //! description will supply; nothing here may treat hand-authored inventory
 //! as verified closure.
 
-pub mod codec;
-pub mod compose;
-pub mod graph;
-pub mod install;
-pub mod model;
-pub mod predicate;
-pub mod verify;
+pub mod deployment_plan;
+pub mod plan_composition;
+pub mod plan_verification;
+pub mod topology_installation;
 
-pub use codec::{
+pub use deployment_plan::codec::{
     CodecError, MAX_ASSUMPTIONS, MAX_BINDINGS, MAX_ENDPOINTS_PER_INSTANCE, MAX_INSTANCES,
     MAX_NAME_BYTES, MAX_PLAN_BYTES, MAX_POLICIES, MAX_SELECTOR_MEMBERS, MAX_TRANSPORTS,
     PLAN_SCHEMA_VERSION, REQUEST_SCHEMA_VERSION, decode_plan, decode_request, encode_plan,
     encode_request,
 };
-pub use compose::{CompositionError, CompositionFailure, compose_plan};
-pub use graph::{GraphError, NormalizedGraph};
-pub use model::{
+pub use deployment_plan::graph::{GraphError, NormalizedGraph};
+pub use deployment_plan::predicate::{
+    CertificateRejection, PolicyEvaluation, SelectorError, SelectorRole, evaluate_policy,
+    validate_selector,
+};
+pub use deployment_plan::{
     Binding, Certificate, Completeness, ComponentDescription, DeploymentPlan, Endpoint,
     EndpointDirection, EndpointKey, ExecutedPolicy, Identity, InstanceName, InstanceRole,
     PlanInstance, PolicyCall, PolicyOutcome, PolicyPredicate, PolicySelector, RequestedInstance,
     TopologyRequest, Violation, plan_subject, request_commitment,
 };
-pub use predicate::{
-    CertificateRejection, PolicyEvaluation, SelectorError, SelectorRole, evaluate_policy,
-    validate_selector,
-};
-pub use verify::{CheckedPlan, PlanRejection, verify_plan};
+pub use plan_composition::{CompositionError, CompositionFailure, compose_plan};
+pub use plan_verification::{CheckedPlan, PlanRejection, verify_plan};

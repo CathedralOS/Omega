@@ -13,7 +13,7 @@
 //! demanded import and a declared export creates a directed edge, in the
 //! import-to-export (call) direction.
 
-use crate::model::{Binding, EndpointDirection, EndpointKey, InstanceName, PlanInstance};
+use crate::deployment_plan::{Binding, EndpointDirection, EndpointKey, InstanceName, PlanInstance};
 use std::collections::BTreeSet;
 use std::fmt;
 
@@ -124,10 +124,10 @@ impl NormalizedGraph {
         mut instances: Vec<PlanInstance>,
         mut bindings: Vec<Binding>,
     ) -> Result<Self, GraphError> {
-        if instances.len() > crate::codec::MAX_INSTANCES {
+        if instances.len() > crate::deployment_plan::codec::MAX_INSTANCES {
             return Err(GraphError::LimitExceeded { what: "instances" });
         }
-        if bindings.len() > crate::codec::MAX_BINDINGS {
+        if bindings.len() > crate::deployment_plan::codec::MAX_BINDINGS {
             return Err(GraphError::LimitExceeded { what: "bindings" });
         }
 
@@ -145,7 +145,8 @@ impl NormalizedGraph {
                     field: "component subject",
                 });
             }
-            if instance.endpoints.len() > crate::codec::MAX_ENDPOINTS_PER_INSTANCE {
+            if instance.endpoints.len() > crate::deployment_plan::codec::MAX_ENDPOINTS_PER_INSTANCE
+            {
                 return Err(GraphError::LimitExceeded {
                     what: "endpoints per instance",
                 });

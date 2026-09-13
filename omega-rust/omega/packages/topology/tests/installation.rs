@@ -15,7 +15,7 @@ mod support;
 use std::collections::BTreeSet;
 use std::fmt;
 use support::*;
-use topology_plan::install::*;
+use topology_plan::topology_installation::*;
 use topology_plan::*;
 
 // ---- simulated provider -------------------------------------------------

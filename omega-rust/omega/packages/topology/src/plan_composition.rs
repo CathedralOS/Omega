@@ -13,113 +13,18 @@
 //! an undeclared instance, swap component code, omit a required policy, or
 //! add one the owner did not select.
 
-use crate::graph::{GraphError, NormalizedGraph};
-use crate::model::{
+use crate::deployment_plan::graph::{GraphError, NormalizedGraph};
+use crate::deployment_plan::predicate::{PolicyEvaluation, SelectorError, evaluate_policy};
+use crate::deployment_plan::{
     Binding, DeploymentPlan, ExecutedPolicy, Identity, PlanInstance, PolicyOutcome,
     TopologyRequest, Violation, request_commitment,
 };
-use crate::predicate::{PolicyEvaluation, SelectorError, evaluate_policy};
 use std::fmt;
-
-/// Why a composition cannot produce a plan.
-#[derive(Debug)]
-pub enum CompositionFailure {
-    /// The supplied roster differs from the request's exact instance set or
-    /// component subjects.
-    RosterMismatch { detail: String },
-    /// The builder supplied a verifier other than the request's selected one.
-    UnselectedVerifier,
-    /// The records do not normalize: duplicates, undeclared endpoints, wrong
-    /// directions, or incomplete binding coverage.
-    InvalidGraph(GraphError),
-    /// A required policy's selectors are invalid.
-    InvalidPolicy {
-        call: String,
-        errors: Vec<SelectorError>,
-    },
-}
-
-/// The outcome of a composition attempt.
-#[derive(Debug)]
-pub enum CompositionError {
-    /// The request could not be encoded for its commitment.
-    RequestEncoding(String),
-    /// The inputs failed before policy evaluation.
-    Rejected(CompositionFailure),
-    /// One or more required policies evaluated `Violated`; the witnesses are
-    /// returned for diagnostics and no plan is emitted.
-    PoliciesViolated {
-        evaluations: Vec<(String, Violation)>,
-        /// Selector-level failures collected alongside.
-        invalid: Vec<(String, Vec<SelectorError>)>,
-    },
-}
-
-impl fmt::Display for CompositionError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::RequestEncoding(detail) => {
-                write!(formatter, "request cannot be committed: {detail}")
-            }
-            Self::Rejected(failure) => write!(formatter, "composition rejected: {failure}"),
-            Self::PoliciesViolated { evaluations, .. } => write!(
-                formatter,
-                "{} required policies evaluated violated",
-                evaluations.len()
-            ),
-        }
-    }
-}
-
-impl std::error::Error for CompositionError {}
-
-impl fmt::Display for CompositionFailure {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::RosterMismatch { detail } => {
-                write!(formatter, "roster differs from the request: {detail}")
-            }
-            Self::UnselectedVerifier => {
-                formatter.write_str("supplied verifier is not the request's selected verifier")
-            }
-            Self::InvalidGraph(error) => write!(formatter, "graph is invalid: {error}"),
-            Self::InvalidPolicy { call, .. } => {
-                write!(formatter, "policy `{call}` has invalid selectors")
-            }
-        }
-    }
-}
-
-impl std::error::Error for CompositionFailure {}
-
-fn describe_call(call: &crate::model::PolicyCall) -> String {
-    let names = |selector: &crate::model::PolicySelector| {
-        selector
-            .members
-            .iter()
-            .map(|name| name.as_str().to_owned())
-            .collect::<Vec<_>>()
-            .join(",")
-    };
-    match call.predicate {
-        crate::model::PolicyPredicate::NoRoute => format!(
-            "no_route({{{}}}, {{{}}})",
-            names(&call.sources),
-            names(&call.targets)
-        ),
-        crate::model::PolicyPredicate::OnlyVia => format!(
-            "only_via({{{}}}, {{{}}}, {{{}}})",
-            names(&call.sources),
-            names(&call.targets),
-            names(&call.via)
-        ),
-    }
-}
 
 /// Compose a deployment plan. On success returns the canonical plan plus the
 /// per-policy evaluations (each satisfied, with its certificate) for the
 /// caller's diagnostics. The returned plan's `request_commitment` binds the
-/// supplied request; encode with `crate::codec::encode_plan`.
+/// supplied request; encode with `crate::deployment_plan::codec::encode_plan`.
 pub fn compose_plan(
     request: &TopologyRequest,
     request_bytes: &[u8],
@@ -209,4 +114,99 @@ pub fn compose_plan(
         },
         outcomes,
     ))
+}
+
+/// Why a composition cannot produce a plan.
+#[derive(Debug)]
+pub enum CompositionFailure {
+    /// The supplied roster differs from the request's exact instance set or
+    /// component subjects.
+    RosterMismatch { detail: String },
+    /// The builder supplied a verifier other than the request's selected one.
+    UnselectedVerifier,
+    /// The records do not normalize: duplicates, undeclared endpoints, wrong
+    /// directions, or incomplete binding coverage.
+    InvalidGraph(GraphError),
+    /// A required policy's selectors are invalid.
+    InvalidPolicy {
+        call: String,
+        errors: Vec<SelectorError>,
+    },
+}
+
+/// The outcome of a composition attempt.
+#[derive(Debug)]
+pub enum CompositionError {
+    /// The request could not be encoded for its commitment.
+    RequestEncoding(String),
+    /// The inputs failed before policy evaluation.
+    Rejected(CompositionFailure),
+    /// One or more required policies evaluated `Violated`; the witnesses are
+    /// returned for diagnostics and no plan is emitted.
+    PoliciesViolated {
+        evaluations: Vec<(String, Violation)>,
+        /// Selector-level failures collected alongside.
+        invalid: Vec<(String, Vec<SelectorError>)>,
+    },
+}
+
+impl fmt::Display for CompositionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RequestEncoding(detail) => {
+                write!(formatter, "request cannot be committed: {detail}")
+            }
+            Self::Rejected(failure) => write!(formatter, "composition rejected: {failure}"),
+            Self::PoliciesViolated { evaluations, .. } => write!(
+                formatter,
+                "{} required policies evaluated violated",
+                evaluations.len()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CompositionError {}
+
+impl fmt::Display for CompositionFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RosterMismatch { detail } => {
+                write!(formatter, "roster differs from the request: {detail}")
+            }
+            Self::UnselectedVerifier => {
+                formatter.write_str("supplied verifier is not the request's selected verifier")
+            }
+            Self::InvalidGraph(error) => write!(formatter, "graph is invalid: {error}"),
+            Self::InvalidPolicy { call, .. } => {
+                write!(formatter, "policy `{call}` has invalid selectors")
+            }
+        }
+    }
+}
+
+impl std::error::Error for CompositionFailure {}
+
+fn describe_call(call: &crate::deployment_plan::PolicyCall) -> String {
+    let names = |selector: &crate::deployment_plan::PolicySelector| {
+        selector
+            .members
+            .iter()
+            .map(|name| name.as_str().to_owned())
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    match call.predicate {
+        crate::deployment_plan::PolicyPredicate::NoRoute => format!(
+            "no_route({{{}}}, {{{}}})",
+            names(&call.sources),
+            names(&call.targets)
+        ),
+        crate::deployment_plan::PolicyPredicate::OnlyVia => format!(
+            "only_via({{{}}}, {{{}}}, {{{}}})",
+            names(&call.sources),
+            names(&call.targets),
+            names(&call.via)
+        ),
+    }
 }

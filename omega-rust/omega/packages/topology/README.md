@@ -8,27 +8,35 @@ produces plans under this same versioned schema; this crate owns the wire
 tables, the independent source-free verification route, and the reference
 `no_route`/`only_via` predicates used to check that package's output.
 
-Start at [`src/lib.rs`](src/lib.rs), then enter the area you are following:
+Choose the operation directly from `src/`:
 
 ```text
-topology/
-├── Cargo.toml
-├── README.md
-└── src/
-    ├── lib.rs       public entrance and trust-boundary notes
-    ├── model/       exact plan and owner-request data
-    ├── graph/       bounded deterministic normalization and traversals
-    ├── predicate/   selector validation, reference predicates, certificates
-    ├── codec/       versioned canonical wire tables and cursors
-    ├── compose/     producer reference: evaluate required policies, emit a plan
-    ├── verify/      source-free consumer: reconstruct, compare, replay
-    └── install/     package-owned installer: private-pipe preparation, the
-                     activation gate, mediation, and the receipt
+src/
+├── lib.rs                    Rust wiring, public exports, trust-boundary notes
+├── deployment_plan.rs        exact plan, request, endpoints, and policy records
+├── deployment_plan/
+│   ├── graph.rs              bounded normalization and traversals
+│   ├── predicate.rs          reference policies and certificate checking
+│   └── codec.rs              versioned canonical bytes
+├── plan_composition.rs       producer: validate roster, evaluate policies, emit plan
+├── plan_verification.rs      independent consumer: reconstruct, compare, replay
+├── topology_installation.rs  prepare → activate → quiesce/replace; owns custody
+└── topology_installation/
+    ├── mediation.rs          authorize each request/response against installed routes
+    ├── pipe_adapter.rs       private-pipe provider contract and reference adapter
+    └── frame.rs              bounded frame codec
 ```
 
+The operation files contain their actual sequencing, not dispatch façades.
+Installation starts with the lifecycle operations; the authority, custody, and
+failure records they use follow in the same owner. Per-message mediation cannot
+mint installation authority. Plan construction and independent verification
+remain separate entrypoints with different input and trust contracts.
+
 The crate distinguishes `composition checked` from `installation admitted`.
-`verify_plan` can only produce the first; `install` produces the second for
-the private-pipe profile by joining a checked plan to an independently
+`verify_plan` can only produce the first. Preparation and activation in
+`topology_installation` produce the second for the private-pipe profile by
+joining a checked plan to an independently
 authorized request, assigning one dedicated pipe pair per binding, and
 gating application entry on complete admitted coverage. Correspondingly, a
 verified plan is evidence for the installer's own recheck, never a reusable

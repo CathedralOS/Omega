@@ -5,6 +5,7 @@
 mod support;
 
 use support::*;
+use topology_plan::deployment_plan::predicate;
 use topology_plan::*;
 
 #[test]
