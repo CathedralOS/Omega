@@ -3,6 +3,18 @@
 // semantics here: it only checks that the package conserves the `Granted`
 // custody it was handed, through `Granted::content`, `old`, and `separate`.
 //
+// Every extent the allocator touches is `Extent in Granted & Vacant`:
+// granted authority over a range carrying no live resident. `Vacant` is the
+// dormant-content state of the placed-access contract
+// (wiki/spec/resources/placed_access.md), and ordinary extent split/merge
+// reject resident content, so `merge` and `reset` demanding `Vacant` parts
+// are what enforce cleanup-before-return: an issued extent still holding a
+// `Resident<P, T>` does not satisfy the returned-region parameters, and a
+// container must retire its residents to `Vacant` before release or reset.
+// Establishing the resident still waits on the undeclared place/take/read
+// operations; this pins the dormant-custody shape those operations must
+// satisfy.
+//
 // Shape decisions a next reader needs:
 //
 // - `Granted` cannot be minted from geometry, and a checked callable may
@@ -23,12 +35,12 @@
 //   `in Granted` facts on the result's field places, so `issued.allocation`
 //   cannot fill an `in Granted` parameter directly. Each qualified field is
 //   restated through an exactly typed `let`
-//   (`let field: Extent in Granted = issued.allocation`), which re-reads
-//   the declared field domain; the same holds for `Split` fields returned
-//   by the boundary. The restated fields of one record then share their
-//   custody: once a restated sibling value is consumed onward — by a call
-//   or by a plain `let` transfer — the record's other restated facts are
-//   gone. `exercise` therefore binds `first_allocation` only after
+//   (`let field: Extent in Granted & Vacant = issued.allocation`), which
+//   re-reads the declared field domain; the same holds for `Split` fields
+//   returned by the boundary. The restated fields of one record then share
+//   their custody: once a restated sibling value is consumed onward — by a
+//   call or by a plain `let` transfer — the record's other restated facts
+//   are gone. `exercise` therefore binds `first_allocation` only after
 //   `first_tail` has been consumed, and consumes `second_allocation`
 //   together with `second_tail` in the `reset` call. A container chaining
 //   allocation must order custody this way or keep the family in one
@@ -44,14 +56,15 @@
 use omega::language::core::extent;
 use omega::language::core::content;
 
-// Exact partition of one qualified range into two adjacent qualified ranges.
+// Exact partition of one qualified vacant range into two adjacent qualified
+// vacant ranges.
 data Split {
-    taken: Extent in Granted;
-    rest: Extent in Granted;
+    taken: Extent in Granted & Vacant;
+    rest: Extent in Granted & Vacant;
 }
 
 boundary trait ExtentPartition {
-    machine split(whole: Extent in Granted, length: u64) -> Split
+    machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
     ensures
         Granted::content(old(&whole))
         == separate(
@@ -61,7 +74,7 @@ boundary trait ExtentPartition {
 
     machine merge(parts: Split) -> Extent
     ensures
-        result in Granted,
+        result in Granted & Vacant,
         separate(
             Granted::content(old(&parts.taken)),
             Granted::content(old(&parts.rest)),
@@ -72,21 +85,21 @@ boundary trait ExtentPartition {
 // Bump policy: the allocation is the low end of the tail; the rest is the new
 // tail. Nothing about the allocation's later cleanup moves the tail.
 data Bump {
-    tail: Extent in Granted;
+    tail: Extent in Granted & Vacant;
 }
 
 data Issued {
     strategy: Bump;
-    allocation: Extent in Granted;
+    allocation: Extent in Granted & Vacant;
 }
 
 machine allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Issued
 reaches ExtentPartition
 {
-    let tail: Extent in Granted = strategy.tail;
+    let tail: Extent in Granted & Vacant = strategy.tail;
     let parts: Split = partition.split(tail, length);
-    let taken: Extent in Granted = parts.taken;
-    let rest: Extent in Granted = parts.rest;
+    let taken: Extent in Granted & Vacant = parts.taken;
+    let rest: Extent in Granted & Vacant = parts.rest;
     Issued {
         strategy: Bump { tail: rest },
         allocation: taken,
@@ -94,21 +107,23 @@ reaches ExtentPartition
 }
 
 // Reset after full return. `lower` was issued before `upper`, so the original
-// range is `lower ++ upper ++ tail`. Both returned regions are consumed.
+// range is `lower ++ upper ++ tail`. Both returned regions are consumed, and
+// both must still be vacant: a region whose resident has not been retired
+// does not type as `Vacant` and cannot reach recomposition.
 machine reset(
     partition: &ExtentPartition,
     strategy: Bump,
-    lower: Extent in Granted,
-    upper: Extent in Granted
+    lower: Extent in Granted & Vacant,
+    upper: Extent in Granted & Vacant
 ) -> Bump
 reaches ExtentPartition
 {
-    let tail: Extent in Granted = strategy.tail;
-    let upper_and_tail: Extent in Granted = partition.merge(Split {
+    let tail: Extent in Granted & Vacant = strategy.tail;
+    let upper_and_tail: Extent in Granted & Vacant = partition.merge(Split {
         taken: upper,
         rest: tail,
     });
-    let whole: Extent in Granted = partition.merge(Split {
+    let whole: Extent in Granted & Vacant = partition.merge(Split {
         taken: lower,
         rest: upper_and_tail,
     });
@@ -119,15 +134,18 @@ reaches ExtentPartition
 // chained through the package machines `allocate` and `reset`. Each returned
 // record's qualified fields are restated through exactly typed locals in the
 // custody order described in the header.
-machine exercise(partition: &ExtentPartition, whole: Extent in Granted) -> Extent
+machine exercise(
+    partition: &ExtentPartition,
+    whole: Extent in Granted & Vacant
+) -> Extent
 reaches ExtentPartition
 {
     let issued_first: Issued = allocate(partition, Bump { tail: whole }, 16);
-    let first_tail: Extent in Granted = issued_first.strategy.tail;
+    let first_tail: Extent in Granted & Vacant = issued_first.strategy.tail;
     let issued_second: Issued = allocate(partition, Bump { tail: first_tail }, 32);
-    let second_allocation: Extent in Granted = issued_second.allocation;
-    let second_tail: Extent in Granted = issued_second.strategy.tail;
-    let first_allocation: Extent in Granted = issued_first.allocation;
+    let second_allocation: Extent in Granted & Vacant = issued_second.allocation;
+    let second_tail: Extent in Granted & Vacant = issued_second.strategy.tail;
+    let first_allocation: Extent in Granted & Vacant = issued_first.allocation;
     let restored: Bump = reset(
         partition,
         Bump { tail: second_tail },
@@ -139,20 +157,23 @@ reaches ExtentPartition
 
 // The same composition spelled directly over the partition boundary, kept as
 // the control surface for restating `Split` fields from a boundary result.
-machine exercise_boundary(partition: &ExtentPartition, whole: Extent in Granted) -> Extent
+machine exercise_boundary(
+    partition: &ExtentPartition,
+    whole: Extent in Granted & Vacant
+) -> Extent
 reaches ExtentPartition
 {
     let first: Split = partition.split(whole, 16);
-    let first_allocation: Extent in Granted = first.taken;
-    let after_first: Extent in Granted = first.rest;
+    let first_allocation: Extent in Granted & Vacant = first.taken;
+    let after_first: Extent in Granted & Vacant = first.rest;
     let second: Split = partition.split(after_first, 32);
-    let second_allocation: Extent in Granted = second.taken;
-    let tail: Extent in Granted = second.rest;
-    let upper_and_tail: Extent in Granted = partition.merge(Split {
+    let second_allocation: Extent in Granted & Vacant = second.taken;
+    let tail: Extent in Granted & Vacant = second.rest;
+    let upper_and_tail: Extent in Granted & Vacant = partition.merge(Split {
         taken: second_allocation,
         rest: tail,
     });
-    let restored: Extent in Granted = partition.merge(Split {
+    let restored: Extent in Granted & Vacant = partition.merge(Split {
         taken: first_allocation,
         rest: upper_and_tail,
     });
