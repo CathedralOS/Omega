@@ -1,7 +1,7 @@
 //! The capability manifest, and the composition and selection variants that differ
 //! only in what they are given to resolve against.
 
-use super::push_json_string;
+use crate::manifest_values::push_json_string;
 use checked_trees::CheckedTrees;
 use flow_effects::CapabilityFlowKind;
 use symbols::SymbolHandle;
