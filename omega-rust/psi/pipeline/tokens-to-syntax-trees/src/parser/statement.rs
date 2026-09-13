@@ -985,6 +985,11 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
         (false, input)
     };
     let (name, input) = input.take_identifier()?;
+    // `[erased]` is spec-legal on any authored binding occurrence; the local
+    // node cannot retain relevance yet, so the bracket fails closed here
+    // rather than parsing and dropping.
+    let ((), input) =
+        crate::parser::data::parse_unsupported_binding_relevance_brackets(input, "local")?;
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (type_reference, input) = parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
     let (initial_value, input) = if input.at_punctuation(PunctuationKind::Equal) {
