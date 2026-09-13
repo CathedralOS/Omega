@@ -1403,7 +1403,7 @@ fn terminal_production_request_preserves_configuration_across_evidence_products(
     ] {
         let request = || terminal_production::TerminalProductionRequest {
             checked: &checked,
-            machine_name: "Main::launch",
+            machine: terminal_production::TerminalMachineSelection::Name("Main::launch"),
             optimization_selections: selections.clone(),
         };
         let artifact = request().produce_artifact().expect("portable artifact");
@@ -1447,7 +1447,7 @@ fn terminal_production_request_returns_nonclone_callback_custody_after_optimizat
     let allocation = custody.0.as_ptr();
     let request = terminal_production::TerminalProductionRequest {
         checked: &checked,
-        machine_name: "Main::launch",
+        machine: terminal_production::TerminalMachineSelection::Name("Main::launch"),
         optimization_selections: optimization::PsiOptimizationSelections::new([
             optimization::PsiOptimization::ControlFlowCleanup,
         ])

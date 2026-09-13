@@ -1,5 +1,8 @@
-use checked_trees::CheckedTrees;
-use checked_trees_to_lowered_psi::{LoweringError, lower_machine, select_terminal_machine};
+use checked_trees::{CheckedTerminalMachineSelection, CheckedTrees};
+use checked_trees_to_lowered_psi::{
+    LoweringError, lower_machine, lower_machine_by_symbol, select_terminal_machine,
+    select_terminal_machine_by_symbol,
+};
 use lowered_psi::{
     LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
     LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence,
@@ -181,6 +184,7 @@ impl<C> CallbackCustodyTerminalArtifactProductionError<C> {
 pub struct CheckedProgramEntryTerminalReceipt {
     source_signature_identity: [u8; 32],
     source_machine_name: String,
+    source_machine_symbol: symbols::SymbolHandle,
     terminal_psi_identity: terminal_psi::TerminalPsiIdentity,
     terminal_entry: MachineId,
 }
@@ -192,6 +196,14 @@ impl CheckedProgramEntryTerminalReceipt {
 
     pub fn source_machine_name(&self) -> &str {
         &self.source_machine_name
+    }
+
+    /// The exact checked machine this Terminal entry was produced from.
+    /// Settlement compares this symbol, not the display name: a qualified name
+    /// cannot rejoin the selected identity when another package declares a
+    /// same-named machine.
+    pub const fn source_machine_symbol(&self) -> symbols::SymbolHandle {
+        self.source_machine_symbol
     }
 
     pub const fn terminal_psi_identity(&self) -> terminal_psi::TerminalPsiIdentity {
@@ -257,11 +269,23 @@ impl ProducedProgramEntryTerminalArtifact {
     }
 }
 
+/// How Terminal production rejoins the selected checked machine.
+///
+/// `Name` remains the legacy display-name lookup for ad hoc producers.
+/// `Symbol` rejoins an already-resolved exact checked machine, which is the
+/// only selection able to carry a lexically bound build product operand past
+/// a same-named declaration in another package.
+#[derive(Debug, Clone, Copy)]
+pub enum TerminalMachineSelection<'a> {
+    Name(&'a str),
+    Symbol(symbols::SymbolHandle),
+}
+
 /// Exact borrowed source inputs and target-neutral selection for Terminal production.
 /// Output methods retain their distinct evidence and recovery contracts.
 pub struct TerminalProductionRequest<'a> {
     pub checked: &'a CheckedTrees,
-    pub machine_name: &'a str,
+    pub machine: TerminalMachineSelection<'a>,
     pub optimization_selections: optimization::PsiOptimizationSelections,
 }
 
@@ -270,8 +294,28 @@ impl<'a> TerminalProductionRequest<'a> {
     pub fn new(checked: &'a CheckedTrees, machine_name: &'a str) -> Self {
         Self {
             checked,
-            machine_name,
+            machine: TerminalMachineSelection::Name(machine_name),
             optimization_selections: optimization::PsiOptimizationSelections::default(),
+        }
+    }
+
+    /// Select the exact checked machine the identity optimization phase applies to.
+    pub fn for_machine_symbol(checked: &'a CheckedTrees, machine: symbols::SymbolHandle) -> Self {
+        Self {
+            checked,
+            machine: TerminalMachineSelection::Symbol(machine),
+            optimization_selections: optimization::PsiOptimizationSelections::default(),
+        }
+    }
+
+    fn selected_terminal_machine(
+        &self,
+    ) -> Result<&'a CheckedTerminalMachineSelection, LoweringError> {
+        match self.machine {
+            TerminalMachineSelection::Name(name) => select_terminal_machine(self.checked, name),
+            TerminalMachineSelection::Symbol(machine) => {
+                select_terminal_machine_by_symbol(self.checked, machine)
+            }
         }
     }
 
@@ -337,9 +381,11 @@ impl<'a> TerminalProductionRequest<'a> {
         self,
         source_signature_identity: [u8; 32],
     ) -> Result<ProducedProgramEntryTerminalArtifact, TerminalArtifactProductionError> {
-        let selection = select_terminal_machine(self.checked, self.machine_name)
+        let selection = self
+            .selected_terminal_machine()
             .map_err(TerminalArtifactProductionError::Lowering)?;
         let source_machine_name = selection.name.clone();
+        let source_machine_symbol = selection.machine;
         let checked = self.checked;
         let optimized = self.lower_and_optimize()?;
         let optimized_lowered = optimized.lowered();
@@ -377,6 +423,7 @@ impl<'a> TerminalProductionRequest<'a> {
             receipt: CheckedProgramEntryTerminalReceipt {
                 source_signature_identity,
                 source_machine_name,
+                source_machine_symbol,
                 terminal_psi_identity,
                 terminal_entry,
             },
@@ -389,8 +436,13 @@ impl<'a> TerminalProductionRequest<'a> {
     fn lower_and_optimize(
         self,
     ) -> Result<PsiOptimizationStageResult, TerminalArtifactProductionError> {
-        let lowered = lower_machine(self.checked, self.machine_name)
-            .map_err(TerminalArtifactProductionError::Lowering)?;
+        let lowered = match self.machine {
+            TerminalMachineSelection::Name(name) => lower_machine(self.checked, name),
+            TerminalMachineSelection::Symbol(machine) => {
+                lower_machine_by_symbol(self.checked, machine)
+            }
+        }
+        .map_err(TerminalArtifactProductionError::Lowering)?;
         run_psi_optimization(lowered, self.optimization_selections)
             .map_err(TerminalArtifactProductionError::Optimization)
     }
