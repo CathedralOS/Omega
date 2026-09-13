@@ -166,7 +166,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
                     bytes.extend_from_slice(&abi_stack_byte_offset.to_le_bytes());
                 }
                 selected_instructions::FrameStorageSlotId::Outgoing(slot) => {
-                    bytes.push(0);
+                    bytes.push(match slot.role {
+                        selected_instructions::OutgoingArgumentSlotRole::Argument => 0,
+                        selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
+                    });
                     bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
                     bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
                 }
@@ -295,8 +298,13 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
                     parameter_index: cursor.u32()?,
                     abi_stack_byte_offset: cursor.u32()?,
                 },
-                0 => selected_instructions::FrameStorageSlotId::Outgoing(
+                slot_tag @ (0 | 3) => selected_instructions::FrameStorageSlotId::Outgoing(
                     selected_instructions::OutgoingArgumentSlotId {
+                        role: if slot_tag == 0 {
+                            selected_instructions::OutgoingArgumentSlotRole::Argument
+                        } else {
+                            selected_instructions::OutgoingArgumentSlotRole::ValueCopy
+                        },
                         operation: decode_id(cursor, OperationId::new)?,
                         argument_index: cursor.u32()?,
                     },
@@ -449,6 +457,7 @@ mod tests {
 #[cfg(test)]
 fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
     let slot = selected_instructions::OutgoingArgumentSlotId {
+        role: selected_instructions::OutgoingArgumentSlotRole::Argument,
         operation: semantic_vocabulary::OperationId::new(43).unwrap(),
         argument_index: 1,
     };
@@ -513,5 +522,56 @@ fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
         let mut cursor = Cursor::new(&bytes);
         assert_eq!(decode_kind(&mut cursor).unwrap(), kind);
         assert_eq!(cursor.remaining(), 0);
+    }
+}
+
+#[test]
+#[cfg(test)]
+fn outgoing_slot_roles_round_trip_with_legacy_argument_frame_bytes() {
+    use selected_instructions::{
+        FrameStorageSlotId, OutgoingArgumentSlotId, OutgoingArgumentSlotRole,
+    };
+    let argument = OutgoingArgumentSlotId {
+        operation: OperationId::new(43).unwrap(),
+        argument_index: 7,
+        role: OutgoingArgumentSlotRole::Argument,
+    };
+    for (role, frame_tag) in [
+        (OutgoingArgumentSlotRole::Argument, 0),
+        (OutgoingArgumentSlotRole::ValueCopy, 3),
+    ] {
+        let slot = FrameStorageSlotId::Outgoing(OutgoingArgumentSlotId { role, ..argument });
+        for (kind, tag) in [
+            (
+                SelectedInstructionKind::Store64 {
+                    slot,
+                    byte_offset: 8,
+                },
+                17,
+            ),
+            (
+                SelectedInstructionKind::FrameAddress {
+                    slot,
+                    byte_offset: 8,
+                },
+                18,
+            ),
+        ] {
+            let mut expected = vec![tag, frame_tag];
+            expected.extend_from_slice(&43_u64.to_le_bytes());
+            expected.extend_from_slice(&7_u32.to_le_bytes());
+            expected.extend_from_slice(&8_u32.to_le_bytes());
+            let mut bytes = Vec::new();
+            encode_kind(&mut bytes, kind);
+            assert_eq!(bytes, expected);
+            let mut cursor = Cursor::new(&bytes);
+            assert_eq!(decode_kind(&mut cursor).unwrap(), kind);
+            assert_eq!(cursor.remaining(), 0);
+            bytes[1] = 4;
+            assert_eq!(
+                decode_kind(&mut Cursor::new(&bytes)),
+                Err(FixedViewCopyDecodeError::UnknownOption(4))
+            );
+        }
     }
 }

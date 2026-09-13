@@ -349,6 +349,7 @@ pub(super) fn validate_operation(
     }
     literal_arguments::validate(checked, caller_machine, &call, operation)?;
     boundary_buffers::validate(checked, caller_state, caller_parameters, &call, operation)?;
+    validate_owned_parameter_arguments(checked, caller_state, caller_parameters, &call, operation)?;
     for (ordinal, (argument, (expression, primitive_type))) in
         arguments.iter().zip(&call.scalar_arguments).enumerate()
     {
@@ -414,6 +415,96 @@ pub(super) fn validate_operation(
                     *expression,
                 )?;
             }
+        }
+    }
+    Ok(())
+}
+
+/// Graph and straight-line calls share this source join. A compatible type and
+/// a valid final ownership frontier do not identify which same-typed parameter
+/// the author supplied; even an unrestricted value retains that distinction.
+fn validate_owned_parameter_arguments(
+    checked: &CheckedTrees,
+    caller_state: symbols::SymbolHandle,
+    caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    call: &authored::AuthoredCall,
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Result<(), LoweringError> {
+    let (CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::ScalarCall {
+        structural_arguments,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::StructuralCall {
+        structural_arguments,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::BoundaryCall {
+        structural_arguments,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+        structural_arguments,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+        structural_arguments,
+        ..
+    }) = operation
+    else {
+        return Ok(());
+    };
+    if !structural_arguments.iter().any(|argument| {
+        argument.source_parameter_index().is_some()
+            && argument.access == checked_trees::CheckedStructuralAccess::Owned
+            && argument.path.is_empty()
+    }) {
+        return Ok(());
+    }
+    let (machine, state) = crate::scalar_source_custody::authored_state(checked, caller_state)?;
+    let target = authored::target_signature(checked, machine.symbol, call.source_target)?;
+    let positions =
+        literal_arguments::structural_positions(checked, &target, structural_arguments.len())?;
+    for (argument, position) in structural_arguments.iter().zip(positions) {
+        let Some(parameter_index) = argument.source_parameter_index() else {
+            continue;
+        };
+        if argument.access != checked_trees::CheckedStructuralAccess::Owned
+            || !argument.path.is_empty()
+        {
+            continue;
+        }
+        let source =
+            caller_parameters
+                .get(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "owned call argument has no source parameter",
+                ))?;
+        let parameter = checked
+            .state_parameters(state)
+            .get(source.position as usize)
+            .ok_or(LoweringError::Unsupported(
+                "owned call argument has no authored parameter",
+            ))?;
+        let expression = call
+            .structural_arguments
+            .iter()
+            .find_map(|(formal, expression)| (*formal == position).then_some(*expression));
+        // Implicit receivers have no positional expression. Their dedicated
+        // receiver custody rejoins the authored root and projection instead.
+        if expression.is_none() && target.parameters[position as usize].is_self {
+            continue;
+        }
+        if !expression.is_some_and(|expression| {
+            matches!(checked.expression_table.expression(expression),
+            checked_trees::expression::ExpressionNode::Name(name)
+                if name.symbol == parameter.symbol && name.head_symbol == parameter.symbol
+                    && checked.expression_table.name_path_members(name.members).len() == 1)
+        }) {
+            return unsupported("owned call argument changed its authored parameter");
         }
     }
     Ok(())

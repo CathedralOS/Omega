@@ -174,7 +174,10 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
                             hasher.update(abi_stack_byte_offset.to_le_bytes());
                         }
                         selected_instructions::FrameStorageSlotId::Outgoing(slot) => {
-                            hasher.update([0]);
+                            hasher.update([match slot.role {
+                                selected_instructions::OutgoingArgumentSlotRole::Argument => 0,
+                                selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
+                            }]);
                             hasher.update(slot.operation.get().to_le_bytes());
                             hasher.update(slot.argument_index.to_le_bytes());
                         }

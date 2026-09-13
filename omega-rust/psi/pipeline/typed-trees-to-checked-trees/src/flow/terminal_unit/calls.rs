@@ -1055,10 +1055,13 @@ pub(in crate::flow) fn build_call_operation(
                         .nth(argument_index)
                         .is_some_and(|parameter| {
                             !parameter.is_self
-                                && validation::is_closed_primitive_array_type(
+                                && (validation::is_closed_primitive_array_type(
                                     program,
                                     parameter.type_reference,
-                                )
+                                ) || validation::has_plain_owned_contents_with_numeric_constraints(
+                                    program,
+                                    parameter.type_reference,
+                                ))
                                 && base_type_identity(program, parameter.type_reference, &[])
                                     .is_some_and(|identity| identity == argument.type_identity)
                         })
@@ -2062,20 +2065,13 @@ pub(super) fn structural_call_arguments(
                             program,
                             target_state.return_type,
                         )
-                        && facts
-                            .flow
-                            .terminal_structural_returns
-                            .claim_free_affine_for_machine(target_machine.symbol)
-                            .is_none()
-                        && !(program.type_multiplicity(target_state.return_type)
-                            == Multiplicity::Linear
-                            && super::control::checked_structural_result_type(
-                                program,
-                                &mut ShapeCollector::new(program),
-                                target_state.return_type,
-                                &[],
-                            )
-                            .is_some())
+                        && super::control::checked_structural_result_type(
+                            program,
+                            &mut ShapeCollector::new(program),
+                            target_state.return_type,
+                            &[],
+                        )
+                        .is_none()
                         && !program
                             .primitive_type_reference(target_state.return_type)
                             .is_some_and(|result| {

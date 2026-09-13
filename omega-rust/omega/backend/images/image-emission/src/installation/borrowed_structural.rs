@@ -417,6 +417,15 @@ pub(super) fn call_is_exact(
     if installed.text_offset.checked_add(displacement) != Some(text_offset) {
         return false;
     }
+    if call
+        .arguments
+        .iter()
+        .any(|argument| argument.access == StructuralAccess::Owned)
+        && (!super::graph_structural::function_is_exact(function, record.target)
+            || !super::graph_structural::function_is_exact(callee, record.target))
+    {
+        return false;
+    }
     let scalar_parameters = scalar_parameters(callee);
     if call.scalar_arguments.len() != scalar_parameters.len() {
         return false;
@@ -448,6 +457,18 @@ pub(super) fn call_is_exact(
         selected_instruction = Some(instruction);
     }
     for (argument, destination) in call.arguments.iter().zip(parameter_homes(callee)) {
+        if argument.access == StructuralAccess::Owned {
+            if !owned_copy_is_exact(
+                argument,
+                parameter_homes(function),
+                destination,
+                call.code_offset,
+                frame_bytes,
+            ) {
+                return false;
+            }
+            continue;
+        }
         // Shape only: image replay reconstructs the exact array declaration,
         // field path and call-local descriptor initialization. Source location
         // continues to name the original backing, not the temporary descriptor.
@@ -535,9 +556,12 @@ pub(super) fn call_is_exact(
             return false;
         }
     }
-    call.arguments
-        .windows(2)
-        .all(|pair| pair[0].bytes == pair[1].bytes)
+    let mut borrowed_arguments = call
+        .arguments
+        .iter()
+        .filter(|argument| argument.access != StructuralAccess::Owned);
+    let borrowed_bytes = borrowed_arguments.next().map(|argument| &argument.bytes);
+    borrowed_arguments.all(|argument| Some(&argument.bytes) == borrowed_bytes)
         && call
             .arguments
             .iter()
@@ -557,6 +581,67 @@ pub(super) fn call_is_exact(
                             .is_some_and(|end| end <= prior.source_byte_offset)
                 })
             })
+}
+
+/// Candidate shape only. The caller reconstructs both canonical graph ABIs;
+/// installation admission binds the exact copy span and bytes to image replay.
+/// Only parameter-backed indirect copies reach these legacy records:
+/// `function_fragments::structural::published_call` leaves inline values and
+/// constructed/call-produced homes to complete selected-graph replay.
+fn owned_copy_is_exact(
+    argument: &machine_code::InternalUnitCallArgumentRecord,
+    sources: &[machine_code::UnitParameterHomeRecord],
+    destination: &machine_code::UnitParameterHomeRecord,
+    call_code_offset: usize,
+    frame_bytes: u32,
+) -> bool {
+    let Some(source) = sources.iter().find(|source| source.place == argument.place) else {
+        return false;
+    };
+    let [
+        ValueLocation::Indirect {
+            pointer,
+            copy_stack_byte_offset: Some(copy_offset),
+            byte_size,
+            ..
+        },
+    ] = destination.source.locations.as_slice()
+    else {
+        return false;
+    };
+    argument.access == StructuralAccess::Owned
+        && source.access == StructuralAccess::Owned
+        && destination.access == StructuralAccess::Owned
+        && argument.root_structural_type == source.structural_type
+        && argument.structural_type == source.structural_type
+        && argument.structural_type == destination.structural_type
+        && argument.shape == source.shape
+        && argument.shape == destination.shape
+        && matches!(&argument.source, InternalUnitStructuralArgumentSourceRecord::Placement(placement) if *placement == source.source)
+        && argument.source_location == source.location
+        && argument.destination == destination.source
+        && argument.path.is_empty()
+        && argument.source_byte_offset == 0
+        && argument.fixed_array_length.is_none()
+        && argument.element_stride.is_none()
+        && argument.call_stack_bytes == frame_bytes
+        && argument.byte_count != 0
+        && argument.bytes.len() == argument.byte_count
+        && argument
+            .code_offset
+            .checked_add(argument.byte_count)
+            .is_some_and(|end| end <= call_code_offset)
+        && copy_offset
+            .checked_add(u32::from(*byte_size))
+            .is_some_and(|end| end <= frame_bytes)
+        && match pointer {
+            IndirectPointerLocation::Register(_) => true,
+            IndirectPointerLocation::Stack {
+                stack_byte_offset, ..
+            } => stack_byte_offset
+                .checked_add(8)
+                .is_some_and(|end| end <= frame_bytes),
+        }
 }
 
 /// Shape only: exact slot ownership and initialized contents come from image replay.
@@ -592,3 +677,6 @@ fn outgoing_pointer_fits(placement: &ValuePlacement, frame_bytes: u32) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod owned_tests;

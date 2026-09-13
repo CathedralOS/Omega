@@ -1222,20 +1222,15 @@ pub fn validate_installation_record(
                         })
                 })
                 .collect::<Vec<_>>()
-        || record.internal_unit_calls
-            != image
-                .functions()
-                .iter()
-                .flat_map(|function| {
-                    function.internal_unit_calls.iter().cloned().map(|custody| {
-                        InstalledInternalUnitCall {
-                            machine: function.machine,
-                            text_offset: function.text_offset + custody.code_offset,
-                            custody,
-                        }
-                    })
-                })
-                .collect::<Vec<_>>()
+        || !internal_unit_calls_match_object(
+            &record.internal_unit_calls,
+            image.functions().iter().flat_map(|function| {
+                function
+                    .internal_unit_calls
+                    .iter()
+                    .map(|custody| (function.machine, function.text_offset, custody))
+            }),
+        )
         || record.internal_unit_scalar_calls
             != image
                 .functions()
@@ -1301,6 +1296,33 @@ pub fn validate_installation_record(
         return Err(InstallationError::ImageBindingMismatch);
     }
     Ok(())
+}
+
+/// Joins every custody field, including owned copy spans and bytes, to replayed
+/// object records. Candidate ABI geometry is not executable admission.
+fn internal_unit_calls_match_object<'call>(
+    installed: &[InstalledInternalUnitCall],
+    emitted: impl IntoIterator<
+        Item = (
+            MachineId,
+            usize,
+            &'call machine_code::InternalUnitCallRecord,
+        ),
+    >,
+) -> bool {
+    let mut installed = installed.iter();
+    for (machine, function_text_offset, custody) in emitted {
+        let Some(actual) = installed.next() else {
+            return false;
+        };
+        if actual.machine != machine
+            || Some(actual.text_offset) != function_text_offset.checked_add(custody.code_offset)
+            || actual.custody != *custody
+        {
+            return false;
+        }
+    }
+    installed.next().is_none()
 }
 
 fn installed_image_sections(image: &ExecutableImage) -> InstalledImageSections {

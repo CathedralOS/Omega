@@ -104,8 +104,13 @@ pub(super) fn decode_instruction(
                     parameter_index: u32_field(cursor)?,
                     abi_stack_byte_offset: u32_field(cursor)?,
                 },
-                0 => selected_instructions::FrameStorageSlotId::Outgoing(
+                slot_tag @ (0 | 3) => selected_instructions::FrameStorageSlotId::Outgoing(
                     selected_instructions::OutgoingArgumentSlotId {
+                        role: if slot_tag == 0 {
+                            selected_instructions::OutgoingArgumentSlotRole::Argument
+                        } else {
+                            selected_instructions::OutgoingArgumentSlotRole::ValueCopy
+                        },
                         operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)
                             .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
                         argument_index: u32_field(cursor)?,

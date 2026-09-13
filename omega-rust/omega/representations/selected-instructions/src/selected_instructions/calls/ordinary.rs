@@ -7,6 +7,28 @@ use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId};
 pub struct OutgoingArgumentSlotId {
     pub operation: OperationId,
     pub argument_index: u32,
+    pub role: OutgoingArgumentSlotRole,
+}
+
+/// An indirect argument's pointer and payload copy occupy distinct ABI regions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum OutgoingArgumentSlotRole {
+    /// Inline argument bytes or an indirectly passed argument's pointer.
+    Argument,
+    /// Caller-prepared payload at the retained indirect copy offset.
+    ValueCopy,
+}
+
+impl OutgoingArgumentSlotId {
+    /// Complete slot identity for versioned rosters without an enclosing frame tag.
+    pub fn encode_identity(self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(&self.operation.get().to_le_bytes());
+        bytes.extend_from_slice(&self.argument_index.to_le_bytes());
+        bytes.push(match self.role {
+            OutgoingArgumentSlotRole::Argument => 0,
+            OutgoingArgumentSlotRole::ValueCopy => 1,
+        });
+    }
 }
 
 /// Activation-local storage identity, independent of any call's ABI copies.

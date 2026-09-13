@@ -75,7 +75,7 @@ pub(super) fn argument(
     }
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
     let projected = !place.segments.is_empty();
-    let unrestricted_array = result.multiplicity == Multiplicity::Unrestricted;
+    let unrestricted = result.multiplicity == Multiplicity::Unrestricted;
     let linear = result.multiplicity == Multiplicity::Linear;
     // A whole linear result carries the producer's live claim, not affine
     // cleanup debt. Its exact qualification and transfer events must agree
@@ -83,10 +83,14 @@ pub(super) fn argument(
     if linear && (projected || access != CheckedStructuralAccess::Owned) {
         return None;
     }
-    if unrestricted_array
+    if unrestricted
         && (projected
             || access != CheckedStructuralAccess::Owned
-            || !validation::is_closed_primitive_array_type(program, parameter.type_reference))
+            || !(validation::is_closed_primitive_array_type(program, parameter.type_reference)
+                || validation::has_plain_owned_contents_with_numeric_constraints(
+                    program,
+                    parameter.type_reference,
+                )))
     {
         return None;
     }
@@ -140,9 +144,7 @@ pub(super) fn argument(
     if parameter.is_self
         || (!projected && result.type_identity != target_identity)
         || program.type_multiplicity(referent) != result.multiplicity
-        || (!unrestricted_array
-            && !linear
-            && !validation::has_plain_owned_contents(program, referent))
+        || (!unrestricted && !linear && !validation::has_plain_owned_contents(program, referent))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
@@ -161,7 +163,7 @@ pub(super) fn argument(
             }
             if access == CheckedStructuralAccess::SharedBorrow
                 || projected
-                || unrestricted_array
+                || unrestricted
                 || linear
             {
                 let source_state = crate::find_state(program, state)?;
@@ -174,15 +176,18 @@ pub(super) fn argument(
                 };
                 if local.is_mutable
                     || local.symbol != symbol
-                    || (!unrestricted_array
+                    || (!unrestricted
                         && !linear
                         && !validation::has_plain_owned_contents(program, local.type_reference))
                     || program.type_multiplicity(local.type_reference) != result.multiplicity
-                    || (unrestricted_array
-                        && !validation::is_closed_primitive_array_type(
+                    || (unrestricted
+                        && !(validation::is_closed_primitive_array_type(
                             program,
                             local.type_reference,
-                        ))
+                        ) || validation::has_plain_owned_contents_with_numeric_constraints(
+                            program,
+                            local.type_reference,
+                        )))
                     || base_type_identity(program, local.type_reference, &[])?
                         != result.type_identity
                 {
@@ -198,7 +203,11 @@ pub(super) fn argument(
             }
         }
         facts::PlaceRoot::Expression(source)
-            if unrestricted_array
+            if unrestricted
+                && validation::is_closed_primitive_array_type(
+                    program,
+                    parameter.type_reference,
+                )
                 && source == value_expression
                 && !matches!(
                     program.expression_table.expression(source),
@@ -290,7 +299,7 @@ pub(super) fn argument(
         }
         _ => return None,
     }
-    if access == CheckedStructuralAccess::SharedBorrow || unrestricted_array {
+    if access == CheckedStructuralAccess::SharedBorrow || unrestricted {
         return Some(CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,

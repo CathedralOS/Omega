@@ -82,6 +82,7 @@ fn structural_function() -> SelectedFunction {
         ownership: Vec::new(),
     }];
     let slot = OutgoingArgumentSlotId {
+        role: selected_instructions::OutgoingArgumentSlotRole::Argument,
         operation: OperationId::new(41).unwrap(),
         argument_index: 0,
     };
@@ -175,6 +176,96 @@ fn activation_local_roster_and_memory_roles_round_trip() {
         .functions
         .push(function);
     assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+}
+
+#[test]
+fn outgoing_slot_roles_bind_rosters_memory_and_authenticated_round_trips() {
+    use selected_instructions::OutgoingArgumentSlotRole;
+    use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+
+    let mut source = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let mut function = structural_function();
+    let argument = function.outgoing_arguments[0].id;
+    let copy = OutgoingArgumentSlotId {
+        role: OutgoingArgumentSlotRole::ValueCopy,
+        ..argument
+    };
+    function
+        .outgoing_arguments
+        .push(SelectedOutgoingArgumentSlot {
+            id: copy,
+            byte_size: 24,
+            alignment: 16,
+            abi_stack_byte_offset: 48,
+        });
+    for role in [
+        SelectedMemoryAccessRole::AddressOutgoing { slot: copy },
+        SelectedMemoryAccessRole::WriteOutgoing { slot: copy },
+    ] {
+        function.memory_accesses.push(SelectedMemoryAccess {
+            instruction: SelectedInstructionId(1),
+            origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(copy.operation),
+            place: PlaceId::new(1).unwrap(),
+            byte_offset: 0,
+            byte_count: 24,
+            role,
+        });
+    }
+    std::sync::Arc::make_mut(&mut source.transformed)
+        .functions
+        .push(function);
+    let encoded = source.encode();
+    assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), source);
+    let baseline = selected_instruction_plan_identity(&source.transformed);
+    for mutation in 0..3 {
+        let mut changed = source.clone();
+        let function = std::sync::Arc::make_mut(&mut changed.transformed)
+            .functions
+            .iter_mut()
+            .next_back()
+            .unwrap();
+        match mutation {
+            0 => function.outgoing_arguments[1].id.role = OutgoingArgumentSlotRole::Argument,
+            1 => {
+                function.memory_accesses.last_mut().unwrap().role =
+                    SelectedMemoryAccessRole::WriteOutgoing { slot: argument }
+            }
+            2 => {
+                let position = function.memory_accesses.len() - 2;
+                function.memory_accesses[position].role =
+                    SelectedMemoryAccessRole::AddressOutgoing { slot: argument };
+            }
+            _ => unreachable!(),
+        }
+        assert_ne!(
+            selected_instruction_plan_identity(&changed.transformed),
+            baseline
+        );
+    }
+    let mut slot_bytes = Vec::new();
+    copy.encode_identity(&mut slot_bytes);
+    let offset = encoded
+        .windows(slot_bytes.len())
+        .position(|bytes| bytes == slot_bytes)
+        .unwrap();
+    let mut substitution = encoded.clone();
+    substitution[offset + slot_bytes.len() - 1] = 0;
+    assert!(matches!(
+        FixedViewCopyPlan::decode(&substitution),
+        Err(FixedViewCopyDecodeError::TransformedPayloadMismatch
+            | FixedViewCopyDecodeError::TransformedIdentityMismatch
+            | FixedViewCopyDecodeError::IdentityMismatch)
+    ));
+    let mut unknown_role = encoded;
+    unknown_role[offset + slot_bytes.len() - 1] = 2;
+    assert_eq!(
+        FixedViewCopyPlan::decode(&unknown_role),
+        Err(FixedViewCopyDecodeError::UnknownOption(2))
+    );
+    assert_eq!(
+        FixedViewCopyPlan::decode(&super::with_stale_version(&source, 34)),
+        Err(FixedViewCopyDecodeError::UnsupportedVersion(34))
+    );
 }
 
 #[test]

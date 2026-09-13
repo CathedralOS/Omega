@@ -7,6 +7,7 @@ mod byte_write;
 mod dominance;
 mod observations;
 mod operations;
+mod owned_arguments;
 mod primitive_storage;
 mod records;
 pub(super) mod scalar_arrays;
@@ -73,7 +74,7 @@ pub(super) fn lower(
                     ))
                     || (parameter.access == StructuralAccess::Owned
                         && (parameter.multiplicity == StructuralMultiplicity::Affine
-                            || scalar_arrays::is_owned_parameter(parameter, structural_types)
+                            || owned_arguments::is_owned_parameter(parameter, structural_types)
                             || (parameter.multiplicity == StructuralMultiplicity::Unrestricted
                                 && structural_types
                                     .get(&parameter.structural_type)

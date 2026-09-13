@@ -688,6 +688,33 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 }
             }
         };
+        // Producing a value does not dispose of the remaining entry owners.
+        // Reuse the source exit-custody join for structural and Unit returns;
+        // the returned owner itself is not a discard.
+        if let Terminator::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        } = &mut terminator
+        {
+            let source = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == plan.machine)
+                .and_then(|machine| {
+                    checked
+                        .machine_states(machine)
+                        .iter()
+                        .find(|source| source.symbol == state.state)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "structural return source state missing",
+                ))?;
+            *trivial_affine_discards =
+                edges::return_discards(checked, plan.machine, source, state)?
+                    .into_iter()
+                    .map(|index| evaluation.current_structural_place(state_parameters[index].place))
+                    .collect();
+        }
         if !evaluation.selection_cleanups.is_empty() {
             let discards = match &mut terminator {
                 Terminator::ReturnStructural {

@@ -213,7 +213,7 @@ pub(super) fn has_statement_shape(
         .all(|(index, statement)| match statement {
             StatementNode::Call(_) | StatementNode::Assignment(_) => true,
             StatementNode::Expression(expression) => {
-                call_occurrences::tail_call(program, state, index).is_some()
+                call_occurrences::ordered_statement_call(program, machine, state, index).is_some()
                     || (index + 1
                         == program
                             .statement_table

@@ -71,6 +71,11 @@ pub(in crate::physical_instructions::codec) fn decode_content(
                     operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)
                         .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
                     argument_index: u32_field(cursor)?,
+                    role: match byte(cursor)? {
+                        0 => selected_instructions::OutgoingArgumentSlotRole::Argument,
+                        1 => selected_instructions::OutgoingArgumentSlotRole::ValueCopy,
+                        _ => return Err(PostAllocationMachineDecodeError::InvalidField),
+                    },
                 },
                 byte_size: u32_field(cursor)?,
                 alignment: u16_field(cursor)?,

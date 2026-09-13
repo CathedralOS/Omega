@@ -383,19 +383,15 @@ pub(crate) fn build_checked_unit_effect_plans(
         selected_ieee_float_fma_applications,
     );
     // Prefer a complete general state graph when both builders describe the
-    // same structural-value body. Scalar completion still belongs to the
-    // ordinary sequence; merely containing a structural value does not make
-    // a general graph available or invalidate that checked sequence.
+    // same structural-result body, including a returned parameter or call.
+    // Otherwise both catalogs appear to define the same entry and closure
+    // pruning removes the callee and every caller as ambiguous. Scalar
+    // completion still belongs to the ordinary sequence.
     candidates.retain(|plan| {
         !(composed_machines
             .iter()
             .any(|graph| graph.machine == plan.machine)
-            && plan.operations.iter().any(|operation| {
-                matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                )
-            }))
+            && plan.structural_result.is_some())
     });
     let dynamic_dispatch =
         build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);

@@ -23,6 +23,70 @@ use target::NativeTarget;
 use super::encoding::*;
 use super::*;
 
+#[test]
+fn outgoing_frame_roles_round_trip_and_cannot_substitute_under_a_retained_identity() {
+    use crate::{FrameStorageSlotId, OutgoingArgumentSlotId, OutgoingArgumentSlotRole};
+
+    for role in [
+        OutgoingArgumentSlotRole::Argument,
+        OutgoingArgumentSlotRole::ValueCopy,
+    ] {
+        let slot = OutgoingArgumentSlotId {
+            operation: OperationId::new(43).unwrap(),
+            argument_index: 7,
+            role,
+        };
+        for kind in [
+            SelectedInstructionKind::FrameAddress {
+                slot: FrameStorageSlotId::Outgoing(slot),
+                byte_offset: 0,
+            },
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Outgoing(slot),
+                byte_offset: 0,
+            },
+        ] {
+            let mut source = plan();
+            source.functions[0].blocks[0].instructions[0].kind = kind;
+            source.identity = pre_allocation_machine_effect_identity(&source);
+            assert_eq!(
+                PreAllocationMachineEffectPlan::decode(&source.encode()),
+                Ok(source.clone())
+            );
+            let changed_slot = OutgoingArgumentSlotId {
+                role: match role {
+                    OutgoingArgumentSlotRole::Argument => OutgoingArgumentSlotRole::ValueCopy,
+                    OutgoingArgumentSlotRole::ValueCopy => OutgoingArgumentSlotRole::Argument,
+                },
+                ..slot
+            };
+            source.functions[0].blocks[0].instructions[0].kind = match kind {
+                SelectedInstructionKind::FrameAddress { byte_offset, .. } => {
+                    SelectedInstructionKind::FrameAddress {
+                        slot: FrameStorageSlotId::Outgoing(changed_slot),
+                        byte_offset,
+                    }
+                }
+                SelectedInstructionKind::Store64 { byte_offset, .. } => {
+                    SelectedInstructionKind::Store64 {
+                        slot: FrameStorageSlotId::Outgoing(changed_slot),
+                        byte_offset,
+                    }
+                }
+                _ => unreachable!(),
+            };
+            assert_ne!(
+                source.identity,
+                pre_allocation_machine_effect_identity(&source)
+            );
+            assert_eq!(
+                PreAllocationMachineEffectPlan::decode(&source.encode()),
+                Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
+            );
+        }
+    }
+}
+
 fn plan() -> PreAllocationMachineEffectPlan {
     let mut plan = PreAllocationMachineEffectPlan {
         identity: PreAllocationMachineEffectIdentity::from_bytes([0; 32]),

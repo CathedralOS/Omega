@@ -5,6 +5,8 @@
 //! boundaries without changing rejection order.
 //! Version 26 includes owned parameter-home slots. The shared slot decoder also
 //! feeds physical plans, whose envelope must fence this vocabulary separately.
+//! Outgoing frame tag 0 retains its exact argument bytes; tag 3 adds value copies.
+//! Earlier readers reject tag 3, so this extension does not reinterpret old data.
 
 use optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
 

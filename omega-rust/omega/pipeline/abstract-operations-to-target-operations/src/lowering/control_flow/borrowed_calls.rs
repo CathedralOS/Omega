@@ -110,8 +110,8 @@ pub(super) fn lower(
                     types,
                 );
             }
-            if super::scalar_arrays::is_owned_parameter(declaration, types) {
-                return super::scalar_arrays::argument(
+            if super::owned_arguments::is_owned_parameter(declaration, types) {
+                return super::owned_arguments::argument(
                     argument,
                     declaration,
                     destination,

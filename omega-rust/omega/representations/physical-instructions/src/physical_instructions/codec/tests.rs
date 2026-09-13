@@ -162,7 +162,7 @@ fn physical_codec_retains_byte_view_address_family_not_exact_add() {
 #[test]
 fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
-    for version in 0..17_u32 {
+    for version in 0..18_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -171,6 +171,112 @@ fn physical_current_format_rejects_all_retired_versions() {
                 version
             ))
         );
+    }
+}
+
+#[test]
+fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
+    use selected_instructions::{FrameStorageSlotId, OutgoingArgumentSlotRole};
+    let argument = OutgoingArgumentSlotId {
+        operation: OperationId::new(139).unwrap(),
+        argument_index: 4,
+        role: OutgoingArgumentSlotRole::Argument,
+    };
+    let copy = OutgoingArgumentSlotId {
+        role: OutgoingArgumentSlotRole::ValueCopy,
+        ..argument
+    };
+    assert_ne!(argument, copy);
+    let mut source = plan();
+    source.functions[0].outgoing_arguments = vec![
+        SelectedOutgoingArgumentSlot {
+            id: argument,
+            byte_size: 8,
+            alignment: 8,
+            abi_stack_byte_offset: 32,
+        },
+        SelectedOutgoingArgumentSlot {
+            id: copy,
+            byte_size: 24,
+            alignment: 16,
+            abi_stack_byte_offset: 48,
+        },
+    ];
+    for slot in [argument, copy] {
+        for address in [
+            PhysicalAddressOperation::FrameAddress {
+                slot: FrameStorageSlotId::Outgoing(slot),
+                byte_offset: 0,
+            },
+            PhysicalAddressOperation::Store64 {
+                slot: FrameStorageSlotId::Outgoing(slot),
+                byte_offset: 0,
+            },
+        ] {
+            source.functions[0].blocks[0].instructions[0].address = Some(address);
+            source.identity = post_allocation_machine_identity(&source);
+            let encoded = source.encode();
+            assert_eq!(
+                PostAllocationMachinePlan::decode(&encoded),
+                Ok(source.clone())
+            );
+            let mut stale = encoded.clone();
+            stale[8..12].copy_from_slice(&17_u32.to_le_bytes());
+            assert_eq!(
+                PostAllocationMachinePlan::decode(&stale),
+                Err(PostAllocationMachineDecodeError::UnsupportedVersion(17))
+            );
+
+            for mutation in 0..3 {
+                let mut changed = source.clone();
+                match mutation {
+                    0 => {
+                        changed.functions[0].outgoing_arguments[0].id.role =
+                            OutgoingArgumentSlotRole::ValueCopy
+                    }
+                    1 => {
+                        changed.functions[0].outgoing_arguments[1].id.role =
+                            OutgoingArgumentSlotRole::Argument
+                    }
+                    2 => {
+                        let replacement = if slot == argument { copy } else { argument };
+                        changed.functions[0].blocks[0].instructions[0].address =
+                            Some(match address {
+                                PhysicalAddressOperation::FrameAddress { byte_offset, .. } => {
+                                    PhysicalAddressOperation::FrameAddress {
+                                        slot: FrameStorageSlotId::Outgoing(replacement),
+                                        byte_offset,
+                                    }
+                                }
+                                PhysicalAddressOperation::Store64 { byte_offset, .. } => {
+                                    PhysicalAddressOperation::Store64 {
+                                        slot: FrameStorageSlotId::Outgoing(replacement),
+                                        byte_offset,
+                                    }
+                                }
+                                _ => unreachable!(),
+                            });
+                    }
+                    _ => unreachable!(),
+                }
+                assert_eq!(
+                    PostAllocationMachinePlan::decode(&changed.encode()),
+                    Err(PostAllocationMachineDecodeError::InvalidIdentity)
+                );
+            }
+            let mut slot_bytes = Vec::new();
+            argument.encode_identity(&mut slot_bytes);
+            let offset = encoded
+                .windows(slot_bytes.len())
+                .position(|bytes| bytes == slot_bytes)
+                .unwrap();
+            let mut unknown_role = encoded;
+            unknown_role[offset + slot_bytes.len() - 1] = 2;
+            assert_eq!(
+                PostAllocationMachinePlan::decode(&unknown_role),
+                Err(PostAllocationMachineDecodeError::InvalidField)
+            );
+        }
     }
 }
 
@@ -202,7 +308,7 @@ fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity
         source.functions[0].blocks[0].instructions[0].address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
         let encoded = source.encode();
-        assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 17);
+        assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 18);
         assert_eq!(
             PostAllocationMachinePlan::decode(&encoded),
             Ok(source.clone())
@@ -325,6 +431,7 @@ fn post_allocation_codec_authenticates_header_and_all_content_roots() {
 fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
     let mut source = plan();
     let slot = OutgoingArgumentSlotId {
+        role: selected_instructions::OutgoingArgumentSlotRole::Argument,
         operation: OperationId::new(131).unwrap(),
         argument_index: 1,
     };

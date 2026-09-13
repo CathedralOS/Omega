@@ -114,6 +114,7 @@ fn repeated_local_borrows_pass_the_original_pointer_in_exact_outgoing_stack_slot
                 for raw in [3, 5] {
                     let operation = OperationId::new(raw).unwrap();
                     let slot = selected_instructions::OutgoingArgumentSlotId {
+                        role: selected_instructions::OutgoingArgumentSlotRole::Argument,
                         operation,
                         argument_index: scalar_count as u32,
                     };

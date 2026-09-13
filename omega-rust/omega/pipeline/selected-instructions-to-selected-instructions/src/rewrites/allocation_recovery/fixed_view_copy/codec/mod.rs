@@ -1,7 +1,8 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. V34 retains exact reference-result
-//! source mappings and reference types/paths in structural signatures.
+//! Owns admission and authentication order. V35 distinguishes outgoing ABI
+//! argument slots from their indirect value copies in every retained roster.
+//! It retains the reference-result mappings and structural types from V34.
 //! Every older envelope is rejected before its payload is interpreted.
 
 mod content;
@@ -13,11 +14,11 @@ mod primitives;
 mod selected;
 mod values;
 
-use self::envelope::v34_identity;
+use self::envelope::v35_identity;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-const VERSION: u32 = 34;
+const VERSION: u32 = 35;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.
@@ -27,7 +28,7 @@ impl FixedViewCopyPlan {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(MAGIC);
         encoded.extend_from_slice(&VERSION.to_le_bytes());
-        encoded.extend_from_slice(&v34_identity(self, &content));
+        encoded.extend_from_slice(&v35_identity(self, &content));
         encoded.extend_from_slice(&content);
         encoded
     }

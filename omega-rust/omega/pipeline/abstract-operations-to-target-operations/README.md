@@ -105,7 +105,10 @@ They remain owned values, not borrows of the caller's original record. Field
 observations, nested construction, and whole-parameter returns share that backing
 across calls. Input and result placement are independently selected by the
 complete call plan; a stack-passed value may return through hidden result storage.
-General indirect owned argument forwarding remains a separate transport limit.
+Whole owned record and primitive-array arguments share
+[owned argument lowering](src/lowering/control_flow/owned_arguments.rs).
+It retains the current source backing and exact callee placement, including
+indirect value copies; pointer-slot and payload-copy offsets remain distinct.
 Source-produced integer getter controls cover direct and call-produced
 locals, tail completion, and nested scalar arguments. Mutable local receiver
 storage remains a separate dependency; shared

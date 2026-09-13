@@ -34,6 +34,193 @@ fn unsigned(value: u128) -> TerminalScalarValue {
 }
 
 #[test]
+fn owned_record_calls_compose_without_ambiguous_body_catalogs() {
+    for property in ["", "[copy]"] {
+        for body in [
+            "retain(record)",
+            "let result: Record = retain(record); result",
+            "_ = identity(mask); retain(record)",
+            "let first: Record = retain(record); retain(first)",
+        ] {
+            for reverse in [false, true] {
+                let retain = "machine retain(record: Record) -> Record { record }";
+                let relay =
+                    format!("machine relay(mask: u64, record: Record) -> Record {{ {body} }}");
+                let machines = if reverse {
+                    format!("{relay} {retain}")
+                } else {
+                    format!("{retain} {relay}")
+                };
+                let checked =
+                    typed_trees_to_checked_trees::lower_typed_trees(typed_source(&format!(
+                        "data Record {property} {{ first: u64; second: u64; third: u64; }}
+                     machine identity(value: u64) -> u64 {{ value }} {machines}"
+                    )))
+                    .unwrap();
+                let artifact =
+                    terminal_production::TerminalProductionRequest::new(&checked, "relay")
+                        .produce_artifact()
+                        .unwrap_or_else(|error| {
+                            panic!("{property} {body} reverse={reverse}: {error:?}")
+                        });
+                let artifact =
+                    terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+                        .unwrap();
+                let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+                let entry = module
+                    .machines
+                    .iter()
+                    .find(|machine| machine.id == module.entry)
+                    .unwrap();
+                let input = TerminalStructuralValue {
+                    opaque_identity: 73,
+                    structural_type: entry.structural_parameters[0].structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                };
+                let mut execution = TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
+                    artifact.semantic_bytes(), artifact.proof_bytes(), &proof_admission::AdmissionProfile::default(),
+                    &[unsigned(41)], std::slice::from_ref(&input), &[],
+                ).unwrap();
+                let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
+                let mut completed = false;
+                for _ in 0..64 {
+                    match execution.resume(&mut fuel).unwrap() {
+                        TerminalExecutionStatus::SponsorExhausted(_) => fuel.replenish(1).unwrap(),
+                        TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
+                            result,
+                        )) => {
+                            assert_eq!(result.value.structural_type, input.structural_type);
+                            assert_eq!(result.value.path, input.path);
+                            assert_eq!(result.value.qualifications, input.qualifications);
+                            if property.is_empty() {
+                                assert_eq!(result.value, input);
+                            } else {
+                                assert_ne!(result.value.opaque_identity, input.opaque_identity);
+                            }
+                            assert!(result.claims.is_empty());
+                            completed = true;
+                            break;
+                        }
+                        other => panic!("unexpected forwarded record result: {other:?}"),
+                    }
+                }
+                assert!(
+                    completed,
+                    "forwarded ownership completes across fuel pauses"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn owned_record_call_replay_rejects_same_type_argument_and_access_substitution() {
+    for property in ["", "[copy]"] {
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_source(&format!(
+            "data Record {property} {{ first: u64; second: u64; third: u64; }}
+             machine retain(record: Record) -> Record {{ record }}
+             machine relay(left: Record, right: Record) -> Record {{ retain(left) }}"
+        )))
+        .unwrap();
+        let _ = terminal_production::TerminalProductionRequest::new(&checked, "relay")
+            .produce_artifact()
+            .unwrap();
+        for mutation in 0..3 {
+            let mut invalid = checked.clone();
+            let operation = invalid
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.states)
+                .flat_map(|state| &mut state.operations)
+                .find(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                    )
+                })
+                .unwrap();
+            let CheckedUnitEffectOperationPlan::StructuralCall {
+                structural_arguments,
+                coordinate,
+                ..
+            } = operation
+            else {
+                unreachable!()
+            };
+            match mutation {
+                0 => {
+                    structural_arguments[0].source =
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                            parameter_index: 1,
+                        }
+                }
+                1 => {
+                    structural_arguments[0].access =
+                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                }
+                _ => coordinate.call_ordinal += 1,
+            }
+            assert!(
+                terminal_production::TerminalProductionRequest::new(&invalid, "relay")
+                    .produce_artifact()
+                    .is_err(),
+                "call mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn structural_return_requires_remaining_affine_input_cleanup_evidence() {
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_source(
+        "data Record { first: u64; second: u64; third: u64; }
+         machine combine(left: Record, right: Record) -> Record {
+             Record { first: left.first, second: right.second, third: left.third }
+         }",
+    ))
+    .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "combine")
+        .produce_artifact()
+        .unwrap();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert!(module.machines.iter().flat_map(|machine| &machine.blocks).any(|block|
+        matches!(&block.terminator, terminal_psi::Terminator::ReturnStructural { trivial_affine_discards, .. } if trivial_affine_discards.len() == 2)));
+    let exits = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter_map(|(handle, event)| {
+            (event.source == language_semantics::PermissionEventSource::StateExit
+                && event.kind == language_semantics::PermissionEventKind::AffineDrop)
+                .then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(exits.len(), 2);
+    for exit in exits {
+        let mut invalid = checked.clone();
+        invalid
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .get_mut(exit)
+            .machine_symbol = Default::default();
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&invalid, "combine")
+                .produce_artifact()
+                .is_err(),
+            "missing source exit disposal must fail independent frontier verification"
+        );
+    }
+}
+
+#[test]
 fn discarded_scalar_invocation_precedes_whole_record_return() {
     for property in ["", "[copy]"] {
         let checked = fixture(property, "", "_ = identity(mask);");

@@ -59,7 +59,7 @@ pub(in crate::flow::terminal_unit) fn unit_statement_call<'a>(
         .then_some((*expression, call))
 }
 
-fn ordered_statement_call<'program>(
+pub(super) fn ordered_statement_call<'program>(
     program: &'program TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

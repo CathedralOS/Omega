@@ -289,6 +289,39 @@ pub(super) fn inline_argument_fragments(placement: &calling_conventions::ValuePl
     offset == placement.shape.byte_size
 }
 
+/// Complete call-plan replay fixes register choice and disjoint stack offsets.
+/// This classifier distinguishes an owned value copy from a borrowed pointer.
+pub(super) fn owned_argument_placement(placement: &calling_conventions::ValuePlacement) -> bool {
+    inline_argument_fragments(placement) || indirect_argument(placement).is_some()
+}
+
+pub(super) fn indirect_argument(
+    placement: &calling_conventions::ValuePlacement,
+) -> Option<(calling_conventions::IndirectPointerLocation, u32)> {
+    let [
+        calling_conventions::ValueLocation::Indirect {
+            pointer,
+            copy_stack_byte_offset: Some(copy_offset),
+            byte_size,
+            alignment,
+        },
+    ] = placement.locations.as_slice()
+    else {
+        return None;
+    };
+    if placement.shape.class != calling_conventions::ValueClass::Integer
+        || *byte_size == 0
+        || *byte_size != placement.shape.byte_size
+        || *alignment != placement.shape.alignment
+        || !alignment.is_power_of_two()
+        || !copy_offset.is_multiple_of(u32::from(*alignment))
+    {
+        return None;
+    }
+    copy_offset.checked_add(u32::from(*byte_size))?;
+    Some((*pointer, *copy_offset))
+}
+
 pub(super) fn direct_fragments(placement: &calling_conventions::ValuePlacement) -> bool {
     if super::scalar_call_abi::empty_aggregate_placement(placement) {
         return true;

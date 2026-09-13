@@ -12,6 +12,7 @@ mod derived_calls;
 mod ieee_borrows;
 mod ieee_comparisons;
 mod integer_calls;
+mod owned_arguments;
 mod parameters;
 mod primitive_locals;
 mod process_exit;

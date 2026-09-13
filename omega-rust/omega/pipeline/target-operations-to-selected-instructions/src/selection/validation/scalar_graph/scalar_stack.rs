@@ -149,6 +149,7 @@ pub(super) fn argument(
         return Err(invalid());
     }
     let slot = OutgoingArgumentSlotId {
+        role: selected_instructions::OutgoingArgumentSlotRole::Argument,
         operation: operation.operation,
         argument_index: argument_index.try_into().map_err(|_| invalid())?,
     };
