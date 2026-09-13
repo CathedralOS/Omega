@@ -113,8 +113,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   surviving operator occurrence and the validated projection identity. The
   same test replays mutated custody: missing, duplicated, role-swapped
   (operator→boundary), padded-span, and substituted-projection children all
-  reject. Remaining: the verified-eliminated-occurrence child-exemption
-  check and boundary-trait-settlement parents on the optimized route.
+  reject. `selected_lowering_replays_one_physical_child_per_surviving_occurrence_role`
+  retains both surviving roles in one program — the closed operator
+  application and a hosted console exit — and binds each surviving
+  occurrence to exactly one physical child: `OperatorApplicationCoverage`
+  for the operator occurrence and `BoundaryTraitSettlement`
+  (`HostedExitProcessI32`, `DirectInstructionBytes`) for the boundary
+  occurrence; dropping either role, duplicating a child, or swapping a
+  child's parent all reject on independent replay. Remaining: the
+  verified-eliminated-occurrence child-exemption check.
 
 - **GENERATED-DIFFERENTIALS.** Extend same-artifact interpreter/native
   differential testing beyond the landed exact-integer lane to float, trap,
