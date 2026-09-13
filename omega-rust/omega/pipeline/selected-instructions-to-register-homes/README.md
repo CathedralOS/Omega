@@ -107,7 +107,7 @@ that attempt. This private heuristic does not change the permitted spill evidenc
 or optional rematerialization policies.
 The selected rewrite owner admits ordinary nonaddress fixed
 8/16/32/64-bit integer, Boolean, and GPR-resident IEEE payloads with one
-instruction definition dominating their uses in an acyclic function.
+instruction definition dominating their uses, cyclic functions included.
 Same-block uses must follow the definition. An edge-copy snapshot can
 retain a semantic block-parameter identity without being a physical entry
 parameter. Actual block parameters require a separate complete incoming-edge
@@ -119,7 +119,7 @@ block removed detects any path that could bypass the store.
 Original bindings and registers remain intact; the now-unused parameter no
 longer contributes a live edge tie. Entry parameters, unsupported incoming paths,
 uses reachable without initialization, terminal/edge uses, and
-cyclic/ranked functions still reject. Only changed blocks' settlement indices
+cyclic/ranked block-parameter functions still reject. Only changed blocks' settlement indices
 move; edges and other blocks remain identical. Rewritten values and spill
 addresses never expand the candidate roster. Each cumulative rewrite gets fresh
 liveness, ranges, legality, and homes; independent replay reconstructs each

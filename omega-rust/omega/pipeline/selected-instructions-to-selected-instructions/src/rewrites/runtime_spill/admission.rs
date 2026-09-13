@@ -235,7 +235,9 @@ pub(super) fn admit<'source>(
     {
         return Err(RuntimeSpillError::WorkBudgetExceeded);
     }
-    super::require_acyclic(function)?;
+    if definition.is_none() {
+        super::require_acyclic(function)?;
+    }
     super::require_dominated_uses(function, block_index, &use_blocks)?;
     let keys = environment.selected_keys();
     let address = environment

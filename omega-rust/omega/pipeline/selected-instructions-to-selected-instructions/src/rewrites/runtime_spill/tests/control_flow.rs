@@ -306,7 +306,7 @@ fn every_successor_transport_and_terminator_operand_excludes_the_victim() {
 }
 
 #[test]
-fn cyclic_functions_remain_frozen_even_when_the_victim_is_outside_the_cycle() {
+fn cyclic_functions_admit_dominating_instruction_results() {
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     for destination in [0, 1, 2] {
         let mut source = cfg_fixture(NativeTarget::linux_x64());
@@ -318,12 +318,47 @@ fn cyclic_functions_remain_frozen_even_when_the_victim_is_outside_the_cycle() {
             instruction,
             successor: successor(destination),
         };
-        assert_eq!(
+        let result =
             spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
-                .unwrap_err(),
-            RuntimeSpillError::UnsupportedControlFlow
+                .unwrap();
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone()
+            )
+            .is_ok()
         );
     }
+}
+
+#[test]
+fn cyclic_functions_keep_block_parameter_victims_frozen() {
+    let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
+    let mut source = super::parameters::parameter_fixture(NativeTarget::linux_x64());
+    let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+    let instruction = super::super::control(&function.blocks[0].terminator)
+        .0
+        .clone();
+    // A self-looping block keeps the parameter's destination dominating its
+    // uses while making the function cyclic.
+    function.blocks.push(SelectedBlock {
+        id: SelectedBlockId(4),
+        origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+        instructions: Vec::new(),
+        terminator: SelectedTerminator::Jump {
+            instruction,
+            successor: successor(4),
+        },
+    });
+    assert_eq!(
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap_err(),
+        RuntimeSpillError::UnsupportedControlFlow
+    );
 }
 
 #[test]
