@@ -15,11 +15,16 @@ pub(super) fn reconstruct(
         .structural_parameters
         .get(position)
         .ok_or(invalid.clone())?;
+    // The argument carries the access the call site actually grants, which must
+    // equal the callee's declared access; the *source* may hold wider authority
+    // (an owned or mutable root can lend a write-only or shared view, but a
+    // write-only or shared root can never be widened back).
     if argument.access != destination.access
         || !matches!(
             argument.access,
             terminal_psi::StructuralAccess::SharedBorrow
                 | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
         )
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
         || !destination.qualifications.is_empty()

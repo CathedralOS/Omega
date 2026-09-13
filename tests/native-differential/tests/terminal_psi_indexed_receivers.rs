@@ -290,6 +290,14 @@ fn interleaved_and_repeated_receiver_calls_preserve_the_root_pointer() {
             "1,17,17,4,5,6,7,8",
             3,
         ),
+        // A closed projection loan restores the parent for direct use; both
+        // calls must still land on the original caller storage in order.
+        (
+            "[Record; 2]",
+            "let held: &write [Record; 2] = &write root; held[1].replace(); root[0].replace();",
+            "1,17,17,4,5,6,7,8",
+            2,
+        ),
     ] {
         let source = format!(
             "data Record [copy] {{ value: u16; }}

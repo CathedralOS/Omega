@@ -1081,11 +1081,25 @@ Owners include
   literal establishment lowers in `control_flow/operations.rs`, scalar-ABI
   callers admit literal place rosters, mixed-ABI callers admit borrowed block
   structural parameters, and installation records publish internal Unit calls
-  in physical text order rather than source block-roster order. On macOS ARM64
-  `mbx nextest run -p omega-native-differential-test --test terminal_byte_views`
-  passes 107/107 at the published revision; both Linux legs were not run.
-  Remaining acceptance is unchanged: `&write` projected aggregates, early loan
-  closure, escaping carriers, dynamic indexes, and computed IEEE stores.
+  in physical text order rather than source block-roster order.
+
+  `&write` projected aggregates now compose through ordinary calls:
+  `aggregate_results::borrowed_arguments` admits `WriteOnlyBorrow` arguments to
+  record/sum referents, so projected `&write`/`&mut` receivers, closed-loan
+  restored parents, and nested alias chains transport the incoming root pointer
+  plus its exact projected byte offset through register and stack ABI slots and
+  installation replay. On macOS ARM64
+  `mbx nextest run -p omega-native-differential-test --test terminal_psi_indexed_receivers`
+  passes 38/38 including caller-storage observation, exact widths, neighbors,
+  signed/Boolean/IEEE sources, and access-substitution rejection; both Linux
+  legs were not run. `terminal_byte_views` `natural_writer::` (8) and
+  `terminal_psi_source` (`FuelChargeSite` import) are unrelated red at this
+  base, owned by the in-flight IRFUEL work.
+
+  Remaining acceptance: escaping carriers, dynamic indexes (Psi cannot yet
+  prove runtime bounds: "cannot prove index `i` is within length 4"), and
+  computed IEEE stores (Psi does not select `a + b`: "no source-independent
+  checked scalar control plan").
 
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
