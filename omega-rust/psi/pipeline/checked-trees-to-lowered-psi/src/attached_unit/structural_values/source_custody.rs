@@ -315,9 +315,6 @@ pub(crate) fn validate(
                 }
             }
             CheckedStructuralValueKind::Case(construction) => {
-                if selection.is_some() {
-                    return unsupported("selected ownership mixes fresh and existing obligations");
-                }
                 if construction.expression != expression
                     || checked.normalized_type_identity(construction.type_reference)
                         != checked.normalized_type_identity(reference)

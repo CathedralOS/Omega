@@ -1,9 +1,12 @@
 //! Selected existing owners retain transfer identity through result observation.
 
-use super::{TerminalExecutionResult, TerminalScalarValue, check_source, execute};
+use super::{TerminalExecutionResult, TerminalScalarValue, check_source, execute, unsigned};
 
 const SOURCE: &str =
     include_str!("../../../../../../tests/omega/pass/expressions/owned_match_values/main.omg");
+const MIXED_SOURCE: &str = include_str!(
+    "../../../../../../tests/omega/pass/expressions/owned_match_mixed_values/main.omg"
+);
 
 #[test]
 fn owned_match_transfers_only_the_selected_existing_local() {
@@ -65,6 +68,103 @@ fn nested_selections_share_the_result_continuation() {
             );
         }
     }
+}
+
+#[test]
+fn mixed_fresh_and_existing_arms_transfer_or_discard_the_existing_local() {
+    for selected in [true, false] {
+        let (module, execution) = execute(MIXED_SOURCE, &[TerminalScalarValue::Boolean(selected)]);
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(selected)),
+        );
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        assert_eq!(
+            machine
+                .blocks
+                .iter()
+                .filter(|block| !block.structural_parameters.is_empty())
+                .count(),
+            1,
+            "mixed selection uses one result/residual continuation"
+        );
+        assert_eq!(
+            machine
+                .blocks
+                .iter()
+                .filter(|block| {
+                    matches!(
+                        &block.terminator,
+                        terminal_psi::Terminator::Jump {
+                            trivial_affine_discards,
+                            ..
+                        } if !trivial_affine_discards.is_empty()
+                    )
+                })
+                .count(),
+            1,
+            "only the fresh arm edge discards the displaced source"
+        );
+    }
+}
+
+#[test]
+fn mixed_selection_with_two_existing_sources_discards_only_the_displaced_owner() {
+    let source = MIXED_SOURCE
+        .replace("selected: bool", "selected: u64")
+        .replace(
+            "let left: Choice = Choice::Some { value: 37 };",
+            "let left: Choice = Choice::Some { value: 37 };\n    let right: Choice = Choice::Some { value: 5 };",
+        )
+        .replace(
+            "true -> left,\n        false -> Choice::Empty",
+            "0 -> left,\n        1 -> right,\n        _ -> Choice::Empty",
+        );
+    for (selected, expected) in [(0, true), (1, true), (2, false)] {
+        let (module, execution) = execute(&source, &[unsigned(selected)]);
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected)),
+            "selected={selected}"
+        );
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        let discarded = machine
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                terminal_psi::Terminator::Jump {
+                    trivial_affine_discards,
+                    ..
+                } if !trivial_affine_discards.is_empty() => Some(trivial_affine_discards.len()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            discarded,
+            [1],
+            "the fresh arm edge discards exactly the displaced owner"
+        );
+    }
+}
+
+#[test]
+fn possibly_transferred_source_remains_unobservable_after_mixed_selection() {
+    let source = MIXED_SOURCE.replace("result in Choice::Some", "left in Choice::Some");
+    let errors = check_source(&source).expect_err("possibly transferred source is unavailable");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("may have been transferred")),
+        "{errors:?}"
+    );
 }
 
 #[test]
