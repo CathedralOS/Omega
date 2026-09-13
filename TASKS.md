@@ -86,14 +86,31 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   helper milestones: the ordinary/composed Psi route now serves this application.
   Preserve its operation order, complete package graph and independent evidence;
   the current `console: Console` field also needs reconciliation with canonical
-  `Service<Console> in Bound` establishment. The receiver bridge probe at
-  unpublished checkpoint `a64d1ab3a6` passes legalization but rejects its missing
-  service establishment row. Provider-specialization witnesses are not installed
-  authority. Finish selected-root-aware eligibility in
-  `terminal-production/src/production/receiver_eligibility.rs` and exact field
-  establishment through `selected-dispatch/src/service_custody/root.rs`; do not
-  make a missing row authorize an erased-field fallback. This is implementation
-  work under the [service binding contract](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md#service-bindings),
+  `Service<Console> in Bound` establishment. Canonical service eligibility and
+  exact field establishment already work; do not add another eligibility path
+  or make a missing row authorize an erased-field fallback.
+
+  Conditional bridge probe: unpublished checkpoint `bb66e5b3ef`, macOS ARM64,
+  `RUST_MIN_STACK=67108864 cargo nextest run -p compiler --test canary_suite
+  --no-fail-fast -E 'test(entry_and_abi::hosted_receiver)'` executes a canonical
+  Bound receiver with retained scalar mutation (`A`, exit 0) and distinct process
+  exit (`A`, exit 37), and rejects missing establishment and corrupted object
+  binding. This establishes execution feasibility, not native admission closure
+  or unchanged Squalr acceptance. Keep the bridge checkpoint unpublished while
+  the actual loader/root occurrence is absent. Its selected source, physical
+  contract, service rows and geometry do not supply installed authority.
+
+  Next implement the actual macOS loader/provider connection, not another
+  metadata ledger: admit loaded code and RW/NX zero-fill backing under one
+  occurrence, then derive the receiver/private-stack/continuation partitions and
+  activation loan. `image-emission/src/installed_artifact.rs` deliberately
+  excludes BSS from its compiler-section projection, so its current
+  `bind_installed_artifact` join cannot establish this backing. Reuse
+  `executable-installation` and `external-roots` admission/epoch custody, but do
+  not construct provider authority from compiler-authored facts. Existing
+  `install_validated` callers are tests, not a connected macOS loader provider.
+  This is implementation work under the entry and
+  [service binding contract](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md#service-bindings),
   not an unanswered language decision.
   **MATCH-SELECTIVE-LOWERING** and **STATE-LOCAL-VALUE-FRONTIER** own any newly
   witnessed operation joins. These are engineering dependencies, not owner
