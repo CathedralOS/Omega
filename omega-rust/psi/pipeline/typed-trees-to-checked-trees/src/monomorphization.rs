@@ -40,6 +40,8 @@ mod const_values;
 mod membership_tests;
 mod range_arguments;
 mod result_locals;
+#[cfg(test)]
+mod runtime_value_tests;
 mod saved_calls;
 #[cfg(test)]
 mod static_call_contract_tests;
@@ -61,6 +63,12 @@ struct Candidate {
     /// Ordinals into `const_parameters` declared as runtime-capable `Value`
     /// binders rather than proof-static `const` binders.
     value_const_parameters: Vec<usize>,
+    /// Runtime-capable `Value` slots bound to an ordinary runtime subject
+    /// rather than a static value. The parallel `const_bindings` entry then
+    /// holds the binder's declared carrier type, so every runtime argument of
+    /// one carrier shares a single specialization tuple. The retained argument
+    /// supplies the call-site subject appended as an ordinary argument.
+    runtime_value_bindings: Vec<Option<StaticMachineArgument>>,
     machine_parameters: Vec<(SymbolHandle, String, StateSignature)>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_parameters: Vec<typed_trees::machine::GenericConformanceBound>,
@@ -95,6 +103,8 @@ struct CallSelection {
     unresolved_const_parameters: bool,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     const_bindings: Vec<Option<TypeReferenceHandle>>,
+    /// See `Candidate::runtime_value_bindings`.
+    runtime_value_bindings: Vec<Option<StaticMachineArgument>>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
@@ -317,10 +327,12 @@ fn collect_call_proposals(
     machine_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
     expected_return: Option<TypeReferenceHandle>,
+    scope_limit: usize,
     machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     evidence_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    runtime_value_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
 ) {
     let Some(callee) = resolve_callee(callee_states, target_symbol, target_name) else {
         return;
@@ -330,10 +342,12 @@ fn collect_call_proposals(
         candidates,
         callee,
         machine_arguments,
+        Some((caller_state, scope_limit)),
         machine_proposals,
         evidence_proposals,
         type_proposals,
         const_proposals,
+        runtime_value_proposals,
     );
 
     // An explicit bound is selected before compatibility. It must not conflict
@@ -343,6 +357,7 @@ fn collect_call_proposals(
         .filter(|argument| {
             const_arguments::spelling(program, argument).is_some()
                 || const_arguments::forwarded_type(program, argument).is_valid()
+                || const_arguments::is_runtime_value_subject(program, argument)
         })
         .enumerate()
         .map(|(parameter_index, _)| parameter_index)
@@ -402,10 +417,12 @@ fn collect_machine_proposals_for_callee(
     candidates: &[Candidate],
     callee: &CalleeState,
     machine_arguments: &[StaticMachineArgument],
+    runtime_scope: Option<(&typed_trees::state::State, usize)>,
     machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     evidence_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    runtime_value_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
 ) {
     let candidate = &candidates[callee.candidate_index];
     let mut type_index = 0usize;
@@ -436,6 +453,31 @@ fn collect_machine_proposals_for_callee(
                 const_proposals.push((callee.candidate_index, const_index, handle));
                 const_index += 1;
             }
+            continue;
+        }
+        // A `Value` binder admits an ordinary runtime subject. Its slot binds
+        // the declared carrier so every runtime argument of that carrier shares
+        // one specialization; the resolved argument later becomes an appended
+        // ordinary call argument.
+        if const_index < candidate.const_parameters.len()
+            && candidate.value_const_parameters.contains(&const_index)
+            && let Some((scope_state, scope_limit)) = runtime_scope
+            && let Some(subject) = const_arguments::resolve_runtime_subject(
+                program,
+                scope_state,
+                scope_limit,
+                selected,
+            )
+        {
+            const_proposals.push((
+                callee.candidate_index,
+                const_index,
+                candidate.const_parameters[const_index].2,
+            ));
+            let mut subject_argument = selected.clone();
+            subject_argument.symbol = subject;
+            runtime_value_proposals.push((callee.candidate_index, const_index, subject_argument));
+            const_index += 1;
             continue;
         }
         if !selected.symbol.is_valid() {
@@ -720,15 +762,20 @@ fn collect_call_selections(
         let mut evidence_proposals = Vec::new();
         let mut type_proposals = Vec::new();
         let mut const_proposals = Vec::new();
+        let mut runtime_value_proposals = Vec::new();
+        // Calls outside executable states have no argument evaluation edge
+        // that could carry a runtime subject.
         collect_machine_proposals_for_callee(
             program,
             candidates,
             callee,
             &call.machine_arguments,
+            None,
             &mut machine_proposals,
             &mut evidence_proposals,
             &mut type_proposals,
             &mut const_proposals,
+            &mut runtime_value_proposals,
         );
         let selection = selection_from_proposals(
             program,
@@ -740,6 +787,7 @@ fn collect_call_selections(
             evidence_proposals,
             type_proposals,
             const_proposals,
+            runtime_value_proposals,
         );
         upsert_selection(&mut selections, selection);
     }
@@ -876,6 +924,34 @@ pub(crate) fn collect_expression_tree(
     }
 }
 
+/// Ordinal of the statement enclosing one call site inside its state. A
+/// statement call is its own site; an expression call belongs to the
+/// statement whose expression tree contains it.
+fn enclosing_statement_ordinal(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    site: CallSite,
+) -> Option<usize> {
+    match site {
+        CallSite::Statement(handle) => {
+            let start = state.statement_nodes.start().arena_index() as usize;
+            let ordinal = handle.arena_index() as usize;
+            (ordinal >= start && ordinal < start + state.statement_nodes.count() as usize)
+                .then_some(ordinal - start)
+        }
+        CallSite::Expression(handle) => program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+            .find_map(|(offset, statement)| {
+                let mut roots = Vec::new();
+                collect_statement_expression_trees(program, statement, &mut roots);
+                roots.contains(&handle).then_some(offset)
+            }),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn selection_for_call(
     program: &TypedTrees,
@@ -897,6 +973,12 @@ fn selection_for_call(
     let mut evidence_proposals = Vec::new();
     let mut type_proposals = Vec::new();
     let mut const_proposals = Vec::new();
+    let mut runtime_value_proposals = Vec::new();
+    // A runtime `Value` subject resolves only against the locals the call can
+    // see: the caller's parameters and `let` declarations before its own
+    // statement.
+    let scope_limit =
+        enclosing_statement_ordinal(program, caller_state, site).unwrap_or(usize::MAX);
     collect_call_proposals(
         program,
         caller_machine,
@@ -908,10 +990,12 @@ fn selection_for_call(
         machine_arguments,
         arguments,
         expected_return,
+        scope_limit,
         &mut machine_proposals,
         &mut evidence_proposals,
         &mut type_proposals,
         &mut const_proposals,
+        &mut runtime_value_proposals,
     );
     Some(selection_from_proposals(
         program,
@@ -923,6 +1007,7 @@ fn selection_for_call(
         evidence_proposals,
         type_proposals,
         const_proposals,
+        runtime_value_proposals,
     ))
 }
 
@@ -936,6 +1021,7 @@ fn selection_from_proposals(
     evidence_proposals: Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
     const_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
+    runtime_value_proposals: Vec<(usize, usize, StaticMachineArgument)>,
 ) -> CallSelection {
     let mut selection = CallSelection {
         site,
@@ -947,10 +1033,16 @@ fn selection_from_proposals(
         unresolved_const_parameters: false,
         type_bindings: vec![None; candidate.type_parameters.len()],
         const_bindings: vec![None; candidate.const_parameters.len()],
+        runtime_value_bindings: vec![None; candidate.const_parameters.len()],
         machine_bindings: vec![None; candidate.machine_parameters.len()],
         evidence_bindings: vec![None; candidate.evidence_parameters.len()],
         conflicted: false,
     };
+    for (_, parameter, argument) in runtime_value_proposals {
+        // A runtime subject never conflicts: distinct argument values share
+        // one specialization keyed by the binder's declared carrier.
+        selection.runtime_value_bindings[parameter] = Some(argument);
+    }
     for (_, parameter, binding) in type_proposals {
         if type_reference_is_any_generic_parameter(program, binding) {
             continue;
@@ -1963,12 +2055,20 @@ fn apply_call_specializations(
                     "selected call has no exact specialization state",
                 )]);
             };
-            selected_call_rewrites.push((selection.site, *concrete_state));
+            // Each site keeps its own exact runtime subjects: the shared
+            // carrier-keyed instance receives them as appended arguments.
+            let subjects = selection
+                .runtime_value_bindings
+                .iter()
+                .flatten()
+                .filter_map(|argument| Some((argument.path.first()?.clone(), argument.symbol)))
+                .collect::<Vec<_>>();
+            selected_call_rewrites.push((selection.site, *concrete_state, subjects));
         }
     }
     // Delay call rewrites until every tuple has copied its authored body.
-    for (site, concrete_state) in selected_call_rewrites {
-        rewrite_selected_call(program, site, concrete_state);
+    for (site, concrete_state, subjects) in selected_call_rewrites {
+        rewrite_selected_call(program, site, concrete_state, &subjects);
     }
     Ok(true)
 }
@@ -1977,6 +2077,7 @@ fn candidate_for_selection(template: &Candidate, selection: &CallSelection) -> C
     let mut candidate = template.clone();
     candidate.type_bindings = selection.type_bindings.clone();
     candidate.const_bindings = selection.const_bindings.clone();
+    candidate.runtime_value_bindings = selection.runtime_value_bindings.clone();
     candidate.machine_bindings = selection.machine_bindings.clone();
     candidate.evidence_bindings = selection.evidence_bindings.clone();
     candidate.conflicted = selection.conflicted;
@@ -2044,11 +2145,73 @@ fn normalized_machine_identity(
     Some(format!("{declaration}|{overload}"))
 }
 
-fn rewrite_selected_call(program: &mut TypedTrees, site: CallSite, target: SymbolHandle) {
+fn rewrite_selected_call(
+    program: &mut TypedTrees,
+    site: CallSite,
+    target: SymbolHandle,
+    subjects: &[(typed_trees::name::Identifier, SymbolHandle)],
+) {
     let target_name = state_by_symbol(program, target)
         .map(|state| state.name.clone())
         .expect("cloned specialization state");
-    rewrite_selected_call_with_name(program, site, target, target_name);
+    rewrite_selected_call_with_name(program, site, target, target_name, subjects);
+}
+
+/// Runtime subjects bound to `Value` binder slots at one call site, in
+/// telescope order. A rewritten call passes each as an appended ordinary
+/// argument matching the specialization's realized trailing parameters.
+fn runtime_value_subjects(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    machine_arguments: &[StaticMachineArgument],
+) -> Vec<(typed_trees::name::Identifier, SymbolHandle)> {
+    machine_arguments
+        .iter()
+        .filter_map(|argument| {
+            let symbol =
+                const_arguments::resolve_runtime_subject(program, state, usize::MAX, argument)?;
+            Some((argument.path.first()?.clone(), symbol))
+        })
+        .collect()
+}
+
+/// The cloned state whose statement bodies own one expression handle, used to
+/// resolve a runtime `Value` subject against that state's own scope.
+fn clone_state_containing<'a>(
+    program: &'a TypedTrees,
+    states: &'a [typed_trees::state::State],
+    expression: ExpressionHandle,
+) -> Option<&'a typed_trees::state::State> {
+    states.iter().find(|state| {
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                let mut roots = Vec::new();
+                collect_statement_expression_trees(program, statement, &mut roots);
+                roots.contains(&expression)
+            })
+    })
+}
+
+fn insert_subject_name(
+    table: &mut typed_trees::expression::ExpressionTable,
+    member: typed_trees::name::Identifier,
+    symbol: SymbolHandle,
+) -> ExpressionHandle {
+    let mut members = HandleSpan::empty();
+    table.push_name_path_member(&mut members, member);
+    let mut member_symbols = HandleSpan::empty();
+    table.push_name_path_member_symbol(&mut member_symbols, symbol);
+    table.insert(ExpressionNode::Name(
+        typed_trees::expression::TableNamePath {
+            members,
+            member_symbols,
+            head_symbol: symbol,
+            symbol,
+        },
+    ))
 }
 
 fn rewrite_selected_call_with_name(
@@ -2056,22 +2219,60 @@ fn rewrite_selected_call_with_name(
     site: CallSite,
     target: SymbolHandle,
     target_name: typed_trees::name::Identifier,
+    subjects: &[(typed_trees::name::Identifier, SymbolHandle)],
 ) {
     match site {
         CallSite::Statement(handle) => {
-            let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
+            let StatementNode::Call(snapshot) = program.statement_table.statement(handle).clone()
+            else {
                 return;
+            };
+            let mut arguments = program
+                .statement_table
+                .expression_handles(snapshot.arguments)
+                .to_vec();
+            for (member, symbol) in subjects.iter().cloned() {
+                arguments.push(insert_subject_name(
+                    &mut program.expression_table,
+                    member,
+                    symbol,
+                ));
+            }
+            let new_arguments = program.statement_table.insert_expression_handles(arguments);
+            let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
+                unreachable!();
             };
             call.target_symbol = target;
             call.target = target_name;
+            call.arguments = new_arguments;
             call.machine_arguments = Box::default();
         }
         CallSite::Expression(handle) => {
-            let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+            let ExpressionNode::Call(snapshot) =
+                program.expression_table.expression(handle).clone()
+            else {
                 return;
+            };
+            let mut arguments = program
+                .expression_table
+                .expression_handles(snapshot.arguments)
+                .to_vec();
+            for (member, symbol) in subjects.iter().cloned() {
+                arguments.push(insert_subject_name(
+                    &mut program.expression_table,
+                    member,
+                    symbol,
+                ));
+            }
+            let new_arguments = program
+                .expression_table
+                .insert_expression_handles(arguments);
+            let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+                unreachable!();
             };
             call.target_symbol = target;
             call.target = target_name;
+            call.arguments = new_arguments;
             call.machine_arguments = Box::default();
         }
     }
@@ -2250,6 +2451,31 @@ fn clone_specialized_machine(
         .collect();
     symbol_map.extend(state_symbols.iter().copied());
 
+    // A `Value` binder bound to a runtime argument is realized as an ordinary
+    // trailing parameter on every cloned state: executable occurrences remap
+    // to that parameter, and each rewritten call site appends the subject as
+    // an ordinary argument. Static `const` and closed `Value` arguments keep
+    // the literal substitution path and add no parameter.
+    let realized_parameters: Vec<(
+        SymbolHandle,
+        typed_trees::name::Identifier,
+        TypeReferenceHandle,
+    )> = candidate
+        .const_parameters
+        .iter()
+        .zip(&candidate.runtime_value_bindings)
+        .filter_map(|((symbol, name, declared_type), runtime)| {
+            runtime.as_ref().map(|_| {
+                (
+                    *symbol,
+                    typed_trees::name::Identifier::generated(name.clone()),
+                    *declared_type,
+                )
+            })
+        })
+        .collect();
+    let mut state_realized_parameters: Vec<Vec<(SymbolHandle, SymbolHandle)>> = Vec::new();
+
     for (source_state, (_, state_symbol)) in source_states.iter().zip(state_symbols.iter()) {
         let parameters = source
             .unwrap_or(program)
@@ -2271,6 +2497,11 @@ fn clone_specialized_machine(
                 .iter()
                 .map(|parameter| (SymbolKind::Parameter, parameter.name.as_str()))
                 .chain(
+                    realized_parameters
+                        .iter()
+                        .map(|(_, name, _)| (SymbolKind::Parameter, name.as_str())),
+                )
+                .chain(
                     locals
                         .iter()
                         .map(|local| (SymbolKind::Local, local.name.as_str())),
@@ -2283,6 +2514,17 @@ fn clone_specialized_machine(
                 children.next().expect("state-parameter clone symbol"),
             ));
         }
+        state_realized_parameters.push(
+            realized_parameters
+                .iter()
+                .map(|(binder, _, _)| {
+                    (
+                        *binder,
+                        children.next().expect("realized-parameter clone symbol"),
+                    )
+                })
+                .collect(),
+        );
         for local in locals {
             symbol_map.push((local.symbol, children.next().expect("local clone symbol")));
         }
@@ -2389,7 +2631,9 @@ fn clone_specialized_machine(
         program.push_machine_contract(&mut cloned, contract);
     }
 
-    for (source_state, (_, fresh_symbol)) in source_states.iter().zip(state_symbols.iter()) {
+    for (state_index, (source_state, (_, fresh_symbol))) in
+        source_states.iter().zip(state_symbols.iter()).enumerate()
+    {
         let mut state = source_state.clone();
         state.symbol = *fresh_symbol;
         state.parameters = HandleSpan::empty();
@@ -2406,6 +2650,33 @@ fn clone_specialized_machine(
                 &symbol_map,
             );
         }
+        // Executable uses of a runtime-bound `Value` binder read the realized
+        // parameter. The plain map intentionally leaves binder symbols in type
+        // and contract positions alone: those are static contexts, and the
+        // substitution pass rejects them with a dedicated diagnostic.
+        let realized = &state_realized_parameters[state_index];
+        if !realized.is_empty() {
+            for handle in statement_span_handles(state.statement_nodes) {
+                let StatementNode::Call(call) = program.statement_table.statement_mut(handle)
+                else {
+                    continue;
+                };
+                for argument in call.machine_arguments.iter_mut() {
+                    remap_machine_argument_symbols(argument, realized);
+                }
+            }
+            for statement in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .to_vec()
+            {
+                let mut roots = Vec::new();
+                collect_statement_expression_trees(program, &statement, &mut roots);
+                for root in roots {
+                    program.expression_table.remap_symbols_in(root, realized);
+                }
+            }
+        }
         for source_parameter in source
             .unwrap_or(program)
             .state_parameters(source_state)
@@ -2420,6 +2691,23 @@ fn clone_specialized_machine(
                 &symbol_map,
             );
             program.push_state_parameter(&mut state, parameter);
+        }
+        for ((_, name, declared_type), (_, realized_symbol)) in realized_parameters
+            .iter()
+            .zip(state_realized_parameters[state_index].iter())
+        {
+            let type_reference = copy_type_reference(source, program, *declared_type, &symbol_map);
+            program.push_state_parameter(
+                &mut state,
+                typed_trees::signature::StateParameter {
+                    symbol: *realized_symbol,
+                    name: name.clone(),
+                    type_reference,
+                    is_const: false,
+                    is_mutable: false,
+                    is_self: false,
+                },
+            );
         }
         for contract in source
             .unwrap_or(program)
@@ -2446,8 +2734,15 @@ fn clone_specialized_machine(
         program.proof_output_calls.push(call);
     }
     copy_cloned_expression_type_payloads(source, program, expression_start, &symbol_map);
-    const_values::substitute(program, candidate, Some(expression_start))?;
-    substitute_cloned_type_parameters(source, program, candidate, type_start);
+    let cloned_expression_roots = cloned_expression_roots(program, &cloned);
+    const_values::substitute(
+        program,
+        candidate,
+        Some(expression_start),
+        &cloned_expression_roots,
+    )?;
+    substitute_cloned_type_parameters(source, program, candidate, type_start)?;
+    reject_runtime_bound_static_occurrences(program, candidate, &cloned)?;
     rewrite_cloned_calls(
         source,
         program,
@@ -2848,7 +3143,7 @@ fn substitute_cloned_type_parameters(
     program: &mut TypedTrees,
     candidate: &Candidate,
     type_start: usize,
-) {
+) -> Result<(), Diagnostic> {
     for ((parameter_symbol, _), binding) in candidate
         .type_parameters
         .iter()
@@ -2882,6 +3177,12 @@ fn substitute_cloned_type_parameters(
         .const_parameters
         .iter()
         .zip(candidate.const_bindings.iter())
+        .enumerate()
+        .filter_map(|(index, (parameter, binding))| {
+            // A runtime-bound `Value` slot keeps no static value to substitute;
+            // surviving type-position occurrences reject below.
+            (!candidate.runtime_value_bindings[index].is_some()).then_some((parameter, binding))
+        })
     {
         let occurrences: Vec<_> = program
             .type_reference_table
@@ -2912,6 +3213,249 @@ fn substitute_cloned_type_parameters(
     substitute_fixed_array_const_parameters(program, &fixed_array_replacements, Some(type_start));
     substitute_const_index_expression_parameters(program, candidate, Some(type_start));
     substitute_machine_parameter_type_references(program, candidate, Some(type_start));
+    Ok(())
+}
+
+/// Reject a runtime-bound `Value` binder that survives in the clone's static
+/// type, layout, contract, or const positions. An arena index bound cannot
+/// separate clone-owned nodes from shared binding artifacts and template-owned
+/// nodes, so the walk follows the specialization's own type roots instead.
+fn reject_runtime_bound_static_occurrences(
+    program: &TypedTrees,
+    candidate: &Candidate,
+    cloned: &typed_trees::machine::Machine,
+) -> Result<(), Diagnostic> {
+    if candidate.runtime_value_bindings.iter().all(Option::is_none) {
+        return Ok(());
+    }
+    let mut roots = Vec::new();
+    roots.extend(
+        program
+            .machine_owned_data(cloned)
+            .iter()
+            .map(|item| item.type_reference),
+    );
+    for contract in program.machine_contracts(cloned) {
+        collect_contract_type_roots(program, contract, &mut roots);
+    }
+    for state in program.machine_states(cloned) {
+        roots.extend(
+            program
+                .state_parameters(state)
+                .iter()
+                .map(|parameter| parameter.type_reference),
+        );
+        roots.push(state.return_type);
+        for contract in program.state_contracts(state) {
+            collect_contract_type_roots(program, contract, &mut roots);
+        }
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            if let StatementNode::LocalData(local) = statement {
+                roots.push(local.type_reference);
+            }
+            let mut expressions = Vec::new();
+            collect_statement_expression_trees(program, statement, &mut expressions);
+            for expression in expressions {
+                collect_expression_type_roots(program, expression, &mut roots);
+            }
+        }
+    }
+    for ((parameter_symbol, parameter_name, _), runtime) in candidate
+        .const_parameters
+        .iter()
+        .zip(candidate.runtime_value_bindings.iter())
+    {
+        if runtime.is_none() {
+            continue;
+        }
+        if runtime_bound_occurrence_in(program, &roots, *parameter_symbol) {
+            return Err(Diagnostic::error(format!(
+                "value parameter `{parameter_name}` of machine `{}` is bound to a runtime \
+                 argument and cannot determine a static type or layout",
+                candidate.template_name,
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Expression roots reachable from the cloned specialization: executable
+/// statements, owned-data initializers, and contract fact expressions. Runtime
+/// binder occurrences are only meaningful inside this region; template-owned
+/// expressions keep their authored binder spelling.
+fn cloned_expression_roots(
+    program: &TypedTrees,
+    cloned: &typed_trees::machine::Machine,
+) -> Vec<ExpressionHandle> {
+    let mut roots = Vec::new();
+    for item in program.machine_owned_data(cloned) {
+        roots.push(item.initial_value);
+    }
+    for state in program.machine_states(cloned) {
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            collect_statement_expression_trees(program, statement, &mut roots);
+        }
+    }
+    for contract in program.machine_contracts(cloned).iter().chain(
+        program
+            .machine_states(cloned)
+            .iter()
+            .flat_map(|state| program.state_contracts(state)),
+    ) {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            match fact {
+                ProofFact::Expression(expression) => roots.push(*expression),
+                ProofFact::Membership(membership) => roots.push(membership.value),
+                ProofFact::Proposition(application) => roots.extend(
+                    program
+                        .expression_table
+                        .expression_handles(application.arguments),
+                ),
+            }
+        }
+    }
+    roots
+}
+
+fn collect_contract_type_roots(
+    program: &TypedTrees,
+    contract: &typed_trees::signature::SignatureContract,
+    roots: &mut Vec<TypeReferenceHandle>,
+) {
+    for fact in program.proof_facts.span_or_empty(contract.facts) {
+        match fact {
+            ProofFact::Expression(expression) => {
+                collect_expression_type_roots(program, *expression, roots)
+            }
+            ProofFact::Membership(membership) => {
+                roots.extend(
+                    program
+                        .type_reference_table
+                        .type_reference_handles(membership.domain_arguments),
+                );
+                collect_expression_type_roots(program, membership.value, roots);
+            }
+            ProofFact::Proposition(application) => {
+                for argument in program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                {
+                    collect_expression_type_roots(program, *argument, roots);
+                }
+            }
+        }
+    }
+}
+
+fn collect_expression_type_roots(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    roots: &mut Vec<TypeReferenceHandle>,
+) {
+    let mut tree = Vec::new();
+    collect_expression_tree(program, expression, &mut tree);
+    for handle in tree {
+        match program.expression_table.expression(handle) {
+            ExpressionNode::Cast(cast) => {
+                roots.push(cast.target_type);
+                roots.push(cast.result_type);
+                roots.extend(
+                    program
+                        .type_reference_table
+                        .type_reference_handles(cast.semantic_domain_arguments),
+                );
+            }
+            ExpressionNode::ZeroValue(type_reference) => roots.push(*type_reference),
+            _ => {}
+        }
+    }
+}
+
+fn name_mentions_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    let mut tree = Vec::new();
+    collect_expression_tree(program, expression, &mut tree);
+    tree.into_iter().any(|handle| {
+        matches!(
+            program.expression_table.expression(handle),
+            ExpressionNode::Name(path) if path.symbol == symbol
+        )
+    })
+}
+
+fn runtime_bound_occurrence_in(
+    program: &TypedTrees,
+    roots: &[TypeReferenceHandle],
+    parameter_symbol: SymbolHandle,
+) -> bool {
+    let mut pending = roots.to_vec();
+    let mut visited = std::collections::HashSet::new();
+    while let Some(handle) = pending.pop() {
+        if !handle.is_valid() || !visited.insert(handle) {
+            continue;
+        }
+        match program.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::DynamicTrait { symbol, .. }
+                if *symbol == parameter_symbol =>
+            {
+                return true;
+            }
+            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                pending.push(*base_type);
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    match constraint {
+                        TypeConstraintNode::Domain(domain) => {
+                            pending.extend(domain.arguments.iter().copied());
+                        }
+                        TypeConstraintNode::Range {
+                            minimum, maximum, ..
+                        } => {
+                            if name_mentions_symbol(program, *minimum, parameter_symbol)
+                                || name_mentions_symbol(program, *maximum, parameter_symbol)
+                            {
+                                return true;
+                            }
+                        }
+                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
+                    }
+                }
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                if let typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } = length
+                    && *symbol == parameter_symbol
+                {
+                    return true;
+                }
+                pending.push(*element_type);
+            }
+            TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
+            TypeReferenceNode::Generic { arguments, .. } => {
+                pending.extend(
+                    program
+                        .type_reference_table
+                        .type_reference_handles(*arguments),
+                );
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                if name_mentions_symbol(program, *expression, parameter_symbol) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn fixed_array_const_replacements(
@@ -2977,20 +3521,26 @@ fn substitute_const_index_expression_parameters(
         .const_parameters
         .iter()
         .zip(candidate.const_bindings.iter())
-        .filter_map(|((parameter_symbol, parameter_name, _), binding)| {
-            let TypeReferenceNode::Named { symbol, name } = program
-                .type_reference_table
-                .type_reference(binding.expect("complete const specialization"))
-            else {
-                return None;
-            };
-            Some((
-                *parameter_symbol,
-                parameter_name.as_str().to_owned(),
-                *symbol,
-                name.clone(),
-            ))
-        })
+        .enumerate()
+        .filter_map(
+            |(index, ((parameter_symbol, parameter_name, _), binding))| {
+                if candidate.runtime_value_bindings[index].is_some() {
+                    return None;
+                }
+                let TypeReferenceNode::Named { symbol, name } = program
+                    .type_reference_table
+                    .type_reference(binding.expect("complete const specialization"))
+                else {
+                    return None;
+                };
+                Some((
+                    *parameter_symbol,
+                    parameter_name.as_str().to_owned(),
+                    *symbol,
+                    name.clone(),
+                ))
+            },
+        )
         .collect::<Vec<_>>();
     if replacements.is_empty() {
         return;
@@ -3312,6 +3862,21 @@ fn substitute_machine_parameter_type_references(
     }
 }
 
+/// Remap a static-argument's lexical identity, descending into nested static
+/// applications. A runtime-bound `Value` binder forwards to the enclosing
+/// specialization's realized parameter rather than to a static value.
+fn remap_machine_argument_symbols(
+    argument: &mut StaticMachineArgument,
+    symbols: &[(SymbolHandle, SymbolHandle)],
+) {
+    argument.symbol = remapped_symbol(argument.symbol, symbols);
+    if let Some(application) = &mut argument.application {
+        for nested in application.arguments.iter_mut() {
+            remap_machine_argument_symbols(nested, symbols);
+        }
+    }
+}
+
 fn substitute_forwarded_machine_arguments(
     arguments: &mut [StaticMachineArgument],
     static_rewrites: &[(SymbolHandle, StaticMachineArgument)],
@@ -3357,7 +3922,13 @@ fn forwarded_static_argument_rewrites(
                 .const_parameters
                 .iter()
                 .zip(candidate.const_bindings.iter())
-                .filter_map(|((parameter, _, _), binding)| {
+                .enumerate()
+                .filter_map(|(index, ((parameter, _, _), binding))| {
+                    // A runtime-bound `Value` slot forwards its realized
+                    // parameter symbol, never the carrier type.
+                    if candidate.runtime_value_bindings[index].is_some() {
+                        return None;
+                    }
                     let binding = binding.as_ref().copied()?;
                     let argument = if let Some(literal) =
                         static_const_literal_from_type_reference(program, binding)
@@ -3698,6 +4269,30 @@ fn rewrite_cloned_calls(
             else {
                 continue;
             };
+            // A call selecting a sibling specialization state forwards each
+            // runtime-bound `Value` subject as an ordinary argument.
+            let clone_state_arguments = if state_symbols
+                .iter()
+                .any(|(_, concrete)| *concrete == snapshot.target_symbol)
+            {
+                let subjects = runtime_value_subjects(program, &state, &snapshot.machine_arguments);
+                (!subjects.is_empty()).then(|| {
+                    let mut arguments = program
+                        .statement_table
+                        .expression_handles(snapshot.arguments)
+                        .to_vec();
+                    for (member, symbol) in subjects.iter().cloned() {
+                        arguments.push(insert_subject_name(
+                            &mut program.expression_table,
+                            member,
+                            symbol,
+                        ));
+                    }
+                    program.statement_table.insert_expression_handles(arguments)
+                })
+            } else {
+                None
+            };
             let evidence_dispatch = evidence_target_rewrites
                 .iter()
                 .find(|rewrite| rewrite.placeholder == snapshot.target_symbol);
@@ -3764,6 +4359,9 @@ fn rewrite_cloned_calls(
                 .iter()
                 .any(|(_, concrete)| *concrete == call.target_symbol)
             {
+                if let Some(arguments) = clone_state_arguments {
+                    call.arguments = arguments;
+                }
                 call.machine_arguments = Box::default();
             }
         }
@@ -3775,6 +4373,38 @@ fn rewrite_cloned_calls(
         .map(|(handle, _)| handle)
         .collect();
     for handle in handles {
+        let clone_state_arguments = match program.expression_table.expression(handle).clone() {
+            ExpressionNode::Call(snapshot)
+                if state_symbols
+                    .iter()
+                    .any(|(_, concrete)| *concrete == snapshot.target_symbol) =>
+            {
+                let subjects = clone_state_containing(
+                    program,
+                    program.machine_states.span_or_empty(states),
+                    handle,
+                )
+                .map(|state| runtime_value_subjects(program, state, &snapshot.machine_arguments))
+                .unwrap_or_default();
+                (!subjects.is_empty()).then(|| {
+                    let mut arguments = program
+                        .expression_table
+                        .expression_handles(snapshot.arguments)
+                        .to_vec();
+                    for (member, symbol) in subjects.iter().cloned() {
+                        arguments.push(insert_subject_name(
+                            &mut program.expression_table,
+                            member,
+                            symbol,
+                        ));
+                    }
+                    program
+                        .expression_table
+                        .insert_expression_handles(arguments)
+                })
+            }
+            _ => None,
+        };
         let evidence_dispatch = match program.expression_table.expression(handle) {
             ExpressionNode::Call(call) => evidence_target_rewrites
                 .iter()
@@ -3827,6 +4457,9 @@ fn rewrite_cloned_calls(
             .iter()
             .any(|(_, concrete)| *concrete == call.target_symbol)
         {
+            if let Some(arguments) = clone_state_arguments {
+                call.arguments = arguments;
+            }
             call.machine_arguments = Box::default();
         }
     }

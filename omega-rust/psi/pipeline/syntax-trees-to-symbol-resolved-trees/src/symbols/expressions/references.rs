@@ -15,7 +15,7 @@ use super::super::scoped_paths::{
 };
 use super::super::targets::{
     assign_provider_selection_argument_symbol, assign_representation_selection_argument_symbol,
-    assign_static_argument_symbols,
+    assign_runtime_subject_argument_symbol, assign_static_argument_symbols,
 };
 
 /// The spelled member names of a `self`-rooted receiver path, root -> leaf
@@ -164,6 +164,9 @@ pub(super) fn assign_call_symbol(
                         SymbolKind::Proposition | SymbolKind::PropositionParameter
                     );
                 assign_static_argument_symbols(symbols, machine.symbol, argument, proof_static);
+                if !proof_static {
+                    assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
+                }
             }
         }
     }

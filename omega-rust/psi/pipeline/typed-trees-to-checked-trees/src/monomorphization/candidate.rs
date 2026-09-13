@@ -66,6 +66,7 @@ pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candid
             .collect(),
         type_bindings: vec![None; type_parameters.len()],
         const_bindings: vec![None; const_parameters.len()],
+        runtime_value_bindings: vec![None; const_parameters.len()],
         machine_bindings: vec![None; machine_parameters.len()],
         evidence_bindings: vec![None; evidence_parameters.len()],
         type_parameters,

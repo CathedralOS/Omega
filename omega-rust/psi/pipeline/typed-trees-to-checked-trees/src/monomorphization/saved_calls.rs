@@ -56,11 +56,18 @@ pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Ma
         };
         // A cloned callee may exist only in the live graph. Obtain its name
         // there, then rewrite only this saved executable occurrence.
+        let subjects = selection
+            .runtime_value_bindings
+            .iter()
+            .flatten()
+            .filter_map(|argument| Some((argument.path.first()?.clone(), argument.symbol)))
+            .collect::<Vec<_>>();
         super::rewrite_selected_call_with_name(
             source,
             selection.site,
             state.symbol,
             state.name.clone(),
+            &subjects,
         );
     }
 }

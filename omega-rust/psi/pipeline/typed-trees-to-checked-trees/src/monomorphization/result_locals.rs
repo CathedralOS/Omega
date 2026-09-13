@@ -74,6 +74,12 @@ pub(super) fn refresh_generic_call_results(
             .zip(&candidate.const_bindings)
             .enumerate()
         {
+            // A runtime-bound `Value` slot binds its declared carrier, not a
+            // forwardable static subject; its realized parameter carries the
+            // call's value into the result type through ordinary checking.
+            if candidate.runtime_value_bindings[ordinal].is_some() {
+                continue;
+            }
             if let Some(binding) = binding
                 && let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
                     program.type_reference_table.type_reference(*binding)
@@ -118,9 +124,13 @@ pub(super) fn refresh_generic_call_results(
         // callee's unbound parameters or the inferred destination as evidence.
         let selected_return =
             super::copy_type_reference(None, program, return_type, &forwarded_symbols);
-        super::const_values::substitute(program, &candidate, Some(expression_start))
+        // A runtime-bound `Value` slot cannot appear in an open caller's
+        // inferred result: forwarded selections only bind static subjects, so
+        // the runtime-expression root list stays empty here.
+        super::const_values::substitute(program, &candidate, Some(expression_start), &[])
             .map_err(|error| vec![error])?;
-        super::substitute_cloned_type_parameters(None, program, &candidate, type_start);
+        super::substitute_cloned_type_parameters(None, program, &candidate, type_start)
+            .map_err(|error| vec![error])?;
         if let StatementNode::LocalData(local) =
             &mut program.statement_table.statements_mut(body)[offset]
         {
@@ -164,10 +174,12 @@ fn forwarded_result_selection(
         &call.machine_arguments,
         program.expression_table.expression_handles(call.arguments),
         None,
+        usize::MAX,
         &mut Vec::new(),
         &mut Vec::new(),
         &mut Vec::new(),
         &mut const_proposals,
+        &mut Vec::new(),
     );
     let mut selected = selection.clone();
     for (_, ordinal, binding) in const_proposals {
