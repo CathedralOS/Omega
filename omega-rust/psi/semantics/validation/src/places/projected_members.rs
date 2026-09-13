@@ -31,10 +31,23 @@ pub(super) fn declared_case_projection_type(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
+    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+        return declared_place_type_raw(program, machine, state, borrow.target);
+    }
+    declared_case_projection_field(program, machine, state, expression)
+        .map(|field| field.type_reference)
+}
+
+/// The exact payload/common field a case-tagged member projection resolves to.
+/// Same receiver/declaration walk as the type query; returning the field keeps
+/// the declaration symbol (an operand identity) alongside its declared type.
+pub(crate) fn declared_case_projection_field<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> Option<&'program typed_trees::data::DataField> {
     let member = match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(borrow) => {
-            return declared_place_type_raw(program, machine, state, borrow.target);
-        }
         ExpressionNode::Member(member) => member,
         _ => return None,
     };
@@ -76,7 +89,6 @@ pub(super) fn declared_case_projection_type(
         member.member.as_str(),
         member.case_variant.as_ref().map(|variant| variant.as_str()),
     )
-    .map(|field| field.type_reference)
 }
 
 /// Select one field under the receiver's nominal declaration and, for a

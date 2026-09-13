@@ -459,6 +459,7 @@ pub(crate) use member_paths::{
     data_definition_for_type, declared_member_path_type, first_unknown_nested_field,
     nested_receiver_type_name,
 };
+pub(crate) use projected_members::declared_case_projection_field;
 pub use projected_members::exact_data_member_field;
 pub(crate) use result_shape::expression_result_is_reference;
 

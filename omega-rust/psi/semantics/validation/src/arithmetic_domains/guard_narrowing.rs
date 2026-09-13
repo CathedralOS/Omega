@@ -10,6 +10,7 @@ use super::*;
 
 mod arrivals;
 use crate::bound_expression_meaning as meaning;
+mod case_facts;
 mod parameter_bounds;
 pub use arrivals::arrival_integer_expression_bounds;
 
@@ -399,6 +400,35 @@ pub(super) fn narrow_env_by_condition(
         }
         BinaryOperator::And | BinaryOperator::Or => return,
         _ => {}
+    }
+    // CASE-CONSTRAINTS: a selected arm whose guard proves `subject in
+    // Type::Case` establishes that case's `where` facts on the subject for
+    // everything the arm evaluates -- dispatch proved the case, so its facts
+    // are premises at this point. Both spellings reach here: the generated
+    // tag test (`CaseMembership`) and the membership/`Type::Case` arm
+    // desugar, which lowers to `Equal` against a case classifier. The
+    // membership's own legality is checked elsewhere; a negated membership
+    // contributes nothing (case exclusion is coverage work, not a fact
+    // premise), and a classifierless equality keeps its ordinary path.
+    let membership_subject = match comparison.operator {
+        BinaryOperator::CaseMembership => Some(comparison.left),
+        BinaryOperator::Equal
+            if meaning::exact_case_reference_owner(program, comparison.right).is_some() =>
+        {
+            Some(comparison.left)
+        }
+        _ => None,
+    };
+    if positive && let Some(subject) = membership_subject {
+        case_facts::contribute_case_where_facts(
+            program,
+            machine,
+            state,
+            env,
+            subject,
+            comparison.right,
+        );
+        return;
     }
     // An authored comparison does not imply the primitive comparison
     // relation, even when one operand happens to be a literal or singleton.
