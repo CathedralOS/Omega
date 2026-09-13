@@ -15,18 +15,24 @@ name = "abstract-operations-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "checked-trees-to-lowered-psi",
  "optimization",
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
  "proof-admission",
  "semantic-vocabulary",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
  "terminal-fuel",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
  "terminal-verifier",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
 ]
 
 [[package]]

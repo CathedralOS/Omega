@@ -18,7 +18,7 @@ fn fixed_boundary_reach_is_encoded_before_published_ceiling() {
         published_service_ceiling: vec![service],
     };
     let encode = |declaration: &BoundaryMachineDeclaration| {
-        let mut bytes = CanonicalBytes::default();
+        let mut bytes = CanonicalBytes::collect();
         encode_boundary_machine(&mut bytes, declaration);
         bytes.finish()
     };
@@ -26,7 +26,7 @@ fn fixed_boundary_reach_is_encoded_before_published_ceiling() {
     boundary.fixed_service_reach.push(service);
     let changed = encode(&boundary);
     assert_ne!(original, changed);
-    let mut rows = CanonicalBytes::default();
+    let mut rows = CanonicalBytes::collect();
     encode_ids(&mut rows, &boundary.fixed_service_reach);
     encode_ids(&mut rows, &boundary.published_service_ceiling);
     assert!(changed.ends_with(&rows.finish()));

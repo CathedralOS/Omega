@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn retained_block_place_identity_binds_block_and_position() {
     let encode = |block, position| {
-        let mut bytes = CanonicalBytes::default();
+        let mut bytes = CanonicalBytes::collect();
         encode_place_declaration(
             &mut bytes,
             StructuralPlaceDeclaration {

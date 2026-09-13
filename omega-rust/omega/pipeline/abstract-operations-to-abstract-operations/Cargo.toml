@@ -22,3 +22,11 @@ terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
 terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
+
+[dev-dependencies]
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
+source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }

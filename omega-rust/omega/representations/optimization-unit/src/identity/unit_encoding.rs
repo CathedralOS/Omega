@@ -11,16 +11,36 @@ const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
 pub fn structural_domain_catalog_identity(
     domains: &[StructuralDomainDeclaration],
 ) -> OptimizationUnitIdentity {
-    let mut bytes = CanonicalBytes::default();
+    let mut length = CanonicalBytes::length();
+    encode_structural_domain_catalog(&mut length, domains);
+    let mut digest = CanonicalBytes::digest(OptimizationUnitIdentity::canonical_encoder(
+        length.finish_length(),
+    ));
+    encode_structural_domain_catalog(&mut digest, domains);
+    OptimizationUnitIdentity::from_canonical_encoder(digest.finish_digest())
+}
+
+fn encode_structural_domain_catalog(
+    bytes: &mut CanonicalBytes,
+    domains: &[StructuralDomainDeclaration],
+) {
     bytes.bytes(STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN);
     bytes.slice(domains, encode_structural_domain);
-    OptimizationUnitIdentity::from_canonical_bytes(&bytes.finish())
 }
 
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,
 ) -> OptimizationUnitIdentity {
-    let mut bytes = CanonicalBytes::default();
+    let mut length = CanonicalBytes::length();
+    encode_unit(&mut length, unit);
+    let mut digest = CanonicalBytes::digest(OptimizationUnitIdentity::canonical_encoder(
+        length.finish_length(),
+    ));
+    encode_unit(&mut digest, unit);
+    OptimizationUnitIdentity::from_canonical_encoder(digest.finish_digest())
+}
+
+fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
     bytes.bytes(UNIT_IDENTITY_DOMAIN);
     bytes.u16(unit.psi.vocabulary_marker.get());
     bytes.bytes(unit.psi.program_fingerprint.as_bytes());
@@ -29,7 +49,7 @@ pub fn recompute_psi_optimization_unit_identity(
     bytes.slice(&unit.structural_types, encode_structural_type);
     bytes.slice(unit.structural_domains.as_ref(), encode_structural_domain);
     bytes.slice(unit.services.as_ref(), encode_service_declaration);
-    encode_root_service_reach(&mut bytes, &unit.root_service_reach);
+    encode_root_service_reach(bytes, &unit.root_service_reach);
     bytes.slice(&unit.boundary_machines, encode_boundary_machine);
     bytes.slice(&unit.provider_candidates, encode_provider_candidate);
     bytes.slice(&unit.accepted_obligation_facts, encode_accepted_fact);
@@ -43,7 +63,22 @@ pub fn recompute_psi_optimization_unit_identity(
         bytes.u32(custody.source_ordinal);
     });
     bytes.slice(&unit.functions, encode_function);
-    OptimizationUnitIdentity::from_canonical_bytes(&bytes.finish())
+}
+
+#[cfg(test)]
+pub(crate) fn collect_unit_canonical_bytes(unit: &PsiOptimizationUnit) -> Vec<u8> {
+    let mut bytes = CanonicalBytes::collect();
+    encode_unit(&mut bytes, unit);
+    bytes.finish()
+}
+
+#[cfg(test)]
+pub(crate) fn collect_structural_domain_catalog_bytes(
+    domains: &[StructuralDomainDeclaration],
+) -> Vec<u8> {
+    let mut bytes = CanonicalBytes::collect();
+    encode_structural_domain_catalog(&mut bytes, domains);
+    bytes.finish()
 }
 
 fn encode_service_declaration(bytes: &mut CanonicalBytes, service: &ServiceDeclaration) {
@@ -60,20 +95,71 @@ fn encode_root_service_reach(bytes: &mut CanonicalBytes, reach: &TerminalRootSer
     });
 }
 
-#[derive(Default)]
-pub(super) struct CanonicalBytes(Vec<u8>);
+/// Canonical byte-stream target. The identity digest frames content as
+/// `domain || u64 length || bytes`, so the length must be known before any
+/// content byte is hashed. `Length` counts that first pass and `Digest`
+/// streams the identical sequence into the identity encoder; both run the
+/// same deterministic walk, which keeps the streamed bytes exactly equal to
+/// the old whole-buffer encoding without materializing it.
+pub(super) enum CanonicalBytes {
+    Length(usize),
+    Digest(optimization_core::CanonicalIdentityEncoder),
+    /// Byte-level tests still inspect the literal encoding; production
+    /// identities never take this target.
+    #[allow(dead_code)]
+    Collect(Vec<u8>),
+}
 
 impl CanonicalBytes {
+    fn length() -> Self {
+        Self::Length(0)
+    }
+
+    fn digest(encoder: optimization_core::CanonicalIdentityEncoder) -> Self {
+        Self::Digest(encoder)
+    }
+
+    #[cfg(test)]
+    pub(super) fn collect() -> Self {
+        Self::Collect(Vec::new())
+    }
+
+    #[cfg(test)]
     pub(super) fn finish(self) -> Vec<u8> {
-        self.0
+        match self {
+            Self::Collect(bytes) => bytes,
+            _ => unreachable!("collect target precedes byte inspection"),
+        }
+    }
+
+    fn finish_length(self) -> u64 {
+        match self {
+            Self::Length(length) => {
+                u64::try_from(length).expect("canonical optimization-unit length fits u64")
+            }
+            Self::Digest(_) => unreachable!("digest pass follows the completed length pass"),
+            Self::Collect(_) => unreachable!("byte collection is test-only"),
+        }
+    }
+
+    fn finish_digest(self) -> optimization_core::CanonicalIdentityEncoder {
+        match self {
+            Self::Digest(encoder) => encoder,
+            Self::Length(_) => unreachable!("length pass precedes the digest pass"),
+            Self::Collect(_) => unreachable!("byte collection is test-only"),
+        }
     }
 
     pub(super) fn bytes(&mut self, bytes: &[u8]) {
-        self.0.extend_from_slice(bytes);
+        match self {
+            Self::Length(length) => *length += bytes.len(),
+            Self::Digest(encoder) => encoder.update(bytes),
+            Self::Collect(buffer) => buffer.extend_from_slice(bytes),
+        }
     }
 
     pub(super) fn u8(&mut self, value: u8) {
-        self.0.push(value);
+        self.bytes(&[value]);
     }
 
     pub(super) fn boolean(&mut self, value: bool) {
