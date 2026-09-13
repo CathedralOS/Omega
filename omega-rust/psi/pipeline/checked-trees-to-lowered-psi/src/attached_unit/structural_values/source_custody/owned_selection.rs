@@ -154,7 +154,7 @@ pub(super) fn validate_receipt(
             return unsupported("selected ownership reused or substituted a transfer occurrence");
         }
         let source = ownership.selection_sources.get(transfer.source);
-        if validation::scalar_case_value_source(&checked.typed, transfer.expression, reference)
+        if validation::plain_owned_value_source(&checked.typed, transfer.expression, reference)
             != Some(source.symbol)
         {
             return unsupported("selected ownership changed the authored source place");

@@ -86,12 +86,14 @@ carriers, child types, range obligations, shape, and storage offsets. Selection
 initializes complete storage before publishing its address; nested copies use exact
 child extents and incoming owned values use their captured ABI storage. Calls borrowing
 a local record retain the original home. Direct and hidden-pointer aggregate results
-use the same calling-plan custody. Scalar-field record block arrivals retain the
-existing aggregate edge transport. Nested record block arrivals remain unsupported;
+use the same calling-plan custody. Record block arrivals, including nested records,
+retain the existing aggregate edge transport and their own destination storage;
 no literal-only constructor or separate record storage graph is retained.
 
 Shared calls can borrow a constructed plain record's existing home, including
-one produced by an ordinary call. The borrow passes its address, not copied
+one produced by an ordinary call or selected at a block join. Shared field loans
+from joined records retain the exact block home and declaration-derived offset.
+The borrow passes its address, not copied
 field values. An affine owner remains affine while its shared loan has
 unrestricted multiplicity; cleanup and transfer obligations stay with the owner.
 Integer and Boolean field observations use the common graph's explicit field-read

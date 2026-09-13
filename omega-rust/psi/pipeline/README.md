@@ -21,8 +21,13 @@ The [dispatch contract](../../../wiki/spec/language/patterns.md) is broader than
 the current implementation. Wildcards and complete Boolean value alternatives
 close coverage. Runtime scalar lowering currently supports Boolean/integer
 subjects and Boolean/integer/float results; an anonymous-only numeric subject has no invented default width.
-Structural/domain/payload patterns and joins that conditionally transfer
-existing owned values remain explicit limitations. Source checking permits fresh
+Structural/domain/payload patterns remain explicit limitations. Conditional joins
+can select whole immutable plain-affine locals alongside fresh scalar-case or
+record constructors. Fresh record children can contain their own dispatch without
+consuming the outer candidates; exact edge transfers and residual disposal remain
+mandatory. The [record selection fixture](../../../tests/omega/pass/expressions/owned_match_record_values/README.md)
+exercises independent Terminal replay and native payload observation.
+Source checking permits fresh
 plain-owned constructors, including nested records, sums and arrays, on selected
 result paths. Each child must be fresh or unrestricted; loans, linear contents,
 nominal cleanup and owned call results still require their missing custody join.

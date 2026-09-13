@@ -532,18 +532,10 @@ pub(super) fn block_parameter_shape(
         .structural_types
         .iter()
         .find(|declaration| declaration.id == parameter.structural_type)?;
-    if let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape {
-        if fields.iter().any(|field| {
-            field.relevance.is_erased()
-                || !matches!(
-                    field.field_type,
-                    terminal_psi::StructuralFieldType::Scalar(_)
-                        | terminal_psi::StructuralFieldType::IeeeFloat(_)
-                )
-        }) {
-            return None;
-        }
-        return crate::structural_reference_input::shape(
+    if let terminal_psi::StructuralTypeShape::Record { .. } = &declaration.shape {
+        // A join carries the complete owned payload, including nested records;
+        // it does not change the geometry established by record construction.
+        return crate::structural_reference_input::plain_record_shape(
             parameter.structural_type,
             &source.structural.as_ref()?.structural_types,
         );

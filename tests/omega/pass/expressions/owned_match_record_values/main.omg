@@ -1,0 +1,27 @@
+data Payload { left: u64; right: u64; }
+data Envelope { leading: u64; payload: Payload; }
+machine Payload::get_right(&self) -> u64 { self.right }
+
+machine choose(selected: u64, inner: bool, first: u64, second: u64) -> u64 {
+    let marker: Payload = Payload { left: 37, right: 91 };
+    let left: Envelope = Envelope {
+        leading: first,
+        payload: Payload { left: first, right: second }
+    };
+    let right: Envelope = Envelope {
+        leading: second,
+        payload: Payload { left: second, right: first }
+    };
+    let result: Envelope = match selected {
+        0 -> left,
+        1 -> right,
+        _ -> Envelope {
+            payload: match inner {
+                true -> Payload { right: first ^ 255, left: second },
+                false -> Payload { right: second ^ 255, left: first }
+            },
+            leading: first
+        }
+    };
+    result.payload.get_right() ^ marker.left
+}

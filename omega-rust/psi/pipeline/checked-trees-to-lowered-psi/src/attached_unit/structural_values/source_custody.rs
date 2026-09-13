@@ -243,9 +243,6 @@ pub(crate) fn validate(
                 data_symbol,
                 fields,
             } => {
-                if selection.is_some() {
-                    return unsupported("selected ownership mixes fresh and existing obligations");
-                }
                 let ExpressionNode::StructLiteral(literal) =
                     checked.expression_table.expression(expression)
                 else {

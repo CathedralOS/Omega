@@ -130,7 +130,7 @@ pub(crate) fn build_checked_value_computation_plans(
                                 program.expression_table.expression(expression),
                                 ExpressionNode::Name(_)
                             ))
-                        || matches!(program.expression_table.expression(expression), ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none()))
+                        || structural_values::is_record_value(program, expression, expected))
                     && let Some(root) =
                         builder.structural_value(expression, expected, &mut structural_values, pure)
                 {

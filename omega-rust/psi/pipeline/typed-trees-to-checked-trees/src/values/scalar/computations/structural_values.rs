@@ -9,6 +9,62 @@ use checked_trees::{
 };
 use typed_trees::expression::MatchPattern;
 
+// Classify the destination before inserting scalar operand roots. A scalar or
+// array Match must not leave partial structural plans when a later arm fails.
+pub(super) fn is_record_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::StructLiteral(_) | ExpressionNode::Match(_)
+    ) {
+        return false;
+    }
+    let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
+        return false;
+    };
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return false;
+    };
+    let Some(record) = program
+        .data_definitions()
+        .iter()
+        .find(|record| record.symbol == *symbol)
+    else {
+        return false;
+    };
+    if program
+        .data_members(record)
+        .iter()
+        .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
+    {
+        return false;
+    }
+    let mut pending = vec![expression];
+    while let Some(expression) = pending.pop() {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::StructLiteral(literal)
+                if literal.case_symbol.is_none() && literal.type_symbol == *symbol => {}
+            ExpressionNode::Name(_)
+                if validation::plain_owned_value_source(program, expression, expected)
+                    .is_some() => {}
+            ExpressionNode::Match(dispatch) => {
+                let arms = program.expression_table.match_arms(dispatch.arms);
+                if arms.is_empty() {
+                    return false;
+                }
+                pending.extend(arms.iter().map(|arm| arm.value));
+            }
+            _ => return false,
+        }
+    }
+    true
+}
+
 impl Builder<'_, '_> {
     pub(super) fn structural_value(
         &mut self,

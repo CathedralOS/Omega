@@ -54,7 +54,8 @@ pub enum TargetStructuralArgumentSource {
         psi_operation: semantic_vocabulary::OperationId,
     },
     Placement(ValuePlacement),
-    /// The current descriptor bound at this exact block entry, not a producer operation.
+    /// Storage bound at this exact block entry, not a producer operation. The
+    /// declaration distinguishes an owned aggregate home from a view descriptor.
     BlockParameter {
         block: semantic_vocabulary::BlockId,
         place: PlaceId,
