@@ -768,10 +768,11 @@ Owners include
   evidence. Source crash predicates currently lower through fixed-width
   `ScalarTerm`; proof-only mathematical terms do not imply an authored
   mathematical guard route.
-  Boundary crash observation profiles, guarded refinement of crashing providers,
-  and Omega projection remain open. The edge-only `TerminalTraceV1` profile and
-  Omega projection reject nonempty boundary routes; crash-free providers can
-  already refine a may-crash requirement. Extend the source-to-execution controls above
+  Boundary crash observation profiles and Omega projection remain open. The
+  edge-only `TerminalTraceV1` profile and Omega projection reject nonempty
+  boundary routes; crashing providers now refine a ceiling that covers their
+  positionally substituted routes (terminal-verifier `calls` provider
+  conformance). Extend the source-to-execution controls above
   while preserving exact call sites, guard actuals, abandoned claims, staged
   writeback and no-result/no-cleanup behavior.
   Carry qualified scalar results and the remaining normal-contract vocabulary
