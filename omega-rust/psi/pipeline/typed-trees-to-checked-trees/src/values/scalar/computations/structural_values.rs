@@ -51,10 +51,13 @@ impl Builder<'_, '_> {
             let returned = crate::flow::call_target_return_type(self.program, call.target_symbol)?;
             if self.program.normalized_type_identity(returned)
                 != self.program.normalized_type_identity(expected)
-                || !validation::has_plain_owned_contents_with_numeric_constraints(
+                || !(validation::has_plain_owned_contents_with_numeric_constraints(
                     self.program,
                     returned,
-                )
+                ) || validation::reference_result_custody::is_reference_record(
+                    self.program,
+                    returned,
+                ))
             {
                 return None;
             }

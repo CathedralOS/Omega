@@ -294,9 +294,7 @@ fn local_reference_record_rejects_conflicting_original_access() {
     assert!(typed_trees_to_checked_trees::lower_typed_trees(typed(source)).is_err());
 }
 
-#[test]
-fn stored_reference_result_still_requires_terminal_custody() {
-    let source = "data View { body: &mut i32; }
+const STORED_REFERENCE_SOURCE: &str = "data View { body: &mut i32; }
         machine make_view(value: &mut i32) -> View { View { body: value } }
         machine replace(value: &mut i32) { value = 29; }
         machine exercise(value: &mut i32) -> i32 {
@@ -304,25 +302,171 @@ fn stored_reference_result_still_requires_terminal_custody() {
             replace(held.body);
             value
         }";
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(source))
+
+#[test]
+fn stored_reference_result_preserves_original_storage() {
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(STORED_REFERENCE_SOURCE))
         .unwrap_or_else(|diagnostics| panic!("stored-reference checking: {diagnostics:#?}"));
-    // Source forwarding is legal, but type correctness must not substitute for
-    // the missing source-produced returned-leaf origin maps.
-    // Replace this fence with execute(&artifact, 1, 1) when those joins exist.
-    let error = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
         .produce_artifact()
-        .expect_err("stored-reference transport still needs a real Terminal producer");
-    assert!(
-        matches!(
-            error,
-            terminal_production::TerminalArtifactProductionError::Lowering(
-                checked_trees_to_lowered_psi::LoweringError::Unsupported(
-                    "machine has no source-independent checked scalar control plan"
-                )
-            )
-        ),
-        "{error:?}"
+        .expect("stored result carries exact returned leaf origins");
+    execute(&artifact, 1, 1);
+}
+
+#[test]
+fn stored_reference_result_composes_with_an_ordinary_effect() {
+    let source = "data View { body: &mut i32; }
+        machine mark(value: &mut i32) { value = 11; }
+        machine make_view(value: &mut i32) -> View { mark(value); View { body: value } }
+        machine replace(value: &mut i32) { value = 29; }
+        machine exercise(value: &mut i32) -> i32 {
+            let held: View = make_view(value);
+            replace(held.body);
+            value
+        }";
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(source)).unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_artifact()
+        .expect("ordinary effect precedes reference record completion");
+    execute(&artifact, 2, 1);
+}
+
+#[test]
+fn stored_reference_result_rejoins_full_formal_positions() {
+    let source = "data View { body: &mut i32; }
+        machine make_view(ignored: i32, value: &mut i32) -> View { View { body: value } }
+        machine replace(value: &mut i32) { value = 29; }
+        machine exercise(value: &mut i32) -> i32 {
+            let held: View = make_view(17, value);
+            replace(held.body);
+            value
+        }";
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(source)).unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_artifact()
+        .expect("structural ordinal rejoins its full authored argument position");
+    execute(&artifact, 1, 1);
+}
+
+#[test]
+fn stored_reference_result_rejects_changed_return_and_actual_origins() {
+    use checked_trees::{
+        CheckedStructuralValueKind as Value, CheckedUnitEffectOperationPlan as Operation,
+        CheckedUnitStructuralArgumentSourcePlan as Source,
+    };
+    let source = format!(
+        "{STORED_REFERENCE_SOURCE}
+        machine alternate(value: &mut i32) -> View {{ View {{ body: value }} }}"
     );
+    let original = typed_trees_to_checked_trees::lower_typed_trees(typed(&source)).unwrap();
+    let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
+        .produce_artifact()
+        .expect("unmodified same-typed helper roster");
+    let helper = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "make_view")
+        .unwrap();
+    let helper_state = &original.machine_states(helper)[0];
+    let alternate = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "alternate")
+        .unwrap();
+    let alternate_state = original.machine_states(alternate)[0].symbol;
+    let alternate_contract = original
+        .facts
+        .contract_plans
+        .for_machine(alternate.symbol)
+        .unwrap();
+    let loan = original.facts.borrow.loans.iter().next().unwrap().0;
+    let values = &original.facts.values.structural_values;
+    let root = values.root_at(helper_state.symbol, 0).unwrap();
+    let Value::Record { fields, .. } = values.nodes.get(root.root).kind else {
+        unreachable!()
+    };
+    let checked_trees::CheckedStructuralRecordFieldValue::Structural(leaf) =
+        values.record_fields.span(fields).unwrap()[0].value
+    else {
+        unreachable!()
+    };
+    for mutation in 0..7 {
+        let mut changed = original.clone();
+        match mutation {
+            0 | 1 | 5 | 6 => {
+                let returned = changed
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .machines
+                    .iter_mut()
+                    .find(|machine| machine.state == helper_state.symbol)
+                    .unwrap()
+                    .structural_result
+                    .as_mut()
+                    .unwrap();
+                match mutation {
+                    0 => returned.reference_sources[0].path.clear(),
+                    1 | 6 => {
+                        returned.reference_sources[0].source.source =
+                            Source::Parameter { parameter_index: 1 }
+                    }
+                    5 => {
+                        returned.source = Source::StructuralResult {
+                            binding_ordinal: 99,
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+                if mutation == 6 {
+                    let Value::Reference { source } = &mut changed
+                        .facts
+                        .values
+                        .structural_values
+                        .nodes
+                        .get_mut(leaf)
+                        .kind
+                    else {
+                        unreachable!()
+                    };
+                    source.source = Source::Parameter { parameter_index: 1 };
+                }
+            }
+            2 => {
+                let Value::Reference { source } = &mut changed
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get_mut(leaf)
+                    .kind
+                else {
+                    unreachable!()
+                };
+                source.source = Source::Parameter { parameter_index: 1 };
+            }
+            3 => {
+                changed.facts.borrow.loans.get_mut(loan).root_symbol =
+                    original.state_parameters(helper_state)[0].symbol
+            }
+            4 => {
+                let Operation::StructuralCall { target_machine, target_state, target_contract_report_fingerprint, target_contract_commitment, .. } =
+                    changed.facts.flow.terminal_unit_effects.machines.iter_mut().flat_map(|machine| &mut machine.operations)
+                        .find(|operation| matches!(operation, Operation::StructuralCall { target_state, .. } if *target_state == helper_state.symbol)).unwrap() else { unreachable!() };
+                *target_machine = alternate.symbol;
+                *target_state = alternate_state;
+                *target_contract_report_fingerprint = alternate_contract.report_fingerprint;
+                *target_contract_commitment = alternate_contract.commitment;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
+                .produce_artifact()
+                .is_err(),
+            "mutation {mutation} cannot replace exact returned or caller origins"
+        );
+    }
 }
 
 #[test]

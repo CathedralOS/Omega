@@ -1566,10 +1566,12 @@ Owners include
   relocate runtime descriptors without copying referents, and reject nested
   reference host interfaces until their custody exists. Reuse existing typed
   projection/result maps; structural-element array construction remains a
-  further dependency beyond the record route. Keep the full-checking rejection
-  control in
-  `typed-trees-to-checked-trees/src/tests/borrow/carrier_results.rs` until the
-  unchanged reference-bearing customer executes from encoded Terminal evidence.
+  further dependency beyond the record route. The full-checking rejection
+  controls in `typed-trees-to-checked-trees/src/tests/borrow/carrier_results.rs`
+  cover nested `select(forward_outer(...).inner)` and
+  `select(forward_array(...)[0])` calls, not the simpler `make_view` binding.
+  Keep those controls until their corresponding unchanged source cases execute
+  from encoded Terminal evidence, including their aggregate ingress custody.
 
 - **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
   semantic facts, flow transfer, and contract consumption. Collection elements

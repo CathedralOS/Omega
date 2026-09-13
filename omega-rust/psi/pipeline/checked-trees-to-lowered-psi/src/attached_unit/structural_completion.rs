@@ -47,6 +47,10 @@ pub(super) fn validate(
             )
         || !(validation::reference_result_custody::parts(&checked.typed, state.return_type)
             .is_some()
+            || validation::reference_result_custody::is_reference_record(
+                &checked.typed,
+                state.return_type,
+            )
             || validation::is_closed_primitive_array_type(&checked.typed, state.return_type)
             || validation::has_plain_owned_contents_with_numeric_constraints(
                 &checked.typed,
@@ -71,7 +75,19 @@ pub(super) fn validate(
     let Some(StatementNode::Expression(expression)) = statements.last() else {
         return unsupported("structural result source has no completion value");
     };
-    if !result.reference_sources.is_empty() {
+    let whole_reference =
+        validation::reference_result_custody::parts(&checked.typed, state.return_type).is_some();
+    if validation::reference_result_custody::is_reference_record(&checked.typed, state.return_type)
+    {
+        let expected =
+            validation::reference_result_custody::returned_record_sources(&checked.typed, state)
+                .ok_or(LoweringError::Unsupported(
+                    "record completion has no exact returned leaf origins",
+                ))?;
+        if expected != result.reference_sources {
+            return unsupported("record completion changed its returned leaf origins");
+        }
+    } else if !result.reference_sources.is_empty() {
         let mut establishments = machine.operations.iter().filter(|operation| {
             matches!(
                 operation,
@@ -92,7 +108,7 @@ pub(super) fn validate(
     }
     match result.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-            if !result.reference_sources.is_empty() {
+            if whole_reference {
                 // The exact authored ingress, result binding and tail coordinate
                 // were checked above; ordinary statement coverage still follows.
             } else {
