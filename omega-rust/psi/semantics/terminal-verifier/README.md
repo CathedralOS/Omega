@@ -77,8 +77,12 @@ reconstructs each leaf's formation identity, current carrier path, original
 referent, and immediate parent. Packing relocates an existing permission rather
 than creating a child loan. Typed record-field paths ending in `Referent` borrow
 that leaf; whole-owner disposal checks reverse declaration order and rejects
-parents with surviving children before ending any loan. Aggregate parameters,
-results, partial transfers, arrays of references, and host interfaces remain
+parents with surviving children before ending any loan. Ordinary results retain
+the complete reference-leaf map in canonical path order. Return replay compares
+actual origins against formal sources, and calls substitute the exact actual
+arguments; a formation place plus initial leaf path distinguishes sibling loans
+after later moves. Aggregate parameters, partial transfers, arrays of references,
+and host interfaces remain
 unsupported until their complete reference custody is reconstructed. Plain
 record classification must not silently admit those boundaries.
 

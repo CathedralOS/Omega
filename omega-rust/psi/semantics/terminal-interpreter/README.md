@@ -72,9 +72,11 @@ resolves typed field paths ending in `Referent`; whole-owner cleanup removes
 descriptor subtrees without disposing the borrowed storage. The verifier checks
 loan ancestry and cleanup order independently. The source-free
 [reference-record tests](tests/unit/reference_records.rs) exercise original
-storage mutation, reborrowing, nested moves, and once-only fuel resumption.
-This local storage route does not admit reference-bearing aggregate parameters,
-results, partial transfers, host interfaces, or native execution.
+storage mutation, reborrowing, nested moves, ordinary record returns, reversed
+actual arguments, and once-only fuel resumption. Return preflight compares every
+leaf's captured backing against its bound formal before transferring the same
+record identity into the caller. Reference-bearing aggregate parameters,
+partial transfers, host interfaces, and native execution remain unsupported.
 
 ## Bounded byte fields
 
