@@ -145,15 +145,6 @@ pub fn validate_selected_program_entry_shape(
             "build root slot selected entry `{machine_name}` is not a declaration in the admitted program"
         ))]);
     };
-    if typed
-        .machines()
-        .iter()
-        .any(|other| other.symbol != machine.symbol && other.name.as_str() == machine.name.as_str())
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "root slot binds `{machine_name}` exactly, but another package declares a same-named machine; name-keyed Terminal production cannot rejoin the exact selected identity yet"
-        ))]);
-    }
     let Some(entry) = typed.machine_states(machine).first() else {
         return Err(vec![Diagnostic::error(format!(
             "entry machine `{machine_name}` has no executable entry state"

@@ -326,7 +326,7 @@ fn foreign_helper_binds_its_own_package_entry_through_borrowed_root_build() {
 }
 
 #[test]
-fn same_named_entry_in_another_package_is_fenced_until_terminal_production_rejoins_identity() {
+fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symbol() {
     let helper = TempProject::new(
         "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
     );
@@ -339,13 +339,103 @@ fn same_named_entry_in_another_package_is_fenced_until_terminal_production_rejoi
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
-    let diagnostics = compile_to_checked(request)
-        .expect_err("a same-named foreign entry must reject until production rejoins by symbol");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("another package declares a same-named machine")),
-        "{diagnostics:?}"
+    let checked = compile_to_checked(request)
+        .expect("a same-named foreign entry binds by exact symbol, not by name");
+    assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
+    let entry = checked
+        .selected_program_entry()
+        .cloned()
+        .expect("one exact selected ProgramEntry");
+    let native_target = checked
+        .selected_native_target()
+        .expect("one selected native target");
+    let psi_optimizations = checked
+        .optimization_selections()
+        .project_psi()
+        .selections()
+        .clone();
+    let program = checked.into_program();
+    // The lexical binding chose the helper's `setup::launch`, not the owner's
+    // free `launch`: the exact symbol resolves to the helper package machine.
+    let helper_launch = program
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| program.typed.symbols.display_path(machine.symbol, "::") == "setup::launch")
+        .expect("the helper package declares setup::launch");
+    assert_eq!(
+        entry.source_signature().machine_symbol(),
+        helper_launch.symbol
+    );
+    let produced = terminal_production::TerminalProductionRequest {
+        checked: &program,
+        machine: terminal_production::TerminalMachineSelection::Symbol(
+            entry.source_signature().machine_symbol(),
+        ),
+        optimization_selections: psi_optimizations,
+    }
+    .produce_program_entry(entry.source_signature().identity().bytes())
+    .expect("Terminal production rejoins the selected machine by exact symbol");
+    assert_eq!(
+        produced.receipt().source_machine_name(),
+        "setup::launch",
+        "the receipt keeps the qualified display name for diagnostics"
+    );
+    assert_eq!(
+        produced.receipt().source_machine_symbol(),
+        entry.source_signature().machine_symbol(),
+        "the receipt carries the exact selected machine symbol"
+    );
+    let calling_plans = entry.calling_plans().map(|plans| {
+        (
+            &plans.semantic_calling_application,
+            &plans.physical_calling_application,
+            &plans.storage_entry,
+        )
+    });
+    native_realization::validate_native_program_entry_settlement(
+        produced.artifact(),
+        produced.receipt(),
+        native_realization::NativeProgramEntrySettlement::new(
+            entry.source_signature(),
+            calling_plans,
+            entry.fused_service_establishments(),
+        ),
+        native_target,
+    )
+    .expect("native entry settlement rejoins the exact selected machine symbol");
+
+    // The retained product path selects the same exact symbol: the compiler's
+    // own `TerminalProductionRequest` must not fall back to the name spelling.
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: project.main(),
+            build_dir: None,
+            target_name: Some("windows_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
+        .with_package_inputs(foreign_helper_inputs(&project, &helper)),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .unwrap_or_else(|diagnostics| {
+        panic!("same-named foreign entry reaches retained Terminal production: {diagnostics:#?}")
+    });
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("Terminal report retains canonical artifact custody");
+    retained
+        .validate()
+        .expect("same-named retained Terminal artifact verifies");
+    assert_eq!(
+        retained
+            .native_realization_proposal()
+            .expect("Terminal report retains the native proposal")
+            .program_entry()
+            .source_signature()
+            .machine_symbol(),
+        helper_launch.symbol,
+        "the retained proposal keeps the helper package's exact entry symbol"
     );
 }
 
