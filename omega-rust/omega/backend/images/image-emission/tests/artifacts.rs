@@ -2543,6 +2543,482 @@ fn installation_function_row_rejects_every_one_field_substitution() {
     );
 }
 
+/// Every representable field of an installed internal Unit-call row is an
+/// authenticated custody axis: a one-field substitution either cannot encode
+/// canonically or still encodes, recomputes a distinct installation
+/// fingerprint, and independent replay against the unchanged image rejects it.
+#[test]
+fn installation_internal_unit_call_row_rejects_every_one_field_substitution() {
+    let plan = two_call_edge_owned_cleanup_plan();
+    let artifact = build_object_artifact(&plan).expect("cleanup artifact");
+    let image = emit_executable_image(&artifact, 3).expect("cleanup image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
+        .expect("cleanup installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    assert_eq!(record.internal_unit_calls().len(), 3);
+    let authentic = &record.internal_unit_calls()[0];
+    assert_eq!(authentic.machine, machine_id(1));
+    assert_eq!(
+        authentic.custody.owner,
+        CallSiteOwner::Operation(operation_id(1))
+    );
+    assert_eq!(authentic.custody.target, machine_id(2));
+    assert_eq!(authentic.custody.result, None);
+    assert_eq!(authentic.custody.semantic_result, None);
+    assert_eq!(authentic.custody.structural_result, None);
+    assert!(authentic.custody.scalar_arguments.is_empty());
+    assert!(authentic.custody.arguments.is_empty());
+    assert!(authentic.custody.claim_transfers.is_empty());
+    assert_eq!(
+        record.internal_unit_calls()[2].custody.owner,
+        CallSiteOwner::CleanupAction {
+            edge: edge_id(3),
+            action_ordinal: 0,
+        }
+    );
+
+    let i32_type =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+            .expect("i32");
+    let empty_placement = ValuePlacement {
+        shape: ValueShape::integer(0, 1),
+        locations: Vec::new(),
+    };
+    let scalar_placement = ValuePlacement {
+        shape: ValueShape::integer(4, 4),
+        locations: Vec::new(),
+    };
+    let provider_source = machine_code::InternalUnitCallSource::InstalledProvider {
+        boundary: semantic_vocabulary::BoundaryMachineId::new(7).unwrap(),
+        provider: Box::new(terminal_psi::ProviderCandidateConformance {
+            boundary: semantic_vocabulary::BoundaryMachineId::new(7).unwrap(),
+            requirement_identity: "requirement".into(),
+            provider_identity: "provider".into(),
+            candidate_identity: "candidate".into(),
+            candidate: machine_id(4),
+            signature: terminal_psi::ProviderSignature {
+                parameters: Vec::new(),
+            },
+            refinement: terminal_psi::ProviderRefinement {
+                positional_parameters: Vec::new(),
+                required_domains: Vec::new(),
+                realized_service_ceiling: Vec::new(),
+            },
+        }),
+        completion_claim_sources: Vec::new(),
+        completion_receipts: Vec::new(),
+    };
+    let affine_structural_result = machine_code::InternalStructuralCallResult {
+        operation_result: terminal_psi::StructuralOperationResult {
+            place: PlaceId::new(31).unwrap(),
+            structural_type: StructuralTypeId::new(31).unwrap(),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        },
+        result_home: None,
+        function_result: terminal_psi::StructuralResultDeclaration {
+            place: PlaceId::new(31).unwrap(),
+            structural_type: StructuralTypeId::new(31).unwrap(),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            reference_sources: Vec::new(),
+        },
+        returned_claim_transfers: Vec::new(),
+        returned_claims: Vec::new(),
+        caller_result_placement: empty_placement.clone(),
+        callee_result_placement: empty_placement.clone(),
+    };
+    let scalar_argument = machine_code::InternalUnitScalarCallArgumentRecord {
+        parameter_index: 0,
+        source: machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            defining_operation: operation_id(1),
+            source_value: semantic_vocabulary::ValueId::new(31).unwrap(),
+            scalar_type: i32_type,
+            value: semantic_vocabulary::IntegerValue::Signed(7),
+        },
+        destination: scalar_placement.clone(),
+        code_offset: 0,
+        byte_count: 4,
+    };
+    let structural_argument = machine_code::InternalUnitCallArgumentRecord {
+        place: PlaceId::new(31).unwrap(),
+        access: StructuralAccess::Owned,
+        path: Vec::new(),
+        root_structural_type: StructuralTypeId::new(31).unwrap(),
+        structural_type: StructuralTypeId::new(31).unwrap(),
+        shape: ValueShape::integer(0, 1),
+        source_byte_offset: 0,
+        source_location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
+        call_stack_bytes: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        source: machine_code::InternalUnitStructuralArgumentSourceRecord::Placement(
+            empty_placement.clone(),
+        ),
+        destination: empty_placement,
+        code_offset: 0,
+        byte_count: 0,
+        bytes: Vec::new(),
+    };
+
+    use std::rc::Rc;
+    let provider_source = Rc::new(provider_source);
+    let affine_structural_result = Rc::new(affine_structural_result);
+    let scalar_argument = Rc::new(scalar_argument);
+    let structural_argument = Rc::new(structural_argument);
+
+    // A cleanup-owned call's `byte_count` is the one field no record-shape
+    // join pins: the cleanup action's extent is carried by the cleanup
+    // record itself, so the substituted row still encodes. It recomputes a
+    // distinct installation fingerprint, and independent replay against the
+    // unchanged image rejects it.
+    let mut changed = record.clone();
+    changed.internal_unit_calls_mut_for_test()[2]
+        .custody
+        .byte_count += 1;
+    let bytes =
+        encode_installation_record(&changed).expect("substituted cleanup byte_count encodes");
+    let replayed =
+        decode_installation_record(&bytes).expect("substituted cleanup byte_count decodes");
+    assert_eq!(replayed, changed);
+    assert_ne!(
+        installation_fingerprint(&replayed).expect("substituted fingerprint"),
+        authentic_fingerprint,
+        "byte_count: recomputed identity differs from the authentic record"
+    );
+    assert_eq!(
+        validate_installation_record(&replayed, &image),
+        Err(InstallationError::ImageBindingMismatch),
+        "byte_count: independent replay rejects the substituted row"
+    );
+
+    // Every other field on every row is a canonical projection bound by the
+    // caller's attribution and cleanup joins or the callee's own call shape,
+    // so a one-field substitution is rejected at encoding before any identity
+    // or replay could accept it.
+    let provider_source_owned = provider_source.clone();
+    let provider_source_cleanup = provider_source.clone();
+    let affine_structural_result_owned = affine_structural_result.clone();
+    let affine_structural_result_cleanup = affine_structural_result.clone();
+    let scalar_argument_owned = scalar_argument.clone();
+    let scalar_argument_cleanup = scalar_argument.clone();
+    let scalar_argument_second = scalar_argument.clone();
+    let structural_argument_owned = structural_argument.clone();
+    let structural_argument_cleanup = structural_argument.clone();
+
+    type CallMutation = (
+        &'static str,
+        usize,
+        Box<dyn Fn(&mut image_emission::InstalledInternalUnitCall)>,
+        InstallationError,
+    );
+    let cleanup_join = InstallationError::InvalidUnitAffineCleanup(machine_id(3));
+    let mutations: Vec<CallMutation> = vec![
+        (
+            "machine",
+            0,
+            Box::new(|row| {
+                row.machine = machine_id(2);
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "text_offset",
+            0,
+            Box::new(|row| {
+                row.text_offset += 1;
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(1)),
+        ),
+        (
+            "owner",
+            0,
+            Box::new(|row| {
+                row.custody.owner = CallSiteOwner::Operation(operation_id(7));
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(1)),
+        ),
+        (
+            "owner::cleanup_action",
+            2,
+            Box::new(|row| {
+                row.custody.owner = CallSiteOwner::CleanupAction {
+                    edge: edge_id(4),
+                    action_ordinal: 1,
+                };
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "source",
+            0,
+            Box::new(move |row| {
+                row.custody.source = (*provider_source_owned).clone();
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(1)),
+        ),
+        (
+            "target",
+            0,
+            Box::new(|row| {
+                row.custody.target = machine_id(4);
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "result",
+            0,
+            Box::new(|row| {
+                row.custody.result = Some(semantic_vocabulary::ScalarType::Boolean);
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "structural_result",
+            0,
+            Box::new(move |row| {
+                row.custody.structural_result = Some((*affine_structural_result_owned).clone());
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        (
+            "scalar_arguments",
+            0,
+            Box::new(move |row| {
+                row.custody
+                    .scalar_arguments
+                    .push((*scalar_argument_owned).clone());
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(1)),
+        ),
+        (
+            "arguments",
+            0,
+            Box::new(move |row| {
+                row.custody
+                    .arguments
+                    .push((*structural_argument_owned).clone());
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "claim_transfers",
+            0,
+            Box::new(|row| {
+                row.custody
+                    .claim_transfers
+                    .push(terminal_psi::ClaimTransfer {
+                        claim: ClaimId::new(31).unwrap(),
+                        argument_index: 0,
+                    });
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "operation_ordinal",
+            0,
+            Box::new(|row| {
+                row.custody.operation_ordinal += 1;
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "code_offset",
+            0,
+            Box::new(|row| {
+                row.custody.code_offset += 1;
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "code_offset::second_call",
+            1,
+            Box::new(|row| {
+                row.custody.code_offset += 1;
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(1)),
+        ),
+        (
+            "byte_count",
+            0,
+            Box::new(|row| {
+                row.custody.byte_count += 1;
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "byte_count::second_call",
+            1,
+            Box::new(|row| {
+                row.custody.byte_count += 1;
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(1)),
+        ),
+        (
+            "machine::cleanup_call",
+            2,
+            Box::new(|row| {
+                row.machine = machine_id(4);
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "text_offset::cleanup_call",
+            2,
+            Box::new(|row| {
+                row.text_offset += 1;
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(3)),
+        ),
+        (
+            "code_offset::cleanup_call",
+            2,
+            Box::new(|row| {
+                row.custody.code_offset += 1;
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "operation_ordinal::cleanup_call",
+            2,
+            Box::new(|row| {
+                row.custody.operation_ordinal += 1;
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(3)),
+        ),
+        (
+            "source::cleanup_call",
+            2,
+            Box::new(move |row| {
+                row.custody.source = (*provider_source_cleanup).clone();
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(3)),
+        ),
+        (
+            "result::cleanup_call",
+            2,
+            Box::new(|row| {
+                row.custody.result = Some(semantic_vocabulary::ScalarType::Boolean);
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(3)),
+        ),
+        (
+            "scalar_arguments::cleanup_call",
+            2,
+            Box::new(move |row| {
+                row.custody
+                    .scalar_arguments
+                    .push((*scalar_argument_cleanup).clone());
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(3)),
+        ),
+        (
+            "arguments::cleanup_call",
+            2,
+            Box::new(move |row| {
+                row.custody
+                    .arguments
+                    .push((*structural_argument_cleanup).clone());
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "structural_result::cleanup_call",
+            2,
+            Box::new(move |row| {
+                row.custody.structural_result = Some((*affine_structural_result_cleanup).clone());
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "target::second_call",
+            1,
+            Box::new(|row| {
+                row.custody.target = machine_id(2);
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "operation_ordinal::second_call",
+            1,
+            Box::new(|row| {
+                row.custody.operation_ordinal += 1;
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "scalar_arguments::second_call",
+            1,
+            Box::new(move |row| {
+                row.custody
+                    .scalar_arguments
+                    .push((*scalar_argument_second).clone());
+            }),
+            InstallationError::InvalidInternalUnitCall(machine_id(1)),
+        ),
+        (
+            "target::cleanup_call",
+            2,
+            Box::new(|row| {
+                row.custody.target = machine_id(4);
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "claim_transfers::cleanup_call",
+            2,
+            Box::new(|row| {
+                row.custody
+                    .claim_transfers
+                    .push(terminal_psi::ClaimTransfer {
+                        claim: ClaimId::new(31).unwrap(),
+                        argument_index: 0,
+                    });
+            }),
+            cleanup_join.clone(),
+        ),
+        (
+            "dropped_row",
+            usize::MAX,
+            Box::new(|_| {}),
+            cleanup_join.clone(),
+        ),
+    ];
+    for (field, row_index, mutate, expected) in mutations {
+        let mut changed = record.clone();
+        if row_index == usize::MAX {
+            changed.internal_unit_calls_mut_for_test().remove(0);
+        } else {
+            mutate(&mut changed.internal_unit_calls_mut_for_test()[row_index]);
+        }
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: substituted row is rejected at canonical encoding"
+        );
+    }
+
+    // `semantic_result` is a canonical projection of `result`: a value whose
+    // scalar type does not equal the retained ABI result is rejected at
+    // encoding rather than reaching replay.
+    let mut changed = record.clone();
+    changed.internal_unit_calls_mut_for_test()[0]
+        .custody
+        .semantic_result = Some(abstract_operations::AbstractResult {
+        value: semantic_vocabulary::ValueId::new(31).unwrap(),
+        scalar_type: semantic_vocabulary::ScalarType::Boolean,
+    });
+    assert_eq!(
+        encode_installation_record(&changed),
+        Err(InstallationError::InvalidInternalUnitCall(machine_id(1)))
+    );
+}
+
 #[derive(Debug)]
 struct TestComponentProgressAcceptance {
     manifest: u64,
