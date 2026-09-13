@@ -23,7 +23,9 @@ passing.
 
 Edit only your item's board text. Never touch these excluded items: {exclusions}.
 If your fix needs a path owned by another item in the wave, stop and report
-`blocked` with the needed path.
+`blocked` with the needed path so the coordinator can arrange a handoff. Apply
+the same rule to a confirmed active assignment outside this wave. Multiple
+unassigned stages may belong to your slice; do not stop merely at a crate boundary.
 
 Refetch `origin/main` before you `enqueue`. If the item's acceptance already
 landed, or another author materially changed its text, stop and report
@@ -35,7 +37,9 @@ Publish only through `python3 tools/landing.py` with
 `--owner "{owner_label}"`. Rebase onto current `origin/main` and validate
 immediately before `enqueue`. After `claim`, rerun the checks whose inputs
 changed. On lease expiry, `release` and rejoin; never bypass the reservation.
-Land the first bounded improvement rather than accumulating a larger one.
+Keep checkpoints bounded, but retain the assigned customer through producer and
+consumer repairs. Rerun its outer command after relevant changes; helper tests
+alone do not complete the assignment or justify claiming native execution.
 
 ## Budget
 
@@ -62,17 +66,17 @@ When you finish, for any result, fill this schema exactly:
 `budget_exhausted`, `aborted`. Choose it by the evidence, not by why you
 stopped:
 
-- `verification_only`: you witnessed that the item's bounded slice does not
-  exist on this revision (a rejection, a missing seam, or a slice spanning
-  more crates or stages than one landing), and `remaining_dependency` names
-  the exact seam and next acceptance. Use this even when the finding also
-  ended your session early.
+- `verification_only`: investigation produced evidence but no implementation.
+  Name the exact missing dependency and next acceptance. This is the planned
+  outcome only for a probe-only assignment; in an implementation assignment,
+  diagnosis is intermediate while a design-backed repair remains actionable.
+  A rejection or a slice spanning stages is not by itself a stop condition.
 - `blocked`: an external obstacle (host, access, another item's path, a
   prerequisite item) stopped you before the slice could be attempted.
 - `budget_exhausted`: only when you were actively implementing a slice you
   still believe is landable and ran out of ACU doing so; record the partial
-  state and the next step in `remaining_dependency`. A design finding that
-  the slice is too large is `verification_only`, not `budget_exhausted`.
+  state and the next step in `remaining_dependency`. Do not describe a
+  verification-only investigation as implementation budget exhaustion.
 
 `first_build_seconds` is the wall time of your
 first workspace check in this session. `lease_expiries` counts landing-lease

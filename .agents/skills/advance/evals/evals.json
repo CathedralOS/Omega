@@ -253,6 +253,36 @@
       ]
     },
     {
+      "id": 16,
+      "name": "paused-helper-strategy-does-not-blacklist-customer",
+      "prompt": "Advance the compiler. SQUALR-HEADLESS is the first product priority. A prior attempt paused after two isolated helpers failed to advance the app; the board retains the actual command and a proposed cross-stage integration. An old swarm manifest excludes Squalr, but the coordinator confirms no live assignment owns its paths. An unrelated cleanup is easier. The app's native command still fails under already-settled semantics.",
+      "status": "Not run against this revision",
+      "expected_output": "Reassess the failed strategy, verify the current customer failure, and own a bounded producer-to-consumer integration with the application command as the outer acceptance. Do not treat old exclusions or missing implementation as unavailability.",
+      "files": [],
+      "assertions": [
+        "Checks live assignments and recent lane commits before editing",
+        "Does not interpret the old exclusion as a standing reservation",
+        "Explains how the revised integration addresses the failed strategy before resuming implementation",
+        "Does not restart the isolated helper approach or select unrelated cleanup merely because it is easier",
+        "Allows a bounded repair across stages while preserving ownership boundaries and independent checking",
+        "Reports the unchanged customer's observed outcome separately from helper tests; does not claim an unrun native pass"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "end-to-end-priority-respects-active-edit-owner",
+      "prompt": "Advance. Squalr is explicitly available on the board, but a live coordinator assignment owns its checked scalar control and lowering integration. Your next fix would edit those same paths. The app still fails. There is independent actionable work on the allowed board.",
+      "status": "Not run against this revision",
+      "expected_output": "Coordinate the overlap before editing, take a genuinely independent dependency with an agreed handoff or select other actionable work, and identify the active assignment when bypassing the priority.",
+      "files": [],
+      "assertions": [
+        "Does not launch a competing implementation or treat the landing queue as edit ownership",
+        "Names the actual active assignment rather than citing a historical exclusion",
+        "Keeps one integration owner and an explicit handoff for any separately assigned dependency",
+        "Continues useful independent work without rewriting the running wave or inventing a new ownership registry"
+      ]
+    },
+    {
       "id": 15,
       "name": "composition-gap-is-not-another-source-family",
       "prompt": "Continue the actual CLI customer. The compiler supports scalar assignments and calls separately, but this program assigns between two calls and the planner rejects it. A helper fixture passes if all assignments are moved before the calls. Fix the compiler without rewriting the customer.",
