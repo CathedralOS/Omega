@@ -1104,6 +1104,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "generics/property_bound_missing_on_field",
     "generics/property_bound_violated_at_instantiation",
     "generics/signature_free_nominal_binder_overloaded",
+    "generics/nominal_binder_structural_coincidence_rejected",
+    "generics/nominal_binder_implicit_selection_rejected",
     "generics/signed_const_data_argument_out_of_range",
     "generics/signed_const_data_shift_overflow",
     "generics/type_parameter_array_length",

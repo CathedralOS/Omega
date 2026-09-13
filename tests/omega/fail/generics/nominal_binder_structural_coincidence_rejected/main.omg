@@ -1,0 +1,33 @@
+// FAIL canary (ENT4): a machine with matching callable shape and a satisfaction
+// row for a different trait's same-named requirement does not satisfy a nominal
+// binder; only the exact authored `Handler::call` row does.
+
+trait Handler {
+    machine call(value: i32) -> i32;
+}
+
+trait Other {
+    machine call(value: i32) -> i32;
+}
+
+machine lookalike(value: i32) -> i32
+satisfies Other::call
+{
+    value
+}
+
+machine register<machine Selected>(value: i32) -> i32
+where machine Selected satisfies Handler::call;
+{
+    Selected(value)
+}
+
+machine caller(value: i32) -> i32 {
+    register<lookalike>(value)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
