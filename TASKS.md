@@ -761,6 +761,19 @@ Owners include
   aggregate capacity is reconstructed for one artifact instance and lifecycle
   epoch, with no ambient provision or row-equality authority.
 
+  Resume evidence: `external-roots`
+  `ProgramLocalRootInstallationLedger::derive_eligible_prebindings` now
+  enumerates the complete eligible set from the sealed required-slot closure
+  instead of a caller roster, so a cohort cannot seal over an understated
+  aggregate. Omitted, extra, duplicate, substituted, and replayed members and
+  sealing before derivation all reject transactionally. Witnessed on macOS
+  arm64 by `mbx nextest run -p external-roots --lib` (130/130), including
+  `epoch_cohort_cannot_seal_before_the_eligible_set_is_derived` and
+  `program_local_root_schemas_derive_exact_installed_slots_without_minting`.
+  Remaining: supply the actual installed backing, receiver partition,
+  activation loan, and completion contract for the `cli_mvp` entry bridge
+  before the retained-self retry can be removed.
+
 - **BOUNDARY-ISSUANCE.** After conservation closes, derive provider issuance
   geometry from exact invocation parameters, entry places, and results. Keep
   ownership, aliasing, issuance, custody, and partition succession distinct;

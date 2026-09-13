@@ -3318,6 +3318,60 @@ fn program_local_cohort_verifier_requires_an_installed_required_closure() {
 }
 
 #[test]
+fn epoch_cohort_cannot_seal_before_the_eligible_set_is_derived() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let mut lifecycle = program_local_lifecycle(
+        731,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+
+    // Before derivation the eligible set is empty, so an empty member roster
+    // would silently seal a cohort missing this artifact instance's exact
+    // enumerable occurrence. The seal must wait for the derived closure.
+    let premature = installation
+        .seal_epoch_cohort(&lifecycle, std::iter::empty())
+        .expect_err("a cohort cannot seal before the eligible set is derived");
+    assert!(
+        premature
+            .diagnostic()
+            .0
+            .contains("precedes the derived eligible prebinding set")
+    );
+
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("derived eligible prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let lease = program_local_epoch_lease(&mut lifecycle, 832, 10, "TestRoot::entry");
+    let cohort = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("the derived eligible set seals the exact cohort");
+    assert_eq!(cohort.occurrences().len(), 1);
+    assert_eq!(cohort.aggregates().len(), 1);
+}
+
+#[test]
 fn epoch_cohort_seals_exact_members_and_derives_aggregate_schema() {
     let entry = entry_id(1);
     let mut code = installed_code(1, entry);
@@ -3331,7 +3385,7 @@ fn epoch_cohort_seals_exact_members_and_derives_aggregate_schema() {
         .claim_program_local_root_installation_ledger()
         .expect("sole program-local cohort verifier");
     let [prebinding] = installation
-        .prebind(&catalog, &terminal, &root)
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
         .expect("required root prebinding")
         .try_into()
         .expect("one producer schema");
@@ -3408,7 +3462,7 @@ fn epoch_cohort_seals_exact_members_and_derives_aggregate_schema() {
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
     assert!(
         installation
-            .prebind(&catalog, &terminal, &root)
+            .derive_eligible_prebindings(&catalog, &terminal, [&root])
             .expect_err("sealing freezes the eligible prebinding set")
             .0
             .contains("prebindings are frozen")
@@ -3439,7 +3493,7 @@ fn coexistence_report_requires_every_exact_live_epoch_without_reducing_rows() {
         .claim_program_local_root_installation_ledger()
         .expect("first program-local cohort verifier");
     let [first_prebinding] = first_installation
-        .prebind(&catalog, &terminal, &first_root)
+        .derive_eligible_prebindings(&catalog, &terminal, [&first_root])
         .expect("first required root prebinding")
         .try_into()
         .expect("one first producer schema");
@@ -3481,7 +3535,7 @@ fn coexistence_report_requires_every_exact_live_epoch_without_reducing_rows() {
         .claim_program_local_root_installation_ledger()
         .expect("second program-local cohort verifier");
     let [second_prebinding] = second_installation
-        .prebind(&catalog, &terminal, &second_root)
+        .derive_eligible_prebindings(&catalog, &terminal, [&second_root])
         .expect("second required root prebinding")
         .try_into()
         .expect("one second producer schema");
@@ -3595,7 +3649,7 @@ fn installed_subject_establishes_exact_capacity_lineage_once_and_pins_the_epoch(
         .claim_program_local_root_installation_ledger()
         .expect("sole program-local cohort verifier");
     let [prebinding] = installation
-        .prebind(&catalog, &terminal, &root)
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
         .expect("verified installed prebinding")
         .try_into()
         .expect("one producer schema");
@@ -3689,7 +3743,7 @@ fn program_local_extent_registry_retains_exact_account_through_split_and_retirem
         .claim_program_local_root_installation_ledger()
         .expect("sole program-local cohort verifier");
     let [prebinding] = installation
-        .prebind(&catalog, &terminal, &root)
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
         .expect("verified installed Extent prebinding")
         .try_into()
         .expect("one producer schema");
@@ -3792,7 +3846,7 @@ fn counted_program_local_capacity_cannot_mint_an_extent() {
         .claim_program_local_root_installation_ledger()
         .expect("sole program-local cohort verifier");
     let [prebinding] = installation
-        .prebind(&catalog, &terminal, &root)
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
         .expect("verified installed counted prebinding")
         .try_into()
         .expect("one producer schema");
@@ -3864,7 +3918,7 @@ fn subject_capacity_rejection_is_transactional_and_a_later_epoch_is_fresh() {
         .claim_program_local_root_installation_ledger()
         .expect("sole program-local cohort verifier");
     let [prebinding] = installation
-        .prebind(&catalog, &terminal, &root)
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
         .expect("verified installed prebinding")
         .try_into()
         .expect("one producer schema");
@@ -3958,7 +4012,7 @@ fn subject_capacity_rejection_is_transactional_and_a_later_epoch_is_fresh() {
 }
 
 #[test]
-fn program_local_root_schemas_prebind_exact_installed_slots_without_minting() {
+fn program_local_root_schemas_derive_exact_installed_slots_without_minting() {
     let entry = entry_id(1);
     let mut code = installed_code(1, entry);
     let module = program_local_root_module();
@@ -3969,19 +4023,39 @@ fn program_local_root_schemas_prebind_exact_installed_slots_without_minting() {
     let mut bindings = root_ledger
         .claim_program_local_root_installation_ledger()
         .expect("sole program-local cohort verifier");
-    let first_occurrences = bindings
-        .prebind(&catalog, &terminal, &first)
-        .expect("first exact slot prebinding");
-    let [first_occurrence] = first_occurrences.as_slice() else {
-        panic!("one producer schema")
-    };
+
+    // The enumerable set is the sealed required closure itself: omitting the
+    // sealed slot or presenting a runtime-open root rejects before anything
+    // commits, so the aggregate cannot silently understate this installation.
     assert!(
         bindings
-            .prebind(&catalog, &terminal, &second)
+            .derive_eligible_prebindings(&catalog, &terminal, [])
+            .expect_err("omitting the sealed required root rejects enumeration")
+            .0
+            .contains("omits a sealed required root slot")
+    );
+    assert!(
+        bindings
+            .derive_eligible_prebindings(&catalog, &terminal, [&second])
             .expect_err("a runtime-open root is outside the required cohort")
             .0
             .contains("outside the sealed required closure")
     );
+    assert!(
+        bindings
+            .derive_eligible_prebindings(&catalog, &terminal, [&first, &second])
+            .expect_err("an extra root cannot join the sealed enumeration")
+            .0
+            .contains("outside the sealed required closure")
+    );
+    assert_eq!(bindings.prebindings().count(), 0);
+
+    let first_occurrences = bindings
+        .derive_eligible_prebindings(&catalog, &terminal, [&first])
+        .expect("the exact required set derives the eligible prebindings");
+    let [first_occurrence] = first_occurrences.as_slice() else {
+        panic!("one producer schema")
+    };
     let counts = bindings.counts();
     let [count] = counts.as_slice() else {
         panic!("one exact installed schema count")
@@ -3992,7 +4066,13 @@ fn program_local_root_schemas_prebind_exact_installed_slots_without_minting() {
         count.per_occurrence_capacity,
         module.boundary_machines[0].program_local_root_introductions[0].capacity
     );
-    assert!(bindings.prebind(&catalog, &terminal, &first).is_err());
+    assert!(
+        bindings
+            .derive_eligible_prebindings(&catalog, &terminal, [&first])
+            .expect_err("the complete eligible set is derived exactly once")
+            .0
+            .contains("already derived")
+    );
 }
 
 #[test]
@@ -4070,7 +4150,7 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
         .claim_program_local_root_installation_ledger()
         .expect("sole program-local cohort verifier");
     let original_catalog_narrowed_artifact = installation
-        .prebind(&catalog, &narrowed_terminal, &root)
+        .derive_eligible_prebindings(&catalog, &narrowed_terminal, [&root])
         .expect_err("a narrowed artifact cannot carry the original producer catalog");
     assert_eq!(
         original_catalog_narrowed_artifact.0,
@@ -4079,7 +4159,7 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
     assert_eq!(installation.prebindings().count(), 0);
 
     let narrowed_catalog_original_artifact = installation
-        .prebind(&narrowed_catalog, &terminal, &root)
+        .derive_eligible_prebindings(&narrowed_catalog, &terminal, [&root])
         .expect_err("a narrowed producer catalog cannot describe the original artifact");
     assert_eq!(
         narrowed_catalog_original_artifact.0,
@@ -4089,17 +4169,49 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
 
     assert!(
         installation
-            .prebind(&catalog, &wrong_object, &root)
+            .derive_eligible_prebindings(&catalog, &wrong_object, [&root])
             .is_err()
     );
 
     assert!(
         installation
-            .prebind(&catalog, &terminal, &wrong_claim_root)
-            .is_err()
+            .derive_eligible_prebindings(&catalog, &terminal, [&root, &wrong_claim_root])
+            .expect_err("an out-of-closure runtime-open root cannot join the enumeration")
+            .0
+            .contains("outside the sealed required closure")
     );
+
+    let mut wrong_claim_code = installed_code(2, entry);
+    let (mut wrong_claim_ledger, wrong_claim_required, _wrong_claim_open) =
+        install_test_root_pair_with_ids(
+            &mut wrong_claim_code,
+            (
+                1,
+                20,
+                21,
+                22,
+                vec![ExternalRootEntryClaim {
+                    domain: "Region::Other".into(),
+                    ..program_local_claim()
+                }],
+            ),
+            (101, 120, 121, 122, vec![program_local_claim()]),
+            entry,
+        );
+    let mut wrong_claim_installation = wrong_claim_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("claim-substituted program-local cohort verifier");
+    let claim_substitution = wrong_claim_installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&wrong_claim_required])
+        .expect_err("a substituted installed entry claim rejects the derived schema");
+    assert!(
+        claim_substitution
+            .0
+            .contains("does not match an exact installed entry claim")
+    );
+
     installation
-        .prebind(&catalog, &terminal, &root)
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
         .expect("failed substitutions leave the exact prebinding available");
 }
 
@@ -4117,7 +4229,7 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
         .claim_program_local_root_installation_ledger()
         .expect("sole program-local cohort verifier");
     let [prebinding] = installation
-        .prebind(&catalog, &terminal, &root)
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
         .expect("verified installed prebinding")
         .try_into()
         .expect("one program-local prebinding");
@@ -4241,7 +4353,7 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         .claim_program_local_root_installation_ledger()
         .expect("sole program-local cohort verifier");
     let [prebinding] = installation
-        .prebind(&catalog, &terminal, &first)
+        .derive_eligible_prebindings(&catalog, &terminal, [&first])
         .expect("verified installed prebinding")
         .try_into()
         .expect("one program-local prebinding");
@@ -4375,7 +4487,7 @@ fn program_local_root_failed_retirement_returns_the_complete_occurrence() {
         .claim_program_local_root_installation_ledger()
         .expect("sole program-local cohort verifier");
     let [prebinding] = installation
-        .prebind(&catalog, &terminal, &root)
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
         .expect("verified installed prebinding")
         .try_into()
         .expect("one program-local prebinding");
