@@ -5,6 +5,7 @@ use super::declarations::{
     encode_terminal_authority_permission, encode_terminal_authority_permission_key,
     encode_trait_shape,
 };
+use super::encoder::Encoder;
 use super::values::callables::{
     encode_callable, encode_external_executable_supply, encode_external_executable_supply_key,
 };
@@ -24,13 +25,53 @@ use super::{PackageReviewEncodingError, PackageReviewEncodingLimits};
 use crate::record::{
     CheckedPackageReviewProjection, PackageReviewCallableSupply, PackageReviewCanonicalRow,
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
-    PackageReviewSyntheticSourceKind,
+    PackageReviewContractEntailmentOpenObligation, PackageReviewExternalExecutableSupply,
+    PackageReviewNominalIdentity, PackageReviewSyntheticSourceKind,
 };
 
 mod framing;
 
 pub(crate) use framing::encode_subject_row;
 use framing::{encode_row, push_row, row_source};
+
+fn encode_contract_entailment_obligation_key(
+    encoder: &mut Encoder,
+    obligation: &PackageReviewContractEntailmentOpenObligation,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, obligation.callable())?;
+    encoder.u32(obligation.contract_position());
+    encoder.u32(obligation.fact_position());
+    Ok(())
+}
+
+/// Exact shared coordinate of the open-obligation and discharge row families.
+pub(crate) fn contract_entailment_obligation_row_key(
+    obligation: &PackageReviewContractEntailmentOpenObligation,
+) -> Result<Vec<u8>, PackageReviewEncodingError> {
+    let mut encoder =
+        Encoder::bounded(PackageReviewEncodingLimits::default().maximum_row_key_bytes);
+    encode_contract_entailment_obligation_key(&mut encoder, obligation)?;
+    encoder.finish()
+}
+
+/// Exact coordinate for row families keyed solely by their nominal declaration.
+pub(crate) fn nominal_row_key(
+    identity: &PackageReviewNominalIdentity,
+) -> Result<Vec<u8>, PackageReviewEncodingError> {
+    let mut encoder =
+        Encoder::bounded(PackageReviewEncodingLimits::default().maximum_row_key_bytes);
+    encode_nominal(&mut encoder, identity)?;
+    encoder.finish()
+}
+
+pub(crate) fn external_executable_supply_row_key(
+    supply: &PackageReviewExternalExecutableSupply,
+) -> Result<Vec<u8>, PackageReviewEncodingError> {
+    let mut encoder =
+        Encoder::bounded(PackageReviewEncodingLimits::default().maximum_row_key_bytes);
+    encode_external_executable_supply_key(&mut encoder, supply)?;
+    encoder.finish()
+}
 
 pub(crate) fn encode_rows(
     review: &CheckedPackageReviewProjection,
@@ -305,12 +346,7 @@ pub(crate) fn encode_rows_with_limits(
                     &review.row_sources.contract_entailment_open_obligations,
                     index,
                 )?,
-                |encoder| {
-                    encode_nominal(encoder, &obligation.callable)?;
-                    encoder.u32(obligation.contract_position);
-                    encoder.u32(obligation.fact_position);
-                    Ok(())
-                },
+                |encoder| encode_contract_entailment_obligation_key(encoder, obligation),
                 |encoder| encode_contract_entailment_open_obligation_value(encoder, obligation),
             )?,
         )?;
@@ -333,12 +369,7 @@ pub(crate) fn encode_rows_with_limits(
                     &review.row_sources.contract_entailment_assumption_discharges,
                     index,
                 )?,
-                |encoder| {
-                    encode_nominal(encoder, &discharge.obligation.callable)?;
-                    encoder.u32(discharge.obligation.contract_position);
-                    encoder.u32(discharge.obligation.fact_position);
-                    Ok(())
-                },
+                |encoder| encode_contract_entailment_obligation_key(encoder, &discharge.obligation),
                 |encoder| encode_contract_entailment_assumption_discharge_value(encoder, discharge),
             )?,
         )?;

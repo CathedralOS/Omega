@@ -477,6 +477,131 @@ ensures
 }
 
 #[test]
+fn assumption_discharge_batch_preserves_exact_rows_and_remaining_order() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    let source = ["third", "first", "fifth", "second", "fourth"]
+        .into_iter()
+        .map(|name| format!(
+            "machine {name}(value: u64) -> u64\nrequires value >= 1\nensures value >= 1\n{{ let retained: u64 = value; retained }}\n"
+        ))
+        .collect::<String>();
+    package.write("main.omg", &source);
+    package.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let mut checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
+    .expect("multiple assumption-discharge callables should check");
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .contract_entailment_assumption_discharges
+            .len(),
+        5
+    );
+    let complete = package_evidence::ledger::reconstruct_package_review(&checked)
+        .expect("all five independently rechecked certificates discharge");
+    assert!(
+        complete
+            .results
+            .open_contract_entailment_obligations()
+            .is_empty()
+    );
+    assert_eq!(
+        complete
+            .results
+            .contract_entailment_assumption_discharges()
+            .len(),
+        5
+    );
+    checked
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges
+        .reverse();
+    let reordered = package_evidence::ledger::reconstruct_package_review(&checked)
+        .expect("certificate input order is not evidence identity");
+    assert_eq!(reordered.projection, complete.projection);
+    assert_eq!(reordered.canonical_rows, complete.canonical_rows);
+    assert_eq!(reordered.results, complete.results);
+
+    let certificates = checked
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges
+        .clone();
+    checked
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges =
+        vec![certificates[3].clone(), certificates[1].clone()];
+    let partial = package_evidence::ledger::reconstruct_package_review(&checked)
+        .expect("only the two retained certificates discharge");
+    assert_eq!(
+        partial
+            .results
+            .contract_entailment_assumption_discharges()
+            .len(),
+        2
+    );
+    let expected_open = complete
+        .projection
+        .contract_entailment_open_obligations()
+        .iter()
+        .filter(|obligation| {
+            !partial
+                .results
+                .contract_entailment_assumption_discharges()
+                .iter()
+                .any(|discharge| discharge.obligation() == *obligation)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(expected_open.len(), 3);
+    assert_eq!(
+        partial
+            .results
+            .open_contract_entailment_obligations()
+            .iter()
+            .map(|open| open.obligation())
+            .collect::<Vec<_>>(),
+        expected_open,
+    );
+    for discharged in partial.results.contract_entailment_assumption_discharges() {
+        assert!(
+            complete
+                .results
+                .contract_entailment_assumption_discharges()
+                .contains(discharged)
+        );
+    }
+    for open in partial.results.open_contract_entailment_obligations() {
+        let original = complete
+            .results
+            .contract_entailment_assumption_discharges()
+            .iter()
+            .find(|discharged| discharged.obligation() == open.obligation())
+            .expect("remaining row existed before removing certificates");
+        assert_eq!(open.row(), original.row());
+    }
+    checked
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges
+        .reverse();
+    let reordered_partial = reconstruct_ordinary_package_obligation_results(&checked)
+        .expect("partial certificate order leaves result order unchanged");
+    assert_eq!(reordered_partial, partial.results);
+}
+
+#[test]
 fn equal_contract_entailment_goals_retain_distinct_positions_and_complete_hypotheses() {
     let Some(target) = host_target_name() else {
         return;

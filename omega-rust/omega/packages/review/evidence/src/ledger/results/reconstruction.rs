@@ -81,7 +81,20 @@ fn results_from_matching_projection(
                 "ordinary package accepted-claim result allocation failed",
             )
         })?;
-    for (callable, row) in accepted_callables.zip(accepted_rows) {
+    for callable in accepted_callables {
+        let key = crate::encoding::nominal_row_key(callable.identity()).map_err(|_| {
+            OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package accepted-claim key encoding failed",
+            )
+        })?;
+        let position = accepted_rows
+            .binary_search_by(|row| row.key_bytes().cmp(&key))
+            .map_err(|_| {
+                OrdinaryPackageObligationLedgerRecoveryError::new(
+                    "ordinary package accepted claim does not rejoin its canonical row",
+                )
+            })?;
+        let row = &accepted_rows[position];
         if row.risk() != PackageReviewCanonicalRowRisk::Blocking {
             return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
                 "ordinary package accepted claim is not blocking",
@@ -109,10 +122,20 @@ fn results_from_matching_projection(
                 "ordinary package contract-entailment result allocation failed",
             )
         })?;
-    for (obligation, row) in contract_entailment_obligations
-        .iter()
-        .zip(contract_entailment_rows)
-    {
+    for obligation in contract_entailment_obligations {
+        // Typed nominal order is not encoded-key order: canonical strings
+        // carry length prefixes. Rejoin the exact key, never zip those orders.
+        let key =
+            crate::encoding::contract_entailment_obligation_row_key(obligation).map_err(|_| {
+                OrdinaryPackageObligationLedgerRecoveryError::new(
+                    "ordinary package contract-entailment obligation key encoding failed",
+                )
+            })?;
+        let position = contract_entailment_rows.binary_search_by(|row| row.key_bytes().cmp(&key))
+            .map_err(|_| OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package contract-entailment obligation does not rejoin its canonical row",
+            ))?;
+        let row = &contract_entailment_rows[position];
         if row.risk() != PackageReviewCanonicalRowRisk::Blocking {
             return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
                 "ordinary package contract-entailment obligation is not blocking",
@@ -143,7 +166,20 @@ fn results_from_matching_projection(
                 "ordinary package external executable-supply result allocation failed",
             )
         })?;
-    for (supply, row) in external_supplies.iter().zip(external_supply_rows) {
+    for supply in external_supplies {
+        let key = crate::encoding::external_executable_supply_row_key(supply).map_err(|_| {
+            OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package external executable-supply key encoding failed",
+            )
+        })?;
+        let position = external_supply_rows
+            .binary_search_by(|row| row.key_bytes().cmp(&key))
+            .map_err(|_| {
+                OrdinaryPackageObligationLedgerRecoveryError::new(
+                    "ordinary package external executable supply does not rejoin its canonical row",
+                )
+            })?;
+        let row = &external_supply_rows[position];
         if row.risk() != PackageReviewCanonicalRowRisk::OpaqueBlocking {
             return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
                 "ordinary package external executable supply is not opaque blocking",
@@ -172,7 +208,20 @@ fn results_from_matching_projection(
                 "ordinary package dangerous-authority result allocation failed",
             )
         })?;
-    for (authority, row) in dangerous_authorities.iter().zip(dangerous_authority_rows) {
+    for authority in dangerous_authorities {
+        let key = crate::encoding::nominal_row_key(authority.service()).map_err(|_| {
+            OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package dangerous-authority key encoding failed",
+            )
+        })?;
+        let position = dangerous_authority_rows
+            .binary_search_by(|row| row.key_bytes().cmp(&key))
+            .map_err(|_| {
+                OrdinaryPackageObligationLedgerRecoveryError::new(
+                    "ordinary package dangerous authority does not rejoin its canonical row",
+                )
+            })?;
+        let row = &dangerous_authority_rows[position];
         if row.risk() != PackageReviewCanonicalRowRisk::Blocking {
             return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
                 "ordinary package dangerous authority is not blocking",
@@ -315,39 +364,81 @@ fn apply_contract_entailment_assumption_discharges(
             "ordinary package contract-entailment discharges are not bijective with their canonical rows",
         ));
     }
-    for (discharge, evidence_row) in projection
-        .contract_entailment_assumption_discharges()
+    if evidence_rows.is_empty() {
+        return Ok(());
+    }
+    // Nominal projection is compiler work with owned strings. Perform it once
+    // per certificate, not once for every candidate discharge comparison.
+    let mut certificates = compilation
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges
         .iter()
-        .zip(evidence_rows)
-    {
-        if evidence_row.risk() != PackageReviewCanonicalRowRisk::Blocking {
-            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
-                "ordinary package contract-entailment discharge evidence is not blocking",
-            ));
-        }
-        let matching_certificates = compilation
-            .facts
-            .proof
-            .contract_entailment_assumption_discharges
+        .filter(|certificate| {
+            compilation
+                .symbols
+                .symbol_package_identity(certificate.machine_symbol())
+                == Some(package)
+        })
+        .filter_map(|certificate| {
+            crate::capture::nominal_identity(compilation, certificate.machine_symbol())
+                .ok()
+                .map(|callable| (callable, certificate))
+        })
+        .collect::<Vec<_>>();
+    certificates.sort_unstable_by(|(left_callable, left), (right_callable, right)| {
+        (
+            left_callable,
+            left.contract_position(),
+            left.fact_position(),
+            left.machine_contract_commitment().as_bytes(),
+        )
+            .cmp(&(
+                right_callable,
+                right.contract_position(),
+                right.fact_position(),
+                right.machine_contract_commitment().as_bytes(),
+            ))
+    });
+    // Fresh result construction preserves the projection's canonical
+    // obligation order; borrow it throughout validation before partitioning.
+    let obligations = &results.open_contract_entailment_obligations;
+    let mut selected = Vec::with_capacity(evidence_rows.len());
+    for discharge in projection.contract_entailment_assumption_discharges() {
+        let key = (
+            discharge.obligation.callable(),
+            discharge.obligation.contract_position(),
+            discharge.obligation.fact_position(),
+            discharge.obligation.machine_contract_commitment(),
+        );
+        let start = certificates.partition_point(|(callable, certificate)| {
+            (
+                callable,
+                certificate.contract_position(),
+                certificate.fact_position(),
+                certificate.machine_contract_commitment().as_bytes(),
+            ) < key
+        });
+        let mut matching_certificates = certificates[start..]
             .iter()
+            .take_while(|(callable, certificate)| {
+                (
+                    callable,
+                    certificate.contract_position(),
+                    certificate.fact_position(),
+                    certificate.machine_contract_commitment().as_bytes(),
+                ) == key
+            })
+            .map(|(_, certificate)| *certificate)
             .filter(|certificate| {
-                compilation
-                    .symbols
-                    .symbol_package_identity(certificate.machine_symbol())
-                    == Some(package)
-                    && certificate.contract_position() == discharge.obligation.contract_position()
-                    && certificate.fact_position() == discharge.obligation.fact_position()
-                    && certificate.machine_contract_commitment().as_bytes()
-                        == discharge.obligation.machine_contract_commitment()
-                    && certificate.assumptions() == discharge.assumptions()
+                certificate.assumptions() == discharge.assumptions()
                     && certificate.goal() == discharge.goal()
                     && certificate.selected_assumption_position()
                         == discharge.selected_assumption_position()
-                    && crate::capture::nominal_identity(compilation, certificate.machine_symbol())
-                        .is_ok_and(|callable| callable == *discharge.obligation.callable())
-            })
-            .collect::<Vec<_>>();
-        let [certificate] = matching_certificates.as_slice() else {
+            });
+        let certificate = matching_certificates.next();
+        let Some(certificate) = certificate.filter(|_| matching_certificates.next().is_none())
+        else {
             return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
                 "persisted contract-entailment assumption discharge does not rejoin exactly one compiler certificate",
             ));
@@ -362,23 +453,50 @@ fn apply_contract_entailment_assumption_discharges(
                 "compiler-owned contract-entailment assumption certificate failed local recheck",
             )
         })?;
-        let matching_positions = results
-            .open_contract_entailment_obligations
-            .iter()
-            .enumerate()
-            .filter_map(|(position, open)| {
-                let obligation = open.obligation();
-                (obligation == discharge.obligation()).then_some(position)
-            })
-            .collect::<Vec<_>>();
-        let [position] = matching_positions.as_slice() else {
+        let start = obligations.partition_point(|open| open.obligation() < discharge.obligation());
+        let end = start
+            + obligations[start..]
+                .partition_point(|open| open.obligation() == discharge.obligation());
+        let [open] = &obligations[start..end] else {
             return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
                 "contract-entailment assumption certificate does not rejoin exactly one open obligation",
             ));
         };
-        let open = results
-            .open_contract_entailment_obligations
-            .remove(*position);
+        // Both row families encode the same exact obligation coordinate.
+        // Reuse the open row's checked key instead of encoding it again.
+        let evidence_position = evidence_rows.binary_search_by(|row| row.key_bytes().cmp(open.row().key_bytes()))
+            .map_err(|_| OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package contract-entailment discharge does not rejoin its canonical row",
+            ))?;
+        let evidence_row = &evidence_rows[evidence_position];
+        if evidence_row.risk() != PackageReviewCanonicalRowRisk::Blocking {
+            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package contract-entailment discharge evidence is not blocking",
+            ));
+        }
+        selected.push((start, discharge, evidence_row));
+    }
+    selected.sort_unstable_by_key(|(position, _, _)| *position);
+    if selected.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+            "contract-entailment assumption certificate does not rejoin exactly one open obligation",
+        ));
+    }
+    // Commit the checked selection in one stable partition. Open results keep
+    // their original order, without shifting the tail for each discharge.
+    let mut selected = selected.into_iter().peekable();
+    let mut remaining =
+        Vec::with_capacity(results.open_contract_entailment_obligations.len() - selected.len());
+    for (position, open) in std::mem::take(&mut results.open_contract_entailment_obligations)
+        .into_iter()
+        .enumerate()
+    {
+        let Some((_, discharge, evidence_row)) =
+            selected.next_if(|(selected_position, _, _)| *selected_position == position)
+        else {
+            remaining.push(open);
+            continue;
+        };
         results.contract_entailment_assumption_discharges.push(
             OrdinaryPackageContractEntailmentAssumptionDischarge {
                 obligation: open.obligation,
@@ -390,6 +508,7 @@ fn apply_contract_entailment_assumption_discharges(
             },
         );
     }
+    results.open_contract_entailment_obligations = remaining;
     results
         .contract_entailment_assumption_discharges
         .sort_by(|left, right| left.obligation.cmp(&right.obligation));
