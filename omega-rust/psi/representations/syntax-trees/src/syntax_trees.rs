@@ -118,6 +118,10 @@ impl SyntaxTrees {
                         .iter()
                         .any(|origin| origin.reference == reference)
                         || normalization.builtin_operators.contains(&reference)
+                        || normalization
+                            .call_selections
+                            .iter()
+                            .any(|selection| selection.0 == reference)
                 })
         })
     }
@@ -314,6 +318,7 @@ impl SyntaxTrees {
                         canonical_result_encoding: normalization.canonical_result_encoding.clone(),
                         selections: normalization.selections.clone(),
                         builtin_operators: normalization.builtin_operators.clone(),
+                        call_selections: normalization.call_selections.clone(),
                     }
                 }),
             }),

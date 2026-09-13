@@ -1,0 +1,3 @@
+machine size() -> u64 { 7 }
+const SIZE: u64 = size();
+machine read() -> u64 { SIZE }

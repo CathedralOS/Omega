@@ -660,7 +660,7 @@ fn build_call_expression_handle(
     evidence_arguments: Box<[syntax_trees::identifier::Identifier]>,
 ) -> Result<ExpressionHandle, ParseError> {
     let expression = syntax_trees.expressions.expression(expression).clone();
-    match expression {
+    let call = match expression {
         ExpressionNode::Name(path) => {
             let members = syntax_trees
                 .tables
@@ -686,18 +686,15 @@ fn build_call_expression_handle(
 
             validate_atomic_call_orderings(syntax_trees, target.as_str(), receiver, arguments)?;
 
-            Ok(syntax_trees
-                .tables
-                .expressions
-                .insert(ExpressionNode::Call(TableCallExpression {
-                    target_is_static: true,
-                    receiver,
-                    target,
-                    machine_arguments,
-                    arguments,
-                    evidence_arguments,
-                    operational_acknowledgement: Default::default(),
-                })))
+            Ok(TableCallExpression {
+                target_is_static: true,
+                receiver,
+                target,
+                machine_arguments,
+                arguments,
+                evidence_arguments,
+                operational_acknowledgement: Default::default(),
+            })
         }
         ExpressionNode::Member(member) => {
             validate_atomic_call_orderings(
@@ -706,22 +703,26 @@ fn build_call_expression_handle(
                 member.receiver,
                 arguments,
             )?;
-            Ok(syntax_trees
-                .expressions
-                .insert(ExpressionNode::Call(TableCallExpression {
-                    target_is_static: false,
-                    receiver: member.receiver,
-                    target: member.member,
-                    machine_arguments,
-                    arguments,
-                    evidence_arguments,
-                    operational_acknowledgement: Default::default(),
-                })))
+            Ok(TableCallExpression {
+                target_is_static: false,
+                receiver: member.receiver,
+                target: member.member,
+                machine_arguments,
+                arguments,
+                evidence_arguments,
+                operational_acknowledgement: Default::default(),
+            })
         }
         _ => Err(ParseError::new(
             "call target must be a path or member access",
         )),
-    }
+    }?;
+    // Like an operator token, the authored call target is the stable occurrence
+    // of this expression. Argument and receiver occurrences remain distinct.
+    let source = call.target.source_span();
+    let expression = syntax_trees.expressions.insert(ExpressionNode::Call(call));
+    syntax_trees.expressions.set_source_span(expression, source);
+    Ok(expression)
 }
 
 pub(in crate::parser) fn memory_ordering_from_expression(

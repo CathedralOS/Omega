@@ -175,7 +175,10 @@ fn bounds(
     }
     // Closed arithmetic has one value/selection owner shared with type identity.
     // A failed closed query does not grant a value to the interval fallback.
-    if let Some(value) = program.closed_integer_value_in(expression, machine) {
+    if let Some(value) = program
+        .closed_integer_value_in(expression, machine)
+        .or_else(|| crate::literals::closed_record_integer_projection(program, expression))
+    {
         return Some(Bounds::constant(
             value.value,
             value.primitive,

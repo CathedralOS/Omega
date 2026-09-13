@@ -30,6 +30,7 @@ mod trait_definition;
 mod type_reference;
 mod wire;
 
+pub use constant::initializer_dependencies::ConstInitializerDependencies;
 pub use constant::requires_const_initializer_evaluation;
 pub use generic_data::{
     canonicalize_declared_const_definition, closed_data_const_argument_expressions,

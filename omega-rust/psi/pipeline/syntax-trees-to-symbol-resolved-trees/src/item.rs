@@ -273,6 +273,14 @@ fn lower_item_with_exposure(
                     is_public: definition.is_public,
                     declared_type,
                     initializer,
+                    authored_initializer: lowerer
+                        .pending_const_initializers
+                        .last()
+                        .filter(|_| definition.normalization.is_some())
+                        .map_or_else(
+                            symbol_resolved_trees::expression::ExpressionHandle::invalid,
+                            |record| record.authored,
+                        ),
                     initializer_source_span: syntax_trees.expressions.source_span(definition.value),
                     canonical_value_encoding,
                 },

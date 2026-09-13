@@ -110,6 +110,80 @@ pub struct ConstInitializerSelection {
 }
 
 impl ConstInitializerSelection {
+    pub fn initializer_expression_dependencies(
+        &self,
+        syntax: &SyntaxTrees,
+        definition: &syntax_trees::item::ConstDefinition,
+        expression: syntax_trees::expression::ExpressionHandle,
+    ) -> Result<crate::ConstInitializerDependencies, Vec<Diagnostic>> {
+        if !self
+            .pending_leaves(syntax, definition)?
+            .iter()
+            .any(|leaf| leaf.0 == expression)
+        {
+            return Err(vec![
+                Diagnostic::error("dependency request is not an authored scalar initializer leaf")
+                    .with_source_span(definition.name.source_span()),
+            ]);
+        }
+        let declaration = self
+            .trees
+            .const_declarations
+            .iter()
+            .find(|declaration| {
+                self.trees.symbols.symbol_source_span(declaration.symbol)
+                    == Some(definition.name.source_span())
+            })
+            .ok_or_else(|| vec![Diagnostic::error("initializer leaf lost its declaration")])?;
+        let root = if declaration.authored_initializer.is_valid() {
+            declaration.authored_initializer
+        } else {
+            declaration.initializer
+        };
+        crate::constant::initializer_dependencies::expression_at_source(
+            &self.trees,
+            root,
+            syntax.expressions.source_span(expression),
+        )
+        .and_then(|expression| {
+            crate::constant::initializer_dependencies::collect(&self.trees, expression)
+        })
+        .map_err(|reason| {
+            vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
+        })
+    }
+
+    pub fn initializer_dependencies(
+        &self,
+        _syntax: &SyntaxTrees,
+        definition: &syntax_trees::item::ConstDefinition,
+    ) -> Result<crate::ConstInitializerDependencies, Vec<Diagnostic>> {
+        let declaration = self
+            .trees
+            .const_declarations
+            .iter()
+            .find(|declaration| {
+                self.trees.symbols.symbol_source_span(declaration.symbol)
+                    == Some(definition.name.source_span())
+            })
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "initializer dependencies lost their exact declaration",
+                )]
+            })?;
+        crate::constant::initializer_dependencies::collect(
+            &self.trees,
+            if declaration.authored_initializer.is_valid() {
+                declaration.authored_initializer
+            } else {
+                declaration.initializer
+            },
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
+        })
+    }
+
     pub fn trees(&self) -> &SymbolResolvedTrees {
         &self.trees
     }

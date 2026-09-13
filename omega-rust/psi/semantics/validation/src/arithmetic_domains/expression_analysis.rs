@@ -187,6 +187,16 @@ pub(super) fn analyze(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Analysis {
+    if let Some(value) = crate::literals::closed_record_integer_projection(program, expression)
+        && let Some(primitive) = value.primitive
+        && let Some(literal) = crate::literals::land_integer_value(&value.value, primitive)
+    {
+        return Analysis {
+            domain: Some(ArithmeticDomain::Exact),
+            interval: literal_interval(&literal),
+            primitive: Some(primitive),
+        };
+    }
     if let Some(length) = fixed_array_length(program, machine, state, expression) {
         return Analysis {
             interval: Interval {

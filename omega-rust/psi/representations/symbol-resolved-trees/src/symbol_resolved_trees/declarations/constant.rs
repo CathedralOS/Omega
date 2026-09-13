@@ -14,6 +14,9 @@ pub struct ConstDeclaration {
     pub declared_type: crate::types::TypeReference,
     /// Already-resolved declaration-owned root, deep-copied at each later use.
     pub initializer: crate::expression::ExpressionHandle,
+    /// Detached original computation for independent semantic fold replay.
+    /// Invalid for declarations which were already literal values.
+    pub authored_initializer: crate::expression::ExpressionHandle,
     /// Declaration-side source occurrence, independent of each use-site copy.
     pub initializer_source_span: source::SourceSpan,
     /// Canonical structural value encoding for public compatibility. Private

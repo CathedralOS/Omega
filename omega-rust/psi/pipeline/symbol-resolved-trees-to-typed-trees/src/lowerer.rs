@@ -189,6 +189,8 @@ pub fn lower_seeded_extension(
                 declared_type,
                 initializer_source_span: declaration.initializer_source_span,
                 canonical_value_encoding: declaration.canonical_value_encoding.clone(),
+                authored_initializer: typed_trees::expression::ExpressionHandle::invalid(),
+                materialized_initializer: typed_trees::expression::ExpressionHandle::invalid(),
             });
     }
     for data_definition in source.data_definitions.iter().skip(data_frontier) {
@@ -231,6 +233,9 @@ pub fn lower_seeded_extension(
         &mut lowerer.typed_trees,
         typed_machine_frontier,
     ) {
+        return Err((retained, SeededContinuationError::Lowering(error)));
+    }
+    if let Err(error) = lowerer.lower_const_initializer_evidence(const_frontier) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
     if let Err(error) = crate::progress::normalize_progress_premises_from(
@@ -1091,6 +1096,8 @@ pub fn lower_symbol_resolved_trees(
                 declared_type,
                 initializer_source_span: declaration.initializer_source_span,
                 canonical_value_encoding: declaration.canonical_value_encoding.clone(),
+                authored_initializer: typed_trees::expression::ExpressionHandle::invalid(),
+                materialized_initializer: typed_trees::expression::ExpressionHandle::invalid(),
             });
     }
     lowerer.typed_trees.evidence_forwardings = symbol_resolved_trees
@@ -1325,6 +1332,7 @@ pub fn lower_symbol_resolved_trees(
         lowerer.typed_trees.push_wire_schema(wire_schema);
     }
 
+    lowerer.lower_const_initializer_evidence(0)?;
     lowerer.finish()
 }
 
@@ -1372,6 +1380,51 @@ pub(crate) struct Lowerer<'source> {
 }
 
 impl Lowerer<'_> {
+    fn lower_const_initializer_evidence(&mut self, frontier: usize) -> Result<(), Diagnostic> {
+        for ordinal in frontier..self.source_trees.const_declarations.len() {
+            let declaration = &self.source_trees.const_declarations[ordinal];
+            let (symbol, original, materialized) = (
+                declaration.symbol,
+                declaration.authored_initializer,
+                declaration.initializer,
+            );
+            let handle = self
+                .typed_trees
+                .tables
+                .const_declarations
+                .iter()
+                .find_map(|(handle, declaration)| (declaration.symbol == symbol).then_some(handle))
+                .ok_or_else(|| {
+                    Diagnostic::error("constant fold lost its exact typed declaration")
+                })?;
+            if !self
+                .source_trees
+                .tables
+                .bodies
+                .expressions
+                .expression_is_valid(materialized)
+            {
+                return Err(Diagnostic::error(
+                    "constant lost its materialized initializer",
+                ));
+            }
+            let materialized_initializer =
+                crate::expression::lower_expression_handle(self, materialized)?;
+            self.typed_trees
+                .tables
+                .const_declarations
+                .get_mut(handle)
+                .materialized_initializer = materialized_initializer;
+            if !original.is_valid() {
+                continue;
+            }
+            let authored_initializer = crate::expression::lower_expression_handle(self, original)?;
+            let declaration = self.typed_trees.tables.const_declarations.get_mut(handle);
+            declaration.authored_initializer = authored_initializer;
+        }
+        Ok(())
+    }
+
     pub(crate) fn with_type_reference_exposure<T>(
         &mut self,
         exposure: impl Into<

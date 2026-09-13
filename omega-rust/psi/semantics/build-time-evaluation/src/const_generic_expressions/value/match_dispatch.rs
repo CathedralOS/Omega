@@ -100,6 +100,15 @@ pub(super) fn validate_graph(program: &TypedTrees, root: ExpressionHandle) -> Re
         active.push(expression);
         pending.push((expression, true));
         match program.expression_table.expression(expression) {
+            ExpressionNode::Call(call) => {
+                let arguments = program.expression_table.expression_handles(call.arguments);
+                if arguments.len() != call.arguments.len() {
+                    return Err("invalid constant call argument span".into());
+                }
+                // A path-qualified call has no evaluated receiver. The call
+                // admission owner separately proves that static classification.
+                pending.extend(arguments.iter().rev().map(|argument| (*argument, false)));
+            }
             ExpressionNode::Match(dispatch) => {
                 let arms = program.expression_table.match_arms(dispatch.arms);
                 if arms.len() != dispatch.arms.len() || arms.is_empty() {

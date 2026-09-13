@@ -57,6 +57,9 @@ pub struct ConstInitializerNormalization {
     pub canonical_result_encoding: String,
     pub selections: Vec<crate::types::ConstArgumentOrigin>,
     pub builtin_operators: Vec<source::SourceSpan>,
+    /// Original call occurrence and exact selected declaration source. These
+    /// remain declaration selections, not builtin execution assertions.
+    pub call_selections: Vec<(source::SourceSpan, source::SourceSpan)>,
 }
 
 /// Transitional bootstrap representation for the former magic

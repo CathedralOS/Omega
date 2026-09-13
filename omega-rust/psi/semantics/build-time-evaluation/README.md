@@ -167,9 +167,24 @@ The source acceptance command is
 `cargo run -p omega -- --check tests/omega/pass/modules/computed_constant_initializers/main.omg`.
 Its checked body/index, module and package controls are
 `cargo nextest run -p compiler --test module_machine_indices computed_declarations:: --no-fail-fast`.
-Machine-call, aggregate, constrained/target-dependent and floating declaration
-evaluation remain separate unfinished obligations; this scalar path does not
-establish native aggregate execution or NaN representation identity.
+Ordinary closed integer/Boolean machine calls share the exact scalar evaluator,
+including arithmetic, selective Boolean/match expressions and aggregate leaves.
+Their arguments retain declared carriers; skipped calls still undergo static
+argument and selection checks. Helper-body constant dependencies complete before
+execution, and ordinary checking plus the common build-time admission floor
+precedes the hermetic interpreter. Detached authored roots and materialized
+values are independently replayed against the receiving typed program; a fold
+receipt is not evidence of its own result.
+
+The call customer is
+`cargo run -p omega -- --check tests/omega/pass/modules/machine_constant_initializers/main.omg`;
+`cargo nextest run -p compiler --test module_machine_indices machine_initializers:: --no-fail-fast --no-tests fail`
+checks source-free Terminal execution and module/index identity.
+Demanded callees currently need a complete empty checked failure summary.
+Concrete invocation discharge for otherwise fallible bodies, specialized
+generic/provider applications, aggregate-producing expressions,
+constrained/target-dependent and floating declarations remain unfinished.
+This path does not establish native aggregate execution or NaN identity.
 
 Fixed-array length calls whose reachable closure needs an authored operator
 retain their pre-check continuation until Omega supplies selected execution.

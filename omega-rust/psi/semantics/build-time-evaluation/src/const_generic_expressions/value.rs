@@ -26,7 +26,9 @@
 //! independent branch combinations or executing skipped landed expressions.
 
 use diagnostics::Diagnostic;
-use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
+use language_semantics::const_value::{
+    CanonicalConstIdentity, CanonicalConstValue, DecodedCanonicalConstValue,
+};
 use numerics::{
     arithmetic::ArithmeticDomain,
     literals::{IntegerLiteral, LandedIntegerType},
@@ -46,6 +48,24 @@ mod match_dispatch;
 #[path = "value/match_tests.rs"]
 mod match_tests;
 
+#[cfg(test)]
+#[path = "value/call_tests.rs"]
+mod call_tests;
+
+/// The invocation owner validates all arguments without executing landed
+/// expressions, then evaluates arguments and the admitted machine only on demand.
+pub(crate) trait ConstantCalls {
+    fn validate_call(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Result<(PrimitiveType, Vec<Diagnostic>), String>;
+
+    fn evaluate_call(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String>;
+}
+
 #[derive(Clone, Copy)]
 enum Shape {
     Anonymous(ExpressionHandle),
@@ -60,14 +80,64 @@ enum Value {
     Landed(LandedIntegerType, IntegerValue),
 }
 
-/// Only a wholly anonymous final value uses `destination`. A previously
-/// landed result retains its carrier for the caller's destination check.
+/// Only a wholly anonymous final value lands at `destination`. A previously
+/// landed result retains its carrier for this legacy API's caller to check.
 pub(crate) fn evaluate(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
     destination: PrimitiveType,
+) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
+    evaluate_internal(program, machine, state, expression, destination, None)
+}
+
+/// Validate every operand and landing boundary without invoking landed calls.
+pub(crate) fn validate_with_calls(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    calls: &dyn ConstantCalls,
+) -> Result<Vec<Diagnostic>, String> {
+    match_dispatch::validate_graph(program, expression)?;
+    Ok(validate_shapes(
+        program,
+        machine,
+        state,
+        expression,
+        destination,
+        Some(calls),
+    )?
+    .warnings)
+}
+
+pub(crate) fn evaluate_with_calls(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    calls: &dyn ConstantCalls,
+) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
+    evaluate_internal(
+        program,
+        machine,
+        state,
+        expression,
+        destination,
+        Some(calls),
+    )
+}
+
+fn evaluate_internal(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    calls: Option<&dyn ConstantCalls>,
 ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
     if !program.expression_table.expression_is_valid(expression) {
         return Err("invalid constant expression".to_owned());
@@ -86,8 +156,11 @@ pub(crate) fn evaluate(
     let mut active = Vec::new();
     let mut values = Vec::new();
     match_dispatch::validate_graph(program, expression)?;
-    let (mut warnings, matches) =
-        validate_shapes(program, machine, state, expression, destination)?;
+    let ValidatedShapes {
+        mut warnings,
+        matches,
+        call_shapes,
+    } = validate_shapes(program, machine, state, expression, destination, calls)?;
     let mut selected_arms = Vec::new();
     while let Some(step) = pending.pop() {
         match step {
@@ -98,6 +171,22 @@ pub(crate) fn evaluate(
                     return Err("invalid or cyclic constant expression".into());
                 }
                 match program.expression_table.expression(expression) {
+                    ExpressionNode::Call(_) => {
+                        let shape = call_shapes
+                            .iter()
+                            .find(|(source, _)| *source == expression)
+                            .map(|(_, shape)| *shape)
+                            .ok_or("constant call has no validated scalar carrier")?;
+                        let (value, call_warnings) = calls
+                            .ok_or("machine calls require constant invocation admission")?
+                            .evaluate_call(expression)?;
+                        values.push(call_value(&value, shape)?);
+                        for warning in call_warnings {
+                            if !warnings.contains(&warning) {
+                                warnings.push(warning);
+                            }
+                        }
+                    }
                     ExpressionNode::Match(dispatch) => {
                         active.push(expression);
                         pending.push(Step::MatchSubject(expression));
@@ -399,18 +488,26 @@ pub(crate) fn evaluate(
 // compile-time landing before a typed operation and supplies no runtime rational
 // arithmetic. Landed operations are never executed by this pass, so a skipped
 // divide, overflow or shift still follows the selective expression schedule.
+struct ValidatedShapes {
+    warnings: Vec<Diagnostic>,
+    matches: Vec<match_dispatch::MatchPlan>,
+    call_shapes: Vec<(ExpressionHandle, Shape)>,
+}
+
 fn validate_shapes(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     root: ExpressionHandle,
     destination: PrimitiveType,
-) -> Result<(Vec<Diagnostic>, Vec<match_dispatch::MatchPlan>), String> {
+    calls: Option<&dyn ConstantCalls>,
+) -> Result<ValidatedShapes, String> {
     let mut pending = vec![(root, false)];
     let mut active = Vec::new();
     let mut shapes = Vec::new();
     let mut warnings = Vec::new();
     let mut matches = Vec::new();
+    let mut call_shapes = Vec::new();
     while let Some((expression, finish)) = pending.pop() {
         if !program.expression_table.expression_is_valid(expression) {
             return Err("invalid constant expression".into());
@@ -420,6 +517,19 @@ fn validate_shapes(
                 return Err("cyclic constant expression".into());
             }
             match program.expression_table.expression(expression) {
+                ExpressionNode::Call(_) => {
+                    let (primitive, call_warnings) = calls
+                        .ok_or("machine calls require constant invocation admission")?
+                        .validate_call(expression)?;
+                    let shape = scalar_shape(primitive)?;
+                    shapes.push(shape);
+                    call_shapes.push((expression, shape));
+                    for warning in call_warnings {
+                        if !warnings.contains(&warning) {
+                            warnings.push(warning);
+                        }
+                    }
+                }
                 ExpressionNode::Match(dispatch) => {
                     active.push(expression);
                     pending.push((expression, true));
@@ -604,17 +714,68 @@ fn validate_shapes(
     // The actual destination owns landing even when arithmetic surrounds a
     // dispatch. Checking only a bare Match would let an unselected fractional
     // or out-of-range result disappear before the selected value is published.
-    if matches!(shapes[0], Shape::Anonymous(_)) {
-        match_dispatch::validate_landing(
-            program,
-            machine,
-            state,
-            root,
-            destination,
-            &mut warnings,
-        )?;
+    match shapes[0] {
+        Shape::Anonymous(_) => {
+            match_dispatch::validate_landing(
+                program,
+                machine,
+                state,
+                root,
+                destination,
+                &mut warnings,
+            )?;
+        }
+        Shape::Boolean if calls.is_none() || destination == PrimitiveType::Bool => {}
+        Shape::Integer(carrier) if calls.is_none() || primitive(carrier)? == destination => {}
+        _ => return Err("constant expression differs from its destination carrier".into()),
     }
-    Ok((warnings, matches))
+    Ok(ValidatedShapes {
+        warnings,
+        matches,
+        call_shapes,
+    })
+}
+
+fn scalar_shape(primitive: PrimitiveType) -> Result<Shape, String> {
+    Ok(Shape::Integer(match primitive {
+        PrimitiveType::Bool => return Ok(Shape::Boolean),
+        PrimitiveType::I8 => LandedIntegerType::I8,
+        PrimitiveType::I16 => LandedIntegerType::I16,
+        PrimitiveType::I32 => LandedIntegerType::I32,
+        PrimitiveType::I64 => LandedIntegerType::I64,
+        PrimitiveType::U8 => LandedIntegerType::U8,
+        PrimitiveType::U16 => LandedIntegerType::U16,
+        PrimitiveType::U32 => LandedIntegerType::U32,
+        PrimitiveType::U64 => LandedIntegerType::U64,
+        _ => return Err("constant call requires an exact integer or Boolean carrier".into()),
+    }))
+}
+
+fn call_value(value: &CanonicalConstValue, shape: Shape) -> Result<Value, String> {
+    match (shape, value.decode_encoding()) {
+        (Shape::Boolean, Some(DecodedCanonicalConstValue::Boolean(result)))
+            if value.identity() == CanonicalConstValue::boolean(result).identity() =>
+        {
+            Ok(Value::Boolean(result))
+        }
+        (
+            Shape::Integer(carrier),
+            Some(DecodedCanonicalConstValue::Integer { value: result, .. }),
+        ) if value.identity() == CanonicalConstIdentity::integer(carrier.name(), result) => {
+            let result = if carrier.is_signed() {
+                IntegerValue::Signed(result)
+            } else {
+                IntegerValue::Unsigned(
+                    u128::try_from(result).map_err(|_| "negative unsigned constant call result")?,
+                )
+            };
+            if !integer_type(carrier)?.admits(result) {
+                return Err("constant call result exceeds its declared carrier".into());
+            }
+            Ok(Value::Landed(carrier, result))
+        }
+        _ => Err("constant call result differs from its validated scalar carrier".into()),
+    }
 }
 
 fn compare_anonymous(

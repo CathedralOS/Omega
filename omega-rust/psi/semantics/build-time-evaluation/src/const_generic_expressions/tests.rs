@@ -147,6 +147,93 @@ fn genuine_builtin_binary_retains_exact_operator_custody() {
 }
 
 #[test]
+fn call_free_index_custody_accepts_only_its_selected_constants_inherited_calls() {
+    let source = "machine size() -> u64 { 7 }
+        machine other() -> u64 { 9 }
+        const SIZE: u64 = size() * 2;
+        const FOREIGN: u64 = other() * 2;
+        machine run() -> u64 { SIZE }";
+    let mut sources = source::SourceMap::default();
+    let source_id = sources
+        .add(std::path::PathBuf::from("main.omg"), source.to_owned())
+        .source_id;
+    let sources = std::sync::Arc::new(sources);
+    let tokens = Lexer::new(source).tokenize().expect("tokens");
+    let syntax =
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("syntax");
+    let syntax = crate::const_initializers::evaluate(syntax, Some(sources.clone()), &[], None)
+        .expect("machine constants normalize");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&syntax, sources)
+            .expect("normalized declarations resolve");
+    let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("normalized declarations type");
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    let [typed_trees::statement::StatementNode::Expression(expression)] =
+        program.statement_table.statements(state.statement_nodes)
+    else {
+        panic!("selected constant use");
+    };
+    let (origins, operators) =
+        expression_custody(&program, machine, state, *expression, false, &syntax)
+            .expect("inherited call stays declaration-owned, not a direct index call");
+    assert_eq!(origins.len(), 1);
+    assert_eq!(
+        operators.len(),
+        1,
+        "only the initializer multiply is an operator receipt"
+    );
+    let declaration = program
+        .const_declarations()
+        .iter()
+        .find(|declaration| program.symbols.name(declaration.symbol) == "SIZE")
+        .unwrap();
+    assert_eq!(
+        Some(origins[0].declaration),
+        program.symbols.symbol_source_span(declaration.symbol)
+    );
+    assert!(
+        expression_custody(
+            &program,
+            machine,
+            state,
+            declaration.authored_initializer,
+            false,
+            &syntax
+        )
+        .is_err(),
+        "direct calls do not acquire call-free index authority"
+    );
+    let foreign = program
+        .const_declarations()
+        .iter()
+        .find(|declaration| program.symbols.name(declaration.symbol) == "FOREIGN")
+        .unwrap();
+    let foreign_call = program
+        .expression_table
+        .authored_selection_occurrences(foreign.materialized_initializer)
+        .find(|occurrence| {
+            program
+                .authored_declaration_selections()
+                .get(*occurrence)
+                .is_some_and(|selection| selection.kind() == Kind::Call)
+        })
+        .expect("foreign call receipt");
+    let mut changed = program.clone();
+    changed
+        .expression_table
+        .attach_authored_selection_occurrences(*expression, [foreign_call]);
+    let error = expression_custody(&changed, machine, state, *expression, false, &syntax)
+        .expect_err("globally valid call receipt is not inherited from SIZE");
+    assert!(error.contains("owning normalized constant"), "{error}");
+}
+
+#[test]
 fn folded_literal_cannot_promote_unresolved_operator_custody() {
     let (mut program, expression) = typed_binary();
     let machine = program
