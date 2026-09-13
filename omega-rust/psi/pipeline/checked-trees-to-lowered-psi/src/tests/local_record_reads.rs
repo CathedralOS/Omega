@@ -114,6 +114,74 @@ fn local_record_reads_reject_changed_field_source_and_carrier() {
 }
 
 #[test]
+fn bounded_record_reads_require_exact_construction_and_observation_evidence() {
+    let checked = checked_source(
+        "data Record { payload: u64[0..=256]; other: u64; }
+        machine accept(value: u64[0..=256]) -> u64 {value}
+        machine observe() -> u64 {
+            let record: Record = Record {payload: 0, other: 300};
+            accept(record.payload)
+        }",
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
+        .produce_artifact()
+        .expect("bounded record publishes with range evidence");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let bundle = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    let profile = proof_admission::AdmissionProfile::default();
+    terminal_verifier::verify_module(&module, &bundle, &profile).unwrap();
+    for replace_identity in [false, true] {
+        let mut changed = module.clone();
+        let fields = changed
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match &mut operation.kind {
+                OperationKind::EstablishRecord { fields } => Some(fields),
+                _ => None,
+            })
+            .unwrap();
+        let terminal_psi::RecordFieldValue::Scalar {
+            range_obligation, ..
+        } = &mut fields[0].value
+        else {
+            panic!("bounded field")
+        };
+        assert!(range_obligation.is_some());
+        *range_obligation = replace_identity.then(|| obligation_id(u64::MAX));
+        assert!(terminal_verifier::verify_module(&changed, &bundle, &profile).is_err());
+    }
+    let mut changed = module.clone();
+    let other = changed
+        .structural_types
+        .iter()
+        .find_map(|declaration| match &declaration.shape {
+            StructuralTypeShape::Record { fields } => fields
+                .iter()
+                .find(|field| field.identity == "other")
+                .map(|field| field.id),
+            _ => None,
+        })
+        .unwrap();
+    let field = changed
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            OperationKind::IntegerStructuralField { field, .. } => Some(field),
+            _ => None,
+        })
+        .unwrap();
+    *field = other;
+    // The other field is a valid u64 read, but it cannot borrow the original
+    // field's range certificate to justify the following constrained call.
+    terminal_verifier::validate_module(&changed).unwrap();
+    assert!(terminal_verifier::verify_module(&changed, &bundle, &profile).is_err());
+}
+
+#[test]
 fn shared_record_getter_keeps_receiver_custody_separate_from_arguments() {
     let checked = checked_source(
         "

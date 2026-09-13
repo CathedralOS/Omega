@@ -2,7 +2,9 @@ mod assignment;
 mod queries;
 mod value_expressions;
 
-pub(super) use value_expressions::assign_type_value_expression_symbols;
+pub(super) use value_expressions::{
+    assign_data_type_value_expression_symbols, assign_type_value_expression_symbols,
+};
 
 pub(super) use assignment::{
     assign_machine_declaration_identity_argument_symbols,

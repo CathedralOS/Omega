@@ -150,6 +150,27 @@ impl MachineScope<'_> {
         symbols: &SymbolTable,
         field_symbol: SymbolHandle,
     ) -> Option<&symbol_resolved_trees::types::TypeReference> {
+        if symbols.get(self.symbol).kind == symbols::SymbolKind::Variant
+            && symbols.get(field_symbol).parent == self.symbol
+        {
+            // Payload fields may shadow a differently typed common field.
+            // Resolve their exact declaration before the inherited field view.
+            let payload = self
+                .inherited_data_members?
+                .iter()
+                .find_map(|member| match member {
+                    DataMember::Variant(variant) if variant.symbol == self.symbol => {
+                        Some(variant.payload)
+                    }
+                    _ => None,
+                })?;
+            return self
+                .data_payload_fields
+                .span_or_empty(payload)
+                .iter()
+                .find(|field| field.symbol == field_symbol)
+                .map(|field| &field.type_reference);
+        }
         if let Some(data_members) = self.inherited_data_members {
             for member in data_members {
                 let symbol_resolved_trees::data::DataMember::Field(field) = member else {

@@ -618,11 +618,7 @@ pub enum StructuralEffectObservation {
         obligation: ObligationId,
     },
     BooleanFieldEquation(Proposition),
-    IntegerFieldRead {
-        source: PlaceId,
-        field: StructuralFieldId,
-        result: ValueId,
-    },
+    IntegerFieldEquation(Proposition),
     PortWrite {
         service: ServiceId,
         port: u16,
@@ -693,6 +689,7 @@ impl StructuralEffectObservation {
     pub fn local_equation(&self) -> Option<&Proposition> {
         match self {
             Self::BooleanFieldEquation(proposition)
+            | Self::IntegerFieldEquation(proposition)
             | Self::ScalarCaseEstablished {
                 membership: proposition,
                 ..
@@ -714,7 +711,6 @@ impl StructuralEffectObservation {
             | Self::ByteSequenceWrite { .. }
             | Self::ByteSequenceRead { .. }
             | Self::ByteSequenceSubslice { .. }
-            | Self::IntegerFieldRead { .. }
             | Self::PortWrite { .. }
             | Self::AffinePlaceEstablished { .. } => None,
         }
@@ -1206,15 +1202,30 @@ pub fn structural_effect_leaf_observation_in(
         (
             StructuralEffectAction::ReadIntegerField,
             OperationKind::IntegerStructuralField { source, field },
-        ) => StructuralEffectObservation::IntegerFieldRead {
-            source: *source,
-            field: *field,
-            result: operation
+        ) => {
+            let result = operation
                 .result
                 .scalar_ref()
-                .expect("validated integer structural-field result")
-                .id,
-        },
+                .expect("validated integer structural-field result");
+            let ScalarType::Integer(integer) = result.scalar_type else {
+                return Err(OperationSemanticError::StructuralEffectResultShapeMismatch(
+                    OperationSemanticTag::IntegerStructuralField,
+                ));
+            };
+            // Read denotation connects the current place observation to its SSA
+            // snapshot. Module validation owns field/carrier and live-custody
+            // checks; this equation grants no range or construction authority.
+            StructuralEffectObservation::IntegerFieldEquation(Proposition::Equal(
+                ScalarTerm::value(result.id, result.scalar_type),
+                ScalarTerm::integer_field_path(
+                    *source,
+                    vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                        *field,
+                    )],
+                    integer,
+                ),
+            ))
+        }
         (
             StructuralEffectAction::EstablishByteSequencePlace,
             OperationKind::EstablishByteSequenceLiteral { destination, .. },
@@ -1285,6 +1296,52 @@ mod tests {
     use terminal_psi::{OperationResult, ValueDeclaration};
 
     use super::*;
+
+    #[test]
+    fn integer_field_observation_retains_exact_source_field_and_carrier() {
+        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+            for bits in [8, 16, 32, 64] {
+                let integer = IntegerType::new(sign, bits).unwrap();
+                let scalar_type = ScalarType::Integer(integer);
+                let source = PlaceId::new(2).unwrap();
+                let field = StructuralFieldId::new(3).unwrap();
+                let result = ValueId::new(4).unwrap();
+                let mut operation = Operation {
+                    static_reach_binding: None,
+                    id: OperationId::new(1).unwrap(),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: result,
+                        scalar_type,
+                        qualifications: Default::default(),
+                    }),
+                    kind: OperationKind::IntegerStructuralField { source, field },
+                };
+                let observation = structural_effect_leaf_observation(&operation)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(
+                    observation.local_equation(),
+                    Some(&Proposition::Equal(
+                        ScalarTerm::value(result, scalar_type),
+                        ScalarTerm::integer_field_path(
+                            source,
+                            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                                field
+                            )],
+                            integer
+                        ),
+                    ))
+                );
+                assert!(observation.canonical_obligation().is_none());
+                operation.result = OperationResult::Scalar(ValueDeclaration {
+                    id: result,
+                    scalar_type: ScalarType::Boolean,
+                    qualifications: Default::default(),
+                });
+                assert!(structural_effect_leaf_observation(&operation).is_err());
+            }
+        }
+    }
 
     #[test]
     fn reference_actions_preserve_source_and_separate_carrier_custody() {

@@ -7,7 +7,9 @@ use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 #[cfg(test)]
 mod tests;
@@ -26,7 +28,9 @@ pub struct LocalScalarRecordField {
 /// Resolve a direct field of one prior, whole immutable plain-owned local.
 /// The caller must bind the expression to this authored statement's evaluation
 /// graph. Nested projections, generic/qualified owners, erased fields and
-/// qualified or policy-bearing scalar fields require additional retained facts.
+/// nominally qualified or policy-bearing scalar fields require additional facts.
+/// Closed integer ranges keep their bounded declaration and construction proof;
+/// observing the established field uses its underlying scalar carrier.
 pub fn local_scalar_record_field(
     program: &TypedTrees,
     machine: SymbolHandle,
@@ -63,12 +67,11 @@ pub fn local_scalar_record_field(
         || program.symbols.get(field.symbol).parent != record.symbol
         || program.data_members(record).iter().filter(|member| matches!(member, DataMember::Field(candidate) if candidate.symbol == field.symbol)).count() != 1
         || field.relevance.is_erased()
-        || !matches!(program.type_reference_table.type_reference(field.type_reference), TypeReferenceNode::Named { .. })
         || program.arithmetic_domain_for_type_reference(field.type_reference) != ArithmeticDomain::Exact
     {
         return None;
     }
-    let primitive_type = crate::recasts::exact_primitive_type(program, field.type_reference)?;
+    let primitive_type = realized_scalar_carrier(program, field.type_reference)?;
     if !matches!(
         primitive_type,
         PrimitiveType::Bool
@@ -205,7 +208,7 @@ fn local_plain_record(
             program.type_multiplicity(local.type_reference),
             Multiplicity::Affine | Multiplicity::Unrestricted
         )
-        || !crate::has_plain_owned_contents(program, local.type_reference)
+        || !crate::has_plain_owned_contents_with_numeric_constraints(program, local.type_reference)
     {
         return None;
     }
@@ -256,13 +259,7 @@ fn has_realized_scalar_fields(
                 |prior| matches!(prior, DataMember::Field(prior) if prior.symbol == field.symbol),
             )
             && matches!(
-                program
-                    .type_reference_table
-                    .type_reference(field.type_reference),
-                TypeReferenceNode::Named { .. }
-            )
-            && matches!(
-                crate::recasts::exact_primitive_type(program, field.type_reference),
+                realized_scalar_carrier(program, field.type_reference),
                 Some(
                     typed_trees::types::PrimitiveType::Bool
                         | typed_trees::types::PrimitiveType::I8
@@ -278,4 +275,51 @@ fn has_realized_scalar_fields(
                 )
             )
     })
+}
+
+/// Only range shells may use the bounded-record construction/replay route.
+/// Peeling an arbitrary constraint here would erase a qualification or policy.
+fn realized_scalar_carrier(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    let mut bounded = false;
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(reference)
+    {
+        let rows = program.type_reference_table.constraints(*constraints);
+        if rows.is_empty() || rows.len() != constraints.count() as usize {
+            return None;
+        }
+        for constraint in rows {
+            let TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+            else {
+                return None;
+            };
+            crate::closed_integer_range_bound(program, *minimum)?;
+            crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?;
+        }
+        bounded = true;
+        reference = *base_type;
+    }
+    let primitive = crate::recasts::exact_primitive_type(program, reference)?;
+    (!bounded
+        || matches!(
+            primitive,
+            PrimitiveType::I8
+                | PrimitiveType::I16
+                | PrimitiveType::I32
+                | PrimitiveType::I64
+                | PrimitiveType::U8
+                | PrimitiveType::U16
+                | PrimitiveType::U32
+                | PrimitiveType::U64
+        ))
+    .then_some(primitive)
 }

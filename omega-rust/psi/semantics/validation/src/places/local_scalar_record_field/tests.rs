@@ -24,7 +24,6 @@ fn local_field_rejects_unrepresented_sibling_storage() {
             "extra [erased]: Evidence;",
             "Evidence::Only",
         ),
-        ("", "extra: u64[0..=100];", "1"),
         ("", "extra: u64 in Wrapping;", "1 as u64 in Wrapping"),
     ] {
         let (program, machine, state, expression) = typed_source(&format!(
@@ -38,6 +37,58 @@ fn local_field_rejects_unrepresented_sibling_storage() {
         assert!(
             local_scalar_record_field(&program, machine, state, 1, expression).is_none(),
             "the selected scalar field cannot admit unsupported sibling storage: {field}"
+        );
+    }
+}
+
+#[test]
+fn local_field_allows_closed_integer_ranges_without_losing_declaration_identity() {
+    for field_type in ["u64[0..=100]", "i64[-10..11]", "u8[0..256]"] {
+        let (program, machine, state, expression) = typed_source(&format!(
+            "data Record {{ payload: {field_type}; extra: u64[0..=100]; }}
+             machine observe(payload: {field_type}) -> {field_type} {{
+                 let record: Record = Record {{ payload: payload, extra: 1 }};
+                 record.payload
+             }}"
+        ));
+        let read = local_scalar_record_field(&program, machine, state, 1, expression)
+            .expect("closed bounded field");
+        let DataMember::Field(field) = &program.data_members(&program.data_definitions()[0])[0]
+        else {
+            panic!("field")
+        };
+        assert_eq!(read.field, field.symbol);
+        assert_eq!(
+            Some(read.primitive_type),
+            program.primitive_type_reference(field.type_reference)
+        );
+        assert!(matches!(
+            program
+                .type_reference_table
+                .type_reference(field.type_reference),
+            TypeReferenceNode::Constrained { .. }
+        ));
+    }
+}
+
+#[test]
+fn local_field_does_not_use_open_or_invalid_ranges_as_plain_carriers() {
+    for field_type in [
+        "u64[0..=unknown()]",
+        "u8[0..=256u8]",
+        "f64[0..=100]",
+        "u64[0..=100] in Wrapping",
+    ] {
+        let (program, machine, state, expression) = typed_source(&format!(
+            "data Record {{ payload: {field_type}; }}
+             machine observe(payload: {field_type}) -> {field_type} {{
+                 let record: Record = Record {{ payload: payload }};
+                 record.payload
+             }}"
+        ));
+        assert!(
+            local_scalar_record_field(&program, machine, state, 1, expression).is_none(),
+            "{field_type}"
         );
     }
 }
@@ -197,7 +248,7 @@ fn local_field_rejects_mutable_and_conflicting_receiver_identity() {
 
 #[test]
 fn local_field_does_not_erase_scalar_constraints_or_noninteger_carriers() {
-    for field_type in ["u64 in Wrapping", "u64[0..=100]", "f64", "addr"] {
+    for field_type in ["u64 in Wrapping", "f64", "addr"] {
         let (program, machine, state, expression) = typed_source(&format!(
             "data Record {{ payload: {field_type}; }}
              machine observe(payload: {field_type}) -> {field_type} {{

@@ -261,8 +261,14 @@ exact carriers and fractional warnings, including nested anonymous landings.
 Argument selections pass their own package gate rather than inheriting the
 callee's permission. This repeats scalar evaluation to reuse both existing
 contracts; it does not add another arithmetic implementation.
+Record and case-payload field endpoints resolve in their own lexical scope;
+payload subjects shadow common fields and global names. Local bounded records
+retain declaration-owned range proofs at construction and exact field-read
+equations at observation. The range-inference fixture executes those reads and
+their inferred calls from canonical Terminal bytes, independently of compile-time
+evaluation; the hosted entry's receiver provisioning remains a separate gap.
 Nested calls, noninteger or constrained arguments, generic machine arguments,
-unresolved data-field calls, open symbolic endpoints,
+open symbolic endpoints,
 full-width variable compatibility intervals and exact type equations remain
 open; context-free typed evaluation refuses matching selected trait operators
 until the endpoint has direct owner context.

@@ -49,6 +49,8 @@ fn declared_range_inference_returns_the_selected_endpoint() {
         ("argument_full_width", vec![BuildTimeValue::Int(0)], -1),
         ("argument_scoped", vec![BuildTimeValue::Int(0)], 256),
         ("argument_order", vec![BuildTimeValue::Int(0)], 256),
+        ("field_bound", vec![], 256),
+        ("field_scoped_exclusive", vec![], 511),
     ] {
         let machine = checked
             .typed
@@ -120,6 +122,36 @@ fn declared_range_inference_returns_the_selected_endpoint() {
             "{name}"
         );
     }
+}
+
+#[test]
+fn declared_range_inference_computed_fields_preserve_establishment_checks() {
+    let scratch = unique_no_output_build_dir();
+    fs::create_dir_all(&scratch).unwrap();
+    let main_path = scratch.join("main.omg");
+    fs::write(
+        &main_path,
+        "machine endpoint(value: u64) -> u64 {value}
+        data BoundedValue [copy] {value: u64[0..=endpoint(256)];}
+        machine invalid() -> BoundedValue {BoundedValue {value: 257}}",
+    )
+    .unwrap();
+    let diagnostics =
+        compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+            .expect_err("computed endpoint does not waive field establishment");
+    fs::remove_dir_all(&scratch).unwrap();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("range")),
+        "{diagnostics:?}"
+    );
+    assert!(
+        !diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("bound is not a constant")),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]

@@ -85,9 +85,13 @@ pub(crate) fn prepare(
         let scalar_type = terminal_scalar_type(node.primitive_type)?;
         if fields.next().is_some()
             || retained.relevance.is_erased()
-            || retained.field_type != StructuralFieldType::Scalar(scalar_type)
+            || !matches!(
+                retained.field_type,
+                StructuralFieldType::Scalar(_) | StructuralFieldType::BoundedInteger(_)
+            )
+            || retained.field_type.scalar_type() != Some(scalar_type)
         {
-            return unsupported("record read changed its plain scalar field type");
+            return unsupported("record read changed its scalar field carrier");
         }
         bindings.push(Binding {
             symbol: *field,

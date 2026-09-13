@@ -11,8 +11,9 @@ closed integer expressions received by exact unconstrained builtin integer
 parameters. The shared numeric query establishes context-independent arithmetic;
 the scalar constant evaluator retains carrier checks and fractional warnings.
 Each argument keeps its own selection admission before the callee's common
-floor is checked. Nested calls, constrained arguments, generic applications and
-unresolved data-field calls remain outside this route.
+floor is checked. Record and case-payload types receive exact call identities
+from ordinary declaration-scope resolution before this service runs. Nested
+calls, constrained arguments and generic applications remain outside this route.
 
 The public ownership-taking pre-resolution and pre-check conveyors keep these
 Psi phases separate. Omega interposes target machine selection and schedules

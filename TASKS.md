@@ -1339,8 +1339,9 @@ Owners include
   exact unconstrained builtin integer parameters, preserving carrier checks,
   selection authority and fractional warnings. Nested calls, noninteger and
   constrained arguments, generic calls, owner-sensitive operations and open
-  symbolic endpoints remain. Data-field endpoint calls still need resolved
-  callee identities before this fold can select them; do not infer by spelling.
+  symbolic endpoints remain. Record and case-payload endpoint calls resolve in
+  their declaration scope before folding; local bounded record construction and
+  field reads retain range obligations through canonical Terminal execution.
   Replace the range-argument exclusion in `generic_data/arguments.rs` only with exact identity
   and constrained-shell substitution, not a source-display cache key.
 

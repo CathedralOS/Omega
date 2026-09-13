@@ -40,6 +40,16 @@ machine Limits::endpoint(value: u64) -> u64 { value }
 machine argument_scoped(value: u64[0..Limits::endpoint(257)]) -> u64 { upper_bound(value) }
 machine choose_endpoint(first: u64, second: u64) -> u64 { second }
 machine argument_order(value: u64[0..=choose_endpoint(17, 256)]) -> u64 { upper_bound(value) }
+data BoundedValue [copy] { value: u64[0..=endpoint(256)]; }
+machine field_bound() -> u64 {
+    let bounded: BoundedValue = BoundedValue { value: 0 };
+    upper_bound(bounded.value)
+}
+data ScopedBounds [copy] { first: u64[0..=Limits::capacity()]; second: u64[0..OtherLimits::capacity()]; }
+machine field_scoped_exclusive() -> u64 {
+    let bounded: ScopedBounds = ScopedBounds { second: 511, first: 256 };
+    upper_bound(bounded.second)
+}
 
 data Main { console: Console; }
 machine Main::main(&mut self) reaches Console {
