@@ -335,13 +335,9 @@ fn set_snapshot_directory_read_only(_path: &Path) -> Result<(), SourceResolveErr
 pub(crate) fn make_open_tree_owner_writable(root: &CapabilityDirectory) {
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
+        use cap_std::fs::PermissionsExt;
 
-        if let Ok(directory) = root.try_clone() {
-            let _ = directory
-                .into_std_file()
-                .set_permissions(std::fs::Permissions::from_mode(0o700));
-        }
+        let _ = root.set_permissions(".", cap_std::fs::Permissions::from_mode(0o700));
         if let Ok(entries) = root.entries() {
             for entry in entries.flatten() {
                 let name = entry.file_name();

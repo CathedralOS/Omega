@@ -245,9 +245,9 @@ fn synchronize_directory(
     display_path: &Path,
 ) -> Result<(), RecordFileError> {
     directory
-        .try_clone()
+        .open(".")
         .map_err(|error| io_error(display_path, error))?
-        .into_std_file()
+        .into_std()
         .sync_all()
         .map_err(|error| io_error(display_path, error))
 }

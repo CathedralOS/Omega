@@ -155,16 +155,18 @@ pub(crate) fn publish_cache_directory_from_open_parent(
 }
 
 #[cfg(unix)]
+/// Directory handles are opened with `O_PATH` on Linux; reopen a readable
+/// handle so `fsync` applies.
+pub(crate) fn synchronize_directory(directory: &CapabilityDirectory) -> std::io::Result<()> {
+    directory.open(".")?.into_std().sync_all()
+}
+
+#[cfg(unix)]
 fn synchronize_cache_parent(
     directory: &CapabilityDirectory,
     parent: &Path,
 ) -> Result<(), SourceResolveError> {
-    directory
-        .try_clone()
-        .map_err(|error| io_error(parent, error))?
-        .into_std_file()
-        .sync_all()
-        .map_err(|error| io_error(parent, error))
+    synchronize_directory(directory).map_err(|error| io_error(parent, error))
 }
 
 #[cfg(not(unix))]
