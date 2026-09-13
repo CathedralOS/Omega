@@ -8,14 +8,22 @@ use super::*;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct ReferenceIdentity {
     place: PlaceId,
-    /// Initial result coordinate, unaffected by later owned record moves.
+    /// Initial formation or formal-leaf coordinate, unaffected by owned moves.
     path: Vec<StructuralPathSegment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ReferenceParent {
-    Root(PlaceId),
+    Root(ReferenceOrigin),
     Reference(ReferenceIdentity),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum ReferenceOrigin {
+    Primitive(PlaceId),
+    /// An internal owned ingress assumes one existing permission per leaf.
+    /// Its callers must supply the actual lineage; this is not local backing.
+    IngressLeaf(ReferenceIdentity),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,8 +33,62 @@ pub(super) struct LiveReference {
     identity: ReferenceIdentity,
     pub(super) carrier: PlaceId,
     pub(super) carrier_path: Vec<StructuralPathSegment>,
-    pub(super) root: PlaceId,
+    root: ReferenceOrigin,
     parent: ReferenceParent,
+}
+
+pub(crate) fn argument_owns_references(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    argument: &StructuralArgument,
+) -> bool {
+    argument.access == StructuralAccess::Owned
+        && super::structural_result_contracts::source_signature(machine, argument.place)
+            .is_some_and(|source| contains_reference(module, source.structural_type))
+}
+
+// Incoming types have no explicit leaf roster to bound reconstruction. Keep
+// this private verification-work capacity separate from resource authority;
+// local/result rosters remain bounded by their existing captured rows.
+const MAX_INCOMING_REFERENCE_LEAVES: usize = 4096;
+
+pub(super) fn entry_references(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Result<Vec<LiveReference>, ModuleError> {
+    let mut live = Vec::new();
+    for parameter in &machine.structural_parameters {
+        if !contains_reference(module, parameter.structural_type) {
+            continue;
+        }
+        let paths = leaf_paths(
+            module,
+            parameter.structural_type,
+            MAX_INCOMING_REFERENCE_LEAVES - live.len(),
+        )
+        .ok_or_else(|| {
+            invalid(
+                machine,
+                "incoming reference leaf reconstruction capacity exceeded",
+            )
+        })?;
+        for path in paths {
+            let identity = ReferenceIdentity {
+                place: parameter.place,
+                path: path.clone(),
+            };
+            let root = ReferenceOrigin::IngressLeaf(identity.clone());
+            live.push(LiveReference {
+                identity,
+                carrier: parameter.place,
+                carrier_path: path,
+                root: root.clone(),
+                parent: ReferenceParent::Root(root),
+            });
+        }
+    }
+    live.sort_by(|left, right| left.identity.cmp(&right.identity));
+    Ok(live)
 }
 
 /// Inspect owned containment only. A reference's referent is not its payload.
@@ -109,6 +171,14 @@ fn leaf_paths(
             StructuralTypeShape::Record { fields } => {
                 for field in fields.iter().rev() {
                     if let StructuralFieldType::Structural(child) = field.field_type {
+                        if !contains_reference(module, child) {
+                            continue;
+                        }
+                        // Every pending owned subtree owes at least one leaf.
+                        // Bound the worklist before a wide DAG can amplify it.
+                        if pending.len().checked_add(output.len())? >= maximum_leaves {
+                            return None;
+                        }
                         let mut child_path = path.clone();
                         child_path.push(StructuralPathSegment::Field(field.identity.clone()));
                         pending.push((child, child_path));
@@ -209,8 +279,8 @@ pub(super) fn carrier_type(
 
 /// Result mappings describe the complete canonical-path-ordered leaf roster, never
 /// assert live custody. Return replay checks the actual relocated carriers;
-/// calls substitute primitive formal sources and form distinct leaf identities.
-/// Aggregate ingress and partial transfers still require their own replay.
+/// Borrowed ingress forms new child loans; owned ingress transfers existing
+/// leaf identities. Partial transfers still require their own replay.
 pub(super) fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -257,20 +327,40 @@ pub(super) fn validate_machine(
             ));
         }
     }
-    if machine
+    for parameter in machine
         .structural_parameters
         .iter()
-        .chain(
-            machine
-                .blocks
+        .filter(|parameter| contains_reference(module, parameter.structural_type))
+    {
+        if parameter.access != StructuralAccess::Owned
+            || parameter.multiplicity != StructuralMultiplicity::Affine
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !super::record::constructible_type(module, parameter.structural_type)
+            || machine
+                .entry_claims
                 .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+                .any(|claim| claim.input == parameter.place)
+            || machine
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == parameter.place)
+        {
+            return Err(invalid(
+                machine,
+                "incoming reference records require whole unqualified affine ownership",
+            ));
+        }
+    }
+    if machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.structural_parameters)
         .any(|parameter| contains_reference(module, parameter.structural_type))
     {
         return Err(invalid(
             machine,
-            "reference carrier parameters are not yet supported",
+            "reference carrier block parameters are not yet supported",
         ));
     }
     // Binding any subtree of a reference-bearing root would need partial-move
@@ -359,14 +449,14 @@ pub(super) fn validate_machine(
         let expected_referent = leaf_referent(module, result.structural_type, path)
             .ok_or_else(|| invalid(machine, "reference result leaf is unsupported"))?;
         if mapping.path != *path
-            || !mapping.source.path.is_empty()
             || mapping.source.access != StructuralAccess::MutableBorrow
-            || !sources.insert(mapping.source.place)
+            || !sources.insert((mapping.source.place, mapping.source.path.clone()))
             || !machine
                 .structural_parameters
                 .iter()
                 .any(|parameter| parameter.place == mapping.source.place)
             || source_type(module, machine, &mapping.source) != Some(expected_referent)
+            || formal_origin(machine, &mapping.source).is_none()
         {
             return Err(invalid(
                 machine,
@@ -375,6 +465,28 @@ pub(super) fn validate_machine(
         }
     }
     Ok(())
+}
+
+fn formal_origin(
+    machine: &TerminalMachine,
+    source: &StructuralArgument,
+) -> Option<ReferenceOrigin> {
+    let parameter = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source.place)?;
+    if source.path.is_empty() && parameter.access == StructuralAccess::MutableBorrow {
+        Some(ReferenceOrigin::Primitive(source.place))
+    } else if let Some((StructuralPathSegment::Referent, path)) = source.path.split_last()
+        && parameter.access == StructuralAccess::Owned
+    {
+        Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+            place: source.place,
+            path: path.to_vec(),
+        }))
+    } else {
+        None
+    }
 }
 
 pub(super) fn validate_result(
@@ -632,7 +744,7 @@ fn normalized_source(
     machine: &TerminalMachine,
     live: &[LiveReference],
     source: &StructuralArgument,
-) -> Result<(PlaceId, ReferenceParent), ModuleError> {
+) -> Result<(ReferenceOrigin, ReferenceParent), ModuleError> {
     if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
         let parent = live
             .iter()
@@ -650,17 +762,21 @@ fn normalized_source(
             ));
         }
         Ok((
-            parent.root,
+            parent.root.clone(),
             ReferenceParent::Reference(parent.identity.clone()),
         ))
     } else if source.path.is_empty() {
-        if live.iter().any(|reference| reference.root == source.place) {
+        if live
+            .iter()
+            .any(|reference| reference.root == ReferenceOrigin::Primitive(source.place))
+        {
             return Err(invalid(
                 machine,
                 "original referent remains suspended by a live reference",
             ));
         }
-        Ok((source.place, ReferenceParent::Root(source.place)))
+        let root = ReferenceOrigin::Primitive(source.place);
+        Ok((root.clone(), ReferenceParent::Root(root)))
     } else {
         Err(invalid(
             machine,
@@ -822,10 +938,9 @@ pub(super) fn check_root_access(
     live: &[LiveReference],
     place: PlaceId,
 ) -> Result<(), ModuleError> {
-    if live
-        .iter()
-        .any(|reference| reference.root == place || reference.carrier == place)
-    {
+    if live.iter().any(|reference| {
+        reference.root == ReferenceOrigin::Primitive(place) || reference.carrier == place
+    }) {
         return Err(invalid(
             machine,
             "operation accesses suspended referent or treats reference carrier as owned data",
@@ -881,12 +996,62 @@ pub(super) fn apply_operation(
         _ => &[],
     };
     let mut normalized_arguments = Vec::new();
+    let mut moved = BTreeSet::new();
     for argument in arguments {
+        if argument_owns_references(module, machine, argument) {
+            if !argument.path.is_empty()
+                || matches!(operation.kind, OperationKind::BoundaryCall { .. })
+            {
+                return Err(invalid(
+                    machine,
+                    "reference-bearing owned calls require a whole internal argument",
+                ));
+            }
+            let signature =
+                super::structural_result_contracts::source_signature(machine, argument.place)
+                    .ok_or_else(|| invalid(machine, "owned reference argument has no source"))?;
+            let paths =
+                leaf_paths(module, signature.structural_type, live.len()).ok_or_else(|| {
+                    invalid(
+                        machine,
+                        "owned argument reference roster exceeds live custody",
+                    )
+                })?;
+            if paths.len()
+                != live
+                    .iter()
+                    .filter(|reference| reference.carrier == argument.place)
+                    .count()
+            {
+                return Err(invalid(
+                    machine,
+                    "owned argument reference roster differs from its type",
+                ));
+            }
+            for path in paths {
+                let reference = live
+                    .iter()
+                    .find(|reference| {
+                        reference.carrier == argument.place && reference.carrier_path == path
+                    })
+                    .ok_or_else(|| invalid(machine, "owned argument reference leaf is not live"))?;
+                // Abstract callee ingress promises independently available
+                // leaves. A type cannot describe an unknown suspended parent
+                // or a parent/child pair packed into the same incoming record.
+                if live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity))
+                    || !moved.insert(reference.identity.clone())
+                {
+                    return Err(invalid(machine, "owned reference argument duplicates or suspends a leaf"));
+                }
+                normalized_arguments.push((reference.root.clone(), argument.access, true));
+            }
+            continue;
+        }
         if super::structural_result_contracts::source_signature(machine, argument.place)
             .is_some_and(|source| contains_reference(module, source.structural_type))
             || live
                 .iter()
-                .any(|reference| reference.root == argument.place)
+                .any(|reference| reference.root == ReferenceOrigin::Primitive(argument.place))
         {
             if !is_reference_projection(module, machine, argument) {
                 return Err(invalid(
@@ -895,23 +1060,24 @@ pub(super) fn apply_operation(
                 ));
             }
             let (root, _) = normalized_source(machine, live, argument)?;
-            normalized_arguments.push((root, argument.access));
+            normalized_arguments.push((root, argument.access, true));
         } else {
-            normalized_arguments.push((argument.place, argument.access));
+            normalized_arguments.push((
+                ReferenceOrigin::Primitive(argument.place),
+                argument.access,
+                false,
+            ));
         }
     }
-    for (position, (root, access)) in normalized_arguments.iter().enumerate() {
-        if normalized_arguments[position + 1..]
-            .iter()
-            .any(|(other, other_access)| {
-                root == other
+    for (position, (root, access, reference_access)) in normalized_arguments.iter().enumerate() {
+        if normalized_arguments[position + 1..].iter().any(
+            |(other, other_access, other_reference_access)| {
+                (*reference_access || *other_reference_access)
+                    && root == other
                     && (*access != StructuralAccess::SharedBorrow
                         || *other_access != StructuralAccess::SharedBorrow)
-            })
-            && arguments
-                .iter()
-                .any(|argument| is_reference_projection(module, machine, argument))
-        {
+            },
+        ) {
             return Err(invalid(
                 machine,
                 "call arguments overlap through reference origins",
@@ -919,7 +1085,7 @@ pub(super) fn apply_operation(
         }
     }
     let sources = match &operation.kind {
-        OperationKind::EstablishReference { source } => vec![(Vec::new(), source.clone())],
+        OperationKind::EstablishReference { source } => vec![(Vec::new(), source.clone(), false)],
         OperationKind::CallStructural {
             callee,
             structural_arguments,
@@ -945,7 +1111,16 @@ pub(super) fn apply_operation(
                 .iter()
                 .map(|mapping| {
                     call_source(callee, structural_arguments, mapping)
-                        .map(|source| (mapping.path.clone(), source))
+                        .map(|source| {
+                            (
+                                mapping.path.clone(),
+                                source,
+                                matches!(
+                                    formal_origin(callee, &mapping.source),
+                                    Some(ReferenceOrigin::IngressLeaf(_))
+                                ),
+                            )
+                        })
                         .ok_or_else(|| invalid(machine, "reference call source mapping is absent"))
                 })
                 .collect::<Result<Vec<_>, _>>()?
@@ -967,29 +1142,69 @@ pub(super) fn apply_operation(
         // argument spellings. Borrowing a result does not move its parent loan.
         let mut established = Vec::with_capacity(sources.len());
         let mut roots = BTreeSet::new();
-        for (path, source) in sources {
-            let (root, parent) = normalized_source(machine, live, &source)?;
+        for (path, source, transfers_existing) in sources {
             let expected = leaf_referent(module, result.structural_type, &path)
                 .ok_or_else(|| invalid(machine, "reference call result leaf is unsupported"))?;
-            if source_type(module, machine, &source) != Some(expected) || !roots.insert(root) {
+            if source_type(module, machine, &source) != Some(expected) {
                 return Err(invalid(
                     machine,
-                    "reference result aliases or changes its mapped source",
+                    "reference result changes its mapped source type",
                 ));
             }
-            established.push(LiveReference {
-                identity: ReferenceIdentity {
-                    place: result.place,
-                    path: path.clone(),
-                },
-                carrier: result.place,
-                carrier_path: path,
-                root,
-                parent,
-            });
+            let reference = if transfers_existing {
+                let Some((StructuralPathSegment::Referent, carrier_path)) =
+                    source.path.split_last()
+                else {
+                    return Err(invalid(
+                        machine,
+                        "owned result mapping has no incoming leaf",
+                    ));
+                };
+                let mut reference = live
+                    .iter()
+                    .find(|reference| {
+                        reference.carrier == source.place && reference.carrier_path == carrier_path
+                    })
+                    .filter(|reference| moved.contains(&reference.identity))
+                    .cloned()
+                    .ok_or_else(|| {
+                        invalid(
+                            machine,
+                            "returned reference is not among the transferred leaves",
+                        )
+                    })?;
+                reference.carrier = result.place;
+                reference.carrier_path = path;
+                reference
+            } else {
+                let (root, parent) = normalized_source(machine, live, &source)?;
+                LiveReference {
+                    identity: ReferenceIdentity {
+                        place: result.place,
+                        path: path.clone(),
+                    },
+                    carrier: result.place,
+                    carrier_path: path,
+                    root,
+                    parent,
+                }
+            };
+            if !roots.insert(reference.root.clone()) {
+                return Err(invalid(
+                    machine,
+                    "reference result aliases its mapped sources",
+                ));
+            }
+            established.push(reference);
         }
+        // Normal completion consumes the incoming owners. Returned carriers
+        // preserve their identities and external parents; all other incoming
+        // leaves were independently disposed by the callee's checked exits.
+        live.retain(|reference| !moved.contains(&reference.identity));
         live.extend(established);
         live.sort_by(|left, right| left.identity.cmp(&right.identity));
+    } else {
+        live.retain(|reference| !moved.contains(&reference.identity));
     }
     Ok(())
 }
@@ -1031,8 +1246,8 @@ pub(super) fn transfer_return(
             .iter()
             .find(|reference| reference.carrier == source && reference.carrier_path == mapping.path)
             .ok_or_else(|| invalid(machine, "returned reference carrier is not live"))?;
-        if reference.root != mapping.source.place
-            || reference.parent != ReferenceParent::Root(reference.root)
+        if Some(reference.root.clone()) != formal_origin(machine, &mapping.source)
+            || reference.parent != ReferenceParent::Root(reference.root.clone())
             || live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity))
         {
             return Err(invalid(machine, "reference return escapes local custody or differs from its formal source"));

@@ -75,8 +75,14 @@ loan ancestry and cleanup order independently. The source-free
 storage mutation, reborrowing, nested moves, ordinary record returns, reversed
 actual arguments, and once-only fuel resumption. Return preflight compares every
 leaf's captured backing against its bound formal before transferring the same
-record identity into the caller. Reference-bearing aggregate parameters,
-partial transfers, host interfaces, and native execution remain unsupported.
+record identity into the caller. Whole owned affine record arguments preserve
+that same descriptor custody. Structural call preparation retains only the
+expected returned-leaf backings in its existing suspended result, so return
+preflight remains valid after a formal is moved, repacked, or passed through
+another call. These expectations are not additional owners or loan authority.
+Borrowed aggregate parameters, partial transfers, host interfaces, and native
+execution remain unsupported; an opaque entry identity cannot supply nested
+reference carriers.
 
 ## Bounded byte fields
 

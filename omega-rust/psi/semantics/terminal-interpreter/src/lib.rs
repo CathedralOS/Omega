@@ -618,6 +618,7 @@ enum SuspendedCallResult {
     Structural {
         result: StructuralOperationResult,
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+        expected_reference_backings: Vec<TerminalStructuralValue>,
     },
     NominalCleanups {
         completed: (NominalAffineCleanup, TerminalStructuralValue),
@@ -1541,6 +1542,11 @@ impl TerminalExecution {
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
         self.copy_owned_record_arguments(&callee.structural_parameters, &mut structural_values)?;
+        let expected_reference_backings = self.bind_reference_return_backings(
+            &callee.structural_parameters,
+            callee_result,
+            &structural_values,
+        )?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
@@ -1604,6 +1610,7 @@ impl TerminalExecution {
             result: SuspendedCallResult::Structural {
                 result,
                 returned_claim_transfers,
+                expected_reference_backings,
             },
         });
         self.blocks = callee.blocks;
@@ -3968,6 +3975,7 @@ impl TerminalExecution {
                                     SuspendedCallResult::Structural {
                                         result,
                                         returned_claim_transfers,
+                                        ..
                                     },
                                 ..
                             }) if result.multiplicity == signature.multiplicity
@@ -4093,6 +4101,7 @@ impl TerminalExecution {
                                 SuspendedCallResult::Structural {
                                     result,
                                     returned_claim_transfers,
+                                    ..
                                 },
                             ..
                         }) => {

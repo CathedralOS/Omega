@@ -221,6 +221,306 @@ fn returned_record_reference_preserves_caller_storage_and_once_only_calls() {
     );
 }
 
+fn forwarded_record_reference_module() -> TerminalModule {
+    forward_owned_record(returned_record_reference_module())
+}
+
+fn forward_owned_record(mut module: TerminalModule) -> TerminalModule {
+    let mut forward = module.machines.last().unwrap().clone();
+    forward.id = machine_id(401);
+    forward.entry = block_id(401);
+    forward.contract.id = contract_id(401);
+    forward.structural_parameters.truncate(1);
+    let parameter = &mut forward.structural_parameters[0];
+    parameter.place = place_id(401);
+    parameter.structural_type = structural_type_id(95);
+    parameter.access = StructuralAccess::Owned;
+    parameter.multiplicity = StructuralMultiplicity::Affine;
+    forward.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: place_id(401),
+            kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: place_id(407),
+            kind: semantic_vocabulary::StructuralPlaceKind::Result,
+        },
+    ];
+    let TerminalMachineResult::Structural(result) = &mut forward.result else {
+        panic!("View result");
+    };
+    result.place = place_id(407);
+    for mapping in &mut result.reference_sources {
+        let mut path = mapping.path.clone();
+        path.push(StructuralPathSegment::Referent);
+        mapping.source = StructuralArgument {
+            place: place_id(401),
+            path,
+            access: StructuralAccess::MutableBorrow,
+        };
+    }
+    forward.blocks[0].id = block_id(401);
+    forward.blocks[0].operations.clear();
+    forward.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(401),
+        source: place_id(401),
+        returned_claims: vec![],
+        trivial_affine_discards: vec![],
+    };
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(416),
+        kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+            producer: operation_id(416),
+            structural_type: structural_type_id(95),
+        },
+    });
+    let mut call = caller.blocks[0].operations[0].clone();
+    call.id = operation_id(416);
+    let OperationResult::Structural(result) = &mut call.result else {
+        panic!("View call result");
+    };
+    result.place = place_id(416);
+    let OperationKind::CallStructural {
+        callee,
+        structural_arguments,
+        ..
+    } = &mut call.kind
+    else {
+        panic!("ordinary structural call");
+    };
+    *callee = machine_id(401);
+    structural_arguments.truncate(1);
+    structural_arguments[0] = StructuralArgument {
+        place: place_id(96),
+        path: vec![],
+        access: StructuralAccess::Owned,
+    };
+    caller.blocks[0].operations.insert(1, call);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut caller.blocks[0].operations[2].kind
+    else {
+        panic!("writer call");
+    };
+    structural_arguments[0].place = place_id(416);
+    let Terminator::Jump {
+        trivial_affine_discards,
+        ..
+    } = &mut caller.blocks[0].terminator
+    else {
+        panic!("dispose returned View before original read");
+    };
+    trivial_affine_discards[0] = place_id(416);
+    module.machines.push(forward);
+    module
+}
+
+#[test]
+fn owned_record_forwarding_preserves_reference_backing_across_fuel_boundaries() {
+    execute_record_reference(
+        forwarded_record_reference_module(),
+        &[96, 204, 206, 416, 97, 92, 93, 98],
+    );
+}
+
+#[test]
+fn owned_record_forwarding_rejects_wrong_ingress_reference_path() {
+    let mut module = forwarded_record_reference_module();
+    let TerminalMachineResult::Structural(result) = &mut module.machines.last_mut().unwrap().result
+    else {
+        panic!("View result");
+    };
+    result.reference_sources[0].source.path.pop();
+    assert!(encode_module(&module).is_err());
+}
+
+#[test]
+fn owned_reference_record_entry_rejects_forged_opaque_host_custody() {
+    let mut module = forwarded_record_reference_module();
+    let mut consume = module.machines.pop().unwrap();
+    consume.result = TerminalMachineResult::Unit;
+    consume
+        .structural_places
+        .retain(|place| place.id != place_id(407));
+    consume.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(401),
+        trivial_affine_discards: vec![place_id(401)],
+    };
+    module.entry = consume.id;
+    module.machines = vec![consume];
+    let semantic = encode_module(&module).expect("internal owned ingress is a valid interface");
+    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let outcome = TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[TerminalStructuralValue {
+            opaque_identity: 999,
+            structural_type: structural_type_id(95),
+            qualifications: vec![],
+            path: vec![],
+        }],
+        &[],
+    );
+    assert!(matches!(
+        outcome,
+        Err(
+            terminal_interpreter::TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::VerifiedOperationMalformed
+            )
+        )
+    ));
+}
+
+#[test]
+fn owned_record_repacking_preserves_captured_ingress_after_parameter_moves() {
+    let mut module = forwarded_record_reference_module();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(405),
+        identity: "test::Envelope".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: structural_field_id(405),
+                identity: "view".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Structural(structural_type_id(95)),
+            }],
+        },
+    });
+    let forward = module.machines.last_mut().unwrap();
+    let TerminalMachineResult::Structural(result) = &mut forward.result else {
+        panic!("record result");
+    };
+    result.structural_type = structural_type_id(405);
+    result.reference_sources[0].path.insert(0, "view".into());
+    forward.structural_places.insert(
+        1,
+        StructuralPlaceDeclaration {
+            id: place_id(406),
+            kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                producer: operation_id(406),
+                structural_type: structural_type_id(405),
+            },
+        },
+    );
+    forward.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        id: operation_id(406),
+        result: OperationResult::Structural(StructuralOperationResult {
+            place: place_id(406),
+            structural_type: structural_type_id(405),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+            claims: vec![],
+        }),
+        kind: OperationKind::EstablishRecord {
+            fields: vec![RecordFieldInitializer {
+                field: structural_field_id(405),
+                value: RecordFieldValue::Structural(StructuralArgument {
+                    place: place_id(401),
+                    path: vec![],
+                    access: StructuralAccess::Owned,
+                }),
+            }],
+        },
+    });
+    let Terminator::ReturnStructural { source, .. } = &mut forward.blocks[0].terminator else {
+        panic!("record return");
+    };
+    *source = place_id(406);
+    let caller = &mut module.machines[0];
+    let place = caller
+        .structural_places
+        .iter_mut()
+        .find(|place| place.id == place_id(416))
+        .unwrap();
+    let semantic_vocabulary::StructuralPlaceKind::OperationResult {
+        structural_type, ..
+    } = &mut place.kind
+    else {
+        panic!("call result place");
+    };
+    *structural_type = structural_type_id(405);
+    let OperationResult::Structural(result) = &mut caller.blocks[0].operations[1].result else {
+        panic!("record call result");
+    };
+    result.structural_type = structural_type_id(405);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut caller.blocks[0].operations[2].kind
+    else {
+        panic!("writer call");
+    };
+    structural_arguments[0].path.insert(0, "view".into());
+    execute_record_reference(module, &[96, 204, 206, 416, 406, 97, 92, 93, 98]);
+}
+
+#[test]
+fn owned_record_forwarding_keeps_outer_return_binding_during_nested_call() {
+    let mut module = forwarded_record_reference_module();
+    let mut inner = module.machines.last().unwrap().clone();
+    inner.id = machine_id(501);
+    inner.contract.id = contract_id(501);
+    inner.entry = block_id(501);
+    inner.structural_parameters[0].place = place_id(501);
+    inner.structural_places[0].id = place_id(501);
+    inner.structural_places[1].id = place_id(507);
+    let TerminalMachineResult::Structural(result) = &mut inner.result else {
+        panic!("inner View result");
+    };
+    result.place = place_id(507);
+    result.reference_sources[0].source.place = place_id(501);
+    inner.blocks[0].id = block_id(501);
+    inner.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(501),
+        source: place_id(501),
+        returned_claims: vec![],
+        trivial_affine_discards: vec![],
+    };
+    let mut call = module.machines[0].blocks[0].operations[1].clone();
+    call.id = operation_id(406);
+    let OperationResult::Structural(result) = &mut call.result else {
+        panic!("View call result");
+    };
+    result.place = place_id(406);
+    let OperationKind::CallStructural {
+        callee,
+        structural_arguments,
+        ..
+    } = &mut call.kind
+    else {
+        panic!("ordinary call");
+    };
+    *callee = machine_id(501);
+    structural_arguments[0].place = place_id(401);
+    let outer = module.machines.last_mut().unwrap();
+    outer.structural_places.insert(
+        1,
+        StructuralPlaceDeclaration {
+            id: place_id(406),
+            kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                producer: operation_id(406),
+                structural_type: structural_type_id(95),
+            },
+        },
+    );
+    outer.blocks[0].operations.push(call);
+    let Terminator::ReturnStructural { source, .. } = &mut outer.blocks[0].terminator else {
+        panic!("View return");
+    };
+    *source = place_id(406);
+    module.machines.push(inner);
+    execute_record_reference(module, &[96, 204, 206, 416, 406, 97, 92, 93, 98]);
+}
+
 #[test]
 fn returned_reference_leaves_follow_reversed_actual_arguments() {
     let mut module = returned_record_reference_module();
@@ -328,6 +628,12 @@ fn returned_reference_leaves_follow_reversed_actual_arguments() {
     assert!(
         encode_module(&crossed).is_err(),
         "equal reference types cannot substitute source correspondence"
+    );
+    execute_record_reference_values(
+        forward_owned_record(module.clone()),
+        &[96, 204, 304, 206, 416, 97, 92, 93, 98],
+        &[(1, 1), (2, 7)],
+        1,
     );
     execute_record_reference_values(
         module,
