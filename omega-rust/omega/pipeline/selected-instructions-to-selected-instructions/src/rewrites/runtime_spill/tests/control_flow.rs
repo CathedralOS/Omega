@@ -184,13 +184,13 @@ fn undominated_lifetimes_and_uninitialized_parameters_do_not_gain_spill_authorit
                 };
             }
             4 => {
+                // A terminator operand use is admissible only where the
+                // definition block dominates it; the entry block is not
+                // dominated by the body block, so this stays rejected.
                 let operand = function.blocks[1].instructions[1].operands[0];
-                let SelectedTerminator::Return { instruction, .. } =
-                    &mut function.blocks[2].terminator
-                else {
-                    unreachable!()
-                };
-                instruction.operands.push(operand);
+                super::super::control_mut(&mut function.blocks[0].terminator)
+                    .operands
+                    .push(operand);
             }
             5 => {
                 let definition = function.blocks[1].instructions.remove(0);
@@ -210,7 +210,7 @@ fn undominated_lifetimes_and_uninitialized_parameters_do_not_gain_spill_authorit
 }
 
 #[test]
-fn every_successor_transport_and_terminator_operand_excludes_the_victim() {
+fn successor_transports_still_exclude_the_victim_while_terminator_operands_admit() {
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     for terminator_kind in 0..6 {
         for reference_kind in 0..4 {
@@ -295,10 +295,150 @@ fn every_successor_transport_and_terminator_operand_excludes_the_victim() {
                 if terminator_kind >= 4 && reference_kind != 0 {
                     continue;
                 }
+                let admitted =
+                    admission::admit(&source, 0, VirtualRegisterId(1), &environment, budget());
+                if reference_kind == 0 {
+                    // Terminator operand uses reload at the end of the block.
+                    assert!(admitted.is_ok(), "terminator {terminator_kind} operand use");
+                } else {
+                    assert_eq!(
+                        admitted.err(),
+                        Some(RuntimeSpillError::UnsupportedUse),
+                        "terminator {terminator_kind} transport {reference_kind}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn terminator_operand_uses_reload_at_block_end_on_every_target() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.selected_keys();
+        for pinned in [false, true] {
+            let (kind, key) = if pinned {
+                (SelectedInstructionKind::ReturnScalar, keys.return_i64)
+            } else {
+                // The flexible exit-code use exists only on hosted targets.
+                let Some(key) = keys.hosted_exit_process_i32 else {
+                    continue;
+                };
+                (SelectedInstructionKind::HostedExitProcessI32, key)
+            };
+            let mut source = cfg_fixture(target);
+            {
+                let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+                let instruction = admission::instruction(
+                    SelectedInstructionId(2000),
+                    kind,
+                    environment.constraint(key).unwrap(),
+                    &[VirtualRegisterId(1)],
+                );
+                function.blocks[2].terminator = if pinned {
+                    SelectedTerminator::Return {
+                        instruction,
+                        psi_return_edge: EdgeId::new(3).unwrap(),
+                    }
+                } else {
+                    SelectedTerminator::HostedExitProcess {
+                        instruction,
+                        nominal_return_edge: EdgeId::new(3).unwrap(),
+                    }
+                };
+            }
+            let identity = selected_instruction_plan_identity(source.transformed());
+            source.receipt.source_selected = identity;
+            source.receipt.transformed_selected = identity;
+            let result = spill_selected_runtime_value(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+            )
+            .unwrap();
+            let original = &source.transformed().functions[0];
+            let transformed = &result.transformed().functions[0];
+            // The exit block gains exactly one address/load pair, appended
+            // after its last instruction; the terminator operand keeps its
+            // access and fixed view while moving to the fresh reload register.
+            let block = &transformed.blocks[2];
+            let tail = block.instructions.len() - 2;
+            assert_eq!(
+                block.instructions.len(),
+                original.blocks[2].instructions.len() + 2
+            );
+            assert!(matches!(
+                block.instructions[tail].kind,
+                SelectedInstructionKind::FrameAddress { .. }
+            ));
+            assert!(matches!(
+                block.instructions[tail + 1].kind,
+                SelectedInstructionKind::Load64 { .. }
+            ));
+            let original_operand = super::super::control(&original.blocks[2].terminator)
+                .0
+                .operands[0];
+            let rewritten_operand = super::super::control(&block.terminator).0.operands[0];
+            let reload_register = block.instructions[tail + 1].operands[1].virtual_register;
+            assert_eq!(original_operand.virtual_register, VirtualRegisterId(1));
+            assert_eq!(rewritten_operand.virtual_register, reload_register);
+            assert_eq!(rewritten_operand.access, original_operand.access);
+            assert_eq!(rewritten_operand.fixed_view, original_operand.fixed_view);
+            assert_eq!(pinned, original_operand.fixed_view.is_some());
+            assert!(
+                validate_runtime_spill(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    result.transformed().clone()
+                )
+                .is_ok()
+            );
+            for mutation in 0..5 {
+                let mut proposed = result.transformed().clone();
+                let function = &mut proposed.functions[0];
+                match mutation {
+                    0 => {
+                        function.blocks[2].instructions.remove(tail + 1);
+                    }
+                    1 => {
+                        function.blocks[2].instructions.swap(tail, tail + 1);
+                    }
+                    2 => {
+                        super::super::control_mut(&mut function.blocks[2].terminator).operands[0]
+                            .virtual_register = VirtualRegisterId(1);
+                    }
+                    3 => {
+                        super::super::control_mut(&mut function.blocks[2].terminator).operands[0]
+                            .access = register_model::RegisterOperandAccess::Def;
+                    }
+                    4 => {
+                        function.virtual_registers.pop();
+                    }
+                    _ => unreachable!(),
+                }
                 assert_eq!(
-                    admission::admit(&source, 0, VirtualRegisterId(1), &environment, budget())
-                        .err(),
-                    Some(RuntimeSpillError::UnsupportedUse)
+                    validate_runtime_spill(
+                        &source,
+                        0,
+                        VirtualRegisterId(1),
+                        &environment,
+                        budget(),
+                        proposed
+                    )
+                    .unwrap_err(),
+                    RuntimeSpillError::ReplayMismatch,
+                    "{target:?} pinned={pinned} mutation {mutation}"
                 );
             }
         }

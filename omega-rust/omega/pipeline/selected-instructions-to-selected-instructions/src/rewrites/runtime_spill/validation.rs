@@ -5,8 +5,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBoundarySettlementPayload, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedLocalStorageSlot, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedInstructionPlan, SelectedLocalStorageSlot, VirtualRegisterId,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -67,60 +66,23 @@ pub fn validate_runtime_spill(
                 {
                     continue;
                 }
-                let address_instruction =
-                    SelectedInstructionId(admission::fresh(&mut next_instruction)?);
-                let load_instruction =
-                    SelectedInstructionId(admission::fresh(&mut next_instruction)?);
-                let address_register = VirtualRegisterId(admission::fresh(&mut next_register)?);
-                let reload_register = VirtualRegisterId(admission::fresh(&mut next_register)?);
-                let address = VirtualRegister {
-                    id: address_register,
-                    scalar_type: admitted.address_scalar_type,
-                    class: admitted.victim.class,
-                    origin: VirtualRegisterOrigin::SpillAddress {
-                        instruction: address_instruction,
-                        register,
-                    },
-                    definition_site: None,
-                    entry_fixed_view: None,
-                };
-                let reload = VirtualRegister {
-                    id: reload_register,
-                    scalar_type: admitted.victim.scalar_type,
-                    class: admitted.victim.class,
-                    origin: VirtualRegisterOrigin::InstructionResult {
-                        instruction: load_instruction,
-                        source_value: admitted.source_value,
-                    },
-                    definition_site: admitted.victim.definition_site,
-                    entry_fixed_view: None,
-                };
-                if values.next() != Some(&address)
-                    || values.next() != Some(&reload)
-                    || stream.next()
-                        != Some(&admission::instruction(
-                            address_instruction,
-                            SelectedInstructionKind::FrameAddress {
-                                slot: admission::frame(admitted.slot),
-                                byte_offset: 0,
-                            },
-                            admitted.address,
-                            &[address_register],
-                        ))
-                    || stream.next()
-                        != Some(&admission::instruction(
-                            load_instruction,
-                            SelectedInstructionKind::Load64 { byte_offset: 0 },
-                            admitted.load,
-                            &[address_register, reload_register],
-                        ))
+                let reload = admission::reload(
+                    &admitted,
+                    register,
+                    &mut next_instruction,
+                    &mut next_register,
+                )?;
+                if values.next() != Some(&reload.address_register)
+                    || values.next() != Some(&reload.reload_register)
+                    || stream.next() != Some(&reload.address)
+                    || stream.next() != Some(&reload.load)
                 {
                     return Err(RuntimeSpillError::ReplayMismatch);
                 }
                 consumed = consumed
                     .checked_add(2)
                     .ok_or(RuntimeSpillError::IdentityOverflow)?;
-                operand.virtual_register = reload_register;
+                operand.virtual_register = reload.reload_register.id;
             }
             instruction_positions.push(consumed);
             if stream.next() != Some(&restored) {
@@ -149,6 +111,40 @@ pub fn validate_runtime_spill(
                     .ok_or(RuntimeSpillError::IdentityOverflow)?;
             }
         }
+        // The rewrite appends terminator-operand reloads after the last body
+        // instruction; replay consumes them in operand order, then requires
+        // the proposed terminator to equal the source with exactly those
+        // operands redirected to their reload registers.
+        let mut expected_terminator = source_block.terminator.clone();
+        for operand in &mut super::control_mut(&mut expected_terminator).operands {
+            if operand.virtual_register != register || operand.access != RegisterOperandAccess::Use
+            {
+                continue;
+            }
+            let reload = admission::reload(
+                &admitted,
+                register,
+                &mut next_instruction,
+                &mut next_register,
+            )?;
+            if values.next() != Some(&reload.address_register)
+                || values.next() != Some(&reload.reload_register)
+                || stream.next() != Some(&reload.address)
+                || stream.next() != Some(&reload.load)
+            {
+                return Err(RuntimeSpillError::ReplayMismatch);
+            }
+            consumed = consumed
+                .checked_add(2)
+                .ok_or(RuntimeSpillError::IdentityOverflow)?;
+            operand.virtual_register = reload.reload_register.id;
+        }
+        if block.terminator != expected_terminator {
+            return Err(RuntimeSpillError::ReplayMismatch);
+        }
+        restored_function.blocks[block_index]
+            .terminator
+            .clone_from(&source_block.terminator);
         boundaries.push(consumed);
         instruction_positions.push(consumed);
         if stream.next().is_some() {

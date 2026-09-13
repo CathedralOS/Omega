@@ -3,7 +3,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBoundarySettlementPayload, SelectedInstructionId, SelectedInstructionKind,
-    SelectedLocalStorageSlot, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedLocalStorageSlot, VirtualRegisterId,
 };
 
 use super::{RuntimeSpillError, ValidatedRuntimeSpill, admission, validate_runtime_spill};
@@ -52,50 +52,18 @@ pub fn spill_selected_runtime_value(
                 {
                     continue;
                 }
-                let address_instruction =
-                    SelectedInstructionId(admission::fresh(&mut next_instruction)?);
-                let load_instruction =
-                    SelectedInstructionId(admission::fresh(&mut next_instruction)?);
-                let address_register = VirtualRegisterId(admission::fresh(&mut next_register)?);
-                let reload_register = VirtualRegisterId(admission::fresh(&mut next_register)?);
-                function.virtual_registers.push(VirtualRegister {
-                    id: address_register,
-                    scalar_type: admitted.address_scalar_type,
-                    class: admitted.victim.class,
-                    origin: VirtualRegisterOrigin::SpillAddress {
-                        instruction: address_instruction,
-                        register,
-                    },
-                    definition_site: None,
-                    entry_fixed_view: None,
-                });
-                function.virtual_registers.push(VirtualRegister {
-                    id: reload_register,
-                    scalar_type: admitted.victim.scalar_type,
-                    class: admitted.victim.class,
-                    origin: VirtualRegisterOrigin::InstructionResult {
-                        instruction: load_instruction,
-                        source_value: admitted.source_value,
-                    },
-                    definition_site: admitted.victim.definition_site,
-                    entry_fixed_view: None,
-                });
-                instructions.push(admission::instruction(
-                    address_instruction,
-                    SelectedInstructionKind::FrameAddress {
-                        slot: admission::frame(admitted.slot),
-                        byte_offset: 0,
-                    },
-                    admitted.address,
-                    &[address_register],
-                ));
-                instructions.push(admission::instruction(
-                    load_instruction,
-                    SelectedInstructionKind::Load64 { byte_offset: 0 },
-                    admitted.load,
-                    &[address_register, reload_register],
-                ));
-                operand.virtual_register = reload_register;
+                let reload = admission::reload(
+                    &admitted,
+                    register,
+                    &mut next_instruction,
+                    &mut next_register,
+                )?;
+                let reloaded = reload.reload_register.id;
+                function.virtual_registers.push(reload.address_register);
+                function.virtual_registers.push(reload.reload_register);
+                instructions.push(reload.address);
+                instructions.push(reload.load);
+                operand.virtual_register = reloaded;
             }
             instruction_positions.push(
                 u32::try_from(instructions.len())
@@ -115,6 +83,28 @@ pub fn spill_selected_runtime_value(
                     &[definition.register],
                 ));
             }
+        }
+        // Terminator operand uses reload after the last block instruction.
+        // Their pairs occupy the end-of-block gap, so the closing boundary and
+        // instruction positions are pushed only after they are appended.
+        let mut terminator = block.terminator.clone();
+        for operand in &mut super::control_mut(&mut terminator).operands {
+            if operand.virtual_register != register || operand.access != RegisterOperandAccess::Use
+            {
+                continue;
+            }
+            let reload = admission::reload(
+                &admitted,
+                register,
+                &mut next_instruction,
+                &mut next_register,
+            )?;
+            let reloaded = reload.reload_register.id;
+            function.virtual_registers.push(reload.address_register);
+            function.virtual_registers.push(reload.reload_register);
+            instructions.push(reload.address);
+            instructions.push(reload.load);
+            operand.virtual_register = reloaded;
         }
         boundaries.push(
             u32::try_from(instructions.len()).map_err(|_| RuntimeSpillError::IdentityOverflow)?,
@@ -141,6 +131,7 @@ pub fn spill_selected_runtime_value(
                 .ok_or(RuntimeSpillError::SourceMismatch)?;
         }
         function.blocks[block_index].instructions = instructions;
+        function.blocks[block_index].terminator = terminator;
     }
     validate_runtime_spill(
         source,

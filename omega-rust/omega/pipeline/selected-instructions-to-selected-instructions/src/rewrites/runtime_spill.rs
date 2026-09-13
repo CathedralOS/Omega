@@ -8,9 +8,16 @@
 //! copy is stored immediately, before later transfers create more pressure.
 //! Original parameter bindings remain exact. Replacing the destination's uses
 //! makes that parameter dead, so fresh liveness no longer requires its edge
-//! home tie. Their destination must likewise dominate every use. Terminator
-//! operands and outgoing value transports remain unsupported; block-parameter
-//! victims additionally require an acyclic function.
+//! home tie. Their destination must likewise dominate every use.
+//!
+//! Terminator instruction operands are ordinary uses at one more position:
+//! each reloads at the end of its block, after the last body instruction and
+//! any definition store. A fixed view on such an operand (an ABI return or
+//! exit register) stays on the rewritten operand, pinning the fresh reload
+//! register to the same physical unit. Outgoing successor transports —
+//! value bindings, structural descriptors, and case payloads — remain
+//! unsupported; block-parameter victims additionally require an acyclic
+//! function.
 //!
 //! Each retained rewrite shares unchanged selected functions. Replay still
 //! restores and compares the complete source by content, so separately allocated
@@ -123,6 +130,22 @@ fn control(
             when_less,
             when_not_less,
         } => (instruction, [Some(when_less), Some(when_not_less)]),
+    }
+}
+
+/// The same projection for operand substitution. Successor edges and their
+/// transports stay untouched; only the instruction's operand registers change.
+fn control_mut(
+    terminator: &mut selected_instructions::SelectedTerminator,
+) -> &mut selected_instructions::SelectedInstruction {
+    use selected_instructions::SelectedTerminator;
+    match terminator {
+        SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::HostedExitProcess { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
+        | SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. } => instruction,
     }
 }
 
