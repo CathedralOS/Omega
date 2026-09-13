@@ -4,9 +4,14 @@
 //! Terminal-Psi construction, and selected-machine oracles descend into named
 //! leaves so a failing ordinal can be reproduced without reading one mixed
 //! test file.
+//!
+//! The IEEE lane uses host `f64` as a third oracle: the interpreter and native
+//! result must both agree with host IEEE semantics, where NaNs and signed-zero
+//! mixtures are likely to expose folding or comparison-lowering bugs.
 
 mod optimizer_corpus {
     mod generator;
+    mod ieee_compare;
     mod manifest;
     #[cfg(any(
         all(target_os = "linux", target_arch = "x86_64"),
@@ -69,6 +74,48 @@ mod optimizer_corpus {
                     psi::immediate_artifact(case.ordinal, host_lane.expected, 50_000);
                 selected_machine::exercise_host_native(case, &host_artifact);
             }
+        }
+    }
+
+    #[test]
+    fn deterministic_ieee_binary64_compare_corpus() {
+        let cases = ieee_compare::cases();
+        ieee_compare::validate_manifest(&cases);
+        let requested = std::env::var("OMEGA_OPTIMIZER_CORPUS_CASE")
+            .ok()
+            .map(|value| {
+                value
+                    .parse::<usize>()
+                    .expect("corpus case must be an integer")
+            });
+        if let Some(ordinal) = requested {
+            assert!(
+                ordinal < ieee_compare::CASE_COUNT,
+                "corpus case must be below {}",
+                ieee_compare::CASE_COUNT
+            );
+        }
+
+        for case in cases
+            .iter()
+            .filter(|case| requested.is_none_or(|ordinal| case.ordinal == ordinal))
+        {
+            if requested.is_some() {
+                eprintln!(
+                    "optimizer corpus replay: format={} seed={:#018x} case={case:?}",
+                    ieee_compare::FORMAT,
+                    generator::SEED,
+                );
+            }
+            let artifact = psi::ieee_compare_artifact(case.ordinal, case, 60_000);
+            selected_machine::exercise_ieee_compare(case, &artifact);
+
+            #[cfg(any(
+                all(target_os = "linux", target_arch = "x86_64"),
+                all(target_os = "linux", target_arch = "aarch64"),
+                all(target_os = "macos", target_arch = "aarch64"),
+            ))]
+            selected_machine::exercise_host_native_ieee_compare(case, &artifact);
         }
     }
 }
