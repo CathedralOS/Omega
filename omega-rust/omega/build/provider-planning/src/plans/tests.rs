@@ -788,6 +788,121 @@ fn selected_top_level_provider_binds_its_exact_actual_reach() {
 }
 
 #[test]
+fn selected_top_level_provider_with_unresolved_installation_reach_is_not_a_resolved_row() {
+    let source = r#"
+        boundary trait MachineControl {}
+        boundary trait PortIo {}
+        boundary trait Storage {}
+
+        pub data InterruptAcknowledgement [copy] { token: u64; }
+        pub data Endpoint {}
+        pub data Pic {}
+
+        pub boundary requirement InterruptAcknowledgement::complete(self) -> u64
+        reaches <= MachineControl + PortIo + Storage;
+
+        pub boundary requirement Endpoint::step() reaches <= Storage;
+
+        machine Pic::complete(acknowledgement: InterruptAcknowledgement) -> u64
+        satisfies InterruptAcknowledgement::complete
+        reaches PortIo + Storage
+        {
+            Endpoint::step();
+            0
+        }
+    "#;
+    let (typed, plan) = derive_provider_fixture(source);
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("provider calling an unresolved bounded requirement should check");
+    let realization = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Pic::complete")
+        .expect("realization machine");
+    let envelope = checked
+        .facts
+        .contract_plans
+        .realized_envelope(realization.symbol)
+        .expect("realization envelope");
+    assert_eq!(envelope.unresolved_installation_reaches.len(), 1);
+    let selected = effects::SelectedProviderPlanFacts::from_selection(
+        std::slice::from_ref(&plan),
+        std::slice::from_ref(&plan.name),
+    )
+    .expect("one selected PIC completion plan");
+    let diagnostics = bind_selected_provider_plan_facts_for_test(
+        &mut checked,
+        std::slice::from_ref(&plan),
+        selected,
+        &[],
+    )
+    .expect_err(
+        "a realization with an unresolved installation reach must not publish a resolved row",
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("retains 1 unresolved installation-bound requirement")
+        }),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn selected_trait_provider_with_unresolved_installation_reach_is_not_a_resolved_row() {
+    let source = r#"
+        boundary trait MachineControl {}
+        boundary trait PortIo {}
+        boundary trait Storage {}
+
+        pub data Endpoint {}
+        pub boundary requirement Endpoint::step() reaches <= Storage;
+
+        boundary trait InterruptCompletion {
+            machine complete() -> u64
+            reaches <= MachineControl + PortIo + Storage;
+        }
+
+        data Pic {}
+
+        machine Pic::complete() -> u64
+        satisfies InterruptCompletion::complete
+        reaches PortIo + Storage
+        {
+            Endpoint::step();
+            0
+        }
+    "#;
+    let (typed, plan) = derive_provider_fixture(source);
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("trait provider calling an unresolved bounded requirement should check");
+    let selected = effects::SelectedProviderPlanFacts::from_selection(
+        std::slice::from_ref(&plan),
+        std::slice::from_ref(&plan.name),
+    )
+    .expect("one selected PIC plan");
+    let diagnostics = bind_selected_provider_plan_facts_for_test(
+        &mut checked,
+        std::slice::from_ref(&plan),
+        selected,
+        &[],
+    )
+    .expect_err(
+        "a realization with an unresolved installation reach must not publish a resolved row",
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("retains 1 unresolved installation-bound requirement")
+        }),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn selected_boundary_operator_does_not_enter_trait_installation_reach_resolution() {
     let source = r#"
         data CheckedMath {}
@@ -1364,6 +1479,7 @@ fn append_admitted_fact(
             value: Default::default(),
             domain: Default::default(),
             domain_symbol,
+            semantic_domain: Default::default(),
         },
     })
 }

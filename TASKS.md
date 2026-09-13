@@ -1075,7 +1075,10 @@ Owners include
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Finish unresolved-requirement fences for
   component contracts and the final carrier-owned invocation route. Concrete
   reach and conservative bounds remain separate; selected provider execution
-  and token era, not row equality, authorize invocation.
+  and token era, not row equality, authorize invocation. Selected rows now
+  reject a realization that still retains an unresolved installation-bound
+  requirement (`provider-planning` `plans.rs`); the component-contract fence
+  waits on the `COMPONENT-SUBSTRATE` carrier.
 
 ## Parallel language and compiler lanes
 

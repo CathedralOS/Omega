@@ -429,6 +429,15 @@ fn derive_selected_installation_reach_resolutions(
                 )));
                 continue;
             };
+            if let Some(diagnostic) = unresolved_realization_reach_diagnostic(
+                plan,
+                &row.requirement_identity,
+                realization,
+                envelope,
+            ) {
+                diagnostics.push(diagnostic);
+                continue;
+            }
             let upper_bound = checked
                 .facts
                 .service_reaches
@@ -528,6 +537,12 @@ fn append_top_level_installation_reach_resolution(
         )));
         return;
     };
+    if let Some(diagnostic) =
+        unresolved_realization_reach_diagnostic(plan, &requirement_identity, realization, envelope)
+    {
+        diagnostics.push(diagnostic);
+        return;
+    }
     let upper_bound = checked
         .facts
         .service_reaches
@@ -543,6 +558,27 @@ fn append_top_level_installation_reach_resolution(
         upper_bound,
         resolved_row: envelope.effective_service_reach.clone(),
     });
+}
+
+/// A selected row is the exact reach of the installed realization. When the
+/// realization itself still reaches through an unresolved installation-bound
+/// requirement, its checked effective reach carries that requirement's
+/// conservative upper bound, so publishing it as the resolved row would let a
+/// bound stand in for concrete reach. Provider selection has no substitution
+/// step for nested requirements; reject instead of degrading to the bound.
+fn unresolved_realization_reach_diagnostic(
+    plan: &ProviderPlan,
+    requirement_identity: &str,
+    realization: &typed_trees::machine::Machine,
+    envelope: &checked_trees::RealizedMachineContractEnvelope,
+) -> Option<diagnostics::Diagnostic> {
+    let unresolved = envelope.unresolved_installation_reaches.len();
+    (unresolved != 0).then(|| {
+        diagnostics::Diagnostic::error(format!(
+            "selected provider row `{requirement_identity}` realization `{}` of provider `{}` retains {unresolved} unresolved installation-bound requirement(s); its checked reach is a conservative bound, not a resolved row",
+            realization.name, plan.provider_type,
+        ))
+    })
 }
 
 fn plan_selected_operator_provider_evidence(
