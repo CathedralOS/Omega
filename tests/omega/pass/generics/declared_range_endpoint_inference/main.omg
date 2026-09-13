@@ -40,7 +40,13 @@ machine Limits::endpoint(value: u64) -> u64 { value }
 machine argument_scoped(value: u64[0..Limits::endpoint(257)]) -> u64 { upper_bound(value) }
 machine choose_endpoint(first: u64, second: u64) -> u64 { second }
 machine argument_order(value: u64[0..=choose_endpoint(17, 256)]) -> u64 { upper_bound(value) }
-data BoundedValue [copy] { value: u64[0..=endpoint(256)]; }
+machine nested_argument(value: u64[0..=endpoint(endpoint(limit()))]) -> u64 { upper_bound(value) }
+machine nested_arithmetic(value: u64[0..=endpoint(Limits::capacity() / 2 + endpoint(128))]) -> u64 { upper_bound(value) }
+machine surrounding_arithmetic(value: u64[0..Limits::capacity() + endpoint(1)]) -> u64 { upper_bound(value) }
+machine nested_fractional(value: u64[0..=endpoint(endpoint(1 / 2 * 512))]) -> u64 { upper_bound(value) }
+machine nested_full_width(value: u64[0..=endpoint(wide_limit())]) -> u64 { upper_bound(value) }
+machine surrounding_full_width(value: u64[0..=wide_limit() % 512u64]) -> u64 { upper_bound(value) }
+data BoundedValue [copy] { value: u64[0..=endpoint(endpoint(256))]; }
 machine field_bound() -> u64 {
     let bounded: BoundedValue = BoundedValue { value: 0 };
     upper_bound(bounded.value)

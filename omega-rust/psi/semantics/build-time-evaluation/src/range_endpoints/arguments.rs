@@ -19,6 +19,7 @@ use crate::{BuildTimeSelectionAuthority, BuildTimeValue};
 
 pub(super) fn evaluate(
     program: &TypedTrees,
+    original: &TypedTrees,
     expression: ExpressionHandle,
     machine: SymbolHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
@@ -51,7 +52,7 @@ pub(super) fn evaluate(
         )
         .filter(|primitive| primitive.accepts_integer_literal())
         .ok_or("range endpoint arguments require unconstrained exact builtin integer parameters")?;
-        crate::admission::require_closed_integer_argument(program, *argument, authority)?;
+        crate::admission::require_closed_integer_argument(original, program, *argument, authority)?;
         // The context-free query above vetoes every owner-sensitive operator.
         // Only after that check may the shared scalar landing path use this
         // machine context: none of the accepted operations can vary by owner.

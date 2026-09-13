@@ -244,7 +244,7 @@ A named computation endpoint (`u64[0..=limit()]` or
 in `build-time-evaluation/src/range_endpoints.rs`
 through the same `BuildTimeAdmissionPlan` and checked-interpreter route as
 fixed-array lengths, with source invocation custody; the endpoint becomes an
-ordinary literal that inference, declaration checking, proof and layout all
+ordinary landed literal that inference, declaration checking, proof and layout all
 read. Integer results are decoded using the callee's declared signedness before
 literal formation or proof-integer normalization: a returned `u64::MAX` remains
 positive, while an `i64` result of -1 remains negative. The shared decoder also
@@ -261,13 +261,21 @@ exact carriers and fractional warnings, including nested anonymous landings.
 Argument selections pass their own package gate rather than inheriting the
 callee's permission. This repeats scalar evaluation to reuse both existing
 contracts; it does not add another arithmetic implementation.
+Nested calls use the same admission and argument evaluation in postorder,
+including calls inside surrounding integer arithmetic. Substitutions preserve
+each result's exact builtin integer carrier; a returned u8 cannot silently
+widen arithmetic or initialize an incompatible parameter. Selections read the
+original call/qualifier before execution and the original argument graph before
+numeric evaluation reads completed call values. Machine bodies execute against
+one immutable prepared program. Temporary substitutions roll back together on
+failure; surrounding endpoint arithmetic retains its ordinary checking path.
 Record and case-payload field endpoints resolve in their own lexical scope;
 payload subjects shadow common fields and global names. Local bounded records
 retain declaration-owned range proofs at construction and exact field-read
 equations at observation. The range-inference fixture executes those reads and
 their inferred calls from canonical Terminal bytes, independently of compile-time
 evaluation; the hosted entry's receiver provisioning remains a separate gap.
-Nested calls, noninteger or constrained arguments, generic machine arguments,
+Noninteger or constrained arguments/results, generic machine arguments,
 open symbolic endpoints,
 full-width variable compatibility intervals and exact type equations remain
 open; context-free typed evaluation refuses matching selected trait operators

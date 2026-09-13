@@ -12,8 +12,12 @@ parameters. The shared numeric query establishes context-independent arithmetic;
 the scalar constant evaluator retains carrier checks and fractional warnings.
 Each argument keeps its own selection admission before the callee's common
 floor is checked. Record and case-payload types receive exact call identities
-from ordinary declaration-scope resolution before this service runs. Nested
-calls, constrained arguments and generic applications remain outside this route.
+from ordinary declaration-scope resolution before this service runs. Nested calls
+and surrounding integer arithmetic share this route: admitted call results keep
+their exact integer carriers, while the prepared execution graph and original
+selection occurrences remain unchanged. Failed folds restore every temporary
+call substitution. Constrained arguments/results and generic applications remain
+outside this route; surrounding endpoint arithmetic retains ordinary checking.
 
 The public ownership-taking pre-resolution and pre-check conveyors keep these
 Psi phases separate. Omega interposes target machine selection and schedules

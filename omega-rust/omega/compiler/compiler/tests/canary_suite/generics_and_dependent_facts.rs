@@ -49,6 +49,12 @@ fn declared_range_inference_returns_the_selected_endpoint() {
         ("argument_full_width", vec![BuildTimeValue::Int(0)], -1),
         ("argument_scoped", vec![BuildTimeValue::Int(0)], 256),
         ("argument_order", vec![BuildTimeValue::Int(0)], 256),
+        ("nested_argument", vec![BuildTimeValue::Int(0)], 256),
+        ("nested_arithmetic", vec![BuildTimeValue::Int(0)], 256),
+        ("surrounding_arithmetic", vec![BuildTimeValue::Int(0)], 256),
+        ("nested_fractional", vec![BuildTimeValue::Int(0)], 256),
+        ("nested_full_width", vec![BuildTimeValue::Int(0)], -1),
+        ("surrounding_full_width", vec![BuildTimeValue::Int(0)], 511),
         ("field_bound", vec![], 256),
         ("field_scoped_exclusive", vec![], 511),
     ] {
@@ -152,6 +158,56 @@ fn declared_range_inference_computed_fields_preserve_establishment_checks() {
             .any(|diagnostic| diagnostic.message.contains("bound is not a constant")),
         "{diagnostics:?}"
     );
+}
+
+#[test]
+fn declared_range_inference_nested_results_keep_source_type_errors() {
+    for (source, expected) in [
+        (
+            "machine small() -> u8 {255}
+          machine endpoint(ignored: u64) -> u64 {256}
+          machine bounded(value: u64[0..=endpoint(small())]) {}",
+            "range endpoint argument",
+        ),
+        (
+            "machine small() -> u8 {255}
+          machine bounded(value: u64[0..=small() + 1]) {}",
+            "range",
+        ),
+        (
+            "machine small() -> u8 {255}
+          machine endpoint(ignored: u8) -> u64 {256}
+          machine bounded(value: u64[0..=endpoint(small() + 1)]) {}",
+            "closed integer expression",
+        ),
+        (
+            "data Limits {} machine Limits::capacity(&self) -> u64 {256}
+          machine endpoint(ignored: u64) -> u64 {256}
+          machine bounded(limits: Limits, value: u64[0..=endpoint(limits.capacity())]) {}",
+            "closed integer expression",
+        ),
+        (
+            "machine open<const N: u64>() -> u64 {256}
+          machine endpoint(ignored: u64) -> u64 {256}
+          machine bounded(value: u64[0..=endpoint(open())]) {}",
+            "closed integer expression",
+        ),
+    ] {
+        let scratch = unique_no_output_build_dir();
+        fs::create_dir_all(&scratch).unwrap();
+        let main_path = scratch.join("main.omg");
+        fs::write(&main_path, source).unwrap();
+        let result =
+            compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None));
+        fs::remove_dir_all(&scratch).unwrap();
+        let diagnostics = result.expect_err("folding cannot hide a source type error");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{source}: {diagnostics:?}"
+        );
+    }
 }
 
 #[test]
