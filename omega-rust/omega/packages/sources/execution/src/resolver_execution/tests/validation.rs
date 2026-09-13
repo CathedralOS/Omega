@@ -4,30 +4,28 @@ use super::*;
 fn every_preparation_reuses_the_frozen_absolute_executable() {
     let backend = backend();
     let root = inspection_root();
-    let inspection = backend
-        .prepare_inspection(&root)
-        .expect("prepare inspection");
-    let discovery = backend.prepare_discovery(&root).expect("prepare discovery");
-
     assert!(backend.executable().is_absolute());
-    assert_eq!(inspection.get_program(), backend.executable().as_os_str());
-    assert_eq!(discovery.get_program(), backend.executable().as_os_str());
-    assert_eq!(inspection.limits().cpu_seconds, 120);
-    assert_eq!(
-        inspection.limits().address_space_bytes,
-        8 * 1024 * 1024 * 1024
-    );
-    assert_eq!(inspection.limits().file_size_bytes, 1024 * 1024 * 1024);
-    assert_eq!(inspection.limits().open_files, 256);
-    assert_eq!(inspection.limits().active_processes, 16);
-    assert_eq!(
-        inspection.limits().process_memory_bytes,
-        2 * 1024 * 1024 * 1024
-    );
-    assert_eq!(
-        inspection.limits().aggregate_memory_bytes,
-        4 * 1024 * 1024 * 1024
-    );
+    for phase in phases() {
+        let prepared = backend.prepare(phase, &root).expect("prepare phase");
+        assert_eq!(prepared.get_program(), backend.executable().as_os_str());
+        assert_eq!(prepared.get_current_dir(), Some(root.as_path()));
+        assert_eq!(prepared.limits().cpu_seconds, 120);
+        assert_eq!(
+            prepared.limits().address_space_bytes,
+            8 * 1024 * 1024 * 1024
+        );
+        assert_eq!(prepared.limits().file_size_bytes, 1024 * 1024 * 1024);
+        assert_eq!(prepared.limits().open_files, 256);
+        assert_eq!(prepared.limits().active_processes, 16);
+        assert_eq!(
+            prepared.limits().process_memory_bytes,
+            2 * 1024 * 1024 * 1024
+        );
+        assert_eq!(
+            prepared.limits().aggregate_memory_bytes,
+            4 * 1024 * 1024 * 1024
+        );
+    }
 }
 
 #[test]
@@ -84,33 +82,50 @@ fn executable_link_cannot_hide_a_package_controlled_target() {
 }
 
 #[test]
-fn phase_roots_are_required_exactly_and_exclude_the_executable() {
+fn every_phase_rejects_relative_noncanonical_oversized_and_executable_roots() {
     let backend = backend();
     let root = inspection_root();
-    assert!(
-        backend
-            .prepare_with_roots(
-                ResolverExecutionPhase::RepositoryInspection,
-                ResolverExecutionAuthorityRoots {
-                    discovery_read_root: None,
-                    inspection_read_root: Some(&root),
-                    mutable_root: Some(&root),
-                },
-            )
-            .is_err()
-    );
-    assert!(
-        backend
-            .prepare(ResolverExecutionPhase::Fetch, None)
-            .is_err()
-    );
-    assert!(backend.prepare_discovery(Path::new("relative")).is_err());
-
     let executable_parent = backend
         .executable()
         .parent()
         .expect("resolver executable has parent");
-    assert!(backend.prepare_inspection(executable_parent).is_err());
+    // PathBuf::push normalizes `..` under Windows verbatim roots. Preserve
+    // the authored spelling so this actually exercises the rejection.
+    let mut parent_traversal = root.as_os_str().to_owned();
+    parent_traversal.push(format!(
+        "{}child{}..",
+        std::path::MAIN_SEPARATOR,
+        std::path::MAIN_SEPARATOR,
+    ));
+    let parent_traversal = PathBuf::from(parent_traversal);
+    let oversized = root.join("a".repeat(32 * 1024 + 1));
+    for phase in phases() {
+        for invalid in [
+            Path::new("relative"),
+            parent_traversal.as_path(),
+            oversized.as_path(),
+            executable_parent,
+        ] {
+            let error = backend.prepare(phase, invalid).expect_err(&format!(
+                "{phase:?} accepted invalid root {}",
+                invalid.display()
+            ));
+            assert_eq!(
+                error.kind(),
+                std::io::ErrorKind::InvalidInput,
+                "{phase:?}: {error}"
+            );
+        }
+    }
+}
+
+fn phases() -> [ResolverExecutionPhase; 4] {
+    [
+        ResolverExecutionPhase::TransportDiscovery,
+        ResolverExecutionPhase::RepositoryInitialization,
+        ResolverExecutionPhase::Fetch,
+        ResolverExecutionPhase::RepositoryInspection,
+    ]
 }
 
 #[test]

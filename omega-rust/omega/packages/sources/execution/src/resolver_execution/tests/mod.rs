@@ -1,4 +1,4 @@
-use super::{ResolverExecutionAuthorityRoots, ResolverExecutionBackend};
+use super::ResolverExecutionBackend;
 use crate::ResolverExecutionPhase;
 use std::path::{Path, PathBuf};
 

@@ -6,16 +6,17 @@ resource limits, bounded capture, and process-container cleanup live in
 `bounded-process`. Callers choose one compiler-defined phase and open a
 backend around the absolute Git path frozen before package input.
 
-## Structure
+## Start here
 
-```text
-src/
-├── lib.rs          public entrance and closed reexports
-├── phase.rs        compiler-owned source-resolution phases
-├── request.rs      validated executable and custody-path requests
-└── backend/        resolver phases and roots over the shared bounded-process
-                    preparation and lifecycle boundary
-```
+[resolver_execution.rs](src/resolver_execution.rs) owns the frozen executable,
+closed phase vocabulary, root validation, command preparation, and resource
+limits. `prepare(phase, working_root)` requires one working root for every phase;
+there is no optional-root combination or second phase dispatch to reconstruct it.
+
+Its [path custody checks](src/resolver_execution/path_custody.rs) enforce absolute,
+lexically canonical, bounded paths and keep the executable outside controlled
+roots, including their canonical targets. Tests live below the same owner.
+`lib.rs` exports these operations and the shared bounded-process carriers.
 
 The dependency direction remains deliberate. Request construction feeds an
 opaque prepared command, and process execution consumes it. Package

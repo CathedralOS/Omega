@@ -13,7 +13,10 @@ fn child_open_file_limit_is_enforced() {
     let backend = ResolverExecutionBackend::open(&shell, &[] as &[std::path::PathBuf])
         .expect("open resolver backend");
     let mut prepared = backend
-        .prepare_inspection(&inspection_root)
+        .prepare(
+            ResolverExecutionPhase::RepositoryInspection,
+            &inspection_root,
+        )
         .expect("build limited shell");
     prepared
         .args(["-c", "ulimit -n"])
