@@ -44,8 +44,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   evidence. Standalone Psi and separately authorized resumed lowering need no
   original frontend state or hidden consumer-side Psi optimization. Landed:
   dead total scalar elimination also removes unused scalar block parameters and
-  their edge arguments in proof-free, unranked machines; copy propagation, SCCP,
-  GVN, control-flow cleanup and proof-check elision remain open.
+  their edge arguments in proof-free, unranked machines; copy propagation
+  collapses scalar block parameters bound to the same resolved value on every
+  inventoried incoming edge, substituting the resolved source and dropping the
+  matching edge-argument positions while retaining every value a proposition,
+  projection, suspension frontier, ranking row, or recorded source-call join
+  names; SCCP, GVN, control-flow cleanup and proof-check elision remain open.
 
 ## Product pruning and rollout
 

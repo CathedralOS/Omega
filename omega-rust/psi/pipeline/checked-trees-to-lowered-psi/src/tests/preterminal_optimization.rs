@@ -48,7 +48,10 @@ fn every_unported_nonempty_selection_fails_closed() {
         lower_machine(&hard_root_checked_fixture(), "Root::enter").expect("fixture lowers");
 
     for optimization in PsiOptimization::ALL {
-        if optimization == PsiOptimization::DeadPureScalarElimination {
+        if matches!(
+            optimization,
+            PsiOptimization::CopyPropagation | PsiOptimization::DeadPureScalarElimination
+        ) {
             continue;
         }
         let selections = PsiOptimizationSelections::new([optimization]).unwrap();
@@ -390,6 +393,316 @@ fn selected_dead_scalar_elimination_removes_unused_block_parameters_and_edge_arg
     assert!(
         new_parameters < old_parameters,
         "dead block parameters are removed module-wide"
+    );
+}
+
+#[test]
+fn selected_copy_propagation_collapses_forwarded_copies_and_edge_arguments() {
+    let lowered = dead_block_parameter_fixture();
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::CopyPropagation]).unwrap(),
+    )
+    .expect("selected copy propagation executes");
+    let before = &lowered.semantic_module;
+    let after = &optimized.lowered().semantic_module;
+    terminal_verifier::validate_copy_propagation(before, after)
+        .expect("the independent check accepts the rewrite");
+    let old_machine = &before.machines[0];
+    let machine = &after.machines[0];
+    // Every forwarded copy collapses transitively: the merge block keeps only
+    // the parameter bound to a different constant on each arm, and the
+    // dispatch block's equality reads the machine parameters directly.
+    let conditional = machine
+        .blocks
+        .iter()
+        .find(|block| matches!(block.terminator, Terminator::Conditional { .. }))
+        .expect("the equality dispatch survives");
+    assert!(conditional.parameters.is_empty());
+    let equal = conditional
+        .operations
+        .iter()
+        .find_map(|operation| match &operation.kind {
+            OperationKind::IntegerEqual { left, right } => Some((*left, *right)),
+            _ => None,
+        })
+        .expect("the dispatch condition survives");
+    assert_eq!(equal, (machine.parameters[0].id, machine.parameters[1].id));
+    let merge = machine
+        .blocks
+        .iter()
+        .find(|block| matches!(block.terminator, Terminator::Return { .. }))
+        .expect("merge block");
+    let old_merge = old_machine
+        .blocks
+        .iter()
+        .find(|block| matches!(block.terminator, Terminator::Return { .. }))
+        .unwrap();
+    assert_eq!(merge.parameters.len() + 4, old_merge.parameters.len());
+    let Terminator::Return { value, .. } = &merge.terminator else {
+        unreachable!()
+    };
+    assert!(
+        merge
+            .parameters
+            .iter()
+            .any(|parameter| parameter.id == *value),
+        "the non-uniform result parameter is retained"
+    );
+    let old_parameters: usize = old_machine
+        .blocks
+        .iter()
+        .map(|block| block.parameters.len())
+        .sum();
+    let new_parameters: usize = machine
+        .blocks
+        .iter()
+        .map(|block| block.parameters.len())
+        .sum();
+    assert_eq!(new_parameters + 16, old_parameters);
+    assert_eq!(optimized.lowered().proof_bundle, lowered.proof_bundle);
+    assert_eq!(
+        optimized.lowered().source_call_occurrences,
+        lowered.source_call_occurrences
+    );
+    if let Some(debug) = optimized.lowered().debug_map.as_ref() {
+        let removed = old_machine
+            .blocks
+            .iter()
+            .flat_map(|old_block| {
+                let retained = machine
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == old_block.id)
+                    .unwrap()
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.id)
+                    .collect::<BTreeSet<_>>();
+                old_block
+                    .parameters
+                    .iter()
+                    .filter(move |parameter| !retained.contains(&parameter.id))
+                    .map(|parameter| parameter.id)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(removed.len(), 16);
+        for site in &debug.sites {
+            if let DebugSubject::Value(value) = site.subject {
+                assert!(!removed.contains(&value));
+            }
+        }
+        assert_eq!(
+            debug.semantic,
+            terminal_psi_identity(&optimized.lowered().semantic_module).unwrap()
+        );
+    }
+    let published = finalize_terminal_artifact(&optimized).expect("optimized result publishes");
+    assert_eq!(
+        published.manifest().semantic(),
+        optimized.execution().output_semantic()
+    );
+    let reconverged = run_psi_optimization(
+        optimized.lowered().clone(),
+        PsiOptimizationSelections::new([PsiOptimization::CopyPropagation]).unwrap(),
+    )
+    .expect("the optimized artifact is a legal second input");
+    assert_eq!(
+        reconverged.lowered(),
+        optimized.lowered(),
+        "a second selection is the identity: no copy parameter remains"
+    );
+}
+
+#[test]
+fn independent_copy_propagation_check_rejects_noncopy_removal_and_substitution() {
+    let before = dead_block_parameter_fixture().semantic_module;
+    let machine = &before.machines[0];
+    let merge = machine
+        .blocks
+        .iter()
+        .find(|block| matches!(block.terminator, Terminator::Return { .. }))
+        .expect("merge block");
+    // The merge block's result parameter binds a different constant on each
+    // incoming edge. Removing it while keeping a valid module is still not a
+    // copy rewrite.
+    let mut after = before.clone();
+    let position = after.machines[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == merge.id)
+        .unwrap()
+        .parameters
+        .len()
+        - 1;
+    let machine = &mut after.machines[0];
+    machine
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == merge.id)
+        .unwrap()
+        .parameters
+        .remove(position);
+    let substitute = machine.parameters[0].id;
+    for block in &mut machine.blocks {
+        block.terminator.map_scalar_uses(&mut |value| {
+            if value == merge.parameters[position].id {
+                substitute
+            } else {
+                value
+            }
+        });
+        if let Terminator::Jump {
+            target, arguments, ..
+        } = &mut block.terminator
+            && *target == merge.id
+        {
+            arguments.remove(position);
+        }
+    }
+    assert!(matches!(
+        terminal_verifier::validate_copy_propagation(&before, &after),
+        Err(terminal_verifier::CopyPropagationRewriteError::RemovedNonCopyParameter(
+            block
+        )) if block == merge.id
+    ));
+    // A removed copy parameter must also substitute the exact resolved source:
+    // replacing it with any other live value is not the declared relation.
+    let dispatch = before.machines[0]
+        .blocks
+        .iter()
+        .find(|block| matches!(block.terminator, Terminator::Conditional { .. }))
+        .expect("dispatch block");
+    let mut after = before.clone();
+    let machine = &mut after.machines[0];
+    machine
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == dispatch.id)
+        .unwrap()
+        .parameters
+        .remove(0);
+    let wrong = machine.parameters[1].id;
+    let removed = dispatch.parameters[0].id;
+    for block in &mut machine.blocks {
+        for operation in &mut block.operations {
+            operation.kind.map_scalar_uses(&mut |value| {
+                if value == removed { wrong } else { value }
+            });
+        }
+        block.terminator.map_scalar_uses(&mut |value| {
+            if value == removed { wrong } else { value }
+        });
+        match &mut block.terminator {
+            Terminator::Jump {
+                target, arguments, ..
+            } if *target == dispatch.id => {
+                arguments.remove(0);
+            }
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for edge in [when_true, when_false] {
+                    if edge.target == dispatch.id {
+                        edge.arguments.remove(0);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    assert!(matches!(
+        terminal_verifier::validate_copy_propagation(&before, &after),
+        Err(terminal_verifier::CopyPropagationRewriteError::ChangedMachine(
+            machine_id
+        )) if machine_id == before.machines[0].id
+    ));
+}
+
+#[test]
+fn copy_propagation_preserves_proof_questions_and_keeps_proof_bearing_identities() {
+    let mut lowered = dead_block_parameter_fixture();
+    lowered.semantic_module.machines[0]
+        .contract
+        .ensures
+        .push(ContractClause {
+            obligation: ObligationId::new(2001).unwrap(),
+            proposition: Proposition::Truth,
+        });
+    if let Some(debug) = lowered.debug_map.as_mut() {
+        debug.semantic = terminal_psi_identity(&lowered.semantic_module).unwrap();
+    }
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::CopyPropagation]).unwrap(),
+    )
+    .expect("proof-bearing closure remains unchanged");
+    assert_eq!(optimized.lowered(), &lowered);
+    // Removing a copy parameter inside a proof-bearing machine is rejected
+    // independently even when the resulting module is internally consistent.
+    let before = dead_block_parameter_fixture().semantic_module;
+    let mut after = before.clone();
+    after.machines[0].contract.ensures.push(ContractClause {
+        obligation: ObligationId::new(2001).unwrap(),
+        proposition: Proposition::Truth,
+    });
+    let dispatch = after.machines[0]
+        .blocks
+        .iter()
+        .find(|block| matches!(block.terminator, Terminator::Conditional { .. }))
+        .unwrap()
+        .id;
+    let machine = &mut after.machines[0];
+    machine
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == dispatch)
+        .unwrap()
+        .parameters
+        .remove(0);
+    let source = machine.parameters[0].id;
+    let removed = before.machines[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == dispatch)
+        .unwrap()
+        .parameters[0]
+        .id;
+    for block in &mut machine.blocks {
+        for operation in &mut block.operations {
+            operation.kind.map_scalar_uses(&mut |value| {
+                if value == removed { source } else { value }
+            });
+        }
+        block.terminator.map_scalar_uses(&mut |value| {
+            if value == removed { source } else { value }
+        });
+        match &mut block.terminator {
+            Terminator::Jump {
+                target, arguments, ..
+            } if *target == dispatch => {
+                arguments.remove(0);
+            }
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for edge in [when_true, when_false] {
+                    if edge.target == dispatch {
+                        edge.arguments.remove(0);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    assert!(
+        terminal_verifier::validate_copy_propagation(&before, &after).is_err(),
+        "a context change outside the copy relation must reject"
     );
 }
 

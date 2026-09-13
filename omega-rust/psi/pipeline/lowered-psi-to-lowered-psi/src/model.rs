@@ -55,6 +55,7 @@ impl PsiOptimizationStageResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PsiOptimizationStageError {
+    InvalidCopyPropagationRewrite(terminal_verifier::CopyPropagationRewriteError),
     InvalidDeadScalarRewrite(terminal_verifier::DeadScalarRewriteError),
     InvalidModule(ModuleError),
     InvalidSemantic(CodecError),
@@ -67,6 +68,9 @@ pub enum PsiOptimizationStageError {
 impl std::fmt::Display for PsiOptimizationStageError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidCopyPropagationRewrite(error) => {
+                write!(formatter, "invalid copy propagation rewrite: {error:?}")
+            }
             Self::InvalidDeadScalarRewrite(error) => {
                 write!(formatter, "invalid dead scalar rewrite: {error:?}")
             }

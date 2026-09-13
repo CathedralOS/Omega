@@ -25,8 +25,14 @@ The [Psi X-to-X entrance](psi/pipeline/lowered-psi-to-lowered-psi/src/lib.rs)
 consumes complete unsealed `LoweredPsi`, validates both sides, and returns the
 only optimization-stage result accepted by Terminal publication. Its
 [Psi-local catalog](psi/representations/optimization/src/optimization_selections/catalog.rs)
-does not import native target vocabulary. Identity execution and the admitted
-dead-pure-scalar pass run here; other named passes reject until ported. The
+does not import native target vocabulary. Identity execution, the admitted
+copy-propagation pass, and the admitted dead-pure-scalar pass run here; other
+named passes reject until ported. Copy propagation collapses a scalar block
+parameter bound to the same resolved value on every inventoried incoming edge,
+substituting the resolved source at direct scalar uses and dropping the
+matching edge-argument positions; propositions, proof projections, suspension
+frontiers, ranking evidence, and recorded source-call joins keep the exact
+identities they name. The
 execution record survives canonical Terminal encoding and independent decoding.
 
 The [post-Terminal abstract phase](omega/pipeline/abstract-operations-to-abstract-operations/src/phase.rs)

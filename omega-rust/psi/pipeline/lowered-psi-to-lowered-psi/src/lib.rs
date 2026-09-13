@@ -6,6 +6,7 @@
 //! publication. The phase consumes the complete unsealed Psi product and
 //! returns the only carrier accepted by canonical Terminal publication.
 
+mod copy_propagation;
 mod dead_scalar_elimination;
 mod model;
 mod validation;
@@ -30,6 +31,9 @@ pub fn run_psi_optimization(
     let (input_semantic, input_proof) = validate_carrier(&lowered)?;
     for selected in selections.as_slice() {
         match selected {
+            PsiOptimization::CopyPropagation => {
+                lowered = copy_propagation::propagate(lowered)?;
+            }
             PsiOptimization::DeadPureScalarElimination => {
                 lowered = dead_scalar_elimination::eliminate(lowered)?;
             }

@@ -137,6 +137,46 @@ impl Terminator {
         };
         edges.into_iter()
     }
+
+    /// Rewrite every scalar `ValueId` use site through `map`.
+    ///
+    /// Jump and conditional successor arguments, the conditional condition, and
+    /// the returned value are uses. Structural-case payload bindings are
+    /// positional implicit bindings rather than listed uses, and `Crash` proof
+    /// sites (`site_guard` predicates, claim frontiers) carry value identities
+    /// inside propositions rather than direct uses — consumers replacing a
+    /// value must keep machines containing those carriers unchanged or handle
+    /// them separately.
+    pub fn map_scalar_uses(&mut self, map: &mut impl FnMut(ValueId) -> ValueId) {
+        match self {
+            Self::Jump { arguments, .. } => {
+                for argument in arguments {
+                    *argument = map(*argument);
+                }
+            }
+            Self::Conditional {
+                condition,
+                when_true,
+                when_false,
+            } => {
+                *condition = map(*condition);
+                for edge in [when_true, when_false] {
+                    for argument in &mut edge.arguments {
+                        *argument = map(*argument);
+                    }
+                }
+            }
+            Self::Return { value, .. } => {
+                *value = map(*value);
+            }
+            Self::StructuralCase { .. }
+            | Self::ReturnUnit { .. }
+            | Self::ReturnUnitPartialAffine { .. }
+            | Self::ReturnUnitNominalAffine { .. }
+            | Self::ReturnStructural { .. }
+            | Self::Crash { .. } => {}
+        }
+    }
 }
 
 /// One ordered conditional successor and its simultaneous block-parameter
