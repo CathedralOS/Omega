@@ -83,7 +83,7 @@ impl Evaluation {
         let multiplicity = match result.multiplicity {
             Multiplicity::Affine => StructuralMultiplicity::Affine,
             Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-            _ => return unsupported("structural result has unsupported local custody"),
+            Multiplicity::Linear => StructuralMultiplicity::Linear,
         };
         let mut types = structural_types
             .iter()
@@ -94,11 +94,39 @@ impl Evaluation {
         if types.next().is_some()
             || declaration.identity != result.type_identity
             || produced.multiplicity != multiplicity
-            || !produced.qualifications.is_empty()
+            || (multiplicity != StructuralMultiplicity::Linear
+                && !produced.qualifications.is_empty())
             || !produced.projected_qualifications.is_empty()
-            || !produced.claims.is_empty()
+            || (multiplicity != StructuralMultiplicity::Linear && !produced.claims.is_empty())
         {
             return unsupported("structural result registration changed its exact custody");
+        }
+        if multiplicity == StructuralMultiplicity::Linear {
+            // Registration does not establish new linear authority. Only the
+            // exact ordinary call result already emitted under replayed custody
+            // can attach that returned frontier to a local binding.
+            let mut producers = operations.iter().filter(|operation| {
+                matches!(&operation.result,
+                OperationResult::Structural(value) if value == &produced)
+                    && matches!(
+                        operation.kind,
+                        OperationKind::CallStructural { .. }
+                            | OperationKind::CallStructuralWithScalarArguments { .. }
+                    )
+            });
+            let producer = producers.next().ok_or(LoweringError::Unsupported(
+                "linear local has no ordinary call result",
+            ))?;
+            if producers.next().is_some()
+                || produced.claims.is_empty()
+                || !operations.source_calls.iter().any(|occurrence| {
+                    occurrence.source_state == state
+                        && occurrence.statement_index == result.statement_index as usize
+                        && occurrence.terminal_operation == producer.id
+                })
+            {
+                return unsupported("linear local lost its exact call result custody");
+            }
         }
         if operations
             .structural_values
@@ -124,7 +152,10 @@ impl Evaluation {
                     .expression_table
                     .expression_is_valid(local.initial_value)
                 || checked
-                    .normalized_type_identity(local.type_reference)
+                    .normalized_type_identity(super::parameters::structural_carrier_type(
+                        checked,
+                        local.type_reference,
+                    )?)
                     .as_str()
                     != result.type_identity
                 || checked.type_multiplicity(local.type_reference) != result.multiplicity

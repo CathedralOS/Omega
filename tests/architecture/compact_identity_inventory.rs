@@ -297,7 +297,9 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
     let terminal = fs::read_to_string(&terminal_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", terminal_path.display()));
     for required in [
-        "pub target_contract_report_fingerprint: u64",
+        // Ordinary call custody is an enum variant, whose fields are public
+        // through the enum rather than individually marked `pub`.
+        "target_contract_report_fingerprint: u64",
         "pub cleanup_contract_report_fingerprint: u64",
         "pub contract_report_fingerprint: u64",
         "pub contract_commitment: crate::MachineContractCommitment",
@@ -308,7 +310,7 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
             "checked Terminal carrier is missing `{required}`"
         );
     }
-    assert!(!terminal.contains("pub target_contract_fingerprint: u64"));
+    assert!(!terminal.contains("target_contract_fingerprint: u64"));
     assert!(!terminal.contains("pub cleanup_contract_fingerprint: u64"));
     assert!(!terminal.contains("pub contract_fingerprint: u64"));
 

@@ -955,14 +955,12 @@ pub struct CheckedPayloadlessCaseReturnMachinePlan {
     pub returned_case_identity: String,
 }
 
-/// Source-handle-free checked plan for the first internal structural-result
-/// call. This deliberately admits only a final direct call whose one
-/// whole-root linear result is immediately returned by the caller.
+/// Guarded payloadless result calls retain their erased evidence selectors.
+/// Ordinary linear result calls belong to shared statement sequencing.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralCallReturnPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
-    pub machines: Vec<CheckedStructuralCallReturnMachinePlan>,
     /// Exact unrestricted payloadless calls whose exhaustive case arms all
     /// return the saved call result unchanged. Proof selectors remain erased
     /// and may bind at most one guarded caller-local evidence term.
@@ -970,13 +968,6 @@ pub struct CheckedStructuralCallReturnPlans {
 }
 
 impl CheckedStructuralCallReturnPlans {
-    pub fn for_machine(
-        &self,
-        machine: SymbolHandle,
-    ) -> Option<&CheckedStructuralCallReturnMachinePlan> {
-        self.machines.iter().find(|plan| plan.machine == machine)
-    }
-
     pub fn payloadless_guarded_for_machine(
         &self,
         machine: SymbolHandle,
@@ -1019,34 +1010,6 @@ pub struct CheckedPayloadlessGuardedCallEvidenceUsePlan {
     pub target_state: SymbolHandle,
     pub input_position: u32,
     pub parameter: arena::Handle<crate::CheckedEvidenceTerm>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralCallReturnMachinePlan {
-    pub machine: SymbolHandle,
-    pub state: SymbolHandle,
-    pub attachment_type_identity: String,
-    pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
-    pub result: CheckedStructuralResultPlan,
-    pub entry_claim: CheckedUnitEntryClaimPlan,
-    pub call: CheckedStructuralCallPlan,
-    /// Caller-local identity re-established beneath the operation-result root
-    /// and transferred unchanged to the machine result.
-    pub returned_claim: language_semantics::PermissionClaimIdentity,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralCallPlan {
-    pub coordinate: CheckedUnitCallCoordinate,
-    pub target_machine: SymbolHandle,
-    pub target_state: SymbolHandle,
-    pub target_contract_report_fingerprint: u64,
-    pub service_reach: ServiceReachSummary,
-    pub structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
-    pub claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
-    /// Exact callee-local result claim mapped back to the caller-local claim
-    /// namespace after successful completion.
-    pub callee_returned_claim: language_semantics::PermissionClaimIdentity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1523,6 +1486,23 @@ pub struct CheckedUnitClaimTransferPlan {
     pub argument_index: u32,
 }
 
+/// Ordinary structural result custody is separate from its value binding.
+/// These rows preserve existing claims through successful call completion;
+/// they never establish fresh authority. An empty record is valid only for
+/// an independently checked unqualified, claim-free result.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedStructuralCallCustodyPlan {
+    pub result_qualifications: Vec<SemanticDomainId>,
+    pub claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
+    pub returned_claim_transfers: Vec<CheckedStructuralReturnedClaimTransferPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralReturnedClaimTransferPlan {
+    pub callee_claim: language_semantics::PermissionClaimIdentity,
+    pub caller_claim: language_semantics::PermissionClaimIdentity,
+}
+
 /// Exact state-local coordinate receiving one primitive boundary result in a
 /// Unit-effect body. The local has no structural place or cleanup action; its
 /// dense binding ordinal is the scalar value namespace used by later checked
@@ -1689,13 +1669,14 @@ pub enum CheckedUnitEffectOperationPlan {
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     },
-    /// Invoke an ordinary checked whole owned-affine result producer and retain
+    /// Invoke an ordinary checked whole owned result producer and retain
     /// its exact result binding. This is neither a boundary invocation nor a
     /// selected operator application; the checked callee owns its semantics.
     StructuralCall {
         coordinate: CheckedUnitCallCoordinate,
         source_site: Option<NominalMachineUseSite>,
         result: CheckedUnitStructuralResultBindingPlan,
+        custody: CheckedStructuralCallCustodyPlan,
         target_machine: SymbolHandle,
         target_state: SymbolHandle,
         target_contract_report_fingerprint: u64,

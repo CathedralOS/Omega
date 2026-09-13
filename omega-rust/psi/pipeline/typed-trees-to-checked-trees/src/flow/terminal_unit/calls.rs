@@ -936,6 +936,49 @@ pub(in crate::flow) fn build_call_operation(
             return None;
         }
     }
+    if !boundary
+        && let Some(ExpectedCallValueResult::Structural(result)) = &expected_call_result
+        && result.multiplicity == Multiplicity::Linear
+    {
+        if !machine_binders(program, target_machine).is_empty()
+            || !program
+                .machine_states(target_machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == target_state.symbol)
+        {
+            return None;
+        }
+        let mut operation = CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            source_site,
+            result: (*result).clone(),
+            custody: Default::default(),
+            target_machine: target_machine.symbol,
+            target_state: target_state.symbol,
+            target_contract_report_fingerprint: target_contract.report_fingerprint,
+            target_contract_commitment: target_contract.commitment,
+            service_reach: call.service_reach,
+            scalar_arguments,
+            structural_arguments,
+            discard_result_on_return: false,
+        };
+        let custody = validation::reconstruct_structural_call_custody(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            &operation,
+        )
+        .ok()?;
+        let CheckedUnitEffectOperationPlan::StructuralCall {
+            custody: retained, ..
+        } = &mut operation
+        else {
+            return None;
+        };
+        *retained = custody;
+        return Some(operation);
+    }
     let transfers = call_claim_transfers(
         facts,
         machine.symbol,
@@ -1036,6 +1079,7 @@ pub(in crate::flow) fn build_call_operation(
                 coordinate,
                 source_site,
                 result: result.clone(),
+                custody: Default::default(),
                 target_machine: target_machine.symbol,
                 target_state: target_state.symbol,
                 target_contract_report_fingerprint: target_contract.report_fingerprint,
@@ -1086,6 +1130,7 @@ pub(in crate::flow) fn build_call_operation(
             coordinate,
             source_site,
             result: result.clone(),
+            custody: Default::default(),
             target_machine: target_machine.symbol,
             target_state: target_state.symbol,
             target_contract_report_fingerprint: target_contract.report_fingerprint,

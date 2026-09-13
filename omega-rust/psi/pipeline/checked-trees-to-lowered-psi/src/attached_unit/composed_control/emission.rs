@@ -481,11 +481,15 @@ pub(super) fn emit_call_operations(
                         call_context,
                     )?;
                     let declaration = super::super::ordinary_calls::emit_structural(
+                        checked,
                         state.state,
                         operand,
                         prepared,
                         callee,
                         &catalogs.type_ids,
+                        &catalogs.domain_ids,
+                        claim_bindings,
+                        true,
                         place_counter,
                         output,
                     )?;
@@ -694,11 +698,14 @@ pub(super) fn emit_call_operations(
             CheckedUnitEffectOperationPlan::CallUnit { .. }
             | CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
                 internal_calls::emission::emit_call_operation(
+                    checked,
                     state,
                     operation,
                     &catalogs.internal_targets,
                     parameters,
                     &catalogs.type_ids,
+                    &catalogs.domain_ids,
+                    claim_bindings,
                     &catalogs.structural_types,
                     arguments.as_deref(),
                     &byte_argument_places,

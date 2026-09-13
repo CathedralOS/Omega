@@ -6,6 +6,90 @@
 use super::*;
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
+/// Completion forwards a whole parameter only when its exact output contract
+/// and, for linear values, checked input-origin claim outcome agree.
+fn returned_parameter(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    entry_claims: &[CheckedUnitEntryClaimPlan],
+) -> Option<CheckedUnitStructuralReturnPlan> {
+    let StatementNode::Expression(expression) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .last()?
+    else {
+        return None;
+    };
+    let ExpressionNode::Name(path) = program.expression_table.expression(*expression) else {
+        return None;
+    };
+    if path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+    {
+        return None;
+    }
+    let source_parameters = program.state_parameters(state);
+    let (parameter_index, parameter) = parameters.iter().enumerate().find(|(_, parameter)| {
+        source_parameters
+            .get(parameter.position as usize)
+            .is_some_and(|source| source.symbol == path.symbol)
+    })?;
+    let source = source_parameters.get(parameter.position as usize)?;
+    if parameter.access != CheckedStructuralAccess::Owned
+        || parameter.multiplicity != program.type_multiplicity(state.return_type)
+        || program.normalized_type_identity(source.type_reference)
+            != program.normalized_type_identity(state.return_type)
+        || parameter.qualifications
+            != validation::structural_result_qualifications(program, state.return_type).ok()?
+    {
+        return None;
+    }
+    if parameter.multiplicity == Multiplicity::Linear {
+        let mut outcomes = facts
+            .flow
+            .ownership
+            .claim_outcome_maps
+            .iter()
+            .map(|(_, outcome)| outcome)
+            .filter(|outcome| {
+                outcome.machine_symbol == machine.symbol && outcome.state_symbol == state.symbol
+            });
+        let outcome = outcomes.next()?;
+        if outcomes.next().is_some() {
+            return None;
+        }
+        let [returned] = facts
+            .flow
+            .ownership
+            .claim_outcome_entries
+            .span_or_empty(outcome.entries)
+        else {
+            return None;
+        };
+        if !matches!(returned.source, checked_trees::FlowClaimOutcomeSource::Input { parameter_symbol, segments }
+            if parameter_symbol == source.symbol && segments.is_empty())
+            || !returned.output_segments.is_empty()
+            || !matches!(entry_claims, [claim] if claim.parameter_index as usize == parameter_index && claim.path.is_empty())
+        {
+            return None;
+        }
+    }
+    Some(CheckedUnitStructuralReturnPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: u32::try_from(parameter_index).ok()?,
+        },
+        type_identity: parameter.type_identity.clone(),
+        multiplicity: parameter.multiplicity,
+    })
+}
+
 pub(in crate::flow::terminal_unit) struct StatementSequence {
     pub(in crate::flow::terminal_unit) scalar_result: Option<CheckedUnitScalarResultBindingPlan>,
     pub(in crate::flow::terminal_unit) scalar_control:
@@ -178,8 +262,7 @@ pub(in crate::flow::terminal_unit) fn build(
     let mut array_bindings = Vec::<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>::new();
     let mut returned_call = None;
     let mut returned_scalar_call = None;
-    // Only whole claim-free affine results participate in move custody.
-    // Unrestricted boundary results keep their separate non-moving route.
+    // Value bindings remain separate from the call's replayed claim custody.
     let mut structural_results = Vec::new();
     let mut call_count = 0_usize;
     let binders = machine_binders(program, machine);
@@ -623,7 +706,7 @@ pub(in crate::flow::terminal_unit) fn build(
                     operation,
                     CheckedUnitEffectOperationPlan::StructuralCall { .. }
                         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                ) && matches!(result.multiplicity, Multiplicity::Affine | Multiplicity::Unrestricted)
+                )
                 {
                     structural_results.push((result, facts::PlaceRoot::Symbol(symbol)));
                 }
@@ -697,12 +780,23 @@ pub(in crate::flow::terminal_unit) fn build(
             .map(|(binding, _)| binding.clone())
     });
     let structural_result = if let Some(binding) = returned_local {
-        if binding.type_identity != program.normalized_type_identity(state.return_type).as_str()
+        if Some(binding.type_identity.as_str())
+            != base_type_identity(program, state.return_type, &binders).as_deref()
             || binding.multiplicity != program.type_multiplicity(state.return_type)
         {
             return None;
         }
+        let qualifications =
+            parameter_qualifications(program, shapes, state.return_type, &binders)?;
         for operation in &mut operations {
+            if let CheckedUnitEffectOperationPlan::StructuralCall {
+                result, custody, ..
+            } = operation
+                && result.binding_ordinal == binding.binding_ordinal
+                && custody.result_qualifications != qualifications
+            {
+                return None;
+            }
             match operation {
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     result,
@@ -719,11 +813,9 @@ pub(in crate::flow::terminal_unit) fn build(
                     discard_result_on_return,
                     ..
                 } if result.binding_ordinal == binding.binding_ordinal => {
-                    // Unrestricted results have no disposal debt. A hoisted
-                    // call can already retain them without a return discard.
-                    if binding.multiplicity != Multiplicity::Unrestricted
-                        && !*discard_result_on_return
-                    {
+                    // Only affine results have automatic disposal debt.
+                    // Linear results retain the call's checked claim frontier.
+                    if binding.multiplicity == Multiplicity::Affine && !*discard_result_on_return {
                         return None;
                     }
                     *discard_result_on_return = false;
@@ -781,6 +873,17 @@ pub(in crate::flow::terminal_unit) fn build(
             discard_result_on_return: false,
         });
         Some(result.into())
+    } else if let Some(binding) = returned_call {
+        Some(binding.into())
+    } else if let Some(result) = returned_parameter(
+        program,
+        facts,
+        machine,
+        state,
+        structural_parameters,
+        entry_claims,
+    ) {
+        Some(result)
     } else if validation::is_closed_primitive_array_type(program, state.return_type) {
         let statements = program.statement_table.statements(state.statement_nodes);
         let StatementNode::Expression(expression) = statements.last()? else {
@@ -799,37 +902,8 @@ pub(in crate::flow::terminal_unit) fn build(
                 }
                 Some(binding.clone().into())
             } else {
-                let source_parameters = program.state_parameters(state);
-                let (parameter_index, parameter) =
-                    structural_parameters
-                        .iter()
-                        .enumerate()
-                        .find(|(_, parameter)| {
-                            source_parameters
-                                .get(parameter.position as usize)
-                                .is_some_and(|source| source.symbol == path.symbol)
-                        })?;
-                if parameter.access != CheckedStructuralAccess::Owned
-                    || parameter.multiplicity != Multiplicity::Unrestricted
-                    || !parameter.qualifications.is_empty()
-                    || parameter.type_identity
-                        != program.normalized_type_identity(state.return_type).as_str()
-                {
-                    return None;
-                }
-                Some(CheckedUnitStructuralReturnPlan {
-                    source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index: u32::try_from(parameter_index).ok()?,
-                    },
-                    type_identity: parameter.type_identity.clone(),
-                    multiplicity: parameter.multiplicity,
-                })
+                return None;
             }
-        } else if matches!(
-            program.expression_table.expression(*expression),
-            ExpressionNode::Call(_)
-        ) {
-            returned_call.map(Into::into)
         } else {
             let elements = super::scalar_arrays::elements(
                 program,

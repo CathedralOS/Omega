@@ -7,6 +7,27 @@ mod service_forward;
 mod source_path;
 pub(crate) use source_path::{expression_producer, source_path, source_place_path};
 
+/// Qualifications have their own retained row; carrier comparisons preserve
+/// reference presentation rather than silently turning a view into ownership.
+pub(crate) fn structural_carrier_type(
+    checked: &CheckedTrees,
+    mut reference: checked_trees::types::TypeReferenceHandle,
+) -> Result<checked_trees::types::TypeReferenceHandle, LoweringError> {
+    let mut visited = Vec::new();
+    loop {
+        if !reference.is_valid() || visited.contains(&reference) {
+            return unsupported("structural carrier has an invalid type chain");
+        }
+        visited.push(reference);
+        match checked.type_reference_table.type_reference(reference) {
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type
+            }
+            _ => return Ok(reference),
+        }
+    }
+}
+
 /// Rejoin direct Unit scalar parameters and routed-Service receipts to the
 /// exact typed state signature before raw checked-to-Terminal lowering erases
 /// their authored source partition. Owner-selected Fused provenance is
@@ -75,11 +96,6 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             .any(|machine| has_receipt(&machine.structural_parameters))
         || flow
             .terminal_structural_returns
-            .machines
-            .iter()
-            .any(|machine| has_receipt(&machine.structural_parameters))
-        || flow
-            .terminal_structural_call_returns
             .machines
             .iter()
             .any(|machine| has_receipt(&machine.structural_parameters));

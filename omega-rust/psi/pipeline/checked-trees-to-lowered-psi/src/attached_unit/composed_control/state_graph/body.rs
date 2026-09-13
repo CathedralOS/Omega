@@ -27,7 +27,7 @@ pub(super) fn validate(
     let prefix = state.bindings.len();
     let marker_count = super::cases::validate_markers(checked, machine, source, state, end)?;
     let tail_value = usize::from(matches!(state.terminator, CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. })
-        && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))));
+        && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))));
     if prefix > end || state.operations.len() + marker_count != end - prefix + tail_value {
         return unsupported("Unit graph dropped or added a body effect");
     }
@@ -157,7 +157,7 @@ pub(super) fn validate(
                     discard_result_on_return,
                     ..
                 },
-                StatementNode::LocalData(_),
+                StatementNode::LocalData(_) | StatementNode::Expression(_),
             ) if coordinate.statement_index as usize == ordinal
                 && coordinate.call_ordinal == 0
                 && !discard_result_on_return

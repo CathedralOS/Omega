@@ -23,6 +23,29 @@ pub(in crate::attached_unit::composed_control) fn emit(
         })
         .collect::<Vec<_>>();
     let machine_result = returns::result(&plan.result, catalogs, &mut structural_places)?;
+    let entry = &plan.states[0];
+    let claims = crate::attached_unit::claims::lower_unit_entry_claims(
+        plan.machine,
+        entry.state,
+        &entry.entry_claims,
+        &parameters,
+    )?;
+    let content_entry_claims = crate::content_conservation::lower_whole_content_entry_claims(
+        checked,
+        &entry.structural_parameters,
+        &parameters,
+        &entry.entry_claims,
+        &claims.source_claims,
+    )?;
+    let content_identity_reshuffles = crate::attached_unit::claims::lower_result_identity(
+        checked,
+        plan.machine,
+        entry.state,
+        &entry.structural_parameters,
+        &parameters,
+        &machine_result,
+        &claims.source_claims,
+    )?;
     let entry_reentered = plan
         .states
         .iter()
@@ -228,7 +251,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
             state,
             catalogs,
             &state_parameters,
-            &[],
+            &claims.source_claims,
             &mut evaluation,
             &mut values,
             &mut next_value,
@@ -533,6 +556,36 @@ pub(in crate::attached_unit::composed_control) fn emit(
         };
         let mut terminator = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
+                let returned_claims = match result.source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } => case_emission::result(state, binding_ordinal, &operations)?
+                        .claims
+                        .iter()
+                        .map(|binding| binding.claim)
+                        .collect::<Vec<_>>(),
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index,
+                    } => state
+                        .entry_claims
+                        .iter()
+                        .filter(|claim| claim.parameter_index == parameter_index)
+                        .map(|claim| lookup_claim_id(&claims.source_claims, claim.claim_identity))
+                        .collect::<Result<Vec<_>, _>>()?,
+                    _ => return unsupported("structural return has no whole claim source"),
+                };
+                if content_entry_claims.iter().any(|entry| {
+                    returned_claims.contains(&entry.claim)
+                        && !content_identity_reshuffles.iter().any(|identity| {
+                            identity.claim == entry.claim
+                                && identity.input == entry.input
+                                && identity.projections == entry.projections
+                        })
+                }) {
+                    return unsupported(
+                        "structural return lost its checked content identity guarantee",
+                    );
+                }
                 let source = match result.source {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal,
@@ -552,7 +605,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 Terminator::ReturnStructural {
                     edge: edge_id(allocate_dense(&mut next_edge)?),
                     source: evaluation.current_structural_place(source),
-                    returned_claims: Vec::new(),
+                    returned_claims,
                     trivial_affine_discards: Vec::new(),
                 }
             }
@@ -793,7 +846,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
         parameters: scalar_parameters,
         structural_places,
         structural_parameters: parameters,
-        entry_claims: Vec::new(),
+        entry_claims: claims.entry_claims,
         ranked_scc: None,
         result: machine_result,
         published_service_ceiling: lower_installation_machine_service_ceiling(
@@ -803,8 +856,8 @@ pub(in crate::attached_unit::composed_control) fn emit(
             plan.service_reach,
             &catalogs.service_ids,
         )?,
-        content_entry_claims: Vec::new(),
-        content_identity_reshuffles: Vec::new(),
+        content_entry_claims,
+        content_identity_reshuffles,
         content_partition_compositions: Vec::new(),
         entry: invocation_entry.unwrap_or(state_ids[0]),
         blocks,

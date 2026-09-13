@@ -470,7 +470,4 @@ fn reject_unsupported_receipts(checked: &CheckedTrees, diagnostics: &mut Vec<Dia
     for machine in &flow.terminal_structural_returns.machines {
         reject("structural return", &machine.structural_parameters);
     }
-    for machine in &flow.terminal_structural_call_returns.machines {
-        reject("structural call return", &machine.structural_parameters);
-    }
 }

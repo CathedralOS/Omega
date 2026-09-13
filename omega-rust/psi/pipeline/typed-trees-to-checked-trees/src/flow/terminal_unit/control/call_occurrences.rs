@@ -78,12 +78,33 @@ fn ordered_statement_call<'program>(
     else {
         return None;
     };
-    if !crate::values::is_scalar_return_call(program, state, *expression) {
-        return None;
-    }
     let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
         return None;
     };
+    if !crate::values::is_scalar_return_call(program, state, *expression) {
+        // A final structural call is an ordinary result-producing operation.
+        // Its value/claim custody is checked by statement sequencing, not by
+        // treating all non-scalar expression statements as Unit calls.
+        if statement_index.checked_add(1)?
+            != program
+                .statement_table
+                .statements(state.statement_nodes)
+                .len()
+            || program.normalized_type_identity(crate::flow::call_target_return_type(
+                program,
+                call.target_symbol,
+            )?) != program.normalized_type_identity(state.return_type)
+            || checked_structural_result_type(
+                program,
+                &mut ShapeCollector::new(program),
+                state.return_type,
+                &machine_binders(program, machine),
+            )
+            .is_none()
+        {
+            return None;
+        }
+    }
     Some((*expression, call))
 }
 

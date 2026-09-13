@@ -18,6 +18,12 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
         operation,
         &state.structural_parameters,
     )?;
+    crate::attached_unit::structural_calls::validate_custody(
+        checked,
+        root,
+        state.state,
+        operation,
+    )?;
     let (
         coordinate,
         target_machine,
@@ -52,6 +58,7 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
             service_reach,
             structural_arguments,
             result,
+            custody,
             ..
         } => {
             let target = UnitBody::find(plans, *target_machine)?;
@@ -70,11 +77,7 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
                 || *target_contract_commitment != contract.commitment
                 || result.type_identity != signature.type_identity
                 || result.multiplicity != signature.multiplicity
-                || !matches!(
-                    result.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                )
-                || !signature.qualifications.is_empty()
+                || signature.qualifications != custody.result_qualifications
                 || result.statement_index != coordinate.statement_index
             {
                 return unsupported("internal structural call result or commitment drifted");
@@ -90,7 +93,10 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
         }
         _ => return unsupported("internal call has unsupported claim transfers or result"),
     };
-    if structural_arguments.iter().any(|argument| {
+    if !matches!(
+        operation,
+        CheckedUnitEffectOperationPlan::StructuralCall { .. }
+    ) && structural_arguments.iter().any(|argument| {
         (argument.source_parameter_index().is_none() && argument.byte_sequence_literal().is_none())
             || !matches!(
                 argument.access,
@@ -121,7 +127,10 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
         || entry.contract_report_fingerprint != *target_contract_report_fingerprint
         || !checked_unit_target_reach_matches(*service_reach, entry.contract_service_reach)
         || entry.structural_parameters.len() != structural_arguments.len()
-        || !entry.entry_claims.is_empty()
+        || (!matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::StructuralCall { .. }
+        ) && !entry.entry_claims.is_empty())
     {
         return unsupported("composed internal Unit call disagrees with its checked target");
     }
@@ -163,8 +172,7 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
             || (argument.path.is_empty()
                 && (source.type_identity != target.type_identity
                     || source.multiplicity != target.multiplicity))
-            || !source.qualifications.is_empty()
-            || !target.qualifications.is_empty()
+            || source.qualifications != target.qualifications
         {
             return unsupported("composed Unit structural call authority drifted");
         }

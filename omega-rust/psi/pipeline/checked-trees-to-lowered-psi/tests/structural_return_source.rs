@@ -2199,26 +2199,43 @@ fn direct_internal_structural_result_call_gets_an_exact_checked_plan() {
     let plan = checked
         .facts
         .flow
-        .terminal_structural_call_returns
-        .machines
+        .terminal_unit_effects
+        .composed_machines
         .iter()
         .find(|plan| {
             checked.machines().iter().any(|machine| {
                 machine.symbol == plan.machine && machine.name.as_str() == "Main::through_call"
             })
         })
-        .expect("checker should publish the bounded direct structural-call plan");
-    assert_eq!(plan.structural_parameters.len(), 1);
-    assert_eq!(plan.call.coordinate.statement_index, 0);
-    assert_eq!(plan.call.coordinate.call_ordinal, 0);
-    assert_eq!(plan.call.structural_arguments.len(), 1);
-    assert!(plan.call.structural_arguments[0].path.is_empty());
-    assert_eq!(plan.call.claim_transfers.len(), 1);
+        .expect("checker should publish the shared structural-call plan");
+    let [state] = plan.states.as_slice() else {
+        panic!("one source state");
+    };
+    let [
+        checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            structural_arguments,
+            custody,
+            ..
+        },
+    ] = state.operations.as_slice()
+    else {
+        panic!("one shared call");
+    };
+    assert_eq!(state.structural_parameters.len(), 1);
+    assert_eq!(coordinate.statement_index, 0);
+    assert_eq!(coordinate.call_ordinal, 0);
+    assert_eq!(structural_arguments.len(), 1);
+    assert!(structural_arguments[0].path.is_empty());
+    assert_eq!(custody.claim_transfers.len(), 1);
     assert_eq!(
-        plan.call.claim_transfers[0].claim_identity,
-        plan.entry_claim.claim_identity
+        custody.claim_transfers[0].claim_identity,
+        state.entry_claims[0].claim_identity
     );
-    assert_eq!(plan.returned_claim, plan.entry_claim.claim_identity);
+    assert_eq!(
+        custody.returned_claim_transfers[0].caller_claim,
+        state.entry_claims[0].claim_identity
+    );
 
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::through_call")
         .expect("bounded direct structural-result call should lower");

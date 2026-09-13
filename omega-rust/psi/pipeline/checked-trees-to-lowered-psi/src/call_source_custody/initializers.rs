@@ -110,7 +110,13 @@ pub(crate) fn validate_structural(
         if machine.symbol != caller_machine
             || result.statement_index != coordinate.statement_index
             || result.statement_index as usize + 1 != statements.len()
-            || checked.normalized_type_identity(state.return_type).as_str() != result.type_identity
+            || checked
+                .normalized_type_identity(crate::attached_unit::structural_carrier_type(
+                    checked,
+                    state.return_type,
+                )?)
+                .as_str()
+                != result.type_identity
             || checked.type_multiplicity(state.return_type) != result.multiplicity
         {
             return unsupported(
@@ -137,7 +143,10 @@ pub(crate) fn validate_structural(
         || coordinate.call_ordinal != 0
         || !local.symbol.is_valid()
         || checked
-            .normalized_type_identity(local.type_reference)
+            .normalized_type_identity(crate::attached_unit::structural_carrier_type(
+                checked,
+                local.type_reference,
+            )?)
             .into_string()
             != result.type_identity
         || checked.type_multiplicity(local.type_reference) != result.multiplicity
