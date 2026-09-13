@@ -271,7 +271,11 @@ cleanup debt, while an unrestricted child remains reusable. Shared getters and
 mutable setters on record locals borrow the original storage, including nested
 field paths. They retain the local's cleanup and cannot acquire mutation through
 an immutable local or shared view. Scalar-result helpers use this same ordinary
-sequence. The source regression is
+sequence. State-local call results keep that home through shared reads and
+mutable calls; selected state exits and normal Unit returns use the same exact
+establishment/disposal receipts and reverse-order cleanup. A shared observation
+of a mutable local is a read of its current backing, not an immutable snapshot.
+The source regressions are `state_local_record_lifetimes` and
 `checked-trees-to-lowered-psi --test local_record_receivers_source`; native
 publication and execution are checked separately by
 `tests/native-differential/tests/local_record_receivers.rs`.
@@ -613,6 +617,15 @@ not a separate sum evaluator. A single closed integer result range becomes a
 normal-return guarantee proved at every exit; callers consume the emitted
 guarantee, not the source annotation alone. Named successor transfers retain
 their separate control-flow admission checks.
+
+Ordered case returns reuse that source-owned guard roster and the ordinary case
+constructor rather than introducing a second selector or Terminal instruction.
+Only the selected branch constructs its result. Both ordinary state guards and
+ordered return guards use the existing selective source-value evaluator, including
+short-circuit Boolean composition. A nominal namespace without `self` does not
+create runtime receiver storage; actual receiver/provider attachment keeps its
+separate storage checks. `payloadless_case_return_source` exercises these joins
+and rejects substituted constructions, branch coordinates, and coverage.
 
 Mixed ordinary calls can establish a complete owned scalar case beside scalar
 arguments and borrowed local receivers. Case fields participate in the same

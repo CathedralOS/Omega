@@ -250,7 +250,8 @@ pub(crate) fn admit_dynamic_continuation<'a>(
             }
         }
     }
-    let attachment = exact_attachment_identity(checked, &plan.caller_attachment_type_identity)?;
+    let attachment =
+        exact_attachment_identity(checked, &plan.caller_attachment_type_identity, true)?;
     admit_call_targets(
         checked,
         plan.caller_machine,
@@ -369,12 +370,29 @@ pub(super) fn exact_attachment<'a>(
     if identity != retained_identity {
         return unsupported("composed Unit attachment disagrees with its authored owner");
     }
-    exact_attachment_identity(checked, retained_identity).map(Some)
+    // A namespaced constructor can have an exact nominal owner without any
+    // runtime receiver storage. Only actual receiver/provider use requires a
+    // record attachment; never manufacture storage for a sum's namespace.
+    let requires_record_storage = !plan.provider_attachment_requirements.is_empty()
+        || program.machine_states(machine).iter().any(|state| {
+            program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+        })
+        || plan.states.iter().any(|state| {
+            state
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.is_self)
+        });
+    exact_attachment_identity(checked, retained_identity, requires_record_storage).map(Some)
 }
 
 fn exact_attachment_identity<'a>(
     checked: &'a CheckedTrees,
     identity: &str,
+    requires_record_storage: bool,
 ) -> Result<&'a checked_trees::CheckedUnitStructuralTypePlan, LoweringError> {
     let attachments = checked
         .facts
@@ -387,10 +405,12 @@ fn exact_attachment_identity<'a>(
     let [attachment] = attachments.as_slice() else {
         return unsupported("composed Unit attachment type is missing or duplicated");
     };
-    if !matches!(
-        attachment.shape,
-        CheckedUnitStructuralTypeShape::Record { .. }
-    ) {
+    if requires_record_storage
+        && !matches!(
+            attachment.shape,
+            CheckedUnitStructuralTypeShape::Record { .. }
+        )
+    {
         return unsupported("composed Unit attachment is not a record");
     }
 

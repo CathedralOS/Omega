@@ -51,6 +51,7 @@ mod case_emission;
 mod cases;
 mod edges;
 mod emission;
+mod guarded;
 mod parameters;
 mod ranking;
 mod result_custody;

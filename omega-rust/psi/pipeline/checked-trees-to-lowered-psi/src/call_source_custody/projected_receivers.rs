@@ -3,9 +3,7 @@
 use crate::{CheckedTrees, LoweringError, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::types::TypeReferenceNode;
-use checked_trees::{
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
-};
+use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use symbols::SymbolHandle;
 
 mod aliases;
@@ -404,9 +402,13 @@ fn statement_alias_source(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn validate(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller_machine: SymbolHandle,
+    caller_state: SymbolHandle,
+    caller_operations: &[CheckedUnitEffectOperationPlan],
+    caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     operation: &CheckedUnitEffectOperationPlan,
     target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
@@ -428,7 +430,7 @@ pub(crate) fn validate(
     else {
         return Ok(());
     };
-    let authored = super::authored::locate_source(checked, caller.state, *coordinate)?;
+    let authored = super::authored::locate_source(checked, caller_state, *coordinate)?;
     let mut targets = target_parameters
         .iter()
         .enumerate()
@@ -451,14 +453,14 @@ pub(crate) fn validate(
             }
             source(
                 checked,
-                caller.machine,
-                caller.state,
+                caller_machine,
+                caller_state,
                 coordinate.statement_index as usize,
                 call.receiver,
             )?
         }
         Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
-            let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
+            let (_, state) = crate::scalar_source_custody::authored_state(checked, caller_state)?;
             let Some(checked_trees::statement::StatementNode::Call(call)) = checked
                 .statement_table
                 .statements(state.statement_nodes)
@@ -488,8 +490,8 @@ pub(crate) fn validate(
             } else {
                 aliases::parameter_source(
                     checked,
-                    caller.machine,
-                    caller.state,
+                    caller_machine,
+                    caller_state,
                     coordinate.statement_index as usize,
                     call.receiver_root_symbol,
                     false,
@@ -502,7 +504,7 @@ pub(crate) fn validate(
         }
         None => return Ok(()),
     };
-    let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
+    let (_, state) = crate::scalar_source_custody::authored_state(checked, caller_state)?;
     if locals::declaration(
         checked,
         state,
@@ -521,7 +523,9 @@ pub(crate) fn validate(
             ))?;
         return locals::validate(
             checked,
-            caller,
+            caller_machine,
+            caller_state,
+            caller_operations,
             *coordinate,
             authored.source_target,
             target,
@@ -536,8 +540,7 @@ pub(crate) fn validate(
         .ok_or(LoweringError::Unsupported(
             "projected receiver lost its source parameter",
         ))?;
-    let parameter = caller
-        .structural_parameters
+    let parameter = caller_parameters
         .iter()
         .position(|parameter| parameter.position as usize == position)
         .ok_or(LoweringError::Unsupported(

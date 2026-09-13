@@ -97,7 +97,11 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
         operation,
         CheckedUnitEffectOperationPlan::StructuralCall { .. }
     ) && structural_arguments.iter().any(|argument| {
-        (argument.source_parameter_index().is_none() && argument.byte_sequence_literal().is_none())
+        (argument.source_parameter_index().is_none()
+            && argument
+                .source_structural_result_binding_ordinal()
+                .is_none()
+            && argument.byte_sequence_literal().is_none())
             || !matches!(
                 argument.access,
                 checked_trees::CheckedStructuralAccess::MutableBorrow
@@ -165,6 +169,25 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
             .source_structural_result_binding_ordinal()
             .is_some()
         {
+            if target.is_self
+                && matches!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                        | checked_trees::CheckedStructuralAccess::MutableBorrow
+                )
+                && entry.entry_claims.is_empty()
+            {
+                crate::call_source_custody::projected_receivers::validate(
+                    checked,
+                    root,
+                    state.state,
+                    &state.operations,
+                    &state.structural_parameters,
+                    operation,
+                    entry.structural_parameters,
+                )?;
+                continue;
+            }
             crate::attached_unit::structural_calls::validate_linear_result_consumer(
                 checked,
                 root,

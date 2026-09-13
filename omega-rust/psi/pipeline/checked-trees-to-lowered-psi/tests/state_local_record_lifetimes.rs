@@ -66,6 +66,112 @@ fn local_nested_record_getter_composes_with_conditional_state_exit() {
 }
 
 #[test]
+fn mutable_call_result_records_keep_storage_through_state_local_receivers() {
+    let source = r#"
+        boundary trait Sink { machine record(value: u64); }
+        data Region { value: u64; }
+        data Filter { region: Region; }
+        machine Filter::new(value: u64) -> Filter {
+            Filter { region: Region { value: value } }
+        }
+        machine Region::get(&self) -> u64 { self.value }
+        machine Region::set(&mut self, value: u64) { self.value = value; }
+        machine Filter::get(&self) -> u64 { self.region.get() }
+        machine Filter::set(&mut self, value: u64) { self.region.set(value); }
+        data Main {}
+        machine Main::main(input: u64) reaches Sink {
+            let mut local: Filter = Filter::new(input);
+            let before: u64 = local.get();
+            local.set(before ^ 1);
+            let observed: u64 = local.get();
+            transition observed == 7 && before == 6 {
+                true -> selected(observed)
+                false -> other(observed)
+            }
+            state selected(value: u64) {
+                let mut local: Filter = Filter::new(value);
+                let before: u64 = local.get();
+                local.set(before ^ 4);
+                let after: u64 = local.get();
+                Sink::record(after);
+            }
+            state other(value: u64) {
+                let mut local: Filter = Filter::new(value);
+                let before: u64 = local.get();
+                local.set(before ^ 8);
+                let after: u64 = local.get();
+                Sink::record(after);
+            }
+        }
+    "#;
+    let checked = checked(source);
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
+        .expect("mutable call results retain their exact state-local storage");
+    let entry = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .unwrap();
+    let initializer = checked.machine_states(entry)[0].statement_nodes.start();
+    let mut immutable = checked.clone();
+    let typed_trees::statement::StatementNode::LocalData(local) =
+        immutable.typed.statement_table.statement_mut(initializer)
+    else {
+        panic!("mutable record initializer");
+    };
+    local.is_mutable = false;
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&immutable, "Main::main")
+            .produce_artifact()
+            .is_err(),
+        "a retained mutable receiver cannot borrow an immutable result destination"
+    );
+    let selected = checked
+        .machine_states(entry)
+        .iter()
+        .find(|state| state.name.as_str() == "selected")
+        .unwrap();
+    let receipt = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find_map(|(handle, event)| {
+            (event.state_symbol == selected.symbol
+                && event.kind == language_semantics::PermissionEventKind::AffineDrop
+                && event.source == language_semantics::PermissionEventSource::StateExit)
+                .then_some(handle)
+        })
+        .expect("selected successor has an exact local return-disposal receipt");
+    let mut wrong_receipt = checked.clone();
+    wrong_receipt
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get_mut(receipt)
+        .source = language_semantics::PermissionEventSource::Statement { statement_index: 0 };
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&wrong_receipt, "Main::main")
+            .produce_artifact()
+            .is_err(),
+        "normal return cannot replace its local StateExit receipt with a statement receipt"
+    );
+    let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+        .expect("encoded mutable record caller");
+    for input in [0, 6, u64::MAX] {
+        let observed = input ^ 1;
+        assert_execution(
+            &artifact,
+            input,
+            u128::from(observed ^ if observed == 7 { 4 } else { 8 }),
+        );
+    }
+}
+
+#[test]
 fn copy_record_state_exit_needs_no_affine_receipt_or_disposal() {
     let source = SOURCE
         .replace("data Region {", "data Region [copy] {")

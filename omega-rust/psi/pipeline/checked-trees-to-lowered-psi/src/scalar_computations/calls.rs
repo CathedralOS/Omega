@@ -355,10 +355,8 @@ impl Expansion<'_> {
                                 "computed case field differs from its exact scalar type",
                             );
                         }
-                        completed_fields.push((
-                            *identity,
-                            parameter(field_types.len(), qualified_type),
-                        ));
+                        completed_fields
+                            .push((*identity, parameter(field_types.len(), qualified_type)));
                         field_types.push(qualified_type);
                     }
                     let constructor = self.push(LoweredScalarBranchState {

@@ -11,6 +11,7 @@ pub(super) fn successors(
 ) -> Vec<&CheckedStructuralControlSuccessorPlan> {
     match &state.terminator {
         CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+        | CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
         | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. } => Vec::new(),
         CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. } => Vec::new(),
         CheckedComposedUnitControlTerminatorPlan::Jump { successor } => vec![successor],
@@ -330,7 +331,7 @@ fn validate_cleanup(
             return unsupported("Unit graph edge leaves an unaccounted local disposition");
         }
     }
-    result_custody::successor_discards(checked, plan.machine, source, state, edge)?;
+    result_custody::local_discards(checked, plan.machine, source, state, Some(edge))?;
     let cleanup = checked
         .facts
         .flow
@@ -395,6 +396,14 @@ pub(super) fn return_discards(
         PermissionProvenance,
     };
     let parameters = checked.state_parameters(source);
+    let local_discards = if matches!(
+        state.terminator,
+        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+    ) {
+        result_custody::local_discards(checked, machine, source, state, None)?
+    } else {
+        Vec::new()
+    };
     let mut drops = Vec::new();
     for (_, event) in checked
         .facts
@@ -409,6 +418,13 @@ pub(super) fn return_discards(
                 && event.kind == PermissionEventKind::AffineDrop
         })
     {
+        if state.operations.iter().filter_map(result_custody::result).any(|result| {
+            local_discards.contains(&result.binding_ordinal)
+                && matches!(checked.statement_table.statements(source.statement_nodes).get(result.statement_index as usize),
+                    Some(StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol))
+        }) {
+            continue;
+        }
         let index = state
             .structural_parameters
             .iter()

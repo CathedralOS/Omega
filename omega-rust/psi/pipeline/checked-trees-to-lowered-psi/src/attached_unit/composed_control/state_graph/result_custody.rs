@@ -146,12 +146,12 @@ pub(super) fn validate(
     Ok(())
 }
 
-pub(super) fn successor_discards(
+pub(super) fn local_discards(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
-    edge: &CheckedStructuralControlSuccessorPlan,
+    edge: Option<&CheckedStructuralControlSuccessorPlan>,
 ) -> Result<Vec<u32>, LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
     let mut discards = Vec::new();
@@ -160,11 +160,11 @@ pub(super) fn successor_discards(
         else {
             return unsupported("Unit graph edge result has no authored local");
         };
-        if result.statement_index >= edge.statement_ordinal {
+        if edge.is_some_and(|edge| result.statement_index >= edge.statement_ordinal) {
             return unsupported("Unit graph edge precedes local establishment");
         }
         validate(checked, machine, source, local, result)?;
-        let transferred = edge.transfers.iter().filter(|transfer| matches!(transfer.source,
+        let transferred = edge.into_iter().flat_map(|edge| &edge.transfers).filter(|transfer| matches!(transfer.source,
             checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
                 if binding_ordinal == result.binding_ordinal)).count();
         if transferred > 1 {

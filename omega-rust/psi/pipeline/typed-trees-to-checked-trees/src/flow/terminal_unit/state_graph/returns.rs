@@ -76,7 +76,7 @@ pub(super) fn constructor(
     state: &typed_trees::state::State,
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+) -> Option<checked_trees::CheckedStructuralCaseReturnPlan> {
     // A shape classification does not establish fresh linear authority.
     if program.type_multiplicity(state.return_type) == Multiplicity::Linear {
         return None;
@@ -136,12 +136,78 @@ pub(super) fn constructor(
             expression: expression.clone(),
         });
     }
-    Some(CheckedComposedUnitControlTerminatorPlan::ReturnCase {
+    Some(checked_trees::CheckedStructuralCaseReturnPlan {
         statement_ordinal,
         case_identity: variant
             .identity
             .map(|identity| format!("#{identity}"))
             .unwrap_or_else(|| variant.name.as_str().to_owned()),
         fields: planned,
+    })
+}
+
+pub(super) fn guarded(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    first_ordinal: u32,
+) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+    use checked_trees::CheckedScalarBranchDestination;
+    let mut tails = facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_tails
+        .iter()
+        .filter(|tail| tail.state == state.symbol);
+    let tail = tails.next()?;
+    if tails.next().is_some() {
+        return None;
+    }
+    let arms = facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_exits
+        .span(tail.arms)?;
+    if arms.first()?.guard_statement_ordinal != first_ordinal {
+        return None;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut returns = Vec::new();
+    for destination in arms
+        .iter()
+        .map(|arm| &arm.destination)
+        .chain(tail.fallback.iter())
+    {
+        let CheckedScalarBranchDestination::Return {
+            statement_ordinal,
+            is_continuation: false,
+        } = destination
+        else {
+            return None;
+        };
+        let expression = match statements.get(*statement_ordinal as usize)? {
+            StatementNode::Expression(expression) => *expression,
+            StatementNode::Transition(transition) => {
+                let TransitionTargetNode::Value(expression) =
+                    program.statement_table.transition_target(transition.target)
+                else {
+                    return None;
+                };
+                *expression
+            }
+            _ => return None,
+        };
+        returns.push(constructor(
+            program,
+            facts,
+            state,
+            *statement_ordinal,
+            expression,
+        )?);
+    }
+    Some(CheckedComposedUnitControlTerminatorPlan::Guarded {
+        arms: tail.arms,
+        fallback: tail.fallback.clone(),
+        returns,
     })
 }

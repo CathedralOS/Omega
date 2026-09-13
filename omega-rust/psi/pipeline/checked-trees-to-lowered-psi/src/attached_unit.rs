@@ -546,7 +546,10 @@ fn assemble_unit_closure(
                     )?;
                     crate::call_source_custody::projected_receivers::validate(
                         checked,
-                        machine,
+                        machine.machine,
+                        machine.state,
+                        &machine.operations,
+                        &machine.structural_parameters,
                         operation,
                         target.structural_parameters,
                     )?;

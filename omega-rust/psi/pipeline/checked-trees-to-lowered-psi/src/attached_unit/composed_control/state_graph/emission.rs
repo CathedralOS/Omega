@@ -270,30 +270,21 @@ pub(in crate::attached_unit::composed_control) fn emit(
             if let CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
                 &state.terminator
             {
-                let expression = bindings.expression_at(
+                let mut calls = catalogs.scalar_calls.emission_context();
+                let condition = evaluation.guard_value(
                     checked,
+                    plan.machine,
                     state.state,
                     when_true.statement_ordinal,
-                    CheckedScalarExpressionRole::Guard,
-                )?;
-                if expression.scalar_type() != ScalarType::Boolean
-                    || direct_expression_contains_short_circuit(&expression)
-                {
-                    return unsupported("Unit graph guard needs a branch-free Boolean value");
-                }
-                validate_direct_parameter_types(
-                    &expression,
-                    &values
-                        .iter()
-                        .map(|value| value.scalar_type)
-                        .collect::<Vec<_>>(),
-                )?;
-                Some(emit_direct_expression(
-                    &expression,
-                    &values,
+                    &mut values,
                     &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
                     &mut operations,
-                ))
+                    &mut calls,
+                )?;
+                catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                Some(condition.id)
             } else {
                 None
             };
@@ -317,6 +308,29 @@ pub(in crate::attached_unit::composed_control) fn emit(
         )?;
         let inherited_lengths = operations.byte_lengths.clone();
         let mut edge_blocks = Vec::new();
+        let guarded_terminator = if matches!(
+            state.terminator,
+            CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
+        ) {
+            Some(super::guarded::emit(
+                checked,
+                plan.machine,
+                state,
+                &machine_result,
+                &bindings,
+                catalogs,
+                &mut evaluation,
+                &mut values,
+                &mut next_value,
+                &mut next_block,
+                &mut next_edge,
+                &mut operations,
+                &mut edge_blocks,
+            )?)
+        } else {
+            None
+        };
+        let guarded_end = guarded_terminator.as_ref().map(|(_, end)| *end);
         let mut successor = |edge: &CheckedStructuralControlSuccessorPlan,
                              payload_values: &[(u32, ValueDeclaration)],
                              case_edge: bool|
@@ -326,12 +340,12 @@ pub(in crate::attached_unit::composed_control) fn emit(
             let trivial_affine_discards = if case_edge {
                 Vec::new()
             } else {
-                result_custody::successor_discards(
+                result_custody::local_discards(
                     checked,
                     plan.machine,
                     &admitted.source_states[position],
                     state,
-                    edge,
+                    Some(edge),
                 )?
                 .into_iter()
                 .map(|ordinal| {
@@ -556,6 +570,13 @@ pub(in crate::attached_unit::composed_control) fn emit(
             }
         };
         let mut terminator = match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => {
+                guarded_terminator
+                    .ok_or(LoweringError::Unsupported(
+                        "ordered structural emission absent",
+                    ))?
+                    .0
+            }
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
                 let returned_claims = match result.source {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
@@ -635,12 +656,22 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         "Unit return source state missing",
                     ))?;
                 let discards = edges::return_discards(checked, plan.machine, source, state)?;
+                let mut local_discards =
+                    result_custody::local_discards(checked, plan.machine, source, state, None)?
+                        .into_iter()
+                        .map(|ordinal| {
+                            let result = case_emission::result(state, ordinal, &operations)?;
+                            Ok(evaluation.current_structural_place(result.place))
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                local_discards.extend(
+                    discards
+                        .into_iter()
+                        .map(|index| state_parameters[index].place),
+                );
                 Terminator::ReturnUnit {
                     edge: edge_id(allocate_dense(&mut next_edge)?),
-                    trivial_affine_discards: discards
-                        .into_iter()
-                        .map(|index| state_parameters[index].place)
-                        .collect(),
+                    trivial_affine_discards: local_discards,
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::Jump { successor: edge } => {
@@ -692,29 +723,35 @@ pub(in crate::attached_unit::composed_control) fn emit(
         // Producing a value does not dispose of the remaining entry owners.
         // Reuse the source exit-custody join for structural and Unit returns;
         // the returned owner itself is not a discard.
-        if let Terminator::ReturnStructural {
-            trivial_affine_discards,
-            ..
-        } = &mut terminator
+        for completion in std::iter::once(&mut terminator)
+            .chain(edge_blocks.iter_mut().map(|block| &mut block.terminator))
         {
-            let source = checked
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == plan.machine)
-                .and_then(|machine| {
-                    checked
-                        .machine_states(machine)
-                        .iter()
-                        .find(|source| source.symbol == state.state)
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "structural return source state missing",
-                ))?;
-            *trivial_affine_discards =
-                edges::return_discards(checked, plan.machine, source, state)?
-                    .into_iter()
-                    .map(|index| evaluation.current_structural_place(state_parameters[index].place))
-                    .collect();
+            if let Terminator::ReturnStructural {
+                trivial_affine_discards,
+                ..
+            } = completion
+            {
+                let source = checked
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == plan.machine)
+                    .and_then(|machine| {
+                        checked
+                            .machine_states(machine)
+                            .iter()
+                            .find(|source| source.symbol == state.state)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "structural return source state missing",
+                    ))?;
+                *trivial_affine_discards =
+                    edges::return_discards(checked, plan.machine, source, state)?
+                        .into_iter()
+                        .map(|index| {
+                            evaluation.current_structural_place(state_parameters[index].place)
+                        })
+                        .collect();
+            }
         }
         if !evaluation.selection_cleanups.is_empty() {
             let discards = match &mut terminator {
@@ -760,6 +797,34 @@ pub(in crate::attached_unit::composed_control) fn emit(
             *discards = evaluation.selection_return_discards(local_discards)?;
         }
         if let Some(rank) = current_rank {
+            if matches!(
+                state.terminator,
+                CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
+            ) {
+                // Ordered guard/return blocks stay inside this authored state;
+                // none of their edges asserts an authored decrease.
+                block_ranks.extend(edge_blocks.iter().map(|block| (block.id, rank)));
+                rank_edges.extend(edge_blocks.iter().flat_map(|block| {
+                    block.terminator.edges().map(|edge| {
+                        (
+                            edge,
+                            (
+                                rank,
+                                terminal_psi::TerminalNaturalRankComparison::Preserving,
+                            ),
+                        )
+                    })
+                }));
+                rank_edges.extend(terminator.edges().map(|edge| {
+                    (
+                        edge,
+                        (
+                            rank,
+                            terminal_psi::TerminalNaturalRankComparison::Preserving,
+                        ),
+                    )
+                }));
+            }
             // Completed evaluation blocks stay inside this authored state.
             // Their private edges preserve its incoming rank; only the state
             // successor constructed above claims an authored strict decrease.
@@ -780,12 +845,13 @@ pub(in crate::attached_unit::composed_control) fn emit(
             id: evaluation.current,
             parameters: evaluation.parameters,
             structural_parameters: evaluation.block_structural_parameters,
-            operations: operations[evaluation.operation_start
-                ..if condition.is_some() || prepared_cases.is_some() {
-                    body_end
-                } else {
-                    operations.len()
-                }]
+            operations: operations[evaluation.operation_start..if let Some(end) = guarded_end {
+                end
+            } else if condition.is_some() || prepared_cases.is_some() {
+                body_end
+            } else {
+                operations.len()
+            }]
                 .to_vec(),
             terminator,
         });

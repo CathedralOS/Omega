@@ -55,14 +55,24 @@ pub(super) fn validate(
     let CheckedControlResultPlan::Structural(_) = &plan.result else {
         return unsupported("case return has no structural result signature");
     };
-    let CheckedComposedUnitControlTerminatorPlan::ReturnCase {
+    let CheckedComposedUnitControlTerminatorPlan::ReturnCase { result } = &state.terminator else {
+        return unsupported("case return terminator absent");
+    };
+    validate_case(checked, source, state, ordinal, result)
+}
+
+pub(super) fn validate_case(
+    checked: &CheckedTrees,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+    ordinal: usize,
+    result: &checked_trees::CheckedStructuralCaseReturnPlan,
+) -> Result<(), LoweringError> {
+    let checked_trees::CheckedStructuralCaseReturnPlan {
         statement_ordinal,
         case_identity,
         fields,
-    } = &state.terminator
-    else {
-        return unsupported("case return terminator absent");
-    };
+    } = result;
     if *statement_ordinal as usize != ordinal {
         return unsupported("case return statement moved");
     }
@@ -72,11 +82,9 @@ pub(super) fn validate(
     else {
         return unsupported("case result is not a nominal sum");
     };
-    let checked_trees::statement::StatementNode::Expression(expression) =
-        checked.statement_table.statements(source.statement_nodes)[ordinal]
-    else {
-        return unsupported("case return expression absent");
-    };
+    let expression = crate::scalar_source_custody::guarded_exits::completion_expression(
+        checked, source, ordinal,
+    )?;
     let (case_symbol, authored) = match checked.expression_table.expression(expression) {
         ExpressionNode::StructLiteral(literal) if literal.type_symbol == *symbol => (
             literal.case_symbol.ok_or(LoweringError::Unsupported(
@@ -355,13 +363,40 @@ pub(super) fn emit(
     operations: &mut OperationBuffer,
 ) -> Result<Option<PlaceId>, LoweringError> {
     let CheckedComposedUnitControlTerminatorPlan::ReturnCase {
-        statement_ordinal,
-        case_identity,
-        fields,
+        result: construction,
     } = &state.terminator
     else {
         return Ok(None);
     };
+    emit_case(
+        checked,
+        state,
+        construction,
+        result,
+        bindings,
+        catalogs,
+        values,
+        next_value,
+        operations,
+    )
+}
+
+pub(super) fn emit_case(
+    checked: &CheckedTrees,
+    state: &CheckedComposedUnitControlStatePlan,
+    construction: &checked_trees::CheckedStructuralCaseReturnPlan,
+    result: &TerminalMachineResult,
+    bindings: &crate::scalar_bindings::ScalarBindings,
+    catalogs: &mut catalogs::ComposedCatalogs,
+    values: &[ValueDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<Option<PlaceId>, LoweringError> {
+    let checked_trees::CheckedStructuralCaseReturnPlan {
+        statement_ordinal,
+        case_identity,
+        fields,
+    } = construction;
     let result = result.structural().ok_or(LoweringError::Unsupported(
         "case construction result signature missing",
     ))?;

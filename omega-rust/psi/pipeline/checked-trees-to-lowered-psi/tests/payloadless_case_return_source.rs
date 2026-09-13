@@ -31,6 +31,254 @@ fn checked_source() -> checked_trees::CheckedTrees {
     checked(SOURCE)
 }
 
+fn checked_ordered_case_returns() -> checked_trees::CheckedTrees {
+    checked(
+        r#"
+        data MemoryAlignment [copy] {
+            case Alignment1; case Alignment2; case Alignment4; case Alignment8;
+        }
+        machine MemoryAlignment::from(size: i32) -> MemoryAlignment {
+            transition size {
+                1 -> (MemoryAlignment::Alignment1)
+                2 -> (MemoryAlignment::Alignment2)
+                4 -> (MemoryAlignment::Alignment4)
+                8 -> (MemoryAlignment::Alignment8)
+                _ -> (MemoryAlignment::Alignment1)
+            }
+        }
+    "#,
+    )
+}
+
+#[test]
+fn ordered_scalar_guards_return_case_values_and_explicit_fallback() {
+    let checked = checked_ordered_case_returns();
+    assert_guarded_case_results(
+        &checked,
+        "MemoryAlignment::from",
+        &[
+            (integer_case_argument(1), "Alignment1"),
+            (integer_case_argument(2), "Alignment2"),
+            (integer_case_argument(4), "Alignment4"),
+            (integer_case_argument(8), "Alignment8"),
+            (integer_case_argument(0), "Alignment1"),
+            (integer_case_argument(-1), "Alignment1"),
+            (integer_case_argument(3), "Alignment1"),
+        ],
+    );
+}
+
+#[test]
+fn ordered_case_returns_reject_changed_construction_control_and_coverage() {
+    for mutation in 0..4 {
+        let mut checked = checked_ordered_case_returns();
+        let state = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .find(|plan| {
+                plan.states.iter().any(|state| {
+                    matches!(
+                        state.terminator,
+                        checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
+                    )
+                })
+            })
+            .unwrap()
+            .states
+            .first_mut()
+            .unwrap();
+        let checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded {
+            arms,
+            fallback,
+            returns,
+        } = &mut state.terminator
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => returns[0].case_identity = returns[1].case_identity.clone(),
+            1 => returns.swap(0, 1),
+            2 => {
+                let rows = checked
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .guarded_exits
+                    .span_mut(*arms)
+                    .unwrap();
+                rows.swap(0, 1);
+            }
+            _ => {
+                // Corrupt both consumers of the roster: source coverage, not
+                // accidental disagreement between two retained plans, rejects it.
+                *fallback = None;
+                returns.pop();
+                checked
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .guarded_tails
+                    .iter_mut()
+                    .find(|tail| tail.state == state.state)
+                    .unwrap()
+                    .fallback = None;
+            }
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&checked, "MemoryAlignment::from")
+                .produce_artifact()
+                .is_err(),
+            "mutation {mutation} must fail independent source replay"
+        );
+    }
+}
+
+fn integer_case_argument(value: i128) -> terminal_interpreter::TerminalScalarValue {
+    terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: semantic_vocabulary::IntegerType::new(
+            semantic_vocabulary::IntegerSign::Signed,
+            32,
+        )
+        .unwrap(),
+        value: semantic_vocabulary::IntegerValue::Signed(value),
+    }
+}
+
+#[test]
+fn ordered_case_returns_reuse_single_guard_and_complementary_pair() {
+    for body in [
+        "transition flag { true -> (Choice::First) _ -> (Choice::Second) }",
+        "transition flag { true -> (Choice::First) false -> (Choice::Second) }",
+    ] {
+        let program = checked(&format!(
+            "data Choice [copy] {{ case First; case Second; }} machine choose(flag: bool) -> Choice {{ {body} }}"
+        ));
+        assert_guarded_case_results(
+            &program,
+            "choose",
+            &[
+                (
+                    terminal_interpreter::TerminalScalarValue::Boolean(true),
+                    "First",
+                ),
+                (
+                    terminal_interpreter::TerminalScalarValue::Boolean(false),
+                    "Second",
+                ),
+            ],
+        );
+    }
+}
+
+#[test]
+fn ordered_case_returns_selectively_evaluate_a_composed_guard() {
+    let program = checked(
+        r#"
+        data Choice [copy] { case First; case Second; }
+        machine choose(flag: bool) -> Choice {
+            let copied: bool = flag;
+            transition flag && copied {
+                true -> (Choice::First)
+                false -> (Choice::Second)
+            }
+        }
+    "#,
+    );
+    assert_guarded_case_results(
+        &program,
+        "choose",
+        &[
+            (
+                terminal_interpreter::TerminalScalarValue::Boolean(true),
+                "First",
+            ),
+            (
+                terminal_interpreter::TerminalScalarValue::Boolean(false),
+                "Second",
+            ),
+        ],
+    );
+}
+
+fn assert_guarded_case_results(
+    checked: &checked_trees::CheckedTrees,
+    entry: &str,
+    cases_to_run: &[(terminal_interpreter::TerminalScalarValue, &str)],
+) {
+    let artifact = terminal_production::TerminalProductionRequest::new(checked, entry)
+        .produce_artifact()
+        .expect("ordered scalar guards retain selected case construction");
+    let artifact =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+    let module = decode_module(artifact.semantic_bytes()).unwrap();
+    terminal_verifier::verify_module(
+        &module,
+        &decode_proof_bundle(artifact.proof_bytes()).unwrap(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let structural_type = machine.result.structural().unwrap().structural_type;
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .unwrap();
+    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        panic!("alignment sum");
+    };
+    for (input, expected) in cases_to_run {
+        let expected_case = cases
+            .iter()
+            .find(|case| case.identity == *expected)
+            .unwrap()
+            .id;
+        let arguments = [*input];
+        let mut execution = TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &AdmissionProfile::default(),
+            &arguments,
+        )
+        .unwrap();
+        let mut fuel = TerminalFuelMeter::with_allowance(0);
+        let mut completed = false;
+        for _ in 0..100 {
+            match execution.resume(&mut fuel).unwrap() {
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(result)) => {
+                    assert_eq!(
+                        result.value,
+                        TerminalScalarCaseValue {
+                            structural_type,
+                            result_case: expected_case,
+                            fields: Vec::new()
+                        }
+                    );
+                    completed = true;
+                    break;
+                }
+                TerminalExecutionStatus::Complete(other) => {
+                    panic!("unexpected case result {other:?}")
+                }
+                _ => {
+                    fuel.replenish(1).unwrap();
+                }
+            }
+        }
+        assert!(
+            completed,
+            "input {input:?} completes with bounded one-unit fuel resumptions"
+        );
+    }
+}
+
 #[test]
 fn borrowed_case_membership_uses_an_observation_operation() {
     for body in [

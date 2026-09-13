@@ -5,6 +5,54 @@
 use super::*;
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarGuardedExit};
 
+pub(crate) fn complementary(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    ordinal: u32,
+) -> Result<bool, LoweringError> {
+    use checked_trees::{CheckedBooleanExpression as Boolean, CheckedScalarExpression};
+    let guard = |statement| {
+        let (source, expression) = checked
+            .facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(state, statement, CheckedScalarExpressionRole::Guard)
+            .ok_or(LoweringError::Unsupported(
+                "complementary fallback lost its pure source guard",
+            ))?;
+        crate::scalar_source_custody::validate_pure(checked, source, ScalarType::Boolean)?;
+        let CheckedScalarExpression::Boolean(expression) = expression else {
+            return unsupported("complementary fallback guard is not Boolean");
+        };
+        Ok(expression.as_ref())
+    };
+    fn base(mut expression: &Boolean) -> (&Boolean, bool) {
+        let mut polarity = true;
+        loop {
+            match expression {
+                Boolean::Not(operand) => {
+                    expression = operand;
+                    polarity = !polarity;
+                }
+                Boolean::Equal { left, right } => match (left.as_ref(), right.as_ref()) {
+                    (Boolean::Constant(value), operand) | (operand, Boolean::Constant(value)) => {
+                        expression = operand;
+                        polarity = polarity == *value;
+                    }
+                    _ => return (expression, polarity),
+                },
+                _ => return (expression, polarity),
+            }
+        }
+    }
+    let next = ordinal
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported("fallback ordinal overflow"))?;
+    let (left, left_polarity) = base(guard(ordinal)?);
+    let (right, right_polarity) = base(guard(next)?);
+    Ok(left == right && left_polarity != right_polarity)
+}
+
 pub(crate) fn validate(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
@@ -35,6 +83,9 @@ pub(crate) fn validate(
     let mut coverage = Vec::new();
     let mut coverage_owner = None;
     let mut coverage_subject = None;
+    let complementary_pair = fallback.is_none()
+        && arms.len() == 2
+        && complementary(checked, state_symbol, first.guard_statement_ordinal)?;
     for (index, (arm, statement)) in arms.iter().zip(tail).enumerate() {
         let ordinal = u32::try_from(prefix + index)
             .map_err(|_| LoweringError::Unsupported("ordered scalar ordinal overflow"))?;
@@ -51,7 +102,7 @@ pub(crate) fn validate(
             return unsupported("ordered scalar guard omitted an authored continuation");
         }
         destination(checked, state_symbol, ordinal, &arm.destination)?;
-        if fallback.is_none() {
+        if fallback.is_none() && !complementary_pair {
             // A retained Boolean cannot assert coverage. First replay its exact
             // source read and selected operator, then recover the nominal case.
             let (binding, _) = checked
@@ -100,7 +151,7 @@ pub(crate) fn validate(
             _ => return unsupported("ordered scalar fallback is not authored unconditionally"),
         }
         destination(checked, state_symbol, ordinal, fallback)?;
-    } else {
+    } else if !complementary_pair {
         let data = checked
             .data_definitions()
             .iter()
@@ -135,11 +186,39 @@ fn destination(
             statement_ordinal,
             is_continuation: false,
         } if *statement_ordinal == ordinal => {
-            locate(checked, state, ordinal, CheckedScalarExpressionRole::Return)?;
+            let (_, source) = authored_state(checked, state)?;
+            completion_expression(checked, source, ordinal as usize)?;
             Ok(())
         }
         // The current ordinary completion owns return values, not state transfer
         // arguments. Those remain behind their existing successor replay.
         _ => unsupported("ordered scalar return changed its authored destination"),
+    }
+}
+
+/// Select only the authored completion expression; its scalar or structural
+/// consumer separately reconstructs the declared result and value evidence.
+pub(crate) fn completion_expression(
+    checked: &CheckedTrees,
+    source: &checked_trees::state::State,
+    ordinal: usize,
+) -> Result<checked_trees::expression::ExpressionHandle, LoweringError> {
+    use checked_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+    match checked
+        .statement_table
+        .statements(source.statement_nodes)
+        .get(ordinal)
+    {
+        Some(StatementNode::Expression(expression)) => Ok(*expression),
+        Some(StatementNode::Transition(transition))
+            if transition.exit == TransitionExit::Ordinary
+                && !transition.continuation.is_valid() =>
+        {
+            match checked.statement_table.transition_target(transition.target) {
+                TransitionTargetNode::Value(expression) => Ok(*expression),
+                _ => unsupported("return transition has no value completion"),
+            }
+        }
+        _ => unsupported("return expression absent"),
     }
 }
