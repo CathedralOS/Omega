@@ -282,9 +282,13 @@ fn shared_nominal_argument(
             if *symbol != owner.symbol && *symbol != owner.attached_data_symbol {
                 return None;
             }
-            reference = program
-                .type_reference_table
-                .find_named_type_reference(owner.attached_data_symbol)?;
+            // A projected borrow resolves through the exact attachment below.
+            // It does not need an unrelated authored use to intern Named<Owner>.
+            if place.segments.is_empty() {
+                reference = program
+                    .type_reference_table
+                    .find_named_type_reference(owner.attached_data_symbol)?;
+            }
         }
         let ordinal = parameters[..position]
             .iter()
@@ -323,14 +327,20 @@ fn shared_nominal_argument(
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         )
     };
-    if !matches!(
-        program.type_reference_table.type_reference(reference),
-        TypeReferenceNode::Named { .. }
-    ) || !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
-        || !matches!(
-            program.type_multiplicity(reference),
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        )
+    let whole_storage = place.segments.is_empty()
+        || matches!(
+            source,
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+        );
+    if whole_storage
+        && (!matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. }
+        ) || !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
+            || !matches!(
+                program.type_multiplicity(reference),
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            ))
     {
         return None;
     }
@@ -339,6 +349,18 @@ fn shared_nominal_argument(
     } else {
         projected_argument_path(program, state.symbol, call.statement_index, place)?
     };
+    // Eligibility belongs to the borrowed endpoint, not its unrelated siblings.
+    // Root membership/access and the exact authored receiver loan are retained
+    // independently; this never constructs or copies the enclosing record.
+    if !path.is_empty()
+        && (!validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
+            || !matches!(
+                program.type_multiplicity(reference),
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            ))
+    {
+        return None;
+    }
     let mut shapes = ShapeCollector::new(program);
     let identity = shapes.add_type(reference, &[], &[])?;
     // Whole scalar sums use the same established-place observation as records.

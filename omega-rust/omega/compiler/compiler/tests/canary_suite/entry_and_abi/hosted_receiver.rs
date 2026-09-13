@@ -18,7 +18,18 @@ impl Drop for HostedProject {
     }
 }
 
-fn compile_and_run_hosted_receiver(explicit_exit: bool, bound_service: bool, copy_fields: bool) {
+enum ReceiverObservation {
+    ScalarMutation,
+    BorrowedRecordCopy,
+    BorrowedResultSnapshot,
+    LocalBorrowedResultSnapshot,
+}
+
+fn compile_and_run_hosted_receiver(
+    explicit_exit: bool,
+    bound_service: bool,
+    observation: ReceiverObservation,
+) {
     let directory = unique_no_output_build_dir();
     fs::create_dir(&directory).expect("create exclusively owned hosted-entry project");
     let project = HostedProject(directory);
@@ -49,15 +60,26 @@ fn compile_and_run_hosted_receiver(explicit_exit: bool, bound_service: bool, cop
     } else {
         "Console"
     };
-    let extra_fields = if copy_fields {
-        "source: Counter; destination: Counter;"
-    } else {
-        ""
-    };
-    let initialization = if copy_fields {
-        "self.source.value = 65; copy_counter(&self.source, &mut self.destination); self.value = self.destination.value;"
-    } else {
-        "self.value = 65;"
+    let (extra_fields, initialization, observation_condition, receiver_bytes) = match observation {
+        ReceiverObservation::ScalarMutation => ("", "self.value = 65;", "self.value == 65", 260),
+        ReceiverObservation::BorrowedRecordCopy => (
+            "source: Counter; destination: Counter;",
+            "self.source.value = 65; copy_counter(&self.source, &mut self.destination); self.value = self.destination.value;",
+            "self.value == 65",
+            268,
+        ),
+        ReceiverObservation::BorrowedResultSnapshot => (
+            "source: Counter;",
+            "self.source.value = 65; let saved: i32 = self.source.read(); self.source.write(66); let current: i32 = self.source.read(); self.value = saved;",
+            "saved == 65 && current == 66",
+            264,
+        ),
+        ReceiverObservation::LocalBorrowedResultSnapshot => (
+            "",
+            "let mut counter: Counter = Counter::new(65); let saved: i32 = counter.read(); counter.write(66); let current: i32 = counter.read(); self.value = saved;",
+            "saved == 65 && current == 66",
+            260,
+        ),
     };
     fs::write(
         project.0.join("main.omg"),
@@ -69,6 +91,9 @@ data Counter {{ value: i32; }}
 machine copy_counter(source: &Counter, destination: &mut Counter) {{
     destination.value = source.value;
 }}
+machine Counter::read(&self) -> i32 {{ self.value }}
+machine Counter::write(&mut self, value: i32) {{ self.value = value; }}
+machine Counter::new(value: i32) -> Counter {{ Counter {{ value: value }} }}
 
 data Main {{
     value: i32;
@@ -84,7 +109,7 @@ machine Main::main(&mut self) reaches Console {{
     }}
     state initialized(&mut self) {{
         {initialization}
-        transition self.value == 65 {{
+        transition {observation_condition} {{
             true -> observed()
             false -> failed()
         }}
@@ -130,7 +155,7 @@ machine Main::main(&mut self) reaches Console {{
         .expect("retain exact provisioned receiver");
     assert_eq!(
         receiver.receiver_byte_count(),
-        if copy_fields { 268 } else { 260 },
+        receiver_bytes,
         "scalar and fixed array both occupy the image-backed receiver"
     );
     if !explicit_exit {
@@ -217,20 +242,34 @@ fn assert_hosted_binding_replay_rejects_corruption(report: &CompileReport) {
 
 #[test]
 fn hosted_receiver_normal_return_provisions_zii_storage_and_fused_console() {
-    compile_and_run_hosted_receiver(false, true, false);
+    compile_and_run_hosted_receiver(false, true, ReceiverObservation::ScalarMutation);
 }
 
 #[test]
 fn hosted_receiver_explicit_process_exit_preserves_its_distinct_outcome() {
-    compile_and_run_hosted_receiver(true, true, false);
+    compile_and_run_hosted_receiver(true, true, ReceiverObservation::ScalarMutation);
 }
 
 #[test]
 fn hosted_receiver_rejects_bare_interface_without_bound_establishment() {
-    compile_and_run_hosted_receiver(false, false, false);
+    compile_and_run_hosted_receiver(false, false, ReceiverObservation::ScalarMutation);
 }
 
 #[test]
 fn hosted_receiver_observes_copy_between_disjoint_borrowed_records() {
-    compile_and_run_hosted_receiver(false, true, true);
+    compile_and_run_hosted_receiver(false, true, ReceiverObservation::BorrowedRecordCopy);
+}
+
+#[test]
+fn hosted_receiver_keeps_scalar_call_results_across_later_mutation() {
+    compile_and_run_hosted_receiver(false, true, ReceiverObservation::BorrowedResultSnapshot);
+}
+
+#[test]
+fn hosted_receiver_keeps_local_scalar_call_results_across_later_mutation() {
+    compile_and_run_hosted_receiver(
+        false,
+        true,
+        ReceiverObservation::LocalBorrowedResultSnapshot,
+    );
 }
