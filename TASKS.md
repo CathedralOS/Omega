@@ -767,7 +767,18 @@ Owners include
   widening, and boundary operator declarations do not yet carry a replayable
   Terminal crash contract; direct lowering rejects selected operator crash uses
   at `checked-trees-to-lowered-psi/src/lib.rs`. Copying checked rows onto
-  `MachineContract` alone would not establish replay meaning.
+  `MachineContract` alone would not establish replay meaning. A Terminal row
+  also has no producer yet: checked scalar computations admit a selected
+  comparison only through `selected_float_comparison`
+  (`values/scalar/computations/dispatch.rs`), so a selected integer boundary
+  operator such as `Comparison::equal(i32, i32)` binds no
+  `CheckedScalarComputationKind::SelectedComparison`; with the lowering fence
+  bypassed, `may_crash`/`safe` in `operators/crash_routes` reject earlier with
+  "scalar computation needs one checked expression and one source binding".
+  The next slice is that checked computation (exact operator use plus
+  published/surviving routes), then a Terminal operation-level carrier whose
+  verifier substitutes operands as `validate_call_crash_coverage` does; design
+  the row only after the producer exists.
 
 - **PROOF-KERNEL-CORE.** Build the common mathematical term/declaration model
   and independent checker in Psi, under the
