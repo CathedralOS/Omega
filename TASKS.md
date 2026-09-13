@@ -59,14 +59,13 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   execution. Invocation output lives under its ignored `build/verification/`.
   Initialization is explicit and needs private repository access.
 
-  Resume evidence: compiler `1923be202c`, macOS ARM64, Python 3.13 and
-  `RUST_MIN_STACK=67108864` reaches verified Terminal production and abstract
-  lowering, then exits 200 after 200.436 seconds at `ProgramEntry receiver
-  provisioning`: the executable entry retains `self`, but no root-backed bridge
-  constructs and lends its receiver. The app is at `7a272a896c85`, with standard
-  package pin `a91d878cb9252647d977c45787969b16e6ef937a`.
-  The application lock records its reviewed macOS baseline. Checkout-specific
-  local identities require ordinary update/review when relocated; see its README.
+  Resume evidence: compiler `96854008a0`, macOS ARM64 (2026-09-13), Python 3.13
+  and `RUST_MIN_STACK=67108864`: the outer command exits 200 before compilation
+  because historical `omega.lock` policy belongs to a different source graph,
+  root or target. The app is at `7a272a896c85`, with standard package pin
+  `a91d878cb9252647d977c45787969b16e6ef937a`. Checkout-specific local identities
+  require ordinary update/review when relocated; see its README. This rejection
+  does not exercise the receiver bridge or establish native acceptance.
 
   Relocation preparation at working checkpoint `7f124da93f` (2026-09-13,
   same app/std pins and macOS environment): `omega update --project
@@ -94,39 +93,30 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   exact field establishment already work; do not add another eligibility path
   or make a missing row authorize an erased-field fallback.
 
-  Conditional bridge probe: unpublished checkpoint `25551c2978` on `b9b7568f7a`,
-  macOS ARM64 (2026-09-13),
+  The integrated conditional bridge at `96854008a0` reuses the exact target
+  contracts and unified package review. On macOS ARM64,
   `RUST_MIN_STACK=67108864 cargo nextest run -p compiler --test canary_suite
   --no-fail-fast -E 'test(entry_and_abi::hosted_receiver)'` executes a canonical
   Bound receiver with retained scalar mutation (`A`, exit 0) and distinct process
   exit (`A`, exit 37), and rejects missing establishment and corrupted object
-  binding. That checkpoint additionally checks partition bounds/alignment and
+  binding. The implementation additionally checks partition bounds/alignment and
   decodes final bridge instructions independently of the emitter and relocation
   patcher. This remains dependency evidence, not unchanged Squalr acceptance.
-  The retained bridge now uses the landed `SemanticBindingReview` workflow;
-  `cargo nextest run -p package-manager --test semantic_binding_review
-  --no-fail-fast -E 'test(macos_entry)'`
-  passes discovery, explicit binding, stale-binding rejection and the
-  unaccepted-policy control. Source-level `optimizer_opt_in` return/scalar-call
-  tests replay native and installation evidence across all four target formats
-  and execute macOS binaries; backend and architecture checks also pass.
-  Incoming `5d134569b6` now supplies `MacosArm64ProgramEntry`, exact calling
-  contracts and accepted-package source seeding; `4ea6a5013e` reorganizes the
-  package-manager entrypoint. Integrate the receiver bridge onto those landed
-  owners and discard its superseded contract/seeding implementations before
-  publication. The checkpoint's tests are on `b9b7568f7a`, not proof of this
-  newer integration. Inspect current claims for any remaining overlapping
-  edits; the now-landed semantic role itself is not a missing dependency.
-  Preserve the unified package workflow, finish the relocated application
-  review and run the unchanged outer command. These probes do not establish
-  Squalr acceptance.
+  Entry schema discovery proposes review candidates without accepting them;
+  explicit missing/stale bindings reject. Automatic source seeding preserves
+  ordinary supplier identity rather than relabeling it toolchain-owned.
+  Next: finish the relocated application's explicit review, reconcile canonical
+  Bound service establishment, and rerun the outer command through the next
+  native/provider failure. Do not rebuild the already integrated bridge or
+  replace the unified package workflow. These probes do not establish Squalr
+  acceptance.
 
   `image-macho/src/loader_mapping.rs` and `loader_fixups.rs` independently check
   segment mapping, retained payloads, exact eager bind/rebase writes and zero-fill
   exclusion during ordinary image replay. Object relocations and normalized
   import locators supply the expected pointers; these checks do not establish
   the receiver grant or authorize loaded providers.
-  The retained `hosted_receiver` implementation joins these checks to disjoint
+  The `hosted_receiver` implementation joins these checks to disjoint
   receiver/private-stack/continuation partitions and exact SP/LR and call flow.
   Its claim remains conditional on conforming loading, process-local exclusive
   writable-image storage, one entry activation, admitted provider behavior and
