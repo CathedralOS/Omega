@@ -180,6 +180,11 @@ Give each worker a distinct question or edit responsibility using the existing
 evidence. Independent review should challenge assumptions and check correctness,
 not repeat broad scouting.
 
+Workers do not edit execution boards; the coordinator owns board updates from
+their returned evidence. A worker whose slice reaches a sibling-owned path
+reports it as `blocked-path` rather than editing it; a verification-only result
+resolves or re-scopes the item only through the coordinator's board edit.
+
 Use the actual agent tool and returned ID before reporting a worker as launched.
 If unavailable, continue locally where possible and report the limitation.
 Monitor through completion or a concrete blocker, respond to findings, and inspect
