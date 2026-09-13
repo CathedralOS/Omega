@@ -52,12 +52,246 @@ fn signed(value: i128) -> TerminalScalarValue {
 
 #[test]
 fn reference_result_preserves_original_storage_through_fuel_resumption() {
-    execute(&artifact(""), 1);
+    execute(&artifact(""), 1, 1);
 }
 
 #[test]
 fn reference_result_composes_with_an_ordinary_call_before_return() {
-    execute(&artifact("mark(value);"), 2);
+    execute(&artifact("mark(value);"), 2, 1);
+}
+
+fn local_record_checked(prefix: &str) -> checked_trees::CheckedTrees {
+    let source = format!(
+        "data View {{ body: &mut i32; }}
+        machine replace(value: &mut i32) {{ value = 29; }}
+        machine exercise(value: &mut i32) -> i32 {{
+            {prefix}
+            let held: View = View {{ body: value }};
+            replace(held.body);
+            value
+        }}"
+    );
+    typed_trees_to_checked_trees::lower_typed_trees(typed(&source))
+        .unwrap_or_else(|diagnostics| panic!("local reference checking: {diagnostics:#?}"))
+}
+
+#[test]
+fn local_reference_record_preserves_original_storage() {
+    let checked = local_record_checked("");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_artifact()
+        .expect("local reference record has exact leaf custody");
+    execute(&artifact, 1, 0);
+}
+
+#[test]
+fn local_reference_record_composes_with_scalar_computation() {
+    let checked = local_record_checked("let offset: i32 = 1 + 2;");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_artifact()
+        .expect("ordinary scalar computation preserves reference construction");
+    execute(&artifact, 1, 0);
+}
+
+#[test]
+fn local_reference_record_rejects_changed_source_custody() {
+    let original = local_record_checked("");
+    let loan = original
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .next()
+        .expect("stored leaf loan")
+        .0;
+    for mutation in 0..6 {
+        let mut changed = original.clone();
+        match mutation {
+            0 => {
+                changed.facts.borrow.loans.get_mut(loan).root_symbol =
+                    symbols::SymbolHandle::invalid()
+            }
+            1 => changed.facts.borrow.loans.get_mut(loan).owner_path = arena::HandleSpan::empty(),
+            2 => {
+                let handle = changed
+                    .facts
+                    .flow
+                    .borrow_lifetimes
+                    .weakenings
+                    .iter()
+                    .find_map(|(handle, weakening)| (weakening.loan == loan).then_some(handle))
+                    .unwrap();
+                changed
+                    .facts
+                    .flow
+                    .borrow_lifetimes
+                    .weakenings
+                    .get_mut(handle)
+                    .reason = checked_trees::FlowBorrowWeakeningReason::LocalReassigned;
+            }
+            3 => {
+                let machine = original
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == "exercise")
+                    .unwrap();
+                let state = &original.machine_states(machine)[0];
+                let flow = changed
+                    .facts
+                    .flow
+                    .control
+                    .states
+                    .iter()
+                    .find_map(|(_, flow)| (flow.state_symbol == state.symbol).then_some(flow))
+                    .unwrap();
+                let (offset, entry) = changed
+                    .facts
+                    .flow
+                    .control
+                    .statements
+                    .span(flow.statements)
+                    .unwrap()
+                    .iter()
+                    .enumerate()
+                    .find(|(_, entry)| entry.statement_index == 1)
+                    .unwrap();
+                let handle = arena::Handle::from_parts(
+                    flow.statements.start().arena_index() + u32::try_from(offset).unwrap(),
+                    flow.statements.start().generation(),
+                );
+                let constraints = changed
+                    .facts
+                    .flow
+                    .contexts
+                    .constraint_refs
+                    .span(entry.entry_constraints)
+                    .unwrap();
+                let retained = constraints.iter().copied().filter(|constraint|
+                    !matches!(constraint.kind, checked_trees::FlowConstraintKind::BorrowLoan { loan: active } if active == loan))
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    constraints.len(),
+                    retained.len() + 1,
+                    "one active leaf premise"
+                );
+                let replacement = changed
+                    .facts
+                    .flow
+                    .contexts
+                    .constraint_refs
+                    .insert_many(retained);
+                changed
+                    .facts
+                    .flow
+                    .control
+                    .statements
+                    .get_mut(handle)
+                    .entry_constraints = replacement;
+                assert!(
+                    validation::reference_result_custody::local_record_loans(
+                        &original.typed,
+                        &changed.facts,
+                        machine.symbol,
+                        state,
+                        0
+                    )
+                    .is_some(),
+                    "formation and weakening remain valid"
+                );
+                let checked_trees::statement::StatementNode::Call(call) =
+                    &original.statement_table.statements(state.statement_nodes)[1]
+                else {
+                    unreachable!()
+                };
+                let argument = original.statement_table.expression_handles(call.arguments)[0];
+                let binding = original.facts.flow.terminal_unit_effects.machines.iter()
+                    .find(|plan| plan.state == state.symbol).unwrap().operations.iter()
+                    .find_map(|operation| match operation {
+                        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => Some(result),
+                        _ => None,
+                    }).unwrap();
+                assert!(
+                    validation::reference_result_custody::record_argument(
+                        &original.typed,
+                        &changed.facts,
+                        machine.symbol,
+                        state,
+                        1,
+                        argument,
+                        binding,
+                        original.state_parameters(state)[0].type_reference
+                    )
+                    .is_none(),
+                    "the consumer cannot replace its missing active loan premise"
+                );
+            }
+            4 => {
+                let handle = changed
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .iter()
+                    .find_map(|(handle, node)| {
+                        matches!(
+                            node.kind,
+                            checked_trees::CheckedStructuralValueKind::Reference { .. }
+                        )
+                        .then_some(handle)
+                    })
+                    .unwrap();
+                let checked_trees::CheckedStructuralValueKind::Reference { source } = &mut changed
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get_mut(handle)
+                    .kind
+                else {
+                    unreachable!()
+                };
+                source.source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: 1,
+                };
+            }
+            5 => {
+                let state = changed
+                    .facts
+                    .borrow
+                    .states
+                    .iter()
+                    .find_map(|(_, state)| {
+                        changed
+                            .facts
+                            .borrow
+                            .state_owns_loan(state, loan)
+                            .then_some(state.clone())
+                    })
+                    .unwrap();
+                changed.facts.borrow.states.append(state);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
+                .produce_artifact()
+                .is_err(),
+            "mutation {mutation} must not fabricate carrier authority"
+        );
+    }
+}
+
+#[test]
+fn local_reference_record_rejects_conflicting_original_access() {
+    let source = "data View { body: &mut i32; }
+        machine replace(value: &mut i32) { value = 29; }
+        machine exercise(value: &mut i32) -> i32 {
+            let held: View = View { body: value };
+            replace(value);
+            replace(held.body);
+            value
+        }";
+    assert!(typed_trees_to_checked_trees::lower_typed_trees(typed(source)).is_err());
 }
 
 #[test]
@@ -73,8 +307,8 @@ fn stored_reference_result_still_requires_terminal_custody() {
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(source))
         .unwrap_or_else(|diagnostics| panic!("stored-reference checking: {diagnostics:#?}"));
     // Source forwarding is legal, but type correctness must not substitute for
-    // the missing aggregate leaf transfers in independently verified Terminal.
-    // Replace this fence with execute(&artifact, 1) when those transfers exist.
+    // the missing source-produced returned-leaf origin maps.
+    // Replace this fence with execute(&artifact, 1, 1) when those joins exist.
     let error = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
         .produce_artifact()
         .expect_err("stored-reference transport still needs a real Terminal producer");
@@ -116,7 +350,7 @@ fn reference_release_processing_preserves_empty_helpers() {
 
 #[test]
 fn reference_result_composes_with_an_empty_unit_call_before_return() {
-    execute(&artifact("notify();"), 1);
+    execute(&artifact("notify();"), 1, 1);
 }
 
 #[test]
@@ -273,7 +507,11 @@ fn reference_result_rejects_changed_source_loan_and_weakening() {
     }
 }
 
-fn execute(artifact: &terminal_codec::CanonicalTerminalArtifact, expected_stores: usize) {
+fn execute(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    expected_stores: usize,
+    expected_returns: usize,
+) {
     let module = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("decode reference-result module");
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes())
@@ -312,9 +550,11 @@ fn execute(artifact: &terminal_codec::CanonicalTerminalArtifact, expected_stores
             _ => None,
         })
         .collect::<Vec<_>>();
-    let [reference_return] = reference_returns.as_slice() else {
-        panic!("relay must retain one real structural-result return");
-    };
+    assert_eq!(
+        reference_returns.len(),
+        expected_returns,
+        "retain each structural-result return"
+    );
     let stores = module
         .machines
         .iter()
@@ -369,10 +609,10 @@ fn execute(artifact: &terminal_codec::CanonicalTerminalArtifact, expected_stores
             .is_some()
         {
             assert!(
-                meter
+                reference_returns.iter().all(|reference_return| meter
                     .usage()
                     .at(FuelChargeSite::Edge(*reference_return))
-                    .is_some(),
+                    .is_some()),
                 "the returned reference is unavailable to its consumer before successful return"
             );
         }
@@ -391,10 +631,10 @@ fn execute(artifact: &terminal_codec::CanonicalTerminalArtifact, expected_stores
         );
         if executions.iter().all(|count| *count == 1) {
             assert!(
-                meter
+                reference_returns.iter().all(|reference_return| meter
                     .usage()
                     .at(FuelChargeSite::Edge(*reference_return))
-                    .is_some(),
+                    .is_some()),
                 "the result consumer cannot execute before relay returns"
             );
             assert_eq!(execution.structural_primitive_values(), vec![written]);

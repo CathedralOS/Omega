@@ -66,6 +66,62 @@ pub(crate) fn validate_cleanup(
     else {
         return unsupported("call cleanup does not immediately follow its consumer");
     };
+    let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
+    let record_cleanup =
+        !affine_discards.is_empty()
+            && affine_discards.iter().all(|discard| {
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: binding,
+                } = discard.source
+                else {
+                    return false;
+                };
+                let Some((result, false)) = caller.operations[..operation_index].iter().find_map(
+                    |operation| match operation {
+                        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                            result,
+                            discard_result_on_return,
+                            ..
+                        } if result.binding_ordinal == binding => {
+                            Some((result, *discard_result_on_return))
+                        }
+                        _ => None,
+                    },
+                ) else {
+                    return false;
+                };
+                discard.path.is_empty()
+                    && discard.type_identity == result.type_identity
+                    && structural_arguments.iter().any(|argument| {
+                        argument.source == discard.source
+                            && argument.path.last()
+                                == Some(&checked_trees::CheckedUnitStructuralPathSegment::Referent)
+                    })
+                    && validation::reference_result_custody::local_record_loans(
+                        &checked.typed,
+                        &checked.facts,
+                        caller.machine,
+                        state,
+                        result.statement_index,
+                    )
+                    .is_some_and(|loans| {
+                        !loans.is_empty()
+                            && loans.iter().all(|(_, loan)| {
+                                validation::reference_result_custody::release_statement(
+                                    &checked.facts,
+                                    caller.machine,
+                                    caller.state,
+                                    *loan,
+                                ) == coordinate.statement_index.checked_add(1)
+                            })
+                    })
+            });
+    if record_cleanup {
+        if call != coordinate {
+            return unsupported("record cleanup changed its last-use call");
+        }
+        return Ok(());
+    }
     let [argument] = structural_arguments.as_slice() else {
         return unsupported("call cleanup requires one exact temporary argument");
     };

@@ -670,13 +670,17 @@ pub(crate) fn validate_transfer_shape(
                         | checked_trees::CheckedStructuralAccess::MutableBorrow
                 ) && record_projection_type(structural_types, structural_type, &argument.path)
                     == Some(lookup_type_id(type_ids, &argument.type_identity)?);
-            let reference_borrow = argument.path == [CheckedUnitStructuralPathSegment::Referent]
-                && argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
-                && structural_types.iter().any(|declaration| {
-                    declaration.id == structural_type
-                        && matches!(declaration.shape, StructuralTypeShape::Reference { referent, access: StructuralAccess::MutableBorrow }
-                            if type_ids.iter().any(|(identity, id)| identity == &argument.type_identity && *id == referent))
-                });
+            let reference_borrow = argument.path.split_last().is_some_and(|(last, prefix)| {
+                *last == CheckedUnitStructuralPathSegment::Referent
+                    && argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                    && record_field_type(structural_types, structural_type, prefix)
+                        .is_some_and(|leaf| structural_types.iter().any(|declaration| {
+                            declaration.id == leaf
+                                && matches!(declaration.shape, StructuralTypeShape::Reference {
+                                    referent, access: StructuralAccess::MutableBorrow
+                                } if type_ids.iter().any(|(identity, id)| identity == &argument.type_identity && *id == referent))
+                        }))
+            });
             let unrestricted_array = target.multiplicity == Multiplicity::Unrestricted
                 && argument.access == checked_trees::CheckedStructuralAccess::Owned
                 && argument.path.is_empty()
@@ -1056,6 +1060,21 @@ fn record_projection_type(
     root: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
 ) -> Option<StructuralTypeId> {
+    let current = record_field_type(types, root, path)?;
+    matches!(
+        types.iter().find(|item| item.id == current)?.shape,
+        StructuralTypeShape::Record { .. }
+    )
+    .then_some(current)
+}
+
+/// Follow only owned record fields. The caller separately decides whether
+/// the selected value is a record borrow or a stored reference carrier.
+fn record_field_type(
+    types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+) -> Option<StructuralTypeId> {
     let mut current = root;
     for segment in path {
         let StructuralTypeShape::Record { fields } =
@@ -1075,9 +1094,5 @@ fn record_projection_type(
         };
         current = child;
     }
-    matches!(
-        types.iter().find(|item| item.id == current)?.shape,
-        StructuralTypeShape::Record { .. }
-    )
-    .then_some(current)
+    Some(current)
 }

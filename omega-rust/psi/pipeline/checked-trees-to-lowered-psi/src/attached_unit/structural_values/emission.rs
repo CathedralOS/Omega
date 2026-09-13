@@ -357,6 +357,47 @@ impl Emission<'_, '_, '_> {
             .get(value)
             .clone();
         match node.kind {
+            CheckedStructuralValueKind::Reference { source } => {
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
+                } = source.source
+                else {
+                    return unsupported("reference initializer has no formal ingress");
+                };
+                let (_, parameter) = self
+                    .evaluation
+                    .structural_parameters
+                    .get(parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "reference initializer parameter missing",
+                    ))?;
+                if !source.path.is_empty()
+                    || source.access != checked_trees::CheckedStructuralAccess::MutableBorrow
+                    || parameter.access != StructuralAccess::MutableBorrow
+                    || parameter.structural_type
+                        != lookup_type_id(self.type_ids, &source.type_identity)?
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return unsupported("reference initializer changes ingress custody");
+                }
+                let declaration = super::super::reference_results::emit_carrier(
+                    self.structural_type,
+                    StructuralArgument {
+                        place: parameter.place,
+                        path: Vec::new(),
+                        access: StructuralAccess::MutableBorrow,
+                    },
+                    self.next_place,
+                    self.operations,
+                )?;
+                let place = declaration.id;
+                self.temporary_places.push(declaration);
+                if let Some(continuation) = continuation {
+                    self.complete_value(place, continuation)?;
+                }
+                Ok(place)
+            }
             CheckedStructuralValueKind::Record { .. } => {
                 if !self.sources.is_empty() {
                     return unsupported("selected ownership mixes fresh and existing obligations");

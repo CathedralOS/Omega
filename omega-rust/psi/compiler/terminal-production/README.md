@@ -563,6 +563,19 @@ Mutable-to-write-only attenuation preserves root access and independently
 records the callee's weaker access. Shared projections preserve unrestricted
 multiplicity and cannot originate from write-only roots.
 
+Immutable local records can retain mutable primitive reference fields initialized
+from exact formal loans. Reference fields are permission carriers, not scalar
+loads: construction emits an existing reference establishment and transfers it
+into the owned record. Source replay reconstructs each field's ingress, captured
+loan, active use premise, and weakening. Field paths ending in `Referent` borrow
+that carrier; whole-record cleanup at the common last-use boundary restores the
+original backing for subsequent access. This path uses ordinary call and
+statement sequencing, with no record-specific execution operation. The
+`reference_result_source` tests verify canonical bytes and caller-visible writes
+through fuel suspension. Source production of reference-bearing helper results
+still needs its exact returned-leaf origin maps; aggregate parameters, partial
+carrier disposal, and native reference storage remain separate dependencies.
+
 Whole borrowed sum parameters support runtime `in` observations through ordinary
 scalar completion, including Boolean locals and Boolean composition. Checked
 source replay retains the authored subject and case; Terminal records a

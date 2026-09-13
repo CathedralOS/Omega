@@ -132,13 +132,17 @@ impl emission::Emission<'_, '_, '_> {
                     let parent_type = self.structural_type;
                     let parent_multiplicity = self.multiplicity;
                     self.structural_type = child_type;
-                    self.multiplicity = match self.checked.type_multiplicity(field.type_reference) {
-                        Multiplicity::Affine => StructuralMultiplicity::Affine,
-                        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                        Multiplicity::Linear => {
-                            return unsupported("nested record cannot create linear custody");
-                        }
-                    };
+                    self.multiplicity =
+                        match validation::reference_result_custody::result_multiplicity(
+                            &self.checked.typed,
+                            field.type_reference,
+                        ) {
+                            Multiplicity::Affine => StructuralMultiplicity::Affine,
+                            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                            Multiplicity::Linear => {
+                                return unsupported("nested record cannot create linear custody");
+                            }
+                        };
                     let place = self.value(value, None)?;
                     self.structural_type = parent_type;
                     self.multiplicity = parent_multiplicity;

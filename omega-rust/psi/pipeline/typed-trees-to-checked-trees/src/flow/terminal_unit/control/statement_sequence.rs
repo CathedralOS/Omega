@@ -356,6 +356,9 @@ pub(in crate::flow::terminal_unit) fn build(
                 }
                 local_count = local_count.checked_add(1)?;
                 if let Some(root) = facts.values.structural_values.root_at(state.symbol, statement_index) {
+                    if super::super::reference_results::is_reference_record(program, local.type_reference) {
+                        super::super::reference_results::local_record_loans(program, facts, machine.symbol, state, statement_index)?;
+                    }
                     if root.machine != machine.symbol
                         || root.expression != local.initial_value || root.type_reference != local.type_reference {
                         return None;
@@ -766,7 +769,7 @@ pub(in crate::flow::terminal_unit) fn build(
                 &mut operations,
             )?;
         } else {
-            append_call_cleanup(&mut operations, statement_index, &structural_results)?;
+            append_call_cleanup(program, facts, machine.symbol, state, &mut operations, statement_index, &structural_results)?;
         }
     }
     if operations.iter().any(|operation| {
@@ -1221,7 +1224,12 @@ fn append_reference_releases(
     Some(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn append_call_cleanup(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     statement_index: u32,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
@@ -1237,12 +1245,37 @@ fn append_call_cleanup(
     let coordinate = *coordinate;
     let mut discards = Vec::new();
     for (result, root) in results.iter().rev() {
-        if !matches!(root, facts::PlaceRoot::Expression(_))
-            || result.statement_index != statement_index
-            || !structural_arguments.iter().any(|argument| {
-                argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
-                    && argument.access == CheckedStructuralAccess::SharedBorrow
+        let reference_record = matches!(root, facts::PlaceRoot::Symbol(_))
+            && super::super::reference_results::local_record_loans(
+                program,
+                facts,
+                machine,
+                state,
+                result.statement_index,
+            )
+            .is_some_and(|loans| {
+                !loans.is_empty()
+                    && loans.iter().all(|(_, loan)| {
+                        super::super::reference_results::release_statement(
+                            facts,
+                            machine,
+                            state.symbol,
+                            *loan,
+                        ) == statement_index.checked_add(1)
+                    })
             })
+            && structural_arguments.iter().any(|argument| {
+                argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
+                    && argument.path.last() == Some(&CheckedUnitStructuralPathSegment::Referent)
+            });
+        if !reference_record
+            && (!matches!(root, facts::PlaceRoot::Expression(_))
+                || result.statement_index != statement_index
+                || !structural_arguments.iter().any(|argument| {
+                    argument.source_structural_result_binding_ordinal()
+                        == Some(result.binding_ordinal)
+                        && argument.access == CheckedStructuralAccess::SharedBorrow
+                }))
         {
             continue;
         }
@@ -1268,6 +1301,7 @@ fn append_call_cleanup(
             matches!(operation,
             CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 if result.binding_ordinal == binding_ordinal)
         })?;
         let (CheckedUnitEffectOperationPlan::StructuralCall {
@@ -1275,6 +1309,10 @@ fn append_call_cleanup(
             ..
         }
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            discard_result_on_return,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             discard_result_on_return,
             ..
         }) = producer
@@ -1518,7 +1556,8 @@ fn consume_value_places(
             checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                 pending.extend(plans.dispatch_arms.span(*arms)?.iter().map(|arm| arm.value));
             }
-            checked_trees::CheckedStructuralValueKind::Call { .. }
+            checked_trees::CheckedStructuralValueKind::Reference { .. }
+            | checked_trees::CheckedStructuralValueKind::Call { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_) => {}
         }
     }

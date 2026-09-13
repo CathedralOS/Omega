@@ -1,4 +1,6 @@
 //! Fresh structural establishment shares the scalar operand evaluation owner.
+//! Reference leaves are classified before referent-oriented normalization:
+//! their value is borrowed-storage custody, never a scalar pointer snapshot.
 
 use super::*;
 use checked_trees::{
@@ -15,7 +17,28 @@ impl Builder<'_, '_> {
         values: &mut CheckedStructuralValuePlans,
         pure: &CheckedScalarExpressionPlans,
     ) -> Option<CheckedStructuralValueHandle> {
-        let kind = if matches!(
+        let kind = if validation::reference_result_custody::parts(self.program, expected).is_some()
+        {
+            let state = self
+                .program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == self.machine)
+                .and_then(|machine| {
+                    self.program
+                        .machine_states(machine)
+                        .iter()
+                        .find(|state| state.symbol == self.state)
+                })?;
+            CheckedStructuralValueKind::Reference {
+                source: validation::reference_result_custody::initializer_source(
+                    self.program,
+                    state,
+                    expression,
+                    expected,
+                )?,
+            }
+        } else if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Name(_)
         ) && validation::scalar_case_constructor(self.program, expression).is_none()
@@ -339,7 +362,9 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
-        if !validation::has_plain_owned_contents_with_numeric_constraints(self.program, expected) {
+        if !validation::has_plain_owned_contents_with_numeric_constraints(self.program, expected)
+            && !validation::reference_result_custody::is_reference_record(self.program, expected)
+        {
             return None;
         }
         let reference = validation::unwrapped_type_reference(self.program, expected)?;
@@ -395,25 +420,42 @@ impl Builder<'_, '_> {
             }
             let reference =
                 validation::unwrapped_type_reference(self.program, field.type_reference)?;
-            let value = if let Some(primitive) = self.program.primitive_type_reference(reference) {
-                let root = self.expression(initializer.value, primitive)?;
-                self.plans.nodes.get_mut(root).authored_root = initializer.value;
-                self.plans.roots.append(CheckedScalarComputationRoot {
-                    machine: self.machine,
-                    state: self.state,
-                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                    role: CheckedScalarExpressionRole::RecordField {
-                        expression,
-                        field_ordinal: u32::try_from(ordinal).ok()?,
-                    },
-                    root,
-                });
-                checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
-            } else {
-                checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                    self.structural_value(initializer.value, field.type_reference, values, pure)?,
-                )
-            };
+            let value =
+                if validation::reference_result_custody::parts(self.program, field.type_reference)
+                    .is_some()
+                {
+                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                        self.structural_value(
+                            initializer.value,
+                            field.type_reference,
+                            values,
+                            pure,
+                        )?,
+                    )
+                } else if let Some(primitive) = self.program.primitive_type_reference(reference) {
+                    let root = self.expression(initializer.value, primitive)?;
+                    self.plans.nodes.get_mut(root).authored_root = initializer.value;
+                    self.plans.roots.append(CheckedScalarComputationRoot {
+                        machine: self.machine,
+                        state: self.state,
+                        statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                        role: CheckedScalarExpressionRole::RecordField {
+                            expression,
+                            field_ordinal: u32::try_from(ordinal).ok()?,
+                        },
+                        root,
+                    });
+                    checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
+                } else {
+                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                        self.structural_value(
+                            initializer.value,
+                            field.type_reference,
+                            values,
+                            pure,
+                        )?,
+                    )
+                };
             fields.push(checked_trees::CheckedStructuralRecordField {
                 field: field.symbol,
                 expression: initializer.value,

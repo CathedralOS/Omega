@@ -23,6 +23,18 @@ pub(super) fn argument(
         .iter()
         .flat_map(|machine| program.machine_states(machine))
         .find(|candidate| candidate.symbol == state)?;
+    if let Some(argument) = super::super::reference_results::record_argument(
+        program,
+        facts,
+        machine,
+        source_state,
+        u32::try_from(call.statement_index).ok()?,
+        expression,
+        result,
+        parameter.type_reference,
+    ) {
+        return Some(argument);
+    }
     if let Some(StatementNode::LocalData(local)) = program
         .statement_table
         .statements(source_state.statement_nodes)
