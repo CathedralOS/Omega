@@ -145,8 +145,174 @@ fn reported_boundary_crash_uses_closed_integer_semantics_and_rejects_unsupported
     )];
     assert_eq!(
         validate_boundary_crash_outcome(&boundary, &[literal(9)], CrashCause::Trap),
+        Ok(())
+    );
+    assert_eq!(
+        validate_boundary_crash_outcome(&boundary, &[literal(10)], CrashCause::Trap),
+        Err(BoundaryCrashOutcomeError::GuardFalse)
+    );
+}
+
+#[test]
+fn mathematical_boundary_guards_preserve_signs_composition_and_exact_positions() {
+    use semantic_vocabulary::{IntegerMathTerm, IntegerValue};
+    let mut boundary = boundary_call_module().boundary_machines.remove(0);
+    let integer_type = IntegerType::new(IntegerSign::Signed, 16).unwrap();
+    boundary.scalar_parameters = vec![ScalarType::Integer(integer_type); 2];
+    let actual = |value| ScalarTerm::integer(integer_type, IntegerValue::Signed(value)).unwrap();
+    let formal = |value| IntegerMathTerm::MathValue {
+        source_type: integer_type,
+        value: value_id(value),
+    };
+    let literal = |value| IntegerMathTerm::literal(IntegerValue::Signed(value));
+    let difference = IntegerMathTerm::Subtract(Box::new(formal(1)), Box::new(formal(2)));
+    let product = IntegerMathTerm::Multiply(Box::new(difference), Box::new(literal(2)));
+    let shifted = IntegerMathTerm::ShiftLeft {
+        value: Box::new(literal(-5)),
+        count: Box::new(literal(1)),
+    };
+    for predicate in [
+        Proposition::IntegerMathEqual(product.clone(), shifted.clone()),
+        Proposition::IntegerMathLessOrEqual(product.clone(), shifted.clone()),
+        Proposition::Conjunction(vec![
+            Proposition::IntegerMathEqual(product.clone(), shifted.clone()),
+            Proposition::IntegerMathLessThan(formal(1), formal(2)),
+        ]),
+        Proposition::Disjunction(vec![
+            Proposition::IntegerMathEqual(formal(1), formal(2)),
+            Proposition::IntegerMathEqual(product.clone(), shifted.clone()),
+        ]),
+        Proposition::Implication {
+            premise: Box::new(Proposition::IntegerMathLessThan(literal(0), literal(1))),
+            conclusion: Box::new(Proposition::IntegerMathEqual(product, shifted)),
+        },
+    ] {
+        boundary.crash_routes = vec![CrashRouteBucket {
+            cause: CrashCause::Abort,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                predicate,
+            ))],
+        }];
+        assert_eq!(
+            validate_boundary_crash_outcome(&boundary, &[actual(-2), actual(3)], CrashCause::Abort),
+            Ok(())
+        );
+        assert_eq!(
+            validate_boundary_crash_outcome(&boundary, &[actual(3), actual(-2)], CrashCause::Abort),
+            Err(BoundaryCrashOutcomeError::GuardFalse)
+        );
+    }
+}
+
+#[test]
+fn mathematical_boundary_guard_resource_failure_is_not_false_or_crash_permission() {
+    use semantic_vocabulary::{IntegerMathTerm, IntegerValue};
+    let mut boundary = boundary_call_module().boundary_machines.remove(0);
+    boundary.scalar_parameters.clear();
+    let literal = |value| IntegerMathTerm::literal(IntegerValue::Unsigned(value));
+    let shifted = IntegerMathTerm::ShiftLeft {
+        value: Box::new(literal(1)),
+        count: Box::new(literal(u128::MAX)),
+    };
+    boundary.crash_routes = vec![CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            Proposition::IntegerMathLessThan(literal(0), shifted),
+        ))],
+    }];
+    assert_eq!(
+        validate_boundary_crash_outcome(&boundary, &[], CrashCause::Trap),
+        Err(BoundaryCrashOutcomeError::GuardEvaluationLimitExceeded)
+    );
+    let undefined = IntegerMathTerm::ShiftLeft {
+        value: Box::new(literal(1)),
+        count: Box::new(IntegerMathTerm::literal(IntegerValue::Signed(-1))),
+    };
+    boundary.crash_routes[0].alternatives = vec![CrashRouteGuard::Predicate(
+        CrashPredicateTerm::new(Proposition::IntegerMathEqual(undefined.clone(), undefined)),
+    )];
+    assert_eq!(
+        validate_boundary_crash_outcome(&boundary, &[], CrashCause::Trap),
         Err(BoundaryCrashOutcomeError::UnsupportedGuard)
     );
+    // Preflight must precede the declaration's recursive validation and the
+    // outcome's substitution, even when no expensive integer is evaluated.
+    let mut predicate = Proposition::IntegerMathEqual(literal(1), literal(1));
+    for _ in 0..80 {
+        predicate = Proposition::Conjunction(vec![predicate]);
+    }
+    boundary.crash_routes[0].alternatives = vec![CrashRouteGuard::Predicate(
+        CrashPredicateTerm::new(predicate),
+    )];
+    assert_eq!(
+        validate_boundary_crash_outcome(&boundary, &[], CrashCause::Trap),
+        Err(BoundaryCrashOutcomeError::GuardEvaluationLimitExceeded)
+    );
+}
+
+#[test]
+fn same_cause_alternatives_can_independently_permit_a_crash_after_incomplete_evaluation() {
+    use semantic_vocabulary::{IntegerMathTerm, IntegerValue};
+    let mut boundary = boundary_call_module().boundary_machines.remove(0);
+    boundary.scalar_parameters.clear();
+    let literal = |value| IntegerMathTerm::literal(IntegerValue::Signed(value));
+    let exhausted = IntegerMathTerm::ShiftLeft {
+        value: Box::new(literal(1)),
+        count: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(u128::MAX))),
+    };
+    let undefined = IntegerMathTerm::ShiftLeft {
+        value: Box::new(literal(1)),
+        count: Box::new(literal(-1)),
+    };
+    for (term, failure) in [
+        (
+            exhausted,
+            BoundaryCrashOutcomeError::GuardEvaluationLimitExceeded,
+        ),
+        (undefined, BoundaryCrashOutcomeError::UnsupportedGuard),
+    ] {
+        for true_first in [false, true] {
+            // Use different relation tags to exercise both canonical positions;
+            // reversing a canonical route roster would test invalid formation.
+            let (incomplete, decidable) = if true_first {
+                (
+                    Proposition::IntegerMathLessThan(literal(0), term.clone()),
+                    Proposition::IntegerMathEqual(literal(1), literal(1)),
+                )
+            } else {
+                (
+                    Proposition::IntegerMathEqual(literal(0), term.clone()),
+                    Proposition::IntegerMathLessThan(literal(0), literal(1)),
+                )
+            };
+            let mut alternatives = vec![
+                CrashRouteGuard::Predicate(CrashPredicateTerm::new(incomplete.clone())),
+                CrashRouteGuard::Predicate(CrashPredicateTerm::new(decidable)),
+            ];
+            alternatives.sort();
+            boundary.crash_routes = vec![CrashRouteBucket {
+                cause: CrashCause::Trap,
+                alternatives,
+            }];
+            assert_eq!(
+                validate_boundary_crash_outcome(&boundary, &[], CrashCause::Trap),
+                Ok(())
+            );
+            let mut alternatives = vec![
+                CrashRouteGuard::Predicate(CrashPredicateTerm::new(incomplete)),
+                CrashRouteGuard::Predicate(CrashPredicateTerm::new(Proposition::IntegerMathEqual(
+                    literal(0),
+                    literal(1),
+                ))),
+            ];
+            alternatives.sort();
+            boundary.crash_routes[0].alternatives = alternatives;
+            assert_eq!(
+                validate_boundary_crash_outcome(&boundary, &[], CrashCause::Trap),
+                Err(failure.clone())
+            );
+        }
+    }
 }
 
 #[test]

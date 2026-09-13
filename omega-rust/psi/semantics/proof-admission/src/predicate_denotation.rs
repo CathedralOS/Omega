@@ -13,6 +13,19 @@ mod budget;
 mod value_equalities;
 use budget::Budget;
 
+/// Bound a complete predicate input roster before recursive validation,
+/// substitution, or cloning. This establishes neither formation nor truth;
+/// arithmetic evaluation must separately bound intermediate integer growth.
+pub fn check_predicate_evaluation_size<'input>(
+    propositions: impl IntoIterator<Item = &'input Proposition>,
+) -> Result<(), PredicateDenotationError> {
+    let mut budget = Budget::new();
+    for proposition in propositions {
+        budget.proposition(proposition, 0)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod value_equality_tests;
 

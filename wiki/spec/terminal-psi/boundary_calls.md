@@ -58,6 +58,15 @@ encoded continuation roster is not required. Neither successful provider
 selection nor a narrower provider body changes the published requirement.
 This is the boundary form of [call crash composition](calls_and_outcomes.md#call-contracts).
 
+A host-reported crash is permitted only when a same-cause route evaluates true
+for that invocation's already evaluated scalar inputs. Mathematical integer
+predicates retain their unbounded denotation after substitution, not the input
+carrier's wrapping arithmetic. Unsupported, undefined, or resource-exhausted
+evaluation cannot authorize a crash or be reported as a false guard. Consumer
+evaluation limits are service limits, not mathematical integer widths or a new
+language restriction. A true guard still permits normal completion; checking a
+reported crash establishes no normal result, disposition, or staged writeback.
+
 ## Structural domain requirements
 
 A boundary structural requirement identifies an argument position and an exact

@@ -56,6 +56,63 @@ struct BoundaryOutcome {
     calls: usize,
 }
 
+#[test]
+fn mathematical_boundary_crash_guard_replays_and_executes_exact_actuals() {
+    use semantic_vocabulary::{IntegerMathTerm, Proposition, ValueId};
+    use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
+
+    let source = r#"
+        boundary trait Sink {
+            machine record(value: u16) crashes Abort;
+        }
+        data Root {}
+        machine Root::enter(value: u16) reaches Sink crashes Abort {
+            Sink::record(value);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let mut lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
+        .expect("boundary source lowers");
+    // Source crash predicates still use fixed-width ScalarTerm. Exercise the
+    // already admitted mathematical Terminal vocabulary on this real call:
+    // narrowing only the boundary route preserves its caller's Abort ceiling.
+    // This is artifact-to-execution coverage, not authored math-guard lowering.
+    let maximum = IntegerMathTerm::literal(IntegerValue::Unsigned(u128::MAX));
+    let actual = IntegerMathTerm::MathValue {
+        source_type: IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+        value: ValueId::new(1).unwrap(),
+    };
+    lowered.semantic_module.boundary_machines[0].crash_routes[0].alternatives =
+        vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            Proposition::IntegerMathLessThan(
+                maximum.clone(),
+                IntegerMathTerm::Add(Box::new(maximum), Box::new(actual)),
+            ),
+        ))];
+    verify_roundtrip(&lowered);
+    exercise_boundary_outcomes(&lowered, &[unsigned16(1)], true);
+    exercise_boundary_outcomes(&lowered, &[unsigned16(0)], false);
+
+    // A mathematically true guard can exceed the consumer's evaluation budget.
+    // It must refuse the crash without preventing ordinary normal completion.
+    lowered.semantic_module.boundary_machines[0].crash_routes[0].alternatives =
+        vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            Proposition::IntegerMathLessThan(
+                IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+                IntegerMathTerm::ShiftLeft {
+                    value: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+                    count: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(u128::MAX))),
+                },
+            ),
+        ))];
+    verify_roundtrip(&lowered);
+    exercise_boundary_outcomes(&lowered, &[unsigned16(1)], false);
+}
+
 impl terminal_interpreter::TerminalEffectHandler for BoundaryOutcome {
     fn handle_effect(
         &mut self,

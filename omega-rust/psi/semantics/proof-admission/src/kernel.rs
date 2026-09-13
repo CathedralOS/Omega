@@ -1,7 +1,7 @@
-use numerics::bignum::BigInt;
-use semantic_vocabulary::{
-    IntegerMathLiteral, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm,
+use crate::closed_integer::{
+    ClosedIntegerEvaluationError, check_integer_math_term_size, compare_integer_math_terms,
 };
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 pub use terminal_psi::PrimitiveJudgment;
 
 #[cfg(test)]
@@ -12,6 +12,14 @@ pub fn decide_primitive(
     proposition: &Proposition,
     judgment: PrimitiveJudgment,
 ) -> Result<(), KernelError> {
+    // Formation and derived equality still recurse through mathematical terms.
+    // Bound their input before either traversal, not only before arithmetic.
+    if let Proposition::IntegerMathEqual(left, right)
+    | Proposition::IntegerMathLessThan(left, right)
+    | Proposition::IntegerMathLessOrEqual(left, right) = proposition
+    {
+        check_integer_math_term_size(left, right).map_err(KernelError::ClosedIntegerEvaluation)?;
+    }
     context
         .validate(proposition)
         .map_err(KernelError::MalformedProposition)?;
@@ -37,16 +45,22 @@ pub fn decide_primitive(
             compare_integer_literals(left, right).is_some_and(|ordering| !ordering.is_gt())
         }
         (PrimitiveJudgment::ClosedIntegerRelation, Proposition::IntegerMathEqual(left, right)) => {
-            compare_integer_math_terms(left, right).is_some_and(|ordering| ordering.is_eq())
+            compare_integer_math_terms(left, right)
+                .map_err(KernelError::ClosedIntegerEvaluation)?
+                .is_some_and(|ordering| ordering.is_eq())
         }
         (
             PrimitiveJudgment::ClosedIntegerRelation,
             Proposition::IntegerMathLessThan(left, right),
-        ) => compare_integer_math_terms(left, right).is_some_and(|ordering| ordering.is_lt()),
+        ) => compare_integer_math_terms(left, right)
+            .map_err(KernelError::ClosedIntegerEvaluation)?
+            .is_some_and(|ordering| ordering.is_lt()),
         (
             PrimitiveJudgment::ClosedIntegerRelation,
             Proposition::IntegerMathLessOrEqual(left, right),
-        ) => compare_integer_math_terms(left, right).is_some_and(|ordering| !ordering.is_gt()),
+        ) => compare_integer_math_terms(left, right)
+            .map_err(KernelError::ClosedIntegerEvaluation)?
+            .is_some_and(|ordering| !ordering.is_gt()),
         _ => false,
     };
     accepted
@@ -85,42 +99,6 @@ fn integer_carrier_bound(left: &ScalarTerm, right: &ScalarTerm) -> bool {
             }
 }
 
-fn compare_integer_math_terms(
-    left: &IntegerMathTerm,
-    right: &IntegerMathTerm,
-) -> Option<std::cmp::Ordering> {
-    Some(evaluate_integer_math_term(left)?.cmp(&evaluate_integer_math_term(right)?))
-}
-
-fn evaluate_integer_math_term(term: &IntegerMathTerm) -> Option<BigInt> {
-    match term {
-        IntegerMathTerm::MathValue { .. } => None,
-        IntegerMathTerm::IntegerLiteral(literal) => Some(big_integer_literal(*literal)),
-        IntegerMathTerm::Add(left, right) => {
-            Some(evaluate_integer_math_term(left)?.add(&evaluate_integer_math_term(right)?))
-        }
-        IntegerMathTerm::Subtract(left, right) => {
-            Some(evaluate_integer_math_term(left)?.sub(&evaluate_integer_math_term(right)?))
-        }
-        IntegerMathTerm::Multiply(left, right) => {
-            Some(evaluate_integer_math_term(left)?.mul(&evaluate_integer_math_term(right)?))
-        }
-        IntegerMathTerm::ShiftLeft { value, count } => {
-            let count = usize::try_from(evaluate_integer_math_term(count)?.to_u64()?).ok()?;
-            Some(evaluate_integer_math_term(value)?.shl_bits(count))
-        }
-    }
-}
-
-fn big_integer_literal(literal: IntegerMathLiteral) -> BigInt {
-    let magnitude = BigInt::from_u128(literal.magnitude());
-    if literal.negative() {
-        BigInt::zero().sub(&magnitude)
-    } else {
-        magnitude
-    }
-}
-
 fn compare_integer_literals(left: &ScalarTerm, right: &ScalarTerm) -> Option<std::cmp::Ordering> {
     let (left_type, left) = left.integer_value()?;
     let (right_type, right) = right.integer_value()?;
@@ -133,6 +111,7 @@ fn compare_integer_literals(left: &ScalarTerm, right: &ScalarTerm) -> Option<std
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KernelError {
     MalformedProposition(semantic_vocabulary::PropositionError),
+    ClosedIntegerEvaluation(ClosedIntegerEvaluationError),
     JudgmentDoesNotEstablishGoal { judgment: PrimitiveJudgment },
 }
 
@@ -147,7 +126,7 @@ impl std::error::Error for KernelError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+    use semantic_vocabulary::{IntegerMathTerm, IntegerSign, IntegerType, IntegerValue};
 
     #[test]
     fn closed_integer_judgment_is_total_and_refuses_false_relations() {
@@ -185,6 +164,52 @@ mod tests {
                 PrimitiveJudgment::ClosedIntegerRelation,
             )
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn resource_refusal_is_not_a_false_primitive_judgment() {
+        let term = IntegerMathTerm::ShiftLeft {
+            value: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+            count: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(u128::MAX))),
+        };
+        assert_eq!(
+            decide_primitive(
+                &PropositionContext::default(),
+                &Proposition::IntegerMathLessThan(
+                    term,
+                    IntegerMathTerm::literal(IntegerValue::Unsigned(0))
+                ),
+                PrimitiveJudgment::ClosedIntegerRelation,
+            ),
+            Err(KernelError::ClosedIntegerEvaluation(
+                ClosedIntegerEvaluationError::ResourceLimitExceeded
+            )),
+        );
+    }
+
+    #[test]
+    fn mathematical_term_depth_is_refused_before_recursive_formation() {
+        let mut term = IntegerMathTerm::literal(IntegerValue::Unsigned(1));
+        for _ in 0..1_024 {
+            term = IntegerMathTerm::Add(
+                Box::new(term),
+                Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(0))),
+            );
+        }
+        let proposition = Proposition::IntegerMathLessThan(
+            term,
+            IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+        );
+        assert_eq!(
+            decide_primitive(
+                &PropositionContext::default(),
+                &proposition,
+                PrimitiveJudgment::ClosedIntegerRelation
+            ),
+            Err(KernelError::ClosedIntegerEvaluation(
+                ClosedIntegerEvaluationError::ResourceLimitExceeded
+            )),
         );
     }
 }

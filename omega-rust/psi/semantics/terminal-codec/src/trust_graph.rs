@@ -66,6 +66,8 @@ const PROOF_ADMISSION_EVIDENCE_SOURCE: &[u8] =
     include_bytes!("../../proof-admission/src/evidence.rs");
 const PROOF_ADMISSION_JUDGMENT_SOURCE: &[u8] =
     include_bytes!("../../proof-admission/src/kernel.rs");
+const PROOF_ADMISSION_CLOSED_INTEGER_SOURCE: &[u8] =
+    include_bytes!("../../proof-admission/src/closed_integer.rs");
 const PROOF_ADMISSION_PROOF_SOURCE: &[u8] = include_bytes!("../../proof-admission/src/proof.rs");
 const PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE: &[u8] =
     include_bytes!("../../proof-admission/src/proof/order_discreteness.rs");
@@ -535,7 +537,7 @@ mod tests {
             .iter()
             .find(|node| node.identity() == "implementation:rust-proof-admission")
             .expect("current Rust proof admission checker");
-        assert_eq!(rust_admission.version(), "rust-proof-admission-v13");
+        assert_eq!(rust_admission.version(), "rust-proof-admission-v14");
         assert!(
             rust_admission
                 .dependencies()
