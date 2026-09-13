@@ -387,7 +387,7 @@ fn evaluate_zero_argument_machine_with_optional_custody(
 /// u64::MAX is positive, while the same bits returned as i64 denote -1.
 /// Array lengths, generic arguments and range endpoints share this conversion;
 /// range normalization must never see a host-signed reinterpretation.
-fn decode_integer_result(
+pub(crate) fn decode_integer_result(
     typed: &TypedTrees,
     machine: &Machine,
     value: crate::BuildTimeValue,

@@ -18,6 +18,14 @@ machine named_full_width(value: u64[0..=wide_limit()]) -> u64 { upper_bound(valu
 machine named_full_width_exclusive(value: u64[0..wide_limit()]) -> u64 { upper_bound(value) }
 machine negative_limit() -> i64 { -1 }
 machine named_signed(value: i64[-2..=negative_limit()]) -> i64 { value }
+data Limits {}
+machine Limits::capacity() -> u64 { 256 }
+machine scoped_named(value: u64[0..=Limits::capacity()]) -> u64 { upper_bound(value) }
+data OtherLimits {}
+machine OtherLimits::capacity() -> u64 { 512 }
+machine capacity() -> u64 { 17 }
+machine scoped_other(value: u64[0..OtherLimits::capacity()]) -> u64 { upper_bound(value) }
+machine free_capacity(value: u64[0..=capacity()]) -> u64 { upper_bound(value) }
 machine exclusive_full_u64(value: u64[0..18446744073709551616]) -> u64 { upper_bound(value) }
 machine inclusive_to_exclusive(value: u64[0..=256]) -> u64 { exclusive_upper_bound(value) }
 machine exclusive_to_inclusive(value: u64[0..257]) -> u64 { upper_bound(value) }
