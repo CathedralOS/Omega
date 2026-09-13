@@ -135,7 +135,7 @@ mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
 ```
 
 CLI startup and dispatch live in `omega-rust/omega/src/main.rs`; typed invocations
-are parsed in `omega-rust/omega/src/arguments/`. Full surface:
+are parsed in `omega-rust/omega/src/cli/arguments/`. Full surface:
 
 ```text
 omega [--check] [--offline] [--accept-admissions] [--output-only]

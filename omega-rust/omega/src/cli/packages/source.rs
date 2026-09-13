@@ -1,4 +1,4 @@
-use crate::arguments::SourceArguments;
+use crate::cli::arguments::SourceArguments;
 
 pub(crate) fn run(arguments: SourceArguments) {
     let adapter = match package_manager::operations::SourceAdapter::parse(&arguments.source_kind) {

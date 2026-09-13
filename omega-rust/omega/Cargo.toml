@@ -8,7 +8,7 @@ default-run = "omega"
 [[bin]]
 name = "omega"
 path = "src/main.rs"
-test = false
+test = true
 
 [dependencies]
 lowered-psi = { path = "../psi/representations/lowered-psi" }

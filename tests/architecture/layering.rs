@@ -1234,6 +1234,24 @@ fn omega_product_publishes_compiler_artifacts() {
 }
 
 #[test]
+fn application_operations_do_not_own_cli_presentation_or_process_exit() {
+    let root = workspace_root().join("omega-rust/omega/src");
+    assert!(
+        root.join("lib.rs").is_file(),
+        "application operations must be callable without the binary"
+    );
+    for operation in ["compilation", "execution", "inspection"] {
+        let source = recursive_rust_source(&root.join(operation));
+        for forbidden in ["crate::cli", "std::process::exit", "println!(", "print!("] {
+            assert!(
+                !source.contains(forbidden),
+                "{operation} contains CLI-only behavior: {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
 fn compiler_product_stops_delegate_component_progress_admission() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");

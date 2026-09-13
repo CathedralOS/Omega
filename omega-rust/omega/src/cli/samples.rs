@@ -1,7 +1,7 @@
-use super::publication;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
 };
+use omega::compilation::publication;
 use std::path::{Path, PathBuf};
 
 /// Compile every sample `main.omg` under `samples_root` into its own build

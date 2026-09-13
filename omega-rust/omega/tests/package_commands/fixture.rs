@@ -90,9 +90,9 @@ impl Fixture {
         };
         let root = self.path("root");
         let storage =
-            package_source::SourceResolverStorage::for_current_user_excluding_primary_git_roots(&[
-                root.clone(),
-            ])
+            package_source::SourceResolverStorage::for_current_user_excluding_primary_git_roots(
+                std::slice::from_ref(&root),
+            )
             .unwrap();
         let closure = resolve_external_local_project_closure_with_storage(
             &root,
