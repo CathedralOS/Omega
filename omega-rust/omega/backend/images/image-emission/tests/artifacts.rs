@@ -452,36 +452,51 @@ fn hosted_exit_process_object_validation_replays_exact_scalar_and_trap_bytes() {
 #[path = "artifacts/hosted_exit_runtime.rs"]
 mod hosted_exit_runtime;
 
-#[test]
-fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
-    #[derive(Debug)]
-    struct Provider(u64);
-    impl ProviderExecutionEvidence for Provider {
-        fn requirement_identity(&self) -> &str {
-            match self.0 {
-                970 => "Console::write_line",
-                980 => "Console::exit_process",
-                _ => "unexpected provider",
-            }
-        }
+#[derive(Debug)]
+struct WriteExitProvider(u64);
 
-        fn provider_plan_report_identity(&self) -> u64 {
-            self.0
-        }
-        fn provider_execution_report_identity(&self) -> u64 {
-            self.0 + 1
-        }
-        fn provider_execution_report_fingerprint(&self) -> u64 {
-            self.0 + 2
-        }
-        fn normalized_root_report_identity(&self) -> u64 {
-            self.0 + 3
-        }
-        fn boundary_contract_report_fingerprint(&self) -> u64 {
-            self.0 + 4
+impl ProviderExecutionEvidence for WriteExitProvider {
+    fn requirement_identity(&self) -> &str {
+        match self.0 {
+            970 => "Console::write_line",
+            980 => "Console::exit_process",
+            _ => "unexpected provider",
         }
     }
 
+    fn provider_plan_report_identity(&self) -> u64 {
+        self.0
+    }
+    fn provider_execution_report_identity(&self) -> u64 {
+        self.0 + 1
+    }
+    fn provider_execution_report_fingerprint(&self) -> u64 {
+        self.0 + 2
+    }
+    fn normalized_root_report_identity(&self) -> u64 {
+        self.0 + 3
+    }
+    fn boundary_contract_report_fingerprint(&self) -> u64 {
+        self.0 + 4
+    }
+}
+
+fn write_exit_provider_binding(provider: &WriteExitProvider) -> ProviderExecutionBinding {
+    ProviderExecutionBinding::from_execution_record(
+        ProviderPlanReportIdentity::new(provider.provider_plan_report_identity()).unwrap(),
+        provider.provider_execution_report_identity(),
+        provider.provider_execution_report_fingerprint(),
+        provider.normalized_root_report_identity(),
+        provider.boundary_contract_report_fingerprint(),
+    )
+    .unwrap()
+}
+
+/// Linux x64 machine whose two boundary settlements cover both execution
+/// roles: an admitted-provider `LinuxWriteLine` retaining byte-sequence
+/// argument custody and a compiler-builtin `HostedExitProcessI32` retaining
+/// one scalar argument.
+fn linux_write_line_exit_plan(provider: &WriteExitProvider) -> MachineCodePlan {
     let target = NativeTarget::linux_x64();
     let machine = machine_id(97);
     let literal_operation = operation_id(97);
@@ -513,17 +528,6 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
     bytes.extend_from_slice(&exit_bytes);
     let return_offset = bytes.len();
     bytes.push(0xc3);
-    let write_provider = Provider(970);
-    let binding = |provider: &Provider| {
-        ProviderExecutionBinding::from_execution_record(
-            ProviderPlanReportIdentity::new(provider.provider_plan_report_identity()).unwrap(),
-            provider.provider_execution_report_identity(),
-            provider.provider_execution_report_fingerprint(),
-            provider.normalized_root_report_identity(),
-            provider.boundary_contract_report_fingerprint(),
-        )
-        .unwrap()
-    };
     let i32_type =
         semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
             .unwrap();
@@ -533,7 +537,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
         immediate: semantic_vocabulary::IntegerValue::Signed(37),
         destination: calling_conventions::MachineRegister::X86Rdi,
     };
-    let plan = MachineCodePlan {
+    MachineCodePlan {
         psi: identity(),
         target,
         entry: machine,
@@ -628,7 +632,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
                     psi_operation: write_operation,
                     boundary: write_boundary,
                     execution: machine_code::BoundaryExecutionRecord::AdmittedProvider(
-                        binding(&write_provider).into(),
+                        write_exit_provider_binding(provider).into(),
                     ),
                     realization: target_operations::LinuxWriteLineRealization.into(),
                     scalar_arguments: Vec::new(),
@@ -680,8 +684,13 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             scalar_structural_parameter_homes: Vec::new(),
             structural_return: None,
         }],
-    };
+    }
+}
 
+#[test]
+fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
+    let write_provider = WriteExitProvider(970);
+    let plan = linux_write_line_exit_plan(&write_provider);
     let object = build_object_artifact(&plan).expect("composed object validates");
     let image = emit_executable_image(&object, 3).expect("Linux image emits");
     let installation = build_installation_record_with_provider_executions(
@@ -698,9 +707,673 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             .settlement
             .byte_sequence_arguments[0]
             .bytes,
-        literal
+        vec![0, 0x80, 0xff]
     );
     validate_installation_record(&decoded, &image).expect("decoded custody replays");
+}
+
+/// Every representable field of an installed boundary-settlement row is an
+/// authenticated custody axis: a one-field substitution either cannot encode
+/// canonically or still encodes, recomputes a distinct installation
+/// fingerprint, and independent replay against the unchanged image rejects it.
+#[test]
+fn installation_boundary_settlement_rejects_every_one_field_substitution() {
+    let write_provider = WriteExitProvider(970);
+    let plan = linux_write_line_exit_plan(&write_provider);
+    let artifact = build_object_artifact(&plan).expect("settlement artifact");
+    let image = emit_executable_image(&artifact, 3).expect("settlement image");
+    let record = build_installation_record_with_provider_executions(
+        &image,
+        ProfileDecisionId::new(97).unwrap(),
+        [&write_provider],
+    )
+    .expect("settlement installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let [write_row, exit_row] = record.boundary_settlements() else {
+        panic!("write+exit fixture retains two settlement rows");
+    };
+    assert_eq!(write_row.machine, machine_id(97));
+    assert_eq!(write_row.settlement.psi_operation, operation_id(98));
+    assert!(write_row.settlement.scalar_arguments.is_empty());
+    assert_eq!(write_row.settlement.arguments.len(), 1);
+    assert_eq!(write_row.settlement.byte_sequence_arguments.len(), 1);
+    assert!(write_row.settlement.completion_claim_sources.is_empty());
+    assert!(write_row.settlement.completion_receipts.is_empty());
+    assert!(write_row.settlement.completion_provider_custody.is_empty());
+    assert_eq!(exit_row.machine, machine_id(97));
+    assert_eq!(exit_row.settlement.psi_operation, operation_id(100));
+    assert_eq!(exit_row.settlement.scalar_arguments.len(), 1);
+    assert!(exit_row.settlement.arguments.is_empty());
+    assert!(exit_row.settlement.byte_sequence_arguments.is_empty());
+
+    let i32_integer =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+            .unwrap();
+    let i32_type = semantic_vocabulary::ScalarType::Integer(i32_integer);
+    let fabricated_scalar_argument = BoundaryScalarArgument {
+        source_value: semantic_vocabulary::ValueId::new(99).unwrap(),
+        scalar_type: i32_type,
+        immediate: semantic_vocabulary::IntegerValue::Signed(9),
+        destination: calling_conventions::MachineRegister::X86Rdi,
+    };
+    let fabricated_runtime_argument = machine_code::ForeignCallScalarArgumentRecord {
+        parameter_index: 0,
+        source: machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            defining_operation: operation_id(98),
+            source_value: semantic_vocabulary::ValueId::new(99).unwrap(),
+            scalar_type: i32_integer,
+            value: semantic_vocabulary::IntegerValue::Signed(9),
+        },
+        placement: ValuePlacement {
+            shape: ValueShape::integer(4, 4),
+            locations: Vec::new(),
+        },
+        code_offset: 0,
+        byte_count: 4,
+    };
+    let fabricated_argument = StructuralArgument {
+        access: StructuralAccess::Owned,
+        place: PlaceId::new(98).unwrap(),
+        path: Vec::new(),
+    };
+    let fabricated_receipt = CompletionReceipt {
+        claim: ClaimId::new(71).unwrap(),
+        argument_index: 0,
+    };
+    let scalar_result =
+        machine_code::BoundaryResultRecord::Scalar(machine_code::BoundaryScalarResultRecord {
+            value: semantic_vocabulary::ValueId::new(99).unwrap(),
+            scalar_type: i32_type,
+            placement: ValuePlacement {
+                shape: ValueShape::integer(4, 4),
+                locations: Vec::new(),
+            },
+            return_edge: edge_id(97),
+        });
+
+    let mismatch = |operation: u64| InstallationError::BoundaryRealizationMismatch {
+        machine: machine_id(97),
+        operation: operation_id(operation),
+    };
+    let bad_offset = |operation: u64| InstallationError::InvalidBoundarySettlementOffset {
+        machine: machine_id(97),
+        operation: operation_id(operation),
+    };
+    let provider_custody = |operation: u64| InstallationError::InvalidCompletionProviderCustody {
+        machine: machine_id(97),
+        operation: operation_id(operation),
+    };
+    let receipt_custody = |operation: u64| InstallationError::InvalidCompletionReceiptCustody {
+        machine: machine_id(97),
+        operation: operation_id(operation),
+    };
+
+    type ReplayMutation = (
+        &'static str,
+        usize,
+        Box<dyn Fn(&mut image_emission::ObjectBoundarySettlement)>,
+    );
+    // Semantic identities no canonical record-shape join pins: the substituted
+    // row still encodes and decodes, so rejection is the recomputed identity
+    // and the independent image replay.
+    let still_encodes: Vec<ReplayMutation> = vec![
+        (
+            "psi_operation",
+            0,
+            Box::new(|row| {
+                row.settlement.psi_operation = operation_id(999);
+            }),
+        ),
+        (
+            "boundary",
+            0,
+            Box::new(|row| {
+                row.settlement.boundary = BoundaryMachineId::new(999).unwrap();
+            }),
+        ),
+        (
+            "operation_ordinal",
+            0,
+            Box::new(|row| {
+                row.settlement.operation_ordinal = 7;
+            }),
+        ),
+        (
+            "execution::provider_identity",
+            0,
+            Box::new(|row| {
+                let machine_code::BoundaryExecutionRecord::AdmittedProvider(execution) =
+                    &mut row.settlement.execution
+                else {
+                    panic!("write settlement retains admitted provider execution");
+                };
+                execution.provider_execution_report_identity += 1;
+            }),
+        ),
+        (
+            "byte_sequence_arguments::literal_operation",
+            0,
+            Box::new(|row| {
+                row.settlement.byte_sequence_arguments[0].literal_operation = operation_id(999);
+            }),
+        ),
+        (
+            "byte_sequence_arguments::structural_type",
+            0,
+            Box::new(|row| {
+                row.settlement.byte_sequence_arguments[0]
+                    .structural_type
+                    .identity = "test::SubstitutedBytes".into();
+            }),
+        ),
+        (
+            "scalar_arguments::source_value",
+            1,
+            Box::new(|row| {
+                row.settlement.scalar_arguments[0].source_value =
+                    semantic_vocabulary::ValueId::new(99).unwrap();
+            }),
+        ),
+        (
+            "scalar_arguments::immediate",
+            1,
+            Box::new(|row| {
+                row.settlement.scalar_arguments[0].immediate =
+                    semantic_vocabulary::IntegerValue::Signed(38);
+            }),
+        ),
+    ];
+    for (field, index, mutate) in still_encodes {
+        let mut changed = record.clone();
+        mutate(&mut changed.boundary_settlements_mut_for_test()[index]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted row encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted row decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted row"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted row"
+        );
+    }
+
+    type RejectedMutation = (
+        &'static str,
+        usize,
+        Box<dyn Fn(&mut image_emission::ObjectBoundarySettlement)>,
+        InstallationError,
+    );
+    // Canonical record-shape joins reject every other one-field substitution
+    // at encoding, before any identity or replay could accept it.
+    let rejected: Vec<RejectedMutation> = vec![
+        (
+            "machine",
+            0,
+            Box::new(|row| {
+                row.machine = machine_id(98);
+            }),
+            InstallationError::EffectMachineMissing(machine_id(98)),
+        ),
+        (
+            "text_offset",
+            0,
+            Box::new(|row| {
+                row.text_offset += 1;
+            }),
+            bad_offset(98),
+        ),
+        (
+            "execution",
+            0,
+            Box::new(|row| {
+                row.settlement.execution = machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+                    target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                );
+            }),
+            provider_custody(98),
+        ),
+        (
+            "realization",
+            0,
+            Box::new(|row| {
+                row.settlement.realization =
+                    target_operations::HostedExitProcessI32Realization.into();
+            }),
+            provider_custody(98),
+        ),
+        (
+            "scalar_arguments",
+            0,
+            Box::new(move |row| {
+                row.settlement
+                    .scalar_arguments
+                    .push(fabricated_scalar_argument);
+            }),
+            mismatch(98),
+        ),
+        (
+            "runtime_scalar_arguments",
+            0,
+            Box::new(move |row| {
+                row.settlement
+                    .runtime_scalar_arguments
+                    .push(fabricated_runtime_argument.clone());
+            }),
+            mismatch(98),
+        ),
+        (
+            "arguments",
+            0,
+            Box::new(move |row| {
+                row.settlement.arguments.push(fabricated_argument.clone());
+            }),
+            mismatch(98),
+        ),
+        (
+            "arguments::place",
+            0,
+            Box::new(|row| {
+                row.settlement.arguments[0].place = PlaceId::new(98).unwrap();
+            }),
+            mismatch(98),
+        ),
+        (
+            "byte_sequence_arguments",
+            0,
+            Box::new(|row| {
+                row.settlement.byte_sequence_arguments.clear();
+            }),
+            mismatch(98),
+        ),
+        (
+            "byte_sequence_arguments::bytes",
+            0,
+            Box::new(|row| {
+                row.settlement.byte_sequence_arguments[0].bytes.push(4);
+            }),
+            mismatch(98),
+        ),
+        (
+            "byte_sequence_arguments::code_offset",
+            0,
+            Box::new(|row| {
+                row.settlement.byte_sequence_arguments[0].code_offset += 1;
+            }),
+            mismatch(98),
+        ),
+        (
+            "completion_claim_sources",
+            0,
+            Box::new(|row| {
+                let claim = ClaimId::new(71).unwrap();
+                row.settlement
+                    .completion_claim_sources
+                    .push(CompletionClaimSource {
+                        claim,
+                        entry: Some(EntryClaim {
+                            claim,
+                            input: PlaceId::new(97).unwrap(),
+                            path: Vec::new(),
+                        }),
+                        content: None,
+                    });
+            }),
+            receipt_custody(98),
+        ),
+        (
+            "completion_receipts",
+            0,
+            Box::new(move |row| {
+                row.settlement.completion_receipts.push(fabricated_receipt);
+            }),
+            receipt_custody(98),
+        ),
+        (
+            "completion_provider_custody",
+            0,
+            Box::new(|row| {
+                let claim = ClaimId::new(71).unwrap();
+                row.settlement.completion_provider_custody.push(
+                    machine_code::CompletionProviderCustodyBinding {
+                        source: CompletionClaimSource {
+                            claim,
+                            entry: Some(EntryClaim {
+                                claim,
+                                input: PlaceId::new(97).unwrap(),
+                                path: Vec::new(),
+                            }),
+                            content: None,
+                        },
+                        receipt: CompletionReceipt {
+                            claim,
+                            argument_index: 0,
+                        },
+                        provider_execution: machine_code::ProviderExecutionRecord::new(
+                            11, 12, 13, 14, 15,
+                        )
+                        .unwrap(),
+                    },
+                );
+            }),
+            provider_custody(98),
+        ),
+        (
+            "native_result",
+            0,
+            Box::new(move |row| {
+                row.settlement.native_result = scalar_result.clone();
+            }),
+            mismatch(98),
+        ),
+        (
+            "code_offset",
+            0,
+            Box::new(|row| {
+                row.settlement.code_offset += 1;
+            }),
+            bad_offset(98),
+        ),
+        (
+            "byte_count",
+            0,
+            Box::new(|row| {
+                row.settlement.byte_count += 1;
+            }),
+            mismatch(98),
+        ),
+        (
+            "machine::exit",
+            1,
+            Box::new(|row| {
+                row.machine = machine_id(98);
+            }),
+            InstallationError::EffectMachineMissing(machine_id(98)),
+        ),
+        (
+            "text_offset::exit",
+            1,
+            Box::new(|row| {
+                row.text_offset += 1;
+            }),
+            bad_offset(100),
+        ),
+        (
+            "psi_operation::exit",
+            1,
+            Box::new(|row| {
+                row.settlement.psi_operation = operation_id(98);
+            }),
+            InstallationError::DuplicateBoundarySettlementOperation {
+                machine: machine_id(97),
+                operation: operation_id(98),
+            },
+        ),
+        (
+            "execution::exit",
+            1,
+            Box::new(|row| {
+                row.settlement.execution = machine_code::BoundaryExecutionRecord::AdmittedProvider(
+                    machine_code::ProviderExecutionRecord::new(970, 971, 972, 973, 974).unwrap(),
+                );
+            }),
+            provider_custody(100),
+        ),
+        (
+            "realization::exit",
+            1,
+            Box::new(|row| {
+                row.settlement.realization = target_operations::LinuxWriteLineRealization.into();
+            }),
+            provider_custody(100),
+        ),
+        (
+            "scalar_arguments::exit",
+            1,
+            Box::new(|row| {
+                row.settlement.scalar_arguments.clear();
+            }),
+            mismatch(100),
+        ),
+        (
+            "scalar_arguments::scalar_type",
+            1,
+            Box::new(move |row| {
+                row.settlement.scalar_arguments[0].scalar_type =
+                    semantic_vocabulary::ScalarType::Boolean;
+            }),
+            mismatch(100),
+        ),
+        (
+            "scalar_arguments::destination",
+            1,
+            Box::new(|row| {
+                row.settlement.scalar_arguments[0].destination =
+                    calling_conventions::MachineRegister::X86Rsi;
+            }),
+            mismatch(100),
+        ),
+        (
+            "runtime_scalar_arguments::exit",
+            1,
+            Box::new(move |row| {
+                row.settlement.runtime_scalar_arguments.push(
+                    machine_code::ForeignCallScalarArgumentRecord {
+                        parameter_index: 0,
+                        source:
+                            machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                                defining_operation: operation_id(98),
+                                source_value: semantic_vocabulary::ValueId::new(99).unwrap(),
+                                scalar_type: i32_integer,
+                                value: semantic_vocabulary::IntegerValue::Signed(9),
+                            },
+                        placement: ValuePlacement {
+                            shape: ValueShape::integer(4, 4),
+                            locations: Vec::new(),
+                        },
+                        code_offset: 0,
+                        byte_count: 4,
+                    },
+                );
+            }),
+            mismatch(100),
+        ),
+        (
+            "arguments::exit",
+            1,
+            Box::new(|row| {
+                row.settlement.arguments.push(StructuralArgument {
+                    access: StructuralAccess::Owned,
+                    place: PlaceId::new(98).unwrap(),
+                    path: Vec::new(),
+                });
+            }),
+            mismatch(100),
+        ),
+        (
+            "byte_sequence_arguments::exit",
+            1,
+            Box::new(|row| {
+                row.settlement.byte_sequence_arguments.push(
+                    machine_code::BoundaryByteSequenceArgumentRecord {
+                        argument: StructuralArgument {
+                            access: StructuralAccess::SharedBorrow,
+                            place: PlaceId::new(98).unwrap(),
+                            path: Vec::new(),
+                        },
+                        literal_operation: operation_id(97),
+                        structural_type: terminal_psi::StructuralTypeDeclaration {
+                            id: StructuralTypeId::new(98).unwrap(),
+                            identity: "test::FabricatedBytes".into(),
+                            shape: terminal_psi::StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            ),
+                        },
+                        bytes: vec![1, 2, 3],
+                        code_offset: 0,
+                        code_byte_count: 4,
+                        data_offset: 4,
+                        data_byte_count: 4,
+                    },
+                );
+            }),
+            mismatch(100),
+        ),
+        (
+            "completion_claim_sources::exit",
+            1,
+            Box::new(|row| {
+                let claim = ClaimId::new(71).unwrap();
+                row.settlement
+                    .completion_claim_sources
+                    .push(CompletionClaimSource {
+                        claim,
+                        entry: Some(EntryClaim {
+                            claim,
+                            input: PlaceId::new(97).unwrap(),
+                            path: Vec::new(),
+                        }),
+                        content: None,
+                    });
+            }),
+            provider_custody(100),
+        ),
+        (
+            "completion_receipts::exit",
+            1,
+            Box::new(|row| {
+                row.settlement.completion_receipts.push(CompletionReceipt {
+                    claim: ClaimId::new(71).unwrap(),
+                    argument_index: 0,
+                });
+            }),
+            InstallationError::InvalidCompletionReceiptArgumentIndex {
+                machine: machine_id(97),
+                operation: operation_id(100),
+            },
+        ),
+        (
+            "completion_provider_custody::exit",
+            1,
+            Box::new(|row| {
+                let claim = ClaimId::new(71).unwrap();
+                row.settlement.completion_provider_custody.push(
+                    machine_code::CompletionProviderCustodyBinding {
+                        source: CompletionClaimSource {
+                            claim,
+                            entry: Some(EntryClaim {
+                                claim,
+                                input: PlaceId::new(97).unwrap(),
+                                path: Vec::new(),
+                            }),
+                            content: None,
+                        },
+                        receipt: CompletionReceipt {
+                            claim,
+                            argument_index: 0,
+                        },
+                        provider_execution: machine_code::ProviderExecutionRecord::new(
+                            11, 12, 13, 14, 15,
+                        )
+                        .unwrap(),
+                    },
+                );
+            }),
+            provider_custody(100),
+        ),
+        (
+            "native_result::exit",
+            1,
+            Box::new(|row| {
+                row.settlement.native_result = machine_code::BoundaryResultRecord::Scalar(
+                    machine_code::BoundaryScalarResultRecord {
+                        value: semantic_vocabulary::ValueId::new(99).unwrap(),
+                        scalar_type: semantic_vocabulary::ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Signed,
+                                32,
+                            )
+                            .unwrap(),
+                        ),
+                        placement: ValuePlacement {
+                            shape: ValueShape::integer(4, 4),
+                            locations: Vec::new(),
+                        },
+                        return_edge: edge_id(97),
+                    },
+                );
+            }),
+            mismatch(100),
+        ),
+        (
+            "operation_ordinal::exit",
+            1,
+            Box::new(|row| {
+                row.settlement.operation_ordinal += 1;
+            }),
+            mismatch(100),
+        ),
+        (
+            "code_offset::exit",
+            1,
+            Box::new(|row| {
+                row.settlement.code_offset += 1;
+            }),
+            bad_offset(100),
+        ),
+        (
+            "byte_count::exit",
+            1,
+            Box::new(|row| {
+                row.settlement.byte_count += 1;
+            }),
+            mismatch(100),
+        ),
+    ];
+    for (field, index, mutate, expected) in rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed.boundary_settlements_mut_for_test()[index]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: canonical encoding rejects the substitution"
+        );
+    }
+
+    // Roster-level custody: dropping a row still encodes (no coverage join
+    // binds settlements to operations), so only the image binding rejects it;
+    // reordering the rows is rejected by the canonical
+    // (machine, text_offset, operation_ordinal) order.
+    let mut dropped_row = record.clone();
+    dropped_row.boundary_settlements_mut_for_test().pop();
+    let bytes = encode_installation_record(&dropped_row).expect("dropped row encodes");
+    let replayed = decode_installation_record(&bytes).expect("dropped row decodes");
+    assert_ne!(
+        installation_fingerprint(&replayed).expect("dropped fingerprint"),
+        authentic_fingerprint
+    );
+    assert_eq!(
+        validate_installation_record(&replayed, &image),
+        Err(InstallationError::ImageBindingMismatch)
+    );
+    let mut reordered = record.clone();
+    reordered.boundary_settlements_mut_for_test().swap(0, 1);
+    assert_eq!(
+        encode_installation_record(&reordered),
+        Err(InstallationError::NonCanonicalBoundarySettlementOrder)
+    );
 }
 
 #[test]

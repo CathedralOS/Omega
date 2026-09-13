@@ -108,8 +108,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   — the cleanup-owned call's byte count is independently representable and
   rejected by replay; every other field on operation- and cleanup-owned rows,
   dropped rows, and the semantic-result projection are rejected at encoding
-  as non-canonical. Remaining: boundary settlements, dynamic tables, and
-  private callback rows.
+  as non-canonical. Landed: installed boundary-settlement rows
+  (`installation_boundary_settlement_rejects_every_one_field_substitution`)
+  — `psi_operation`, `boundary`, the write row's `operation_ordinal`, the
+  admitted-provider execution identity, byte-sequence `literal_operation` and
+  structural-type identity, scalar-argument `source_value` and `immediate`
+  are independently representable and rejected by replay; machine,
+  text/code offsets, byte counts, realization/execution swaps, argument
+  rosters, completion custody, native results, the exit row's ordinal, a
+  duplicate `psi_operation`, and roster reorder are rejected at encoding as
+  non-canonical; a dropped row is rejected by replay. Remaining: dynamic
+  tables and private callback rows.
 
 ## Psi optimization and loops
 
