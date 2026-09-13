@@ -2,9 +2,10 @@
 //!
 //! The raw interpreter entry can coerce values; it is not a source type checker.
 //! Keep exact parameter identity and each argument's existing carrier here so
-//! folding an ignored argument cannot hide a bad conversion. Constrained or
-//! nominal destinations need their own proof/identity admission, not base-type
-//! stripping. The shared context-free numeric query rejects owner-dependent
+//! folding an ignored argument cannot hide a bad conversion. Closed range
+//! refinements check every bound against the concrete value before invocation;
+//! nominal and policy qualifications cannot enter by base-type stripping.
+//! The shared context-free numeric query rejects owner-dependent
 //! operations rather than evaluating them in the endpoint callee's scope.
 
 use diagnostics::Diagnostic;
@@ -46,12 +47,13 @@ pub(super) fn evaluate(
     let mut values = Vec::new();
     let mut warnings = Vec::new();
     for (argument, parameter) in arguments.iter().zip(parameters) {
-        let destination = crate::const_generic_expressions::exact_probe_destination(
+        let position = super::integer_type::IntegerPosition::prepare(
             program,
+            original,
             parameter.type_reference,
-        )
-        .filter(|primitive| primitive.accepts_integer_literal())
-        .ok_or("range endpoint arguments require unconstrained exact builtin integer parameters")?;
+            authority,
+        )?;
+        let destination = position.primitive;
         crate::admission::require_closed_integer_argument(original, program, *argument, authority)?;
         // The context-free query above vetoes every owner-sensitive operator.
         // Only after that check may the shared scalar landing path use this
@@ -74,6 +76,7 @@ pub(super) fn evaluate(
         else {
             return Err("range endpoint argument did not produce an integer".to_owned());
         };
+        position.require_value(&numerics::bignum::BigInt::from_i128(value))?;
         let bits = if destination.is_signed_integer() {
             i64::try_from(value)
                 .map_err(|_| "range endpoint argument exceeds signed interpreter storage")?

@@ -22,6 +22,11 @@
 //! Closed integer arguments share the type system's exact numeric evaluation,
 //! with argument carrier and declaration-selection checks before interpreter
 //! snapshots erase their authored types. No runtime flow bound supplies a value.
+//! Closed range refinements use the same exact bound queries: input values must
+//! satisfy every range before invocation, and returned values before folding.
+//! This concrete check does not replace ordinary body checking or admit other
+//! domain/policy qualifications. Calls computing signature bounds are invocation
+//! dependencies, independent of declaration order.
 //!
 //! Walk strict integer arithmetic and call arguments in postorder. Temporary
 //! call results keep their declared integer landing: making a returned u8
@@ -44,6 +49,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 use crate::BuildTimeAdmissionPlan;
 
 mod arguments;
+mod integer_type;
 
 struct PendingEndpoint {
     constrained_type: TypeReferenceHandle,
@@ -91,15 +97,6 @@ pub fn evaluate_const_range_endpoints_with_authority(
             )
         })
         .and_then(|(arguments, argument_warnings)| {
-            warnings.extend(argument_warnings);
-            admission.evaluate_const_evaluable_machine_symbol_for_invocation(
-                execution,
-                endpoint.machine,
-                arguments,
-                crate::BuildTimeInvocationCustody::Source(endpoint.source_span),
-            )
-        })
-        .and_then(|value| {
             let machine = execution
                 .machines()
                 .iter()
@@ -109,13 +106,22 @@ pub fn evaluate_const_range_endpoints_with_authority(
                 .machine_states(machine)
                 .first()
                 .ok_or("range endpoint machine has no entry state")?;
-            let primitive = crate::const_generic_expressions::exact_probe_destination(
+            let position = integer_type::IntegerPosition::prepare(
+                typed,
                 execution,
                 entry.return_type,
-            )
-            .filter(|primitive| primitive.accepts_integer_literal())
-            .ok_or("range endpoint call requires an unconstrained exact builtin integer result")?;
+                selection_authority.as_deref(),
+            )?;
+            warnings.extend(argument_warnings);
+            let value = admission.evaluate_const_evaluable_machine_symbol_for_invocation(
+                execution,
+                endpoint.machine,
+                arguments,
+                crate::BuildTimeInvocationCustody::Source(endpoint.source_span),
+            )?;
             let value = crate::const_lengths::decode_integer_result(execution, machine, value)?;
+            position.require_value(&value)?;
+            let primitive = position.primitive;
             let landed_type = match primitive {
                 typed_trees::types::PrimitiveType::I8 => LandedIntegerType::I8,
                 typed_trees::types::PrimitiveType::I16 => LandedIntegerType::I16,
@@ -163,8 +169,9 @@ pub fn evaluate_const_range_endpoints_with_authority(
 
     // Execute against the immutable prepared program, never a graph changed
     // underneath its admission plan. The working tree only supplies closed
-    // argument arithmetic. Restore it before publishing any folds so a failed
-    // outer call cannot leave its successfully evaluated children erased.
+    // argument arithmetic and signature bounds. Restore it before publishing
+    // any folds so a failed outer call cannot leave its successfully evaluated
+    // children erased.
     for (expression, original) in originals.into_iter().rev() {
         *typed.expression_table.expression_mut(expression) = original;
     }
@@ -225,6 +232,9 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
                                     .rev()
                                     .map(|argument| (*argument, false)),
                             );
+                            if let Some(machine) = selected_endpoint_machine(typed, expression) {
+                                append_signature_bounds(typed, machine, &mut work)?;
+                            }
                         }
                         _ => {}
                     }
@@ -232,28 +242,7 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
                 }
                 active.pop();
                 visited.push(expression);
-                let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
-                else {
-                    continue;
-                };
-                if !call.machine_arguments.is_empty()
-                    || !call.evidence_arguments.is_empty()
-                    || call.static_machine_parameter.is_valid()
-                    || call.static_requirement_dispatch.is_some()
-                    || call.quotient_operation.is_some()
-                    || call.private_layout_operation.is_some()
-                {
-                    continue;
-                }
-                let Some(machine) = typed.machines().iter().find(|machine| {
-                    // Ordinary value arguments do not close generic binders.
-                    // Folding must not erase an underdetermined generic
-                    // application before ordinary call validation can reject it.
-                    machine.type_parameters.is_empty()
-                        && typed.machine_states(machine).first().is_some_and(|entry| {
-                            typed.call_has_no_runtime_receiver(call, machine, entry)
-                        })
-                }) else {
+                let Some(machine) = selected_endpoint_machine(typed, expression) else {
                     continue;
                 };
                 pending.push(PendingEndpoint {
@@ -268,8 +257,82 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
     Ok(pending)
 }
 
+fn selected_endpoint_machine(
+    typed: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<&typed_trees::machine::Machine> {
+    let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
+        return None;
+    };
+    if !call.machine_arguments.is_empty()
+        || !call.evidence_arguments.is_empty()
+        || call.static_machine_parameter.is_valid()
+        || call.static_requirement_dispatch.is_some()
+        || call.quotient_operation.is_some()
+        || call.private_layout_operation.is_some()
+    {
+        return None;
+    }
+    // Ordinary arguments do not close generic binders. Preserve unresolved
+    // applications and runtime receivers for ordinary call validation.
+    typed.machines().iter().find(|machine| {
+        machine.type_parameters.is_empty()
+            && typed
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| typed.call_has_no_runtime_receiver(call, machine, entry))
+    })
+}
+
+fn append_signature_bounds(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    work: &mut Vec<(ExpressionHandle, bool)>,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(entry) = typed.machine_states(machine).first() else {
+        return Ok(());
+    };
+    // A called declaration may appear later in source. Its static input/result
+    // bounds are dependencies of invocation admission, not a reason to rely on
+    // the type arena's order or repeatedly retry unsuccessful evaluations.
+    for mut reference in std::iter::once(entry.return_type).chain(
+        typed
+            .state_parameters(entry)
+            .iter()
+            .map(|parameter| parameter.type_reference),
+    ) {
+        let mut visited = Vec::new();
+        while let typed_trees::types::TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = typed.type_reference_table.type_reference(reference)
+        {
+            if visited.contains(&reference) {
+                return Err(vec![Diagnostic::error(
+                    "cyclic range endpoint integer type",
+                )]);
+            }
+            visited.push(reference);
+            for constraint in typed.type_reference_table.constraints(*constraints) {
+                if let TypeConstraintNode::Range {
+                    minimum, maximum, ..
+                } = constraint
+                {
+                    work.push((*maximum, false));
+                    work.push((*minimum, false));
+                }
+            }
+            reference = *base_type;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests;
 
 #[cfg(test)]
 mod selection_tests;
+
+#[cfg(test)]
+mod integer_type_tests;

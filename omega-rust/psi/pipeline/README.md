@@ -254,7 +254,7 @@ The typed call's resolved entry and existing receiver classification distinguish
 a type qualifier from a runtime value. Folding evaluates the exact retained
 machine symbol, not a reconstructed name. Unbound generic callees remain calls
 so folding cannot erase an underdetermined application.
-Integer arguments land at exact unconstrained builtin parameters before entering
+Integer arguments land at exact builtin parameters before entering
 the interpreter's value snapshots. The shared context-free numeric query first
 excludes owner-dependent arithmetic; the scalar constant evaluator then retains
 exact carriers and fractional warnings, including nested anonymous landings.
@@ -269,13 +269,19 @@ original call/qualifier before execution and the original argument graph before
 numeric evaluation reads completed call values. Machine bodies execute against
 one immutable prepared program. Temporary substitutions roll back together on
 failure; surrounding endpoint arithmetic retains its ordinary checking path.
+Closed range refinements check each argument before invocation and each returned
+value before folding, using every retained range and the exact carrier. Original
+bound selections are admitted before execution; computed signature bounds join
+the same dependency traversal, independent of declaration order. Empty ranges
+admit no values, and exclusive bounds normalize in proof integers. This concrete
+value check does not replace ordinary body checking or erase nominal qualifications.
 Record and case-payload field endpoints resolve in their own lexical scope;
 payload subjects shadow common fields and global names. Local bounded records
 retain declaration-owned range proofs at construction and exact field-read
 equations at observation. The range-inference fixture executes those reads and
 their inferred calls from canonical Terminal bytes, independently of compile-time
 evaluation; the hosted entry's receiver provisioning remains a separate gap.
-Noninteger or constrained arguments/results, generic machine arguments,
+Noninteger arguments/results, nominal/policy qualifications, generic machine arguments,
 open symbolic endpoints,
 full-width variable compatibility intervals and exact type equations remain
 open; context-free typed evaluation refuses matching selected trait operators

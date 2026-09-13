@@ -1336,12 +1336,13 @@ Owners include
   and `u64[0..=Limits::capacity(256)]`) fold by resolved machine identity
   before checking in `build-time-evaluation/src/range_endpoints.rs` through the
   shared admission plan. Resolved calls admit closed integer arguments into
-  exact unconstrained builtin integer parameters, preserving carrier checks,
-  selection authority and fractional warnings. Nested calls and surrounding
+  exact builtin integer parameters with closed range refinements, preserving
+  carrier checks, selection authority and fractional warnings. Nested calls and surrounding
   integer arithmetic retain exact result carriers and original call selections;
-  failed evaluation restores temporary substitutions. Noninteger and
-  constrained arguments/results, generic calls, owner-sensitive operations and open
-  symbolic endpoints remain. Record and case-payload endpoint calls resolve in
+  failed evaluation restores temporary substitutions. Input/result range checks
+  use exact concrete values; computed signature bounds are invocation dependencies.
+  Noninteger arguments/results, nominal/policy qualifications, generic calls,
+  owner-sensitive operations and open symbolic endpoints remain. Record and case-payload endpoint calls resolve in
   their declaration scope before folding; local bounded record construction and
   field reads retain range obligations through canonical Terminal execution.
   Replace the range-argument exclusion in `generic_data/arguments.rs` only with exact identity

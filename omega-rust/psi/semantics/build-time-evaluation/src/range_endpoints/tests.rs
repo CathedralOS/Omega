@@ -92,7 +92,7 @@ fn ignored_arguments_cannot_hide_invalid_or_unsupported_inputs() {
             "18446744073709551615u64 + 1",
             "closed integer expression",
         ),
-        ("u64[0..=8]", "9", "unconstrained exact builtin integer"),
+        ("u64[0..=8]", "9", "outside declared range"),
         ("u64", "", "argument count"),
         ("u64", "1, 2", "argument count"),
         ("u64", "input", "closed integer expression"),
@@ -184,7 +184,7 @@ fn failed_outer_calls_restore_successful_inner_calls() {
         ("u8", "255", "u8", "inner() + 1"),
         ("u64", "256", "u64", "inner() / 0"),
         ("u64", "256", "u64", "inner() + input"),
-        ("u64[0..=256]", "256", "u64", "inner()"),
+        ("u64[0..=256]", "257", "u64", "inner()"),
         ("bool", "true", "u64", "inner()"),
         ("u64", "256", "u64", "inner(1)"),
     ] {
@@ -311,6 +311,53 @@ fn folded_arguments_still_require_their_original_selection_authority() {
         assert!(
             error.contains("without direct dependency authority"),
             "{error}"
+        );
+    }
+}
+
+#[test]
+fn signature_bounds_are_dependencies_even_when_declared_after_the_consumer() {
+    let mut program = typed(
+        "machine bounded(value: u64[0..=endpoint(256)]) {}
+         machine endpoint(value: u64[1..=limit()]) -> u64[0..=limit()] {value}
+         machine limit() -> u64 {256}",
+    );
+    let calls = pending_endpoints(&program).unwrap();
+    assert_eq!(calls.len(), 3);
+    assert!(
+        calls[..2]
+            .iter()
+            .all(|call| program.symbols.display_path(call.machine, "::") == "limit")
+    );
+    assert_eq!(
+        program.symbols.display_path(calls[2].machine, "::"),
+        "endpoint"
+    );
+    evaluate_const_range_endpoints_with_authority(&mut program, None)
+        .expect("signature dependencies fold before invocation");
+    let value = program
+        .closed_integer_expression_value(calls[2].expression)
+        .unwrap();
+    assert_eq!(value.to_u64(), Some(256));
+}
+
+#[test]
+fn cyclic_signature_bounds_do_not_depend_on_source_order_or_retries() {
+    for source in [
+        "machine endpoint(value: u64[0..=endpoint(0)]) -> u64 {256}
+         machine bounded(value: u64[0..=endpoint(0)]) {}",
+        "machine first(value: u64[0..=second(0)]) -> u64 {256}
+         machine second(value: u64[0..=first(0)]) -> u64 {256}
+         machine bounded(value: u64[0..=first(0)]) {}",
+    ] {
+        let mut program = typed(source);
+        let errors = evaluate_const_range_endpoints_with_authority(&mut program, None)
+            .expect_err("a signature bound cannot depend on its own invocation");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("cyclic range endpoint")),
+            "{errors:?}"
         );
     }
 }
