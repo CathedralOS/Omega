@@ -50,7 +50,7 @@ machine Native::plan(&mut self, schema: Schema) -> PlacementPlan {{
             size_is_dynamic: false,
             align: 4,
         }},
-        access: AccessPlan::inaccessible(schema),
+        access: AccessPlan::inaccessible(&schema),
         reach: BoundaryReach {{
             services: self.services,
             service_count: 0,
@@ -114,7 +114,7 @@ machine Native::plan(&mut self, schema: Schema) -> PlacementPlan {{
             size_is_dynamic: false,
             align: 4,
         }},
-        access: AccessPlan::inaccessible(schema),
+        access: AccessPlan::inaccessible(&schema),
         reach: BoundaryReach {{
             services: self.services,
             service_count: 0,
@@ -189,7 +189,7 @@ machine Native::plan(&mut self, schema: Schema) -> PlacementPlan {{
             size_is_dynamic: false,
             align: 4,
         }},
-        access: AccessPlan::inaccessible(schema),
+        access: AccessPlan::inaccessible(&schema),
         reach: BoundaryReach {{
             services: self.services,
             service_count: 0,
@@ -272,7 +272,7 @@ machine Native::plan(&mut self, schema: Schema) -> PlacementPlan {{
             size_is_dynamic: false,
             align: 4,
         }},
-        access: AccessPlan::inaccessible(schema),
+        access: AccessPlan::inaccessible(&schema),
         reach: BoundaryReach {{
             services: self.services,
             service_count: 0,

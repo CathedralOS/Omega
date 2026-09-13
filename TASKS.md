@@ -649,13 +649,6 @@ Owners include
   valid views survive codec/native replay and stale plan, range, access, or
   backing substitutions reject.
 
-- **ACCESS-PLAN-AND-PLACED.** Finish the public `AccessPlan` / `Placed<P, T>`
-  model as an explicit relation among semantic value, target layout, backing,
-  and placement. Do not infer authorization from equal offsets or compiler
-  custody. Acceptance: source can express and consume one useful placed value
-  through target lowering while arbitrary construction and cross-plan reuse
-  remain impossible.
-
 - **SYMBOLIC-MATERIALIZATION.** Complete symbolic field/index materialization
   and its target-dependent realization. Preserve exact paths and bounds until
   assignment; physical lowering may choose locations but not change semantic

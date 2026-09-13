@@ -3917,7 +3917,7 @@ pub machine LeafPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 0 }
     };
-    let access: AccessPlan = AccessPlan::inaccessible(schema);
+    let access: AccessPlan = AccessPlan::inaccessible(&schema);
     PlacementPlan {
         layout: Plan {
             entries: owned_entries,
