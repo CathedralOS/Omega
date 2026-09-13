@@ -999,6 +999,14 @@ fn all_samples_reach_checked_trees() {
 }
 
 #[test]
+fn dutch_flag_sample_reaches_checked_trees() {
+    let main_path = repo_root().join("samples/cli/algorithms/dutch_flag/main.omg");
+    compile_sample_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!("enum-array partition sample should check: {diagnostics:#?}")
+    });
+}
+
+#[test]
 fn recursive_slice_samples_reach_checked_trees() {
     // Keep the original recursive calls, borrowed sibling fields, and result
     // consumers. Native acceptance remains the separate documented-exit test.

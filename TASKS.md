@@ -218,7 +218,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`,
   `dice_histogram`, `calendar`, `dungeon_render` (cannot prove byte writes
   preserve the `Utf8` field domain across state edges). Receiver/aggregate
-  loans — `dutch_flag`, `generic_counters`,
+  loans — `generic_counters`,
   `dungeon_render`, `wire_protocol` (non-copy transfer out of borrowed
   storage). Index/subslice proofs — `mandelbrot`, `mandelbrot_zoom`,
   `wire_protocol`. `heat_grid` checks again: its `__hoist_N` temps were
@@ -257,6 +257,13 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Its indexed `self.frame.bytes` stores need the primitive projection work below,
   not weaker receiver/argument overlap checking. The read-only checksum receiver
   and its live shared payload view must remain compatible.
+
+  `dutch_flag` now reaches the same missing transitive `Main::main` plan with
+  `OMEGA_SAMPLE_RUNTIME_FILTER=dutch_flag` and the native command above (macOS
+  ARM64, `7a7bd6c3c1` plus the explicit `Color [copy]` declaration). Preserve
+  its enum-array swaps and exit-70 oracle; `dutch_flag_sample_reaches_checked_trees`
+  isolates source acceptance. Continue through ordinary indexed sum storage and
+  cyclic plan production, not implicit copyability for affine enums.
 
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |
