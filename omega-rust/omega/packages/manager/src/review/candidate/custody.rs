@@ -1,7 +1,7 @@
 use super::{CompileResolvedPackageReviewsError, PackageSourceVerificationPhase};
 use crate::declarations::PackageKey;
+use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
-use crate::resolution::reachable_package_keys;
 use package_source::ImmutableSourceResolution;
 use package_source::local::operations::verify_package_source_snapshot;
 use std::collections::BTreeSet;
@@ -12,9 +12,21 @@ pub(crate) fn verify_transitive_source_custody(
     compiling_package: &PackageKey,
     phase: PackageSourceVerificationPhase,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
-    for source_package in reachable_package_keys(closure, compiling_package) {
+    verify_selected_source_custody(
+        &PackageCompilationScope::new(closure, compiling_package),
+        phase,
+    )
+}
+
+pub(super) fn verify_selected_source_custody(
+    scope: &PackageCompilationScope<'_>,
+    phase: PackageSourceVerificationPhase,
+) -> Result<(), CompileResolvedPackageReviewsError> {
+    let closure = scope.closure();
+    let compiling_package = scope.root();
+    for source_package in scope.packages() {
         let custody = closure
-            .custody(&source_package)
+            .custody(source_package)
             .expect("validated source closure retains every reachable custody");
         verify_package_source_snapshot(
             custody.snapshot_root(),
@@ -30,7 +42,7 @@ pub(crate) fn verify_transitive_source_custody(
         custody.selection_evidence().revalidate().map_err(|error| {
             CompileResolvedPackageReviewsError::SourceSelectionCustody {
                 compiling_package: compiling_package.clone(),
-                source_package,
+                source_package: source_package.clone(),
                 phase,
                 error,
             }

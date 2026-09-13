@@ -13,7 +13,7 @@ use compiler::CheckedCompileRequest;
 use session_accounting::verify_build_session_accounting;
 
 use super::custody::{
-    dependency_first_package_order, package_build_root, verify_transitive_source_custody,
+    dependency_first_package_order, package_build_root, verify_selected_source_custody,
 };
 use super::ledger::{
     MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES, reserve_retained_obligation_ledger_bytes,
@@ -31,8 +31,8 @@ use super::{
     ReviewedPackageProductionCandidate,
 };
 use crate::declarations::PackageKey;
+use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
-use crate::resolution::{package_compilation_inputs_for, reachable_package_keys};
 use checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
 use compiler::compile_to_checked;
 use diagnostics::Diagnostic;
@@ -179,19 +179,17 @@ fn compile_resolved_package_reviews_in_session(
     let closure = target_closure.source_closure();
     let target = target_closure.target_profile().target_name();
     let mut reviews = Vec::<CompilerIssuedPackageReview>::with_capacity(closure.custodies().len());
+    let mut review_positions: Vec<Option<usize>> = vec![None; closure.graph().packages().len()];
     let mut checked_root = None;
     let mut retained_obligation_ledger_total = 0usize;
     let mut retained_policy_canonical_total = 0usize;
     for key in dependency_first_package_order(closure) {
-        verify_transitive_source_custody(
-            closure,
-            &key,
-            PackageSourceVerificationPhase::BeforeCompilation,
-        )?;
+        let scope = PackageCompilationScope::new(closure, &key);
+        verify_selected_source_custody(&scope, PackageSourceVerificationPhase::BeforeCompilation)?;
         let custody = closure
             .custody(&key)
             .expect("validated source closure retains custody for every graph package");
-        let inputs = package_compilation_inputs_for(closure, &key).map_err(|errors| {
+        let inputs = scope.compilation_inputs().map_err(|errors| {
             CompileResolvedPackageReviewsError::CompilationInputs {
                 package: key.clone(),
                 errors,
@@ -210,17 +208,20 @@ fn compile_resolved_package_reviews_in_session(
                     errors,
                 },
             )?;
-        let dependency_bundles = reachable_package_keys(closure, &key)
-            .into_iter()
-            .filter(|dependency| dependency != &key)
+        let dependency_bundles = scope
+            .packages()
+            .iter()
+            .filter(|dependency| *dependency != &key)
             .map(|dependency| {
-                let review = reviews
-                    .iter()
-                    .find(|review| review.key() == &dependency)
+                let review = closure
+                    .graph()
+                    .package_position(dependency)
+                    .and_then(|position| review_positions[position])
+                    .and_then(|position| reviews.get(position))
                     .ok_or(PackageCompilationInputError::MissingGeneratedSourceBundle {
                         package: dependency.identity(),
                     })?;
-                let custody = closure.custody(&dependency).ok_or(
+                let custody = closure.custody(dependency).ok_or(
                     PackageCompilationInputError::ForeignGeneratedSourceBundle {
                         package: dependency.identity(),
                     },
@@ -283,11 +284,7 @@ fn compile_resolved_package_reviews_in_session(
                 diagnostics,
             },
         )?;
-        verify_transitive_source_custody(
-            closure,
-            &key,
-            PackageSourceVerificationPhase::AfterCompilation,
-        )?;
+        verify_selected_source_custody(&scope, PackageSourceVerificationPhase::AfterCompilation)?;
         checked
             .verify_current_source_consumption()
             .map_err(
@@ -376,6 +373,11 @@ fn compile_resolved_package_reviews_in_session(
             .iter()
             .map(ReviewOnlyCanonicalRow::from_compiler_issued)
             .collect();
+        let package_position = closure
+            .graph()
+            .package_position(&key)
+            .expect("dependency-first order retains a position in the immutable graph");
+        review_positions[package_position] = Some(reviews.len());
         reviews.push(CompilerIssuedPackageReview {
             key: key.clone(),
             resolution: custody.resolution().clone(),
