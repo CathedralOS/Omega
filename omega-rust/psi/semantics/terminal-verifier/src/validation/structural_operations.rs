@@ -1710,9 +1710,29 @@ pub(super) fn validate_structural_arguments(
                 && left.path.is_empty()
                 && right.path.is_empty()
                 && super::scalar_array::plain_return_source(module, caller, left.place);
+            // A complete unrestricted case is copied, not moved. Its owned
+            // actual may coexist with a whole shared observation, but this
+            // grants neither exclusive borrowing nor projected custody.
+            let copied_case = ordinary_call
+                && matches!(
+                    left.access,
+                    StructuralAccess::Owned | StructuralAccess::SharedBorrow
+                )
+                && matches!(
+                    right.access,
+                    StructuralAccess::Owned | StructuralAccess::SharedBorrow
+                )
+                && left.path.is_empty()
+                && right.path.is_empty()
+                && super::scalar_case::plain_return_source(module, caller, left.place)
+                && super::structural_result_contracts::source_signature(caller, left.place)
+                    .is_some_and(|source| {
+                        source.multiplicity == StructuralMultiplicity::Unrestricted
+                    });
             if left.place == right.place
                 && structural_paths_may_overlap(&left.path, &right.path)
                 && !copied_array
+                && !copied_case
                 && (structural_access_is_exclusive(left.access)
                     || structural_access_is_exclusive(right.access)
                     || ((left.access == StructuralAccess::Owned

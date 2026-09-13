@@ -90,12 +90,12 @@ fn constructed_case_call_module(
         };
         callee.result = TerminalMachineResult::Scalar(ValueDeclaration {
             id: ValueId::new(902).unwrap(),
-            ..value.clone()
+            ..value
         });
         callee.blocks[0].operations.push(Operation {
             static_reach_binding: None,
             id: OperationId::new(901).unwrap(),
-            result: OperationResult::Scalar(value.clone()),
+            result: OperationResult::Scalar(value),
             kind: OperationKind::BooleanConstant { value: true },
         });
         // Affine disposal belongs to an explicit Unit edge, so the scalar-call
