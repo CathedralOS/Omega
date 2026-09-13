@@ -10,6 +10,8 @@ use package_compilation::{
 };
 use std::fmt::Write as _;
 
+#[path = "support/console_acceptance.rs"]
+mod console_acceptance;
 #[path = "support/macos_entry_acceptance.rs"]
 mod macos_entry_acceptance;
 
@@ -843,6 +845,247 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         child.projection =
             optimization_core::NativeOptimizationProjectionIdentity::from_bytes([0x5A; 32]);
+    });
+}
+
+#[test]
+fn selected_lowering_replays_one_physical_child_per_surviving_occurrence_role() {
+    // One program retains both surviving boundary-occurrence roles under an
+    // admitted selected-lowering optimization: the closed operator application
+    // settles through its provider call interval, and the hosted console exit
+    // settles through a BoundaryTraitSettlement. Replay must derive exactly one
+    // physical child per surviving occurrence with the matching parent role.
+    let root = std::env::temp_dir().join(format!(
+        "omega-optimizer-selected-lowering-boundary-settlement-{}-{}",
+        std::process::id(),
+        PROJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("create selected-lowering package root");
+    let standard_library = native_evidence_standard_library();
+    std::fs::write(
+        root.join("build.omg"),
+        format!(
+            "machine build(builder: &mut Build) {{\n\
+             \x20   builder.application(\"optimizer-selected-lowering-boundary-settlement\");\n\
+             \x20   builder.depend(Source::Path {{ location: \"{}\" }});\n\
+             \x20   builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n\
+             \x20   builder.optimizations.enable(Optimization::SelectedIncomingU12CompareImmediate);\n\
+             }}\n",
+            standard_library.display()
+        ),
+    )
+    .expect("write selected-lowering package build");
+    std::fs::write(
+        root.join("main.omg"),
+        "use omega_language_std::console;\n\
+         \n\
+         data CheckedMath {}\n\
+         \n\
+         boundary operator CheckedMath::select_left(left: u64, right: u64) -> u64;\n\
+         \n\
+         data CheckedMathProvider {}\n\
+         \n\
+         machine CheckedMathProvider::select_left_impl(left: u64, right: u64) -> u64\n\
+         satisfies CheckedMath::select_left\n\
+         {\n\
+             transition { _ -> left }\n\
+         }\n\
+         \n\
+         data Main { console: Console; }\n\
+         \n\
+         machine Main::main(&mut self)\n\
+         reaches\n\
+             Console\n\
+         {\n\
+             let result: u64 = CheckedMath::select_left(7u64, 9u64);\n\
+             self.console.exit_process(70);\n\
+         }\n",
+    )
+    .expect("write selected-lowering boundary-settlement program");
+
+    let application = package_identity(1);
+    let standard = package_identity(2);
+    let inputs = PackageCompilationInputs::new(
+        application,
+        package_compilation::BuildDeclarationKind::Application,
+        vec![
+            PackageSourceBinding::new(
+                application,
+                "optimizer-selected-lowering-boundary-settlement",
+                root.clone(),
+            ),
+            PackageSourceBinding::new(standard, "omega-language-std", standard_library.clone()),
+        ],
+        vec![PackageDependencyBinding::new(
+            application,
+            "omega_language_std",
+            standard,
+        )],
+    )
+    .expect("selected-lowering package inputs should validate");
+    let preliminary = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
+    .expect("boundary-settlement program checks");
+    let console_binding =
+        console_acceptance::candidate_console_exit_binding(&preliminary, standard, false, false)
+            .expect("hosted console exit acceptance should derive from the checked program");
+    let inputs = inputs
+        .with_accepted_semantic_bindings(vec![console_binding])
+        .expect("console exit acceptance binds to the std package");
+    let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+        inputs
+            .accepted_semantic_bindings()
+            .flat_map(|binding| binding.terminal_authority_permissions().iter().cloned())
+            .collect(),
+    )
+    .expect("console exit permission policy should validate");
+
+    let report = compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(root.join("build")),
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_package_inputs(inputs)
+        .with_terminal_authority_permission_policy(permission_policy),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("selected-lowering boundary-settlement program emits an artifact");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("selected-lowering compilation retains its native artifact");
+    artifact
+        .validate()
+        .expect("selected-lowering native artifact should replay independently");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    let physical = artifact
+        .physical_evidence()
+        .expect("the surviving occurrences retain nonempty physical evidence");
+    let [operator_occurrence] = physical.projection().operator_occurrences() else {
+        panic!("the checked boundary operator must survive as exactly one operator occurrence")
+    };
+    let [boundary_occurrence] = physical.projection().boundary_occurrences() else {
+        panic!("the hosted console exit must survive as exactly one boundary occurrence")
+    };
+    let [operator_child, boundary_child] = physical.children() else {
+        panic!("each surviving occurrence must bind exactly one physical child")
+    };
+    assert_eq!(
+        operator_child.occurrence(),
+        native_realization::NativePhysicalOccurrence::Operator(operator_occurrence.identity())
+    );
+    assert_eq!(
+        operator_child.projection(),
+        physical.projection().identity()
+    );
+    assert!(matches!(
+        operator_child.parent(),
+        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+    ));
+    assert!(operator_child.machine_span().byte_count() > 0);
+    assert!(operator_child.object_span().byte_count() > 0);
+    assert_eq!(
+        operator_child.relocation(),
+        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+    );
+    assert_eq!(
+        boundary_child.occurrence(),
+        native_realization::NativePhysicalOccurrence::Boundary(boundary_occurrence.identity())
+    );
+    assert_eq!(
+        boundary_child.projection(),
+        physical.projection().identity()
+    );
+    let native_realization::PhysicalChildParent::BoundaryTraitSettlement(settlement) =
+        boundary_child.parent()
+    else {
+        panic!("the boundary occurrence must retain its boundary-settlement parent")
+    };
+    assert_eq!(settlement.occurrence(), boundary_occurrence);
+    assert_eq!(
+        settlement.execution(),
+        target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+            target_operations::CompilerBuiltinExecution::HostedExitProcessI32
+        )
+    );
+    assert!(matches!(
+        settlement.role(),
+        native_realization::BoundaryTraitSettlementRole::CompilerBuiltin {
+            execution: target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+            ..
+        } | native_realization::BoundaryTraitSettlementRole::CompilerBuiltinRuntimeScalar {
+            execution: target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+            ..
+        }
+    ));
+    assert!(boundary_child.machine_span().byte_count() > 0);
+    assert!(boundary_child.object_span().byte_count() > 0);
+    assert_eq!(
+        boundary_child.relocation(),
+        native_realization::PhysicalRelocationDisposition::DirectInstructionBytes
+    );
+
+    // Independent replay derives the same two-child custody from the published
+    // parts alone; each mutation class must fail closed.
+    let parts = report
+        .into_retained_native_artifact()
+        .expect("owned native artifact")
+        .into_parts();
+    let assert_mutated_children_rejected =
+        |mutate: &dyn Fn(&mut Vec<native_realization::NativePhysicalChild>)| {
+            let mut replay = replay_native_artifact_parts(&parts);
+            let evidence = replay
+                .physical_evidence
+                .take()
+                .expect("replay physical evidence")
+                .into_parts();
+            let mut children = evidence.children;
+            mutate(&mut children);
+            replay.physical_evidence = Some(
+                native_realization::NativePhysicalEvidence::from_replayed_parts(
+                    native_realization::NativePhysicalEvidenceParts {
+                        projection: evidence.projection,
+                        children,
+                        identity: evidence.identity,
+                    },
+                ),
+            );
+            assert!(
+                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                "mutated physical-child custody must fail independent replay"
+            );
+        };
+    assert_mutated_children_rejected(&|children| {
+        children.retain(|child| {
+            matches!(
+                child.parent(),
+                native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            )
+        });
+    });
+    assert_mutated_children_rejected(&|children| {
+        children.retain(|child| {
+            matches!(
+                child.parent(),
+                native_realization::PhysicalChildParent::BoundaryTraitSettlement(_)
+            )
+        });
+    });
+    assert_mutated_children_rejected(&|children| {
+        children.push(children[0].clone());
+    });
+    assert_mutated_children_rejected(&|children| {
+        let settlement = children[1].parent().clone();
+        let mut swapped = children[0].clone().into_parts();
+        swapped.parent = settlement;
+        children[0] = native_realization::NativePhysicalChild::from_replayed_parts(swapped);
     });
 }
 
