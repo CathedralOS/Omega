@@ -932,6 +932,20 @@ Owners include
   forms. Acceptance also checks a well-founded denotation against a generated
   loop: measure decrease must not certify an incorrect accumulator update.
 
+  Witnessed at `ecc041a1c7`: `TerminalRankedScc::UnsignedCountdown` is the
+  remaining shape-selected trusted route. A structural-unit countdown
+  (`transition remaining > 0 { true -> countdown(token, remaining - 1) … }`
+  whose owned `Token` the composed builders reject) verifies with an empty
+  `proof_bundle.control_cycles`: `terminal-verifier/src/control_cycles/reconstruction.rs`
+  reconstructs obligations only for `Natural`, so `validation/ranked_scc.rs`
+  shape recognition alone discharges the ranking and `fixed_fuel` inherits it.
+  The same machine with a plain-owned token takes the composed route and
+  carries a `RecursiveComponentCertificate`. Next slice: emit `Natural` from
+  `checked-trees-to-lowered-psi/src/structural_unit_control.rs` through
+  `control_cycle_proofs`, then delete the countdown variant, its codec, its
+  validator, and its fixed-fuel/liveness readers; acceptance is the countdown
+  program rejecting when its certificate is absent or its decrease is altered.
+
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Bind every proof to an exact semantic
   subject and observation profile through ledgers, artifact seals, deployment,
   replay, and reports. Producers may not choose the verifier's root subject.
