@@ -121,13 +121,31 @@ pub(super) fn registered_primitive_store_target<'facts>(
     (expected == *plan).then_some(plan)
 }
 
-pub(super) fn is_available(
+/// A registered scalar producer survives ordinary candidate pruning. Only the
+/// ordinary-body fallback carries an edge into that changing roster.
+pub(super) enum AvailableScalarTarget {
+    Registered,
+    OrdinaryBody(usize),
+}
+
+#[cfg(test)]
+fn is_available(
     program: &TypedTrees,
     facts: &CheckFacts,
     candidates: &[CheckedUnitEffectMachinePlan],
     caller: &CheckedUnitEffectMachinePlan,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> bool {
+    available_target(program, facts, candidates, caller, operation).is_some()
+}
+
+pub(super) fn available_target(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    candidates: &[CheckedUnitEffectMachinePlan],
+    caller: &CheckedUnitEffectMachinePlan,
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Option<AvailableScalarTarget> {
     let CheckedUnitEffectOperationPlan::ScalarCall {
         result,
         target_machine,
@@ -141,7 +159,7 @@ pub(super) fn is_available(
         ..
     } = operation
     else {
-        return false;
+        return None;
     };
     if let Some(graph) = facts
         .flow
@@ -152,36 +170,31 @@ pub(super) fn is_available(
             .first()
             .is_some_and(|state| state.structural_parameters.is_empty())
     {
-        return structural_arguments.is_empty() && claim_transfers.is_empty();
+        return (structural_arguments.is_empty() && claim_transfers.is_empty())
+            .then_some(AvailableScalarTarget::Registered);
     }
-    let Some(machine) = program
+    let machine = program
         .machines()
         .iter()
-        .find(|machine| machine.symbol == *target_machine)
-    else {
-        return false;
-    };
+        .find(|machine| machine.symbol == *target_machine)?;
     let [state] = program.machine_states(machine) else {
-        return false;
+        return None;
     };
-    let Some(contract) = facts.contract_plans.for_machine(*target_machine) else {
-        return false;
-    };
+    let contract = facts.contract_plans.for_machine(*target_machine)?;
+    let mut availability = AvailableScalarTarget::Registered;
     let (structural, scalar, claims, result_type) = if facts
         .flow
         .terminal_scalar_graphs
         .for_machine(*target_machine)
         .is_some()
     {
-        let Some(plan) = registered_structural_graph_target(
+        let plan = registered_structural_graph_target(
             program,
             facts,
             *target_machine,
             *target_state,
             result.primitive_type,
-        ) else {
-            return false;
-        };
+        )?;
         (
             &plan.structural_parameters,
             &plan.scalar_parameters,
@@ -195,15 +208,13 @@ pub(super) fn is_available(
         .iter()
         .any(|plan| plan.machine == *target_machine)
     {
-        let Some(plan) = registered_primitive_store_target(
+        let plan = registered_primitive_store_target(
             program,
             facts,
             *target_machine,
             *target_state,
             result.primitive_type,
-        ) else {
-            return false;
-        };
+        )?;
         (
             &plan.structural_parameters,
             &plan.scalar_parameters,
@@ -223,11 +234,9 @@ pub(super) fn is_available(
             .machines
             .iter()
             .filter(|plan| plan.machine == *target_machine);
-        let Some(plan) = targets.next() else {
-            return false;
-        };
+        let plan = targets.next()?;
         if targets.next().is_some() || plan.state != *target_state {
-            return false;
+            return None;
         }
         let mut shapes = ShapeCollector::new(program);
         let binders = machine_binders(program, machine);
@@ -237,9 +246,7 @@ pub(super) fn is_available(
         } else {
             structural_scalar_signature(program, &mut shapes, machine, state, &binders, false)
         };
-        let Some((attachment, structural, scalar)) = signature else {
-            return false;
-        };
+        let (attachment, structural, scalar) = signature?;
         // Dependency pruning must recognize the scheduled final expression as
         // well as a direct call result. Both retain one exact completion owner;
         // otherwise an ordered helper disappears only when another helper calls it.
@@ -247,7 +254,7 @@ pub(super) fn is_available(
             || structural != plan.structural_parameters
             || scalar != plan.scalar_parameters
         {
-            return false;
+            return None;
         }
         (
             &plan.structural_parameters,
@@ -256,19 +263,20 @@ pub(super) fn is_available(
             plan.result_type,
         )
     } else {
-        // Availability borrows the complete ordinary bodies from this pruning
-        // pass. A scalar completion does not turn its ordered operations into
+        // Availability borrows the complete immutable ordinary body roster.
+        // The returned ordinal carries its transitive pruning dependency.
+        // A scalar completion does not turn its ordered operations into
         // a graph, nor allow a caller to forget their transitive dependencies.
         let mut targets = candidates
             .iter()
-            .filter(|plan| plan.machine == *target_machine);
-        let Some(plan) = targets.next() else {
-            return false;
-        };
+            .enumerate()
+            .filter(|(_, plan)| plan.machine == *target_machine);
+        let (candidate_index, plan) = targets.next()?;
+        availability = AvailableScalarTarget::OrdinaryBody(candidate_index);
         let primitive_type = match (&plan.scalar_result, &plan.scalar_control) {
             (Some(completion), None) => completion.primitive_type,
             (None, Some(completion)) => completion.primitive_type,
-            _ => return false,
+            _ => return None,
         };
         if plan.scalar_control.as_ref().is_some_and(|completion| {
             super::control::statement_sequence::scalar_control(program, facts, machine, state)
@@ -276,7 +284,7 @@ pub(super) fn is_available(
                 .map(|(expected, _)| expected)
                 != Some(completion)
         }) {
-            return false;
+            return None;
         }
         if targets.next().is_some()
             || plan.state != *target_state
@@ -302,7 +310,7 @@ pub(super) fn is_available(
                 TypeReferenceNode::Constrained { .. }
             )
         {
-            return false;
+            return None;
         }
         let mut shapes = ShapeCollector::new(program);
         let binders = machine_binders(program, machine);
@@ -322,9 +330,7 @@ pub(super) fn is_available(
             )
             .map(|(attachment, structural, scalar)| (Some(attachment), structural, scalar))
         };
-        let Some((attachment, structural, scalar)) = signature else {
-            return false;
-        };
+        let (attachment, structural, scalar) = signature?;
         if attachment != plan.attachment_type_identity
             || structural != plan.structural_parameters
             || scalar != plan.scalar_parameters
@@ -343,7 +349,7 @@ pub(super) fn is_available(
                     != 1
             })
         {
-            return false;
+            return None;
         }
         (
             &plan.structural_parameters,
@@ -365,7 +371,7 @@ pub(super) fn is_available(
             transfer.argument_index != claim.parameter_index || claim.carry != CarryPolicy::STRICT
         })
     {
-        return false;
+        return None;
     }
     if entry_claims(
         program,
@@ -378,11 +384,9 @@ pub(super) fn is_available(
     .as_deref()
         != Some(claims)
     {
-        return false;
+        return None;
     }
-    let Some(flow) = state_flow(facts, caller.machine, caller.state) else {
-        return false;
-    };
+    let flow = state_flow(facts, caller.machine, caller.state)?;
     let mut calls = facts
         .flow
         .control
@@ -393,9 +397,7 @@ pub(super) fn is_available(
             u32::try_from(call.statement_index).ok() == Some(coordinate.statement_index)
                 && u32::try_from(call.call_ordinal).ok() == Some(coordinate.call_ordinal)
         });
-    let Some(call) = calls.next() else {
-        return false;
-    };
+    let call = calls.next()?;
     if calls.next().is_some()
         || call_claim_transfers(
             facts,
@@ -410,11 +412,11 @@ pub(super) fn is_available(
         .as_ref()
             != Some(claim_transfers)
     {
-        return false;
+        return None;
     }
     // Authored positions partition into dense scalar and structural namespaces;
     // no receiver or claim may disappear while selecting the real callee body.
-    machine.supply_mode == MachineSupplyMode::CheckedBody
+    (machine.supply_mode == MachineSupplyMode::CheckedBody
         && state.symbol == *target_state
         && program.state_parameters(state).len() == scalar.len() + structural.len()
         && scalar_arguments.len() == scalar.len()
@@ -439,5 +441,6 @@ pub(super) fn is_available(
         && result_type == result.primitive_type
         && program.primitive_type_reference(state.return_type) == Some(result_type)
         && contract.report_fingerprint == *target_contract_report_fingerprint
-        && contract.commitment == *target_contract_commitment
+        && contract.commitment == *target_contract_commitment)
+        .then_some(availability)
 }
