@@ -3,23 +3,29 @@ use optimization_core::{Optimization, OptimizationSelections};
 
 #[test]
 fn retired_physical_rewrites_reject_instead_of_selecting_another_emitter() {
-    for (optimization, phase) in [
-        (
-            Optimization::SelectedIncomingU12ExactAddImmediate,
-            OptimizationExecutionPhase::SelectedLowering,
-        ),
-        (
-            Optimization::X86SelectXorZeroI64MaterializationV1,
-            OptimizationExecutionPhase::PostAllocationMachine,
-        ),
+    let selections = PostTerminalOptimizationSelections::new(
+        OptimizationSelections::new([Optimization::X86SelectXorZeroI64MaterializationV1]).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        matches!(validate_physical_selections(&selections, target::Architecture::X86_64),
+        Err(OptimizedVerifiedPhysicalPipelineError::UnconsumedPostTerminalPhase(actual)) if actual == OptimizationExecutionPhase::PostAllocationMachine)
+    );
+}
+
+#[test]
+fn selected_lowering_catalog_selections_pass_the_physical_gate() {
+    for optimization in [
+        Optimization::SelectedIncomingU12ExactAddImmediate,
+        Optimization::SelectedIncomingU12ExactSubtractImmediate,
+        Optimization::SelectedIncomingU12CompareImmediate,
     ] {
         let selections = PostTerminalOptimizationSelections::new(
             OptimizationSelections::new([optimization]).unwrap(),
         )
         .unwrap();
-        assert!(
-            matches!(validate_physical_selections(&selections, target::Architecture::X86_64),
-            Err(OptimizedVerifiedPhysicalPipelineError::UnconsumedPostTerminalPhase(actual)) if actual == phase)
+        validate_physical_selections(&selections, target::Architecture::X86_64).unwrap_or_else(
+            |error| panic!("{optimization:?} must pass the physical gate: {error:?}"),
         );
     }
 }
