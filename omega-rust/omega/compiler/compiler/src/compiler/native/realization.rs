@@ -31,12 +31,13 @@ pub(super) fn prepare_terminal_artifact(
     admission: &super::admission::NativeCompilationAdmission,
     optimization_selections: &OptimizationSelections,
 ) -> Result<PreparedTerminalNativeArtifact, Vec<Diagnostic>> {
-    let entry_machine = admission.program_entry.machine_name().to_owned();
     let psi_optimizations = optimization_selections.project_psi();
     let terminal_trees = checked.terminal_production_trees();
     let produced = terminal_production::TerminalProductionRequest {
         checked: terminal_trees,
-        machine_name: &entry_machine,
+        machine: terminal_production::TerminalMachineSelection::Symbol(
+            admission.program_entry.source_signature().machine_symbol(),
+        ),
         optimization_selections: psi_optimizations.selections().clone(),
     }
     .produce_program_entry(

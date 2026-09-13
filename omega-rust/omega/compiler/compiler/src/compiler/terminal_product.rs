@@ -55,14 +55,18 @@ pub(super) fn produce_retained_terminal_artifact(
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<compilation_report::RetainedTerminalArtifact, Vec<Diagnostic>> {
     let callback_placements = checked.callback_placements().to_vec();
-    let entry_machine = checked
-        .selected_program_entry_machine()
+    // The selected entry rejoins Terminal production by its exact checked
+    // machine symbol: the build product operand's lexical package choice must
+    // survive a same-named declaration in another package.
+    let entry_machine_symbol = checked
+        .selected_program_entry()
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "terminal-artifact production requires one exact selected program entry",
             )]
         })?
-        .to_owned();
+        .source_signature()
+        .machine_symbol();
     selected_dispatch::validate_selected_operator_terminal_custody(
         checked,
         checked.selected_provider_plans(),
@@ -75,7 +79,7 @@ pub(super) fn produce_retained_terminal_artifact(
     let terminal_trees = checked.terminal_production_trees();
     let produced = terminal_production::TerminalProductionRequest {
         checked: terminal_trees,
-        machine_name: &entry_machine,
+        machine: terminal_production::TerminalMachineSelection::Symbol(entry_machine_symbol),
         optimization_selections: psi_optimizations.selections().clone(),
     }
     .produce_with_callback_custody(callback_placements)

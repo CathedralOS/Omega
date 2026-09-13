@@ -130,6 +130,26 @@ pub fn select_terminal_machine<'checked>(
     Ok(selection)
 }
 
+/// Rejoin an already-selected machine by its exact checked symbol instead of
+/// its qualified display name. Lexically resolved build product operands carry
+/// the exact symbol so a same-named machine in another package cannot capture
+/// this production.
+pub fn select_terminal_machine_by_symbol<'checked>(
+    checked: &'checked CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<&'checked CheckedTerminalMachineSelection, LoweringError> {
+    checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find(|selection| selection.machine == machine)
+        .ok_or_else(|| {
+            LoweringError::MachineNotFound(checked.typed.symbols.display_path(machine, "::"))
+        })
+}
+
 fn routed_machine(
     terminal: Result<LoweredPsi, LoweringError>,
     route: SelectedMachineRoute,

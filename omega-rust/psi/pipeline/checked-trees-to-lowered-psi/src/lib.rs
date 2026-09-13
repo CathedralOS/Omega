@@ -187,8 +187,8 @@ pub use float_meaning_projection::{
     FloatMeaningProjectionLoweringError, lower_float_meaning_equality,
     lower_float_meaning_projection,
 };
-pub use machine_dispatch::select_terminal_machine;
 use machine_dispatch::{LoweredSelectedMachine, SelectedMachineRoute, lower_selected_machine};
+pub use machine_dispatch::{select_terminal_machine, select_terminal_machine_by_symbol};
 use operation_emission::{
     emit_boolean_expression, emit_direct_expression, emit_scalar_binding,
     emit_staged_scalar_call_binding, finalize_operation_proofs,
@@ -1071,6 +1071,29 @@ pub fn lower_machine(
     checked: &CheckedTrees,
     machine_name: &str,
 ) -> Result<LoweredPsi, LoweringError> {
+    let selection = select_terminal_machine(checked, machine_name)?;
+    lower_terminal_selection(checked, selection)
+}
+
+/// Lower the machine whose exact checked symbol was selected upstream.
+///
+/// Build product operands resolve their implementation lexically and retain
+/// the exact machine symbol, so production must rejoin that symbol rather than
+/// a qualified name another package could also declare. This entry point
+/// shares every post-selection obligation with [`lower_machine`]; only the
+/// lookup key differs.
+pub fn lower_machine_by_symbol(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<LoweredPsi, LoweringError> {
+    let selection = select_terminal_machine_by_symbol(checked, machine)?;
+    lower_terminal_selection(checked, selection)
+}
+
+fn lower_terminal_selection(
+    checked: &CheckedTrees,
+    selection: &checked_trees::CheckedTerminalMachineSelection,
+) -> Result<LoweredPsi, LoweringError> {
     if checked
         .facts
         .operators
@@ -1079,7 +1102,6 @@ pub fn lower_machine(
         return unsupported("selected operator crash invocations have no Terminal replay support");
     }
     attached_unit::validate_direct_unit_parameter_custody(checked)?;
-    let selection = select_terminal_machine(checked, machine_name)?;
     let exact_guarded_payloadless = checked
         .facts
         .flow
