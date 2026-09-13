@@ -1066,6 +1066,16 @@ Owners include
   and reset only after full return under the
   [allocation contract](wiki/spec/resources/allocation.md). Use it to discover the real `Vec<T>`
   contract; do not add allocator semantics to the compiler.
+  Landed at 4d45081529: `tests/omega/pass/memory/bump_allocator_canary` checks
+  two coexisting allocations and full-return recomposition over a package
+  `ExtentPartition` boundary (Linux x86-64,
+  `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canaries_compile`).
+  Discovered contract gaps, recorded in the canary header: a record returned by
+  an ordinary machine does not carry its fields' `in Granted` facts to the
+  caller, an ordinary machine cannot restate a boundary's `separate` law as its
+  own `ensures`, and multi-input recomposition is admitted only through one
+  record parameter. Next acceptance: chain `allocate`/`reset` as ordinary
+  package machines with conserved custody, then a `Vec<T>` over that chain.
 
 - **ADDRESS-TRANSLATION-CANARY.** Continue Cathedral's page-table hierarchy,
   backing, policy, installation, and teardown in Omega source. Existing numeric
