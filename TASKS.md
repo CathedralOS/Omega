@@ -569,8 +569,23 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   deterministic snapshot reads, fresh append-and-seal staging, linear required
   outputs, and direct artifact-only discovery. Define exact facet signatures and
   protocol tags; no live-host grant extension or persistent writable cache.
-  Acceptance: an ordinary generator reads a template and completes a required
-  file; artifact-only and executable-with-companion routes both work. Exercise
+  `CheckedCompileRequest.build_snapshot` now binds a
+  `package_compilation::capture_package_source_input` inventory (one coherent
+  traversal producing both the canonical metadata index and retained bytes) to
+  the occurrence: admission materializes a fresh sealed private snapshot as the
+  Source grant root, `verify_required_outputs` enforces the declared roster
+  linearly against sealed staged-output custody before generated-source
+  selection, and the observation records `BuildCapturedSourceInventory` extent
+  evidence (schema 76). `compiler/tests/build_config_granted.rs` exercises a
+  package build reading a template through the snapshot and completing a
+  required file, plus an omitted-required rejection, on macOS. Remaining:
+  `builder.output.require`/`complete`/`fail` facet obligations and
+  `artifact_only()` root declaration, negative-lookup/ordering/metadata and
+  symlink/substitution escape cases, retry-after-failed-completion and
+  cross-occurrence receipt custody, interruption without a committed set,
+  Windows host coverage, and the retained-state measurement. Acceptance: an
+  ordinary generator reads a template and completes a required file;
+  artifact-only and executable-with-companion routes both work. Exercise
   negative lookups, ordering/metadata, symlink and substitution escapes, sealed
   mutation, cross-occurrence receipts, failed completion/retry, omitted required
   members, interruption, and final-check failure without a partial committed set.

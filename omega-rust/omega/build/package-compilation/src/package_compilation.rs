@@ -1169,7 +1169,7 @@ fn append_overlapping_source_roots(
     );
 }
 
-fn canonical_source_root(path: &Path) -> Result<PathBuf, String> {
+pub(super) fn canonical_source_root(path: &Path) -> Result<PathBuf, String> {
     let metadata = std::fs::symlink_metadata(path)
         .map_err(|error| format!("cannot inspect source root: {error}"))?;
     if metadata.file_type().is_symlink() {

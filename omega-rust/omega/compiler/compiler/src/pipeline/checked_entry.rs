@@ -32,6 +32,11 @@ pub struct CheckedCompileRequest<'a> {
     /// Compiler-owned replay whose authored inputs and complete event stream must match.
     /// Replaying this record grants no host filesystem authority.
     pub replay_record: Option<super::ReviewOnlyBuildFilesystemReplayRecord>,
+    /// When present, the build occurrence executes against a captured
+    /// immutable source snapshot and must complete each required output as a
+    /// sealed regular file before its result may publish. Mutually exclusive
+    /// with `replay_record`.
+    pub build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     /// Optional destination for target-independent source preparation. Cleared
     /// before validation and populated only after successful checking. Retention
     /// copies parsed storage for this child; a later child can consume the result.
@@ -49,6 +54,7 @@ impl<'a> CheckedCompileRequest<'a> {
             filesystem_sponsor: None,
             evaluation_sponsor: None,
             replay_record: None,
+            build_snapshot: None,
             prepared_source_output: None,
         }
     }
@@ -71,6 +77,7 @@ impl<'a> CheckedCompileRequest<'a> {
                 filesystem_sponsor: self.filesystem_sponsor,
                 evaluation_sponsor: self.evaluation_sponsor,
                 replay_record: self.replay_record,
+                build_snapshot: self.build_snapshot,
                 prepared_source_output: None,
             },
             output,
@@ -101,6 +108,7 @@ struct CheckedChildExecution<'a> {
     filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
     evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
     replay_record: Option<&'a super::ReviewOnlyBuildFilesystemReplayRecord>,
+    build_snapshot: Option<&'a build_evaluation::BuildSnapshotRequest>,
 }
 
 impl CheckedChildExecution<'_> {
@@ -113,6 +121,7 @@ impl CheckedChildExecution<'_> {
             filesystem_sponsor: None,
             evaluation_sponsor: None,
             replay_record: None,
+            build_snapshot: None,
         }
     }
 }
@@ -149,6 +158,7 @@ impl PreparedCheckedSource {
             filesystem_sponsor: request.filesystem_sponsor,
             evaluation_sponsor: request.evaluation_sponsor,
             replay_record: request.replay_record.as_ref(),
+            build_snapshot: request.build_snapshot.as_ref(),
         })
     }
 
@@ -206,6 +216,7 @@ impl PreparedCheckedSource {
             filesystem_sponsor: None,
             evaluation_sponsor: None,
             replay_record: None,
+            build_snapshot: None,
         })
     }
 

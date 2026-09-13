@@ -2,9 +2,14 @@
 
 //! Retained build-output custody, canonical identity, and materialization.
 
+mod captured_source;
 mod replayed_directories;
 mod replayed_tree;
 
+pub use captured_source::{
+    CapturedBuildSourceInput, CapturedSourceEntry, CapturedSourceEntryKind, CapturedSourceEntryRef,
+    CapturedSourceFile, CapturedSourceMaterializationError, discard_materialized_snapshot,
+};
 pub use replayed_directories::replayed_empty_directories;
 pub use replayed_tree::{ReplayedBuildOutputEntry, replayed_output_tree};
 
@@ -119,6 +124,68 @@ impl BuildStagedOutputTree {
         destination: impl AsRef<Path>,
     ) -> Result<BuildStagedOutputTreeCommitment, BuildStagedOutputMaterializationError> {
         materialize_retained_tree(self, destination.as_ref())
+    }
+
+    /// Directly enumerate the retained sealed entries in canonical
+    /// unsigned-byte order. This is the artifact-only discovery surface: every
+    /// completed output is reachable here without a live host or a second
+    /// manifest.
+    pub fn entries(&self) -> impl ExactSizeIterator<Item = BuildStagedOutputEntry<'_>> {
+        self.entries.iter().map(|entry| {
+            let kind = match &entry.kind {
+                RetainedStagedOutputEntryKind::Directory => BuildStagedOutputEntryKind::Directory,
+                RetainedStagedOutputEntryKind::File { bytes, executable } => {
+                    BuildStagedOutputEntryKind::File {
+                        bytes: bytes.as_ref(),
+                        executable: *executable,
+                    }
+                }
+                RetainedStagedOutputEntryKind::Symlink { target } => {
+                    BuildStagedOutputEntryKind::Symlink {
+                        target: target.as_slice(),
+                    }
+                }
+            };
+            BuildStagedOutputEntry {
+                relative_path: entry.relative_path.as_slice(),
+                kind,
+            }
+        })
+    }
+
+    /// Look up one sealed entry by its canonical slash-separated relative
+    /// path. The lookup is exact: no component is normalized, resolved, or
+    /// followed as a link.
+    pub fn sealed_entry(&self, relative_path: &[u8]) -> Option<BuildStagedOutputEntry<'_>> {
+        self.entries()
+            .find(|entry| entry.relative_path == relative_path)
+    }
+}
+
+/// Logical kind view of one sealed staged-output entry. File bytes are the
+/// retained sealed content; symlink targets are inert captured spellings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildStagedOutputEntryKind<'a> {
+    Directory,
+    File { bytes: &'a [u8], executable: bool },
+    Symlink { target: &'a [u8] },
+}
+
+/// Borrowed view of one sealed staged-output entry and its canonical
+/// relative path.
+#[derive(Debug, Clone, Copy)]
+pub struct BuildStagedOutputEntry<'a> {
+    relative_path: &'a [u8],
+    kind: BuildStagedOutputEntryKind<'a>,
+}
+
+impl<'a> BuildStagedOutputEntry<'a> {
+    pub fn relative_path(&self) -> &'a [u8] {
+        self.relative_path
+    }
+
+    pub const fn kind(&self) -> BuildStagedOutputEntryKind<'a> {
+        self.kind
     }
 }
 
