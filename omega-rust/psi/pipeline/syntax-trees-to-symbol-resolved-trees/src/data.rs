@@ -292,6 +292,16 @@ pub(crate) fn lower_type_parameters(
                 },
                 None,
             ),
+            syntax::item::TypeParameterKind::Value { type_reference } => (
+                TypeParameterKind::Value {
+                    type_reference: lower_type_reference_handle(
+                        lowerer,
+                        syntax_trees,
+                        *type_reference,
+                    )?,
+                },
+                None,
+            ),
             syntax::item::TypeParameterKind::Machine { contract } => {
                 let contract = contract.as_ref().ok_or_else(|| {
                     Diagnostic::error(format!(

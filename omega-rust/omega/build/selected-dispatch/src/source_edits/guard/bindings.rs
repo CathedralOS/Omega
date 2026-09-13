@@ -378,7 +378,8 @@ fn static_parameter(
 ) -> Result<(), Vec<Diagnostic>> {
     match &parameter.kind {
         TypeParameterKind::Type => {}
-        TypeParameterKind::Const { type_reference } => builder.type_reference(*type_reference)?,
+        TypeParameterKind::Const { type_reference }
+        | TypeParameterKind::Value { type_reference } => builder.type_reference(*type_reference)?,
         TypeParameterKind::Machine { contract } => match contract {
             MachineParameterContract::RequirementIdentity => {}
             MachineParameterContract::Nominal {

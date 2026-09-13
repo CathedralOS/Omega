@@ -180,6 +180,11 @@ pub(crate) fn lower_type_parameter_kind(
                 type_reference: lower_type_reference_into_table(lowerer, type_reference)?,
             })
         }
+        resolved::data::TypeParameterKind::Value { type_reference } => {
+            Ok(typed::data::TypeParameterKind::Value {
+                type_reference: lower_type_reference_into_table(lowerer, type_reference)?,
+            })
+        }
         resolved::data::TypeParameterKind::Machine { contract } => {
             let contract = match contract {
                 resolved::data::MachineParameterContract::RequirementIdentity => {

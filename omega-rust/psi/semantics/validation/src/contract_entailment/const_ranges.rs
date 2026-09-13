@@ -31,6 +31,7 @@ fn binder<'program>(
     parameters.iter().find(|parameter| {
         parameter.symbol == path.symbol
             && matches!(parameter.kind, TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference }
                 if program.primitive_type_reference(type_reference)
                     .is_some_and(|primitive| primitive.accepts_integer_literal()))
     })
@@ -151,7 +152,8 @@ fn scope_engine<'program>(
     let mut bindings = Vec::new();
     let mut premises = Vec::new();
     for parameter in program.machine_type_parameters(machine) {
-        if let TypeParameterKind::Const { type_reference } = parameter.kind
+        if let TypeParameterKind::Const { type_reference }
+        | TypeParameterKind::Value { type_reference } = parameter.kind
             && let Some(primitive) = program.primitive_type_reference(type_reference)
             && primitive.accepts_integer_literal()
         {
@@ -387,7 +389,10 @@ fn static_const_value(
                 .iter()
                 .any(|parameter| {
                     parameter.symbol == argument.symbol
-                        && matches!(parameter.kind, TypeParameterKind::Const { .. })
+                        && matches!(
+                            parameter.kind,
+                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                        )
                 }))
         .then_some(None);
     }
@@ -398,7 +403,8 @@ fn static_const_value(
         .machine_type_parameters(caller)
         .iter()
         .find(|parameter| argument.symbol.is_valid() && parameter.symbol == argument.symbol)
-        && let TypeParameterKind::Const { type_reference } = parameter.kind
+        && let TypeParameterKind::Const { type_reference }
+        | TypeParameterKind::Value { type_reference } = parameter.kind
     {
         return Some(
             program
@@ -420,7 +426,10 @@ fn static_const_value(
                 .iter()
                 .any(|parameter| {
                     parameter.symbol == argument.symbol
-                        && matches!(parameter.kind, TypeParameterKind::Const { .. })
+                        && matches!(
+                            parameter.kind,
+                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                        )
                 })
         })
     {
@@ -476,7 +485,12 @@ fn call_bindings(
     let parameters = program
         .machine_type_parameters(callee)
         .iter()
-        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+            )
+        })
         .collect::<Vec<_>>();
     let mut bindings = Vec::new();
     let mut fixed = Vec::new();
@@ -487,12 +501,14 @@ fn call_bindings(
             fixed.push(parameter.symbol);
             if let Some(value) = value {
                 if !matches!(parameter.kind, TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference }
                     if program.primitive_type_reference(type_reference).is_some_and(|primitive| primitive.accepts_integer_literal()))
                 {
                     return None;
                 }
                 bindings.push((parameter.symbol, value));
             } else if matches!(parameter.kind, TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference }
                 if program.primitive_type_reference(type_reference).is_some_and(|primitive| primitive.accepts_integer_literal()))
             {
                 return None;
@@ -568,8 +584,14 @@ fn call_bindings(
                         let (
                             TypeParameterKind::Const {
                                 type_reference: required_type,
+                            }
+                            | TypeParameterKind::Value {
+                                type_reference: required_type,
                             },
                             TypeParameterKind::Const {
+                                type_reference: actual_type,
+                            }
+                            | TypeParameterKind::Value {
                                 type_reference: actual_type,
                             },
                         ) = (&required.kind, &actual.kind)

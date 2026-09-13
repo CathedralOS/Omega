@@ -268,7 +268,7 @@ pub(super) fn validate_static_application(
                 validate_closed_type_argument(program, argument, position)?;
                 RepresentativeStaticBindingKind::Type
             }
-            TypeParameterKind::Const { .. } => {
+            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                 if argument.const_literal.is_none()
                     || argument.symbol.is_valid()
                     || argument.application.is_some()

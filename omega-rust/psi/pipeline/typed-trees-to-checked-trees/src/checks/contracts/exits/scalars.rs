@@ -196,7 +196,8 @@ impl ExitScalars<'_, '_> {
             .machine_type_parameters(self.machine)
             .iter()
             .find(|parameter| parameter.symbol == path.symbol)
-            && let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            && let typed_trees::data::TypeParameterKind::Const { type_reference }
+            | typed_trees::data::TypeParameterKind::Value { type_reference } = parameter.kind
         {
             let primitive = self.program.primitive_type_reference(type_reference);
             if !primitive.is_some_and(|primitive| {

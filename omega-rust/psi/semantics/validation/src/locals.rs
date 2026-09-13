@@ -183,7 +183,10 @@ pub(crate) fn state_value_root_is_known(
         .iter()
         .any(|parameter| {
             parameter.name.as_str() == name
-                && matches!(&parameter.kind, TypeParameterKind::Const { .. })
+                && matches!(
+                    &parameter.kind,
+                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                )
         })
     {
         return true;
@@ -196,7 +199,10 @@ pub(crate) fn state_value_root_is_known(
                     .iter()
                     .any(|parameter| {
                         parameter.name.as_str() == name
-                            && matches!(&parameter.kind, TypeParameterKind::Const { .. })
+                            && matches!(
+                                &parameter.kind,
+                                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                            )
                     })
         })
     {

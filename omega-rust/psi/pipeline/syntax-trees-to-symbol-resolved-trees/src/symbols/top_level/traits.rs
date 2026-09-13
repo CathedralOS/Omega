@@ -127,6 +127,17 @@ pub(super) fn assign_trait_symbols(
                     );
                     symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
                 }
+                symbol_resolved_trees::data::TypeParameterKind::Value { mut type_reference } => {
+                    assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                        symbols,
+                        child_type_references,
+                        type_constraints,
+                        &local_type_parameters,
+                        trait_symbol,
+                        &mut type_reference,
+                    );
+                    symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
+                }
                 symbol_resolved_trees::data::TypeParameterKind::Proposition { mut contract } => {
                     assign_proposition_parameter_signature_symbols(
                         symbols,

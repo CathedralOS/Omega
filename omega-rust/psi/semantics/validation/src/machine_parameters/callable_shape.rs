@@ -475,6 +475,14 @@ fn validate_callable_type_parameters(
                 TypeParameterKind::Const {
                     type_reference: actual_type,
                 },
+            )
+            | (
+                TypeParameterKind::Value {
+                    type_reference: required_type,
+                },
+                TypeParameterKind::Value {
+                    type_reference: actual_type,
+                },
             ) => {
                 if !required_type_matches(
                     program,

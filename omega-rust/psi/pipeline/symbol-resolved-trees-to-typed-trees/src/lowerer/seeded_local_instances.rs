@@ -354,7 +354,8 @@ pub(super) fn template_argument_is_supported(
                 _ => false,
             }
         }
-        symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
+        symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+        | symbol_resolved_trees::data::TypeParameterKind::Value { .. } => {
             const_arguments::template_argument_is_supported(
                 source,
                 owner,
@@ -403,7 +404,8 @@ fn instance_argument_is_supported(
             }
             _ => false,
         },
-        symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
+        symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+        | symbol_resolved_trees::data::TypeParameterKind::Value { .. } => {
             const_arguments::closed_argument_is_supported(source, parameter, argument)
         }
         symbol_resolved_trees::data::TypeParameterKind::Machine { .. }

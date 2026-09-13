@@ -234,7 +234,8 @@ pub fn declared_place_type_raw(
             .machine_type_parameters(current_machine)
             .iter()
             .find(|parameter| parameter.symbol == path.symbol)
-        && let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+        && let typed_trees::data::TypeParameterKind::Const { type_reference }
+        | typed_trees::data::TypeParameterKind::Value { type_reference } = parameter.kind
     {
         // Static binders are immutable values of their declared carrier even
         // before specialization. This type query grants no writable place.

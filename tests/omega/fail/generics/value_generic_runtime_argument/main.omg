@@ -1,0 +1,12 @@
+// A runtime-capable value binder `Count: u32` admits only statically known
+// arguments until dynamic realization exists; a runtime local must reject
+// with the dedicated diagnostic rather than the generic specialization one.
+
+machine prefix_count<Count: u32>(base: u32) -> u32 {
+    Count
+}
+
+machine Main::main(&mut self) {
+    let n: u32 = 3;
+    let total: u32 = prefix_count<n>(7);
+}

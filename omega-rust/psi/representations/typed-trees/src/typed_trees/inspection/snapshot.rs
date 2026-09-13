@@ -1234,11 +1234,13 @@ fn domain_definition_snapshot(
                 kind: match parameter.kind {
                     crate::data::TypeParameterKind::Type => "type",
                     crate::data::TypeParameterKind::Const { .. } => "const",
+                    crate::data::TypeParameterKind::Value { .. } => "value",
                     crate::data::TypeParameterKind::Machine { .. } => "machine",
                     crate::data::TypeParameterKind::Proposition { .. } => "proposition",
                 },
                 const_type: match parameter.kind {
-                    crate::data::TypeParameterKind::Const { type_reference } => {
+                    crate::data::TypeParameterKind::Const { type_reference }
+                    | crate::data::TypeParameterKind::Value { type_reference } => {
                         Some(type_reference_snapshot(program, type_reference))
                     }
                     crate::data::TypeParameterKind::Type

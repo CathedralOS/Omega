@@ -243,6 +243,17 @@ pub(super) fn assign_machine_parameter_signature_symbols(
                 );
                 TypeParameterKind::Const { type_reference }
             }
+            TypeParameterKind::Value { mut type_reference } => {
+                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                    symbols,
+                    child_type_references,
+                    type_constraints,
+                    &local_type_parameters,
+                    self_symbol,
+                    &mut type_reference,
+                );
+                TypeParameterKind::Value { type_reference }
+            }
             TypeParameterKind::Machine { mut contract } => {
                 if let Some(signature) = contract.structural_mut() {
                     assign_machine_parameter_signature_symbols(

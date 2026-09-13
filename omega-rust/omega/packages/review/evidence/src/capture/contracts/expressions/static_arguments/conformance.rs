@@ -143,6 +143,7 @@ pub(super) fn project_contract_conformance_application(
             matches!(
                 parameter.kind,
                 typed_trees::data::TypeParameterKind::Const { .. }
+                    | typed_trees::data::TypeParameterKind::Value { .. }
             )
         })
         .count();
@@ -153,7 +154,8 @@ pub(super) fn project_contract_conformance_application(
             .zip(supplied)
             .any(|(parameter, argument)| match parameter.kind {
                 typed_trees::data::TypeParameterKind::Type => false,
-                typed_trees::data::TypeParameterKind::Const { .. } => {
+                typed_trees::data::TypeParameterKind::Const { .. }
+                | typed_trees::data::TypeParameterKind::Value { .. } => {
                     argument.const_literal.is_none()
                         && !binders.iter().any(|(symbol, _)| {
                             *symbol == argument.symbol

@@ -439,6 +439,12 @@ pub enum TypeParameterKind {
     Const {
         type_reference: crate::types::TypeReferenceHandle,
     },
+    /// A runtime-capable value binder (`Count: u32`, no `const` keyword).
+    /// Unlike `Const` it may be supplied at runtime; the dynamic realization
+    /// path is not implemented yet, so only static arguments specialize.
+    Value {
+        type_reference: crate::types::TypeReferenceHandle,
+    },
     /// A compile-time machine-symbol parameter. The authored `where machine`
     /// requirement is mandatory and stored with the parameter rather than
     /// inferred from uses or instantiations. `None` exists only while the

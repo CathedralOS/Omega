@@ -323,7 +323,7 @@ fn collect_closed_conformance_applications(
                         type_index += 1;
                         (ClosedConformanceParameterKind::Type, argument)
                     }
-                    TypeParameterKind::Const { .. } => {
+                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                         let argument = match application.const_arguments.get(const_index) {
                             Some(ClosedConformanceConstArgument::Evaluated { value, .. }) => Some(
                                 language_semantics::const_value::CanonicalConstValue::new(

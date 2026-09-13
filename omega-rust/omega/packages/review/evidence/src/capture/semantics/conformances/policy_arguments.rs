@@ -25,7 +25,11 @@ pub(super) fn argument_type_reference(
         return Err(rejected("an unsupported or over-deep static argument"));
     }
     if let Some(literal) = &argument.const_literal {
-        if !matches!(kind, TypeParameterKind::Const { .. }) || argument.application.is_some() {
+        if !matches!(
+            kind,
+            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+        ) || argument.application.is_some()
+        {
             return Err(rejected("a const literal outside its exact telescope slot"));
         }
         return Ok(compilation
@@ -80,7 +84,9 @@ pub(super) fn argument_type_reference(
     }
     let symbol_kind = compilation.symbols.get(argument.symbol).kind;
     match kind {
-        TypeParameterKind::Const { .. } if symbol_kind == SymbolKind::Const => {
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+            if symbol_kind == SymbolKind::Const =>
+        {
             let declaration = compilation
                 .const_declarations()
                 .iter()
@@ -120,7 +126,8 @@ pub(super) fn argument_type_reference(
                 symbol_kind,
                 SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
             ) => {}
-        TypeParameterKind::Const { .. } if symbol_kind == SymbolKind::TypeParameter => {}
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+            if symbol_kind == SymbolKind::TypeParameter => {}
         TypeParameterKind::Machine { .. }
             if matches!(
                 symbol_kind,

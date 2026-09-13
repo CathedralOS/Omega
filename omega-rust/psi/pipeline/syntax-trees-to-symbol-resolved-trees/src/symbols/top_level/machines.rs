@@ -178,6 +178,19 @@ pub(super) fn assign_machine_symbols(
                     );
                     symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
                 }
+                symbol_resolved_trees::data::TypeParameterKind::Value {
+                    mut type_reference,
+                } => {
+                    assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                        symbols,
+                        child_type_references,
+                        type_constraints,
+                        &local_type_parameters,
+                        machine_symbol,
+                        &mut type_reference,
+                    );
+                    symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
+                }
                 symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
                     if let Some(signature) = contract.structural_mut() {
                         assign_machine_parameter_signature_symbols(

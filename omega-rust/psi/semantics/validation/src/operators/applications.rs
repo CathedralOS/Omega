@@ -100,6 +100,9 @@ pub fn canonical_closed_operator_realization_bytes(
                 (
                     TypeParameterKind::Const {
                         type_reference: expected_carrier,
+                    }
+                    | TypeParameterKind::Value {
+                        type_reference: expected_carrier,
                     },
                     ClosedOperatorApplicationArgument::Const {
                         binder_symbol,
@@ -594,7 +597,8 @@ pub fn validate_closed_operator_application(
                 }
             }
             (
-                TypeParameterKind::Const { type_reference },
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference },
                 ClosedOperatorApplicationArgument::Const {
                     binder_symbol,
                     declared_carrier,

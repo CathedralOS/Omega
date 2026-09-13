@@ -363,9 +363,11 @@ fn validate_indexed_domain_argument_pack(
             continue;
         }
         let binder = scope.type_parameters.iter().find(|candidate| {
-            matches!(candidate.kind, TypeParameterKind::Const { .. })
-                && ((symbol.is_valid() && candidate.symbol == *symbol)
-                    || candidate.name.as_str() == name.as_str())
+            matches!(
+                candidate.kind,
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+            ) && ((symbol.is_valid() && candidate.symbol == *symbol)
+                || candidate.name.as_str() == name.as_str())
         });
         let Some(binder) = binder else {
             diagnostics.push(Diagnostic::error(format!(
@@ -374,9 +376,12 @@ fn validate_indexed_domain_argument_pack(
             )));
             continue;
         };
-        let TypeParameterKind::Const {
+        let (TypeParameterKind::Const {
             type_reference: actual,
-        } = binder.kind
+        }
+        | TypeParameterKind::Value {
+            type_reference: actual,
+        }) = binder.kind
         else {
             unreachable!();
         };
@@ -432,8 +437,10 @@ fn validate_open_index_expression(
                 return;
             }
             let binder = scope.type_parameters.iter().find(|candidate| {
-                matches!(candidate.kind, TypeParameterKind::Const { .. })
-                    && candidate.name.as_str() == name
+                matches!(
+                    candidate.kind,
+                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                ) && candidate.name.as_str() == name
             });
             let Some(binder) = binder else {
                 diagnostics.push(Diagnostic::error(format!(
@@ -442,9 +449,12 @@ fn validate_open_index_expression(
                 )));
                 return;
             };
-            let TypeParameterKind::Const {
+            let (TypeParameterKind::Const {
                 type_reference: actual,
-            } = binder.kind
+            }
+            | TypeParameterKind::Value {
+                type_reference: actual,
+            }) = binder.kind
             else {
                 unreachable!();
             };

@@ -58,6 +58,9 @@ struct Candidate {
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     const_parameters: Vec<(SymbolHandle, String, TypeReferenceHandle)>,
     const_bindings: Vec<Option<TypeReferenceHandle>>,
+    /// Ordinals into `const_parameters` declared as runtime-capable `Value`
+    /// binders rather than proof-static `const` binders.
+    value_const_parameters: Vec<usize>,
     machine_parameters: Vec<(SymbolHandle, String, StateSignature)>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_parameters: Vec<typed_trees::machine::GenericConformanceBound>,
@@ -1024,7 +1027,9 @@ fn type_reference_is_any_generic_parameter(
             .any(|parameter| {
                 matches!(
                     parameter.kind,
-                    TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                    TypeParameterKind::Type
+                        | TypeParameterKind::Const { .. }
+                        | TypeParameterKind::Value { .. }
                 ) && (parameter.symbol == *symbol
                     || (!parameter.symbol.is_valid()
                         && !symbol.is_valid()
@@ -4233,6 +4238,7 @@ fn canonical_template_contract_bytes(
             let prefix = match parameter.kind {
                 TypeParameterKind::Type => "T",
                 TypeParameterKind::Const { .. } => "C",
+                TypeParameterKind::Value { .. } => "V",
                 TypeParameterKind::Machine { .. } => "M",
                 TypeParameterKind::Proposition { .. } => "P",
             };
@@ -4249,6 +4255,7 @@ fn canonical_template_contract_bytes(
             let prefix = match parameter.kind {
                 TypeParameterKind::Type => "T",
                 TypeParameterKind::Const { .. } => "C",
+                TypeParameterKind::Value { .. } => "V",
                 TypeParameterKind::Machine { .. } => "M",
                 TypeParameterKind::Proposition { .. } => "P",
             };
@@ -4270,13 +4277,15 @@ fn canonical_template_contract_bytes(
         bytes.push(match parameter.kind {
             TypeParameterKind::Type => 1,
             TypeParameterKind::Const { .. } => 2,
+            TypeParameterKind::Value { .. } => 5,
             TypeParameterKind::Machine { .. } => 3,
             TypeParameterKind::Proposition { .. } => 4,
         });
         bytes.extend((index as u32).to_le_bytes());
         encode_data_properties(parameter.bounds, &mut bytes);
         match &parameter.kind {
-            TypeParameterKind::Const { type_reference } => encode_normalized_text(
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => encode_normalized_text(
                 program
                     .normalized_type_identity_with_binders(*type_reference, &type_binders)
                     .as_str(),

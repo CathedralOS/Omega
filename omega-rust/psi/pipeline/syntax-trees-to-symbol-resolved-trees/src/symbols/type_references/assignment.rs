@@ -685,7 +685,8 @@ fn assign_type_parameter_constraint_symbols(
     type_parameters: &mut [symbol_resolved_trees::data::TypeParameter],
 ) {
     for parameter in type_parameters {
-        let symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
+        let (symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
+        | symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }) =
             &mut parameter.kind
         else {
             continue;

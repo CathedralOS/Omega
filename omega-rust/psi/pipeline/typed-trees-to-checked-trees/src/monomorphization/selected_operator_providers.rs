@@ -297,7 +297,7 @@ fn selected_operator_candidate_for_application(
                 candidate.type_bindings[index] = Some(*type_reference);
             }
             (
-                TypeParameterKind::Const { .. },
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
                 typed_trees::operator::ClosedOperatorApplicationArgument::Const { value, .. },
             ) => {
                 let Some(binding) = const_identity_type_reference(program, value) else {

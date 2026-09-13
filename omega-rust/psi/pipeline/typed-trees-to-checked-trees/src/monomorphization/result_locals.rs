@@ -184,7 +184,8 @@ fn forwarded_result_selection(
                 .machine_type_parameters(caller)
                 .iter()
                 .find(|parameter| parameter.symbol == *symbol)?;
-            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            let (typed_trees::data::TypeParameterKind::Const { type_reference }
+            | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
             else {
                 return None;
             };

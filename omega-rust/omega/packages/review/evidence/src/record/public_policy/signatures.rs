@@ -10,6 +10,9 @@ pub struct PackagePolicyTypeParameter {
 pub enum PackagePolicyTypeParameterKind {
     Type,
     Const(PackageReviewTypeIdentity),
+    /// A runtime-capable value binder; the public record preserves the
+    /// authored kind rather than strengthening it to `const`.
+    Value(PackageReviewTypeIdentity),
     Machine(PackagePolicyMachineParameterContract),
     Proposition(PackageReviewPropositionParameterSignature),
 }

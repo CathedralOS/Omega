@@ -60,7 +60,8 @@ pub(super) fn project_external_callable_signature(
                     )?,
                 })
             }
-            typed_trees::data::TypeParameterKind::Proposition { .. } => {
+            typed_trees::data::TypeParameterKind::Proposition { .. }
+            | typed_trees::data::TypeParameterKind::Value { .. } => {
                 Err(vec![Diagnostic::error(format!(
                     "reviewed callable `{subject}` uses a static parameter kind not yet represented by its executable-supply signature"
                 ))])

@@ -8,7 +8,8 @@ pub(in crate::record) fn parameters(scope: &Scope<'_>, nesting: usize) -> Result
     for parameter in scope.policy_statics {
         match &parameter.kind {
             PackagePolicyTypeParameterKind::Type => {}
-            PackagePolicyTypeParameterKind::Const(value) => value_type(value)?,
+            PackagePolicyTypeParameterKind::Const(value)
+            | PackagePolicyTypeParameterKind::Value(value) => value_type(value)?,
             PackagePolicyTypeParameterKind::Proposition(signature) => {
                 for parameter in &signature.parameters {
                     value_type(&parameter.type_identity)?;

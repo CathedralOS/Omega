@@ -15,6 +15,7 @@ pub(in crate::encoding::recovery::policy) fn type_parameter(
     let kind = match reader.byte()? {
         0 => PackagePolicyTypeParameterKind::Type,
         1 => PackagePolicyTypeParameterKind::Const(type_identity(reader)?),
+        4 => PackagePolicyTypeParameterKind::Value(type_identity(reader)?),
         2 => PackagePolicyTypeParameterKind::Machine(machine_contract(reader)?),
         3 => PackagePolicyTypeParameterKind::Proposition(
             PackageReviewPropositionParameterSignature {

@@ -15,6 +15,10 @@ impl PackageReviewTypeIdentity {
 pub enum PackageReviewTypeParameterKind {
     Type,
     Const(PackageReviewTypeIdentity),
+    /// A runtime-capable value binder; today only statically supplied
+    /// arguments specialize it, but the kind must not be republished as
+    /// `const`.
+    Value(PackageReviewTypeIdentity),
     Machine(PackageReviewMachineParameterContract),
     Proposition(PackageReviewPropositionParameterSignature),
 }

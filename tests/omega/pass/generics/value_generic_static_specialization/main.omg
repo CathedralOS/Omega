@@ -1,0 +1,18 @@
+// Chapter 12 "Const And Proof Parameters": a machine may declare a
+// runtime-capable value binder `Count: u32`, distinct from the proof-static
+// `const Count: u32`. A statically known argument still specializes through
+// the ordinary const path, whether it is a literal or a forwarded binder.
+
+machine prefix_count<Count: u32>(base: u32) -> u32 {
+    Count
+}
+
+machine forward<K: u32>(base: u32) -> u32 {
+    let inner: u32 = prefix_count<K>(base);
+    inner
+}
+
+machine Main::main(&mut self) {
+    let direct: u32 = prefix_count<3>(7);
+    let forwarded: u32 = forward<4>(7);
+}

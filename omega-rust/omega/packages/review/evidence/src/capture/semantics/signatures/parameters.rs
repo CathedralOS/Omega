@@ -140,6 +140,14 @@ fn project_type_parameters_inner(
                     lifetime_binders,
                 )?)
             }
+            typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                PackageReviewTypeParameterKind::Value(projection.value_type(
+                    compilation,
+                    *type_reference,
+                    &binders,
+                    lifetime_binders,
+                )?)
+            }
             typed_trees::data::TypeParameterKind::Machine { contract } => {
                 PackageReviewTypeParameterKind::Machine(project_machine_parameter_contract_inner(
                     compilation,

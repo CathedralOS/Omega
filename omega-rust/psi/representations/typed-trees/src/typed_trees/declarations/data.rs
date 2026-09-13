@@ -164,6 +164,12 @@ pub enum TypeParameterKind {
     Const {
         type_reference: TypeReferenceHandle,
     },
+    /// Runtime-capable value binder (`Count: u32`); unlike `Const` it may be
+    /// supplied at runtime. Dynamic realization is not implemented, so only
+    /// static arguments specialize through the const path.
+    Value {
+        type_reference: TypeReferenceHandle,
+    },
     /// Static machine-symbol parameter and the declaration-site contract
     /// against which generic bodies and later instantiations are checked.
     Machine {

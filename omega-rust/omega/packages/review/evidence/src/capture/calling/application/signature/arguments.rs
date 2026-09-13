@@ -38,7 +38,10 @@ pub(super) fn project(
         .iter()
         .zip(arguments)
         .map(|(parameter, argument)| {
-            if matches!(parameter.kind, TypeParameterKind::Const { .. }) {
+            if matches!(
+                parameter.kind,
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+            ) {
                 review_signature_const_argument_identity(
                     compilation,
                     *argument,

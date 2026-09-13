@@ -53,19 +53,23 @@ pub(super) fn assign_operator_symbols(
         let kind = data_type_parameters.span_or_empty(operator.type_parameters)[index]
             .kind
             .clone();
-        let symbol_resolved_trees::data::TypeParameterKind::Const { mut type_reference } = kind
-        else {
-            continue;
+        let mut resolved_kind = kind;
+        let type_reference = match &mut resolved_kind {
+            symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
+            | symbol_resolved_trees::data::TypeParameterKind::Value { type_reference } => {
+                type_reference
+            }
+            _ => continue,
         };
         assign_type_reference_symbol_with_locals_and_constraints(
             symbols,
             child_type_references,
             type_constraints,
             &local_type_parameters,
-            &mut type_reference,
+            type_reference,
         );
         data_type_parameters.span_mut_or_empty(operator.type_parameters)[index].kind =
-            symbol_resolved_trees::data::TypeParameterKind::Const { type_reference };
+            resolved_kind;
     }
     for parameter in state_parameters.span_mut_or_empty(operator.parameters) {
         parameter.symbol =
