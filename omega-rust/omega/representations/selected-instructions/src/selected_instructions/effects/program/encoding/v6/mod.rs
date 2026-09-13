@@ -3,6 +3,8 @@
 //! `framing` owns exact envelope and field order. Named payload leaves retain
 //! independent structural, instruction, ownership, and shared-value decode
 //! boundaries without changing rejection order.
+//! Version 26 includes owned parameter-home slots. The shared slot decoder also
+//! feeds physical plans, whose envelope must fence this vocabulary separately.
 
 use optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
 
@@ -54,4 +56,4 @@ use values::{decode_constraint_key, decode_ids, decode_machine, decode_obligatio
 pub use values::{decode_target, decode_units};
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-const VERSION: u32 = 25;
+const VERSION: u32 = 26;

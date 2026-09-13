@@ -162,7 +162,7 @@ fn physical_codec_retains_byte_view_address_family_not_exact_add() {
 #[test]
 fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
-    for version in 0..16_u32 {
+    for version in 0..17_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -170,6 +170,69 @@ fn physical_current_format_rejects_all_retired_versions() {
             Err(PostAllocationMachineDecodeError::UnsupportedVersion(
                 version
             ))
+        );
+    }
+}
+
+#[test]
+fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity() {
+    use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot};
+    use semantic_vocabulary::PlaceId;
+
+    let mut source = plan();
+    let place = PlaceId::new(139).unwrap();
+    let slot = LocalStorageSlotId::StructuralParameter { place };
+    source.functions[0]
+        .local_storage_slots
+        .push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+    for address in [
+        PhysicalAddressOperation::FrameAddress {
+            slot: FrameStorageSlotId::Local(slot),
+            byte_offset: 0,
+        },
+        PhysicalAddressOperation::Store64 {
+            slot: FrameStorageSlotId::Local(slot),
+            byte_offset: 8,
+        },
+    ] {
+        source.functions[0].blocks[0].instructions[0].address = Some(address);
+        source.identity = post_allocation_machine_identity(&source);
+        let encoded = source.encode();
+        assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 17);
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&encoded),
+            Ok(source.clone())
+        );
+
+        let mut stale = encoded.clone();
+        stale[8..12].copy_from_slice(&16_u32.to_le_bytes());
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&stale),
+            Err(PostAllocationMachineDecodeError::UnsupportedVersion(16))
+        );
+
+        // The function machine and local-slot count precede the first tagged slot.
+        let slot_offset = MACHINE_OFFSET + 8 + 8;
+        assert_eq!(encoded[slot_offset], 4);
+        let mut absent = encoded;
+        absent[slot_offset + 1..slot_offset + 9].fill(0);
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&absent),
+            Err(PostAllocationMachineDecodeError::InvalidField)
+        );
+
+        let mut substituted = source.clone();
+        substituted.functions[0].local_storage_slots[0].id = LocalStorageSlotId::Structural {
+            operation: OperationId::new(137).unwrap(),
+            place,
+        };
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&substituted.encode()),
+            Err(PostAllocationMachineDecodeError::InvalidIdentity)
         );
     }
 }
