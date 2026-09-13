@@ -243,9 +243,15 @@ scalar field through canonical bytes, proof equations and original record backin
 The same route handles same-typed siblings, deeper integer/Boolean observations
 and affine moves. Native reads still need these paths and bounded leaf types
 carried through abstract operations, layout and independent replay; they reject
-explicitly at that boundary today. The focused `declared_range_inference` canaries
-retain local mutation and direct state-transition storage-join gaps. Connect those
-shared operations rather than adding a generic-specific fallback.
+explicitly at that boundary today. Fresh record locals also participate in the
+scalar graph's ordered statement effects: their field computations finish in
+authored order, and nested guards/selected arguments observe the completed root
+before affine cleanup. The focused `declared_range_inference` canaries retain
+local mutation gaps; whole-place record initializers before direct transitions
+still need their transfer join. Cyclic record construction remains rejected by
+Terminal's cycle admission until repeated establishment and per-iteration custody
+are independently closed. Connect those shared operations rather than adding a
+generic-specific fallback.
 
 Closed integer endpoints share typed trees' `type_system/closed_numeric.rs`
 through validation's `closed_integer_range_bound` and
