@@ -703,13 +703,9 @@ Owners include
   encoding and independent actual-argument substitution; run
   `cargo nextest run -p checked-trees-to-lowered-psi --test scalar_boundary_arguments --no-fail-fast`.
   Reuse that requirement contract for selected operators, retaining exact occurrence
-  evidence. Complete interpreter boundary-outcome validation for mathematical
-  integer guards; `terminal-verifier/src/validation/crash/outcome.rs` rejects
-  unsupported closed predicates rather than interpreting them as false.
-  Reuse proof admission's mathematical denotation only with bounded-resource
-  failure: its current closed shift evaluator can request unbounded allocation.
-  Source crash predicates currently lower through fixed-width `ScalarTerm`;
-  proof-only mathematical terms do not imply an authored mathematical guard route.
+  evidence. Source crash predicates currently lower through fixed-width
+  `ScalarTerm`; proof-only mathematical terms do not imply an authored
+  mathematical guard route.
   Boundary crash observation profiles, guarded refinement of crashing providers,
   and Omega projection remain open. The edge-only `TerminalTraceV1` profile and
   Omega projection reject nonempty boundary routes; crash-free providers can
