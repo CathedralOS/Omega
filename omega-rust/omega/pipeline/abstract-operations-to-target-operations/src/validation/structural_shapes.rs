@@ -5,7 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType, StructuralTypeId};
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -26,6 +27,67 @@ pub(super) fn reconstruct(
         return Err(InvalidStructuralShape);
     }
     shape(root, &indexed, &mut BTreeMap::new(), &mut BTreeSet::new())
+}
+
+pub(super) fn parameter_shape(referent: ValueShape, access: StructuralAccess) -> ValueShape {
+    match access {
+        StructuralAccess::Owned => referent,
+        StructuralAccess::SharedBorrow
+        | StructuralAccess::MutableBorrow
+        | StructuralAccess::WriteOnlyBorrow => {
+            ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+        }
+    }
+}
+
+pub(super) fn project_fields(
+    mut structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<(StructuralTypeId, u32), InvalidStructuralShape> {
+    let indexed = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    if indexed.len() != declarations.len() {
+        return Err(InvalidStructuralShape);
+    }
+    let mut cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let mut byte_offset = 0_u32;
+    for segment in path {
+        let StructuralPathSegment::Field(identity) = segment else {
+            return Err(InvalidStructuralShape);
+        };
+        let declaration = indexed
+            .get(&structural_type)
+            .ok_or(InvalidStructuralShape)?;
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return Err(InvalidStructuralShape);
+        };
+        let mut local_offset = 0_u32;
+        let mut selected = None;
+        for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+            let shape = field_shape(&field.field_type, &indexed, &mut cache, &mut active)?;
+            local_offset = align(local_offset, u32::from(shape.alignment))?;
+            if field.identity == *identity {
+                let StructuralFieldType::Structural(field_type) = field.field_type else {
+                    return Err(InvalidStructuralShape);
+                };
+                selected = Some((field_type, local_offset));
+                break;
+            }
+            local_offset = local_offset
+                .checked_add(u32::from(shape.byte_size))
+                .ok_or(InvalidStructuralShape)?;
+        }
+        let (field_type, field_offset) = selected.ok_or(InvalidStructuralShape)?;
+        byte_offset = byte_offset
+            .checked_add(field_offset)
+            .ok_or(InvalidStructuralShape)?;
+        structural_type = field_type;
+    }
+    Ok((structural_type, byte_offset))
 }
 
 fn shape(

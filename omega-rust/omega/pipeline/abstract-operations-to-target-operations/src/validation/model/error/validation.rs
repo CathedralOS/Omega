@@ -7,6 +7,10 @@ pub enum AbstractToTargetTranslationValidationError {
     StructuralSignatureMismatch {
         machine: MachineId,
     },
+    StructuralCallArgumentMismatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
     UnsupportedPartialAffineContinuation {
         machine: MachineId,
         edge: semantic_vocabulary::EdgeId,
