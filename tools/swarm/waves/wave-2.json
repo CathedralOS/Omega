@@ -1,0 +1,91 @@
+{
+  "wave": "w2",
+  "max_acu_limit": 10,
+  "devin_mode": "fusion",
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "w2"],
+  "owner_label_prefix": "Jarod / swarm-w2",
+  "exclusions": [
+    "WRITE-ONLY-BORROW",
+    "SPILL-REALIZATION",
+    "SQUALR-HEADLESS",
+    "MACOS-APPLICATION-PUBLICATION",
+    "ALPHA-WINDOWS-CONFORMANCE",
+    "ADDRESS-TRANSLATION-CANARY",
+    "EXCEPTION-ROOTS-AND-TIMER",
+    "CODEC-LINEAGE-CLOSURE",
+    "BOUNDARY-QUALIFICATION-PRESERVATION",
+    "CUSTODY-MUTATION-COVERAGE",
+    "GAMMA-PRODUCT-COMPARISON",
+    "OMEGA-D",
+    "OFFLINE-REBUILD"
+  ],
+  "sessions": [
+    {
+      "name": "termination-ranking",
+      "board": "TASKS.md",
+      "item": "TERMINATION-RANKING-CHECKS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking",
+        "omega-rust/psi/semantics/validation/src/call_cycles/runtime_ranking"
+      ],
+      "suggested_first_slice": "one computed-only path with auxiliary-only multi-parameter arithmetic: exact arrival mapping plus its missing-premise rejection"
+    },
+    {
+      "name": "build-product-refs",
+      "board": "TASKS.md",
+      "item": "BUILD-PRODUCT-REFERENCES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/build-evaluation/src/selection"
+      ],
+      "suggested_first_slice": "a multi-file helper binding one owner-restricted private entry reference through the evaluated root Build authority, plus the wrong-scope rejection"
+    },
+    {
+      "name": "generic-matching",
+      "board": "TASKS.md",
+      "item": "STRUCTURAL-GENERIC-MATCHING",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/monomorphization",
+        "tests/omega/pass/generics/declared_range_endpoint_inference"
+      ],
+      "suggested_first_slice": "range_arguments.rs inference for one named computation endpoint through shared semantic evaluation, not the i64 interval evaluator"
+    },
+    {
+      "name": "crash-contract",
+      "board": "TASKS.md",
+      "item": "CRASH-CONTRACT",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/facts/operator_crashes.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/expression.rs",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/tests"
+      ],
+      "suggested_first_slice": "reuse the scalar boundary requirement contract for one selected operator, retaining exact occurrence and saved actuals"
+    },
+    {
+      "name": "gamma-checker",
+      "board": "TASKS_BOOTSTRAP.md",
+      "item": "GAMMA-DERIVATION-CHECKER",
+      "host": "linux",
+      "owning_paths": [
+        "bootstrap/proofs/checker",
+        "bootstrap/proofs/beta_encoding"
+      ],
+      "suggested_first_slice": "one error-valued Beta encoding definition with its acceptance entry, leaving the trust assumption explicit"
+    },
+    {
+      "name": "chain-manifest",
+      "board": "TASKS_BOOTSTRAP.md",
+      "item": "CHAIN-MANIFEST",
+      "host": "linux",
+      "owning_paths": [
+        "tools/bootstrap"
+      ],
+      "suggested_first_slice": "bind the exact source closure and artifact digest for the closed alpha-beta edge into the shared orchestration record, with a reviewer-followable back-reference"
+    }
+  ]
+}
