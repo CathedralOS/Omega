@@ -21,10 +21,16 @@ topology/
     ├── predicate/   selector validation, reference predicates, certificates
     ├── codec/       versioned canonical wire tables and cursors
     ├── compose/     producer reference: evaluate required policies, emit a plan
-    └── verify/      source-free consumer: reconstruct, compare, replay
+    ├── verify/      source-free consumer: reconstruct, compare, replay
+    └── install/     package-owned installer: private-pipe preparation, the
+                     activation gate, mediation, and the receipt
 ```
 
 The crate distinguishes `composition checked` from `installation admitted`.
-`verify_plan` can only produce the first; no API here installs code, binds
-endpoints, or claims confinement. Correspondingly, a verified plan is evidence
-for the installer's own recheck, never a reusable authorization.
+`verify_plan` can only produce the first; `install` produces the second for
+the private-pipe profile by joining a checked plan to an independently
+authorized request, assigning one dedicated pipe pair per binding, and
+gating application entry on complete admitted coverage. Correspondingly, a
+verified plan is evidence for the installer's own recheck, never a reusable
+authorization — and a receipt is evidence for one installation occurrence,
+not the next.

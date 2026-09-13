@@ -529,6 +529,25 @@ an implementation shortcut.
   hosts when available and disclose loader/OS assumptions; graph-only tests,
   signatures, and ordinary process spawn do not prove physical confinement.
 
+  Resume evidence: the Rust reference installer landed as `install/`
+  (`omega-rust/omega/packages/topology`): `prepare_installation` joins a
+  `CheckedPlan` to an independently supplied `InstallationAuthorization`
+  (current request commitment, occurrence, per-instance admitted artifacts),
+  `PipeAdapter` mints one private request/response pair per binding with
+  `StdPipeAdapter` over `std::io::pipe()` covering anonymous pipe handles
+  and private descriptors, and the `ProcessSupervisor` gate prepares every
+  member with its exact assigned ends and checks the installed-token echo
+  before any entry opens. The retained route table refuses ungranted
+  endpoints, wrong-direction sends, non-holder senders (substituted
+  mapping), second in-flight requests, unpaired responses, and sends on
+  closed bindings; failure paths close custody or name leaked ends/retained
+  members; `replace_installation` quiesces the old generation first (68
+  package tests incl. real-pipe flow on macOS arm64). Remaining: the
+  Omega-authored installer mirroring this reference, the three checked
+  payment component processes and their generic executable admission, a
+  Windows host run, and contract-level operation-schema checking on the
+  bounded frames.
+
 ## Process-exit contract
 
 Implement the [canonical process-exit contract](wiki/spec/language/process_exit.md)

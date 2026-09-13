@@ -31,21 +31,26 @@
 //!   Policies whose recorded verifier differs from the request's selected
 //!   verifier reject by identity comparison — policy executables are never
 //!   loaded or run by this crate.
-//! - `composition checked` and `installation admitted` stay distinct. This
-//!   crate can only produce the first. Publication of exact plan bytes is not
-//!   an installation claim, and no API here binds endpoints or grants
-//!   activation.
+//! - `composition checked` and `installation admitted` stay distinct.
+//!   Publication of exact plan bytes is not an installation claim; only the
+//!   `install` module's gated activation produces the second, and its
+//!   receipt binds the plan, artifacts, physical endpoint mapping, provider
+//!   assumptions, and installation occurrence — evidence for one
+//!   generation, never a reusable authorization.
 //!
 //! What this slice deliberately does not do: consume verified component
 //! descriptions produced by the component verifier (COMPONENT-SUBSTRATE owns
 //! that consumer), run inside a build evaluation (the scoped build output
-//! route owns that), or model runtime confinement. Plan instances carry the
-//! component identities and endpoint inventories a verified description will
-//! supply; nothing here may treat hand-authored inventory as verified closure.
+//! route owns that), or prove OS-level confinement — the pipe adapter's
+//! named assumptions disclose what the hosts must establish. Plan instances
+//! carry the component identities and endpoint inventories a verified
+//! description will supply; nothing here may treat hand-authored inventory
+//! as verified closure.
 
 pub mod codec;
 pub mod compose;
 pub mod graph;
+pub mod install;
 pub mod model;
 pub mod predicate;
 pub mod verify;
