@@ -1538,11 +1538,14 @@ Owners include
   interpreter acceptance is `cargo nextest run -p checked-interpreter --test
   projected_results --no-fail-fast`; this is not stored-reference Terminal or
   native acceptance. The source-free dependency probe is `cargo nextest run
-  -p terminal-interpreter --test unit reference_records --no-fail-fast` at the
-  same revision/host: local nested record construction, field reborrowing, and
-  whole-record cleanup execute against the original primitive backing. Resume
-  with exact reference-leaf result mappings for `make_view`, and checked record
-  initializers that retain reference carriers instead of normalizing them to
+  -p terminal-interpreter --test unit reference_records --no-fail-fast` at
+  `f6022df5e9` on the same host: nested record construction, field reborrowing,
+  whole-record cleanup, and ordinary record returns execute against original
+  primitive backing, including returned children and reversed actual arguments.
+  The verifier reconstructs exact reference-leaf result maps and formal-to-actual
+  substitution; canonical wire and runtime support no longer block this record
+  return. Resume in source production with checked record initializers and
+  helper-result origins that retain reference carriers instead of normalizing them to
   scalar fields (`structural_values::record_value` and `ShapeCollector`).
   Lowering must replay the initializer's exact ingress loan, not trust the
   checked node alone. Transfer existing permissions through owned
