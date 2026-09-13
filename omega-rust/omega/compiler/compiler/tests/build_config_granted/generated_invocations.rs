@@ -11,7 +11,7 @@ fn compile_generated_invocation(
         "boundary trait Console { machine write(value: i32) reaches Console; }\n\
          boundary trait FilesystemHost { machine touch() reaches FilesystemHost; }\n\
          boundary trait Network { machine connect() reaches Network; }\n\
-         machine touch_files() { FilesystemHost::touch(); }\n\
+         machine touch_files() reaches FilesystemHost { FilesystemHost::touch(); }\n\
          machine middle() { touch_files(); }\n\
          machine declared_files() reaches FilesystemHost {}\n\
          machine reach_helper() { declared_files(); }\n\
