@@ -176,19 +176,21 @@ prerequisite to every lower-rung milestone.
   another isolated helper probe. It removes completed-token/output histories
   from incoming state and accounts explicitly for fragment composition, exact
   emission counts, all Beta cases, limits, failures, EOF, and owner custody.
-  The full numerical request/work/storage ledger remains missing: actual
-  equations, integrated proof recipes, and encoder-state sharing have not been
-  established. Do not select a larger profile from the partial costs.
   **Strategy pause:** retain the open P1 obligation, but do not add more isolated
   helper families or change provisions without a defensible integrated cost
   argument. Complete definitions and an integrated recipe remain the proposed
   unit for evaluating that route; routine engineering choices do not require
   an owner question. Continue independent bootstrap work while it is paused.
-  Resume evidence against `c727cd624a` on macOS arm64: source/algebra review
-  projects 4,494,082 work for the existing repeated output-successor recipe
-  alone without cross-fact reuse; this is neither a full proof nor a lower bound.
-  Earlier whole-source representation, capacity, lexical-state, and fold evidence
-  remains in the linked cost review. The actual
+  Resume evidence at `50a27b9bfc` on macOS arm64 (prose + gates): the
+  consolidated candidate's state removal is a feasibility precondition
+  (~10-20GB-class history carriage vs the 8 MiB request), the successor recipe
+  reproduces at 4,611,614 unshared / 2,122,796 shared work, encoder-state
+  census is 17,130 vs 1,521 leaf keys with/without count, and the physical
+  work ceiling is 675,017 under the selected pair arena — every derivable
+  integrated scenario lands ~9-41 times over work, so no measured recipe
+  family reaches acceptance under selected provisions. Remaining routes:
+  recipe restructuring toward ~675k work, checked closed-lemma composition
+  (owner escalation), or more native backing (owner decision). The actual
   `encode_Beta(S, limits) = Success(T)` probe has not run and has no repository
   command: complete definitions, owner-root reconstruction, and source-owned
   production remain missing. No partial diagnostic or unimplemented valid case
