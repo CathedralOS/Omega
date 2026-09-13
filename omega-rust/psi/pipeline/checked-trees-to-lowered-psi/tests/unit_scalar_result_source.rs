@@ -584,8 +584,19 @@ fn attached_unit_scalar_result_rejects_coordinated_drift_from_original_flow_row(
     };
     *statement_index = 4;
 
+    // Coordinated row drift is rejected by the authored-statement existence
+    // fence before the source roster compares call ownership.
     assert_eq!(
         rejection_message(&checked),
+        "call result has no authored statement"
+    );
+
+    // Removing the call's ownership claim entirely still reaches the source
+    // roster's missing-owner fence.
+    let mut omitted = checked_from_source(SOURCE);
+    main_operations_mut(&mut omitted).remove(0);
+    assert_eq!(
+        rejection_message(&omitted),
         "Unit body omits or duplicates an authored call"
     );
 }
