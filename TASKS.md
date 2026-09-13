@@ -623,6 +623,23 @@ Owners include
   on success. Acceptance includes stale-key, exhaustion, lost-custody,
   post-exit provider-use, and successful handoff canaries.
 
+  Resume evidence: `aabbe797d1` landed the lifecycle-scoped
+  `ExitBootServices` provider edge in
+  `omega-rust/omega/backend/runtime/external-roots/src/uefi_bootstrap/exit_boot_services.rs`,
+  the sole issuance boundary for `UefiExitBootServicesProviderResult`.
+  `EFI_INVALID_PARAMETER` returns complete provider custody for the bounded
+  retry; `EFI_SUCCESS` consumes the carrier chain so post-exit provider use is
+  unrepresentable; unknown statuses and every join/bind stage retain and
+  release custody back to the firmware ledger. Witnessed on macOS arm64 by
+  external-roots lib tests (129/129) driving a real `efiapi` service pointer
+  through fabricated UEFI tables: stale-key return then retry-to-success,
+  exhaustion releasable to firmware return, foreign/drifted custody rejection,
+  unknown-status retention, and success completion. Remaining: the
+  `GetMemoryMap` acquisition edge and a caller sequencing acquire →
+  bind/execute/admit → apply into the nonreturning transfer; a durable
+  target-owned invocation-plan artifact still belongs to `program-entry-plan`,
+  and no authored Omega surface invokes this edge yet.
+
 - **AP-BRINGUP.** Complete one secondary-processor entry through the executable
   installation and external-root owners. Acceptance covers low-memory and
   alignment constraints, CPU-regime transitions, placed-byte visibility,
