@@ -4,8 +4,7 @@ use super::*;
 
 pub(super) mod primitive_effects;
 pub(crate) use primitive_effects::{
-    build_checked_primitive_store_scalar_return_plans,
-    refresh_checked_primitive_store_scalar_return_plans,
+    build_checked_primitive_store_scalar_return_plans, reconcile_primitive_store_scalar_returns,
 };
 mod selected_operator;
 use selected_operator::build_selected_operator_structural_scalar_return_machine;

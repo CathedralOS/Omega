@@ -20,6 +20,19 @@ Their summaries derive the aggregate verdict from proof, borrow, effect,
 boundary, and termination dimensions. A checked tree is published only after
 diagnostics clear; these views are not persisted rejection certificates.
 
+`lowerer.rs` names complete, preliminary-package, and settled-package checking
+as distinct modes. Only the preliminary checkpoint permits pending opaque-copy
+evidence; both package checkpoints retain unresolved toolchain selections. Crash
+admission is enforced in all production modes.
+
+Unit planning still reads its callee roster through `CheckFacts`: independent
+boundary and primitive-reference returns must precede the Unit closure, and the
+complete structural-scalar return roster follows that closure. Selected execution
+rebuilds expose primitive discovery and return-roster reconciliation separately.
+Reconciliation consumes only the old and fresh rosters, preserving nominal and
+selected returns while replacing or removing stale primitive bodies. It does not
+remove the Unit planner's dependency on provisionally populated fact fields.
+
 | Owner under `src/` | Responsibility |
 | --- | --- |
 | `semantic.rs`, `semantic/contracts/`, `semantic/points.rs` | Contract payloads, places, obligation origins, and program points. |

@@ -92,14 +92,28 @@ fn pure_primitive_reference_return_refresh_removes_stale_zero_effect_bodies() {
         .scalar_expressions
         .expressions
         .retain(|expression| expression.state != plan.state);
-    refresh_checked_primitive_store_scalar_return_plans(&checked.typed, &mut facts);
-    assert!(
-        facts
-            .flow
-            .terminal_structural_scalar_returns
-            .for_machine(plan.machine)
-            .is_none()
+    let primitive_returns =
+        build_checked_primitive_store_scalar_return_plans(&checked.typed, &facts);
+    let returns = reconcile_primitive_store_scalar_returns(
+        facts.flow.terminal_structural_scalar_returns,
+        primitive_returns,
     );
+    assert!(returns.for_machine(plan.machine).is_none());
+}
+
+#[test]
+fn primitive_return_reconciliation_replaces_in_place_and_appends_new_callees() {
+    let checked = checked(
+        "machine first(value: &u64) -> u64 { 11 }\n\
+         machine second(value: &u64) -> u64 { 12 }",
+    );
+    let fresh = build_checked_primitive_store_scalar_return_plans(&checked.typed, &checked.facts);
+    assert_eq!(fresh.machines.len(), 2);
+    let mut previous = fresh.clone();
+    previous.machines.pop();
+    previous.machines[0].return_statement_ordinal = u32::MAX;
+    let reconciled = reconcile_primitive_store_scalar_returns(previous, fresh.clone());
+    assert_eq!(reconciled, fresh);
 }
 
 #[test]
@@ -147,13 +161,11 @@ fn primitive_reference_return_discovery_does_not_absorb_affine_cleanup() {
             .machines
             .is_empty()
     );
-    let mut facts = checked.facts.clone();
-    refresh_checked_primitive_store_scalar_return_plans(&checked.typed, &mut facts);
-    assert_eq!(
-        facts
-            .flow
-            .terminal_structural_scalar_returns
-            .for_machine(retained.machine),
-        Some(&retained)
+    let primitive_returns =
+        build_checked_primitive_store_scalar_return_plans(&checked.typed, &checked.facts);
+    let returns = reconcile_primitive_store_scalar_returns(
+        checked.facts.flow.terminal_structural_scalar_returns,
+        primitive_returns,
     );
+    assert_eq!(returns.for_machine(retained.machine), Some(&retained));
 }

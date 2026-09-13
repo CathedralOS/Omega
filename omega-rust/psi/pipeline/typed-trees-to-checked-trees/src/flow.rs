@@ -215,8 +215,7 @@ pub(crate) use terminal_unit::control::build_checked_structural_unit_control_pla
 pub(crate) use terminal_unit::returns::{
     build_checked_boundary_scalar_return_plans, build_checked_primitive_store_scalar_return_plans,
     build_checked_structural_call_return_plans, build_checked_structural_return_plans,
-    build_checked_structural_scalar_return_plans,
-    refresh_checked_primitive_store_scalar_return_plans,
+    build_checked_structural_scalar_return_plans, reconcile_primitive_store_scalar_returns,
 };
 pub(crate) use terminal_unit::{
     build_checked_nominal_affine_unit_cleanup_plans,
