@@ -226,6 +226,23 @@ inferred bounds 511 and 256 through these wide computations. Named computations,
 open symbolic endpoints, full-width variable compatibility intervals and exact
 type equations remain open; context-free typed evaluation refuses matching selected trait
 operators until the endpoint has direct owner context.
+
+Exclusive-end normalization is still incorrect. At `dd5c5853d9`, the CLI rejects
+`u64[0..18446744073709551616]` at the parser's i64 limit, accepts an invalid
+exclusive `256u8` after erasing its landing, and panics subtracting one from an
+exclusive signed-minimum literal. The parser's literal fold and synthetic
+subtraction are not canonical range normalization. Merely routing all literals
+through the synthetic subtraction fixes those local symptoms but changes
+ordinary type identity: `[0..8]` becomes distinct from `[0..=7]`. The checker test
+`literal_exclusive_and_inclusive_ranges_keep_the_same_type_identity` pins that
+existing equality independently of call inference.
+
+Retain the authored endpoint and explicit end-kind through the representations;
+validate the endpoint before taking its predecessor in proof integers. The
+shared normalizer must also serve canonical type identity without a reverse
+dependency from typed trees to validation. Empty-range declaration/delivery
+handling and symbolic identity belong to the same repair. This requirement is
+on `STRUCTURAL-GENERIC-MATCHING`, not a new surface or owner decision.
 `generic_data/arguments.rs` still excludes range-qualified arguments from its
 slug path, and constrained-shell substitution is not general decomposition.
 `STRUCTURAL-GENERIC-MATCHING` tracks migration through source,

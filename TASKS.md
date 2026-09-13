@@ -1272,6 +1272,22 @@ Owners include
   Replace the range-argument exclusion in `generic_data/arguments.rs` only with exact identity
   and constrained-shell substitution, not a source-display cache key.
 
+  Before canonical range identity, replace parser-generated exclusive-end
+  subtraction with an authored endpoint and end-kind retained through syntax,
+  resolution, typing, substitution and snapshots. The shared semantic reader
+  must check the original endpoint and then take an exclusive predecessor in
+  proof integers, not the endpoint's runtime carrier. Preserve symbolic end
+  identity and update dependent-range/proof readers together. Include exclusive
+  `0u64` and signed-minimum ends, invalid `256u8`, and inclusive/exclusive
+  equivalents. Keep the checker regression
+  `literal_exclusive_and_inclusive_ranges_keep_the_same_type_identity` passing;
+  call inference alone misses identity differences introduced by synthetic
+  subtraction. The source pipeline map records the parser failure witnesses.
+  Empty declarations must remain legal without making delivery of
+  a value into them succeed; current inverted-range rejection is not that
+  contract. No owner decision is needed: these are the canonical-range rules
+  linked above, not a new language surface.
+
   Acceptance: TinyBytes' `Length == u64[0..=Capacity]` binds omitted Capacity from
   its supplied type before layout; inclusive/exclusive equivalent intervals
   select identical static capacity without runtime arithmetic overflow. Primitive
