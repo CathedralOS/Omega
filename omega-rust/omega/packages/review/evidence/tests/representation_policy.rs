@@ -3,11 +3,12 @@ mod support;
 #[path = "representation_policy/source.rs"]
 mod source;
 
+use package_compilation::PackageSourceConsumptionCommitment;
 use package_evidence::encoding::PackagePolicyRecoveryLimits;
 use package_evidence::record::{
     PackagePolicyRepresentation, PackagePolicyRepresentationAgreementError,
-    PackagePolicyTypeParameterKind, PackageReviewNominalOwner,
-    PackageReviewOpaqueRepresentationApplicationOrigin,
+    PackagePolicyRepresentationProducerInstance, PackagePolicyTypeParameterKind,
+    PackageReviewNominalOwner, PackageReviewOpaqueRepresentationApplicationOrigin,
     PackageReviewOpaqueRepresentationCopyDisposition,
     PackageReviewOpaqueRepresentationLifecycleDisposition,
     PackageReviewRepresentationTargetProfile,
@@ -228,9 +229,19 @@ fn foreign_demands_rejoin_exact_independently_compiled_producer_rows() {
             use_.opaque().owner() == PackageReviewNominalOwner::Package(source::foreign_identity())
         })
     }));
+    let instance = fixture
+        .checked
+        .source_consumption_commitment()
+        .expect("package-aware review compilation retains a source commitment");
     assert_eq!(
         consumer.rejoin_foreign_demands(|package| {
-            (package == source::foreign_identity()).then_some(&producer)
+            (package == source::foreign_identity()).then_some(
+                PackagePolicyRepresentationProducerInstance {
+                    policy: &producer,
+                    expected_source_instance: instance,
+                    reviewed_source_instance: instance,
+                },
+            )
         }),
         Ok(())
     );
@@ -243,6 +254,29 @@ fn foreign_demand_rejects_absent_producer_policy() {
     assert!(matches!(
         consumer.rejoin_foreign_demands(|_| None),
         Err(PackagePolicyRepresentationAgreementError::ProducerPolicyAbsent { .. })
+    ));
+}
+
+#[test]
+fn foreign_demand_rejects_producer_source_instance_mismatch() {
+    let fixture = Fixture::new(true, true, true);
+    let consumer = project(&fixture.checked, package_identity());
+    let producer = project(&fixture.checked, source::foreign_identity());
+    let reviewed = fixture
+        .checked
+        .source_consumption_commitment()
+        .expect("package-aware review compilation retains a source commitment");
+    assert!(matches!(
+        consumer.rejoin_foreign_demands(|package| {
+            (package == source::foreign_identity()).then_some(
+                PackagePolicyRepresentationProducerInstance {
+                    policy: &producer,
+                    expected_source_instance: PackageSourceConsumptionCommitment::for_test([9; 32]),
+                    reviewed_source_instance: reviewed,
+                },
+            )
+        }),
+        Err(PackagePolicyRepresentationAgreementError::ProducerSourceInstanceMismatch { .. })
     ));
 }
 

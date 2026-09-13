@@ -1181,10 +1181,10 @@ Owners include
 - **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete [representation agreement](wiki/spec/build/opaque_representations.md) at
   independently compiled by-value exchanges. Dependency-first review compilation
   now rejoins each consumer's actual foreign opaque uses to the producer review's
-  own declaration and opaque/conformance/carrier availability rows
-  (`PackagePolicyRepresentation::rejoin_foreign_demands`); remaining: join those
-  rows to the producer's immutable source instance and enforce strong
-  selected-application equality at actual exchanges. Finish
+  own declaration and opaque/conformance/carrier availability rows, bound to the
+  producer review's immutable source instance, with strong selected-application
+  equality enforced against the producer's own selection at actual exchanges
+  (`PackagePolicyRepresentation::rejoin_foreign_demands`); remaining:
   physical movement and lifecycle planning, including transitive
   inert-carrier proof and multiplicity checks. Equal size/alignment or compact
   fingerprints cannot establish agreement.

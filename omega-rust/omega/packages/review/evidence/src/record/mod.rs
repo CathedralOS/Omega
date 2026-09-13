@@ -122,8 +122,9 @@ pub use quotients::NonExecutableQuotientPackageReview;
 pub use representation::{
     PackagePolicyRepresentation, PackagePolicyRepresentationAgreementError,
     PackagePolicyRepresentationAvailability, PackagePolicyRepresentationDemand,
-    PackagePolicyRepresentationSelection, PackageReviewBoundaryCallingPolicy,
-    PackageReviewBoundaryShape, PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
+    PackagePolicyRepresentationProducerInstance, PackagePolicyRepresentationSelection,
+    PackageReviewBoundaryCallingPolicy, PackageReviewBoundaryShape,
+    PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
     PackageReviewBoundaryShapeGraph, PackageReviewBoundaryValueClass,
     PackageReviewBoundaryValueLocation, PackageReviewBoundaryValuePlacement,
     PackageReviewBoundaryValueShape, PackageReviewIndirectPointerLocation,

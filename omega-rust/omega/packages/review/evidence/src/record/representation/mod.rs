@@ -16,7 +16,7 @@ pub use movement::{
 pub use policy::{
     PackagePolicyRepresentation, PackagePolicyRepresentationAgreementError,
     PackagePolicyRepresentationAvailability, PackagePolicyRepresentationDemand,
-    PackagePolicyRepresentationSelection,
+    PackagePolicyRepresentationProducerInstance, PackagePolicyRepresentationSelection,
 };
 pub use shape::{
     PackageReviewBoundaryShape, PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,

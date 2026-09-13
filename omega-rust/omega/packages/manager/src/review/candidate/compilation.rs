@@ -40,6 +40,7 @@ use compiler::compile_to_checked;
 use diagnostics::Diagnostic;
 use package_compilation::{AcceptedSemanticBinding, PackageCompilationInputError};
 use package_evidence::ledger::{ReconstructedPackageReview, reconstruct_package_review};
+use package_evidence::record::PackagePolicyRepresentationProducerInstance;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -301,6 +302,10 @@ fn compile_resolved_package_reviews_in_session(
                     errors: vec![error],
                 },
             )?;
+        let dependency_source_instances = dependency_bundles
+            .iter()
+            .map(|bundle| (bundle.package(), bundle.source_consumption_commitment()))
+            .collect::<BTreeMap<_, _>>();
         let inputs = inputs
             .with_complete_dependency_generated_sources(dependency_bundles)
             .map_err(
@@ -415,14 +420,23 @@ fn compile_resolved_package_reviews_in_session(
             retained_policy_canonical_total,
         )?;
         // Dependency reviews precede consumers, so prior rows are available
-        // for rejoining actual foreign by-value representation demands.
+        // for rejoining actual foreign by-value representation demands. Each
+        // rejoin binds the producer review to the immutable source instance
+        // this consumer compiled against through its retained dependency
+        // bundle.
         policy
             .representation()
             .rejoin_foreign_demands(|identity| {
-                reviews
+                let review = reviews
                     .iter()
-                    .find(|review| review.key.identity() == identity)
-                    .map(|review| review.policy.representation())
+                    .find(|review| review.key.identity() == identity)?;
+                let expected_source_instance =
+                    dependency_source_instances.get(&identity).copied()?;
+                Some(PackagePolicyRepresentationProducerInstance {
+                    policy: review.policy.representation(),
+                    expected_source_instance,
+                    reviewed_source_instance: review.source_consumption_commitment(),
+                })
             })
             .map_err(
                 |error| CompileResolvedPackageReviewsError::RepresentationAgreement {
