@@ -8,20 +8,21 @@ use typed_trees::statement::{StatementHandle, StatementNode};
 pub struct RootBinding {
     pub slot: String,
     pub implementation: String,
+    /// Exact product machine selected under the occurrence's lexical package scope.
+    pub implementation_symbol: symbols::SymbolHandle,
 }
 
-/// Only executed occurrences contribute. Interpreter coordinates belong to this
-/// exact prepared program; target-slot and implementation admission remain with
-/// the selected product. Reborrowing Build never changes lexical visibility.
+/// Admission is lexical per occurrence package: the `implementation` operand
+/// resolves against the product machines declared in the package containing
+/// the `roots.bind` statement, never the caller's. A borrowed root Build
+/// carries operational authority, not the caller's product namespace, so a
+/// foreign helper can bind its own package's entry while wrong-scope spellings
+/// reject. Identity leaves here as an exact symbol so later admission never
+/// reselects by spelling.
 pub(crate) fn collect_root_bindings(
     typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
     executed: &[StatementHandle],
 ) -> Result<Vec<RootBinding>, Vec<Diagnostic>> {
-    let root_source = typed
-        .symbols
-        .symbol_source_span(machine.symbol)
-        .and_then(|span| typed.symbols.source_file(span));
     let mut bindings: Vec<RootBinding> = Vec::with_capacity(executed.len());
     let mut diagnostics = Vec::new();
     for &statement in executed {
@@ -30,23 +31,6 @@ pub(crate) fn collect_root_bindings(
                 "executed root-binding coordinate is not a declaration in the admitted program",
             )]);
         };
-        let source = typed.symbols.source_file(request.source_span);
-        let same_owner = root_source.zip(source).is_some_and(|(root, source)| {
-            root.origin == source.origin
-                && match (root.package_identity, source.package_identity) {
-                    (Some(root), Some(owner)) => root == owner,
-                    (None, None) => {
-                        !root.package_root.as_os_str().is_empty()
-                            && root.package_root == source.package_root
-                    }
-                    _ => false,
-                }
-        });
-        if !same_owner {
-            diagnostics.push(Diagnostic::error("root binding from a foreign build helper requires lexical product-reference admission, which is not implemented; borrowing Build does not grant the caller's product namespace")
-                .with_source_span(request.source_span));
-            continue;
-        }
         let slot = product_path(&request.slot);
         let implementation = product_path(&request.implementation);
         if let Some(existing) = bindings.iter().find(|binding| binding.slot == slot) {
@@ -55,10 +39,48 @@ pub(crate) fn collect_root_bindings(
             )).with_source_span(request.source_span));
             continue;
         }
-        bindings.push(RootBinding {
-            slot,
-            implementation,
-        });
+        let candidates = typed
+            .machines()
+            .iter()
+            .filter(|machine| {
+                machine.name.as_str() == implementation
+                    && typed
+                        .symbols
+                        .symbol_source_span(machine.symbol)
+                        .is_some_and(|span| {
+                            typed.symbols.same_source_package(span, request.source_span)
+                        })
+            })
+            .collect::<Vec<_>>();
+        match candidates.as_slice() {
+            [machine] => bindings.push(RootBinding {
+                slot,
+                implementation,
+                implementation_symbol: machine.symbol,
+            }),
+            [] => {
+                let message = if typed
+                    .machines()
+                    .iter()
+                    .any(|machine| machine.name.as_str() == implementation)
+                {
+                    format!(
+                        "root binding names `{implementation}`, which is not a product declaration visible from this build source's package; borrowing Build does not grant the caller's product namespace"
+                    )
+                } else {
+                    format!(
+                        "root binding names unknown entry machine `{implementation}` in this build source's package"
+                    )
+                };
+                diagnostics.push(Diagnostic::error(message).with_source_span(request.source_span));
+            }
+            _ => diagnostics.push(
+                Diagnostic::error(format!(
+                    "root binding `{implementation}` is ambiguous within its package"
+                ))
+                .with_source_span(request.source_span),
+            ),
+        }
     }
     if diagnostics.is_empty() {
         Ok(bindings)

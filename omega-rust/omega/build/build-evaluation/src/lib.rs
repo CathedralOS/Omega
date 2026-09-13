@@ -1285,7 +1285,7 @@ pub fn execute_admitted_build_program(
         .map_err(|diagnostic| vec![diagnostic])?;
     let filesystem_host_observed = measured.observations().filesystem_host_observed();
     let build_log = measured.observations().build_log().to_vec();
-    let root_bindings = collect_root_bindings(typed, machine, measured.executed_root_bindings())?;
+    let root_bindings = collect_root_bindings(typed, measured.executed_root_bindings())?;
     let mut arguments = measured.into_value();
     let augmented = arguments.pop().ok_or_else(|| {
         vec![Diagnostic::error(format!(

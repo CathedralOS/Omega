@@ -265,19 +265,8 @@ fn exclusive_target_borrow_is_rejected() {
     );
 }
 
-#[test]
-fn borrowing_build_does_not_lend_private_product_names_to_a_foreign_helper() {
-    let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
-    );
-    fs::write(helper.0.join("setup.omg"),
-        "module setup; pub machine configure(builder: &mut Build) { builder.roots.bind(windows_x86_64::ProgramEntry, launch); }",
-    ).expect("helper source");
-    let project = TempProject::with_main(
-        "machine launch() { let marker: u8 = 0; }",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
-    );
-    let inputs = PackageCompilationInputs::new(
+fn foreign_helper_inputs(project: &TempProject, helper: &TempProject) -> PackageCompilationInputs {
+    PackageCompilationInputs::new(
         package_identity(1),
         BuildDeclarationKind::Application,
         vec![
@@ -290,15 +279,72 @@ fn borrowing_build_does_not_lend_private_product_names_to_a_foreign_helper() {
             package_identity(2),
         )],
     )
-    .expect("explicit package graph");
+    .expect("explicit package graph")
+}
+
+#[test]
+fn borrowing_build_does_not_lend_private_product_names_to_a_foreign_helper() {
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine configure(builder: &mut Build) { builder.roots.bind(windows_x86_64::ProgramEntry, launch); }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "machine launch() { let marker: u8 = 0; }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+    );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
-    request.package_inputs = Some(inputs);
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
     let diagnostics =
         compile_to_checked(request).expect_err("a helper cannot select its caller's private entry");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("foreign build helper requires lexical product-reference admission")),
+            .contains("not a product declaration visible from this build source's package")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn foreign_helper_binds_its_own_package_entry_through_borrowed_root_build() {
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine launch() { let marker: u8 = 0; } pub machine configure(builder: &mut Build) { builder.roots.bind(windows_x86_64::ProgramEntry, launch); }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "const ANSWER: u32 = 42;\n",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    let checked = compile_to_checked(request)
+        .expect("a helper may bind its own package's entry through the borrowed root Build");
+    assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
+}
+
+#[test]
+fn same_named_entry_in_another_package_is_fenced_until_terminal_production_rejoins_identity() {
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine launch() { let marker: u8 = 0; } pub machine configure(builder: &mut Build) { builder.roots.bind(windows_x86_64::ProgramEntry, launch); }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "machine launch() { let marker: u8 = 0; }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    let diagnostics = compile_to_checked(request)
+        .expect_err("a same-named foreign entry must reject until production rejoins by symbol");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("another package declares a same-named machine")),
         "{diagnostics:?}"
     );
 }
