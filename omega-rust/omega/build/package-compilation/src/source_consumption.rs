@@ -2,7 +2,6 @@ use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 use source::{SourceFile, SourceOrigin};
-use std::collections::BTreeMap;
 use std::path::{Component, Path};
 
 const SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CONSUMED-SOURCE-CONTENT-V1\0";
@@ -220,31 +219,30 @@ pub fn derive_consumed_source_units(
     program: &CheckedTrees,
     generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
 ) -> Result<Vec<ConsumedSourceUnit>, Vec<Diagnostic>> {
-    let generated_by_id = generated_sources
-        .iter()
-        .map(|(source_id, generated)| (source_id.0, generated))
-        .collect::<BTreeMap<_, _>>();
-    if generated_by_id.len() != generated_sources.len() {
+    let generated_by_id = GeneratedSourceOrder::new(generated_sources);
+    if (1..generated_sources.len())
+        .any(|position| generated_by_id.at(position - 1).0 == generated_by_id.at(position).0)
+    {
         return Err(vec![Diagnostic::error(
             "generated-source custody contains duplicate frontend source IDs",
         )]);
     }
 
-    let mut observed_generated = BTreeMap::new();
+    let mut observed_generated = vec![false; generated_sources.len()];
     let mut units = program
         .typed
         .symbols
         .source_files()
         .map(|source| {
-            let generated = generated_by_id.get(&source.source_id.0).copied();
-            if let Some(generated) = generated {
+            let generated = generated_by_id.find(source.source_id);
+            if let Some((position, generated)) = generated {
                 validate_generated_source_join(source, generated)?;
-                observed_generated.insert(source.source_id.0, generated);
+                observed_generated[position] = true;
             }
             consumed_source_unit(source, generated.is_some())
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if observed_generated.len() != generated_by_id.len() {
+    if observed_generated.contains(&false) {
         return Err(vec![Diagnostic::error(
             "generated-source custody names a source absent from the final checked closure",
         )]);
@@ -264,6 +262,57 @@ pub fn derive_consumed_source_units(
         )]);
     }
     Ok(units)
+}
+
+/// Producers append custody in source-ID order. Borrow that order directly;
+/// arbitrary callers need only a compact permutation, never a source-ID-sized
+/// table. SourceMap::from_files can retain arbitrary source order, so consumers
+/// search this view rather than assume that source iteration is monotonic.
+struct GeneratedSourceOrder<'source> {
+    sources: &'source [(source::SourceId, build_output::PackageGeneratedSource)],
+    positions: Option<Vec<usize>>,
+}
+
+impl<'source> GeneratedSourceOrder<'source> {
+    fn new(sources: &'source [(source::SourceId, build_output::PackageGeneratedSource)]) -> Self {
+        let positions = sources
+            .windows(2)
+            .any(|pair| pair[0].0.0 > pair[1].0.0)
+            .then(|| {
+                let mut positions = (0..sources.len()).collect::<Vec<_>>();
+                // Preserve the first input occurrence for verification callers;
+                // projection separately rejects every duplicate source ID.
+                positions.sort_unstable_by_key(|position| (sources[*position].0.0, *position));
+                positions
+            });
+        Self { sources, positions }
+    }
+
+    fn at(
+        &self,
+        position: usize,
+    ) -> &'source (source::SourceId, build_output::PackageGeneratedSource) {
+        &self.sources[self
+            .positions
+            .as_ref()
+            .map_or(position, |positions| positions[position])]
+    }
+
+    fn find(
+        &self,
+        source_id: source::SourceId,
+    ) -> Option<(usize, &'source build_output::PackageGeneratedSource)> {
+        let position = match &self.positions {
+            Some(positions) => {
+                positions.partition_point(|position| self.sources[*position].0.0 < source_id.0)
+            }
+            None => self
+                .sources
+                .partition_point(|(candidate, _)| candidate.0 < source_id.0),
+        };
+        (position < self.sources.len() && self.at(position).0 == source_id)
+            .then(|| (position, &self.at(position).1))
+    }
 }
 
 fn validate_generated_source_join(
@@ -490,14 +539,12 @@ pub fn verify_current_files(
     generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let generated_by_id = GeneratedSourceOrder::new(generated_sources);
     for source in program.typed.symbols.source_files() {
         if source.origin == SourceOrigin::Toolchain && is_virtual_toolchain_path(&source.path) {
             continue;
         }
-        if let Some((_, generated)) = generated_sources
-            .iter()
-            .find(|(source_id, _)| *source_id == source.source_id)
-        {
+        if let Some((_, generated)) = generated_by_id.find(source.source_id) {
             if source.source.as_bytes() != generated.bytes() {
                 diagnostics.push(Diagnostic::error(format!(
                     "compiler-retained generated source `{}` drifted from staged-output custody",
@@ -605,6 +652,190 @@ mod tests {
     use source::SourceId;
     use std::path::PathBuf;
     use std::sync::Arc;
+
+    fn generated_fixture() -> Vec<(SourceId, build_output::PackageGeneratedSource)> {
+        let tree = build_output::replayed_ordinary_files(&[
+            (b"first.omg", b"data First {}"),
+            (b"second.omg", b"data Second {}"),
+        ])
+        .expect("retained generated files");
+        build_output::select_included_sources(
+            &tree,
+            &[b"first.omg".to_vec(), b"second.omg".to_vec()],
+        )
+        .expect("included generated files")
+        .into_iter()
+        .enumerate()
+        .map(|(position, generated)| (SourceId(position * 2 + 1), generated))
+        .collect()
+    }
+
+    fn checked_sources(files: Vec<SourceFile>) -> CheckedTrees {
+        let mut program = CheckedTrees::default();
+        program.typed.symbols = program
+            .typed
+            .symbols
+            .begin_extension(
+                Some(Arc::new(source::SourceMap::from_files(files))),
+                Vec::new(),
+            )
+            .finish();
+        program
+    }
+
+    fn generated_files(
+        custody: &[(SourceId, build_output::PackageGeneratedSource)],
+    ) -> Vec<SourceFile> {
+        custody
+            .iter()
+            .map(|(source_id, generated)| {
+                let mut file = source(
+                    &format!(
+                        "/package/.omega/generated/{}",
+                        String::from_utf8_lossy(generated.relative_path())
+                    ),
+                    "/package",
+                    Some(PackageKeyIdentity::from_digest([7; 32]).expect("package identity")),
+                    SourceOrigin::User,
+                    std::str::from_utf8(generated.bytes()).expect("generated UTF-8"),
+                );
+                file.source_id = *source_id;
+                file
+            })
+            .collect()
+    }
+
+    #[test]
+    fn generated_custody_order_preserves_arbitrary_ids_and_first_duplicate() {
+        let custody = generated_fixture();
+        let ordered = GeneratedSourceOrder::new(&custody);
+        assert!(
+            ordered.positions.is_none(),
+            "producer order needs no permutation"
+        );
+        assert!(GeneratedSourceOrder::new(&[]).positions.is_none());
+        assert!(ordered.find(SourceId(0)).is_none());
+        assert!(ordered.find(SourceId(2)).is_none());
+        assert!(ordered.find(SourceId(usize::MAX)).is_none());
+        let reordered = vec![
+            custody[1].clone(),
+            custody[0].clone(),
+            (custody[1].0, custody[0].1.clone()),
+        ];
+        let ordered = GeneratedSourceOrder::new(&reordered);
+        assert!(ordered.positions.is_some());
+        assert_eq!(ordered.find(custody[1].0).unwrap().1, &custody[1].1);
+    }
+
+    #[test]
+    fn generated_projection_preserves_order_independence_and_custody_errors() {
+        let custody = generated_fixture();
+        let files = generated_files(&custody);
+        let baseline =
+            derive_consumed_source_units(&checked_sources(files.clone()), &custody).unwrap();
+        let mut reversed_files = files.clone();
+        reversed_files.reverse();
+        let reversed_custody = vec![custody[1].clone(), custody[0].clone()];
+        assert_eq!(
+            baseline,
+            derive_consumed_source_units(&checked_sources(reversed_files), &reversed_custody)
+                .unwrap()
+        );
+        let mut duplicate = custody.clone();
+        duplicate.push(custody[0].clone());
+        assert!(
+            derive_consumed_source_units(&CheckedTrees::default(), &duplicate).unwrap_err()[0]
+                .message
+                .contains("duplicate frontend source IDs")
+        );
+        let mut missing = custody.clone();
+        missing.push((SourceId(usize::MAX), custody[0].1.clone()));
+        assert!(
+            derive_consumed_source_units(&checked_sources(files.clone()), &missing).unwrap_err()[0]
+                .message
+                .contains("absent from the final checked closure")
+        );
+        let mut changed_content = files.clone();
+        changed_content[0].source = Arc::from("changed");
+        let mut changed_path = files.clone();
+        changed_path[0].path = PathBuf::from("/package/.omega/generated/other.omg");
+        let mut changed_root = files.clone();
+        changed_root[0].package_root = PathBuf::from("/other-package");
+        for (changed, expected) in [
+            (changed_content, "does not match final checked source"),
+            (changed_path, "path does not match final checked source"),
+            (changed_root, "outside its reconciled package root"),
+        ] {
+            assert!(
+                derive_consumed_source_units(&checked_sources(changed), &custody).unwrap_err()[0]
+                    .message
+                    .contains(expected)
+            );
+        }
+        let mut repeated = files.clone();
+        repeated.push(files[0].clone());
+        assert!(
+            derive_consumed_source_units(&checked_sources(repeated.clone()), &custody).unwrap_err()
+                [0]
+            .message
+            .contains("duplicate canonical source coordinates")
+        );
+        assert!(
+            derive_consumed_source_units(&checked_sources(repeated), &missing).unwrap_err()[0]
+                .message
+                .contains("absent from the final checked closure"),
+            "repeated source IDs must not hide missing custody"
+        );
+        let mut wrong_origin = files;
+        wrong_origin[0].origin = SourceOrigin::Toolchain;
+        assert!(
+            derive_consumed_source_units(&checked_sources(wrong_origin), &custody).unwrap_err()[0]
+                .message
+                .contains("does not match final checked source")
+        );
+    }
+
+    #[test]
+    fn generated_verification_preserves_physical_rereads_and_custody_only_behavior() {
+        let custody = generated_fixture();
+        let mut files = generated_files(&custody);
+        // Verification is also callable alone: projection, not this reread,
+        // owns duplicate/missing ID and generated logical-path admission.
+        let mut unchecked = vec![custody[1].clone(), custody[0].clone()];
+        unchecked.push((custody[0].0, custody[1].1.clone()));
+        unchecked.push((SourceId(usize::MAX), custody[0].1.clone()));
+        verify_current_files(&checked_sources(files.clone()), &unchecked).unwrap();
+        files[0].source = Arc::from("drifted");
+        assert!(
+            verify_current_files(&checked_sources(files.clone()), &unchecked).unwrap_err()[0]
+                .message
+                .contains("drifted from staged-output custody")
+        );
+        files = generated_files(&custody);
+        let path = std::env::temp_dir().join(format!(
+            "omega-source-consumption-reread-{}.omg",
+            std::process::id()
+        ));
+        std::fs::write(&path, "physical").expect("write physical source");
+        let mut physical = source("unused", "unused", None, SourceOrigin::User, "physical");
+        physical.path = path.clone();
+        physical.source_id = SourceId(0);
+        files.insert(1, physical);
+        let program = checked_sources(files);
+        verify_current_files(&program, &unchecked).unwrap();
+        std::fs::write(&path, "changed").expect("change physical source");
+        assert!(
+            verify_current_files(&program, &unchecked).unwrap_err()[0]
+                .message
+                .contains("changed after frontend loading")
+        );
+        std::fs::remove_file(&path).expect("remove physical source");
+        assert!(
+            verify_current_files(&program, &unchecked).unwrap_err()[0]
+                .message
+                .contains("cannot be re-read")
+        );
+    }
 
     fn canonical_row_fixture() -> Vec<ConsumedSourceUnit> {
         let package = PackageKeyIdentity::from_digest([7; 32]).expect("package identity");
