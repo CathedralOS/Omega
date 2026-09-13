@@ -3281,3 +3281,153 @@ machine Main::main(&mut self) { }
     );
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
 }
+
+#[test]
+fn borrowed_dynamic_trait_parameter_materializes_fat_descriptor_shape() {
+    // A `&dyn Trait` boundary parameter is an unsized-referent reference: the
+    // runtime carrier is the two-word `{instance, table}` existential
+    // descriptor that ordinary dynamic-descriptor arguments expand to. The
+    // normalized boundary signature must therefore publish a fat two-pointer
+    // shape, not a thin pointer — a policy placing the parameter needs both
+    // eightbytes to carry the table word.
+    let source = r#"
+use omega::language::std::calling;
+
+trait Shape {
+    machine code(&self) -> i32;
+}
+
+data FatDescriptorPolicy { }
+FatDescriptorPolicyCallingPolicy: FatDescriptorPolicy satisfies CallingPolicy;
+
+machine FatDescriptorPolicy::plan(
+    signature: BoundarySignature
+) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 1 {
+        true -> bound(signature, signature.parameters[0])
+        _ -> reject()
+    }
+
+    state bound(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition root < 256 {
+            true -> build(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::MicrosoftX64;
+        output.call.parameter_count = 1;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = signature.shapes[root].byte_size;
+        output.call.parameters[0].shape.alignment = signature.shapes[root].alignment;
+        output.call.parameters[0].location_count = 2;
+        output.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rcx,
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+        output.call.parameters[0].locations[1] = ValueLocation::Register {
+            register: MachineRegister::X86Rdx,
+            value_byte_offset: 8,
+            byte_size: 8,
+        };
+        output.call.stack_alignment = 16;
+        output.call.shadow_bytes = 32;
+        output.call.entry_control = EntryControl::CallReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.stack = EntryStack::ProviderSelected;
+        output.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "unsupported signature" },
+        }
+    }
+}
+
+boundary trait Inspect: Calling<FatDescriptorPolicy> {
+    machine inspect(value: &dyn Shape);
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#;
+    let main_path = write_program("dynamic-trait-descriptor-shape", source);
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &main_path,
+        Some("windows_x86_64"),
+    ))
+    .expect("a borrowed dynamic-trait parameter must carry its descriptor width");
+    let inspect_trait = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Inspect")
+        .expect("exact boundary trait declaration");
+    let inspect = checked
+        .typed
+        .trait_machine_signatures(inspect_trait)
+        .iter()
+        .find(|signature| signature.name.as_str() == "inspect")
+        .expect("exact boundary requirement");
+    let realization = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .find(|realization| realization.requirement_machine == inspect.symbol)
+        .expect("retained calling-plan realization");
+    let signature = realization.materialized_signature();
+    let [root] = signature.parameters() else {
+        panic!("one semantic parameter root")
+    };
+    let shape = signature.shapes()[usize::from(*root)];
+    assert_eq!(
+        shape.class(),
+        BoundaryValueClass::Reference,
+        "a borrowed dynamic-trait parameter is a reference descriptor"
+    );
+    let target = target::NativeTarget::windows_x64();
+    assert_eq!(
+        shape.byte_size(),
+        u16::try_from(target.pointer_size * 2).expect("descriptor width fits u16"),
+        "the descriptor needs both pointer words"
+    );
+    assert_eq!(
+        shape.alignment(),
+        u16::try_from(target.pointer_alignment).expect("descriptor alignment fits u16")
+    );
+    let [placement] = realization.boundary_entry_plan.call.parameters.as_slice() else {
+        panic!("one placed parameter")
+    };
+    assert_eq!(placement.shape.byte_size, shape.byte_size());
+    assert_eq!(placement.shape.alignment, shape.alignment());
+    let [
+        calling_conventions::ValueLocation::Register {
+            register: first_register,
+            value_byte_offset: 0,
+            byte_size: 8,
+        },
+        calling_conventions::ValueLocation::Register {
+            register: second_register,
+            value_byte_offset: 8,
+            byte_size: 8,
+        },
+    ] = placement.locations.as_slice()
+    else {
+        panic!("the descriptor's two words must be placed in order")
+    };
+    assert_eq!(
+        *first_register,
+        calling_conventions::MachineRegister::X86Rcx
+    );
+    assert_eq!(
+        *second_register,
+        calling_conventions::MachineRegister::X86Rdx
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
