@@ -384,15 +384,19 @@ prerequisite to every lower-rung milestone.
   source/tape identity in `tools/bootstrap/gamma/evaluator_env.sh`, the Delta
   request entry, source manifest, `GammaComposedV1` record, and repacked
   canonical closure in `tools/bootstrap/delta/compiler_env.sh` (which also
-  checks the record names the selected evaluator and packed closure), and the
+  checks the record names the selected evaluator and packed closure), the
   Epsilon evaluator manifest and repacked closure in
-  `tools/bootstrap/epsilon/evaluator_env.sh`; checked by
-  `tests/bootstrap/{alpha,beta,gamma,delta,epsilon}-identity.sh` (identity and
-  refusal coverage without executing the rungs; seed execution needs macOS
-  arm64 or Windows x64). Existing delta/epsilon test gates still pack through
-  `source_closure.py` directly; adopting the bound materializers there is
-  follow-through, not new machinery. Next: bind the Omega D and proof
-  manifests' digests the same way.
+  `tools/bootstrap/epsilon/evaluator_env.sh`, the Epsilon-written Omega D
+  manifest and repacked closure in `tools/bootstrap/omega/compiler_env.sh`,
+  and the derivation-checker and Beta-encoding theory manifests and repacked
+  member closures in `tools/bootstrap/proofs/sources_env.sh`; checked by
+  `tests/bootstrap/{alpha,beta,gamma,delta,epsilon,omega,proofs}-identity.sh`
+  (identity and refusal coverage without executing the rungs; seed execution
+  needs macOS arm64 or Windows x64). Existing delta/epsilon test gates still
+  pack through `source_closure.py` directly; adopting the bound materializers
+  there is follow-through, not new machinery. Next: bind D's OCREQ request
+  entry, the omega0/omega compiler tapes, and the eventual certificate and
+  disclosed admission records the same way as those artifacts land.
 
 - **OFFLINE-REBUILD.** Close `tests/bootstrap/` reconstruction across all
   completed edges. Acceptance: a blank supported host reconstructs and checks

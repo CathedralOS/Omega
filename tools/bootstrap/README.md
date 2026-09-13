@@ -36,6 +36,15 @@ closure. `tools/bootstrap/epsilon/evaluator_env.sh` binds the
 against `bootstrap/4_epsilon/README.md`. Both refuse before writing when the
 bound bytes differ, including a changed manifest or member.
 
+`tools/bootstrap/omega/compiler_env.sh` binds the
+`omega_compiler.epsilon.sources` manifest and repacked D closure against
+`bootstrap/5_omega/README.md` the same way.
+`tools/bootstrap/proofs/sources_env.sh` binds the
+`implementation.gamma.sources` and `theory.gamma.sources` manifests and their
+repacked member closures against `bootstrap/proofs/checker/README.md` and
+`bootstrap/proofs/beta_encoding/README.md`; test gates still supply their own
+diagnostic prefix entries on top of the bound member bytes.
+
 `check-chain-hygiene.sh` is the single repository-topology gate. It positively
 enumerates the implemented compiler source/tape identities, inventories every
 retained source, test, and bootstrap-tool owner, rejects alternate bootstrap
@@ -51,8 +60,9 @@ The separate `bootstrap/proofs/` owner contains the checker and encoding theory;
 it is not another language rung.
 
 `source_closure.py MANIFEST OUTPUT` checks and concatenates explicitly ordered
-source members. `DeltaSourceClosureV1` selects `.delta` members for the Epsilon
-evaluator; `EpsilonSourceClosureV1` selects `.epsilon` members for Omega D. Both
+source members. `GammaSourceClosureV1` selects `.gamma` members for the proof
+closures; `DeltaSourceClosureV1` selects `.delta` members for the Epsilon
+evaluator; `EpsilonSourceClosureV1` selects `.epsilon` members for Omega D. All
 use the same identity, length, digest, and canonical relative-path rows. The
 manifest parent owns the complete source-file inventory: missing, extra,
 wrong-language, stale, and symlinked members reject before output replacement.
@@ -81,7 +91,9 @@ remain under their language owner.
 | `gamma/evaluator_env.sh` | Selected Beta-authored functional Gamma evaluator materialization. | Delete only when every caller has an equally direct canonical invocation. |
 | `delta/compiler_env.sh` | Bound identity and canonical closure materialization for the Gamma-authored Delta compiler. | Delete only when every caller has an equally direct canonical invocation. |
 | `epsilon/evaluator_env.sh` | Bound identity and canonical closure materialization for the Delta-authored Epsilon evaluator. | Delete only when every caller has an equally direct canonical invocation. |
-| `source_closure.py` | Byte-exact assembly of the Delta-written Epsilon evaluator and Epsilon-written Omega D source closures. | Delete only when the selected lower compilers accept the same canonical member closures directly. |
+| `omega/compiler_env.sh` | Bound identity and canonical closure materialization for the Epsilon-written Omega compiler D. | Delete only when every caller has an equally direct canonical invocation. |
+| `proofs/sources_env.sh` | Bound identity and canonical member-closure materialization for the derivation checker and Beta encoding theory. | Delete only when every caller has an equally direct canonical invocation. |
+| `source_closure.py` | Byte-exact assembly of the Gamma proof, Delta-written Epsilon evaluator, and Epsilon-written Omega D source closures. | Delete only when the selected lower compilers accept the same canonical member closures directly. |
 
 The retired `verify-lattice.sh`, `test-paths.sh`, historical bootstrap-role facade,
 future-artifact locators, root compiler cache, and receipt profiles had no
