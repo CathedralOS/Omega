@@ -93,7 +93,16 @@ pub(super) fn call_pointer(
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    if !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
+    let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
+        return Err(replay.invalid());
+    };
+    if call.validate_source(&row.ownership).is_err()
+        || !call.claim_transfers.is_empty()
+        // Origin consistency alone also admits scalar calls with no ownership
+        // event; this borrowed-pointer edge still requires authored transfer.
+        || matches!(call.source, target_operations::NativeCallOrigin::Authored)
+            && !matches!(row.ownership.as_slice(),
+                [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
         || row.result.is_some_and(|result| {
             !crate::selection::scalar_call_abi::scalar_shape(result.scalar_type)
                 .is_some_and(|shape| shape.class == calling_conventions::ValueClass::Integer)

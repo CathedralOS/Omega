@@ -45,10 +45,10 @@ pub(super) fn encode_boundary_settlement(
     encode_ownership_roster(bytes, &settlement.ownership);
 }
 
-pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &LegalizedCallUnitSource) {
+pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin) {
     match source {
-        LegalizedCallUnitSource::AuthoredCallUnit => bytes.push(1),
-        LegalizedCallUnitSource::InstalledProvider {
+        NativeCallOrigin::Authored => bytes.push(1),
+        NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
             completion_claim_sources,

@@ -126,7 +126,7 @@ fn owned_call(
         },
     });
     row.kind = LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
-        source: LegalizedCallUnitSource::AuthoredCallUnit,
+        source: NativeCallOrigin::Authored,
         callee: MachineId::new(2).unwrap(),
         arguments,
         structural_result: Some(output.clone()),

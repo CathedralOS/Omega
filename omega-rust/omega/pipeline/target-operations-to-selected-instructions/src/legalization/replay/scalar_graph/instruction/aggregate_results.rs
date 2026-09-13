@@ -72,7 +72,7 @@ pub(super) fn validate(
                 || call.structural_result.as_ref() != Some(result)
                 || call.call_plan != expected
                 || call.result_placement != expected.result
-                || call.source != LegalizedCallUnitSource::AuthoredCallUnit
+                || call.source != NativeCallOrigin::Authored
                 || call.claim_transfers != *claim_transfers
                 || call.requirement_obligations != *requirement_obligations
                 || call.crash_continuations != *crash_continuations

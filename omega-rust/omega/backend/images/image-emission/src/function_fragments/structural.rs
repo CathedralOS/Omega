@@ -14,7 +14,7 @@ mod validation;
 use super::{Error, attribution, host, source};
 use crate::{ObjectBoundarySettlement, ObjectFunction};
 use calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement};
-use legalized_operations::{LegalizedCallUnitSource, LegalizedScalarArgument};
+use legalized_operations::{LegalizedScalarArgument, NativeCallOrigin};
 use machine_code::{
     InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitCallSource,
     InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallArgumentRecord,
@@ -489,8 +489,8 @@ pub(super) fn populate(
             });
         }
         let call_source = match &call.source {
-            LegalizedCallUnitSource::AuthoredCallUnit => InternalUnitCallSource::Authored,
-            LegalizedCallUnitSource::InstalledProvider {
+            NativeCallOrigin::Authored => InternalUnitCallSource::Authored,
+            NativeCallOrigin::InstalledProvider {
                 boundary,
                 provider,
                 completion_claim_sources,

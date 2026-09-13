@@ -27,9 +27,9 @@ mod subslices;
 mod unobserved_owned;
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use legalized_operations::{
-    LegalizedCallUnitSource, LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall,
-    LegalizedScalarInstruction, LegalizedScalarParameter, LegalizedScalarReturn,
-    LegalizedScalarReturnValue, LegalizedScalarTerminator, LegalizedValueDefinition,
+    LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarInstruction,
+    LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
+    LegalizedScalarTerminator, LegalizedValueDefinition, NativeCallOrigin,
 };
 use optimization_unit::EffectLink;
 use semantic_vocabulary::{
@@ -71,7 +71,7 @@ fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunctio
                 .collect();
             LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
                 structural_result: None,
-                source: LegalizedCallUnitSource::AuthoredCallUnit,
+                source: NativeCallOrigin::Authored,
                 claim_transfers: Vec::new(),
                 callee: MachineId::new(raw + 7).unwrap(),
                 arguments,

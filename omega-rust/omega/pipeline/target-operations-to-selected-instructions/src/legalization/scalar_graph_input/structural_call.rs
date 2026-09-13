@@ -239,11 +239,13 @@ fn established_view(
     semantic_vocabulary::StructuralTypeId,
 )> {
     if let Some(producer) = super::literals::producer(caller, call, place) {
-        return super::literals::roster(caller).then_some(producer);
+        return Some(producer);
     }
     if !caller.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
         matches!(&node.operation, AbstractOperation::CallStructuralScalar { psi_operation, structural_arguments, .. }
             | AbstractOperation::CallUnit { psi_operation, structural_arguments, .. }
+            | AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
+            | AbstractOperation::BoundaryCall { psi_operation, structural_arguments, .. }
             if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == place))
     }) {
         return None;

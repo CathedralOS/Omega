@@ -1,4 +1,4 @@
-//! Boundary settlement and admitted-provider Unit-call lowering.
+//! Boundary settlement lowering. Installed providers use ordinary call transport.
 
 use super::super::boundary_settlements::claim_completion_only_boundary_is_exact;
 use super::super::scalar_abi::fixed_native_integer_shape;
@@ -6,7 +6,6 @@ use super::super::shared::*;
 use super::super::structural_layout::structural_sum_layout;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 
-mod installed_provider;
 mod normalized_foreign;
 
 #[cfg(test)]
@@ -20,14 +19,9 @@ pub(in crate::lowering) fn lower_boundary_call(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     target: NativeTarget,
-    functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    installed_calls: &BTreeMap<
-        (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderCallEvidence,
-    >,
     native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
@@ -52,23 +46,6 @@ pub(in crate::lowering) fn lower_boundary_call(
             completion_receipts,
         } => {
             let native_callback = native_callbacks.get(psi_operation);
-            if installed_provider::try_lower(
-                operation,
-                function,
-                target,
-                functions,
-                structural_types,
-                boundary_machines,
-                installed_calls,
-                parameters_by_place,
-                shape_cache,
-                active,
-                scalar_values,
-                operations,
-                provenance,
-            )? {
-                return Ok(());
-            }
             let binding = settlements
                 .get(boundary)
                 .cloned()

@@ -204,8 +204,38 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                 content: source.content.clone(),
             })
             .collect::<Vec<_>>();
-        if !result.is_unit()
-            || !matches!(installed.result, terminal_psi::OperationResult::Unit)
+        let exact_result = match (result, &installed.result) {
+            (
+                abstract_operations::AbstractBoundaryResult::Unit,
+                terminal_psi::OperationResult::Unit,
+            ) => true,
+            (
+                abstract_operations::AbstractBoundaryResult::Structural(actual),
+                terminal_psi::OperationResult::Structural(expected),
+            ) => actual == expected,
+            _ => false,
+        };
+        let declared_result_matches = plan
+            .boundary_machines
+            .iter()
+            .find(|declaration| declaration.id == key.2)
+            .is_some_and(|declaration| match (result, &declaration.result) {
+                (
+                    abstract_operations::AbstractBoundaryResult::Unit,
+                    terminal_psi::BoundaryMachineResult::Unit,
+                ) => true,
+                (
+                    abstract_operations::AbstractBoundaryResult::Structural(actual),
+                    terminal_psi::BoundaryMachineResult::Structural(expected),
+                ) => {
+                    actual.structural_type == expected.structural_type
+                        && actual.multiplicity == expected.multiplicity
+                        && actual.qualifications == expected.qualifications
+                }
+                _ => false,
+            });
+        if !exact_result
+            || !declared_result_matches
             || installed.scalar_arguments != *arguments
             || installed.structural_arguments != *structural_arguments
             || installed.completion_claim_sources != exact_sources

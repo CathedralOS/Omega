@@ -8,10 +8,10 @@ Hello, Omega.
 [press Enter to close]
 ```
 
-Interactive execution accepts Enter. The existing automated sample test closes
-stdin, so input reaches EOF; it checks exit 0 and the `Hello, Omega.` substring.
-Those are different input cases, and both belong to completion. The current
-first failure and next assignment live in [SAMPLE-CORPUS](../../../../TASKS.md).
+Interactive execution accepts Enter. The focused automated test compiles once
+and runs both EOF and Enter, checking both exact lines, empty stderr and exit 0.
+It passes on macOS ARM64 under explicit test-owned package acceptance. Remaining
+CLI acceptance and hosted-target work live in [SAMPLE-CORPUS](../../../../TASKS.md).
 
 ## Use the real command as the outer loop
 
@@ -64,6 +64,12 @@ It does not perform the CLI's local-project package review or change `omega.lock
 Checking-only sample probes retain unaccepted package inputs. Keep these results
 separate from the outer command.
 
+For exact output and both input cases on either host:
+
+```text
+mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=cli_mvp_preserves_both_lines_with_eof_and_enter)'
+```
+
 ## Trace the actual route
 
 The outer CLI checks current package requirements against the project's accepted
@@ -82,14 +88,12 @@ findings, not implicit grants. Do not supply blanket acceptance merely to advanc
 the example. Native proof, provider, and receiving-permission checks remain
 independent requirements.
 
-The compiler-library sample test supplies test-owned acceptance and gets through
-checked-provider installation. It now stops at the abstract structural-call
-contract check before optimization. Selected overload identities and verified
-local/projected call operands retain their independent installation checks;
-the next representation must preserve those same contracts. `Main.pause` remains
-the original raw fixed array and `read_line` still receives its mutable view.
-Current commands, tested revisions, and the next implementation step remain on
-the execution board; this is not native execution evidence.
+The compiler-library sample test supplies test-owned acceptance and publishes
+and executes the unchanged program on macOS ARM64. Installed provider calls use
+ordinary call transport while retaining independent selection, original boundary
+operands, result and completion checks. `Main.pause` remains the original raw
+fixed array and `read_line` still receives its mutable view. This native result
+does not grant project acceptance or establish runtime behavior on other hosts.
 
 Use `omega audit packages --project samples/cli/basics/cli_mvp
 --target macos_arm64 --details` to inspect the current macOS package findings;

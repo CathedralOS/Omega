@@ -1,6 +1,7 @@
 //! Optimizer module role: stage group.
 //! Independent root, function-roster, signature, and occurrence settlement custody.
 //! Executable graph bodies require the downstream common graph replay.
+pub(crate) mod installed_calls;
 mod model;
 mod structural_call_arguments;
 mod structural_shapes;

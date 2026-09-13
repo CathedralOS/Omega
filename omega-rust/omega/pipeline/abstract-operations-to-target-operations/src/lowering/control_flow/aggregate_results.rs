@@ -249,6 +249,13 @@ pub(super) fn call(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let parameters_by_place = prepared
+        .parameters
+        .iter()
+        .map(|parameter| (parameter.place, parameter))
+        .collect();
+    let mut shape_cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
     let target_arguments = structural_arguments
         .iter()
         .zip(&callee_function.structural_parameters)
@@ -285,23 +292,30 @@ pub(super) fn call(
                     types,
                 );
             }
+            if !live.block_views.contains(&argument.place) {
+                return crate::lowering::unit::structural_call::lower_structural_argument(
+                    argument,
+                    declaration,
+                    destination.shape,
+                    &destination.placement,
+                    *callee,
+                    function,
+                    types,
+                    &parameters_by_place,
+                    &BTreeMap::new(),
+                    &live.views,
+                    operations,
+                    &mut shape_cache,
+                    &mut active,
+                );
+            }
             if !argument.path.is_empty()
                 || argument.access != declaration.access
                 || !crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)
             {
                 return Err(invalid());
             }
-            let (source_type, source_access, source) = if let Some(parameter) = prepared
-                .parameters
-                .iter()
-                .find(|parameter| parameter.place == argument.place)
-            {
-                (
-                    parameter.structural_type,
-                    parameter.access,
-                    parameter.placement.clone().into(),
-                )
-            } else if live.block_views.contains(&argument.place) {
+            let (source_type, source_access, source) = {
                 let block = function
                     .block_entries
                     .iter()
@@ -325,8 +339,6 @@ pub(super) fn call(
                         place: parameter.place,
                     },
                 )
-            } else {
-                return Err(invalid());
             };
             if source_type != declaration.structural_type || source_access != argument.access {
                 return Err(invalid());
@@ -354,6 +366,7 @@ pub(super) fn call(
         return Err(invalid());
     }
     operations.push(TargetUnitOperation::StructuralResultCall {
+        origin: target_operations::NativeCallOrigin::Authored,
         psi_operation: *psi_operation,
         result: result.clone(),
         callee: *callee,

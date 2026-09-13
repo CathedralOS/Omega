@@ -29,6 +29,23 @@ pub(super) fn lower_operation(
             function.machine,
         ));
     }
+    let installed = if let AbstractOperation::BoundaryCall {
+        psi_operation,
+        boundary,
+        ..
+    } = operation
+    {
+        installed_calls.get(&(function.machine, *psi_operation, *boundary))
+    } else {
+        None
+    };
+    let resolved = installed
+        .map(|installed| super::installed_calls::resolve(operation, installed, functions))
+        .transpose()?;
+    let operation = resolved
+        .as_ref()
+        .map_or(operation, |(operation, _)| operation);
+    let first_output = operations.len();
     match operation {
         AbstractOperation::StoreDynamicDescriptor { psi_operation, .. } => {
             crate::lowering::unit::dynamic::lower_stored_descriptor(
@@ -345,11 +362,9 @@ pub(super) fn lower_operation(
                 operation,
                 function,
                 target,
-                functions,
                 structural_types,
                 boundary_machines,
                 settlements,
-                installed_calls,
                 native_callbacks,
                 parameters_by_place,
                 &mut BTreeMap::new(),
@@ -532,5 +547,9 @@ pub(super) fn lower_operation(
             )
         }
         _ => Err(LoweringError::UnsupportedControlFlow(function.machine)),
+    }?;
+    if let (Some(installed), Some((_, origin))) = (installed, resolved) {
+        super::installed_calls::retain_origin(&mut operations[first_output..], installed, origin)?;
     }
+    Ok(())
 }

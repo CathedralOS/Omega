@@ -2,11 +2,11 @@
 use abstract_operations::ValueBinding;
 use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use legalized_operations::{
-    LegalizedCallUnitSource, LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall,
-    LegalizedScalarComparison, LegalizedScalarFunction, LegalizedScalarInstruction,
+    LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarComparison,
+    LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind as Instruction, LegalizedScalarParameter, LegalizedScalarReturn,
     LegalizedScalarReturnValue, LegalizedScalarSuccessor, LegalizedScalarTerminator as Terminator,
-    LegalizedValueDefinition,
+    LegalizedValueDefinition, NativeCallOrigin,
 };
 use optimization_unit::{EffectLink, ValueDefinition, ValueDefinitionSite};
 use semantic_vocabulary::{
@@ -282,7 +282,7 @@ fn retained_call_demands_arguments_even_when_its_result_is_unused() {
         &[3, 4],
         Instruction::Call(LegalizedScalarCall {
             structural_result: None,
-            source: LegalizedCallUnitSource::AuthoredCallUnit,
+            source: NativeCallOrigin::Authored,
             callee: MachineId::new(2).unwrap(),
             result_placement: plan.result.clone(),
             call_plan: plan,

@@ -7,6 +7,20 @@ pub(super) fn project(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstruction, LegalizationError> {
+    if let Some((operation, origin)) =
+        scalar_graph_input::call_origin::installed_operation(node, optimized, native, plan)?
+    {
+        let mut call_node = node.clone();
+        call_node.operation = operation;
+        let mut instruction = project(&call_node, optimized, native, plan, unit)?;
+        let LegalizedScalarInstructionKind::Call(call) = &mut instruction.kind else {
+            return Err(Error::SourceCustodyMismatch);
+        };
+        call.source = origin;
+        call.validate_source(&node.ownership)
+            .map_err(|_| Error::SourceCustodyMismatch)?;
+        return Ok(instruction);
+    }
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
@@ -82,7 +96,7 @@ pub(super) fn project(
                 structural_result: Some(result.clone()),
                 result_placement: call_plan.result.clone(),
                 call_plan,
-                source: LegalizedCallUnitSource::AuthoredCallUnit,
+                source: NativeCallOrigin::Authored,
                 claim_transfers: claim_transfers.clone(),
                 requirement_obligations: requirement_obligations.clone(),
                 crash_continuations: crash_continuations.clone(),
@@ -315,7 +329,7 @@ pub(super) fn project(
                 callee: *callee,
                 arguments,
                 result_placement: call_plan.result.clone(),
-                source: LegalizedCallUnitSource::AuthoredCallUnit,
+                source: NativeCallOrigin::Authored,
                 claim_transfers: claim_transfers.clone(),
                 call_plan,
                 requirement_obligations: requirement_obligations.clone(),
@@ -451,7 +465,7 @@ pub(super) fn project(
                     })
                     .collect(),
                 result_placement: call_plan.result.clone(),
-                source: LegalizedCallUnitSource::AuthoredCallUnit,
+                source: NativeCallOrigin::Authored,
                 claim_transfers: Vec::new(),
                 call_plan,
                 requirement_obligations: requirement_obligations.clone(),

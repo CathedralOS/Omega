@@ -5,9 +5,7 @@ use super::{
 };
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
-use legalized_operations::{
-    LegalizedCallUnitSource, LegalizedScalarCall, LegalizedStructuralContract,
-};
+use legalized_operations::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
 use optimization_unit::EffectLink;
 use selected_instructions::{
     OutgoingArgumentSlotId, SelectedCallContract, SelectedFunction, SelectedInstructionId,
@@ -63,7 +61,7 @@ fn structural_function() -> SelectedFunction {
         operation: OperationId::new(41).unwrap(),
         call: LegalizedScalarCall {
             structural_result: None,
-            source: LegalizedCallUnitSource::AuthoredCallUnit,
+            source: NativeCallOrigin::Authored,
             callee: MachineId::new(42).unwrap(),
             call_plan: call_plan(&[MachineRegister::X86Rax, MachineRegister::X86Rcx], 0x4567),
             arguments: Vec::new(),

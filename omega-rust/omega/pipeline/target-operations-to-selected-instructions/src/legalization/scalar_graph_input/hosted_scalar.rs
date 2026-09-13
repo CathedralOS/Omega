@@ -9,12 +9,18 @@ use target_operations::{BoundaryRealization, TargetUnitOperation};
 pub(super) fn validate_tails(
     native: &TargetOperationPlan,
     optimized: &PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     for block in &optimized.blocks {
         for (position, node) in block.nodes.iter().enumerate() {
             let AbstractOperation::BoundaryCall { psi_operation, .. } = node.operation else {
                 continue;
             };
+            // Installed checked code has an ordinary call/return edge. Only an
+            // explicit hosted process-exit settlement has this no-return tail.
+            if super::call_origin::installed_operation(node, optimized, native, plan)?.is_some() {
+                continue;
+            }
             if matches!(
                 hosted_realization(native, optimized.machine, psi_operation)?,
                 BoundaryRealization::HostedExitProcessI32(_)

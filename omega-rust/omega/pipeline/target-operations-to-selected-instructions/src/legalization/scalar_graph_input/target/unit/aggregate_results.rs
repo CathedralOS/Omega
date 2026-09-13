@@ -161,6 +161,7 @@ pub(super) fn validate(
         }
         (
             TargetUnitOperation::StructuralResultCall {
+                origin: target_operations::NativeCallOrigin::Authored,
                 psi_operation,
                 result,
                 callee,

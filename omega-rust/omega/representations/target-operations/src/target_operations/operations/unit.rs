@@ -24,6 +24,18 @@ use terminal_psi::{
     StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
 
+/// Exact semantic origin retained beside ordinary native call transport.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeCallOrigin {
+    Authored,
+    InstalledProvider {
+        boundary: BoundaryMachineId,
+        provider: ProviderCandidateConformance,
+        completion_claim_sources: Vec<CompletionClaimSource>,
+        completion_receipts: Vec<CompletionReceipt>,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
     IeeeFloatCompare {
@@ -155,6 +167,7 @@ pub enum TargetUnitOperation {
     /// One direct Unit-result call. Scalar arguments occupy the prefix of the
     /// complete ABI plan; structural arguments retain the remaining placements.
     Call {
+        origin: NativeCallOrigin,
         psi_operation: OperationId,
         callee: MachineId,
         call_plan: CallPlan,
@@ -181,6 +194,7 @@ pub enum TargetUnitOperation {
     /// Ordinary graphs retain the result for subsequent uses; Unit bodies may
     /// discard it without changing the callee's result contract.
     StructuralScalarCall {
+        origin: NativeCallOrigin,
         psi_operation: OperationId,
         result: AbstractResult,
         callee: MachineId,
@@ -194,6 +208,7 @@ pub enum TargetUnitOperation {
     /// One whole-input affine call. A later projected consumer requires real
     /// structural storage; immediate whole-result disposal requires no home.
     StructuralResultCall {
+        origin: NativeCallOrigin,
         psi_operation: OperationId,
         result: StructuralOperationResult,
         callee: MachineId,
@@ -297,26 +312,6 @@ pub enum TargetUnitOperation {
         rebound_argument: TargetStructuralArgument,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// One bodyless boundary occurrence projected through an opaque admitted
-    /// installation into an exact checked Unit provider call. The original
-    /// receipt evidence remains alongside its call-transfer interpretation so
-    /// later legalization can replay the join without treating it as a
-    /// source-authored `CallUnit`.
-    InstalledProviderCall {
-        psi_operation: OperationId,
-        boundary: BoundaryMachineId,
-        provider: ProviderCandidateConformance,
-        /// Exact native plan of the selected provider candidate. The plan is
-        /// retained even for the historical zero-scalar structural lane.
-        call_plan: CallPlan,
-        /// Ordered fixed-integer arguments bound to `call_plan.parameters`.
-        scalar_arguments: Vec<TargetUnitScalarCallArgument>,
-        source_arguments: Vec<StructuralArgument>,
-        arguments: Vec<TargetStructuralArgument>,
-        claim_transfers: Vec<ClaimTransfer>,
-        completion_claim_sources: Vec<CompletionClaimSource>,
-        completion_receipts: Vec<CompletionReceipt>,
     },
     /// One Unit-returning evaluated import leaf. Native settlement rejoins
     /// this exact carrier; lowering never accepts locator or calling-plan

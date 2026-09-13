@@ -106,6 +106,24 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
                 )
             };
             validate(&source, &selected).unwrap();
+            let mut wrong_origin_ownership = source.clone();
+            wrong_origin_ownership.blocks[0].instructions[1].ownership =
+                vec![optimization_unit::OwnershipEvent::ClaimCompletion(
+                    Vec::new(),
+                )];
+            assert!(
+                build(
+                    0,
+                    &wrong_origin_ownership,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+                .is_err(),
+                "authored literal borrow cannot carry installed completion"
+            );
+            assert!(validate(&wrong_origin_ownership, &selected).is_err());
             let operation = source.blocks[0].instructions[0].operation;
             let place = source.structural.as_ref().unwrap().structural_places[0].id;
             let slot = LocalStorageSlotId::Structural { operation, place };

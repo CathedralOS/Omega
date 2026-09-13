@@ -1,5 +1,5 @@
 use abstract_operations::CompletionClaimSource;
-use legalized_operations::{LegalizedBoundarySettlement, LegalizedCallUnitSource};
+use legalized_operations::{LegalizedBoundarySettlement, NativeCallOrigin};
 use optimization_unit::{EffectLink, OwnershipEvent};
 use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
@@ -171,12 +171,12 @@ pub(super) fn decode_boundary_settlement(
 
 pub(super) fn encode_call_source(
     bytes: &mut Vec<u8>,
-    source: &LegalizedCallUnitSource,
+    source: &NativeCallOrigin,
     retain_projected_qualifications: bool,
 ) {
     match source {
-        LegalizedCallUnitSource::AuthoredCallUnit => bytes.push(1),
-        LegalizedCallUnitSource::InstalledProvider {
+        NativeCallOrigin::Authored => bytes.push(1),
+        NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
             completion_claim_sources,
@@ -200,9 +200,9 @@ pub(super) fn encode_call_source(
 pub(super) fn decode_call_source(
     cursor: &mut Cursor<'_>,
     retain_projected_qualifications: bool,
-) -> Result<LegalizedCallUnitSource, FixedViewCopyDecodeError> {
+) -> Result<NativeCallOrigin, FixedViewCopyDecodeError> {
     match cursor.byte()? {
-        1 => Ok(LegalizedCallUnitSource::AuthoredCallUnit),
+        1 => Ok(NativeCallOrigin::Authored),
         2 => {
             let boundary = decode_id(cursor, BoundaryMachineId::new)?;
             let provider = provider::decode(cursor, retain_projected_qualifications)?;
@@ -217,7 +217,7 @@ pub(super) fn decode_call_source(
             for _ in 0..receipt_count {
                 completion_receipts.push(decode_completion_receipt(cursor)?);
             }
-            Ok(LegalizedCallUnitSource::InstalledProvider {
+            Ok(NativeCallOrigin::InstalledProvider {
                 boundary,
                 provider,
                 completion_claim_sources,

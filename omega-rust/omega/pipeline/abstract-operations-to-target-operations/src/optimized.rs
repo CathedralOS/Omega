@@ -68,6 +68,10 @@ pub fn lower_validated_abstract_to_target_operations(
     let program = crate::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
         optimized.plan(), target, settlements, installed, ieee_float_fma, native_callbacks,
     )?;
+    // Semantic replay can establish that a candidate implements a boundary, but
+    // cannot establish which candidate the caller selected. Join against the
+    // independently supplied admitted installation before sealing this owner.
+    crate::validation::installed_calls::validate(&program.plan, installed)?;
     let translation_validation =
         validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
             optimized.plan(),

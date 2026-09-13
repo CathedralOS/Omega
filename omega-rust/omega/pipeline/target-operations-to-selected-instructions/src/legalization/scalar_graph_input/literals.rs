@@ -67,22 +67,68 @@ pub(super) fn producer(
     call: OperationId,
     source: PlaceId,
 ) -> Option<(OperationId, semantic_vocabulary::StructuralTypeId)> {
-    let [block] = function.blocks.as_slice() else {
+    function.blocks.iter().flat_map(|block| &block.nodes).find(|node| {
+        matches!(&node.operation, AbstractOperation::CallStructuralScalar { psi_operation, structural_arguments, .. }
+            | AbstractOperation::CallUnit { psi_operation, structural_arguments, .. }
+            | AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
+            | AbstractOperation::BoundaryCall { psi_operation, structural_arguments, .. }
+            if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == source))
+    })?;
+    declaration_producer(function, source)
+}
+
+/// Rejoin one literal independently of unrelated storage or block arrangement.
+/// Whole-unit validation checks producer dominance and borrow availability.
+pub(super) fn declaration_producer(
+    function: &PsiOptimizationFunction,
+    source: PlaceId,
+) -> Option<(OperationId, semantic_vocabulary::StructuralTypeId)> {
+    let mut declarations = function
+        .structural_places
+        .iter()
+        .filter(|place| place.id == source);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() {
+        return None;
+    }
+    let StructuralPlaceKind::ByteSequenceLiteral {
+        declaration_ordinal,
+        structural_type: identity,
+    } = declaration.kind
+    else {
         return None;
     };
-    let call_position = block.nodes.iter().position(|node| {
-        matches!(&node.operation, AbstractOperation::CallStructuralScalar { psi_operation, .. }
-            | AbstractOperation::CallUnit { psi_operation, .. } if *psi_operation == call)
-    })?;
-    block.nodes[..call_position]
+    let ordinal = function
+        .structural_places
         .iter()
-        .find_map(|node| match &node.operation {
+        .filter(|place| matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. }))
+        .position(|place| place.id == source)?;
+    if usize::try_from(declaration_ordinal).ok()? != ordinal {
+        return None;
+    }
+    let mut producers = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
             AbstractOperation::EstablishByteSequenceLiteral {
                 psi_operation,
                 place,
                 structural_type,
                 ..
-            } if place.id == source => Some((*psi_operation, structural_type.id)),
+            } if place.id == source => Some((*psi_operation, place, structural_type)),
             _ => None,
-        })
+        });
+    let (operation, place, structural_type) = producers.next()?;
+    if producers.next().is_some()
+        || place != declaration
+        || structural_type.id != identity
+        || structural_type.shape
+            != terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView,
+            )
+    {
+        return None;
+    }
+    Some((operation, identity))
 }

@@ -159,7 +159,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                         structural_result: None,
                         call_plan,
                         result_placement: None,
-                        source: LegalizedCallUnitSource::AuthoredCallUnit,
+                        source: NativeCallOrigin::Authored,
                         callee: id(2),
                         arguments,
                         claim_transfers: vec![
@@ -272,7 +272,7 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
     let LegalizedScalarInstructionKind::Call(call) = &mut node.kind else {
         panic!("call fixture");
     };
-    call.source = LegalizedCallUnitSource::InstalledProvider {
+    call.source = NativeCallOrigin::InstalledProvider {
         boundary,
         provider,
         completion_claim_sources,
@@ -329,7 +329,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     let call = |sources: [ValueId; 2]| {
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
             structural_result: None,
-            source: LegalizedCallUnitSource::AuthoredCallUnit,
+            source: NativeCallOrigin::Authored,
             claim_transfers: Vec::new(),
             callee,
             call_plan: call_plan.clone(),

@@ -6,6 +6,7 @@ pub(super) mod aggregate_results;
 mod borrowed_calls;
 mod byte_write;
 mod dominance;
+mod installed_calls;
 mod observations;
 mod operations;
 mod owned_arguments;

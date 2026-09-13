@@ -366,7 +366,7 @@ impl LegalizedScalarTerminator {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarCall {
-    pub source: crate::LegalizedCallUnitSource,
+    pub source: crate::NativeCallOrigin,
     pub callee: MachineId,
     pub call_plan: CallPlan,
     pub arguments: Vec<LegalizedScalarArgument>,
