@@ -103,6 +103,10 @@ fn push_behavior_contract(
         &mut program.facts.service_reaches.root_machines,
         MachineServiceReachRows {
             machine,
+            dependency: flow_effects::ServiceReachDependency {
+                concrete: empty,
+                parameters: Default::default(),
+            },
             interface: language_semantics::ServiceReachInterface::InternalInferred,
             published_ceiling: empty,
             inferred_direct: empty,

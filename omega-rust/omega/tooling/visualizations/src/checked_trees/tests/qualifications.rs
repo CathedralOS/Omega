@@ -268,6 +268,7 @@ fn qualification_evidence_manifest_separates_origin_point_and_receipt() {
             value: Default::default(),
             domain: Default::default(),
             domain_symbol: domain,
+            semantic_domain: SemanticDomainId::NULL,
         },
     });
     let unstamped_subject = SymbolHandle::from_arena_index(7);
@@ -289,6 +290,7 @@ fn qualification_evidence_manifest_separates_origin_point_and_receipt() {
             value: Default::default(),
             domain: Default::default(),
             domain_symbol: domain,
+            semantic_domain: SemanticDomainId::NULL,
         },
     });
 
@@ -336,6 +338,7 @@ fn qualification_manifest_rejects_missing_declared_domain() {
             value: Default::default(),
             domain: Default::default(),
             domain_symbol: domain,
+            semantic_domain: SemanticDomainId::NULL,
         },
     });
 

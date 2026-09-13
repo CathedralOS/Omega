@@ -617,6 +617,10 @@ mod tests {
             &mut services.root_machines,
             MachineServiceReachRows {
                 machine: machine_symbol,
+                dependency: flow_effects::ServiceReachDependency {
+                    concrete: ServiceReachRowTable::EMPTY_ROW,
+                    parameters: Default::default(),
+                },
                 interface: ServiceReachInterface::InternalInferred,
                 published_ceiling: language_semantics::ServiceReachRowTable::EMPTY_ROW,
                 inferred_direct: service_row,
