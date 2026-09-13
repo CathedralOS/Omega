@@ -14,7 +14,7 @@ data PairAccess {}
 machine PairAccess::plan(schema: Schema, layout: Plan) -> AccessPlan
 satisfies Access::plan
 {
-    let plan: AccessPlan = AccessPlan::inaccessible(schema);
+    let plan: AccessPlan = AccessPlan::inaccessible(&schema);
     transition { _ -> expose(schema, plan) }
 
     state expose(schema: Schema, plan: AccessPlan) -> AccessPlan {

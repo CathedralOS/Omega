@@ -258,7 +258,9 @@ pub data AccessPlan {
 // The inaccessible seed is the only source constructor for a fresh access
 // decision set. Every live slot copies its compiler-issued Schema key; the
 // fixed-capacity tail is semantically absent because field_count excludes it.
-pub machine AccessPlan::inaccessible(schema: Schema) -> AccessPlan {
+// The seed only observes keys, so it borrows: Schema is affine, and a policy
+// still owns its schema for the grant states that follow the seed.
+pub machine AccessPlan::inaccessible(schema: &Schema) -> AccessPlan {
     AccessPlan {
         entries: [
             AccessFieldEntry { key: schema.fields[0].key, access: FieldAccess::Inaccessible },
