@@ -17,7 +17,8 @@ fn artifact(prefix: &str) -> terminal_codec::CanonicalTerminalArtifact {
 
 fn checked(prefix: &str) -> checked_trees::CheckedTrees {
     let source = format!(
-        "machine mark(value: &mut i32) {{ value = 11; }}
+        "machine notify() {{}}
+         machine mark(value: &mut i32) {{ value = 11; }}
          machine relay(value: &mut i32) -> &mut i32 {{ {prefix} value }}
          machine replace(value: &mut i32) {{ value = 29; }}
          machine exercise(value: &mut i32) -> i32 {{
@@ -111,6 +112,11 @@ fn reference_release_processing_preserves_empty_helpers() {
         execution.resume(&mut meter).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
+}
+
+#[test]
+fn reference_result_composes_with_an_empty_unit_call_before_return() {
+    execute(&artifact("notify();"), 1);
 }
 
 #[test]

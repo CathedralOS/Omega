@@ -13,6 +13,16 @@ or a multi-package build rather than one Rust crate.
 - `bootstrap/` contains only tests spanning more than one bootstrap rung.
 - `omega/` contains Omega-language pass, fail, pending, and execution cases.
 - `fixtures/` contains reusable package and Terminal Psi inputs.
+- `native-differential/` checks source-to-native behavior, ABI transport, and
+  artifact replay. Owned-record call composition (including an empty helper
+  before forwarding) is exercised by:
+
+  ```text
+  cargo nextest run -p omega-native-differential-test --test scalar_case_results --no-fail-fast -E 'test(record_reads::parameters)'
+  ```
+
+  These cases publish for their listed targets and execute on a supported
+  matching host; cross-target publication is not a runtime result.
 
 Rust tests whose subject is one crate remain beside that crate in its `tests/`
 directory (or its internal `#[cfg(test)]` modules). Those directories are local

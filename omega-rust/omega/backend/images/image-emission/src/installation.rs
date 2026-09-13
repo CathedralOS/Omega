@@ -2895,7 +2895,17 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 installed.machine,
             ));
         }
-        let incoming_call = incoming_structural::has_incoming(function);
+        // Incoming pointer homes describe the caller's parameters, not every
+        // call it makes. Only arguments transported from those homes use the
+        // legacy incoming-copy checks; a parameterless call still has its
+        // ordinary call ABI and attribution even inside an owned-value caller.
+        let incoming_call = custody.arguments.iter().any(|argument| {
+            matches!(
+                argument.source_location,
+                machine_code::StructuralSourceLocation::IncomingIndirectPointer { .. }
+                    | machine_code::StructuralSourceLocation::IncomingIndirectStackPointer { .. }
+            )
+        });
         if (incoming_call && !incoming_structural::call_is_exact(record, function, installed))
             || (!incoming_call
                 && !matches!(
