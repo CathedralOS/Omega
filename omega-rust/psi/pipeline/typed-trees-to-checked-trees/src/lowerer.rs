@@ -3,6 +3,26 @@ use crate::facts::build_check_facts;
 use crate::validation::validate_typed_program;
 use checked_trees::CheckedTrees;
 
+/// These are distinct checking checkpoints, not freely combinable permissions.
+#[derive(Clone, Copy)]
+enum CheckingMode {
+    Complete,
+    PreliminaryPackage,
+    SettledPackage,
+    #[cfg(test)]
+    CrashFactInspection,
+}
+
+impl CheckingMode {
+    fn allows_pending_opaque_copy(self) -> bool {
+        matches!(self, Self::PreliminaryPackage)
+    }
+
+    fn allows_unresolved_toolchain_selections(self) -> bool {
+        matches!(self, Self::PreliminaryPackage | Self::SettledPackage)
+    }
+}
+
 pub(crate) fn lower_typed_trees(
     program: typed_trees::TypedTrees,
     selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
@@ -10,18 +30,16 @@ pub(crate) fn lower_typed_trees(
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     lower_typed_trees_with_policy(
         program,
-        true,
-        false,
+        CheckingMode::Complete,
         selected_generic_operator_providers,
         opaque_property_receipts,
-        false,
     )
 }
 
 pub(crate) fn lower_preliminary_typed_trees(
     program: typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees_with_policy(program, true, true, &[], &[], true)
+    lower_typed_trees_with_policy(program, CheckingMode::PreliminaryPackage, &[], &[])
 }
 
 pub(crate) fn lower_package_typed_trees(
@@ -31,11 +49,9 @@ pub(crate) fn lower_package_typed_trees(
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     lower_typed_trees_with_policy(
         program,
-        true,
-        true,
+        CheckingMode::SettledPackage,
         selected_generic_operator_providers,
         opaque_property_receipts,
-        false,
     )
 }
 
@@ -43,16 +59,14 @@ pub(crate) fn lower_package_typed_trees(
 pub(crate) fn lower_typed_trees_for_crash_fact_inspection(
     program: typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees_with_policy(program, false, false, &[], &[], false)
+    lower_typed_trees_with_policy(program, CheckingMode::CrashFactInspection, &[], &[])
 }
 
 fn lower_typed_trees_with_policy(
     program: typed_trees::TypedTrees,
-    enforce_crash_admission: bool,
-    allow_unresolved_toolchain_selections: bool,
+    mode: CheckingMode,
     selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
-    allow_pending_opaque_copy: bool,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     // Stage-1 machine monomorphization MUST precede validation: a generic
     // machine whose value calls agree on one instantiation is substituted to a
@@ -119,7 +133,7 @@ fn lower_typed_trees_with_policy(
     let validated = validate_typed_program(
         &program,
         opaque_property_receipts,
-        allow_pending_opaque_copy,
+        mode.allows_pending_opaque_copy(),
     )?;
     let mut facts = build_check_facts(
         &program,
@@ -139,13 +153,16 @@ fn lower_typed_trees_with_policy(
         &facts.contract_plans,
     )?;
 
-    if enforce_crash_admission {
-        checks::check_checked_facts_recording(&program, &mut facts)?;
-    } else {
+    match mode {
+        CheckingMode::Complete
+        | CheckingMode::PreliminaryPackage
+        | CheckingMode::SettledPackage => {
+            checks::check_checked_facts_recording(&program, &mut facts)?;
+        }
         #[cfg(test)]
-        checks::check_checked_facts_recording_without_crash_admission(&program, &mut facts)?;
-        #[cfg(not(test))]
-        unreachable!("production lowering always enforces crash admission");
+        CheckingMode::CrashFactInspection => {
+            checks::check_checked_facts_recording_without_crash_admission(&program, &mut facts)?;
+        }
     }
     crate::facts::refresh_realized_contract_envelopes(&mut facts);
 
@@ -213,7 +230,7 @@ fn lower_typed_trees_with_policy(
 
     crate::authored_selections::bind_checked_intrinsic_call_facts(&program, &mut facts)
         .map_err(|diagnostic| vec![diagnostic])?;
-    if allow_unresolved_toolchain_selections {
+    if mode.allows_unresolved_toolchain_selections() {
         crate::authored_selections::finalize_preliminary_checked_authored_selections(
             &mut program,
             &facts,
@@ -226,4 +243,21 @@ fn lower_typed_trees_with_policy(
     validation::validate_declaration_visibility(&program)?;
 
     Ok(CheckedTrees::with_roots(program, facts))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CheckingMode;
+
+    #[test]
+    fn checking_modes_preserve_package_settlement_permissions() {
+        for mode in [CheckingMode::Complete, CheckingMode::CrashFactInspection] {
+            assert!(!mode.allows_pending_opaque_copy());
+            assert!(!mode.allows_unresolved_toolchain_selections());
+        }
+        assert!(CheckingMode::PreliminaryPackage.allows_pending_opaque_copy());
+        assert!(CheckingMode::PreliminaryPackage.allows_unresolved_toolchain_selections());
+        assert!(!CheckingMode::SettledPackage.allows_pending_opaque_copy());
+        assert!(CheckingMode::SettledPackage.allows_unresolved_toolchain_selections());
+    }
 }

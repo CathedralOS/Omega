@@ -37,14 +37,13 @@ pub(crate) fn build_checked_primitive_store_scalar_return_plans(
     }
 }
 
-/// Refresh independent callees without erasing the retained nominal/selected
-/// return plans used by selected Unit execution during its rebuild.
-pub(crate) fn refresh_checked_primitive_store_scalar_return_plans(
-    program: &TypedTrees,
-    facts: &mut CheckFacts,
-) {
-    let mut primitive_returns = build_checked_primitive_store_scalar_return_plans(program, facts);
-    let returns = &mut facts.flow.terminal_structural_scalar_returns;
+/// Reconcile freshly checked independent callees with the previous return roster.
+/// Selected Unit execution still needs retained nominal/selected returns; stale
+/// primitive bodies must not survive merely because they have no effects.
+pub(crate) fn reconcile_primitive_store_scalar_returns(
+    mut returns: CheckedStructuralScalarReturnPlans,
+    mut primitive_returns: CheckedStructuralScalarReturnPlans,
+) -> CheckedStructuralScalarReturnPlans {
     returns.machines.retain_mut(|plan| {
         if let Some(position) = primitive_returns
             .machines
@@ -67,6 +66,7 @@ pub(crate) fn refresh_checked_primitive_store_scalar_return_plans(
     returns
         .structural_types
         .sort_by(|left, right| left.identity.cmp(&right.identity));
+    returns
 }
 
 pub(in crate::flow::terminal_unit) fn build_machine(
