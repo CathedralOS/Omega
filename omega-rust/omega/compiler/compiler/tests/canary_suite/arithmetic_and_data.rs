@@ -2429,6 +2429,38 @@ fn equatable_record_equality_exit_canary_runs() {
 }
 
 #[test]
+fn equatable_erased_field_record_exit_canary_runs() {
+    // Synthesized `==`/`!=` compares only RELEVANT fields: `proof [erased]`
+    // contributes no runtime read, and a case whose payload is entirely
+    // erased compares by tag alone.
+    let canary = pass_canary(fixture_roster::EQUATABLE_ERASED_FIELD_RECORD_EXIT);
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-equatable-erased-field-record-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .expect("equatable erased-field record canary should compile");
+
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("equatable erased-field record canary should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("equatable erased-field record canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected synthesized structural `==`/`!=` to skip `[erased]` fields (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn equatable_sum_payload_equality_exit_canary_runs() {
     // Equatable synthesis on a payload-bearing sum: tag equality AND the
     // matching case's payload fields. Same-case-equal matches; same-case-

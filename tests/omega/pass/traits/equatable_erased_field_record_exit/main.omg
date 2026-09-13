@@ -1,0 +1,104 @@
+// Equatable synthesis over erased bindings: `[erased]` fields carry no
+// runtime value, so the generated field-by-field compare must SKIP them --
+// an erased member read the author never wrote would fail the relevance
+// pass, and erased bytes must not determine control. Equal Certified
+// records compare `==` true and a differing `value` compares `!=` true on
+// both the operator and the callable `equals` face. On the sum, a case
+// whose entire payload is erased compares by TAG ONLY: two Held values
+// must match even though their witnesses are proof-side only, while a
+// Held vs Counted pair misses on the tag. Exits 70 only when every check
+// agrees.
+
+use omega_language_std::console;
+
+trait Equatable {
+    machine equals(&self, rhs: &Self) -> bool;
+}
+
+data Evidence [copy] {
+    case Only;
+}
+
+data Certified [copy] {
+    value: u64;
+    proof [erased]: Evidence;
+}
+
+CertifiedEquatable: Certified satisfies Equatable;
+
+data Tagged [copy] {
+    case Held(witness [erased]: Evidence);
+    case Counted(count: u64);
+}
+
+TaggedEquatable: Tagged satisfies Equatable;
+
+data Main {
+    console: Console;
+    a: Certified;
+    b: Certified;
+    c: Certified;
+    held_a: Tagged;
+    held_b: Tagged;
+    counted: Tagged;
+}
+
+machine Main::main(&mut self) {
+    self.a = Certified { value: 3, proof: Evidence::Only };
+    self.b = Certified { value: 3, proof: Evidence::Only };
+    self.c = Certified { value: 9, proof: Evidence::Only };
+    self.held_a = Tagged::Held { witness: Evidence::Only };
+    self.held_b = Tagged::Held { witness: Evidence::Only };
+    self.counted = Tagged::Counted { count: 3 };
+
+    let same: bool = self.a == self.b;
+
+    transition same {
+        true -> check_callable()
+        _ -> missed()
+    }
+
+    state check_callable(&mut self) {
+        let callable: bool = self.a.equals(&self.b);
+
+        transition callable {
+            true -> check_unequal()
+            _ -> missed()
+        }
+    }
+
+    state check_unequal(&mut self) {
+        let different: bool = self.a != self.c;
+
+        transition different {
+            true -> check_same_tag()
+            _ -> missed()
+        }
+    }
+
+    state check_same_tag(&mut self) {
+        let held_same: bool = self.held_a == self.held_b;
+
+        transition held_same {
+            true -> check_different_tag()
+            _ -> missed()
+        }
+    }
+
+    state check_different_tag(&mut self) {
+        let held_vs_counted: bool = self.held_a == self.counted;
+
+        transition held_vs_counted {
+            false -> matched()
+            _ -> missed()
+        }
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}

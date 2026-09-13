@@ -1257,6 +1257,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/nat_ground_compute_refuted",
     "proofs/nat_inductive_claim_refuted",
     "traits/default_keyword_retired",
+    "traits/equatable_all_erased_record_rejected",
     "traits/equatable_field_not_equatable",
     "traits/equatable_missing_conformance_suggested",
     "traits/equatable_recursive_type",

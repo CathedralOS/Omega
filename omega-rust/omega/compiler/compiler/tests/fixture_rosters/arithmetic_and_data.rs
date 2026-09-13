@@ -129,6 +129,7 @@ pub const RUNTIME_MATCH_VALUE_EXIT: &str = "expressions/runtime_match_value_exit
 pub const RUNTIME_FLAT_BOOLEAN_LOGIC_EXIT: &str = "expressions/runtime_flat_boolean_logic_exit";
 pub const RUNTIME_ENUM_MATCH_BREADTH_EXIT: &str = "expressions/runtime_enum_match_breadth_exit";
 pub const RUNTIME_CONFORMANCE_ITEM_EXIT: &str = "traits/runtime_conformance_item_exit";
+pub const EQUATABLE_ERASED_FIELD_RECORD_EXIT: &str = "traits/equatable_erased_field_record_exit";
 pub const EQUATABLE_RECORD_EQUALITY_EXIT: &str = "traits/equatable_record_equality_exit";
 pub const EQUATABLE_SUM_PAYLOAD_EQUALITY_EXIT: &str = "traits/equatable_sum_payload_equality_exit";
 pub const EQUATABLE_MIXED_SHAPE_EQUALITY_EXIT: &str = "traits/equatable_mixed_shape_equality_exit";
@@ -253,6 +254,7 @@ pub const PASS_CANARIES: &[&str] = &[
     RUNTIME_FLAT_BOOLEAN_LOGIC_EXIT,
     RUNTIME_ENUM_MATCH_BREADTH_EXIT,
     RUNTIME_CONFORMANCE_ITEM_EXIT,
+    EQUATABLE_ERASED_FIELD_RECORD_EXIT,
     EQUATABLE_RECORD_EQUALITY_EXIT,
     EQUATABLE_SUM_PAYLOAD_EQUALITY_EXIT,
     EQUATABLE_MIXED_SHAPE_EQUALITY_EXIT,
