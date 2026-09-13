@@ -3,7 +3,7 @@
 use super::budget::GitCapturedOutputBudget;
 use super::selection::PrimaryGitSelection;
 use crate::SourceResolveError;
-use crate::git::commands::capture::duration_millis;
+use crate::git::git_command::capture::duration_millis;
 use crate::git::request::GitExecutionTransport;
 use crate::limits::{
     GIT_COMMAND_TIMEOUT, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_TIMEOUT, LocalSourceLimits,

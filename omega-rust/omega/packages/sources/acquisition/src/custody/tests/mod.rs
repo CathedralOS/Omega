@@ -10,9 +10,9 @@ use crate::git::cache::identity::*;
 #[cfg(unix)]
 use crate::git::cache::invalidation::*;
 #[cfg(unix)]
-use crate::git::commands::reconciliation::*;
-#[cfg(unix)]
 use crate::git::executable::executor::*;
+#[cfg(unix)]
+use crate::git::git_command::reconciliation::*;
 use crate::git::request::GitExecutionTransport;
 use crate::limits::*;
 #[cfg(unix)]

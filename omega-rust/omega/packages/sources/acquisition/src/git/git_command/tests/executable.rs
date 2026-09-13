@@ -1,5 +1,6 @@
 #![cfg(unix)]
 
+use super::super::GitCommandCapture;
 use super::{
     GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT, GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE, GitExecutionTransport,
     GitExecutor, LocalSourceLimits, ResolverExecutionPhase, SOURCE_BYTE_ABSOLUTE_LIMIT,
@@ -36,6 +37,7 @@ fn git_executor_uses_committed_absolute_program_inherited_environment_and_explic
         &working_directory,
         ResolverExecutionPhase::Fetch,
         [OsStr::new("ignored-by-test-helper")],
+        GitCommandCapture::default(),
     )
     .expect("run sealed fake Git");
     assert!(output.status.success());
@@ -170,6 +172,7 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
         &working_directory,
         ResolverExecutionPhase::Fetch,
         [OsStr::new("first")],
+        GitCommandCapture::default(),
     )
     .expect("first launch fits the budget");
     assert!(matches!(
@@ -178,6 +181,7 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
             &working_directory,
             ResolverExecutionPhase::Fetch,
             [OsStr::new("second")],
+            GitCommandCapture::default(),
         ),
         Err(SourceResolveError::GitResolutionCommandLimit { limit: 1 })
     ));
@@ -193,6 +197,7 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
         &working_directory,
         ResolverExecutionPhase::Fetch,
         [OsStr::new("slow")],
+        GitCommandCapture::default(),
     )
     .expect_err("slow command must exhaust the resolution deadline");
     assert!(
@@ -220,6 +225,7 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
         &working_directory,
         ResolverExecutionPhase::Fetch,
         [OsStr::new("first")],
+        GitCommandCapture::default(),
     )
     .expect("first command fits cumulative output budget");
     let output_error = run_git_output(
@@ -227,6 +233,7 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
         &working_directory,
         ResolverExecutionPhase::Fetch,
         [OsStr::new("second")],
+        GitCommandCapture::default(),
     )
     .expect_err("second command must exhaust cumulative output budget");
     assert!(

@@ -9,11 +9,11 @@ use crate::git::cache::identity::git_cache_identity;
 use crate::git::cache::invalidation::invalidate_git_cache_entry_from_open_parent;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::cache::retry::{discard_incomplete_entry, may_preserve_cache};
-use crate::git::commands::reconciliation::{
-    reconcile_git_cache_operation_result, reconcile_git_command_result,
-};
 use crate::git::executable::executor::GitExecutor;
 use crate::git::executable::selection::PrimaryGitSelection;
+use crate::git::git_command::reconciliation::{
+    reconcile_git_cache_operation_result, reconcile_git_command_result,
+};
 use crate::git::objects::identity::is_object_id;
 use crate::git::request::GitSourceRequest;
 use crate::git::workspace::GitWorkspaceProjectionError;

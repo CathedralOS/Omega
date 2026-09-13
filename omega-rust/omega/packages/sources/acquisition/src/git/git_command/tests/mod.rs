@@ -1,8 +1,8 @@
 //! Command execution regression tests grouped by resolver behavior.
 
 #[cfg(unix)]
-use super::invocation::*;
-use super::{capture::*, command::*, reconciliation::*};
+use super::*;
+use super::{capture::*, policy::*, reconciliation::*};
 use crate::error::SourceResolveError;
 #[cfg(unix)]
 use crate::git::executable::budget::*;
@@ -15,3 +15,4 @@ use resolver_execution::ResolverExecutionPhase;
 mod bounded;
 mod configuration;
 mod executable;
+mod lifecycle;
