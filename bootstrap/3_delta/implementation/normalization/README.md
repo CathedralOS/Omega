@@ -153,8 +153,11 @@ For the current counted-list implementation, in pairs:
   `(2.5 * ceil(log2(n)) + 1) * n` pairs. Existing helper batches are not sorted.
 
 Generic multiple-batch unions can still repeatedly copy prefixes. Earlier
-checking/lowering, normalizer frames and rebuilt nodes, and emission preflight
-also allocate or perform work. The lexical trie reused by lowering is another
+checking/lowering and normalizer frames and rebuilt nodes also allocate or
+perform work; emission preflight allocates no pairs, and its publication
+traversal is separately bounded below the pair arena by the admitted payload
+extent (see [emission](../emission/README.md#publication-traversal-pairs)).
+The lexical trie reused by lowering is another
 construction pass, not free reuse of checking's stored environment.
 These formulas are source-level accounting, not measured arena peaks or a
 complete resource proof.
