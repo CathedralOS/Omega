@@ -3283,6 +3283,78 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn borrowed_dynamic_trait_record_fields_retain_both_descriptor_words() {
+    let source = r#"
+trait Shape { machine code(&self) -> i32; }
+data Descriptor<'item> { handler: &'item dyn Shape; }
+data References<'item> {
+    shared: &'item dyn Shape;
+    unique: &'item mut dyn Shape;
+    nested: &'item Descriptor<'item>;
+    scalar: &'item u64;
+    slice: &'item [u8];
+    tail: u64;
+}
+data Main {}
+machine Main::main(&mut self) {}
+"#;
+    let main_path = write_program("dynamic-trait-record-layout", source);
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("borrowed dynamic descriptors are ordinary stored references");
+    for target in [
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let layouts =
+            layout::build_layout_plan(&checked, target, checked.opaque_representation_selections())
+                .expect("the target lays out both descriptor words");
+        let record = layouts
+            .data_layouts
+            .iter()
+            .map(|(_, record)| record)
+            .find(|record| record.name.as_str() == "References")
+            .unwrap();
+        let layout::DataShape::Record { fields } = record.shape else {
+            panic!("reference fields remain a record");
+        };
+        let fields = layouts.fields.span_or_empty(fields);
+        for (name, words) in [
+            ("shared", 2),
+            ("unique", 2),
+            ("nested", 1),
+            ("scalar", 1),
+            ("slice", 2),
+            ("tail", 1),
+        ] {
+            let field = fields
+                .iter()
+                .find(|field| field.name.as_str() == name)
+                .unwrap();
+            assert_eq!(
+                field.layout.size,
+                words * target.pointer_size,
+                "{name} on {target:?}"
+            );
+            assert_eq!(field.layout.alignment, target.pointer_alignment);
+            assert!(field.offset + field.layout.size <= record.layout.size);
+        }
+        assert_eq!(record.layout.size, 9 * target.pointer_size);
+        for (field_index, field) in fields.iter().enumerate() {
+            for later in &fields[field_index + 1..] {
+                assert!(
+                    field.offset + field.layout.size <= later.offset
+                        || later.offset + later.layout.size <= field.offset,
+                    "descriptor and neighboring storage must not overlap"
+                );
+            }
+        }
+    }
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
+
+#[test]
 fn borrowed_dynamic_trait_parameter_materializes_fat_descriptor_shape() {
     // A `&dyn Trait` boundary parameter is an unsized-referent reference: the
     // runtime carrier is the two-word `{instance, table}` existential
@@ -3392,6 +3464,18 @@ machine Main::main(&mut self) { }
         "a borrowed dynamic-trait parameter is a reference descriptor"
     );
     let target = target::NativeTarget::windows_x64();
+    let [parameter] = checked.typed.state_signature_parameters(inspect) else {
+        panic!("one authored dynamic reference parameter");
+    };
+    let stored = layout::layout_type_reference(
+        &checked,
+        target,
+        checked.opaque_representation_selections(),
+        parameter.type_reference,
+    )
+    .expect("reference storage agrees with its calling-policy shape");
+    assert_eq!(stored.size, usize::from(shape.byte_size()));
+    assert_eq!(stored.alignment, usize::from(shape.alignment()));
     assert_eq!(
         shape.byte_size(),
         u16::try_from(target.pointer_size * 2).expect("descriptor width fits u16"),
