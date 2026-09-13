@@ -303,8 +303,16 @@ fn general_scalar_prefix_and_successors_require_exact_facts_and_custody() {
                             || expression.role != role
                     });
             }
-            let plans =
-                crate::flow::build_checked_unit_effect_plans(&checked.typed, &facts, &[], &[]);
+            let plans = crate::flow::build_checked_unit_effect_plans(
+                &checked.typed,
+                &facts,
+                crate::flow::ScalarCalleePlans {
+                    boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                    structural_returns: &facts.flow.terminal_structural_scalar_returns,
+                },
+                &[],
+                &[],
+            );
             assert!(
                 plans.composed_for_machine(machine).is_none(),
                 "{ordinal} {role:?} custody={corrupt_custody}"

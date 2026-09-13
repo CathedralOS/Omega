@@ -318,14 +318,16 @@ pub(in crate::flow) enum ExpectedCallValueResult<'result> {
 }
 
 fn is_registered_boundary_scalar_target(
-    facts: &CheckFacts,
+    scalar_callees: Option<ScalarCalleePlans<'_>>,
     machine: SymbolHandle,
     state: SymbolHandle,
     result: PrimitiveType,
 ) -> bool {
-    let mut targets = facts
-        .flow
-        .terminal_boundary_scalar_returns
+    let Some(scalar_callees) = scalar_callees else {
+        return false;
+    };
+    let mut targets = scalar_callees
+        .boundary_returns
         .machines
         .iter()
         .filter(|plan| plan.machine == machine);
@@ -431,9 +433,12 @@ fn fixed_byte_array_mutable_view_is_admitted(
     }) && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
 }
 
+/// Build one call with the scalar-callee evidence available to this pass.
+/// `None` supplies no registered scalar targets; it never consults published catalogs.
 pub(in crate::flow) fn build_call_operation(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: Option<ScalarCalleePlans<'_>>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -860,6 +865,7 @@ pub(in crate::flow) fn build_call_operation(
     let structural_arguments = structural_call_arguments(
         program,
         facts,
+        scalar_callees,
         call,
         machine,
         state,
@@ -1182,11 +1188,11 @@ pub(in crate::flow) fn build_call_operation(
         && (!structural_arguments.is_empty() || !transfers.is_empty())
         && !matches!(expected_call_result, Some(ExpectedCallValueResult::Scalar(result))
             if is_registered_boundary_scalar_target(
-                facts, target_machine.symbol, target_state.symbol, result)
+                scalar_callees, target_machine.symbol, target_state.symbol, result)
                 || scalar_targets::registered_primitive_store_target(
-                    program, facts, target_machine.symbol, target_state.symbol, result).is_some()
+                    program, facts, scalar_callees, target_machine.symbol, target_state.symbol, result).is_some()
                 || scalar_targets::registered_structural_graph_target(
-                    program, facts, target_machine.symbol, target_state.symbol, result).is_some())
+                    program, facts, scalar_callees, target_machine.symbol, target_state.symbol, result).is_some())
     {
         None
     } else {
@@ -1913,6 +1919,7 @@ fn byte_sequence_literal_argument(
 pub(super) fn structural_call_arguments(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: Option<ScalarCalleePlans<'_>>,
     call: &checked_trees::FlowCallFact,
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
@@ -2083,13 +2090,14 @@ pub(super) fn structural_call_arguments(
                             .primitive_type_reference(target_state.return_type)
                             .is_some_and(|result| {
                                 is_registered_boundary_scalar_target(
-                                    facts,
+                                    scalar_callees,
                                     target_machine.symbol,
                                     target_state.symbol,
                                     result,
                                 ) || scalar_targets::registered_primitive_store_target(
                                     program,
                                     facts,
+                                    scalar_callees,
                                     target_machine.symbol,
                                     target_state.symbol,
                                     result,
@@ -2098,6 +2106,7 @@ pub(super) fn structural_call_arguments(
                                     || scalar_targets::registered_structural_graph_target(
                                         program,
                                         facts,
+                                        scalar_callees,
                                         target_machine.symbol,
                                         target_state.symbol,
                                         result,

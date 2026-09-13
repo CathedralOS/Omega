@@ -1714,6 +1714,7 @@ pub(super) fn build_boundary_scalar_return_machine(
     let boundary_call = build_call_operation(
         program,
         facts,
+        None,
         machine,
         state,
         &structural_parameters,

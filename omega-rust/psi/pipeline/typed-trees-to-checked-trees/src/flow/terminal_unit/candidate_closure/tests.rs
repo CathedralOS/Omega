@@ -40,6 +40,10 @@ fn compare_reference(
     retain_available(
         &checked.typed,
         &checked.facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
         &boundaries,
         candidates,
         composed,
@@ -96,6 +100,10 @@ fn complete_unit_body_owns_overlap_before_dependency_closure() {
     let graphs = build_checked_composed_unit_control_machines(
         &checked.typed,
         &checked.facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
         &mut shapes,
         &effects.boundary_machines,
     );
@@ -363,7 +371,7 @@ fn scalar_fallback_dependency_is_not_a_registered_producer_dependency() {
             })
             .unwrap();
         assert!(
-            matches!(scalar_targets::available_target(&checked.typed, &checked.facts, &ordinary, caller, call),
+            matches!(scalar_targets::available_target(&checked.typed, &checked.facts, crate::flow::ScalarCalleePlans { boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns, structural_returns: &checked.facts.flow.terminal_structural_scalar_returns }, &ordinary, caller, call),
             Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(target)) if target == leaf)
         );
         match scenario {
@@ -412,6 +420,10 @@ fn registered_scalar_call_survives_unavailable_ordinary_body() {
         scalar_targets::available_target(
             &checked.typed,
             &checked.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &checked.facts.flow.terminal_structural_scalar_returns
+            },
             &effects.machines,
             caller,
             call
@@ -494,7 +506,7 @@ fn retain_available_reference(
                         ..
                     } => boundary_symbols.contains(target_machine),
                     CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
-                        scalar_targets::available_target(program, facts, candidates, plan, operation).is_some()
+                        scalar_targets::available_target(program, facts, crate::flow::ScalarCalleePlans { boundary_returns: &facts.flow.terminal_boundary_scalar_returns, structural_returns: &facts.flow.terminal_structural_scalar_returns }, candidates, plan, operation).is_some()
                     }
                     CheckedUnitEffectOperationPlan::StructuralCall {
                         target_machine,

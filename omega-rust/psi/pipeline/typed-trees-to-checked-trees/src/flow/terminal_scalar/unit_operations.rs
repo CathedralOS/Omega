@@ -121,6 +121,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                 crate::flow::terminal_unit::calls::build_call_operation(
                                     program,
                                     facts,
+                                    None,
                                     machine,
                                     source,
                                     &state.structural_parameters,

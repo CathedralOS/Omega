@@ -12,6 +12,7 @@ pub(super) use observations::reads_receiver;
 pub(super) fn reconcile(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed: &mut Vec<CheckedComposedUnitControlMachinePlan>,
@@ -37,9 +38,8 @@ pub(super) fn reconcile(
                     .then_some(entry.state)
             }))
             .chain(
-                facts
-                    .flow
-                    .terminal_structural_scalar_returns
+                scalar_callees
+                    .structural_returns
                     .machines
                     .iter()
                     .filter(|plan| {
@@ -124,6 +124,7 @@ pub(super) fn reconcile(
             let Some(rebuilt) = control::build_checked_machine_with(
                 program,
                 facts,
+                scalar_callees,
                 shapes,
                 machine,
                 selected_operators,
@@ -140,7 +141,7 @@ pub(super) fn reconcile(
         });
     }
 
-    reconcile_operands(program, facts, candidates, composed);
+    reconcile_operands(program, facts, scalar_callees, candidates, composed);
 }
 
 fn borrowed_self(
@@ -158,6 +159,7 @@ fn borrowed_self(
 fn reconcile_operands(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed: &mut Vec<CheckedComposedUnitControlMachinePlan>,
 ) {
@@ -193,9 +195,8 @@ fn reconcile_operands(
                 ))
             }))
             .chain(
-                facts
-                    .flow
-                    .terminal_structural_scalar_returns
+                scalar_callees
+                    .structural_returns
                     .machines
                     .iter()
                     .filter_map(|plan| {

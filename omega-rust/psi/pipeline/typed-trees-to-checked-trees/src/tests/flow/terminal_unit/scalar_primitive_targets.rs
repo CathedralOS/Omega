@@ -1,5 +1,56 @@
 use super::*;
 
+#[test]
+fn failed_selected_rebuild_preserves_previously_published_facts() {
+    let source = format!(
+        r#"{SOURCE}
+        data Token {{ ready: bool; }}
+        machine Token::drop(&mut self) requires self.ready {{}}
+        data Root {{}}
+        machine Root::measure(token: Token) -> u64 requires token.ready {{ 7u64 }}
+    "#
+    );
+    let mut checked = checked(&source);
+    let measure = machine_named(&checked, "measure");
+    let premises = checked
+        .facts
+        .proof
+        .contract_facts
+        .iter()
+        .filter(|(_, fact)| {
+            matches!(fact.owner,
+                ContractProofFactOwner::Machine { machine_symbol } if machine_symbol == measure
+            )
+        })
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    assert!(!premises.is_empty());
+    for premise in premises {
+        assert!(checked.facts.proof.contract_facts.free(premise));
+    }
+    // A rebuild would repopulate this roster before finding the missing cleanup
+    // premise. Failure must not leave that intermediate catalog published.
+    checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .machines
+        .clear();
+    let before = checked.clone();
+    let diagnostics =
+        crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
+            .expect_err("missing cleanup premise rejects the complete rebuild");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove automatic cleanup requires at scalar return edge")
+    }));
+    assert_eq!(
+        checked, before,
+        "a failed rebuild publishes no intermediate facts"
+    );
+}
+
 const SOURCE: &str = r#"
     machine reset(value: &mut u64) -> u64 { value = 0; 7 }
     machine enter(value: &mut u64) {
@@ -7,6 +58,33 @@ const SOURCE: &str = r#"
         value = returned;
     }
 "#;
+
+#[test]
+fn unit_planning_uses_explicit_callees_without_publishing_them() {
+    let mut checked = checked(SOURCE);
+    let caller = machine_named(&checked, "enter");
+    let expected = checked.facts.flow.terminal_unit_effects.clone();
+    assert!(expected.for_machine(caller).is_some());
+    let boundary_returns = std::mem::take(&mut checked.facts.flow.terminal_boundary_scalar_returns);
+    let structural_returns =
+        std::mem::take(&mut checked.facts.flow.terminal_structural_scalar_returns);
+    let before = checked.clone();
+    let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        &checked.typed,
+        &checked.facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &boundary_returns,
+            structural_returns: &structural_returns,
+        },
+        &[],
+        &[],
+    );
+    assert_eq!(
+        rebuilt, expected,
+        "published rosters are not planning inputs"
+    );
+    assert_eq!(checked, before, "planning borrows and never publishes");
+}
 
 #[test]
 fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
@@ -256,8 +334,16 @@ fn primitive_scalar_call_rejects_deleted_duplicate_or_drifted_body_registration(
             }
             _ => unreachable!(),
         }
-        let rebuilt =
-            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+            &changed.typed,
+            &changed.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             rebuilt.for_machine(caller).is_none(),
             "callee registration mutation {mutation}"
@@ -347,8 +433,16 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
             position: substituted_position,
             primitive_type: PrimitiveType::U64,
         };
-        let rebuilt =
-            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+            &changed.typed,
+            &changed.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             rebuilt.for_machine(caller).is_none(),
             "result position {substituted_position} must not replace the exact result home"

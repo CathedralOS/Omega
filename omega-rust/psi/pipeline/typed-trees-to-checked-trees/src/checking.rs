@@ -1,77 +1,23 @@
+//! Typed-tree checking: specialize calls, validate contracts and ownership,
+//! assemble execution plans, then publish checked trees.
+//!
+//! Package checkpoints select explicit checking modes; only the test-only
+//! crash-inspection mode omits crash admission.
+
 use crate::checks;
 use crate::facts::build_check_facts;
 use crate::validation::validate_typed_program;
 use checked_trees::CheckedTrees;
 
-/// These are distinct checking checkpoints, not freely combinable permissions.
-#[derive(Clone, Copy)]
-enum CheckingMode {
-    /// Strictly finalized checking retained for callers that must reject
-    /// toolchain late bindings; standalone and package routes currently both
-    /// settle toolchain-owned selections at build-time evaluation.
-    #[allow(dead_code)]
-    Complete,
-    PreliminaryPackage,
-    SettledPackage,
-    #[cfg(test)]
-    CrashFactInspection,
-}
-
-impl CheckingMode {
-    fn allows_pending_opaque_copy(self) -> bool {
-        matches!(self, Self::PreliminaryPackage)
-    }
-
-    fn allows_unresolved_toolchain_selections(self) -> bool {
-        matches!(self, Self::PreliminaryPackage | Self::SettledPackage)
-    }
-}
-
-pub(crate) fn lower_typed_trees(
-    program: typed_trees::TypedTrees,
-    selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
-    opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
-) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    // Toolchain-owned sources keep the same late-binding tolerance as the
-    // package route: closed toolchain content (bundled core/std and any
-    // seeded target contract) may defer authored selections to build-time
-    // evaluation, while authored (non-toolchain) sources remain strictly
-    // finalized here.
-    lower_typed_trees_with_policy(
-        program,
-        CheckingMode::SettledPackage,
-        selected_generic_operator_providers,
-        opaque_property_receipts,
-    )
-}
-
-pub(crate) fn lower_preliminary_typed_trees(
+/// Check a standalone program. Toolchain-owned selections may remain late-bound
+/// until build-time evaluation; ordinary authored selections remain strict.
+pub fn lower_typed_trees(
     program: typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees_with_policy(program, CheckingMode::PreliminaryPackage, &[], &[])
+    check_program(program, CheckingMode::SettledPackage, &[], &[])
 }
 
-pub(crate) fn lower_package_typed_trees(
-    program: typed_trees::TypedTrees,
-    selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
-    opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
-) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees_with_policy(
-        program,
-        CheckingMode::SettledPackage,
-        selected_generic_operator_providers,
-        opaque_property_receipts,
-    )
-}
-
-#[cfg(test)]
-pub(crate) fn lower_typed_trees_for_crash_fact_inspection(
-    program: typed_trees::TypedTrees,
-) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees_with_policy(program, CheckingMode::CrashFactInspection, &[], &[])
-}
-
-fn lower_typed_trees_with_policy(
+fn check_program(
     program: typed_trees::TypedTrees,
     mode: CheckingMode,
     selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
@@ -202,21 +148,24 @@ fn lower_typed_trees_with_policy(
         );
     // Boundary-return bodies are independent of the Unit closure. Retain
     // their real plans before deciding which ordinary scalar callees exist.
-    facts.flow.terminal_boundary_scalar_returns =
+    let boundary_returns =
         crate::flow::build_checked_boundary_scalar_return_plans(&program, &facts);
-    facts.flow.terminal_structural_scalar_returns =
+    let primitive_returns =
         crate::flow::build_checked_primitive_store_scalar_return_plans(&program, &facts);
+    let scalar_callees = crate::flow::ScalarCalleePlans {
+        boundary_returns: &boundary_returns,
+        structural_returns: &primitive_returns,
+    };
     let terminal_unit_effects =
-        crate::flow::build_checked_unit_effect_plans(&program, &facts, &[], &[]);
+        crate::flow::build_checked_unit_effect_plans(&program, &facts, scalar_callees, &[], &[]);
     let mut cleanup_diagnostics = Vec::new();
-    facts.flow.terminal_structural_scalar_returns =
-        crate::flow::build_checked_structural_scalar_return_plans(
-            &program,
-            &facts,
-            &terminal_unit_effects,
-            &[],
-            &mut cleanup_diagnostics,
-        );
+    let structural_scalar_returns = crate::flow::build_checked_structural_scalar_return_plans(
+        &program,
+        &facts,
+        &terminal_unit_effects,
+        &[],
+        &mut cleanup_diagnostics,
+    );
     facts.flow.terminal_partial_affine_unit_cleanups =
         crate::flow::build_checked_partial_affine_unit_cleanup_plans(
             &program,
@@ -233,6 +182,8 @@ fn lower_typed_trees_with_policy(
     if !cleanup_diagnostics.is_empty() {
         return Err(cleanup_diagnostics);
     }
+    facts.flow.terminal_boundary_scalar_returns = boundary_returns;
+    facts.flow.terminal_structural_scalar_returns = structural_scalar_returns;
     facts.flow.terminal_unit_effects = terminal_unit_effects;
     facts.flow.semantic_dependencies =
         crate::flow::derive_checked_semantic_dependencies(&program, &facts);
@@ -252,6 +203,88 @@ fn lower_typed_trees_with_policy(
     validation::validate_declaration_visibility(&program)?;
 
     Ok(CheckedTrees::with_roots(program, facts))
+}
+
+/// Lower a pre-settlement package checkpoint. Unresolved selections are
+/// retained only for compiler-owned toolchain source; the caller must reject
+/// unresolved ordinary-package selections before granting build authority.
+pub fn lower_preliminary_typed_trees(
+    program: typed_trees::TypedTrees,
+) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    check_program(program, CheckingMode::PreliminaryPackage, &[], &[])
+}
+
+/// One Omega-selected generic checked body that must be specialized for the
+/// exact closed applications of its boundary-operator requirement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectedGenericOperatorProviderSpecialization {
+    pub requirement_operator: symbols::SymbolHandle,
+    pub realization_machine: symbols::SymbolHandle,
+}
+
+/// Lower with exact selected generic operator providers supplied by the
+/// orchestration owner. Psi derives applications from authored uses and uses
+/// ordinary authoritative specialization; the request carries no application
+/// strings, capability assertions, or provider-selection policy.
+pub fn lower_typed_trees_with_selected_generic_operator_providers(
+    program: typed_trees::TypedTrees,
+    selected: &[SelectedGenericOperatorProviderSpecialization],
+    opaque_property_receipts: &[::validation::OpaqueDataPropertyReceipt],
+) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    check_program(
+        program,
+        CheckingMode::SettledPackage,
+        selected,
+        opaque_property_receipts,
+    )
+}
+
+/// Final package-aware lowering keeps ordinary package selections strict while
+/// permitting unresolved compiler-owned toolchain selections to remain TCB
+/// input. The compiler must run its package declaration-authority gate over
+/// the result before issuing package evidence.
+pub fn lower_package_typed_trees_with_selected_generic_operator_providers(
+    program: typed_trees::TypedTrees,
+    selected: &[SelectedGenericOperatorProviderSpecialization],
+    opaque_property_receipts: &[::validation::OpaqueDataPropertyReceipt],
+) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    check_program(
+        program,
+        CheckingMode::SettledPackage,
+        selected,
+        opaque_property_receipts,
+    )
+}
+
+/// These are distinct checking checkpoints, not freely combinable permissions.
+#[derive(Clone, Copy)]
+enum CheckingMode {
+    /// Strictly finalized checking retained for callers that must reject
+    /// toolchain late bindings; standalone and package routes currently both
+    /// settle toolchain-owned selections at build-time evaluation.
+    #[allow(dead_code)]
+    Complete,
+    PreliminaryPackage,
+    SettledPackage,
+    #[cfg(test)]
+    CrashFactInspection,
+}
+
+impl CheckingMode {
+    fn allows_pending_opaque_copy(self) -> bool {
+        matches!(self, Self::PreliminaryPackage)
+    }
+
+    fn allows_unresolved_toolchain_selections(self) -> bool {
+        matches!(self, Self::PreliminaryPackage | Self::SettledPackage)
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn lower_typed_trees_for_crash_fact_inspection(
+    program: typed_trees::TypedTrees,
+) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    check_program(program, CheckingMode::CrashFactInspection, &[], &[])
 }
 
 #[cfg(test)]

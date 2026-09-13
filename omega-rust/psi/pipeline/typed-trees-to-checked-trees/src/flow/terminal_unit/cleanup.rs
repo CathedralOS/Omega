@@ -1060,6 +1060,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
             let operation = build_call_operation(
                 program,
                 facts,
+                None,
                 machine,
                 state,
                 &structural_parameters,
@@ -1107,6 +1108,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
         let operation = build_call_operation(
             program,
             facts,
+            None,
             machine,
             state,
             &structural_parameters,

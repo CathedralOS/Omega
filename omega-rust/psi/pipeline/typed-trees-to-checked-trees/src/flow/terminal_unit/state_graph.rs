@@ -12,6 +12,7 @@ mod tests;
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
@@ -189,6 +190,7 @@ pub(super) fn build(
         let sequence = control::statement_sequence::build(
             program,
             facts,
+            scalar_callees,
             shapes,
             machine,
             state,
@@ -350,6 +352,7 @@ pub(super) fn build(
         } else if let Some(terminator) = returns::guarded(
             program,
             facts,
+            scalar_callees,
             shapes,
             machine,
             state,

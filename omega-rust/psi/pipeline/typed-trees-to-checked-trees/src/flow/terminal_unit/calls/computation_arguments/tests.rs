@@ -713,6 +713,10 @@ fn owned_graph_receiving_check_rejects_retained_signature_tampering() {
         registered_structural_graph_target(
             &checked.typed,
             &checked.facts,
+            Some(crate::flow::ScalarCalleePlans {
+                boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &checked.facts.flow.terminal_structural_scalar_returns
+            }),
             inspect.symbol,
             state,
             PrimitiveType::U64
@@ -742,6 +746,10 @@ fn owned_graph_receiving_check_rejects_retained_signature_tampering() {
             registered_structural_graph_target(
                 &checked.typed,
                 &facts,
+                Some(crate::flow::ScalarCalleePlans {
+                    boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                    structural_returns: &facts.flow.terminal_structural_scalar_returns
+                }),
                 inspect.symbol,
                 state,
                 PrimitiveType::U64

@@ -245,8 +245,19 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
     )
     .expect("exact ordered scalar field store sequence");
     assert_eq!(stores.len(), 1);
-    let plan = build_checked_machine(program, facts, &mut shapes, machine, &[], &[])
-        .expect("store plus crashing scalar argument call retains Unit machine plan");
+    let plan = build_checked_machine(
+        program,
+        facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &facts.flow.terminal_structural_scalar_returns,
+        },
+        &mut shapes,
+        machine,
+        &[],
+        &[],
+    )
+    .expect("store plus crashing scalar argument call retains Unit machine plan");
     assert!(matches!(
         plan.operations.first(),
         Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
