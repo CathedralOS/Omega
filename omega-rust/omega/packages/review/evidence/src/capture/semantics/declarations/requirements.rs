@@ -60,11 +60,11 @@ pub(crate) fn trait_requirement_identity_from_symbols(
 
 pub(crate) fn provider_requirement_identity(
     compilation: &CheckedCompilation,
-    schema: provider_planning::plans::ProviderSchemaDeclaration,
+    schema: provider_planning::ProviderSchemaDeclaration,
     requirement_symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     match provider_requirement_schema(compilation, schema, requirement_symbol)? {
-        provider_planning::plans::ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
+        provider_planning::ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
             trait_requirement_identity_from_symbols(
                 compilation,
                 trait_symbol,
@@ -72,7 +72,7 @@ pub(crate) fn provider_requirement_identity(
                 "selected provider row",
             )
         }
-        provider_planning::plans::ProviderSchemaDeclaration::BoundaryRequirement(schema_symbol) => {
+        provider_planning::ProviderSchemaDeclaration::BoundaryRequirement(schema_symbol) => {
             let matches = compilation
                 .machines()
                 .iter()
@@ -91,7 +91,7 @@ pub(crate) fn provider_requirement_identity(
             };
             top_level_requirement_identity(compilation, requirement)
         }
-        provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(_) => {
+        provider_planning::ProviderSchemaDeclaration::BoundaryOperator(_) => {
             let operators = compilation.operators().iter().chain(
                 compilation
                     .domain_definitions()

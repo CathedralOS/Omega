@@ -4,9 +4,9 @@ use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::ProviderPlan;
 use provider_planning::ProviderSelection;
+use provider_planning::SelectedProviderReviewProvenance;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 use provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable;
-use provider_planning::plans::SelectedProviderReviewProvenance;
 use typed_trees::TypedTrees;
 
 /// Final typed provider choices and their evidence, retained for checking and
@@ -105,7 +105,7 @@ pub(super) fn settle_checked_providers(
         typed,
         &selected_semantic_plans,
     )?;
-    let external_binding_rows = provider_planning::plans::extract_native_external_binding_rows(
+    let external_binding_rows = provider_planning::extract_native_external_binding_rows(
         target_name,
         provider_selection_target,
         &selected_semantic_plans,

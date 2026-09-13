@@ -6,7 +6,7 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 use provider_planning::CompositionMode;
-use provider_planning::plans::SelectedProviderReviewProvenance;
+use provider_planning::SelectedProviderReviewProvenance;
 
 mod forwarding;
 

@@ -69,9 +69,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
 
 fn encode_primitive_float_binary_operation(
     encoder: &mut Encoder,
-    operation: provider_planning::plans::CompilerPrimitiveFloatBinaryOperation,
+    operation: provider_planning::CompilerPrimitiveFloatBinaryOperation,
 ) {
-    use provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
+    use provider_planning::CompilerPrimitiveFloatBinaryOperation;
 
     match operation {
         CompilerPrimitiveFloatBinaryOperation::Add => encoder.tag("add", 0),
@@ -96,9 +96,9 @@ fn encode_float_format(encoder: &mut Encoder, format: numerics::literals::FloatF
 
 fn encode_compiler_numeric_type(
     encoder: &mut Encoder,
-    numeric_type: provider_planning::plans::CompilerNumericType,
+    numeric_type: provider_planning::CompilerNumericType,
 ) {
-    use provider_planning::plans::CompilerNumericType;
+    use provider_planning::CompilerNumericType;
 
     match numeric_type {
         CompilerNumericType::I8 => encoder.tag("i8", 0),

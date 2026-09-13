@@ -16,25 +16,21 @@ struct FamilySelectionSeed {
 }
 
 fn declarations_for_authority(
-    provenance: &provider_planning::plans::ProviderSelectionProvenance,
+    provenance: &provider_planning::ProviderSelectionProvenance,
 ) -> Option<(
     PackageReviewProviderSelectionAuthority,
     &[ProviderSelection],
 )> {
     match provenance {
-        provider_planning::plans::ProviderSelectionProvenance::BuildOverride(declarations) => {
-            Some((
-                PackageReviewProviderSelectionAuthority::BuildOverride,
-                declarations,
-            ))
-        }
-        provider_planning::plans::ProviderSelectionProvenance::TargetDefault(declarations) => {
-            Some((
-                PackageReviewProviderSelectionAuthority::TargetDefault,
-                declarations,
-            ))
-        }
-        provider_planning::plans::ProviderSelectionProvenance::UniqueCoveringCandidate => None,
+        provider_planning::ProviderSelectionProvenance::BuildOverride(declarations) => Some((
+            PackageReviewProviderSelectionAuthority::BuildOverride,
+            declarations,
+        )),
+        provider_planning::ProviderSelectionProvenance::TargetDefault(declarations) => Some((
+            PackageReviewProviderSelectionAuthority::TargetDefault,
+            declarations,
+        )),
+        provider_planning::ProviderSelectionProvenance::UniqueCoveringCandidate => None,
     }
 }
 
@@ -44,7 +40,7 @@ fn same_family_selection(left: &ProviderSelection, right: &ProviderSelection) ->
 }
 
 fn provenance_selects_family(
-    provenance: &provider_planning::plans::ProviderSelectionProvenance,
+    provenance: &provider_planning::ProviderSelectionProvenance,
     seed: &FamilySelectionSeed,
 ) -> bool {
     declarations_for_authority(provenance).is_some_and(|(authority, declarations)| {

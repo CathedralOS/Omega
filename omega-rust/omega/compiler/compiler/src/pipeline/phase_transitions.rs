@@ -249,7 +249,7 @@ fn selected_generic_operator_provider_specializations(
         ) {
             continue;
         }
-        let provider = match provider_planning::plans::exact_checked_adapter(typed, plan, row) {
+        let provider = match provider_planning::exact_checked_adapter(typed, plan, row) {
             Ok(provider) => provider,
             Err(diagnostic) => {
                 diagnostics.push(diagnostic);

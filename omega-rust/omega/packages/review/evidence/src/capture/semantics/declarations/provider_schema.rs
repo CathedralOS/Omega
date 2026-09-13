@@ -2,7 +2,7 @@
 
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
-use provider_planning::plans::ProviderSchemaDeclaration;
+use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
 /// The selected schema owns provider/calling policy. An inherited requirement

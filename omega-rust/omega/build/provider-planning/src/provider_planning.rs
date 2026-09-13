@@ -1,9 +1,9 @@
-//! Provider plans derive from checked `satisfies` closures and are admitted
-//! through the chapter-10 trust path. Own-package plans remain dev-active with
-//! a standing warning until the final build grants them; lockfile receipts hash
-//! normalized plan identity so a changed plan drifts. A unique covering
-//! candidate may still supply the declaration-era default, while explicit
-//! selection remains under slot-owner authority.
+//! Provider-plan selection and binding to checked programs.
+//!
+//! Derive candidates from explicit satisfaction, select exact slots, then bind
+//! grants, receipts, operator evidence, and installation reach before publishing.
+//! Subordinate modules own validation and projection; consumers use the selected
+//! immutable carrier rather than rediscovering declarations.
 
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 pub use effects::{
@@ -16,16 +16,16 @@ use trust_model::resolve_selected_provider_grants;
 use trust_model::{AuthoredRootGrant, ResolvedAuthoredSelectedProviderGrant};
 use typed_trees::TypedTrees;
 
-#[path = "plans/external_binding_rows.rs"]
 mod external_binding_rows;
+mod installation_reach;
+mod receipt_binding;
 pub use external_binding_rows::{
     extract_external_binding_rows, extract_native_external_binding_rows,
     settle_external_binding_rows,
 };
-#[path = "plans/intrinsic_execution.rs"]
+use installation_reach::derive_selected_installation_reach_resolutions;
 mod intrinsic_execution;
 pub use intrinsic_execution::primitive_float_binary_intrinsic_execution_identity;
-#[path = "plans/provenance_replay.rs"]
 mod provenance_replay;
 #[cfg(test)]
 use provenance_replay::exact_canonical_provider_schema;
@@ -37,10 +37,54 @@ use provenance_replay::{
 };
 
 #[cfg(feature = "installed-writer")]
-#[path = "plans/installed_writer.rs"]
 mod installed_writer;
 #[cfg(feature = "installed-writer")]
 pub use installed_writer::*;
+
+/// Build the exact Omega-owned selection sidecar and bind its stable receipt
+/// identities into checked semantic evidence. Provider execution and
+/// compiler-generated helper machines consume the returned carrier; neither
+/// may reconstruct a plan by scanning authored `satisfies` rows.
+pub fn bind_selected_provider_plan_facts(
+    program: &Arc<checked_trees::CheckedTrees>,
+    candidates: &[ProviderPlan],
+    facts: effects::SelectedProviderPlanFacts,
+    root_grants: &[String],
+    authored_root_grants: &[AuthoredRootGrant],
+) -> Result<SelectedProviderPlanBinding, Vec<diagnostics::Diagnostic>> {
+    let checked = program.as_ref();
+    let provider_grants = resolve_selected_provider_grants(candidates, &facts, root_grants)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let authored_provider_grants = trust_model::resolve_authored_selected_provider_grants(
+        candidates,
+        &facts,
+        authored_root_grants,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    let receipt_updates =
+        receipt_binding::plan_admitted_receipt_updates(checked, &facts, &provider_grants)?;
+    let (spelled_operator_uses, named_operator_uses) =
+        plan_selected_operator_provider_evidence(checked, candidates, &facts)?;
+    let installation_reach_resolutions =
+        derive_selected_installation_reach_resolutions(checked, &facts)?;
+    let selected = facts
+        .with_installation_reach_resolutions(installation_reach_resolutions)
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+    let updates = SelectedProviderProgramUpdates {
+        spelled_operator_uses,
+        named_operator_uses,
+        admitted_receipts: receipt_updates,
+    };
+    let mut bound_program = Arc::clone(program);
+    if !updates.is_empty() {
+        updates.apply(Arc::make_mut(&mut bound_program));
+    }
+    Ok(SelectedProviderPlanBinding {
+        program: bound_program,
+        selected,
+        grants: authored_provider_grants,
+    })
+}
 
 /// Exact checked-program and selected-plan candidate after every provider
 /// grant, receipt, operator-use, and installation-reach decision has replayed.
@@ -107,478 +151,6 @@ impl SelectedProviderProgramUpdates {
                 .receipt_identity = identity;
         }
     }
-}
-
-/// Build the exact Omega-owned selection sidecar and bind its stable receipt
-/// identities into checked semantic evidence. Provider execution and
-/// compiler-generated helper machines consume the returned carrier; neither
-/// may reconstruct a plan by scanning authored `satisfies` rows.
-pub fn bind_selected_provider_plan_facts(
-    program: &Arc<checked_trees::CheckedTrees>,
-    candidates: &[ProviderPlan],
-    facts: effects::SelectedProviderPlanFacts,
-    root_grants: &[String],
-    authored_root_grants: &[AuthoredRootGrant],
-) -> Result<SelectedProviderPlanBinding, Vec<diagnostics::Diagnostic>> {
-    let checked = program.as_ref();
-    let provider_grants = resolve_selected_provider_grants(candidates, &facts, root_grants)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let authored_provider_grants = trust_model::resolve_authored_selected_provider_grants(
-        candidates,
-        &facts,
-        authored_root_grants,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    let mut granted_plans = Vec::new();
-    for grant in &provider_grants {
-        let exact_selected_matches = facts
-            .plans()
-            .iter()
-            .filter(|plan| grant.replays_selected_plan(plan))
-            .count();
-        if exact_selected_matches != 1 {
-            return Err(vec![diagnostics::Diagnostic::error(format!(
-                "provider grant `{}` replays against {exact_selected_matches} exact selected provider plans",
-                grant.selector,
-            ))]);
-        }
-        if !granted_plans
-            .iter()
-            .any(|retained: &&trust_model::ResolvedSelectedProviderGrant| {
-                retained.selected_plan == grant.selected_plan
-                    && retained.selected_plan_digest == grant.selected_plan_digest
-            })
-        {
-            granted_plans.push(grant);
-        }
-    }
-    let mut receipt_updates = Vec::new();
-    let mut receipt_diagnostics = Vec::new();
-    let traits = checked.typed.traits();
-    if traits.len() != checked.typed.roots.traits.count() as usize {
-        receipt_diagnostics.push(diagnostics::Diagnostic::error(
-            "admitted qualification receipt binding has an invalid typed trait span",
-        ));
-    }
-    for definition in traits {
-        if checked.typed.trait_machine_signatures(definition).len()
-            != definition.machines.count() as usize
-        {
-            receipt_diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "admitted qualification receipt binding has an invalid typed signature span for trait {:?}",
-                definition.symbol,
-            )));
-        }
-    }
-    if !receipt_diagnostics.is_empty() {
-        return Err(receipt_diagnostics);
-    }
-    for (handle, fact) in checked.facts.semantic.facts.iter().filter(|(_, fact)| {
-        fact.evidence.origin == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
-            && fact.evidence.receipt_identity == 0
-    }) {
-        let owners = checked
-            .typed
-            .traits()
-            .iter()
-            .filter(|definition| definition.symbol == fact.evidence.source_symbol)
-            .collect::<Vec<_>>();
-        let owner = match owners.as_slice() {
-            [owner] if owner.is_boundary => *owner,
-            [owner] => {
-                receipt_diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "admitted qualification evidence source {:?} names non-boundary trait `{}`",
-                    fact.evidence.source_symbol, owner.name,
-                )));
-                continue;
-            }
-            _ => {
-                receipt_diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "admitted qualification evidence source {:?} resolves to {} exact typed boundary requirement owners",
-                    fact.evidence.source_symbol,
-                    owners.len(),
-                )));
-                continue;
-            }
-        };
-        let requirement_owners = checked
-            .typed
-            .traits()
-            .iter()
-            .flat_map(|candidate_owner| {
-                checked
-                    .typed
-                    .trait_machine_signatures(candidate_owner)
-                    .iter()
-                    .filter(move |requirement| {
-                        requirement.symbol == fact.evidence.requirement_symbol
-                    })
-                    .map(move |requirement| (candidate_owner, requirement))
-            })
-            .collect::<Vec<_>>();
-        let requirement = match requirement_owners.as_slice() {
-            [(requirement_owner, requirement)] if requirement_owner.symbol == owner.symbol => {
-                *requirement
-            }
-            [(requirement_owner, _)] => {
-                receipt_diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "admitted qualification evidence requirement {:?} belongs to exact trait {:?}, not owner {:?}",
-                    fact.evidence.requirement_symbol,
-                    requirement_owner.symbol,
-                    owner.symbol,
-                )));
-                continue;
-            }
-            _ => {
-                receipt_diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "admitted qualification evidence requirement {:?} resolves to {} exact typed signatures",
-                    fact.evidence.requirement_symbol,
-                    requirement_owners.len(),
-                )));
-                continue;
-            }
-        };
-        let requirement_identity = checked
-            .typed
-            .normalized_trait_requirement_overload_identity(owner, requirement)
-            .identity();
-        let matches = granted_plans
-            .iter()
-            .filter(|grant| {
-                grant
-                    .selected_plan
-                    .schema
-                    .methods
-                    .iter()
-                    .any(|method| method.requirement_identity == requirement_identity)
-            })
-            .collect::<Vec<_>>();
-        match matches.as_slice() {
-            [] => {}
-            [grant] => {
-                receipt_updates.push((handle, grant.selected_plan_report_identity));
-            }
-            _ => receipt_diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "admitted qualification requirement `{requirement_identity}` matches {} granted selected provider plans",
-                matches.len()
-            ))),
-        }
-    }
-    if !receipt_diagnostics.is_empty() {
-        return Err(receipt_diagnostics);
-    }
-    let (spelled_operator_uses, named_operator_uses) =
-        plan_selected_operator_provider_evidence(checked, candidates, &facts)?;
-    let installation_reach_resolutions =
-        derive_selected_installation_reach_resolutions(checked, &facts)?;
-    let selected = facts
-        .with_installation_reach_resolutions(installation_reach_resolutions)
-        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-    let updates = SelectedProviderProgramUpdates {
-        spelled_operator_uses,
-        named_operator_uses,
-        admitted_receipts: receipt_updates,
-    };
-    let mut bound_program = Arc::clone(program);
-    if !updates.is_empty() {
-        updates.apply(Arc::make_mut(&mut bound_program));
-    }
-    Ok(SelectedProviderPlanBinding {
-        program: bound_program,
-        selected,
-        grants: authored_provider_grants,
-    })
-}
-
-fn derive_selected_installation_reach_resolutions(
-    checked: &checked_trees::CheckedTrees,
-    selected: &effects::SelectedProviderPlanFacts,
-) -> Result<Vec<effects::InstallationReachResolution>, Vec<diagnostics::Diagnostic>> {
-    let mut resolutions = Vec::new();
-    let mut diagnostics = Vec::new();
-    for plan in selected.plans() {
-        let top_level_requirements = checked
-            .typed
-            .machines()
-            .iter()
-            .filter(|requirement| {
-                requirement.supply_mode
-                    == language_semantics::MachineSupplyMode::TopLevelRequirement
-                    && crate::service_schema::from_typed_boundary_requirement(
-                        &checked.typed,
-                        requirement,
-                    )
-                    .as_ref()
-                        == Some(&plan.schema)
-            })
-            .collect::<Vec<_>>();
-        match top_level_requirements.as_slice() {
-            [requirement] => {
-                for row in &plan.rows {
-                    append_top_level_installation_reach_resolution(
-                        checked,
-                        plan,
-                        row,
-                        requirement,
-                        &mut resolutions,
-                        &mut diagnostics,
-                    );
-                }
-                continue;
-            }
-            [] => {}
-            requirements => {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "selected provider schema `{}` resolves to {} exact top-level boundary requirements",
-                    plan.schema.trait_name,
-                    requirements.len(),
-                )));
-                continue;
-            }
-        }
-        // Boundary operators share the provider-plan carrier, but they are
-        // compiler-owned operator slots rather than boundary-trait
-        // requirements. Candidate validation has already replayed their exact
-        // typed operator schema. Do not make the trait-only installation-reach
-        // pass reinterpret them as missing trait requirements.
-        let is_boundary_operator_plan = checked.typed.operators().iter().any(|operator| {
-            crate::service_schema::from_typed_operator(&checked.typed, operator).as_ref()
-                == Some(&plan.schema)
-        });
-        if is_boundary_operator_plan {
-            continue;
-        }
-        for row in &plan.rows {
-            let requirements = checked
-                .typed
-                .traits()
-                .iter()
-                .flat_map(|owner| {
-                    checked
-                        .typed
-                        .trait_machine_signatures(owner)
-                        .iter()
-                        .filter(move |requirement| {
-                            checked
-                                .typed
-                                .normalized_trait_requirement_overload_identity(owner, requirement)
-                                .identity()
-                                == row.requirement_identity
-                        })
-                        .map(move |requirement| (owner, requirement))
-                })
-                .collect::<Vec<_>>();
-            let [(_, requirement)] = requirements.as_slice() else {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "selected provider row `{}` resolves to {} exact typed requirements",
-                    row.requirement_identity,
-                    requirements.len()
-                )));
-                continue;
-            };
-            if !requirement.service_reach_is_installation_bound {
-                continue;
-            }
-
-            let realization_machines = checked
-                .typed
-                .machines()
-                .iter()
-                .filter(|machine| {
-                    machine
-                        .attached_data
-                        .as_ref()
-                        .map(|name| name.as_str())
-                        .unwrap_or_default()
-                        == plan.provider_type
-                })
-                .filter(|machine| {
-                    checked
-                        .typed
-                        .machine_trait_conformances(machine)
-                        .iter()
-                        .any(|conformance| {
-                            conformance.requirement.as_ref().is_some_and(|name| {
-                                satisfied_requirement_identity(
-                                    &checked.typed,
-                                    machine.name.as_str(),
-                                    conformance.name.as_str(),
-                                    name.as_str(),
-                                ) == row.requirement_identity
-                            })
-                        })
-                })
-                .collect::<Vec<_>>();
-            let [realization] = realization_machines.as_slice() else {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "selected provider row `{}` resolves to {} exact realization machines for provider `{}`",
-                    row.requirement_identity,
-                    realization_machines.len(),
-                    plan.provider_type
-                )));
-                continue;
-            };
-            let Some(envelope) = checked
-                .facts
-                .contract_plans
-                .realized_envelope(realization.symbol)
-            else {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "selected provider realization `{}` has no checked contract envelope",
-                    realization.name
-                )));
-                continue;
-            };
-            if let Some(diagnostic) = unresolved_realization_reach_diagnostic(
-                plan,
-                &row.requirement_identity,
-                realization,
-                envelope,
-            ) {
-                diagnostics.push(diagnostic);
-                continue;
-            }
-            let upper_bound = checked
-                .facts
-                .service_reaches
-                .rows
-                .services(requirement.service_reach_row)
-                .iter()
-                .filter_map(|service| checked.facts.service_reaches.services.definition(*service))
-                .map(|definition| definition.name.clone())
-                .collect();
-            resolutions.push(effects::InstallationReachResolution {
-                requirement_identity: row.requirement_identity.clone(),
-                provider_plan_report_identity: plan.report_fingerprint(),
-                upper_bound,
-                resolved_row: envelope.effective_service_reach.clone(),
-            });
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(resolutions)
-    } else {
-        Err(diagnostics)
-    }
-}
-
-fn append_top_level_installation_reach_resolution(
-    checked: &checked_trees::CheckedTrees,
-    plan: &ProviderPlan,
-    row: &ProviderPlanRow,
-    requirement: &typed_trees::machine::Machine,
-    resolutions: &mut Vec<effects::InstallationReachResolution>,
-    diagnostics: &mut Vec<diagnostics::Diagnostic>,
-) {
-    let requirement_identity = checked
-        .typed
-        .normalized_machine_overload_identity(requirement)
-        .map(|identity| identity.identity())
-        .unwrap_or_default();
-    if row.requirement_identity != requirement_identity {
-        diagnostics.push(diagnostics::Diagnostic::error(format!(
-            "selected provider row `{}` does not retain exact top-level requirement `{requirement_identity}`",
-            row.requirement_identity,
-        )));
-        return;
-    }
-    if !requirement.service_reach_is_installation_bound {
-        return;
-    }
-    let realizations = checked
-        .typed
-        .machines()
-        .iter()
-        .filter(|machine| {
-            machine
-                .attached_data
-                .as_ref()
-                .is_some_and(|name| name.as_str() == plan.provider_type)
-        })
-        .filter(|machine| {
-            checked
-                .typed
-                .machine_trait_conformances(machine)
-                .iter()
-                .any(|conformance| {
-                    conformance.symbol == requirement.symbol
-                        && conformance.requirement_symbol == requirement.symbol
-                        && matches!(
-                            typed_trees::machine::resolve_satisfied_declaration(
-                                &checked.typed,
-                                machine,
-                                conformance,
-                            ),
-                            Some(
-                                typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
-                                    selected,
-                                ),
-                            ) if selected.symbol == requirement.symbol
-                        )
-                })
-        })
-        .collect::<Vec<_>>();
-    let [realization] = realizations.as_slice() else {
-        diagnostics.push(diagnostics::Diagnostic::error(format!(
-            "selected top-level requirement row `{requirement_identity}` resolves to {} exact realization machines for provider `{}`",
-            realizations.len(),
-            plan.provider_type,
-        )));
-        return;
-    };
-    let Some(envelope) = checked
-        .facts
-        .contract_plans
-        .realized_envelope(realization.symbol)
-    else {
-        diagnostics.push(diagnostics::Diagnostic::error(format!(
-            "selected provider realization `{}` has no checked contract envelope",
-            realization.name,
-        )));
-        return;
-    };
-    if let Some(diagnostic) =
-        unresolved_realization_reach_diagnostic(plan, &requirement_identity, realization, envelope)
-    {
-        diagnostics.push(diagnostic);
-        return;
-    }
-    let upper_bound = checked
-        .facts
-        .service_reaches
-        .rows
-        .services(requirement.service_reach_row)
-        .iter()
-        .filter_map(|service| checked.facts.service_reaches.services.definition(*service))
-        .map(|definition| definition.name.clone())
-        .collect();
-    resolutions.push(effects::InstallationReachResolution {
-        requirement_identity,
-        provider_plan_report_identity: plan.report_fingerprint(),
-        upper_bound,
-        resolved_row: envelope.effective_service_reach.clone(),
-    });
-}
-
-/// A selected row is the exact reach of the installed realization. When the
-/// realization itself still reaches through an unresolved installation-bound
-/// requirement, its checked effective reach carries that requirement's
-/// conservative upper bound, so publishing it as the resolved row would let a
-/// bound stand in for concrete reach. Provider selection has no substitution
-/// step for nested requirements; reject instead of degrading to the bound.
-fn unresolved_realization_reach_diagnostic(
-    plan: &ProviderPlan,
-    requirement_identity: &str,
-    realization: &typed_trees::machine::Machine,
-    envelope: &checked_trees::RealizedMachineContractEnvelope,
-) -> Option<diagnostics::Diagnostic> {
-    let unresolved = envelope.unresolved_installation_reaches.len();
-    (unresolved != 0).then(|| {
-        diagnostics::Diagnostic::error(format!(
-            "selected provider row `{requirement_identity}` realization `{}` of provider `{}` retains {unresolved} unresolved installation-bound requirement(s); its checked reach is a conservative bound, not a resolved row",
-            realization.name, plan.provider_type,
-        ))
-    })
 }
 
 fn plan_selected_operator_provider_evidence(
@@ -1931,5 +1503,4 @@ fn select_provider_plan_indices(
 }
 
 #[cfg(test)]
-#[path = "plans/tests.rs"]
 mod tests;

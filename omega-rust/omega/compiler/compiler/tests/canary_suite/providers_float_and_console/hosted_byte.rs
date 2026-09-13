@@ -1,6 +1,6 @@
 use super::*;
 use compiler::CheckedCompileRequest;
-use provider_planning::plans::CompilerIntrinsicExecutionIdentity;
+use provider_planning::CompilerIntrinsicExecutionIdentity;
 
 #[test]
 fn hosted_byte_physical_children_retain_target_operand_and_emission_custody() {

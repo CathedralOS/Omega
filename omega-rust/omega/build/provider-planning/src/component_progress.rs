@@ -180,8 +180,9 @@ fn build_component_progress_manifest(
                     }
                 };
                 if let ProviderBinding::CheckedAdapter { .. } = &row.binding {
-                    let adapter = crate::plans::exact_checked_adapter(program, plan, row)
-                        .map_err(|diagnostic| vec![diagnostic])?;
+                    let adapter =
+                        crate::provider_planning::exact_checked_adapter(program, plan, row)
+                            .map_err(|diagnostic| vec![diagnostic])?;
                     queue.push(adapter.symbol);
                 }
             }

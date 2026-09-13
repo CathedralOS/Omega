@@ -9,9 +9,7 @@ use std::collections::BTreeSet;
 use checked_trees::{CheckedNamedOperatorUseFact, CheckedTrees};
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
-use provider_planning::plans::{
-    CompilerIntrinsicExecutionIdentity, SelectedProviderReviewProvenance,
-};
+use provider_planning::{CompilerIntrinsicExecutionIdentity, SelectedProviderReviewProvenance};
 use symbols::{BuiltinFunction, SymbolHandle};
 use target::{
     AdmittedX86ScalarFmaProvider, TargetProfile, X86FeatureRequirement, X86ScalarFmaSlot,
@@ -402,7 +400,7 @@ mod tests {
     use checked_trees::CheckedProviderPlanCommitment;
     use effects::SelectedProviderPlanFacts;
     use effects::provider_plan::{ProviderPlanRow, ServiceMethod, ServiceSchema};
-    use provider_planning::plans::{
+    use provider_planning::{
         ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelectionProvenance,
     };
 

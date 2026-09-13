@@ -420,7 +420,7 @@ fn macho_import_review_encoding_retains_raw_atomic_coordinates() {
 
 #[test]
 fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
-    use provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
+    use provider_planning::CompilerPrimitiveFloatBinaryOperation;
 
     fn encoded(execution: PackageReviewCompilerIntrinsicExecution) -> Vec<u8> {
         let mut encoder = Encoder::bounded(16);
@@ -459,8 +459,8 @@ fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
     );
     let conversion = encoded(
         PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
-            source: provider_planning::plans::CompilerNumericType::F64,
-            target: provider_planning::plans::CompilerNumericType::F32,
+            source: provider_planning::CompilerNumericType::F64,
+            target: provider_planning::CompilerNumericType::F32,
             domain: numerics::arithmetic::ArithmeticDomain::Exact,
         },
     );
@@ -480,7 +480,7 @@ fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
 
 #[test]
 fn primitive_float_binary_encoding_has_explicit_operation_tags() {
-    use provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
+    use provider_planning::CompilerPrimitiveFloatBinaryOperation;
 
     let operations = [
         CompilerPrimitiveFloatBinaryOperation::Add,
@@ -514,7 +514,7 @@ fn primitive_float_binary_encoding_has_explicit_operation_tags() {
 #[test]
 fn compiler_conversion_encoding_has_explicit_numeric_and_domain_tags() {
     use numerics::arithmetic::ArithmeticDomain;
-    use provider_planning::plans::CompilerNumericType;
+    use provider_planning::CompilerNumericType;
 
     fn encoded(execution: PackageReviewCompilerIntrinsicExecution) -> Vec<u8> {
         let mut encoder = Encoder::bounded(16);

@@ -14,8 +14,8 @@ mod project;
 #[path = "provider/selection.rs"]
 mod provider_selection;
 pub(crate) mod reporting;
+pub(crate) use provider_planning as provider_plans;
 pub(crate) use provider_planning::approval as provider_approval;
-pub(crate) use provider_planning::plans as provider_plans;
 pub mod source;
 mod source_assembly;
 mod stage;

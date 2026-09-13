@@ -227,8 +227,8 @@ pub machine FloatProvider::from_f64(value: f64) -> f32
         row.compiler_intrinsic_execution(),
         Some(
             PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
-                source: provider_planning::plans::CompilerNumericType::F64,
-                target: provider_planning::plans::CompilerNumericType::F32,
+                source: provider_planning::CompilerNumericType::F64,
+                target: provider_planning::CompilerNumericType::F32,
                 domain: numerics::arithmetic::ArithmeticDomain::Exact,
             }
         ),
@@ -260,7 +260,7 @@ fn review_closes_primitive_float_binary_execution_by_operation_and_format() {
     };
 
     use numerics::literals::FloatFormat;
-    use provider_planning::plans::CompilerPrimitiveFloatBinaryOperation as Operation;
+    use provider_planning::CompilerPrimitiveFloatBinaryOperation as Operation;
 
     let operations = [
         ("add", "+", Operation::Add, false),

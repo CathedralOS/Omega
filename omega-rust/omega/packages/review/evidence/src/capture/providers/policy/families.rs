@@ -8,7 +8,7 @@ use crate::record::{
 };
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
-use provider_planning::plans::ProviderSelectionProvenance;
+use provider_planning::ProviderSelectionProvenance;
 use provider_planning::{ProviderSelection, ProviderSelectionSubject};
 use target::TargetProfile;
 
@@ -116,7 +116,7 @@ pub(super) fn project(
             coordinates.push(PackagePolicyProviderFamilyCoordinate {
                 requirement_identity: policy_provider_requirement_identity(
                     compilation,
-                    provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
+                    provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
                         coordinate.symbol,
                     ),
                     coordinate.symbol,

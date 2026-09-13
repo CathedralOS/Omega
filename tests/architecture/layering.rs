@@ -2685,7 +2685,8 @@ fn shared_frontend_stages_stop_at_checked_psi() {
 #[test]
 fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
     let root = workspace_root();
-    let path = root.join("omega-rust/omega/build/provider-planning/src/plans/installed_writer.rs");
+    let path = root
+        .join("omega-rust/omega/build/provider-planning/src/provider_planning/installed_writer.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
 

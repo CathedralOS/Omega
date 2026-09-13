@@ -35,7 +35,7 @@ fn mixed_fixture() -> (CheckedTrees, SelectedProviderPlanFacts) {
     let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let plans = provider_planning::plans::derive_satisfies_plans(&typed, None);
+    let plans = provider_planning::derive_satisfies_plans(&typed, None);
     assert_eq!(plans.len(), 2);
     let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
     let uses = checked

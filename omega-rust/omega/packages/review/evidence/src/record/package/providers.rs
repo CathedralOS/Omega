@@ -11,13 +11,13 @@ pub enum PackageReviewCompilerIntrinsicExecution {
     HostedReadByte,
     BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {
-        operation: provider_planning::plans::CompilerPrimitiveFloatBinaryOperation,
+        operation: provider_planning::CompilerPrimitiveFloatBinaryOperation,
         format: numerics::literals::FloatFormat,
     },
     NamedFloatNegation(numerics::literals::FloatFormat),
     NamedFloatConversion {
-        source: provider_planning::plans::CompilerNumericType,
-        target: provider_planning::plans::CompilerNumericType,
+        source: provider_planning::CompilerNumericType,
+        target: provider_planning::CompilerNumericType,
         domain: numerics::arithmetic::ArithmeticDomain,
     },
 }

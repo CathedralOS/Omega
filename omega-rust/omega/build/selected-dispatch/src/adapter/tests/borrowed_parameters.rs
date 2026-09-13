@@ -41,7 +41,7 @@ fn borrowed_fixture() -> (CheckedTrees, effects::SelectedProviderPlanFacts) {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let plans = provider_planning::plans::derive_satisfies_plans(&typed, None);
+    let plans = provider_planning::derive_satisfies_plans(&typed, None);
     let selected = selected_plan(&plans, "Output");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
     (checked, selected)

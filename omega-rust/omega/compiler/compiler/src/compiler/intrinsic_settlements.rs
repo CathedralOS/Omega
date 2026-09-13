@@ -9,8 +9,8 @@
 use crate::pipeline::CheckedCompilation;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
-use provider_planning::plans::CompilerIntrinsicExecutionIdentity;
-use provider_planning::plans::SelectedProviderReviewProvenance;
+use provider_planning::CompilerIntrinsicExecutionIdentity;
+use provider_planning::SelectedProviderReviewProvenance;
 use std::collections::BTreeSet;
 
 #[derive(Debug)]

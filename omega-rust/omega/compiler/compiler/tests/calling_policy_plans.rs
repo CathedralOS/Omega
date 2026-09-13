@@ -8,7 +8,7 @@ use provider_planning::calling_policy_plans::{
     BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,
     BoundaryValueClass, evaluate_calling_policy_plan,
 };
-use provider_planning::plans::{
+use provider_planning::{
     selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
     selected_external_root_provider_plan_id,
 };

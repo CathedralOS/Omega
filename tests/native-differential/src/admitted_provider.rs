@@ -75,9 +75,8 @@ pub fn admit_native_provider_for_selected_plan(
     seed: u64,
     signature: CallSignature,
 ) -> ProviderExecution {
-    let provider_plan =
-        provider_planning::plans::selected_external_root_provider_plan(selected, service)
-            .expect("selected external-root provider plan");
+    let provider_plan = provider_planning::selected_external_root_provider_plan(selected, service)
+        .expect("selected external-root provider plan");
     let service_reach =
         ResolvedRootServiceReach::from_selected_provider_closure(Vec::new(), Vec::new(), selected)
             .expect("selected provider service reach");

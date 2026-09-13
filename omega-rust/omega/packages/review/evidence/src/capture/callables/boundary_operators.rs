@@ -62,7 +62,7 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
         .filter(|(plan, retained)| {
             plan.schema.trait_name == slot
                 && retained.provider.schema
-                    == provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
+                    == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
                         operator.symbol,
                     )
         })
@@ -165,7 +165,7 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
         .filter(|(plan, retained)| {
             plan.schema.trait_name == slot
                 && retained.provider.schema
-                    == provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
+                    == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
                         operator.symbol,
                     )
                 && retained.provider.row_realizations.contains(&machine.symbol)

@@ -6,7 +6,7 @@ use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use effects::ServiceTerminalAuthorityPermission;
 use effects::provider_plan::ServiceSchema;
-use provider_planning::plans::ProviderSchemaDeclaration;
+use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
 pub(super) struct ResolvedService<'a> {
