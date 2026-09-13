@@ -22,6 +22,12 @@ pub(crate) struct ReceiverSource {
 }
 
 impl ReceiverSource {
+    /// Source borrow facts use this captured spelling, while Terminal arguments
+    /// use the normalized parameter root and typed field path.
+    pub(crate) fn captured_place(&self) -> &checked_trees::CapturedPlace {
+        &self.captured_place
+    }
+
     /// Storage is selected by `root`; the call captures the authored endpoint.
     /// Whole self may spell the machine namespace while its root is a formal.
     pub(crate) fn endpoint(&self) -> SymbolHandle {

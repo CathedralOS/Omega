@@ -42,9 +42,6 @@ pub(super) fn validate(
     if argument.access != CheckedStructuralAccess::SharedBorrow {
         return unsupported("record operand changed its shared custody");
     }
-    if !target.is_self && !argument.path.is_empty() {
-        return unsupported("explicit record operands require whole-place observation custody");
-    }
     let table = &checked.expression_table;
     let named = match table.expression(expression) {
         ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Shared => borrow.target,
@@ -52,7 +49,7 @@ pub(super) fn validate(
         _ => return unsupported("record operand has no named or projected source"),
     };
     let (caller, _) = super::authored_state(checked, state.symbol)?;
-    let (root, endpoint) = match argument.source {
+    let source = match argument.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
         | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } => {
             let source = crate::call_source_custody::projected_receivers::source(
@@ -72,10 +69,12 @@ pub(super) fn validate(
             {
                 return unsupported("record operand substituted its projected path");
             }
-            (source.root, source.endpoint())
+            source
         }
         _ => return unsupported("record operand has no supported source owner"),
     };
+    let root = source.root;
+    let endpoint = source.endpoint();
     let parameters = checked.state_parameters(state);
     let reference = match argument.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
@@ -216,13 +215,13 @@ pub(super) fn validate(
         {
             return unsupported("record argument differs from its exact formal referent");
         }
-        super::borrow_rows::validate_shared_argument_at(
+        super::borrow_rows::validate_shared_place_argument_at(
             checked,
             call,
             explicit_position.ok_or(LoweringError::Unsupported(
                 "record argument lost its observation position",
             ))?,
-            root,
+            source.captured_place(),
         )?;
     }
     Ok(())
