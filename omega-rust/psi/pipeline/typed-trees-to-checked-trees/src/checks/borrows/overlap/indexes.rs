@@ -425,21 +425,22 @@ fn exclusive_end_bound(
     location: SelectorLocation,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> Option<NormalizedBound> {
-    let end = selectors.bound(
+    selectors.bound(
         location,
         BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
-        || normalized_bound(program, range.end),
-    );
-    if range.end_inclusive {
-        match end? {
-            NormalizedBound::Integer(end) => end.checked_add(1).map(NormalizedBound::Integer),
-            NormalizedBound::Symbol { symbol, offset } => offset
-                .checked_add(1)
-                .map(|offset| NormalizedBound::Symbol { symbol, offset }),
-        }
-    } else {
-        end
-    }
+        || {
+            let end = normalized_bound(program, range.end)?;
+            if !range.end_inclusive {
+                return Some(end);
+            }
+            match end {
+                NormalizedBound::Integer(end) => end.checked_add(1).map(NormalizedBound::Integer),
+                NormalizedBound::Symbol { symbol, offset } => offset
+                    .checked_add(1)
+                    .map(|offset| NormalizedBound::Symbol { symbol, offset }),
+            }
+        },
+    )
 }
 
 fn normalized_bound(

@@ -117,7 +117,13 @@ fn assert_adjacency_snapshot(checked: &checked_trees::CheckedTrees, reverse: boo
     );
 }
 
-fn assert_offset_adjacency_snapshot(checked: &mut checked_trees::CheckedTrees) {
+/// `shifted_rows` counts the snapshot rows whose exclusive boundary is
+/// `mid + 1`: one for `0..mid`, two for `0..=mid` because the inclusive end
+/// is frozen as its exclusive equivalent.
+fn assert_offset_adjacency_snapshot(
+    checked: &mut checked_trees::CheckedTrees,
+    shifted_rows: usize,
+) {
     let certificate = sole_certificate(checked);
     let mid = local(checked, "mid").symbol;
     let shifted = Some(BorrowCompatibilitySelectorValue::SymbolOffset {
@@ -125,12 +131,14 @@ fn assert_offset_adjacency_snapshot(checked: &mut checked_trees::CheckedTrees) {
         offset: 1,
     });
     let boundary = Some(BorrowCompatibilitySelectorValue::Symbol(mid));
-    assert!(
+    assert_eq!(
         certificate
             .selector_snapshot
             .iter()
-            .any(|row| row.value == shifted),
-        "exact shifted boundary must be retained",
+            .filter(|row| row.value == shifted)
+            .count(),
+        shifted_rows,
+        "exact shifted boundaries must be retained",
     );
     assert_eq!(
         certificate
@@ -138,8 +146,8 @@ fn assert_offset_adjacency_snapshot(checked: &mut checked_trees::CheckedTrees) {
             .iter()
             .filter(|row| row.value == boundary)
             .count(),
-        1,
-        "plain symbolic boundary must be retained",
+        2 - shifted_rows,
+        "plain symbolic boundaries must be retained",
     );
     assert_eq!(
         certificate
@@ -148,21 +156,14 @@ fn assert_offset_adjacency_snapshot(checked: &mut checked_trees::CheckedTrees) {
             .filter(|row| {
                 matches!(
                     row.value,
-                    Some(BorrowCompatibilitySelectorValue::SymbolOffset { .. })
+                    Some(
+                        BorrowCompatibilitySelectorValue::Symbol(_)
+                            | BorrowCompatibilitySelectorValue::SymbolOffset { .. }
+                    )
                 )
             })
             .count(),
-        1
-    );
-    assert_eq!(
-        certificate
-            .selector_snapshot
-            .iter()
-            .filter(|row| {
-                matches!(row.value, Some(BorrowCompatibilitySelectorValue::Symbol(_)))
-            })
-            .count(),
-        1
+        2
     );
     assert!(certificate.conclusion.disjoint);
     assert!(certificate.conclusion.non_interfering);
@@ -209,15 +210,15 @@ fn computed_binding_and_finite_copies_freeze_the_original_symbol_in_both_orders(
 
 #[test]
 fn offset_computed_boundary_licenses_adjacent_mutable_loans() {
-    for (left, right) in [
-        ("0..mid", "mid + 1..4"),
-        ("0..=mid", "mid + 1..4"),
-        ("0..mid", "1 + mid..4"),
+    for (left, right, shifted_rows) in [
+        ("0..mid", "mid + 1..4", 1),
+        ("0..=mid", "mid + 1..4", 2),
+        ("0..mid", "1 + mid..4", 1),
     ] {
         for reverse in [false, true] {
             let mut checked =
                 checked_source(&split_source("let mid: u64 = 1 + 1;", left, right, reverse));
-            assert_offset_adjacency_snapshot(&mut checked);
+            assert_offset_adjacency_snapshot(&mut checked, shifted_rows);
         }
     }
 }
