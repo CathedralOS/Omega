@@ -9,6 +9,8 @@ pub(super) mod root_bindings;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SelectedProgramEntry<'config> {
     pub machine_name: &'config str,
+    /// Exact machine selected under the binding occurrence's lexical package.
+    pub machine_symbol: symbols::SymbolHandle,
     pub slot: target::ProgramEntrySlotDeclaration,
 }
 
@@ -110,6 +112,7 @@ pub fn selected_program_entry_machine<'config>(
     match program_entries.as_slice() {
         [(slot, binding)] => Ok(Some(SelectedProgramEntry {
             machine_name: binding.implementation.as_str(),
+            machine_symbol: binding.implementation_symbol,
             slot: *slot,
         })),
         [] => Err(vec![Diagnostic::error(format!(
@@ -136,12 +139,21 @@ pub fn validate_selected_program_entry_shape(
     let Some(machine) = typed
         .machines()
         .iter()
-        .find(|machine| machine.name.as_str() == machine_name)
+        .find(|machine| machine.symbol == selected.machine_symbol)
     else {
         return Err(vec![Diagnostic::error(format!(
-            "build root slot names unknown entry machine `{machine_name}`"
+            "build root slot selected entry `{machine_name}` is not a declaration in the admitted program"
         ))]);
     };
+    if typed
+        .machines()
+        .iter()
+        .any(|other| other.symbol != machine.symbol && other.name.as_str() == machine.name.as_str())
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "root slot binds `{machine_name}` exactly, but another package declares a same-named machine; name-keyed Terminal production cannot rejoin the exact selected identity yet"
+        ))]);
+    }
     let Some(entry) = typed.machine_states(machine).first() else {
         return Err(vec![Diagnostic::error(format!(
             "entry machine `{machine_name}` has no executable entry state"
@@ -841,6 +853,7 @@ mod tests {
                 .map(|(slot, implementation)| RootBinding {
                     slot: (*slot).to_owned(),
                     implementation: (*implementation).to_owned(),
+                    implementation_symbol: symbols::SymbolHandle::from_arena_index(1),
                 })
                 .collect(),
             ..BuildConfig::default()
@@ -980,7 +993,7 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(
             diagnostics[0].to_string(),
-            "error: build root slot names unknown entry machine `MissingApplication::start`"
+            "error: build root slot selected entry `MissingApplication::start` is not a declaration in the admitted program"
         );
     }
 
