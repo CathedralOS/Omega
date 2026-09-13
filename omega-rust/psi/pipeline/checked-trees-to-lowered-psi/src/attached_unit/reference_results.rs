@@ -159,6 +159,19 @@ pub(super) fn validate_consumer(
     let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
         return Ok(false);
     };
+    if let Some(CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }) = caller.operations.iter().find(|operation|
+        matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } if result.binding_ordinal == binding_ordinal)) {
+        let (machine, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
+        let Some(reference) = validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression) else { return Ok(false); };
+        if validation::reference_result_custody::parts(&checked.typed, reference).is_none() { return Ok(false); }
+        let expected = validation::reference_result_custody::record_argument(&checked.typed, &checked.facts, caller.machine, state,
+            coordinate.statement_index, expression, result, reference)
+            .ok_or(LoweringError::Unsupported("record reference consumer has no exact live source"))?;
+        if expected != *argument || argument.type_identity != parameter.type_identity || argument.access != parameter.access {
+            return unsupported("record reference consumer changed type or access");
+        }
+        return Ok(true);
+    }
     let Some(producer @ CheckedUnitEffectOperationPlan::StructuralCall { custody, result, .. }) = caller.operations.iter()
         .find(|operation| matches!(operation, CheckedUnitEffectOperationPlan::StructuralCall { result, .. } if result.binding_ordinal == binding_ordinal))
     else { return Ok(false); };
@@ -213,6 +226,15 @@ pub(super) fn emit(
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let structural_type = lookup_type_id(types, &result.type_identity)?;
+    emit_carrier(structural_type, source, next_place, operations)
+}
+
+pub(super) fn emit_carrier(
+    structural_type: StructuralTypeId,
+    source: StructuralArgument,
+    next_place: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let id = operations.allocate();
     let place = place_id(allocate_dense(next_place)?);
     operations.push(Operation {

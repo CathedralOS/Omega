@@ -35,6 +35,11 @@ pub struct CheckedStructuralValue {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedStructuralValueKind {
+    /// Capture existing borrowed storage into an owned permission carrier.
+    /// A record field consumes this carrier, never a scalar referent snapshot.
+    Reference {
+        source: crate::CheckedUnitStructuralArgumentPlan,
+    },
     Case(crate::CheckedScalarCaseConstruction),
     Call {
         source_call: Handle<crate::FlowCallFact>,

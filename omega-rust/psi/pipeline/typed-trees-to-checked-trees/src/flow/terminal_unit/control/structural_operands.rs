@@ -98,7 +98,8 @@ pub(in crate::flow::terminal_unit) fn value_calls(
                         .map(|arm| arm.value),
                 );
             }
-            checked_trees::CheckedStructuralValueKind::Case(_)
+            checked_trees::CheckedStructuralValueKind::Reference { .. }
+            | checked_trees::CheckedStructuralValueKind::Case(_)
             | checked_trees::CheckedStructuralValueKind::Place(_) => {}
         }
     }

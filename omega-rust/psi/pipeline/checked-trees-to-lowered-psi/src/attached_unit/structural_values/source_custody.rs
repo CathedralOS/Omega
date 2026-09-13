@@ -79,7 +79,13 @@ pub(crate) fn validate(
         || root.root != *value
         || checked.normalized_type_identity(reference).as_str() != result.type_identity
         || checked.type_multiplicity(reference) != result.multiplicity
-        || !validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, reference)
+        || !(validation::has_plain_owned_contents_with_numeric_constraints(
+            &checked.typed,
+            reference,
+        ) || validation::reference_result_custody::is_reference_record(
+            &checked.typed,
+            reference,
+        ))
     {
         return unsupported("structural construction substituted its owner or result type");
     }
@@ -97,6 +103,21 @@ pub(crate) fn validate(
         .statements(source.statement_nodes)
         .get(result.statement_index as usize)
     {
+        if validation::reference_result_custody::is_reference_record(
+            &checked.typed,
+            local.type_reference,
+        ) {
+            validation::reference_result_custody::local_record_loans(
+                &checked.typed,
+                &checked.facts,
+                machine,
+                source,
+                result.statement_index,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "reference record has no exact captured source loans",
+            ))?;
+        }
         validate_local_ownership(
             checked,
             machine,
@@ -209,6 +230,20 @@ pub(crate) fn validate(
                 }
                 consumed_calls.push(handle);
             }
+            CheckedStructuralValueKind::Reference { source: argument } => {
+                let expected = validation::reference_result_custody::initializer_source(
+                    &checked.typed,
+                    source,
+                    expression,
+                    reference,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "reference field has no exact authored ingress",
+                ))?;
+                if argument != expected {
+                    return unsupported("reference field substituted its ingress");
+                }
+            }
             CheckedStructuralValueKind::Record {
                 data_symbol,
                 fields,
@@ -298,7 +333,13 @@ pub(crate) fn validate(
                                 declaration.type_reference,
                             )
                             .and_then(|reference| checked.primitive_type_reference(reference));
-                            if expected != Some(primitive) {
+                            if validation::reference_result_custody::parts(
+                                &checked.typed,
+                                declaration.type_reference,
+                            )
+                            .is_some()
+                                || expected != Some(primitive)
+                            {
                                 return unsupported("record scalar field changed its carrier");
                             }
                             operand_roles.push(role);

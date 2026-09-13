@@ -1486,7 +1486,10 @@ pub(super) fn ordinary_projected_call_is_supported(
             || (argument
                 .source_structural_result_binding_ordinal()
                 .is_some()
-                && argument.path == [CheckedUnitStructuralPathSegment::Referent]
+                && argument.path.last() == Some(&CheckedUnitStructuralPathSegment::Referent)
+                && argument.path[..argument.path.len() - 1]
+                    .iter()
+                    .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
                 && argument.access == CheckedStructuralAccess::MutableBorrow)
     }) {
         return true;
@@ -2793,11 +2796,15 @@ pub(super) fn call_claim_transfers(
         if argument
             .source_structural_result_binding_ordinal()
             .is_some()
-            && argument.path == [CheckedUnitStructuralPathSegment::Referent]
+            && argument.path.last() == Some(&CheckedUnitStructuralPathSegment::Referent)
+            && argument.path[..argument.path.len() - 1]
+                .iter()
+                .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
             && argument.access == CheckedStructuralAccess::MutableBorrow
         {
-            // The reference's retained loan authorizes this borrow; it does
-            // not transfer an owned referent claim to the callee.
+            // Whole and record-leaf references already rejoined their exact
+            // active source loan in result argument preparation. Neither
+            // transfers an owned referent claim to the callee.
             continue;
         }
         if source_parameter_index.is_none() {

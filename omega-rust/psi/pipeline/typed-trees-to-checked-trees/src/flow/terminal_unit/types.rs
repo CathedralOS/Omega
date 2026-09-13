@@ -1631,6 +1631,10 @@ impl<'program> ShapeCollector<'program> {
                     )
                     .into_string(),
             }
+        } else if super::reference_results::parts(self.program, field.type_reference).is_some() {
+            CheckedUnitStructuralFieldType::Structural {
+                type_identity: self.add_reference_type(field.type_reference, binders)?,
+            }
         } else if let Some(fused_service_erasure) =
             provider_backed_field(self.program, field.type_reference)
         {

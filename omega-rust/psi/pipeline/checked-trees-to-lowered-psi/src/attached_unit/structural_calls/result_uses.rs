@@ -479,11 +479,31 @@ pub(crate) fn validate_usage(
                 }
                 continue;
             }
+            let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
+            let reference_record_end = validation::reference_result_custody::local_record_loans(
+                &checked.typed,
+                &checked.facts,
+                caller.machine,
+                state,
+                result.statement_index,
+            )
+            .is_some_and(|loans| {
+                !loans.is_empty()
+                    && loans.iter().all(|(_, loan)| {
+                        validation::reference_result_custody::release_statement(
+                            &checked.facts,
+                            caller.machine,
+                            caller.state,
+                            *loan,
+                        ) == coordinate.statement_index.checked_add(1)
+                    })
+            });
             if consumed
                 || disposed
                 || producer.discard
-                || producer.coordinate.call_ordinal == 0
-                || producer.coordinate.statement_index != coordinate.statement_index
+                || (!reference_record_end
+                    && (producer.coordinate.call_ordinal == 0
+                        || producer.coordinate.statement_index != coordinate.statement_index))
                 || operation_index <= producer.operation_index
                 || if projected_paths.is_empty() {
                     !matches!(affine_discards.as_slice(), [discard]
