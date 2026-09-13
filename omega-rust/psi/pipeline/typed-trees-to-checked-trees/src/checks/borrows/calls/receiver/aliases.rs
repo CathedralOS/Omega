@@ -1,4 +1,6 @@
-//! Local reference operands rejoin their retained storage and exact lineage.
+//! Local reference operands rejoin retained storage before overlap comparison.
+//! A captured place does not grant ancestry: only receivers with independently
+//! retained lineage may exempt their own parent loans from interference.
 
 use super::*;
 use arena::{Handle, HandleSpan};
@@ -10,13 +12,42 @@ pub(super) struct ResolvedAlias {
     pub(super) lineage: Vec<Handle<BorrowLoanFact>>,
 }
 
-pub(super) fn resolve(
+pub(super) struct ResolvedPlace {
+    pub(super) place: CapturedPlace,
+    local_loan: Handle<BorrowLoanFact>,
+}
+
+pub(super) fn resolve_receiver(
     program: &TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
     place: CapturedPlace,
 ) -> Option<ResolvedAlias> {
+    let resolved = resolve_place(program, facts, state_flow, entry_constraints, place)?;
+    let lineage = if resolved.local_loan.is_valid() {
+        let state = facts.borrow.states.iter().find_map(|(_, state)| {
+            (state.machine_symbol == state_flow.machine_symbol
+                && state.state_symbol == state_flow.state_symbol)
+                .then_some(state)
+        })?;
+        retained_lineage(&facts.borrow, state, resolved.local_loan)?
+    } else {
+        Vec::new()
+    };
+    Some(ResolvedAlias {
+        place: resolved.place,
+        lineage,
+    })
+}
+
+pub(super) fn resolve_place(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
+    place: CapturedPlace,
+) -> Option<ResolvedPlace> {
     let state = crate::find_state(program, state_flow.state_symbol)?;
     let reference_local = program
         .statement_table
@@ -29,9 +60,9 @@ pub(super) fn resolve(
                         TypeReferenceNode::Reference { .. }))
         });
     if !reference_local {
-        return Some(ResolvedAlias {
+        return Some(ResolvedPlace {
             place,
-            lineage: Vec::new(),
+            local_loan: Handle::invalid(),
         });
     }
 
@@ -56,17 +87,16 @@ pub(super) fn resolve(
     if !loan.owner_path.is_empty() || !loan.root_symbol.is_valid() {
         return None;
     }
-    let lineage = retained_lineage(borrow, state_borrow, handle)?;
     let mut segments = borrow.loan_segments(loan).to_vec();
     // Formation already rebased this loan to original storage. Append only
     // the current operand's suffix, retaining dynamic selectors as selectors.
     segments.extend(place.segments);
-    Some(ResolvedAlias {
+    Some(ResolvedPlace {
         place: CapturedPlace {
             root_symbol: loan.root_symbol,
             segments,
         },
-        lineage,
+        local_loan: handle,
     })
 }
 

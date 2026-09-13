@@ -51,7 +51,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use(
         ));
         return;
     }
-    let Some(receiver) = aliases::resolve(
+    let Some(receiver) = aliases::resolve_receiver(
         program,
         facts,
         state_flow,
@@ -194,7 +194,8 @@ pub(super) fn check_receiver_conflicts(
     if receiver_access == BorrowAccessKind::Mutable && receiver.segments.is_empty() {
         return;
     }
-    let Some(receiver) = aliases::resolve(program, facts, state_flow, entry_constraints, receiver)
+    let Some(receiver) =
+        aliases::resolve_receiver(program, facts, state_flow, entry_constraints, receiver)
     else {
         diagnostics.push(Diagnostic::error(format!(
             "state `{target_name}` requires an exact retained loan origin for its {receiver_name} receiver"
@@ -213,12 +214,15 @@ pub(super) fn check_receiver_conflicts(
     };
     for argument in facts.borrow.argument_accesses.span_or_empty(call.accesses) {
         // Two reads are compatible even when their storage overlaps. A
-        // derived view need not prove reborrow ancestry for that judgment;
-        // ancestry remains required wherever an exclusive access competes.
+        // derived view need not resolve its storage for that judgment.
+        // Receiver-ancestor exemptions still require exact reborrow lineage.
         if receiver_access == BorrowAccessKind::Read && argument.kind == BorrowAccessKind::Read {
             continue;
         }
-        let Some(argument_place) = aliases::resolve(
+        // Explicit arguments never receive the receiver's ancestry exemption.
+        // Derived views still have an exact retained place for interference;
+        // missing reborrow lineage must not invent authority or erase overlap.
+        let Some(argument_place) = aliases::resolve_place(
             program,
             facts,
             state_flow,

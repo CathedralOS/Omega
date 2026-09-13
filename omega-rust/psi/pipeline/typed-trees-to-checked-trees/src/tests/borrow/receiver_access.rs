@@ -112,6 +112,50 @@ fn shared_self_direct_field_write_rejects() {
 }
 
 #[test]
+fn projected_mutable_receiver_accepts_a_distinct_derived_slice_argument() {
+    check_source(
+        "data Reader { marker: u8; }
+         data Container { reader: Reader; bytes: [u8; 4]; }
+         machine Reader::observe(&mut self, bytes: &[u8]) -> u8 {
+             self.marker = 7;
+             transition bytes.len > 0 {
+                 true -> (bytes[0])
+                 false -> 0
+             }
+         }
+         machine Container::check(&mut self) -> u8 {
+             let view: &[u8] = self.bytes.as_slice();
+             self.reader.observe(view)
+         }",
+    )
+    .expect("a derived argument retains its source place without receiver-lineage exemptions");
+}
+
+#[test]
+fn projected_mutable_receiver_rejects_an_overlapping_derived_slice_argument() {
+    let diagnostics = reject_source(
+        "data Reader { bytes: [u8; 4]; }
+         data Container { reader: Reader; }
+         machine Reader::observe(&mut self, bytes: &[u8]) -> u8 {
+             transition bytes.len > 0 {
+                 true -> (bytes[0])
+                 false -> 0
+             }
+         }
+         machine Container::check(&mut self) -> u8 {
+             let view: &[u8] = self.reader.bytes.as_slice();
+             self.reader.observe(view)
+         }",
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("receives mutable receiver overlapping another argument in the same call")),
+        "the explicit argument must be compared with its original storage: {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn shared_self_nested_field_write_rejects() {
     reject_assignment(
         r#"
