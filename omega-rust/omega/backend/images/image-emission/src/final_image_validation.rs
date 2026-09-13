@@ -68,6 +68,18 @@ fn validate_terminal_image_with_import_count(
     output: &EmittedImageOutput,
     expected_imports: usize,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
+    if artifact.target().object_format == target::ObjectFormat::MachO {
+        // Function observations do not describe what the loader maps. Rejoin
+        // every supported segment and the on-disk payload before accepting
+        // instruction, relocation, or receiver-specific evidence.
+        image_macho::validate_macho_aarch64_loader_mapping(
+            &output.bytes,
+            output.final_image_layout,
+            &output.final_text_bytes,
+            &output.final_data_bytes,
+            output.bss_bytes,
+        )?;
+    }
     if output.final_image_imports != expected_imports {
         return Err(Diagnostic::error(
             "terminal-Psi image import count drifted from its exact object plan",
