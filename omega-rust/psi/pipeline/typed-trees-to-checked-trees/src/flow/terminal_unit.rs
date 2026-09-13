@@ -154,6 +154,13 @@ pub(super) use structural_scalar_store::build_local_scalar_field_store;
 use structural_scalar_store::build_structural_scalar_field_store;
 use types::*;
 
+/// Scalar callees available to this planning pass, independent of published facts.
+#[derive(Clone, Copy)]
+pub(crate) struct ScalarCalleePlans<'plans> {
+    pub(crate) boundary_returns: &'plans CheckedBoundaryScalarReturnPlans,
+    pub(crate) structural_returns: &'plans CheckedStructuralScalarReturnPlans,
+}
+
 pub(super) fn cleanup_type_is_unit(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -370,6 +377,7 @@ pub(super) fn exact_two_field_record_projection(
 pub(crate) fn build_checked_unit_effect_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     selected_operator_applications: &[crate::SelectedOperatorApplication],
     selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
 ) -> CheckedUnitEffectPlans {
@@ -397,6 +405,7 @@ pub(crate) fn build_checked_unit_effect_plans(
             build_checked_machine(
                 program,
                 facts,
+                scalar_callees,
                 &mut shapes,
                 machine,
                 selected_operator_applications,
@@ -407,12 +416,14 @@ pub(crate) fn build_checked_unit_effect_plans(
     let mut composed_machines = build_checked_composed_unit_control_machines(
         program,
         facts,
+        scalar_callees,
         &mut shapes,
         &boundary_machines,
     );
     receiver_calls::reconcile(
         program,
         facts,
+        scalar_callees,
         &mut shapes,
         &mut candidates,
         &mut composed_machines,
@@ -451,6 +462,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     candidate_closure::retain_available(
         program,
         facts,
+        scalar_callees,
         &boundary_symbols,
         &mut candidates,
         &mut composed_machines,
@@ -616,14 +628,14 @@ pub(crate) fn build_checked_unit_effect_plans(
                 realization_state,
                 ..
             } => {
-                let Some(realization) = facts
-                    .flow
-                    .terminal_structural_scalar_returns
-                    .machines
-                    .iter()
-                    .find(|plan| {
-                        plan.machine == *realization_machine && plan.state == *realization_state
-                    })
+                let Some(realization) =
+                    scalar_callees
+                        .structural_returns
+                        .machines
+                        .iter()
+                        .find(|plan| {
+                            plan.machine == *realization_machine && plan.state == *realization_state
+                        })
                 else {
                     continue;
                 };

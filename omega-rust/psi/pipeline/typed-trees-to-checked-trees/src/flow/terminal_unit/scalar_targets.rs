@@ -13,10 +13,12 @@ mod tests;
 pub(super) fn registered_structural_graph_target<'facts>(
     program: &TypedTrees,
     facts: &'facts CheckFacts,
+    scalar_callees: Option<ScalarCalleePlans<'_>>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     result: PrimitiveType,
 ) -> Option<&'facts checked_trees::CheckedScalarStateGraph> {
+    let scalar_callees = scalar_callees?;
     let mut graphs = facts
         .flow
         .terminal_scalar_graphs
@@ -32,14 +34,12 @@ pub(super) fn registered_structural_graph_target<'facts>(
         || retained.result_type != result
         || retained.structural_parameters.is_empty()
         || !retained.parameter_storage.is_empty()
-        || facts
-            .flow
-            .terminal_structural_scalar_returns
+        || scalar_callees
+            .structural_returns
             .for_machine(machine_symbol)
             .is_some()
-        || facts
-            .flow
-            .terminal_boundary_scalar_returns
+        || scalar_callees
+            .boundary_returns
             .machines
             .iter()
             .any(|plan| plan.machine == machine_symbol)
@@ -81,16 +81,17 @@ pub(super) fn registered_structural_graph_target<'facts>(
     Some(retained)
 }
 
-pub(super) fn registered_primitive_store_target<'facts>(
+pub(super) fn registered_primitive_store_target<'plans>(
     program: &TypedTrees,
-    facts: &'facts CheckFacts,
+    facts: &CheckFacts,
+    scalar_callees: Option<ScalarCalleePlans<'plans>>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     result: PrimitiveType,
-) -> Option<&'facts CheckedStructuralScalarReturnMachinePlan> {
-    let mut targets = facts
-        .flow
-        .terminal_structural_scalar_returns
+) -> Option<&'plans CheckedStructuralScalarReturnMachinePlan> {
+    let scalar_callees = scalar_callees?;
+    let mut targets = scalar_callees
+        .structural_returns
         .machines
         .iter()
         .filter(|plan| plan.machine == machine_symbol);
@@ -103,9 +104,8 @@ pub(super) fn registered_primitive_store_target<'facts>(
             .terminal_scalar_graphs
             .for_machine(machine_symbol)
             .is_some()
-        || facts
-            .flow
-            .terminal_boundary_scalar_returns
+        || scalar_callees
+            .boundary_returns
             .machines
             .iter()
             .any(|target| target.machine == machine_symbol)
@@ -136,12 +136,25 @@ fn is_available(
     caller: &CheckedUnitEffectMachinePlan,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> bool {
-    available_target(program, facts, candidates, caller, operation).is_some()
+    let scalar_callees = ScalarCalleePlans {
+        boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+        structural_returns: &facts.flow.terminal_structural_scalar_returns,
+    };
+    available_target(
+        program,
+        facts,
+        scalar_callees,
+        candidates,
+        caller,
+        operation,
+    )
+    .is_some()
 }
 
 pub(super) fn available_target(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     candidates: &[CheckedUnitEffectMachinePlan],
     caller: &CheckedUnitEffectMachinePlan,
     operation: &CheckedUnitEffectOperationPlan,
@@ -191,6 +204,7 @@ pub(super) fn available_target(
         let plan = registered_structural_graph_target(
             program,
             facts,
+            Some(scalar_callees),
             *target_machine,
             *target_state,
             result.primitive_type,
@@ -201,9 +215,8 @@ pub(super) fn available_target(
             &[][..],
             plan.result_type,
         )
-    } else if facts
-        .flow
-        .terminal_structural_scalar_returns
+    } else if scalar_callees
+        .structural_returns
         .machines
         .iter()
         .any(|plan| plan.machine == *target_machine)
@@ -211,6 +224,7 @@ pub(super) fn available_target(
         let plan = registered_primitive_store_target(
             program,
             facts,
+            Some(scalar_callees),
             *target_machine,
             *target_state,
             result.primitive_type,
@@ -221,16 +235,14 @@ pub(super) fn available_target(
             &[][..],
             plan.result_type,
         )
-    } else if facts
-        .flow
-        .terminal_boundary_scalar_returns
+    } else if scalar_callees
+        .boundary_returns
         .machines
         .iter()
         .any(|plan| plan.machine == *target_machine)
     {
-        let mut targets = facts
-            .flow
-            .terminal_boundary_scalar_returns
+        let mut targets = scalar_callees
+            .boundary_returns
             .machines
             .iter()
             .filter(|plan| plan.machine == *target_machine);

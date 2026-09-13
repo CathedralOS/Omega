@@ -176,6 +176,10 @@ fn statement_call_computations_require_complete_unique_occurrence_custody() {
             let rebuilt = crate::flow::build_checked_unit_effect_plans(
                 &changed.typed,
                 &changed.facts,
+                crate::flow::ScalarCalleePlans {
+                    boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                    structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+                },
                 &[],
                 &[],
             );

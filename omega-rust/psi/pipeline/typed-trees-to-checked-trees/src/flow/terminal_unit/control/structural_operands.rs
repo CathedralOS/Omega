@@ -15,6 +15,7 @@ pub(in crate::flow::terminal_unit) enum Operand<'facts> {
 pub(in crate::flow::terminal_unit) fn value_calls(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -55,6 +56,7 @@ pub(in crate::flow::terminal_unit) fn value_calls(
                 let operation = build_call_operation(
                     program,
                     facts,
+                    Some(scalar_callees),
                     machine,
                     state,
                     parameters,

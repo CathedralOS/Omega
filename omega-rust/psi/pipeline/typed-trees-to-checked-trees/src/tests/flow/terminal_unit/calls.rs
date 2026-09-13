@@ -710,8 +710,16 @@ fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
     assert!(eof.payloads.is_empty());
     let mut missing_cleanup = checked.facts.clone();
     missing_cleanup.flow.terminal_structural_control_cleanups = Default::default();
-    let rejected =
-        crate::flow::build_checked_unit_effect_plans(&checked.typed, &missing_cleanup, &[], &[]);
+    let rejected = crate::flow::build_checked_unit_effect_plans(
+        &checked.typed,
+        &missing_cleanup,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &missing_cleanup.flow.terminal_boundary_scalar_returns,
+            structural_returns: &missing_cleanup.flow.terminal_structural_scalar_returns,
+        },
+        &[],
+        &[],
+    );
     assert!(
         rejected
             .composed_for_machine(machine_named(&checked, "read_one"))
@@ -744,8 +752,16 @@ fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
                 _ => unreachable!(),
             }
         }
-        let rejected =
-            crate::flow::build_checked_unit_effect_plans(&checked.typed, &changed, &[], &[]);
+        let rejected = crate::flow::build_checked_unit_effect_plans(
+            &checked.typed,
+            &changed,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             rejected
                 .composed_for_machine(machine_named(&checked, "read_one"))
@@ -1042,7 +1058,16 @@ fn rejects_the_whole_composed_control_plan_when_one_leaf_loses_scalar_evidence()
         facts.values.scalar_expressions.expressions.len() + 1,
         before
     );
-    let plans = crate::flow::build_checked_unit_effect_plans(&checked.typed, &facts, &[], &[]);
+    let plans = crate::flow::build_checked_unit_effect_plans(
+        &checked.typed,
+        &facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &facts.flow.terminal_structural_scalar_returns,
+        },
+        &[],
+        &[],
+    );
     assert!(
         plans
             .composed_for_machine(machine_named(&checked, "enter"))
@@ -1555,6 +1580,10 @@ fn retains_only_certificate_backed_restored_reference_alias_call() {
     let rebuilt = crate::flow::build_checked_unit_effect_plans(
         &checked.typed,
         &without_certificate,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &without_certificate.flow.terminal_boundary_scalar_returns,
+            structural_returns: &without_certificate.flow.terminal_structural_scalar_returns,
+        },
         &[],
         &[],
     );
@@ -1612,6 +1641,10 @@ fn retains_only_certificate_backed_sole_shared_freeze_alias_call() {
     let rebuilt = crate::flow::build_checked_unit_effect_plans(
         &checked.typed,
         &without_certificate,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &without_certificate.flow.terminal_boundary_scalar_returns,
+            structural_returns: &without_certificate.flow.terminal_structural_scalar_returns,
+        },
         &[],
         &[],
     );
@@ -2366,8 +2399,16 @@ fn static_boundary_reaches_keep_every_direct_intrinsic_and_parameter_call() {
         let empty = language_semantics::ServiceReachRowTable::EMPTY_ROW;
         assert_ne!(call.service_reach.transitive, empty);
         call.service_reach.transitive = empty;
-        let plans =
-            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let plans = crate::flow::build_checked_unit_effect_plans(
+            &changed.typed,
+            &changed.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         let (conflicted, independent) = if call_ordinal < 3 {
             (write, exit)
         } else {

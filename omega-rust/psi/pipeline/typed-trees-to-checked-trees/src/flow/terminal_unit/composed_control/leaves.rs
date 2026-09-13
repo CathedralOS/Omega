@@ -36,6 +36,7 @@ pub(super) fn build(
     let operation = build_call_operation(
         program,
         facts,
+        None,
         machine,
         state,
         structural_parameters,

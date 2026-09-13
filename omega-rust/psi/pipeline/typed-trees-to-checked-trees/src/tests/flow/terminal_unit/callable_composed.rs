@@ -194,7 +194,16 @@ fn without_interleaved_local_evidence(
         facts.values.scalar_expressions.expressions.len() + 1,
         before
     );
-    crate::flow::build_checked_unit_effect_plans(&checked.typed, &facts, &[], &[])
+    crate::flow::build_checked_unit_effect_plans(
+        &checked.typed,
+        &facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &facts.flow.terminal_structural_scalar_returns,
+        },
+        &[],
+        &[],
+    )
 }
 
 #[test]

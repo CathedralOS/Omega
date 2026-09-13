@@ -248,6 +248,7 @@ pub(super) fn free_selected_operator_structural_signature(
 pub(super) fn build_selected_operator_structural_scalar_call(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     source_machine: &typed_trees::machine::Machine,
     source_state: &typed_trees::state::State,
@@ -275,9 +276,8 @@ pub(super) fn build_selected_operator_structural_scalar_call(
     {
         return None;
     }
-    let realizations = facts
-        .flow
-        .terminal_structural_scalar_returns
+    let realizations = scalar_callees
+        .structural_returns
         .machines
         .iter()
         .filter(|plan| {
@@ -360,11 +360,7 @@ pub(super) fn build_selected_operator_structural_scalar_call(
         return None;
     }
 
-    for plan in &facts
-        .flow
-        .terminal_structural_scalar_returns
-        .structural_types
-    {
+    for plan in &scalar_callees.structural_returns.structural_types {
         if shapes
             .types
             .get(&plan.identity)

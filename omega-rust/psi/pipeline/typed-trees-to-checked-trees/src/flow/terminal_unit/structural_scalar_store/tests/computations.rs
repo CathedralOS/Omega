@@ -78,6 +78,10 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
         super::super::super::build_call_operation(
             program,
             &checked.facts,
+            Some(crate::flow::ScalarCalleePlans {
+                boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+            }),
             machine,
             state,
             &structural,
@@ -93,6 +97,10 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
     control::statement_sequence::build(
         program,
         &checked.facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
         &mut shapes,
         machine,
         state,
@@ -104,8 +112,19 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
         0,
     )
     .expect("retain ordered statement sequence");
-    build_checked_machine(program, &checked.facts, &mut shapes, machine, &[], &[])
-        .expect("retain complete ordinary Unit candidate");
+    build_checked_machine(
+        program,
+        &checked.facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
+        &mut shapes,
+        machine,
+        &[],
+        &[],
+    )
+    .expect("retain complete ordinary Unit candidate");
     assert!(
         checked
             .facts
@@ -130,6 +149,10 @@ fn field_call_assignment_retains_original_root_and_scalar_parameter_namespace() 
     let plan = build_checked_machine(
         program,
         &checked.facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
         &mut ShapeCollector::new(program),
         machine,
         &[],
@@ -219,6 +242,10 @@ fn field_call_assignment_rejects_missing_stale_and_substituted_root_custody() {
             build_checked_machine(
                 program,
                 &facts,
+                crate::flow::ScalarCalleePlans {
+                    boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                    structural_returns: &facts.flow.terminal_structural_scalar_returns
+                },
                 &mut ShapeCollector::new(program),
                 machine,
                 &[],

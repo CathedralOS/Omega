@@ -53,6 +53,13 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                     super::super::super::state_graph::build(
                         program,
                         &checked.facts,
+                        crate::flow::ScalarCalleePlans {
+                            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                            structural_returns: &checked
+                                .facts
+                                .flow
+                                .terminal_structural_scalar_returns
+                        },
                         &mut shapes,
                         machine
                     )
@@ -62,10 +69,24 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                 );
             } else {
                 assert!(
-                    build_checked_machine(program, &checked.facts, &mut shapes, machine, &[], &[])
-                        .unwrap()
-                        .body_qualifications
-                        .is_empty()
+                    build_checked_machine(
+                        program,
+                        &checked.facts,
+                        crate::flow::ScalarCalleePlans {
+                            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                            structural_returns: &checked
+                                .facts
+                                .flow
+                                .terminal_structural_scalar_returns
+                        },
+                        &mut shapes,
+                        machine,
+                        &[],
+                        &[]
+                    )
+                    .unwrap()
+                    .body_qualifications
+                    .is_empty()
                 );
             }
             let mut facts = checked.facts.clone();
@@ -79,14 +100,34 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                 .push(nominal);
             if graph {
                 assert!(
-                    super::super::super::state_graph::build(program, &facts, &mut shapes, machine)
-                        .is_none()
+                    super::super::super::state_graph::build(
+                        program,
+                        &facts,
+                        crate::flow::ScalarCalleePlans {
+                            boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                            structural_returns: &facts.flow.terminal_structural_scalar_returns
+                        },
+                        &mut shapes,
+                        machine
+                    )
+                    .is_none()
                 );
             } else {
                 assert_eq!(
-                    build_checked_machine(program, &facts, &mut shapes, machine, &[], &[])
-                        .unwrap()
-                        .body_qualifications,
+                    build_checked_machine(
+                        program,
+                        &facts,
+                        crate::flow::ScalarCalleePlans {
+                            boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                            structural_returns: &facts.flow.terminal_structural_scalar_returns
+                        },
+                        &mut shapes,
+                        machine,
+                        &[],
+                        &[]
+                    )
+                    .unwrap()
+                    .body_qualifications,
                     vec![nominal]
                 );
             }

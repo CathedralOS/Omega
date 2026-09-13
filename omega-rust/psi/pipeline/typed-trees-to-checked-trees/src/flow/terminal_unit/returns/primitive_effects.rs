@@ -41,32 +41,44 @@ pub(crate) fn build_checked_primitive_store_scalar_return_plans(
 /// Selected Unit execution still needs retained nominal/selected returns; stale
 /// primitive bodies must not survive merely because they have no effects.
 pub(crate) fn reconcile_primitive_store_scalar_returns(
-    mut returns: CheckedStructuralScalarReturnPlans,
+    previous: &CheckedStructuralScalarReturnPlans,
     mut primitive_returns: CheckedStructuralScalarReturnPlans,
 ) -> CheckedStructuralScalarReturnPlans {
-    returns.machines.retain_mut(|plan| {
+    let mut machines = Vec::new();
+    for plan in &previous.machines {
         if let Some(position) = primitive_returns
             .machines
             .iter()
             .position(|replacement| replacement.machine == plan.machine)
         {
-            *plan = primitive_returns.machines.remove(position);
-            true
-        } else {
-            plan.effects.is_empty() && !is_primitive_reference_plan(plan)
+            machines.push(primitive_returns.machines.remove(position));
+        } else if plan.effects.is_empty() && !is_primitive_reference_plan(plan) {
+            machines.push(plan.clone());
         }
-    });
-    returns.machines.extend(primitive_returns.machines);
-    for shape in primitive_returns.structural_types {
-        returns
-            .structural_types
-            .retain(|existing| existing.identity != shape.identity);
-        returns.structural_types.push(shape);
     }
-    returns
+    machines.extend(primitive_returns.machines);
+    let mut structural_types = previous
         .structural_types
-        .sort_by(|left, right| left.identity.cmp(&right.identity));
-    returns
+        .iter()
+        .filter(|shape| {
+            !primitive_returns
+                .structural_types
+                .iter()
+                .any(|replacement| replacement.identity == shape.identity)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    for shape in primitive_returns.structural_types {
+        structural_types.retain(|existing| existing.identity != shape.identity);
+        structural_types.push(shape);
+    }
+    structural_types.sort_by(|left, right| left.identity.cmp(&right.identity));
+    CheckedStructuralScalarReturnPlans {
+        structural_types,
+        machines,
+        trait_operator_machines: previous.trait_operator_machines.clone(),
+        selected_operator_machines: previous.selected_operator_machines.clone(),
+    }
 }
 
 pub(in crate::flow::terminal_unit) fn build_machine(

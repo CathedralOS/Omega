@@ -1026,6 +1026,7 @@ fn boundary_result_plan(
 pub(super) fn build_checked_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     selected_operator_applications: &[crate::SelectedOperatorApplication],
@@ -1034,6 +1035,7 @@ pub(super) fn build_checked_machine(
     build_checked_machine_with(
         program,
         facts,
+        scalar_callees,
         shapes,
         machine,
         selected_operator_applications,
@@ -1056,6 +1058,7 @@ pub(super) fn build_checked_machine(
                 build_checked_machine_with(
                     program,
                     facts,
+                    scalar_callees,
                     shapes,
                     machine,
                     selected_operator_applications,
@@ -1070,6 +1073,7 @@ pub(super) fn build_checked_machine(
 pub(super) fn build_checked_machine_with(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     selected_operator_applications: &[crate::SelectedOperatorApplication],
@@ -1348,6 +1352,7 @@ pub(super) fn build_checked_machine_with(
         Some(statement_sequence::build(
             program,
             facts,
+            scalar_callees,
             shapes,
             machine,
             state,
@@ -1620,6 +1625,7 @@ pub(super) fn build_checked_machine_with(
             let call_operation = build_call_operation(
                 program,
                 facts,
+                Some(scalar_callees),
                 machine,
                 state,
                 &structural_parameters,
@@ -1657,6 +1663,7 @@ pub(super) fn build_checked_machine_with(
             let call_operation = build_call_operation(
                 program,
                 facts,
+                Some(scalar_callees),
                 machine,
                 state,
                 &structural_parameters,
@@ -1687,6 +1694,7 @@ pub(super) fn build_checked_machine_with(
                             build_selected_operator_structural_scalar_call(
                                 program,
                                 facts,
+                                scalar_callees,
                                 shapes,
                                 machine,
                                 state,
@@ -1738,6 +1746,7 @@ pub(super) fn build_checked_machine_with(
                 let operation = build_call_operation(
                     program,
                     facts,
+                    Some(scalar_callees),
                     machine,
                     state,
                     &structural_parameters,
@@ -1778,6 +1787,7 @@ pub(super) fn build_checked_machine_with(
             let operation = build_call_operation(
                 program,
                 facts,
+                Some(scalar_callees),
                 machine,
                 state,
                 &structural_parameters,

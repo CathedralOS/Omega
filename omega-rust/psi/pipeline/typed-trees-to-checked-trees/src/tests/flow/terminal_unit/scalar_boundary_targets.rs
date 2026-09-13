@@ -91,8 +91,16 @@ fn scalar_boundary_wrapper_retains_reordered_scalar_formals_and_actuals() {
             }
             _ => plans.push(plans[index].clone()),
         }
-        let rebuilt =
-            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+            &changed.typed,
+            &changed.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             rebuilt.for_machine(root).is_none(),
             "scalar roster drift {mutation}"
@@ -447,8 +455,16 @@ fn unit_scalar_call_rejects_drifted_retained_boundary_return_registration() {
         } else {
             plan.state = arena::Handle::invalid();
         }
-        let rebuilt =
-            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+            &changed.typed,
+            &changed.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             rebuilt.for_machine(root).is_none(),
             "wrapper registration mutation {mutation}"
@@ -587,8 +603,16 @@ fn scalar_boundary_wrapper_transfers_exact_linear_claim_with_mixed_signature() {
                 .type_identity
                 .push_str("-foreign"),
         }
-        let rebuilt =
-            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+            &changed.typed,
+            &changed.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             rebuilt.for_machine(root).is_none(),
             "mixed target custody mutation {mutation}"
@@ -806,8 +830,16 @@ fn unit_scalar_call_rejoins_ordinary_body_without_legacy_boundary_return_row() {
         .terminal_boundary_scalar_returns
         .machines
         .retain(|plan| plan.machine != target);
-    let rebuilt =
-        crate::flow::build_checked_unit_effect_plans(&checked.typed, &checked.facts, &[], &[]);
+    let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        &checked.typed,
+        &checked.facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
+        &[],
+        &[],
+    );
     assert_eq!(rebuilt.for_machine(root), Some(&original));
     assert_eq!(rebuilt.for_machine(target), Some(&callee));
     assert!(callee.scalar_result.is_some());

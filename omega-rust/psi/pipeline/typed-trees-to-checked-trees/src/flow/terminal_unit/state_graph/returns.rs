@@ -150,6 +150,7 @@ pub(super) fn constructor(
 pub(super) fn guarded(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -244,6 +245,7 @@ pub(super) fn guarded(
         let calls = control::structural_operands::value_calls(
             program,
             facts,
+            scalar_callees,
             shapes,
             machine,
             state,

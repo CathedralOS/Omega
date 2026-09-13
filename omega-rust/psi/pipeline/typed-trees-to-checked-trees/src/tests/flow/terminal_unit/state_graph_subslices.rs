@@ -180,8 +180,16 @@ fn byte_tail_plan_rejects_missing_duplicate_or_drifted_endpoint_custody() {
                     plans.source_bindings.get_mut(handle).role = CheckedScalarExpressionRole::Return
                 }
             }
-            let rebuilt =
-                crate::flow::build_checked_unit_effect_plans(&checked.typed, &facts, &[], &[]);
+            let rebuilt = crate::flow::build_checked_unit_effect_plans(
+                &checked.typed,
+                &facts,
+                crate::flow::ScalarCalleePlans {
+                    boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                    structural_returns: &facts.flow.terminal_structural_scalar_returns,
+                },
+                &[],
+                &[],
+            );
             assert!(
                 rebuilt.composed_for_machine(machine).is_none(),
                 "{role:?}: mutation {mutation}"
@@ -213,8 +221,16 @@ fn byte_tail_plan_rejects_selected_or_wrong_range_meaning_and_unknown_source() {
             3 => selected.status = checked_trees::CheckedOperatorResolutionStatus::Resolved,
             _ => selected.status = checked_trees::CheckedOperatorResolutionStatus::DomainPending,
         }
-        let rebuilt =
-            crate::flow::build_checked_unit_effect_plans(&checked.typed, &facts, &[], &[]);
+        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+            &checked.typed,
+            &facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             rebuilt.composed_for_machine(machine).is_none(),
             "operator mutation {mutation}"
@@ -229,7 +245,16 @@ fn byte_tail_plan_rejects_selected_or_wrong_range_meaning_and_unknown_source() {
         panic!("parameter")
     };
     path.symbol = machine;
-    let rebuilt = crate::flow::build_checked_unit_effect_plans(&typed, &checked.facts, &[], &[]);
+    let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        &typed,
+        &checked.facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
+        &[],
+        &[],
+    );
     assert!(
         rebuilt.composed_for_machine(machine).is_none(),
         "unknown source parameter"
@@ -243,7 +268,16 @@ fn byte_tail_plan_rejects_selected_or_wrong_range_meaning_and_unknown_source() {
         panic!("endpoints");
     };
     range.end_inclusive = true;
-    let rebuilt = crate::flow::build_checked_unit_effect_plans(&typed, &checked.facts, &[], &[]);
+    let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        &typed,
+        &checked.facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
+        &[],
+        &[],
+    );
     assert!(
         rebuilt.composed_for_machine(machine).is_none(),
         "authored inclusive range"

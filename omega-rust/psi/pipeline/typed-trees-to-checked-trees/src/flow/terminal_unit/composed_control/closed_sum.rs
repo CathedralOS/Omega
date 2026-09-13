@@ -5,6 +5,7 @@ use super::*;
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
     machine: &typed_trees::machine::Machine,
@@ -129,6 +130,7 @@ pub(super) fn build(
     } = build_call_operation(
         program,
         facts,
+        None,
         machine,
         entry,
         &[],
@@ -299,6 +301,7 @@ pub(super) fn build(
             build_leaf(
                 program,
                 facts,
+                scalar_callees,
                 shapes,
                 boundaries,
                 machine,
@@ -381,6 +384,7 @@ fn leaf_signature(
 fn build_leaf(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
     machine: &typed_trees::machine::Machine,
@@ -427,6 +431,7 @@ fn build_leaf(
     let sequence = super::super::control::statement_sequence::build(
         program,
         facts,
+        scalar_callees,
         shapes,
         machine,
         state,

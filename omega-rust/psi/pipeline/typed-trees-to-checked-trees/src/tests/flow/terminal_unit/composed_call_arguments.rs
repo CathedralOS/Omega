@@ -250,8 +250,16 @@ fn composed_boundary_operands_reject_missing_duplicate_and_stale_custody() {
                     .authored_expression = arena::Handle::invalid();
             }
         }
-        let rebuilt =
-            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+            &changed.typed,
+            &changed.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             rebuilt.composed_for_machine(machine).is_none(),
             "mutation {mutation} must reject"
@@ -384,8 +392,16 @@ fn closed_sum_leaves_retain_computed_calls_before_reusing_the_payload() {
         .calls
         .get_mut(outer)
         .statement_index = 0;
-    let rebuilt =
-        crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+    let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        &changed.typed,
+        &changed.facts,
+        crate::flow::ScalarCalleePlans {
+            boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+        },
+        &[],
+        &[],
+    );
     assert!(
         rebuilt.composed_for_machine(machine).is_none(),
         "duplicate outer statement custody rejects"

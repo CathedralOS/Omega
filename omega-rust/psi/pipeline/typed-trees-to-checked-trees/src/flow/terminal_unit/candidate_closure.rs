@@ -94,6 +94,7 @@ fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
 pub(super) fn retain_available(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     boundary_symbols: &[SymbolHandle],
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed_machines: &mut Vec<CheckedComposedUnitControlMachinePlan>,
@@ -158,7 +159,12 @@ pub(super) fn retain_available(
                 }
                 CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
                     match scalar_targets::available_target(
-                        program, facts, candidates, plan, operation,
+                        program,
+                        facts,
+                        scalar_callees,
+                        candidates,
+                        plan,
+                        operation,
                     ) {
                         Some(scalar_targets::AvailableScalarTarget::Registered) => {}
                         Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(target_index)) => {

@@ -1,7 +1,11 @@
 # Typed trees to checked trees
 
 This stage checks typed programs and retains checked facts. Start at
-[lib.rs](src/lib.rs). Public borrow requirements are in
+[checking.rs](src/checking.rs): specialization, validation, checked facts,
+execution plans, and publication are visible there in order.
+[selected_execution.rs](src/selected_execution.rs) owns rebuilding execution
+plans after provider settlement; [lib.rs](src/lib.rs) wires the public API.
+Public borrow requirements are in
 [loan resources and compatibility](../../../../wiki/spec/terminal-psi/loans.md).
 Authored declaration custody and carried-type dependency production are described
 in [authored selections](authored_selections.md).
@@ -20,18 +24,21 @@ Their summaries derive the aggregate verdict from proof, borrow, effect,
 boundary, and termination dimensions. A checked tree is published only after
 diagnostics clear; these views are not persisted rejection certificates.
 
-`lowerer.rs` names complete, preliminary-package, and settled-package checking
+`checking.rs` names complete, preliminary-package, and settled-package checking
 as distinct modes. Only the preliminary checkpoint permits pending opaque-copy
 evidence; both package checkpoints retain unresolved toolchain selections. Crash
 admission is enforced in all production modes.
 
-Unit planning still reads its callee roster through `CheckFacts`: independent
-boundary and primitive-reference returns must precede the Unit closure, and the
-complete structural-scalar return roster follows that closure. Selected execution
-rebuilds expose primitive discovery and return-roster reconciliation separately.
-Reconciliation consumes only the old and fresh rosters, preserving nominal and
-selected returns while replacing or removing stale primitive bodies. It does not
-remove the Unit planner's dependency on provisionally populated fact fields.
+Unit planning borrows an explicit `ScalarCalleePlans` roster: independent boundary
+and primitive-reference returns precede the Unit closure, and the complete
+structural-scalar return roster follows that closure. Preliminary call-free
+discovery has no callee roster; it cannot read a partially published one from
+`CheckFacts`. Selected execution rebuilds prepare the independent returns and
+reconcile them with the previous roster, preserving nominal and selected returns
+while replacing or removing stale primitive bodies. They construct the new Unit
+plans from those inputs without mutating published facts. The fallible full
+rebuild publishes the return and Unit plans together only after diagnostics clear;
+on rejection the original checked trees remain unchanged.
 
 | Owner under `src/` | Responsibility |
 | --- | --- |

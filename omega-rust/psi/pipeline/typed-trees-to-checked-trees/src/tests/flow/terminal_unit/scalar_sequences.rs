@@ -65,8 +65,16 @@ fn array_sequence_rejoins_every_nested_constant_projection_selection() {
             arena::Arena::new(),
             arena::Arena::new(),
         );
-        let replanned =
-            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let replanned = crate::flow::build_checked_unit_effect_plans(
+            &changed.typed,
+            &changed.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             replanned.for_machine(symbol).is_none(),
             "nested projection {projection:?}"
@@ -155,8 +163,16 @@ fn array_sequence_requires_exact_computation_call_roots() {
                 .get_mut(state_handle)
                 .calls = arena::HandleSpan::default();
         }
-        let replanned =
-            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let replanned = crate::flow::build_checked_unit_effect_plans(
+            &changed.typed,
+            &changed.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             replanned.for_machine(symbol).is_none(),
             "duplicate_source={duplicate_source}"
@@ -323,8 +339,16 @@ fn scalar_sequence_rejects_stale_or_duplicate_outer_initializer_calls() {
             1 => call.statement_index = 1,
             _ => call.call_ordinal = 1,
         }
-        let rebuilt =
-            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+            &changed.typed,
+            &changed.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             rebuilt.for_machine(symbol).is_none(),
             "outer occurrence mutation {mutation} rejects"

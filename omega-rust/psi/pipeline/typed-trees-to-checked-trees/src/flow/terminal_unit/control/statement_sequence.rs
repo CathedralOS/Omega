@@ -250,6 +250,7 @@ pub(super) fn has_statement_shape(
 pub(in crate::flow::terminal_unit) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -370,7 +371,7 @@ pub(in crate::flow::terminal_unit) fn build(
                         || root.expression != local.initial_value || root.type_reference != local.type_reference {
                         return None;
                     }
-                    let calls = structural_operands::value_calls(program, facts, shapes, machine,
+                    let calls = structural_operands::value_calls(program, facts, scalar_callees, shapes, machine,
                         state, structural_parameters, trivial_affine_locals, entry_claims, &structural_results,
                         &mut structural_count, root.root)?;
                     if facts.flow.ownership.owned_selection_at(state.symbol, statement_index).is_some() {
@@ -624,6 +625,7 @@ pub(in crate::flow::terminal_unit) fn build(
             let operation = build_call_operation(
                 program,
                 facts,
+                Some(scalar_callees),
                 machine,
                 state,
                 structural_parameters,
@@ -678,6 +680,7 @@ pub(in crate::flow::terminal_unit) fn build(
         let mut operation = build_call_operation(
             program,
             facts,
+            Some(scalar_callees),
             machine,
             state,
             structural_parameters,
@@ -886,6 +889,7 @@ pub(in crate::flow::terminal_unit) fn build(
         let calls = structural_operands::value_calls(
             program,
             facts,
+            scalar_callees,
             shapes,
             machine,
             state,

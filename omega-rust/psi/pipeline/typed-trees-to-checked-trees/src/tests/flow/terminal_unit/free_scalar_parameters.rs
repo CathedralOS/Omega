@@ -110,8 +110,16 @@ fn free_unit_scalar_admission_rejects_parameter_shape_drift() {
             2 => parameter.is_mutable = true,
             _ => parameter.type_reference = arena::Handle::invalid(),
         }
-        let rebuilt =
-            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+            &changed.typed,
+            &changed.facts,
+            crate::flow::ScalarCalleePlans {
+                boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+            },
+            &[],
+            &[],
+        );
         assert!(
             rebuilt.for_machine(symbol).is_none(),
             "parameter mutation {mutation} rejects"
