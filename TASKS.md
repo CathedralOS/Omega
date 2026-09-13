@@ -99,14 +99,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   or unchanged Squalr acceptance. Keep the bridge checkpoint unpublished until
   its conditional loader/bridge obligations are independently checked.
 
-  `image-macho/src/loader_mapping.rs` independently checks pre-fixup segment
-  mapping, retained file payloads and zero-fill backing during ordinary image
-  replay; it does not establish the dynamic fixup or receiver-grant obligations.
+  `image-macho/src/loader_mapping.rs` and `loader_fixups.rs` independently check
+  segment mapping, retained payloads, exact eager bind/rebase writes and zero-fill
+  exclusion during ordinary image replay. Object relocations and normalized
+  import locators supply the expected pointers; these checks do not establish
+  the receiver grant or authorize loaded providers.
   Next retain the exact target loader/bootstrap premises and prove that, for
   each conforming future process installation, loaded code and RW/NX zero-fill
   backing share that occurrence and the receiver/private-stack/continuation
-  partitions and activation loan are valid. Loader bind/rebase writes must not
-  escape their admitted destinations or invalidate zero initialization. The
+  partitions and activation loan are valid. Retain the loading assumptions and
+  connect the checked mapping/fixup results to that bridge proof. The
   [native product contract](wiki/spec/build/component_publication.md#products-and-authority)
   does not require a live `InstalledCode` or Rust supervisor before compiling
   an ordinary executable. Actual installation/epoch custody remains necessary

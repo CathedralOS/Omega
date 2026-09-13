@@ -21,13 +21,13 @@ fn invalid() -> Diagnostic {
     Diagnostic::error("Mach-O loader mapping differs from the supported final image")
 }
 
-fn region(bytes: &[u8], offset: usize, count: usize) -> Result<&[u8], Diagnostic> {
+pub(super) fn region(bytes: &[u8], offset: usize, count: usize) -> Result<&[u8], Diagnostic> {
     bytes
         .get(offset..offset.checked_add(count).ok_or_else(invalid)?)
         .ok_or_else(invalid)
 }
 
-fn word(bytes: &[u8], offset: usize) -> Result<u32, Diagnostic> {
+pub(super) fn word(bytes: &[u8], offset: usize) -> Result<u32, Diagnostic> {
     Ok(u32::from_le_bytes(
         region(bytes, offset, 4)?
             .try_into()
@@ -35,7 +35,7 @@ fn word(bytes: &[u8], offset: usize) -> Result<u32, Diagnostic> {
     ))
 }
 
-fn wide(bytes: &[u8], offset: usize) -> Result<u64, Diagnostic> {
+pub(super) fn wide(bytes: &[u8], offset: usize) -> Result<u64, Diagnostic> {
     Ok(u64::from_le_bytes(
         region(bytes, offset, 8)?
             .try_into()
