@@ -42,6 +42,19 @@ frame through the selected Beta-authored Gamma evaluator.
 `delta_compiler.composed` binds the complete entry-plus-implementation bytes and
 evaluator-tape identity under `GammaComposedV1`, not the entry file alone.
 
+Bound edge identities, checked by `tools/bootstrap/delta/compiler_env.sh`
+against every materialization and by `tests/bootstrap/delta-identity.sh`:
+
+| Subject | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `delta_compiler.gamma` request entry | 717 | `b4edbdaa38f2c308178bcf24a368203c5d30780149ed7f06c4f481dd0b4ec5dd` |
+| `implementation/implementation.gamma.sources` manifest | 11,136 | `376c42e10f5e6d785533d57d5f662b46431547015eebe6097878aa22a03e3311` |
+| `delta_compiler.composed` record | 198 | `8ac7a3f8b606baf4fbb6fe12a684ac80260c639bef75539e33d47fee6fa459d8` |
+| Packed canonical closure | 155,440 | `65e23e66c57885382a90c5b910a9064d8c829d62ffd1f028091d22e32a8eca84` |
+
+A digest is an identity check on the bytes being compiled, not a proof of the
+compiler; historical stress evidence pins the closure identity of its own run.
+
 ## Source organization
 
 Start at `delta_compiler.gamma`, then follow `implementation/pipeline.gamma`.

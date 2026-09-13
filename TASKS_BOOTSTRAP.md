@@ -380,11 +380,19 @@ prerequisite to every lower-rung milestone.
   Bound so far: the audited Alpha seed container identity in
   `tools/bootstrap/alpha/seed_env.sh` (every stamp refuses a non-audited
   container), the Alpha-to-Beta edge source/tape identity in
-  `tools/bootstrap/beta/artifact_env.sh`, and the selected Gamma evaluator
-  source/tape identity in `tools/bootstrap/gamma/evaluator_env.sh`; checked by
-  `tests/bootstrap/{alpha,beta,gamma}-identity.sh` (stamps without executing;
-  seed execution needs macOS arm64 or Windows x64). Next: bind the
-  Delta/Epsilon manifests' digests the same way.
+  `tools/bootstrap/beta/artifact_env.sh`, the selected Gamma evaluator
+  source/tape identity in `tools/bootstrap/gamma/evaluator_env.sh`, the Delta
+  request entry, source manifest, `GammaComposedV1` record, and repacked
+  canonical closure in `tools/bootstrap/delta/compiler_env.sh` (which also
+  checks the record names the selected evaluator and packed closure), and the
+  Epsilon evaluator manifest and repacked closure in
+  `tools/bootstrap/epsilon/evaluator_env.sh`; checked by
+  `tests/bootstrap/{alpha,beta,gamma,delta,epsilon}-identity.sh` (identity and
+  refusal coverage without executing the rungs; seed execution needs macOS
+  arm64 or Windows x64). Existing delta/epsilon test gates still pack through
+  `source_closure.py` directly; adopting the bound materializers there is
+  follow-through, not new machinery. Next: bind the Omega D and proof
+  manifests' digests the same way.
 
 - **OFFLINE-REBUILD.** Close `tests/bootstrap/` reconstruction across all
   completed edges. Acceptance: a blank supported host reconstructs and checks
