@@ -30,6 +30,9 @@ use filesystem_preparation::{
 #[path = "evaluator/build_log.rs"]
 mod build_log;
 
+#[path = "evaluator/root_bindings.rs"]
+mod root_bindings;
+
 /// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
 /// build.omg rung). A CHILD module so it can serve ops against the private
 /// `Evaluator` internals (the fs argument/buffer helpers) without widening
@@ -408,7 +411,7 @@ pub(crate) fn run_build_time_machine_arguments(
         None,
     )
     .map(|measured| {
-        let (value, usage, _) = measured.into_parts();
+        let (value, usage, _, _) = measured.into_parts();
         MeasuredEvaluation::new(value, usage)
     })
 }
@@ -426,7 +429,7 @@ pub(crate) fn run_build_time_machine_arguments_with_sponsor(
         Some(sponsor.clone()),
     )
     .map(|measured| {
-        let (value, usage, _) = measured.into_parts();
+        let (value, usage, _, _) = measured.into_parts();
         MeasuredEvaluation::new(value, usage)
     })
 }
@@ -536,6 +539,7 @@ fn run_observed_build_time_machine_arguments_with_optional_sponsor(
                             values,
                             usage,
                             observations,
+                            std::mem::take(&mut evaluator.executed_root_bindings),
                         ))
                     }
                     Err(Halt::Exit(code)) => Err(format!(
@@ -759,6 +763,7 @@ fn run_granted_build_machine_arguments_with_optional_sponsor(
                             values,
                             usage,
                             observations,
+                            std::mem::take(&mut evaluator.executed_root_bindings),
                         ))
                     }
                     Err(Halt::Exit(code)) => Err(BuildMachineEvaluationFailure::with_evidence(
@@ -1211,6 +1216,9 @@ struct Evaluator<'program> {
     /// This stays distinct from runtime Console output so build evidence
     /// cannot accidentally attribute an ordinary boundary call to BuildLog.
     build_log: Vec<u8>,
+    /// The activation's original Build cell, never an authored copy.
+    root_build: Option<Cell>,
+    executed_root_bindings: Vec<typed_trees::statement::StatementHandle>,
     stdin: &'program [u8],
     stdin_cursor: usize,
     /// Virtual monotonic tick counter for `Clock.tick_count` (advances on every

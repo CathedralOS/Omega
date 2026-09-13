@@ -1,0 +1,16 @@
+machine build(builder: &mut Build) {
+    builder.application("conditional-root-binding");
+    choose_entry(builder, true);
+}
+machine choose_entry(options: &mut Build, enabled: bool) {
+    transition {
+        enabled -> selected(options)
+        _ -> ignored(options)
+    }
+    state selected(options: &mut Build) {
+        options.roots.bind(windows_x86_64::ProgramEntry, launch);
+    }
+    state ignored(options: &mut Build) {
+        options.roots.bind(windows_x86_64::ProgramEntry, missing);
+    }
+}

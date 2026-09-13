@@ -6163,13 +6163,20 @@ impl<T> BuildTimeOperationEvaluation<T> {
 pub struct MeasuredBuildMachineEvaluation<T> {
     measured: MeasuredEvaluation<T>,
     observations: EvaluationObservations,
+    executed_root_bindings: Vec<typed_trees::statement::StatementHandle>,
 }
 
 impl<T> MeasuredBuildMachineEvaluation<T> {
-    fn new(value: T, usage: EvaluationUsage, observations: EvaluationObservations) -> Self {
+    fn new(
+        value: T,
+        usage: EvaluationUsage,
+        observations: EvaluationObservations,
+        executed_root_bindings: Vec<typed_trees::statement::StatementHandle>,
+    ) -> Self {
         Self {
             measured: MeasuredEvaluation::new(value, usage),
             observations,
+            executed_root_bindings,
         }
     }
 
@@ -6179,6 +6186,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         Self {
             measured,
             observations: EvaluationObservations::default(),
+            executed_root_bindings: Vec::new(),
         }
     }
 
@@ -6194,13 +6202,27 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         &self.observations
     }
 
+    /// Executed declaration coordinates in the exact evaluated program.
+    /// These are selection requests, not proof of target admission. Callers
+    /// must rejoin them to that program and check lexical/product authority.
+    pub fn executed_root_bindings(&self) -> &[typed_trees::statement::StatementHandle] {
+        &self.executed_root_bindings
+    }
+
     pub fn into_value(self) -> T {
         self.measured.into_value()
     }
 
-    pub fn into_parts(self) -> (T, EvaluationUsage, EvaluationObservations) {
+    pub fn into_parts(
+        self,
+    ) -> (
+        T,
+        EvaluationUsage,
+        EvaluationObservations,
+        Vec<typed_trees::statement::StatementHandle>,
+    ) {
         let (value, usage) = self.measured.into_parts();
-        (value, usage, self.observations)
+        (value, usage, self.observations, self.executed_root_bindings)
     }
 }
 

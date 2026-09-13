@@ -266,6 +266,68 @@ fn exclusive_target_borrow_is_rejected() {
 }
 
 #[test]
+fn borrowing_build_does_not_lend_private_product_names_to_a_foreign_helper() {
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine configure(builder: &mut Build) { builder.roots.bind(windows_x86_64::ProgramEntry, launch); }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "machine launch() { let marker: u8 = 0; }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+    );
+    let inputs = PackageCompilationInputs::new(
+        package_identity(1),
+        BuildDeclarationKind::Application,
+        vec![
+            PackageSourceBinding::new(package_identity(1), "root-binding-owner", project.0.clone()),
+            PackageSourceBinding::new(package_identity(2), "root-binding-helper", helper.0.clone()),
+        ],
+        vec![PackageDependencyBinding::new(
+            package_identity(1),
+            "support",
+            package_identity(2),
+        )],
+    )
+    .expect("explicit package graph");
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(inputs);
+    let diagnostics =
+        compile_to_checked(request).expect_err("a helper cannot select its caller's private entry");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("foreign build helper requires lexical product-reference admission")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn root_build_aliases_cannot_mutate_target_or_replace_the_activation() {
+    for (operation, expected) in [
+        (
+            "alias.target = TargetProfile::MacosArm64;",
+            "Build.target is compiler-owned and cannot be assigned",
+        ),
+        (
+            "let target: &mut TargetProfile = &mut alias.target;",
+            "Build.target is compiler-owned and cannot enter a mutable or write-only borrow",
+        ),
+        (
+            "alias = alias;",
+            "Build activation cannot be replaced as a whole value",
+        ),
+    ] {
+        let project = TempProject::new(&exact_target_build(&format!(
+            "let alias: &mut Build = &mut builder; {operation}"
+        )));
+        let diagnostics = diagnostic_text(&project);
+        assert!(diagnostics.contains(expected), "{operation}: {diagnostics}");
+    }
+}
+
+#[test]
 fn authored_legacy_build_is_rejected_instead_of_receiving_a_hidden_target() {
     let project = TempProject::new(
         r#"data Build {

@@ -402,10 +402,17 @@ pub(super) fn validate_immutable_build_target(
                             vocabulary.build_symbol,
                         ) =>
                     {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "compiler-owned Build.target forbids copying the Build activation into local `{}`",
-                            local.name.as_str()
-                        )));
+                        if !matches!(
+                            typed
+                                .type_reference_table
+                                .type_reference(local.type_reference),
+                            typed_trees::types::TypeReferenceNode::Reference { .. }
+                        ) {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "compiler-owned Build.target forbids copying the Build activation into local `{}`",
+                                local.name.as_str()
+                            )));
+                        }
                         build_value_symbols.push(local.symbol);
                     }
                     _ => {}
@@ -417,16 +424,12 @@ pub(super) fn validate_immutable_build_target(
         match expression {
             ExpressionNode::Borrow(borrow)
                 if borrow.access.is_exclusive()
-                    && (expression_mentions_exact_field(
+                    && expression_mentions_exact_field(
                         typed,
                         borrow.target,
                         vocabulary.target_field_symbol,
                         &build_value_symbols,
-                    ) || expression_denotes_exact_build(
-                        typed,
-                        borrow.target,
-                        &build_value_symbols,
-                    )) =>
+                    ) =>
             {
                 diagnostics.push(Diagnostic::error(
                     "Build.target is compiler-owned and cannot enter a mutable or write-only borrow",

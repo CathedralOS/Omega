@@ -182,28 +182,57 @@ fn finalize_checked_authored_selections_with_policy(
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
                 let typed_trees::statement::StatementNode::RootBinding(binding) = statement else {
                     continue;
                 };
-                let parameter = match expressions.expression(binding.receiver) {
-                    ExpressionNode::Name(path)
-                        if expressions.name_path_members(path.members).len() == 1 =>
-                    {
-                        program
-                            .state_parameters(state)
-                            .iter()
-                            .find(|parameter| parameter.symbol == path.symbol)
+                let receiver_type = crate::flow::expression_type_reference_in_state(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    binding.receiver,
+                );
+                let receiver_place = crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    binding.receiver,
+                );
+                if !receiver_place.is_some_and(|place| {
+                    matches!(place.root, facts::PlaceRoot::Symbol(_))
+                        && place.segments.iter().all(|segment| {
+                            matches!(
+                                segment,
+                                facts::PlaceSegment::Field { .. }
+                                    | facts::PlaceSegment::FixedIndex { .. }
+                            )
+                        })
+                }) {
+                    return Err(Diagnostic::error("root binding requires a retained receiver place; computed receiver results and dynamic selectors are not implemented")
+                        .with_source_span(binding.source_span));
+                }
+                let mut receiver = binding.receiver;
+                while let ExpressionNode::Borrow(borrow) = expressions.expression(receiver) {
+                    if borrow.access != language_semantics::ReferenceAccess::Mutable {
+                        return Err(Diagnostic::error(
+                            "root binding requires a compiler-issued &mut Build place",
+                        )
+                        .with_source_span(binding.source_span));
                     }
-                    _ => None,
-                };
-                if !parameter.is_some_and(|parameter| {
-                    matches!(program.type_reference_table.type_reference(parameter.type_reference),
+                    receiver = borrow.target;
+                }
+                if !receiver_type.is_some_and(|receiver_type| {
+                    matches!(program.type_reference_table.type_reference(receiver_type),
                         typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
-                            if access.is_exclusive() && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
+                            if *access == language_semantics::ReferenceAccess::Mutable && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
                 })
                 {
-                    return Err(Diagnostic::error("this root-binding implementation supports only a direct compiler-issued &mut Build parameter; evaluated aliases and computed receivers are not implemented")
+                    return Err(Diagnostic::error("root binding requires a compiler-issued &mut Build place; computed receiver results are not implemented")
                         .with_source_span(binding.source_span));
                 }
                 if binding.slot.is_empty() || binding.implementation.is_empty() {

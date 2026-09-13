@@ -1,13 +1,8 @@
-//! Authored target root-slot bindings from the admitted build machine.
-//!
-//! This implementation statically projects direct declarations from the selected
-//! companion build machine. The language permits evaluated helper/alias binding
-//! through borrowed Build authority (build/declarations.md, Evaluated build work);
-//! those routes require evaluated binding receipts and are not implemented here.
-//! Reject them explicitly instead of treating an ignored declaration as success.
+//! Rejoin executed root-binding requests to the admitted build source.
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
+use typed_trees::statement::{StatementHandle, StatementNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootBinding {
@@ -15,65 +10,56 @@ pub struct RootBinding {
     pub implementation: String,
 }
 
-pub(crate) fn validate_root_binding_owners(
-    typed: &TypedTrees,
-    build_source_id: Option<source::SourceId>,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut diagnostics = Vec::new();
-    for machine in typed.machines() {
-        if super::super::is_build_machine(typed, machine, build_source_id) {
-            continue;
-        }
-        for state in typed.machine_states(machine) {
-            for statement in typed.statement_table.statements(state.statement_nodes) {
-                if let typed_trees::statement::StatementNode::RootBinding(binding) = statement {
-                    diagnostics.push(Diagnostic::error("this root-binding implementation supports only declarations in the authoritative companion build machine; evaluated helper binding is not implemented")
-                        .with_source_span(binding.source_span));
-                }
-            }
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
-}
-
-/// Collect `builder.roots.bind(Target::Slot, Machine::entry);` declarations
-/// from the one authoritative build machine. Slot membership and schema
-/// checking belong to the selected target profile; this stage establishes the
-/// closed, duplicate-free binding map and preserves the exact machine name.
-pub(crate) fn harvest_root_bindings(
+/// Only executed occurrences contribute. Interpreter coordinates belong to this
+/// exact prepared program; target-slot and implementation admission remain with
+/// the selected product. Reborrowing Build never changes lexical visibility.
+pub(crate) fn collect_root_bindings(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
+    executed: &[StatementHandle],
 ) -> Result<Vec<RootBinding>, Vec<Diagnostic>> {
-    let mut bindings: Vec<RootBinding> = Vec::new();
+    let root_source = typed
+        .symbols
+        .symbol_source_span(machine.symbol)
+        .and_then(|span| typed.symbols.source_file(span));
+    let mut bindings: Vec<RootBinding> = Vec::with_capacity(executed.len());
     let mut diagnostics = Vec::new();
-    let mut record = |request: &typed_trees::statement::RootBinding| {
+    for &statement in executed {
+        let StatementNode::RootBinding(request) = typed.statement_table.statement(statement) else {
+            return Err(vec![Diagnostic::error(
+                "executed root-binding coordinate is not a declaration in the admitted program",
+            )]);
+        };
+        let source = typed.symbols.source_file(request.source_span);
+        let same_owner = root_source.zip(source).is_some_and(|(root, source)| {
+            root.origin == source.origin
+                && match (root.package_identity, source.package_identity) {
+                    (Some(root), Some(owner)) => root == owner,
+                    (None, None) => {
+                        !root.package_root.as_os_str().is_empty()
+                            && root.package_root == source.package_root
+                    }
+                    _ => false,
+                }
+        });
+        if !same_owner {
+            diagnostics.push(Diagnostic::error("root binding from a foreign build helper requires lexical product-reference admission, which is not implemented; borrowing Build does not grant the caller's product namespace")
+                .with_source_span(request.source_span));
+            continue;
+        }
         let slot = product_path(&request.slot);
         let implementation = product_path(&request.implementation);
         if let Some(existing) = bindings.iter().find(|binding| binding.slot == slot) {
             diagnostics.push(Diagnostic::error(format!(
-                "root slot `{slot}` is already bound to `{}`; it cannot also bind `{implementation}`",
-                existing.implementation
-            )));
-            return;
+                "root slot `{slot}` is already bound to `{}`; it cannot also bind `{implementation}`", existing.implementation
+            )).with_source_span(request.source_span));
+            continue;
         }
         bindings.push(RootBinding {
             slot,
             implementation,
         });
-    };
-
-    for state in typed.machine_states(machine) {
-        for statement in typed.statement_table.statements(state.statement_nodes) {
-            if let typed_trees::statement::StatementNode::RootBinding(binding) = statement {
-                record(binding);
-            }
-        }
     }
-
     if diagnostics.is_empty() {
         Ok(bindings)
     } else {

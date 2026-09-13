@@ -1,5 +1,12 @@
 //! Exact fixture identities and execution tables owned by entry/ABI tests.
 
+pub const BUILD_REPEATED_EVALUATED_ROOT_BINDING: &str = "build/repeated_evaluated_root_binding";
+pub const BUILD_EVALUATED_ROOT_BINDINGS: &[&str] = &[
+    "build/evaluated_root_binding",
+    "build/aliased_root_binding",
+    "build/conditional_root_binding",
+    "build/imported_root_binding",
+];
 pub const BUILD_EXPLICIT_PROGRAM_ENTRY_BINDING: &str = "build/explicit_program_entry_binding";
 pub const BUILD_UEFI_PROGRAM_ENTRY_STORAGE_ROOTS: &str = "build/uefi_program_entry_storage_roots";
 pub const ARITHMETIC_RUNTIME_CHAINED_FIELD_MUTATION_EXIT: &str =

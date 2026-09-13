@@ -11,15 +11,21 @@ Psi statement with separate product-context operand paths. It is not an ordinary
 machine invocation. The host resolver does not resolve those operands through
 host imports; selected-target/product admission still owns that resolution.
 
-The current implementation statically harvests bindings from the authoritative
-companion build machine and supports direct uses of its compiler-issued
-`&mut Build` parameter. Computed receivers, aliases, and helper declarations
-reject explicitly instead of being silently ignored. Parameter spelling has no
-authority; checking uses its resolved identity and the toolchain Build owner.
+Binding follows execution through the original compiler-issued `&mut Build`
+cell. Same-package helpers (including imported local modules), reference aliases,
+and state transitions use ordinary loan checking. Uncalled helpers and untaken
+states contribute no bindings; binding a slot twice on an executed path rejects.
+Build.target remains immutable through every alias.
 
-These are implementation limits, not language restrictions.
+The interpreter returns executed statement coordinates alongside its argument
+results, separate from host observations. This owner rejoins them to the exact
+prepared program and the occurrence's source/package before target selection.
+Replay compares the executed requests as well as argument values and host
+observations. Requests are not target-admission evidence.
+
+Computed call-result receivers and foreign-package product-reference admission
+remain explicit implementation limits. A foreign helper cannot acquire the
+caller's aliases or private product namespace by borrowing Build.
 [Evaluated build work](../../../../wiki/spec/build/declarations.md#evaluated-build-work)
-permits helpers to borrow the root Build value for binding. General evaluated
-binding and restricted product-reference handoff remain under
-`BUILD-PRODUCT-REFERENCES` in `TASKS.md`; this static projection does not implement
-them or grant product authority from a path spelling.
+defines the accepted language; the remaining restricted product-description and
+lexical selection handoff is tracked by `BUILD-PRODUCT-REFERENCES` in `TASKS.md`.

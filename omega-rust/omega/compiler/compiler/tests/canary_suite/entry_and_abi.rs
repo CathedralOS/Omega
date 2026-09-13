@@ -89,6 +89,41 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
 }
 
 #[test]
+fn repeated_root_binding_execution_rejects() {
+    let canary = fail_canary(fixture_roster::BUILD_REPEATED_EVALUATED_ROOT_BINDING);
+    let diagnostics = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("executing the same slot binding twice must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("already bound")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn evaluated_root_bindings_retain_the_executed_entry() {
+    for fixture in fixture_roster::BUILD_EVALUATED_ROOT_BINDINGS {
+        let canary = pass_canary(fixture);
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some("windows_x86_64"),
+        ))
+        .unwrap_or_else(|error| {
+            panic!("{fixture} must evaluate borrowed root authority: {error:?}")
+        });
+        assert_eq!(
+            checked.selected_program_entry_machine(),
+            Some("launch"),
+            "{fixture}"
+        );
+    }
+}
+
+#[test]
 fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
     let canary = pass_canary(fixture_roster::BUILD_UEFI_PROGRAM_ENTRY_STORAGE_ROOTS);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(

@@ -31,7 +31,15 @@ pub(super) fn append_statement_ownership_events(
     statement: &StatementNode,
 ) {
     match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(binding) => moves::observations::append(
+            program,
+            sink,
+            state_symbol,
+            statement_index,
+            binding.receiver,
+            FlowOwnershipEventSource::Statement { statement_index },
+        ),
+        StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             let source = FlowOwnershipEventSource::Statement { statement_index };
             append_move_events_for_expression(

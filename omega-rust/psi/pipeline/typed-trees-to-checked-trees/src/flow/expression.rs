@@ -100,9 +100,10 @@ pub(super) fn append_statement_calls(
             }
             execution.invoke(InvocationSite::Statement, &operands, contexts, constraints);
         }
-        StatementNode::RootBinding(_)
-        | StatementNode::AssemblyFact(_)
-        | StatementNode::Transition(_) => {}
+        StatementNode::RootBinding(binding) => {
+            execution.expression(binding.receiver, contexts, constraints);
+        }
+        StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
     }
 }
 

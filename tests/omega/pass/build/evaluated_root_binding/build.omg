@@ -1,8 +1,12 @@
 machine build(builder: &mut Build) {
-    builder.application("root-binding-helper");
+    builder.application("evaluated-root-binding");
     bind_entry(builder);
 }
 
 machine bind_entry(options: &mut Build) {
     options.roots.bind(windows_x86_64::ProgramEntry, launch);
+}
+
+machine unused(options: &mut Build) {
+    options.roots.bind(windows_x86_64::ProgramEntry, missing);
 }

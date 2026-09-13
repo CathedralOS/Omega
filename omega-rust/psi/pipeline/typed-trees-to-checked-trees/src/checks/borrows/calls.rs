@@ -7,6 +7,8 @@ mod conflicts;
 mod receiver;
 mod writability;
 
+pub(super) use receiver::check_exclusive_place_use;
+
 use self::conflicts::check_call_access_conflicts;
 use self::writability::check_mutable_argument_writability;
 

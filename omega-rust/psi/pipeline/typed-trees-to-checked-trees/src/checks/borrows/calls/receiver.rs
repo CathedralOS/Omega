@@ -11,6 +11,86 @@ use super::super::overlap::captured_place_compatibility;
 
 mod aliases;
 
+/// A compiler-owned operation borrows a checked place without invoking a
+/// source machine. Retained alias ancestry supplies authority, not competing
+/// loans; every other live overlapping loan must remain excluded.
+pub(in crate::checks::borrows) fn check_exclusive_place_use(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    statement: &checked_trees::FlowStatementFact,
+    expression: typed_trees::expression::ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(crate::flow::CanonicalPlace {
+        root: facts::PlaceRoot::Symbol(root_symbol),
+        segments,
+    }) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_flow.state_symbol,
+        statement.statement_index,
+        expression,
+    )
+    else {
+        diagnostics.push(Diagnostic::error("exclusive operation requires an exact retained receiver place; computed receiver results are not implemented"));
+        return;
+    };
+    let receiver = CapturedPlace {
+        root_symbol,
+        segments,
+    };
+    if !receiver_is_writable(
+        program,
+        facts,
+        state_flow,
+        statement.entry_constraints,
+        &receiver,
+    ) {
+        diagnostics.push(Diagnostic::error(
+            "exclusive operation receiver is not writable in this state",
+        ));
+        return;
+    }
+    let Some(receiver) = aliases::resolve(
+        program,
+        facts,
+        state_flow,
+        statement.entry_constraints,
+        receiver,
+    ) else {
+        diagnostics.push(Diagnostic::error(
+            "exclusive operation requires an available retained receiver loan origin",
+        ));
+        return;
+    };
+    for loan_handle in facts
+        .flow
+        .borrow_loan_constraints(statement.entry_constraints)
+    {
+        if receiver.lineage.contains(&loan_handle) {
+            continue;
+        }
+        let loan = facts.borrow.loans.get(loan_handle);
+        if !captured_place_compatibility(
+            program,
+            &receiver.place,
+            &BorrowAccessKind::Mutable,
+            &CapturedPlace {
+                root_symbol: loan.root_symbol,
+                segments: facts.borrow.loan_segments(loan).to_vec(),
+            },
+            &loan.kind,
+        )
+        .non_interfering
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "exclusive operation receiver overlaps local borrow `{}` which is still active",
+                program.symbols.name(loan.owner_symbol),
+            )));
+        }
+    }
+}
+
 pub(super) fn check_receiver_conflicts(
     program: &TypedTrees,
     facts: &CheckFacts,

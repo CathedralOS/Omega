@@ -11,6 +11,8 @@ impl<'program> Evaluator<'program> {
             stdout: Vec::new(),
             stderr: Vec::new(),
             build_log: Vec::new(),
+            root_build: None,
+            executed_root_bindings: Vec::new(),
             stdin,
             stdin_cursor: 0,
             virtual_ticks: 0,
@@ -263,7 +265,7 @@ impl<'program> Evaluator<'program> {
             .program
             .state_parameters(entry_state)
             .iter()
-            .filter(|parameter| parameter.name.as_str() != "self")
+            .filter(|parameter| !parameter.is_self)
             .count();
         if parameter_count != arguments.len() {
             return Err(Halt::Trap(format!(
@@ -375,7 +377,7 @@ impl<'program> Evaluator<'program> {
             .program
             .state_parameters(entry_state)
             .iter()
-            .filter(|parameter| parameter.name.as_str() != "self")
+            .filter(|parameter| !parameter.is_self)
             .count();
         if parameter_count != arguments.len() {
             return Err(Halt::Trap(format!(
@@ -398,10 +400,32 @@ impl<'program> Evaluator<'program> {
         // Keep the cells: a `&mut` parameter aliases its cell, so the run's
         // mutations are visible here afterward.
         let kept: Vec<Cell> = argument_cells.clone();
+        self.retain_root_build(entry_state, &argument_cells)?;
         let evaluated_arguments = argument_cells
             .into_iter()
-            .map(EvaluatedArgument::plain)
-            .collect();
+            .zip(
+                self.program
+                    .state_parameters(entry_state)
+                    .iter()
+                    .filter(|parameter| !parameter.is_self),
+            )
+            .map(|(cell, parameter)| {
+                // Snapshot arguments supply referent values. Reference parameters
+                // need the same wrapper used by ordinary calls, or forwarding a
+                // bare parameter copies the record at the first helper call.
+                let cell = if matches!(
+                    self.program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference),
+                    TypeReferenceNode::Reference { .. }
+                ) {
+                    self.allocate_cell(Value::Ref(cell))?
+                } else {
+                    cell
+                };
+                Ok(EvaluatedArgument::plain(cell))
+            })
+            .collect::<EvalResult<_>>()?;
         let _terminal =
             self.run_state_collect(machine, entry_state, instance, evaluated_arguments)?;
         let impure = if allow_filesystem {
@@ -899,10 +923,10 @@ impl<'program> Evaluator<'program> {
             // value as its result (the backend's value-state form).
             let mut next: Option<TransitionDecision<'program>> = None;
             let mut tail_value: Option<Value> = None;
-            for statement in self
+            for (statement_handle, statement) in self
                 .program
                 .statement_table
-                .statements(state.statement_nodes)
+                .iter_statements(state.statement_nodes)
             {
                 match statement {
                     StatementNode::Transition(transition) => {
@@ -917,6 +941,9 @@ impl<'program> Evaluator<'program> {
                             frame.return_type,
                             &frame,
                         )?);
+                    }
+                    StatementNode::RootBinding(binding) => {
+                        self.execute_root_binding(statement_handle, binding, &frame)?;
                     }
                     other => {
                         self.exec_statement(other, &frame)?;

@@ -19,7 +19,10 @@ pub(super) fn statement_uses_local_name(
     local_name: &str,
 ) -> bool {
     match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => false,
+        StatementNode::RootBinding(binding) => {
+            expression_uses_local_name(program, binding.receiver, local_name)
+        }
+        StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses_local_name(program, assignment.target, local_name)
                 || expression_uses_local_name(program, assignment.value, local_name)
@@ -66,7 +69,10 @@ pub(super) fn statement_uses_symbol(
     symbol: SymbolHandle,
 ) -> bool {
     match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => false,
+        StatementNode::RootBinding(binding) => {
+            expression_uses_symbol(program, binding.receiver, symbol)
+        }
+        StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses_symbol(program, assignment.target, symbol)
                 || expression_uses_symbol(program, assignment.value, symbol)
@@ -114,7 +120,8 @@ pub(super) fn statement_uses_place_symbol(
         expression_uses_place_symbol(program, state_symbol, statement_index, expression, symbol)
     };
     match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => false,
+        StatementNode::RootBinding(binding) => expression_uses(binding.receiver),
+        StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses(assignment.target) || expression_uses(assignment.value)
         }
@@ -171,7 +178,8 @@ pub(super) fn statement_uses_owner_path(
         )
     };
     match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => false,
+        StatementNode::RootBinding(binding) => uses(binding.receiver),
+        StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => uses(assignment.target) || uses(assignment.value),
         StatementNode::Call(call) => {
             call.receiver_symbol == owner_symbol

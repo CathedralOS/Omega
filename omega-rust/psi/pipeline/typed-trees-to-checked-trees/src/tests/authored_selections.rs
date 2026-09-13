@@ -72,7 +72,7 @@ fn root_binding_statement_checks_the_exact_build_parameter_without_resolving_pro
 }
 
 #[test]
-fn root_binding_statement_rejects_forged_build_and_unimplemented_alias_receivers() {
+fn root_binding_statement_rejects_forged_build_and_non_mutable_receivers() {
     for (toolchain, body) in [
         (
             false,
@@ -84,7 +84,7 @@ fn root_binding_statement_rejects_forged_build_and_unimplemented_alias_receivers
         ),
         (
             true,
-            "let alias: &mut Build = builder; alias.roots.bind(Target::ProgramEntry, Product::start);",
+            "let alias: &Build = &builder; alias.roots.bind(Target::ProgramEntry, Product::start);",
         ),
     ] {
         let source = format!("data Build {{}} machine build(builder: &mut Build) {{ {body} }}");
@@ -93,11 +93,11 @@ fn root_binding_statement_rejects_forged_build_and_unimplemented_alias_receivers
             &mut typed,
             &checked_trees::CheckFacts::default(),
         )
-        .expect_err("only the exact parameter is implemented");
+        .expect_err("binding requires exact mutable Build authority");
         assert!(
             diagnostic
                 .message
-                .contains("direct compiler-issued &mut Build parameter"),
+                .contains("compiler-issued &mut Build place"),
             "{}",
             diagnostic.message
         );
@@ -124,7 +124,85 @@ fn root_binding_has_no_value_context_or_ordinary_bind_call_exception() {
     assert!(
         diagnostic
             .message
-            .contains("direct compiler-issued &mut Build parameter")
+            .contains("compiler-issued &mut Build place")
+    );
+}
+
+#[test]
+fn root_binding_checks_helpers_and_retained_mutable_aliases() {
+    for body in [
+        "let alias: &mut Build = builder; alias.roots.bind(Target::ProgramEntry, Product::start);",
+        "let alias: &mut Build = &mut builder; alias.roots.bind(Target::ProgramEntry, Product::start);",
+        "let alias: &mut Build = &mut builder; let nested: &mut Build = &mut alias; nested.roots.bind(Target::ProgramEntry, Product::start);",
+        "let alias: &mut Build = &mut builder; let nested: &mut Build = &mut alias; nested.roots.bind(Target::ProgramEntry, Product::start); alias.roots.bind(Target::ProgramEntry, Product::start);",
+    ] {
+        let source = format!(
+            "data Build {{}} machine configure(builder: &mut Build) {{ {body} }} machine build(builder: &mut Build) {{ configure(builder); }}"
+        );
+        lower_typed_trees(typed_root_binding_fixture(&source, true)).unwrap_or_else(
+            |diagnostics| panic!("borrowed helper must check: {body}: {diagnostics:?}"),
+        );
+    }
+}
+
+#[test]
+fn root_binding_rejects_active_conflicting_build_aliases() {
+    for body in [
+        "let alias: &mut Build = &mut builder; builder.roots.bind(Target::ProgramEntry, Product::start); alias.roots.bind(Target::ProgramEntry, Product::start);",
+        "let alias: &mut Build = &mut builder; let nested: &mut Build = &mut alias; alias.roots.bind(Target::ProgramEntry, Product::start); nested.roots.bind(Target::ProgramEntry, Product::start);",
+    ] {
+        let source = format!("data Build {{}} machine build(builder: &mut Build) {{ {body} }}");
+        let diagnostics = lower_typed_trees(typed_root_binding_fixture(&source, true))
+            .expect_err("binding cannot bypass an active exclusive loan");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("still active")),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn root_binding_helper_mutation_preserves_caller_loan_exclusion() {
+    for helper_body in [
+        "builder.roots.bind(Target::ProgramEntry, Product::start);",
+        "let delegated: &mut Build = &mut builder; delegated.roots.bind(Target::ProgramEntry, Product::start);",
+    ] {
+        let source = format!(
+            "data Build {{}} machine configure(builder: &mut Build) {{ {helper_body} }} machine build(builder: &mut Build) {{ let alias: &mut Build = &mut builder; configure(builder); alias.roots.bind(Target::ProgramEntry, Product::start); }}"
+        );
+        let diagnostics = lower_typed_trees(typed_root_binding_fixture(&source, true))
+            .expect_err("helper root binding must expose its exclusive receiver use to the caller");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("still active")),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn root_binding_rejects_uninitialized_receiver_and_live_shared_loan() {
+    let source = "data Build {} machine build(builder: &mut Build) { let alias: &mut Build; alias.roots.bind(Target::ProgramEntry, Product::start); }";
+    let diagnostics = lower_typed_trees(typed_root_binding_fixture(source, true))
+        .expect_err("a type annotation cannot manufacture a live Build loan");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("available retained receiver loan origin")),
+        "{diagnostics:?}"
+    );
+
+    let source = "data Build {} machine inspect(builder: &Build) {} machine build(builder: &mut Build) { let shared: &Build = &builder; builder.roots.bind(Target::ProgramEntry, Product::start); inspect(shared); }";
+    let diagnostics = lower_typed_trees(typed_root_binding_fixture(source, true))
+        .expect_err("binding must exclude a shared loan used afterwards");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("still active")),
+        "{diagnostics:?}"
     );
 }
 

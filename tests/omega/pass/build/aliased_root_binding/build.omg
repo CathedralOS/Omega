@@ -1,0 +1,10 @@
+machine build(builder: &mut Build) {
+    builder.application("aliased-root-binding");
+    let alias: &mut Build = &mut builder;
+    bind_entry(alias);
+}
+
+machine bind_entry(options: &mut Build) {
+    let alias: &mut Build = &mut options;
+    alias.roots.bind(windows_x86_64::ProgramEntry, launch);
+}
