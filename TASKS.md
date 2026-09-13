@@ -802,6 +802,16 @@ Owners include
   truths. Keep search outside the checker and preserve useful arithmetic rules
   as certificate producers or explicitly justified checked rules.
 
+  Landed: the Π fragment in `proof-admission/src/mathematical_core.rs`:
+  de Bruijn terms, `Type`/`Strict` sorts with closed levels, Π/λ/application
+  typing without cumulativity, β weak-head normalization under a step ceiling,
+  and typed conversion with strict collapse decided by the shared type's sort.
+  Tests witness formation, non-sort/non-function/unbound rejection,
+  capture-avoiding substitution, strict-versus-relevant separation, step-ceiling
+  refusal, and an exact 51-slot arena receipt for checking the polymorphic
+  identity. Next: level variables and universe-polymorphic declarations, Σ
+  pairs, and typed eta, before connecting to source or a theorem certificate.
+
   Implement the pinned reference core and selected
   [W-based profile](wiki/spec/proofs/inductive_profile.md): relevant identity,
   two-element type, W-induction and checked derived indexed families. No second
