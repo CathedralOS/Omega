@@ -935,6 +935,295 @@ fn returned_record_reference_module() -> TerminalModule {
     module
 }
 
+pub(super) fn owned_reference_record_module(two_leaves: bool, consumes: bool) -> TerminalModule {
+    let mut module = if two_leaves {
+        two_reference_result_module()
+    } else {
+        returned_record_reference_module()
+    };
+    let mut forward = module.machines[1].clone();
+    forward.id = machine_id(4);
+    forward.entry = block_id(5);
+    forward.contract = empty_contract(contract_id(4));
+    forward.structural_parameters.truncate(1);
+    let parameter = &mut forward.structural_parameters[0];
+    parameter.place = place_id(40);
+    parameter.structural_type = structural_type_id(3);
+    parameter.access = StructuralAccess::Owned;
+    parameter.multiplicity = StructuralMultiplicity::Affine;
+    forward.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: place_id(40),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: place_id(41),
+            kind: StructuralPlaceKind::Result,
+        },
+    ];
+    let TerminalMachineResult::Structural(result) = &mut forward.result else {
+        panic!("record result")
+    };
+    result.place = place_id(41);
+    for mapping in &mut result.reference_sources {
+        mapping.source = StructuralArgument {
+            place: place_id(40),
+            path: mapping
+                .path
+                .iter()
+                .cloned()
+                .chain([StructuralPathSegment::Referent])
+                .collect(),
+            access: StructuralAccess::MutableBorrow,
+        };
+    }
+    forward.blocks[0].id = block_id(5);
+    forward.blocks[0].operations.clear();
+    forward.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(5),
+        source: place_id(40),
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let caller = &mut module.machines[0];
+    let mut call = caller.blocks[0].operations[0].clone();
+    call.id = operation_id(6);
+    let OperationResult::Structural(result) = &mut call.result else {
+        panic!("record call")
+    };
+    result.place = place_id(6);
+    let owned = StructuralArgument {
+        place: place_id(3),
+        path: Vec::new(),
+        access: StructuralAccess::Owned,
+    };
+    call.kind = OperationKind::CallStructural {
+        callee: machine_id(4),
+        structural_arguments: vec![owned.clone()],
+        claim_transfers: Vec::new(),
+        returned_claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+        selected_evidence: Vec::new(),
+    };
+    if consumes {
+        forward.result = TerminalMachineResult::Unit;
+        forward.structural_places.pop();
+        forward.blocks[0].terminator = Terminator::ReturnUnit {
+            edge: edge_id(5),
+            trivial_affine_discards: vec![place_id(40)],
+        };
+        call.result = OperationResult::Unit;
+        call.kind = OperationKind::CallUnit {
+            callee: machine_id(4),
+            arguments: Vec::new(),
+            structural_arguments: vec![owned],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        caller.blocks[0].operations.pop();
+        caller.blocks[0].terminator = jump(4, 4, Vec::new());
+    } else {
+        caller.structural_places.push(StructuralPlaceDeclaration {
+            id: place_id(6),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation_id(6),
+                structural_type: structural_type_id(3),
+            },
+        });
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut caller.blocks[0].operations[1].kind
+        else {
+            panic!("writer")
+        };
+        structural_arguments[0].place = place_id(6);
+        caller.blocks[0].terminator = jump(4, 4, vec![place_id(6)]);
+    }
+    caller.blocks[0].operations.insert(1, call);
+    module.machines.push(forward);
+    module
+}
+
+#[test]
+fn owned_reference_record_ingress_forwards_or_disposes_existing_loans() {
+    for two_leaves in [false, true] {
+        for consumes in [false, true] {
+            verify_module(
+                &owned_reference_record_module(two_leaves, consumes),
+                &ProofBundle::default(),
+                &AdmissionProfile::default(),
+            )
+            .expect("owned ingress transfers existing leaf permissions without forming children");
+        }
+    }
+}
+
+#[test]
+fn owned_reference_record_rejects_changed_maps_stale_owners_and_missing_disposal() {
+    for change in 0..6 {
+        let mut module = owned_reference_record_module(true, change == 5);
+        match change {
+            0..=3 => {
+                let TerminalMachineResult::Structural(result) = &mut module.machines[3].result
+                else {
+                    panic!("forward result")
+                };
+                match change {
+                    0 => {
+                        result.reference_sources.pop();
+                    }
+                    1 => {
+                        result.reference_sources[1].source =
+                            result.reference_sources[0].source.clone();
+                    }
+                    2 => {
+                        let source = result.reference_sources[0].source.clone();
+                        result.reference_sources[0].source =
+                            result.reference_sources[1].source.clone();
+                        result.reference_sources[1].source = source;
+                    }
+                    3 => {
+                        result.reference_sources[0].source.path.pop();
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            4 => {
+                let OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } = &mut module.machines[0].blocks[0].operations[2].kind
+                else {
+                    panic!("writer")
+                };
+                structural_arguments[0].place = place_id(3);
+            }
+            5 => {
+                let Terminator::ReturnUnit {
+                    trivial_affine_discards,
+                    ..
+                } = &mut module.machines[3].blocks[0].terminator
+                else {
+                    panic!("consume")
+                };
+                trivial_affine_discards.clear();
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_module(&module).is_err(),
+            "changed owned ingress custody {change}"
+        );
+    }
+}
+
+#[test]
+fn owned_reference_record_rejects_live_descendant_and_aliased_borrowed_argument() {
+    for descendant in [false, true] {
+        let mut module = owned_reference_record_module(false, false);
+        if descendant {
+            let caller = &mut module.machines[0];
+            caller.structural_places.push(reference_place(7, 7));
+            caller.blocks[0]
+                .operations
+                .insert(1, establish(7, 7, stored_reference_argument()));
+            caller.blocks[1].operations.insert(0, release(8, 7));
+        } else {
+            let mut parameter = module.machines[0].structural_parameters[0].clone();
+            parameter.position = 1;
+            parameter.place = place_id(42);
+            let forward = &mut module.machines[3];
+            forward.structural_parameters.push(parameter);
+            forward.structural_places.push(StructuralPlaceDeclaration {
+                id: place_id(42),
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            });
+            let OperationKind::CallStructural {
+                structural_arguments,
+                ..
+            } = &mut module.machines[0].blocks[0].operations[1].kind
+            else {
+                panic!("forward")
+            };
+            structural_arguments.push(argument(1, false));
+        }
+        rejects_custody(&module);
+    }
+}
+
+#[test]
+fn owned_reference_record_ingress_preserves_external_parent_until_returned_child_ends() {
+    let mut module = owned_reference_record_module(false, false);
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(reference_place(7, 7));
+    let OperationKind::CallStructural {
+        structural_arguments,
+        ..
+    } = &mut caller.blocks[0].operations[0].kind
+    else {
+        panic!("make view")
+    };
+    structural_arguments[0] = argument(7, true);
+    caller.blocks[0]
+        .operations
+        .insert(0, establish(7, 7, argument(1, false)));
+    caller.blocks[1].operations.insert(0, release(8, 7));
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("forward preserves the child's external parent identity through owned transfer");
+    module.machines[0].blocks[0]
+        .operations
+        .insert(3, release(9, 7));
+    rejects_custody(&module);
+}
+
+#[test]
+fn owned_reference_record_ingress_bounds_type_dag_expansion() {
+    let mut module = owned_reference_record_module(false, true);
+    let forward = module.machines.pop().unwrap();
+    module.machines = vec![forward];
+    let mut child = structural_type_id(3);
+    for level in 0..13_u64 {
+        let current = structural_type_id(100 + level);
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: current,
+            identity: format!("IncomingBranch{level}"),
+            shape: StructuralTypeShape::Record {
+                fields: (0..2_u64)
+                    .map(|field| StructuralFieldDeclaration {
+                        id: semantic_vocabulary::StructuralFieldId::new(100 + level * 2 + field)
+                            .unwrap(),
+                        identity: format!("branch{field}"),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(child),
+                    })
+                    .collect(),
+            },
+        });
+        child = current;
+    }
+    module.machines[0].structural_parameters[0].structural_type = child;
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::InvalidReferenceCustody {
+            reason: "incoming reference leaf reconstruction capacity exceeded",
+            ..
+        })
+    ));
+}
+
 #[test]
 fn reference_record_result_replays_callee_construction_and_caller_restoration() {
     verify_module(

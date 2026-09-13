@@ -81,10 +81,18 @@ parents with surviving children before ending any loan. Ordinary results retain
 the complete reference-leaf map in canonical path order. Return replay compares
 actual origins against formal sources, and calls substitute the exact actual
 arguments; a formation place plus initial leaf path distinguishes sibling loans
-after later moves. Aggregate parameters, partial transfers, arrays of references,
-and host interfaces remain
-unsupported until their complete reference custody is reconstructed. Plain
-record classification must not silently admit those boundaries.
+after later moves. Whole owned affine record parameters carry independently
+available reference leaves. Their abstract ingress origins distinguish exact
+formal paths; callers supply the actual formation identity, backing origin, and
+external parent. Passing such a record moves existing permissions rather than
+forming child loans. Complete normal exits account for returned and disposed
+leaves; live descendants, duplicate transfers, and aliased call arguments reject.
+Incoming reconstruction has a private 4,096-leaf capacity per machine because a
+small type DAG can describe an exponentially large roster. Exceeding it rejects
+explicitly, without supplying or weakening custody. Borrowed aggregate parameters,
+partial transfers, reference-bearing block parameters, arrays of references, and
+host realization remain unsupported. Plain record classification must not
+silently admit those boundaries.
 
 Boundary declarations retain their own published scalar crash routes. Their
 formal values are reconstructed from scalar signature order in a declaration-local

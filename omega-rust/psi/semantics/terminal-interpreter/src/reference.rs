@@ -208,6 +208,84 @@ impl TerminalExecution {
             .collect()
     }
 
+    pub(super) fn bind_reference_return_backings(
+        &self,
+        parameters: &[StructuralParameterDeclaration],
+        signature: &StructuralResultDeclaration,
+        arguments: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    ) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        signature
+            .reference_sources
+            .iter()
+            .map(|origin| {
+                if origin.source.access != StructuralAccess::MutableBorrow {
+                    return Err(invalid());
+                }
+                let parameter = parameters
+                    .iter()
+                    .find(|parameter| parameter.place == origin.source.place)
+                    .ok_or_else(invalid)?;
+                let leaf_type = resolve_structural_path_type(
+                    &self.structural_types,
+                    signature.structural_type,
+                    &origin.path,
+                )?;
+                let referent_type = self.mutable_primitive_referent(leaf_type)?;
+                let expected = if origin.source.path.is_empty() {
+                    if parameter.access != StructuralAccess::MutableBorrow
+                        || parameter.structural_type != referent_type
+                    {
+                        return Err(invalid());
+                    }
+                    arguments.get(&parameter.place).ok_or_else(invalid)?
+                } else {
+                    let Some((StructuralPathSegment::Referent, carrier_path)) =
+                        origin.source.path.split_last()
+                    else {
+                        return Err(invalid());
+                    };
+                    if parameter.access != StructuralAccess::Owned
+                        || parameter.multiplicity != StructuralMultiplicity::Affine
+                        || carrier_path.is_empty()
+                        || carrier_path
+                            .iter()
+                            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+                    {
+                        return Err(invalid());
+                    }
+                    let carrier = resolve_structural_arguments(
+                        &self.structural_types,
+                        arguments,
+                        &[StructuralArgument {
+                            place: parameter.place,
+                            path: carrier_path.to_vec(),
+                            access: StructuralAccess::Owned,
+                        }],
+                    )?
+                    .pop()
+                    .ok_or_else(invalid)?;
+                    if self.mutable_primitive_referent(carrier.structural_type)? != referent_type {
+                        return Err(invalid());
+                    }
+                    self.reference_referents
+                        .get(&StructuralRuntimePlace::from(&carrier))
+                        .ok_or_else(invalid)?
+                };
+                if expected.structural_type != referent_type
+                    || !expected.qualifications.is_empty()
+                    || !expected.path.is_empty()
+                {
+                    return Err(invalid());
+                }
+                // Retain only the contract's expected backing, not another
+                // owner or lineage. The callee may move or repack its ingress
+                // carrier before returning, deleting its original binding.
+                Ok(expected.clone())
+            })
+            .collect()
+    }
+
     pub(super) fn validate_reference_return(
         &self,
         signature: &StructuralResultDeclaration,
@@ -244,13 +322,23 @@ impl TerminalExecution {
         {
             return Err(invalid());
         }
-        let machine = self
-            .machines
-            .get(&self.current_machine)
-            .ok_or_else(invalid)?;
+        let Some(SuspendedCall {
+            result:
+                SuspendedCallResult::Structural {
+                    expected_reference_backings,
+                    ..
+                },
+            ..
+        }) = self.call_stack.last()
+        else {
+            return Err(invalid());
+        };
+        if expected_reference_backings.len() != signature.reference_sources.len() {
+            return Err(invalid());
+        }
         // The verifier reconstructs the complete typed result roster. Runtime
         // preflight compares each captured backing against the callee's actual
-        // bound formal before the return charge. The ordinary return then moves
+        // bound ingress before the return charge. The ordinary return then moves
         // this same owner identity; its descriptor subtree is never discarded.
         for (ordinal, origin) in signature.reference_sources.iter().enumerate() {
             if signature.reference_sources[..ordinal]
@@ -260,7 +348,6 @@ impl TerminalExecution {
                     .path
                     .iter()
                     .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-                || !origin.source.path.is_empty()
                 || origin.source.access != StructuralAccess::MutableBorrow
             {
                 return Err(invalid());
@@ -271,23 +358,11 @@ impl TerminalExecution {
                 &origin.path,
             )?;
             let referent_type = self.mutable_primitive_referent(leaf_type)?;
-            let parameter = machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| {
-                    parameter.place == origin.source.place
-                        && parameter.structural_type == referent_type
-                        && parameter.access == StructuralAccess::MutableBorrow
-                })
-                .ok_or_else(invalid)?;
-            let expected = self
-                .structural_values
-                .get(&parameter.place)
-                .ok_or_else(invalid)?;
+            let expected = &expected_reference_backings[ordinal];
             let mut key = StructuralRuntimePlace::from(carrier);
             key.path.extend_from_slice(&origin.path);
             let actual = self.reference_referents.get(&key).ok_or_else(invalid)?;
-            if expected != actual {
+            if expected.structural_type != referent_type || expected != actual {
                 return Err(invalid());
             }
         }

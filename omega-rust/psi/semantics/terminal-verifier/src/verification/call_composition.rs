@@ -147,7 +147,7 @@ pub(super) fn compose_call_operation(
                     canonical_certificate: false,
                 });
             }
-            invalidate_mutated_arguments(machine, axioms, structural_arguments);
+            invalidate_mutated_arguments(module, machine, axioms, structural_arguments);
             for guarantee in &callee.contract.ensures {
                 push_unique(axioms, substitute(&guarantee.proposition));
             }
@@ -378,7 +378,7 @@ pub(super) fn compose_call_operation(
                     canonical_certificate: false,
                 });
             }
-            invalidate_mutated_arguments(machine, axioms, structural_arguments);
+            invalidate_mutated_arguments(module, machine, axioms, structural_arguments);
             for guarantee in &callee.contract.ensures {
                 push_unique(axioms, instantiate(&guarantee.proposition));
             }
@@ -412,7 +412,7 @@ pub(super) fn compose_call_operation(
                 ..
             },
         ) => {
-            invalidate_mutated_arguments(machine, axioms, structural_arguments);
+            invalidate_mutated_arguments(module, machine, axioms, structural_arguments);
         }
         _ => {
             return Err(ModuleError::OperationSemanticSchema(
@@ -483,7 +483,7 @@ fn compose_structural_scalar_call(
             canonical_certificate: false,
         });
     }
-    invalidate_mutated_arguments(machine, axioms, structural_arguments);
+    invalidate_mutated_arguments(module, machine, axioms, structural_arguments);
     for guarantee in &callee.contract.ensures {
         push_unique(axioms, substitute(&guarantee.proposition));
     }
@@ -569,6 +569,7 @@ fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {
 /// Requirements use the pre-call state; only guarantees may describe a
 /// mutable argument after completion. No callee write-frame summary is assumed.
 fn invalidate_mutated_arguments(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     axioms: &mut Vec<Proposition>,
     arguments: &[StructuralArgument],
@@ -584,17 +585,20 @@ fn invalidate_mutated_arguments(
         .map(|argument| argument.place)
         .collect::<Vec<_>>();
     if arguments.iter().any(|argument| {
-        argument
-            .path
-            .contains(&terminal_psi::StructuralPathSegment::Referent)
-            && matches!(
-                argument.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            )
+        crate::validation::argument_owns_references(module, machine, argument)
+            || (argument
+                .path
+                .contains(&terminal_psi::StructuralPathSegment::Referent)
+                && matches!(
+                    argument.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                ))
     }) {
-        // The carrier ID is not its referent. Until this proof consumer uses
-        // the reconstructed loan frontier, retain no possibly aliased storage
-        // observation. Immutable scalar snapshot equalities remain unchanged.
+        // Moving a reference-bearing owner also lets its recipient write the
+        // captured backing. The carrier ID is not that referent. Until this
+        // consumer uses the reconstructed loan frontier, retain no possibly
+        // aliased storage observation for either a borrowed projection or an
+        // owned carrier transfer. Immutable scalar snapshots remain unchanged.
         written.extend(machine.structural_places.iter().map(|place| place.id));
     }
     // An owned argument may be changed by its recipient too. Forget current

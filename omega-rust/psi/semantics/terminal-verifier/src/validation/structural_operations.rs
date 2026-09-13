@@ -1348,6 +1348,20 @@ pub(super) fn validate_structural_arguments(
                     }
                     match place.kind {
                         StructuralPlaceKind::OperationResult { .. }
+                            if ordinary_call
+                                && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                                && argument.path.is_empty()
+                                && super::references::argument_owns_references(module, caller, argument) =>
+                        {
+                            // Stored-reference carriers are not plain payloads.
+                            // Their exact producer and live leaf transfer are
+                            // checked independently by reference/frontier replay.
+                            super::structural_result_contracts::source_signature(caller, argument.place).map(|source| (
+                                source.structural_type, source.multiplicity, StructuralAccess::Owned,
+                                source.qualifications, source.projected_qualifications,
+                            ))
+                        }
+                        StructuralPlaceKind::OperationResult { .. }
                             if source_policy == StructuralArgumentSourcePolicy::ParametersOrLinearCallResults
                                 && argument.path.is_empty() && argument.access == StructuralAccess::Owned =>
                         {

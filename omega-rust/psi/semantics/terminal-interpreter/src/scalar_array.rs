@@ -99,6 +99,7 @@ impl TerminalExecution {
                     SuspendedCallResult::Structural {
                         result,
                         returned_claim_transfers,
+                        ..
                     },
                 ..
             }) if result.structural_type == signature.structural_type

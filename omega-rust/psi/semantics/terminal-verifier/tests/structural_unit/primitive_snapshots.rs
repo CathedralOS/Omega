@@ -105,6 +105,98 @@ fn has_snapshot(module: &TerminalModule) -> bool {
 }
 
 #[test]
+fn owned_reference_call_forgets_storage_observations_but_keeps_scalar_snapshots() {
+    for consumes in [false, true] {
+        let mut module = super::reference_results::owned_reference_record_module(false, consumes);
+        let observed_field = semantic_vocabulary::StructuralFieldId::new(70).unwrap();
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: structural_type_id(70),
+            identity: "ObservedRecord".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: observed_field,
+                    identity: "observed".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(signed_i8()),
+                }],
+            },
+        });
+        let caller = &mut module.machines[0];
+        caller
+            .structural_parameters
+            .push(StructuralParameterDeclaration {
+                place: place_id(70),
+                position: 1,
+                is_self: false,
+                structural_type: structural_type_id(70),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            });
+        caller.structural_places.push(StructuralPlaceDeclaration {
+            id: place_id(70),
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        });
+        let ScalarType::Integer(integer) = signed_i8() else {
+            panic!("integer fixture")
+        };
+        let observation = Proposition::Equal(
+            ScalarTerm::integer_field_path(
+                place_id(70),
+                vec![CanonicalStructuralPathSegment::Field(observed_field)],
+                integer,
+            ),
+            term(1),
+        );
+        caller.contract.requires.push(observation.clone());
+        caller.contract.ensures.push(ContractClause {
+            obligation: obligation_id(70),
+            proposition: Proposition::Equal(term(99), term(1)),
+        });
+        caller.blocks[0].operations.splice(
+            0..0,
+            [
+                store(70, 1),
+                Operation {
+                    static_reach_binding: None,
+                    id: operation_id(71),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: value_id(71),
+                        scalar_type: signed_i8(),
+                        qualifications: Default::default(),
+                    }),
+                    kind: OperationKind::PrimitiveScalarRead {
+                        source: place_id(1),
+                    },
+                },
+            ],
+        );
+        let obligations =
+            reconstruct_terminal_obligations(&module).expect("valid owned reference call");
+        let exit = obligations
+            .obligations()
+            .iter()
+            .find(|obligation| obligation.obligation.id == obligation_id(70))
+            .expect("caller return observation");
+        assert!(
+            exit.semantic_axioms
+                .contains(&Proposition::Equal(term(71), term(1))),
+            "copied values remain immutable across transfer and referent writes"
+        );
+        // Until proof reconstruction consumes exact loan origins, owned carrier
+        // calls use the same conservative storage invalidation as reborrows.
+        assert!(
+            !exit.semantic_axioms.contains(&observation),
+            "an owned carrier's place is not sufficient to identify writable backing"
+        );
+    }
+}
+
+#[test]
 fn primitive_snapshot_survives_later_overwrite_and_stale_proof_rejects_mutations() {
     let module = snapshot_module();
     let bundle = snapshot_bundle(&module);

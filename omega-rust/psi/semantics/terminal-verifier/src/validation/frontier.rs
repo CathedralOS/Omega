@@ -214,7 +214,7 @@ pub(super) fn validate_structural_frontier(
         });
     }
     let entry = StructuralOwnershipFrontier {
-        references: Vec::new(),
+        references: super::references::entry_references(module, machine)?,
         claims,
         owned_places: machine
             .structural_parameters
