@@ -109,6 +109,9 @@ rejected before authored build execution. Package runtime capability decisions
 do not grant additional build or resolver authority. Accepted project files are
 not modified by this operation.
 
+Dependency-first review compilation rejoins foreign opaque demands to the
+independently compiled producer rows before retaining each consumer review.
+
 Its package-aware native operation consumes a `PreparedLocalProject` carrying
 the source closure and accepted `omega.lock` section for one exact target.
 It compiles the final production review and compares its exact risk-bearing

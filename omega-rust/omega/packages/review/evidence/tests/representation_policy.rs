@@ -5,7 +5,8 @@ mod source;
 
 use package_evidence::encoding::PackagePolicyRecoveryLimits;
 use package_evidence::record::{
-    PackagePolicyRepresentation, PackagePolicyTypeParameterKind, PackageReviewNominalOwner,
+    PackagePolicyRepresentation, PackagePolicyRepresentationAgreementError,
+    PackagePolicyTypeParameterKind, PackageReviewNominalOwner,
     PackageReviewOpaqueRepresentationApplicationOrigin,
     PackageReviewOpaqueRepresentationCopyDisposition,
     PackageReviewOpaqueRepresentationLifecycleDisposition,
@@ -215,6 +216,34 @@ fn foreign_producer_availability_and_local_consumer_selection_keep_distinct_owne
         use_.selection_owner(),
         PackageReviewNominalOwner::Package(package_identity())
     );
+}
+
+#[test]
+fn foreign_demands_rejoin_exact_independently_compiled_producer_rows() {
+    let fixture = Fixture::new(true, true, true);
+    let consumer = project(&fixture.checked, package_identity());
+    let producer = project(&fixture.checked, source::foreign_identity());
+    assert!(consumer.demands().iter().any(|demand| {
+        demand.calling().opaque_uses().iter().any(|use_| {
+            use_.opaque().owner() == PackageReviewNominalOwner::Package(source::foreign_identity())
+        })
+    }));
+    assert_eq!(
+        consumer.rejoin_foreign_demands(|package| {
+            (package == source::foreign_identity()).then_some(&producer)
+        }),
+        Ok(())
+    );
+}
+
+#[test]
+fn foreign_demand_rejects_absent_producer_policy() {
+    let fixture = Fixture::new(true, true, true);
+    let consumer = project(&fixture.checked, package_identity());
+    assert!(matches!(
+        consumer.rejoin_foreign_demands(|_| None),
+        Err(PackagePolicyRepresentationAgreementError::ProducerPolicyAbsent { .. })
+    ));
 }
 
 #[test]

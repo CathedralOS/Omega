@@ -1,6 +1,9 @@
 //! Complete inert representation policy for one reviewed package and target.
 
+mod agreement;
 mod validation;
+
+pub use agreement::PackagePolicyRepresentationAgreementError;
 
 use crate::record::{
     PackagePolicyCallingPlan, PackagePolicyClosedConformanceApplication,
