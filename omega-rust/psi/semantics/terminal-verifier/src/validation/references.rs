@@ -5,15 +5,28 @@
 
 use super::*;
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct ReferenceIdentity {
+    place: PlaceId,
+    /// Initial result coordinate, unaffected by later owned record moves.
+    path: Vec<StructuralPathSegment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ReferenceParent {
+    Root(PlaceId),
+    Reference(ReferenceIdentity),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct LiveReference {
     /// Formation identity is stable across owned moves; parents name this ID,
     /// never a carrier's current record location.
-    pub(super) identity: PlaceId,
+    identity: ReferenceIdentity,
     pub(super) carrier: PlaceId,
     pub(super) carrier_path: Vec<StructuralPathSegment>,
     pub(super) root: PlaceId,
-    pub(super) parent: PlaceId,
+    parent: ReferenceParent,
 }
 
 /// Inspect owned containment only. A reference's referent is not its payload.
@@ -116,8 +129,16 @@ fn projected_carrier_type(
     let (StructuralPathSegment::Referent, fields) = source.path.split_last()? else {
         return None;
     };
-    let mut current = super::structural_result_contracts::source_signature(machine, source.place)?
+    let current = super::structural_result_contracts::source_signature(machine, source.place)?
         .structural_type;
+    leaf_referent(module, current, fields)
+}
+
+fn leaf_referent(
+    module: &TerminalModule,
+    mut current: StructuralTypeId,
+    fields: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
     for segment in fields {
         let StructuralPathSegment::Field(identity) = segment else {
             return None;
@@ -186,8 +207,10 @@ pub(super) fn carrier_type(
     referent(module, signature.structural_type)
 }
 
-/// Local records transfer established permission. Aggregate ingress and returns
-/// remain fenced until those boundaries reconstruct the complete leaf roster.
+/// Result mappings describe the complete canonical-path-ordered leaf roster, never
+/// assert live custody. Return replay checks the actual relocated carriers;
+/// calls substitute primitive formal sources and form distinct leaf identities.
+/// Aggregate ingress and partial transfers still require their own replay.
 pub(super) fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -202,15 +225,19 @@ pub(super) fn validate_machine(
         if let Some(result) = operation.result.structural()
             && contains_reference(module, result.structural_type)
             && !is_reference(result.structural_type)
-            && (!matches!(operation.kind, OperationKind::EstablishRecord { .. })
-                || result.multiplicity != StructuralMultiplicity::Affine
+            && (!matches!(
+                operation.kind,
+                OperationKind::EstablishRecord { .. }
+                    | OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. }
+            ) || result.multiplicity != StructuralMultiplicity::Affine
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty())
         {
             return Err(invalid(
                 machine,
-                "stored references require an affine record establishment",
+                "stored references require an affine record establishment or checked call",
             ));
         }
         if operation
@@ -286,13 +313,7 @@ pub(super) fn validate_machine(
     let Some(result) = machine.result.structural() else {
         return Ok(());
     };
-    if !is_reference(result.structural_type) {
-        if contains_reference(module, result.structural_type) {
-            return Err(invalid(
-                machine,
-                "stored reference results are not yet supported",
-            ));
-        }
+    if !contains_reference(module, result.structural_type) {
         if !result.reference_sources.is_empty() {
             return Err(invalid(
                 machine,
@@ -301,48 +322,57 @@ pub(super) fn validate_machine(
         }
         return Ok(());
     }
-    let Some(referent) = referent(module, result.structural_type) else {
+    if referent(module, result.structural_type).is_none()
+        && !super::record::constructible_type(module, result.structural_type)
+    {
         return Err(invalid(
             machine,
             "reference result access or referent is unsupported",
         ));
-    };
-    let [mapping] = result.reference_sources.as_slice() else {
-        return Err(invalid(
-            machine,
-            "reference result requires its exact source mapping",
-        ));
-    };
-    let source = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == mapping.source.place);
+    }
     if result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
-        || !mapping.path.is_empty()
-        || !mapping.source.path.is_empty()
-        || mapping.source.access != StructuralAccess::MutableBorrow
-        || !source.is_some_and(|parameter| {
-            parameter.structural_type == referent
-                && parameter.access == StructuralAccess::MutableBorrow
-                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
-                && !machine
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == parameter.place)
-                && !machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == parameter.place)
-        })
     {
         return Err(invalid(
             machine,
-            "reference result does not name an exact mutable formal referent",
+            "reference result must own unqualified affine permission",
         ));
+    }
+    let mut paths = leaf_paths(
+        module,
+        result.structural_type,
+        result.reference_sources.len(),
+    )
+    .ok_or_else(|| invalid(machine, "reference result is missing source mappings"))?;
+    // Result sources are a canonical map, not a lifecycle schedule. Constructors
+    // and cleanup keep declaration order; only this interface comparison sorts.
+    paths.sort();
+    if paths.len() != result.reference_sources.len() {
+        return Err(invalid(
+            machine,
+            "reference result source roster has extra mappings",
+        ));
+    }
+    let mut sources = BTreeSet::new();
+    for (path, mapping) in paths.iter().zip(&result.reference_sources) {
+        let expected_referent = leaf_referent(module, result.structural_type, path)
+            .ok_or_else(|| invalid(machine, "reference result leaf is unsupported"))?;
+        if mapping.path != *path
+            || !mapping.source.path.is_empty()
+            || mapping.source.access != StructuralAccess::MutableBorrow
+            || !sources.insert(mapping.source.place)
+            || !machine
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == mapping.source.place)
+            || source_type(module, machine, &mapping.source) != Some(expected_referent)
+        {
+            return Err(invalid(
+                machine,
+                "reference result does not name an exact mutable formal referent",
+            ));
+        }
     }
     Ok(())
 }
@@ -358,7 +388,9 @@ pub(super) fn validate_result(
             "reference establishment requires a structural result",
         )
     })?;
-    if referent(module, result.structural_type).is_none()
+    if !contains_reference(module, result.structural_type)
+        || (referent(module, result.structural_type).is_none()
+            && !super::record::constructible_type(module, result.structural_type))
         || result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
@@ -374,7 +406,7 @@ pub(super) fn validate_result(
     {
         return Err(invalid(
             machine,
-            "invalid mutable reference operation result",
+            "invalid reference-bearing operation result",
         ));
     }
     Ok(())
@@ -437,8 +469,14 @@ pub(super) fn validate_establishment(
         .result
         .structural()
         .ok_or_else(|| invalid(machine, "reference result is absent"))?;
+    let expected = referent(module, result.structural_type).ok_or_else(|| {
+        invalid(
+            machine,
+            "reference establishment requires a whole reference result",
+        )
+    })?;
     if source.access != StructuralAccess::MutableBorrow
-        || source_type(module, machine, source) != referent(module, result.structural_type)
+        || source_type(module, machine, source) != Some(expected)
     {
         return Err(invalid(
             machine,
@@ -468,13 +506,11 @@ pub(super) fn validate_uses(
     Ok(())
 }
 
-pub(super) fn call_source(
+fn call_source(
     callee: &TerminalMachine,
     arguments: &[StructuralArgument],
+    mapping: &terminal_psi::StructuralReferenceResultSource,
 ) -> Option<StructuralArgument> {
-    let [mapping] = callee.result.structural()?.reference_sources.as_slice() else {
-        return None;
-    };
     let position = callee
         .structural_parameters
         .iter()
@@ -542,7 +578,7 @@ pub(super) fn validate_call(
     let Some(result) = callee
         .result
         .structural()
-        .filter(|result| referent(module, result.structural_type).is_some())
+        .filter(|result| contains_reference(module, result.structural_type))
     else {
         return Ok(false);
     };
@@ -596,7 +632,7 @@ fn normalized_source(
     machine: &TerminalMachine,
     live: &[LiveReference],
     source: &StructuralArgument,
-) -> Result<(PlaceId, PlaceId), ModuleError> {
+) -> Result<(PlaceId, ReferenceParent), ModuleError> {
     if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
         let parent = live
             .iter()
@@ -606,14 +642,17 @@ fn normalized_source(
             .ok_or_else(|| invalid(machine, "reference carrier is no longer live"))?;
         if live
             .iter()
-            .any(|reference| reference.parent == parent.identity)
+            .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity))
         {
             return Err(invalid(
                 machine,
                 "reference parent remains suspended by a live child",
             ));
         }
-        Ok((parent.root, parent.identity))
+        Ok((
+            parent.root,
+            ReferenceParent::Reference(parent.identity.clone()),
+        ))
     } else if source.path.is_empty() {
         if live.iter().any(|reference| reference.root == source.place) {
             return Err(invalid(
@@ -621,7 +660,7 @@ fn normalized_source(
                 "original referent remains suspended by a live reference",
             ));
         }
-        Ok((source.place, source.place))
+        Ok((source.place, ReferenceParent::Root(source.place)))
     } else {
         Err(invalid(
             machine,
@@ -641,7 +680,7 @@ pub(super) fn release(
         .ok_or_else(|| invalid(machine, "release requires one live reference carrier"))?;
     if live
         .iter()
-        .any(|reference| reference.parent == live[position].identity)
+        .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &live[position].identity))
     {
         return Err(invalid(machine, "a reference cannot end before its child"));
     }
@@ -681,11 +720,11 @@ pub(super) fn discard_owned(
             })?;
         if live
             .iter()
-            .any(|child| child.parent == reference.identity && !released.contains(&child.identity))
+            .any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity) && !released.contains(&child.identity))
         {
             return Err(invalid(machine, "a reference cannot end before its child"));
         }
-        released.insert(reference.identity);
+        released.insert(reference.identity.clone());
     }
     if live
         .iter()
@@ -720,10 +759,9 @@ fn establish_record(
         .result
         .structural()
         .ok_or_else(|| invalid(machine, "record result is absent"))?;
-    if live
-        .iter()
-        .any(|reference| reference.carrier == result.place || reference.identity == result.place)
-    {
+    if live.iter().any(|reference| {
+        reference.carrier == result.place || reference.identity.place == result.place
+    }) {
         return Err(invalid(
             machine,
             "record destination still owns live reference custody",
@@ -880,8 +918,8 @@ pub(super) fn apply_operation(
             ));
         }
     }
-    let source = match &operation.kind {
-        OperationKind::EstablishReference { source } => Some(source.clone()),
+    let sources = match &operation.kind {
+        OperationKind::EstablishReference { source } => vec![(Vec::new(), source.clone())],
         OperationKind::CallStructural {
             callee,
             structural_arguments,
@@ -894,34 +932,64 @@ pub(super) fn apply_operation(
         } if operation
             .result
             .structural()
-            .is_some_and(|result| referent(module, result.structural_type).is_some()) =>
+            .is_some_and(|result| contains_reference(module, result.structural_type)) =>
         {
-            Some(
-                call_source(machines[callee], structural_arguments)
-                    .ok_or_else(|| invalid(machine, "reference call source mapping is absent"))?,
-            )
+            let callee = machines
+                .get(callee)
+                .ok_or_else(|| invalid(machine, "reference call target is absent"))?;
+            let result = callee.result.structural().ok_or_else(|| {
+                invalid(machine, "reference call target has no structural result")
+            })?;
+            result
+                .reference_sources
+                .iter()
+                .map(|mapping| {
+                    call_source(callee, structural_arguments, mapping)
+                        .map(|source| (mapping.path.clone(), source))
+                        .ok_or_else(|| invalid(machine, "reference call source mapping is absent"))
+                })
+                .collect::<Result<Vec<_>, _>>()?
         }
-        _ => None,
+        _ => Vec::new(),
     };
-    if let Some(source) = source {
-        let (root, parent) = normalized_source(machine, live, &source)?;
+    if !sources.is_empty() {
         let result = operation
             .result
             .structural()
             .ok_or_else(|| invalid(machine, "reference establishment result is absent"))?;
         if live.iter().any(|reference| {
-            reference.carrier == result.place || reference.identity == result.place
+            reference.carrier == result.place || reference.identity.place == result.place
         }) {
             return Err(invalid(machine, "reference carrier is already live"));
         }
-        live.push(LiveReference {
-            identity: result.place,
-            carrier: result.place,
-            carrier_path: Vec::new(),
-            root,
-            parent,
-        });
-        live.sort_by_key(|reference| reference.identity);
+        // Stage the complete result before publication. Independent leaves
+        // cannot duplicate an exclusive origin, even through distinct actual
+        // argument spellings. Borrowing a result does not move its parent loan.
+        let mut established = Vec::with_capacity(sources.len());
+        let mut roots = BTreeSet::new();
+        for (path, source) in sources {
+            let (root, parent) = normalized_source(machine, live, &source)?;
+            let expected = leaf_referent(module, result.structural_type, &path)
+                .ok_or_else(|| invalid(machine, "reference call result leaf is unsupported"))?;
+            if source_type(module, machine, &source) != Some(expected) || !roots.insert(root) {
+                return Err(invalid(
+                    machine,
+                    "reference result aliases or changes its mapped source",
+                ));
+            }
+            established.push(LiveReference {
+                identity: ReferenceIdentity {
+                    place: result.place,
+                    path: path.clone(),
+                },
+                carrier: result.place,
+                carrier_path: path,
+                root,
+                parent,
+            });
+        }
+        live.extend(established);
+        live.sort_by(|left, right| left.identity.cmp(&right.identity));
     }
     Ok(())
 }
@@ -932,29 +1000,46 @@ pub(super) fn transfer_return(
     source: PlaceId,
     live: &mut Vec<LiveReference>,
 ) -> Result<bool, ModuleError> {
-    if carrier_type(module, machine, source).is_none() {
+    let Some(signature) = super::structural_result_contracts::source_signature(machine, source)
+    else {
+        return Ok(false);
+    };
+    if !contains_reference(module, signature.structural_type) {
         return Ok(false);
     }
-    let reference = live
-        .iter()
-        .find(|reference| reference.carrier == source && reference.carrier_path.is_empty())
-        .ok_or_else(|| invalid(machine, "returned reference carrier is not live"))?;
     let result = machine
         .result
         .structural()
         .ok_or_else(|| invalid(machine, "reference return has no declaration"))?;
-    let [mapping] = result.reference_sources.as_slice() else {
+    if signature.structural_type != result.structural_type
+        || live
+            .iter()
+            .filter(|reference| reference.carrier == source)
+            .count()
+            != result.reference_sources.len()
+    {
         return Err(invalid(
             machine,
-            "reference return source mapping is absent",
-        ));
-    };
-    if reference.root != mapping.source.place || reference.parent != reference.root {
-        return Err(invalid(
-            machine,
-            "reference return escapes local custody or differs from its formal source",
+            "returned reference leaf roster differs from its declaration",
         ));
     }
-    release(machine, live, source)?;
+    // Interfaces cannot supply origins: compare every actual returned leaf.
+    // Only direct ingress custody may escape; moving the carrier into a record
+    // must not hide a local root or skip an intermediate live parent.
+    for mapping in &result.reference_sources {
+        let reference = live
+            .iter()
+            .find(|reference| reference.carrier == source && reference.carrier_path == mapping.path)
+            .ok_or_else(|| invalid(machine, "returned reference carrier is not live"))?;
+        if reference.root != mapping.source.place
+            || reference.parent != ReferenceParent::Root(reference.root)
+            || live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity))
+        {
+            return Err(invalid(machine, "reference return escapes local custody or differs from its formal source"));
+        }
+    }
+    // This removes frame-local ownership rows, not the referents or the loans.
+    // The caller independently instantiates the checked result source roster.
+    live.retain(|reference| reference.carrier != source);
     Ok(true)
 }

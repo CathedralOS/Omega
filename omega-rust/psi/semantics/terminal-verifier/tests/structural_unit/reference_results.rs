@@ -876,3 +876,374 @@ fn reference_record_rejects_unreplayed_producer_and_interface_custody() {
         );
     }
 }
+
+fn returned_record_reference_module() -> TerminalModule {
+    let mut module = record_reference_module();
+    let caller = &mut module.machines[0];
+    let mut construction = caller.blocks[0].operations.remove(1);
+    caller.blocks[0].operations.remove(0);
+    caller
+        .structural_places
+        .retain(|place| place.id != place_id(2));
+    caller.blocks[0].operations.insert(
+        0,
+        Operation {
+            static_reach_binding: None,
+            id: operation_id(5),
+            result: construction.result.clone(),
+            kind: OperationKind::CallStructural {
+                callee: machine_id(2),
+                structural_arguments: vec![argument(1, false)],
+                claim_transfers: Vec::new(),
+                returned_claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+                selected_evidence: Vec::new(),
+            },
+        },
+    );
+    construction.id = operation_id(21);
+    let OperationResult::Structural(result) = &mut construction.result else {
+        panic!("record");
+    };
+    result.place = place_id(13);
+    let OperationKind::EstablishRecord { fields } = &mut construction.kind else {
+        panic!("constructor");
+    };
+    let terminal_psi::RecordFieldValue::Structural(source) = &mut fields[0].value else {
+        panic!("reference field");
+    };
+    source.place = place_id(12);
+    let callee = &mut module.machines[1];
+    callee.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(13),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation_id(21),
+            structural_type: structural_type_id(3),
+        },
+    });
+    let TerminalMachineResult::Structural(result) = &mut callee.result else {
+        panic!("result signature");
+    };
+    result.structural_type = structural_type_id(3);
+    result.reference_sources[0].path = vec!["body".into()];
+    callee.blocks[0].operations.push(construction);
+    let Terminator::ReturnStructural { source, .. } = &mut callee.blocks[0].terminator else {
+        panic!("return");
+    };
+    *source = place_id(13);
+    module
+}
+
+#[test]
+fn reference_record_result_replays_callee_construction_and_caller_restoration() {
+    verify_module(
+        &returned_record_reference_module(),
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("make_view returns its exact stored reference permission to the caller");
+}
+
+fn two_reference_result_module() -> TerminalModule {
+    let mut module = returned_record_reference_module();
+    let second_field = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[2].shape else {
+        panic!("record");
+    };
+    let mut field = fields[0].clone();
+    field.id = second_field;
+    field.identity = "other".into();
+    fields.push(field);
+
+    let callee = &mut module.machines[1];
+    let mut parameter = callee.structural_parameters[0].clone();
+    parameter.place = place_id(14);
+    parameter.position = 1;
+    callee.structural_parameters.push(parameter);
+    callee.structural_places.extend([
+        StructuralPlaceDeclaration {
+            id: place_id(14),
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        },
+        reference_place(15, 22),
+    ]);
+    callee.blocks[0]
+        .operations
+        .insert(1, establish(22, 15, argument(14, false)));
+    let OperationKind::EstablishRecord { fields } = &mut callee.blocks[0].operations[2].kind else {
+        panic!("constructor");
+    };
+    fields.push(terminal_psi::RecordFieldInitializer {
+        field: second_field,
+        value: terminal_psi::RecordFieldValue::Structural(StructuralArgument {
+            place: place_id(15),
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        }),
+    });
+    let TerminalMachineResult::Structural(result) = &mut callee.result else {
+        panic!("result");
+    };
+    result
+        .reference_sources
+        .push(StructuralReferenceResultSource {
+            path: vec!["other".into()],
+            source: argument(14, false),
+        });
+
+    let caller = &mut module.machines[0];
+    let mut parameter = caller.structural_parameters[0].clone();
+    parameter.place = place_id(4);
+    parameter.position = 1;
+    caller.structural_parameters.push(parameter);
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(4),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    let OperationKind::CallStructural {
+        structural_arguments,
+        ..
+    } = &mut caller.blocks[0].operations[0].kind
+    else {
+        panic!("call");
+    };
+    structural_arguments.push(argument(4, false));
+    module
+}
+
+#[test]
+fn reference_record_result_sibling_loans_keep_distinct_formation_identities() {
+    let mut module = two_reference_result_module();
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(reference_place(5, 6));
+    caller.blocks[0]
+        .operations
+        .insert(1, establish(6, 5, stored_reference_argument()));
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut caller.blocks[0].operations[2].kind
+    else {
+        panic!("writer");
+    };
+    structural_arguments[0].path[0] = "other".into();
+    caller.blocks[0].operations.push(release(7, 5));
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("a child of body suspends body, not the sibling returned by the same operation");
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        panic!("writer");
+    };
+    structural_arguments[0].path[0] = "body".into();
+    rejects_custody(&module);
+}
+
+#[test]
+fn reference_record_result_map_order_is_independent_of_declaration_order() {
+    let mut module = two_reference_result_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[2].shape else {
+        panic!("record");
+    };
+    fields.swap(0, 1);
+    let OperationKind::EstablishRecord { fields } =
+        &mut module.machines[1].blocks[0].operations[2].kind
+    else {
+        panic!("constructor");
+    };
+    fields.swap(0, 1);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("declarations and construction use other/body; the source map stays body/other");
+    let TerminalMachineResult::Structural(result) = &mut module.machines[1].result else {
+        panic!("result");
+    };
+    result.reference_sources.swap(0, 1);
+    rejects_custody(&module);
+}
+
+#[test]
+fn reference_record_result_requires_exact_ordered_source_roster() {
+    for change in 0..9 {
+        let mut module = two_reference_result_module();
+        let TerminalMachineResult::Structural(result) = &mut module.machines[1].result else {
+            panic!("result");
+        };
+        match change {
+            0 => {
+                result.reference_sources.pop();
+            }
+            1 => result
+                .reference_sources
+                .push(result.reference_sources[0].clone()),
+            2 => result.reference_sources.swap(0, 1),
+            3 => {
+                result.reference_sources[0].source.place = place_id(14);
+                result.reference_sources[1].source.place = place_id(10);
+            }
+            4 => result.reference_sources[0].source = argument(14, false),
+            5 => result.reference_sources[0].source.access = StructuralAccess::SharedBorrow,
+            6 => result.reference_sources[0].path = vec!["counterfeit".into()],
+            7 => {
+                module.structural_types[1].shape = StructuralTypeShape::Reference {
+                    referent: structural_type_id(4),
+                    access: StructuralAccess::MutableBorrow,
+                };
+                module.structural_types.push(StructuralTypeDeclaration {
+                    id: structural_type_id(4),
+                    identity: "BooleanReferent".into(),
+                    shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                });
+            }
+            8 => result.reference_sources[0].source.path = vec!["body".into()],
+            _ => unreachable!(),
+        }
+        rejects_custody(&module);
+    }
+}
+
+#[test]
+fn reference_record_result_reborrows_stored_parent_without_early_restoration() {
+    let mut module = returned_record_reference_module();
+    let caller = &mut module.machines[0];
+    let mut child = caller.blocks[0].operations[0].clone();
+    child.id = operation_id(6);
+    let OperationResult::Structural(result) = &mut child.result else {
+        panic!("child result");
+    };
+    result.place = place_id(4);
+    let OperationKind::CallStructural {
+        structural_arguments,
+        ..
+    } = &mut child.kind
+    else {
+        panic!("child call");
+    };
+    structural_arguments[0] = stored_reference_argument();
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(4),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation_id(6),
+            structural_type: structural_type_id(3),
+        },
+    });
+    caller.blocks[0].operations.insert(1, child);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut caller.blocks[0].operations[2].kind
+    else {
+        panic!("writer");
+    };
+    structural_arguments[0].place = place_id(4);
+    caller.blocks[0].terminator = jump(4, 4, vec![place_id(4), place_id(3)]);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("make_view(held.body) returns a child loan and retains the parent until child cleanup");
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        panic!("writer");
+    };
+    structural_arguments[0].place = place_id(3);
+    rejects_custody(&module);
+}
+
+#[test]
+fn reference_record_result_preserves_scalar_sibling_and_rejects_local_escape() {
+    let mut module = returned_record_reference_module();
+    let scalar_field = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[2].shape else {
+        panic!("record");
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: scalar_field,
+        identity: "mark".into(),
+        relevance: terminal_psi::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(signed_i8()),
+    });
+    let callee = &mut module.machines[1];
+    callee.blocks[0].operations.insert(
+        0,
+        Operation {
+            static_reach_binding: None,
+            id: operation_id(18),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: value_id(10),
+                scalar_type: signed_i8(),
+                qualifications: Default::default(),
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: semantic_vocabulary::IntegerValue::Signed(7),
+            },
+        },
+    );
+    let OperationKind::EstablishRecord { fields } = &mut callee.blocks[0].operations[2].kind else {
+        panic!("record constructor");
+    };
+    fields.push(terminal_psi::RecordFieldInitializer {
+        field: scalar_field,
+        value: terminal_psi::RecordFieldValue::Scalar {
+            value: value_id(10),
+            range_obligation: None,
+        },
+    });
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("reference roster omits scalar payloads without rejecting ordinary record fields");
+
+    let callee = &mut module.machines[1];
+    callee.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(16),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation_id(19),
+            structural_type: structural_type_id(1),
+        },
+    });
+    callee.blocks[0].operations.insert(
+        1,
+        Operation {
+            static_reach_binding: None,
+            id: operation_id(19),
+            result: OperationResult::Structural(StructuralOperationResult {
+                place: place_id(16),
+                structural_type: structural_type_id(1),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishPrimitiveLocal {
+                value: value_id(10),
+            },
+        },
+    );
+    callee.blocks[0].operations[2].kind = OperationKind::EstablishReference {
+        source: argument(16, false),
+    };
+    rejects_custody(&module);
+}

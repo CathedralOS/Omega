@@ -1730,7 +1730,7 @@ fn validate_operation_foundation(
                 || !actual_result.claims.is_empty()
                 || !claim_transfers.is_empty()
                 || !returned_claim_transfers.is_empty()
-                || if is_claim_free_structural_call(module, actual_result, callee) {
+                || if is_claim_free_structural_call(actual_result, callee) {
                     requirement_obligations.len() != callee.contract.requires.len()
                 } else {
                     !requirement_obligations.is_empty() || !crash_continuations.is_empty()
@@ -1833,7 +1833,7 @@ fn validate_operation_foundation(
                 && expected_result.qualifications.is_empty()
                 && actual_result.claims.is_empty()
                 && callee_exact_payloadless_return(callee);
-            let claim_free_result = is_claim_free_structural_call(module, actual_result, callee)
+            let claim_free_result = is_claim_free_structural_call(actual_result, callee)
                 && selected_evidence.is_empty()
                 && claim_transfers.is_empty()
                 && returned_claim_transfers.is_empty()
@@ -2197,8 +2197,11 @@ fn validate_operation_foundation(
 // carrier still owes loan custody: the independent verifier reconstructs its
 // source mapping and lifetime instead of treating an empty claim roster as
 // permission to discard or duplicate the referent.
+// Both codec entrances require that validation before accepting a module. The
+// wire format has no separate payload-shape distinction for claim-free calls;
+// a second scalar/flat-record whitelist here would reject verified nested and
+// reference-bearing records without adding an encoding or custody check.
 fn is_claim_free_structural_call(
-    module: &TerminalModule,
     result: &terminal_psi::StructuralOperationResult,
     callee: &TerminalMachine,
 ) -> bool {
@@ -2211,32 +2214,6 @@ fn is_claim_free_structural_call(
         && callee.entry_claims.is_empty()
         && callee.content_entry_claims.is_empty()
         && callee.contract.outcome_specific_ensures.is_empty()
-        && (module.structural_types.iter().any(|declaration| {
-            declaration.id == result.structural_type
-                && match &declaration.shape {
-                    StructuralTypeShape::Reference { .. } => {
-                        result.multiplicity == StructuralMultiplicity::Affine
-                    }
-                    StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
-                        case.fields.iter().all(|field| {
-                            !field.relevance.is_erased() && field.field_type.scalar_type().is_some()
-                        })
-                    }),
-                    StructuralTypeShape::Record { fields } => fields.iter().all(|field| {
-                        !field.relevance.is_erased()
-                            && matches!(
-                                field.field_type,
-                                StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_)
-                            )
-                    }),
-                    _ => false,
-                }
-        }) || (result.multiplicity == StructuralMultiplicity::Unrestricted
-            && terminal_semantics::scalar_array_leaf_shape(
-                module.structural_types.iter(),
-                result.structural_type,
-            )
-            .is_some()))
 }
 
 fn callee_exact_payloadless_return(callee: &TerminalMachine) -> bool {
