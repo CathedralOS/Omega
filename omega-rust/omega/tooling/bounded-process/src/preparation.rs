@@ -1,4 +1,4 @@
-use crate::lifecycle::limits;
+use crate::process_child::limits;
 use std::ffi::OsStr;
 use std::io;
 use std::path::Path;

@@ -454,14 +454,15 @@ fn resolver_source_custody_excludes_ambient_executor_attestation() {
             || rust_files(&execution.join("src/process")).is_empty(),
         "resolver execution must not duplicate the neutral process owner",
     );
-    let process_limits = fs::read_to_string(bounded_process.join("src/lifecycle/limits.rs"))
+    let process_limits = fs::read_to_string(bounded_process.join("src/process_child/limits.rs"))
         .expect("read neutral process limits");
     assert!(
         process_limits.contains("configure_child_resource_limits"),
         "the neutral process boundary must preserve concrete Unix child limits",
     );
-    let windows_process = fs::read_to_string(bounded_process.join("src/lifecycle/windows/mod.rs"))
-        .expect("read neutral Windows process owner");
+    let windows_process =
+        fs::read_to_string(bounded_process.join("src/process_child/windows/mod.rs"))
+            .expect("read neutral Windows process owner");
     assert!(
         windows_process.contains("limits") && windows_process.contains("lifecycle"),
         "the neutral process boundary must preserve Windows Job Object limits and lifecycle custody",

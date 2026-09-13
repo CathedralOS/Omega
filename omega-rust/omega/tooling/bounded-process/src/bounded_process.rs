@@ -1,8 +1,17 @@
-use super::{
-    BoundedCaptureBudget, BoundedCaptureBudgetExceeded, BoundedCaptureLimits, BoundedProcessInput,
-    BoundedProcessOutput, BoundedProcessRunError, BoundedProcessStream,
-};
+//! Run one prepared child with bounded duplex I/O and process-tree cleanup.
+//!
+//! The run loop owns the deadline, worker completion, and failure cleanup.
+//! Capture contracts and aggregate output accounting live beneath this owner.
+
+mod budget;
+mod capture_contract;
+
 use crate::{BoundedProcessChild, BoundedProcessPrepared};
+pub use budget::{BoundedCaptureBudget, BoundedCaptureBudgetExceeded};
+pub use capture_contract::{
+    BoundedCaptureLimits, BoundedProcessInput, BoundedProcessOutput, BoundedProcessRunError,
+    BoundedProcessStream,
+};
 use std::io::{Read, Write};
 use std::process::ChildStdin;
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -25,7 +34,9 @@ enum WorkerResult {
     Input(Result<(), String>),
 }
 
-pub(super) fn execute(
+/// Run a prepared command, closing its process container before returning output.
+/// All I/O and cleanup share the requested wall-clock budget.
+pub fn run_bounded_process(
     mut prepared: BoundedProcessPrepared,
     input: BoundedProcessInput,
     limits: BoundedCaptureLimits,
@@ -367,3 +378,6 @@ fn terminate_before(
         );
     }
 }
+
+#[cfg(test)]
+mod tests;
