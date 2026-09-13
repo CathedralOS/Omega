@@ -20,6 +20,56 @@ fn indexed_program() -> typed_trees::TypedTrees {
 }
 
 #[test]
+fn unrelated_index_declaration_retains_exact_builtin_custody() {
+    let source = r#"
+        data Indexing {}
+        operator [] Indexing::index(items: &[u8; 2], position: u64) -> u8;
+        machine main() -> i32 {
+            let values: [i32; 1] = [7];
+            values[0]
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("unrelated indexing declaration checks");
+    let mut uses = checked
+        .facts
+        .operators
+        .uses
+        .iter()
+        .filter_map(|(_, operator_use)| {
+            (operator_use.spelling == OperatorSpelling::Index).then_some(operator_use)
+        })
+        .peekable();
+    assert!(uses.peek().is_some());
+    for operator_use in uses {
+        assert_eq!(
+            operator_use.status,
+            CheckedOperatorResolutionStatus::BuiltinFallback
+        );
+        assert!(!operator_use.selected_operator_symbol.is_valid());
+        assert_eq!(operator_use.candidate_count, 0);
+        for occurrence in checked
+            .expression_table
+            .authored_selection_occurrences(operator_use.expression)
+        {
+            let selection = checked
+                .authored_declaration_selections()
+                .get(occurrence)
+                .unwrap();
+            assert!(matches!(
+                selection.target(),
+                AuthoredDeclarationSelectionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator
+                )
+            ));
+        }
+    }
+}
+
+#[test]
 fn indexed_array_custody_selects_the_exact_checked_slice_declaration() {
     let checked = lower_typed_trees(indexed_program()).expect("checked indexed array");
     let selected = checked
@@ -105,6 +155,20 @@ fn indexed_array_custody_selects_the_exact_checked_slice_declaration() {
             if target.selected_symbol() == selected
     ));
     assert!(checked.authored_declaration_selections().all_finalized());
+    assert!(
+        checked
+            .facts
+            .operators
+            .uses
+            .iter()
+            .all(|(_, operator_use)| {
+                !matches!(
+                    operator_use.origin,
+                    checked_trees::CheckedValueOrigin::NestedExpression { .. }
+                )
+            }),
+        "recursive operator uses retain their real enclosing contexts"
+    );
     assert!(
         !crate::authored_selections::typed_operator_has_no_authored_selection(&checked, indexed)
     );

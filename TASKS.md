@@ -1506,18 +1506,21 @@ Owners include
   Resume at the checked/Terminal representation seam, not another evaluator
   source-shape gate: extend the whole mutable primitive reference carrier to
   stored-reference aggregates, projected result sources, and their recursive
-  loan custody. The root-carrier seam is exercised by `cargo nextest run -p
-  checked-trees-to-lowered-psi --test reference_result_source --no-fail-fast`
-  (macOS ARM64): a helper returns the caller's reference, a later call mutates
-  its original backing, and encoded Terminal verification and fuel-resuming
-  interpretation preserve that loan until its checked release. This is not
-  stored-reference or native acceptance. Existing result homes and projection
-  paths should carry the remaining relationship without a parallel planner.
-  `checked-interpreter/tests/projected_results.rs` exercises
-  the shared evaluator separately, including source-loan alias identity and
-  once-only projection effects; run `cargo nextest run -p checked-interpreter
-  --test projected_results --no-fail-fast` (macOS ARM64). This does not establish
-  Terminal or native acceptance. Keep the full-checking rejection control in
+  loan custody. `cargo nextest run -p checked-trees-to-lowered-psi --test
+  reference_result_source --no-fail-fast` (macOS ARM64) exercises encoded
+  root-reference custody and retains the stored-reference publication fence:
+  `make_view(value)` followed by `replace(held.body)` reaches checked trees but
+  has no source-independent checked scalar control plan. Its full-checked
+  interpreter acceptance is `cargo nextest run -p checked-interpreter --test
+  projected_results --no-fail-fast`; this is not stored-reference Terminal or
+  native acceptance. Transfer existing reference-leaf permissions through
+  record construction, owned call/edge/result moves, and residual cleanup;
+  `EstablishReference` creates a child loan and cannot substitute for moving an
+  existing leaf. Keep carrier location distinct from loan occurrence/parent,
+  relocate runtime descriptors without copying referents, and reject nested
+  reference host interfaces until their custody exists. Reuse existing typed
+  projection/result maps; structural-element array construction remains a
+  further dependency beyond the record route. Keep the full-checking rejection control in
   `typed-trees-to-checked-trees/src/tests/borrow/carrier_results.rs` until the
   unchanged reference-bearing customer executes from encoded Terminal evidence.
 

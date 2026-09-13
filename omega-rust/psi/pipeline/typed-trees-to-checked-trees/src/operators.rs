@@ -38,6 +38,13 @@ pub(crate) fn build_operator_facts(
     let mut seen = HashSet::new();
 
     for (_, value) in values.values.iter() {
+        // The recursive walk already visits every child with its enclosing
+        // declaration/state context. Nested value rows retain parentage, not
+        // an independent operand-typing context; seeding them again would
+        // resolve the same occurrence with wildcard operands.
+        if matches!(value.origin, CheckedValueOrigin::NestedExpression { .. }) {
+            continue;
+        }
         collect_expression_operator_use(
             program,
             value.expression,
@@ -1007,8 +1014,37 @@ fn operator_use_fact(
             candidate.operator.symbol,
         )
     } else if candidates.is_empty() {
+        let builtin_indexed = matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Indexed(indexed)
+                if indexed_operator_spelling(program, indexed.index) == spelling
+        ) && operand_types
+            .first()
+            .copied()
+            .flatten()
+            .and_then(|reference| validation::unwrapped_type_reference(program, reference))
+            .is_some_and(|reference| {
+                matches!(
+                    program.type_reference_table.type_reference(reference),
+                    typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                        | typed_trees::types::TypeReferenceNode::Slice { .. }
+                )
+            })
+            && origin_machine_symbol(origin).is_some_and(|machine_symbol| {
+                typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    machine_symbol,
+                    expression,
+                    spelling,
+                    operand_types,
+                )
+            });
         (
-            CheckedOperatorResolutionStatus::Missing,
+            if builtin_indexed {
+                CheckedOperatorResolutionStatus::BuiltinFallback
+            } else {
+                CheckedOperatorResolutionStatus::Missing
+            },
             SymbolHandle::invalid(),
         )
     } else {

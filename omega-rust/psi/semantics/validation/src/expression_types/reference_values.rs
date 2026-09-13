@@ -1,9 +1,13 @@
-//! Declared member value types, without manufacturing a loan or storage origin.
+//! Declared projected reference values share exact root and field selection.
+//!
+//! Type matching does not manufacture a loan. Forwarding additionally anchors
+//! the current-state binding and checks every enclosing reference permission;
+//! a mutable leaf behind shared storage cannot authorize an exclusive call.
 
 use super::*;
 use language_semantics::ReferenceAccess;
 
-pub(super) fn member_matches_reference(
+pub(super) fn projected_matches_reference(
     program: &TypedTrees,
     expression: ExpressionHandle,
     required: TypeReferenceHandle,
@@ -116,19 +120,96 @@ fn declared_value_type(
     expression: ExpressionHandle,
     substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
 ) -> Option<TypeReferenceHandle> {
+    selected_value_type(program, expression, substitutions, None)
+}
+
+/// A known current-state root supplies identity, not a new loan. Intermediate
+/// reference permissions constrain forwarding independently of the leaf type.
+pub(crate) fn place_forwards_mutable_reference(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    root: symbols::SymbolHandle,
+    root_type: TypeReferenceHandle,
+) -> bool {
+    let mut substitutions = Vec::new();
+    let Some(selected) = selected_value_type(
+        program,
+        expression,
+        &mut substitutions,
+        Some((root, root_type)),
+    ) else {
+        return false;
+    };
+    let Some(mut selected) = substituted_reference(program, selected, &substitutions) else {
+        return false;
+    };
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(selected)
+    {
+        selected = *base_type;
+    }
+    matches!(
+        program.type_reference_table.type_reference(selected),
+        TypeReferenceNode::Reference {
+            access: ReferenceAccess::Mutable,
+            ..
+        }
+    )
+}
+
+fn projection_receiver_type(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    require_mutable_access: bool,
+) -> Option<TypeReferenceHandle> {
+    for _ in 0..128 {
+        reference = substituted_reference(program, reference, substitutions)?;
+        reference = match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => *base_type,
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } => {
+                if require_mutable_access && *access != ReferenceAccess::Mutable {
+                    return None;
+                }
+                *referee
+            }
+            _ => return Some(reference),
+        };
+    }
+    None
+}
+
+fn selected_value_type(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
+    forwarding_root: Option<(symbols::SymbolHandle, TypeReferenceHandle)>,
+) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(name) => {
             let [spelling] = program.expression_table.name_path_members(name.members) else {
                 return None;
             };
-            (name.symbol.is_valid()
-                && name.symbol == name.head_symbol
-                && program.symbols.name(name.symbol) == spelling.as_str())
-            .then(|| named_value_type_reference(program, name))?
+            if !(name.symbol.is_valid() && name.symbol == name.head_symbol) {
+                return None;
+            }
+            if let Some((root, reference)) = forwarding_root {
+                // The contextual owner already checked this root, including
+                // `self`, whose machine symbol need not be spelled `self`.
+                return (root == name.symbol).then_some(reference);
+            }
+            (program.symbols.name(name.symbol) == spelling.as_str())
+                .then(|| named_value_type_reference(program, name))?
         }
-        ExpressionNode::Call(call) => crate::calls::resolved_call_result_type(program, call),
+        ExpressionNode::Call(call) if forwarding_root.is_none() => {
+            crate::calls::resolved_call_result_type(program, call)
+        }
         ExpressionNode::Member(member) => {
-            if let ExpressionNode::Name(root) = program.expression_table.expression(member.receiver)
+            if forwarding_root.is_none()
+                && let ExpressionNode::Name(root) =
+                    program.expression_table.expression(member.receiver)
                 && let Some(machine) = program.machines().iter().find(|machine| {
                     root.head_symbol.is_valid() && machine.symbol == root.head_symbol
                 })
@@ -136,25 +217,14 @@ fn declared_value_type(
                 return crate::places::exact_self_field(program, machine, expression)
                     .map(|field| field.type_reference);
             }
-            let mut receiver = declared_value_type(program, member.receiver, substitutions)?;
-            for _ in 0..=substitutions.len() {
-                receiver = crate::places::unwrapped_type_reference(program, receiver)?;
-                let TypeReferenceNode::Named { symbol, .. } =
-                    program.type_reference_table.type_reference(receiver)
-                else {
-                    break;
-                };
-                let Some((_, replacement)) = substitutions
-                    .iter()
-                    .find(|(parameter, _)| parameter == symbol)
-                else {
-                    break;
-                };
-                if *replacement == receiver {
-                    return None;
-                }
-                receiver = *replacement;
-            }
+            let receiver =
+                selected_value_type(program, member.receiver, substitutions, forwarding_root)?;
+            let receiver = projection_receiver_type(
+                program,
+                receiver,
+                substitutions,
+                forwarding_root.is_some(),
+            )?;
             let (symbol, arguments) = match program.type_reference_table.type_reference(receiver) {
                 TypeReferenceNode::Named { symbol, .. } => (*symbol, &[][..]),
                 TypeReferenceNode::Generic {
@@ -218,8 +288,102 @@ fn declared_value_type(
             )
             .map(|field| field.type_reference)
         }
+        ExpressionNode::Indexed(indexed) => {
+            if matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            ) {
+                return None;
+            }
+            let collection =
+                selected_value_type(program, indexed.collection, substitutions, forwarding_root)?;
+            // Selection needs the applied collection, not a raw field
+            // telescope whose substituted elements could match another
+            // authored operator. This query does not materialize types.
+            if !substitutions.is_empty()
+                && program.normalized_type_identity(collection)
+                    != program.normalized_type_identity_with_binders_and_substitutions(
+                        collection,
+                        &[],
+                        substitutions,
+                    )
+            {
+                return None;
+            }
+            let index_type = declared_value_type(program, indexed.index, &mut Vec::new());
+            let meaning_is_builtin =
+                if let Some(machine) = place_machine_symbol(program, indexed.collection) {
+                    typed_trees::operator::has_builtin_spelled_expression_meaning(
+                        program,
+                        machine,
+                        expression,
+                        language_core::OperatorSpelling::Index,
+                        &[Some(collection), index_type],
+                    )
+                } else {
+                    crate::places::has_retained_builtin_index_meaning(program, expression)
+                };
+            if !meaning_is_builtin
+                || !typed_trees::operator::resolve_indexed_spelling_for_operands(
+                    program,
+                    language_core::OperatorSpelling::Index,
+                    &[Some(collection), index_type],
+                )
+                .is_empty()
+            {
+                return None;
+            }
+            let collection = projection_receiver_type(
+                program,
+                collection,
+                substitutions,
+                forwarding_root.is_some(),
+            )?;
+            match program.type_reference_table.type_reference(collection) {
+                TypeReferenceNode::FixedArray { element_type, .. }
+                | TypeReferenceNode::Slice { element_type } => Some(*element_type),
+                _ => None,
+            }
+        }
         _ => None,
     }
+}
+
+/// Statement projections can precede final operator receipts. Their exact
+/// named root still identifies the selection telescope for ordinary builtin
+/// meaning reconstruction; no spelling lookup or default machine is allowed.
+fn place_machine_symbol(
+    program: &TypedTrees,
+    mut expression: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    for _ in 0..128 {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Indexed(indexed) => expression = indexed.collection,
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid() && path.symbol == path.head_symbol =>
+            {
+                let mut symbol = path.symbol;
+                for _ in 0..128 {
+                    if program
+                        .machines()
+                        .iter()
+                        .any(|machine| machine.symbol == symbol)
+                    {
+                        return Some(symbol);
+                    }
+                    let parent = program.symbols.get(symbol).parent;
+                    if !parent.is_valid() || parent == symbol {
+                        return None;
+                    }
+                    symbol = parent;
+                }
+                return None;
+            }
+            _ => return None,
+        }
+    }
+    None
 }
 
 #[cfg(test)]

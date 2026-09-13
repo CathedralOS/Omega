@@ -92,6 +92,172 @@ fn projected_reference_result_survives_return_and_repeated_forwarding() {
 }
 
 #[test]
+fn checked_stored_reference_argument_mutates_the_original_referent() {
+    for (binding, argument) in [
+        ("let held: View = make_view(&mut source);", "held.body"),
+        (
+            "let held: Outer = Outer { inner: make_view(&mut source) };",
+            "held.inner.body",
+        ),
+        (
+            "let held: [View; 1] = [make_view(&mut source)];",
+            "held[0].body",
+        ),
+        (
+            "let mut stored: View = make_view(&mut source); let held: &mut View = &mut stored;",
+            "held.body",
+        ),
+    ] {
+        let source = format!(
+            "data View {{ body: &mut i32; }}
+             data Outer {{ inner: View; }}
+             machine make_view(value: &mut i32) -> View {{ value = 11; View {{ body: value }} }}
+             machine replace(value: &mut i32) {{ value = 29; }}
+             machine main() -> i32 {{
+                 let mut source: i32 = 7;
+                 {binding}
+                 replace({argument});
+                 source
+             }}"
+        );
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_program(&source))
+            .unwrap_or_else(|diagnostics| panic!("{argument}: {diagnostics:#?}"));
+        let outcome = checked_interpreter::interpret_entry(&checked, "main", &[]);
+        assert_eq!(outcome.error, None, "{argument}");
+        assert_eq!(outcome.exit_code, 29, "{argument}");
+    }
+}
+
+#[test]
+fn checked_stored_reference_argument_requires_builtin_indexing() {
+    for (declaration, admitted) in [
+        ("", true),
+        (
+            "operator [] Indexing::index(items: &[u8; 2], index: u64) -> u8;",
+            true,
+        ),
+        (
+            "operator [] index(items: &[View], index: u64) -> View;",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "data View {{ body: &mut i32; }}
+             data Indexing {{}}
+             {declaration}
+             machine replace(value: &mut i32) {{ value = 29; }}
+             machine main() -> i32 {{
+                 let mut source: i32 = 7;
+                 let held: [View; 1] = [View {{ body: &mut source }}];
+                 replace(held[0].body);
+                 source
+             }}"
+        );
+        let result = typed_trees_to_checked_trees::lower_typed_trees(typed_program(&source));
+        if admitted {
+            let checked =
+                result.unwrap_or_else(|diagnostics| panic!("{declaration}: {diagnostics:#?}"));
+            let outcome = checked_interpreter::interpret_entry(&checked, "main", &[]);
+            assert_eq!(outcome.error, None, "{declaration}");
+            assert_eq!(outcome.exit_code, 29, "{declaration}");
+        } else {
+            let diagnostics =
+                result.expect_err("authored indexing cannot inherit builtin reference authority");
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("caller lends only immutable access")),
+                "{diagnostics:#?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn checked_stored_reference_argument_composes_with_a_value_call() {
+    let source = "data View { body: &mut i32; }
+        machine replace(value: &mut i32) -> i32 { value = 29; value }
+        machine main() -> i32 {
+            let mut source: i32 = 7;
+            let held: [View; 1] = [View { body: &mut source }];
+            let observed: i32 = replace(held[0].body);
+            transition observed == 29 && source == 29 { true -> 29 false -> 0 }
+        }";
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_program(source))
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let outcome = checked_interpreter::interpret_entry(&checked, "main", &[]);
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 29);
+}
+
+#[test]
+fn checked_stored_reference_argument_cannot_widen_enclosing_access() {
+    for (declarations, parameter, argument) in [
+        ("data View { body: &mut i32; }", "&View", "held.body"),
+        ("data View { body: &mut i32; }", "&write View", "held.body"),
+        ("data View { body: &i32; }", "View", "held.body"),
+        ("data View { body: &write i32; }", "View", "held.body"),
+        ("data View { body: i32; }", "View", "held.body"),
+        (
+            "data View { body: &mut i32; } data Outer { inner: &View; }",
+            "Outer",
+            "held.inner.body",
+        ),
+        (
+            "data View { body: &mut i32; } data Outer { inner: View; }",
+            "&Outer",
+            "held.inner.body",
+        ),
+        (
+            "data View { body: &mut i32; }",
+            "&[View; 1]",
+            "held[0].body",
+        ),
+    ] {
+        let source = format!(
+            "{declarations}
+             machine replace(value: &mut i32) {{ value = 29; }}
+             machine exercise(held: {parameter}) {{ replace({argument}); }}"
+        );
+        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed_program(&source))
+            .expect_err("a selected reference cannot amplify enclosing access");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("caller lends only immutable access")),
+            "{parameter}, {argument}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn checked_stored_reference_argument_retains_referent_type_and_loan() {
+    for (declarations, body, expected) in [
+        (
+            "data View { body: &mut u32; }",
+            "machine exercise(held: View) { replace(held.body); }",
+            "expects `&mut i32`",
+        ),
+        (
+            "data View { body: &mut i32; }",
+            "machine exercise(source: &mut i32) { let held: View = View { body: source }; replace(source); replace(held.body); }",
+            "while local borrow `held` is still active",
+        ),
+    ] {
+        let source =
+            format!("{declarations} machine replace(value: &mut i32) {{ value = 29; }} {body}");
+        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed_program(&source))
+            .expect_err("forwarding does not waive type or live-loan checks");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{expected}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn projected_reference_field_in_scalar_position_observes_the_referent() {
     for result in ["forward(input).body", "forward_array([input])[0].body"] {
         let source = format!(
