@@ -1529,10 +1529,12 @@ Owners include
   Resume at the checked/Terminal representation seam, not another evaluator
   source-shape gate: extend the whole mutable primitive reference carrier to
   stored-reference aggregates, projected result sources, and their recursive
-  loan custody. At `d3d749e4c1`, `cargo nextest run -p checked-trees-to-lowered-psi
+  loan custody. At `17d763cbbf`, `cargo nextest run -p checked-trees-to-lowered-psi
   --test reference_result_source --no-fail-fast` (macOS ARM64,
   `RUST_MIN_STACK=33554432`) exercises encoded
-  root-reference custody and retains the stored-reference publication fence:
+  whole-reference and local record custody, including ordinary projected calls,
+  exact source-loan tampering controls, and original backing restoration after
+  cleanup. It retains the helper-result publication fence:
   `make_view(value)` followed by `replace(held.body)` reaches checked trees but
   has no source-independent checked scalar control plan. Its full-checked
   interpreter acceptance is `cargo nextest run -p checked-interpreter --test
@@ -1544,11 +1546,12 @@ Owners include
   primitive backing, including returned children and reversed actual arguments.
   The verifier reconstructs exact reference-leaf result maps and formal-to-actual
   substitution; canonical wire and runtime support no longer block this record
-  return. Resume in source production with checked record initializers and
-  helper-result origins that retain reference carriers instead of normalizing them to
-  scalar fields (`structural_values::record_value` and `ShapeCollector`).
-  Lowering must replay the initializer's exact ingress loan, not trust the
-  checked node alone. Transfer existing permissions through owned
+  return. Resume in source production with the helper's complete returned-leaf
+  origin map and exact caller substitution, sharing `reference_result_custody`
+  between ordinary completion and independent source replay. Checked record
+  initializers now retain reference carriers instead of scalar-normalized fields;
+  their ingress, captured owner path, active consumer premise, and weakening are
+  independently reconstructed. Transfer existing permissions through owned
   call/edge/result moves and residual cleanup;
   `EstablishReference` creates a child loan and cannot substitute for moving an
   existing leaf. Keep carrier location distinct from loan occurrence/parent,
