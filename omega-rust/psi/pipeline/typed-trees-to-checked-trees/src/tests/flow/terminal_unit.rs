@@ -18,6 +18,7 @@ mod free_scalar_parameters;
 mod nested_boundary_results;
 mod primitive_locals;
 mod receiver_stores;
+mod repro_cyclic;
 mod returns;
 mod returns_primitive_effects;
 mod scalar_boundary_targets;

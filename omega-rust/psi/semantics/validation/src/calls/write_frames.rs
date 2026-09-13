@@ -88,8 +88,8 @@ use transition_equations::{
     PermutedCycleFrameEquation, append_permuted_cycle_frame_edge, transition_state_reaches,
 };
 use transition_topology::{
-    named_transition_preserves_state_namespace, named_transition_subgraph_is_acyclic,
-    named_transition_target_state,
+    named_state_transition_subgraph_is_acyclic, named_transition_preserves_state_namespace,
+    named_transition_subgraph_is_acyclic, named_transition_target_state,
 };
 use transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
@@ -155,8 +155,8 @@ fn known_call_written_paths_for_parts(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
-    let mut complete_state_summaries = Vec::new();
     known_call_written_paths_for_parts_with_origins(
         program,
         target_symbol,
@@ -169,7 +169,7 @@ fn known_call_written_paths_for_parts(
         symbols,
         inference,
         None,
-        &mut complete_state_summaries,
+        complete_state_summaries,
     )
 }
 
@@ -313,6 +313,7 @@ fn summarize_resolved_call(
             callee_state,
             symbols,
             inference,
+            complete_state_summaries,
         )
     });
     inference.active_states.pop();
@@ -354,6 +355,40 @@ fn summarize_state_written_paths(
         .find(|(symbol, _)| *symbol == state.symbol)
     {
         return Some(paths.clone());
+    }
+    // A state that reaches a named cycle cannot reuse a depth-first prefix as
+    // its summary: the walk truncates back-edges against whichever ancestors
+    // happen to be active, so the result belongs to that recursion stack
+    // alone. Solve the permuted-cycle equations for the honest transitive
+    // frame instead. When they decline (a cycle rebinds a write-capable
+    // parameter, or a nested call needs this stack's evidence) the DFS prefix
+    // still answers this query but must not be retained for other contexts.
+    if !named_state_transition_subgraph_is_acyclic(program, machine, state) {
+        if let Some(writes) = summarize_state_written_paths_with_permuted_cycles(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            complete_state_summaries,
+        ) {
+            // A solved fixpoint contains no truncation against this recursion
+            // stack: a nested call blocked by an active state fails the whole
+            // solve instead of producing a partial frame, so a successful
+            // result is safe to retain for later queries.
+            complete_state_summaries.push((state.symbol, writes.clone()));
+            return Some(writes);
+        }
+        return walk_state_write_prefix(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            complete_state_summaries,
+            None,
+        )
+        .map(|prefix| prefix.written);
     }
     let prefix = walk_state_write_prefix(
         program,
@@ -626,6 +661,7 @@ fn walk_state_write_prefix_inner(
                 symbols,
                 inference,
                 &mut expression_writes,
+                complete_state_summaries,
             )?;
             for relative in expression_writes
                 .iter()
@@ -1551,6 +1587,7 @@ fn transparent_callee_result_origin(
                                     symbols,
                                     inference,
                                     written,
+                                    &mut Vec::new(),
                                 )
                             },
                         ) {
@@ -2084,6 +2121,7 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
     entry: &'program State,
     symbols: &TopLevelSymbols<'program>,
     outer_inference: &FrameInference,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
     let mut diagnostics = Vec::new();
     let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
@@ -2111,6 +2149,7 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
             symbols,
             &machine_symbols,
             outer_inference,
+            complete_state_summaries,
         )?;
         pending.extend(equation.edges.iter().map(|edge| edge.target));
         equations.push(equation);
@@ -2215,6 +2254,7 @@ fn build_permuted_cycle_frame_equation<'program>(
     symbols: &TopLevelSymbols<'program>,
     machine_symbols: &MachineSymbols<'program>,
     outer_inference: &FrameInference,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<PermutedCycleFrameEquation<'program>> {
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
@@ -2305,6 +2345,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                 symbols,
                 &mut inference,
                 &mut expression_writes,
+                complete_state_summaries,
             )?;
             for relative in expression_writes
                 .iter()

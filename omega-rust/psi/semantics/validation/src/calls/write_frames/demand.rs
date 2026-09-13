@@ -297,15 +297,18 @@ impl<'program> CallFrameResolver<'program> {
             CallerWriteSite::Expression(expression),
             |inference| {
                 let mut written = Vec::new();
-                collect_expression_call_written_paths(
-                    self.program,
-                    expression,
-                    current_machine,
-                    &machine_symbols,
-                    &self.symbols,
-                    inference,
-                    &mut written,
-                )?;
+                self.with_complete_state_summaries(|complete_state_summaries| {
+                    collect_expression_call_written_paths(
+                        self.program,
+                        expression,
+                        current_machine,
+                        &machine_symbols,
+                        &self.symbols,
+                        inference,
+                        &mut written,
+                        complete_state_summaries,
+                    )
+                })?;
                 Some(written)
             },
         )
@@ -368,18 +371,21 @@ impl<'program> CallFrameResolver<'program> {
             CallerWriteSite::Statement(statement),
             |inference| {
                 let mut written = Vec::new();
-                for expression in expressions {
-                    collect_expression_call_written_paths(
-                        self.program,
-                        expression,
-                        current_machine,
-                        machine_symbols,
-                        &self.symbols,
-                        inference,
-                        &mut written,
-                    )?;
-                }
-                Some(written)
+                self.with_complete_state_summaries(|complete_state_summaries| {
+                    for expression in expressions {
+                        collect_expression_call_written_paths(
+                            self.program,
+                            expression,
+                            current_machine,
+                            machine_symbols,
+                            &self.symbols,
+                            inference,
+                            &mut written,
+                            complete_state_summaries,
+                        )?;
+                    }
+                    Some(written)
+                })
             },
         )
         .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
@@ -452,6 +458,7 @@ impl<'program> CallFrameResolver<'program> {
                 state,
                 &self.symbols,
                 &inference,
+                complete_state_summaries,
             )
         });
         let Some(relative_paths) = relative_paths else {
@@ -546,6 +553,7 @@ pub(super) fn collect_expression_call_written_paths(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     written: &mut Vec<String>,
+    complete_state_summaries: &mut Vec<(symbols::SymbolHandle, Vec<String>)>,
 ) -> Option<()> {
     if !expression.is_valid() {
         return Some(());
@@ -559,6 +567,7 @@ pub(super) fn collect_expression_call_written_paths(
             symbols,
             inference,
             written,
+            complete_state_summaries,
         )
     };
     match program.expression_table.expression(expression) {
@@ -642,6 +651,7 @@ pub(super) fn collect_expression_call_written_paths(
                 machine_symbols,
                 symbols,
                 inference,
+                complete_state_summaries,
             )
             .or_else(|| {
                 if !exact_receiver {

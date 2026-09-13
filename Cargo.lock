@@ -2170,6 +2170,7 @@ dependencies = [
  "terminal-fuel",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-semantics",
  "terminal-verifier",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",

@@ -88,12 +88,14 @@ use partial_affine::{is_partial_affine_path, partial_affine_residuals, partial_a
 use proof_recursion::validate_proof_recursive_components;
 pub(crate) use propositions::{
     proposition_observes_places, proposition_observes_unversioned_places,
+    proposition_observes_write,
 };
 pub(crate) use references::{argument_owns_references, is_reference_projection};
 pub(crate) use structural_byte_sequence_fields::replacement_length_equation as structural_byte_sequence_field_length_equation;
 pub(crate) use structural_byte_sequence_store::capacity as structural_byte_sequence_store_capacity;
 pub(crate) use structural_operations::{
     exact_payloadless_case_return_exits, structural_argument_canonical_prefix,
+    structural_field_store_write_path,
 };
 pub(crate) use structural_scalar_fields::integer_structural_field_read_range;
 

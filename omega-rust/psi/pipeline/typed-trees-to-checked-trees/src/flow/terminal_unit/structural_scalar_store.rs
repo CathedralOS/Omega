@@ -204,13 +204,21 @@ pub(super) fn build_structural_scalar_field_store_sequence(
     {
         return Some(Vec::new());
     }
-    let frame = &facts
-        .mutation
-        .for_machine(machine.symbol)?
-        .state_write_frames
-        .iter()
-        .find(|frame| frame.state == state.symbol)?
-        .frame;
+    let frame = &match facts.mutation.for_machine(machine.symbol) {
+        Some(mutation) => match mutation
+            .state_write_frames
+            .iter()
+            .find(|frame| frame.state == state.symbol)
+        {
+            Some(plan) => &plan.frame,
+            None => {
+                return None;
+            }
+        },
+        None => {
+            return None;
+        }
+    };
     if !frame::matches(program, machine, state, frame) {
         return None;
     }

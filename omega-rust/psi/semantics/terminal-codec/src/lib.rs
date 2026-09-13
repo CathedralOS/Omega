@@ -2473,6 +2473,30 @@ fn validate_structural_arguments(
         {
             continue;
         }
+        // The shared counterpart: a borrowed view reads the field's live bytes.
+        // Boundary actuals admit it directly; ordinary borrowed calls admit the
+        // same unrestricted subloan the verifier's shared-field rule describes.
+        let shared_byte_field_loan = terminal_semantics::shared_boundary_buffer_capacity(
+            module,
+            actual_type,
+            argument,
+            expected,
+        )
+        .is_some()
+            && match presentation {
+                StructuralArgumentPresentation::Boundary => true,
+                StructuralArgumentPresentation::Ordinary => {
+                    expected.multiplicity == StructuralMultiplicity::Unrestricted
+                        && is_bounded_structural_scalar_store_path(&argument.path)
+                        && machine.structural_parameters.iter().any(|parameter| {
+                            parameter.place == argument.place
+                                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                        })
+                }
+            };
+        if shared_byte_field_loan {
+            continue;
+        }
         let actual_type = validate_structural_path(module, actual_type, &argument.path)?;
         if actual_type != expected.structural_type {
             return malformed("structural argument has the wrong concrete type");

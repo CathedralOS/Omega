@@ -229,7 +229,7 @@ pub(super) fn build(
                 _ => {}
             }
         }
-        for operation in &operations {
+        for (operation_index, operation) in operations.iter().enumerate() {
             if matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 if result.multiplicity == Multiplicity::Linear)
             {
@@ -237,13 +237,24 @@ pub(super) fn build(
                 // needs a separate issuance witness, not result classification.
                 return None;
             }
-            match &operation {
+            match operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall {
                     structural_arguments,
                     completion_receipts,
                     ..
                 } if completion_receipts.is_empty()
-                    && whole_view_arguments(structural_arguments) => {}
+                    && structural_arguments.iter().all(|argument| {
+                        whole_shared_argument(argument)
+                            // A borrowed view may project from a parameter,
+                            // including the persistent receiver, without
+                            // changing custody across the selected edges.
+                            || (argument.source_parameter_index().is_some()
+                                && matches!(
+                                    argument.access,
+                                    CheckedStructuralAccess::SharedBorrow
+                                        | CheckedStructuralAccess::MutableBorrow
+                                ))
+                    }) => {}
                 CheckedUnitEffectOperationPlan::CallUnit {
                     structural_arguments,
                     claim_transfers,
@@ -282,7 +293,35 @@ pub(super) fn build(
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
-                _ => return None,
+                // A call result may die immediately after its producing call.
+                // The cleanup shares the call coordinate rather than consuming
+                // a new authored statement.
+                CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                    coordinate,
+                    affine_discards,
+                }
+                    if affine_discards.iter().all(|discard| {
+                        matches!(
+                        discard.source,
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            ..
+                        }
+                    )
+                    }) && operation_index.checked_sub(1).is_some_and(|producer| {
+                        matches!(
+                            &operations[producer],
+                            CheckedUnitEffectOperationPlan::StructuralCall {
+                                coordinate: call,
+                                ..
+                            } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                                coordinate: call,
+                                ..
+                            } if call == coordinate
+                        )
+                    }) => {}
+                _ => {
+                    return None;
+                }
             }
         }
         let ordinal = u32::try_from(terminator_index).ok()?;
@@ -389,7 +428,9 @@ pub(super) fn build(
                         when_false: edge(when_false, ordinal.checked_add(1)?)?,
                     }
                 }
-                _ => return None,
+                _ => {
+                    return None;
+                }
             }
         };
         let disposable_locals = if matches!(
@@ -468,7 +509,29 @@ pub(super) fn build(
                         && argument.path.is_empty()
                 })
                 .count();
-            if usize::from(consumed) + call_transfers != 1 {
+            // An in-sequence continuation cleanup owns an affine result whose
+            // authored statement discarded it. Count that exact owner as the
+            // consumption alongside terminator disposal and call transfer.
+            let cleanup_discards = operations[producer_index + 1..]
+                .iter()
+                .filter_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                        affine_discards,
+                        ..
+                    } => Some(affine_discards),
+                    _ => None,
+                })
+                .flatten()
+                .filter(|discard| {
+                    matches!(
+                        discard.source,
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal
+                        } if binding_ordinal == result.binding_ordinal
+                    )
+                })
+                .count();
+            if usize::from(consumed) + call_transfers + cleanup_discards != 1 {
                 return None;
             }
         }
@@ -574,10 +637,6 @@ fn prefix_initializers(
             Some(initializer.clone())
         })
         .collect()
-}
-
-fn whole_view_arguments(arguments: &[CheckedUnitStructuralArgumentPlan]) -> bool {
-    arguments.iter().all(whole_shared_argument)
 }
 
 fn whole_shared_argument(argument: &CheckedUnitStructuralArgumentPlan) -> bool {

@@ -194,7 +194,23 @@ impl TerminalExecution {
                 .structural_types
                 .get(&parameter.structural_type)
                 .ok_or_else(invalid)?;
-            if parameter.access == StructuralAccess::MutableBorrow
+            if parameter.access == StructuralAccess::SharedBorrow
+                && declaration.shape
+                    == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                && !argument.path.is_empty()
+            {
+                if argument.access != StructuralAccess::SharedBorrow
+                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return Err(invalid());
+                }
+                let (referent, binding) =
+                    self.resolve_shared_boundary_binding(parameter, argument)?;
+                resolved.values.push(referent);
+                resolved.byte_sequences.push(Some(binding));
+            } else if parameter.access == StructuralAccess::MutableBorrow
                 && declaration.shape
                     == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
             {
@@ -330,6 +346,67 @@ impl TerminalExecution {
             },
         )?;
         Ok(binding)
+    }
+
+    /// Bind a shared byte-view argument to one initialized inline byte field.
+    /// The view observes the field's live bytes; the shared loan grants no
+    /// writeback, so no staged buffer or field coordinate is retained.
+    fn resolve_shared_boundary_binding(
+        &self,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+    ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let Some((StructuralPathSegment::Field(identity), prefix)) = argument.path.split_last()
+        else {
+            return Err(invalid());
+        };
+        let mut parent = resolve_structural_arguments(
+            &self.structural_types,
+            &self.structural_values,
+            &[StructuralArgument {
+                place: argument.place,
+                path: prefix.to_vec(),
+                access: argument.access,
+            }],
+        )?
+        .pop()
+        .ok_or_else(invalid)?;
+        let declaration = self
+            .structural_types
+            .get(&parent.structural_type)
+            .ok_or_else(invalid)?;
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return Err(invalid());
+        };
+        let field = fields
+            .iter()
+            .find(|field| field.identity == *identity && !field.relevance.is_erased())
+            .ok_or_else(invalid)?;
+        if !matches!(
+            field.field_type,
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+        ) {
+            return Err(invalid());
+        }
+        let source = StructuralByteSequenceRuntimeField {
+            parent: StructuralRuntimePlace::from(&parent),
+            field: field.id,
+        };
+        let bytes = self
+            .structural_byte_sequence_fields
+            .get(&source)
+            .ok_or_else(invalid)?
+            .bytes();
+        parent.structural_type = parameter.structural_type;
+        parent.qualifications.clear();
+        parent
+            .path
+            .push(StructuralPathSegment::Field(identity.clone()));
+        Ok((
+            parent,
+            ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes.to_vec())),
+        ))
     }
 }
 

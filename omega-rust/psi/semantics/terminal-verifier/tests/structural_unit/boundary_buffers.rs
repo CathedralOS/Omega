@@ -108,16 +108,22 @@ fn boundary_buffer_rejects_wrong_leaf_erasure_access_and_type() {
         Err(ModuleError::StructuralArgumentAccessExceedsSource { .. })
     ));
 
-    for access in [
-        StructuralAccess::Owned,
-        StructuralAccess::SharedBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-    ] {
+    for access in [StructuralAccess::Owned, StructuralAccess::WriteOnlyBorrow] {
         let mut module = buffer_module();
         arguments(&mut module)[0].access = access;
         module.boundary_machines[0].structural_parameters[0].access = access;
         assert!(validate_module(&module).is_err());
     }
+    // A shared loan presents the same inline bytes to a shared view parameter.
+    let mut module = buffer_module();
+    arguments(&mut module)[0].access = StructuralAccess::SharedBorrow;
+    module.boundary_machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("a shared boundary loan reads the field's live bytes in place");
 }
 
 #[test]

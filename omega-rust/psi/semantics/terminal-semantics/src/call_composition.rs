@@ -17,12 +17,47 @@ use super::{OperationSemanticError, OperationSemanticTag};
 /// separately validate source access, multiplicity, aliasing, and boundary custody.
 pub fn boundary_buffer_capacity(
     module: &TerminalModule,
-    mut root_type: StructuralTypeId,
+    root_type: StructuralTypeId,
     argument: &StructuralArgument,
     expected: &StructuralParameterDeclaration,
 ) -> Option<u64> {
-    if argument.access != StructuralAccess::MutableBorrow
-        || expected.access != StructuralAccess::MutableBorrow
+    inline_byte_field_capacity(
+        module,
+        root_type,
+        argument,
+        expected,
+        StructuralAccess::MutableBorrow,
+    )
+}
+
+/// Resolve the inline capacity presented to a boundary's shared byte-view
+/// parameter. A shared loan observes the field's live bytes in place; it grants
+/// neither mutation, new storage, an extent change, nor a qualification. Callers
+/// must separately validate source access, multiplicity, aliasing, and custody.
+pub fn shared_boundary_buffer_capacity(
+    module: &TerminalModule,
+    root_type: StructuralTypeId,
+    argument: &StructuralArgument,
+    expected: &StructuralParameterDeclaration,
+) -> Option<u64> {
+    inline_byte_field_capacity(
+        module,
+        root_type,
+        argument,
+        expected,
+        StructuralAccess::SharedBorrow,
+    )
+}
+
+fn inline_byte_field_capacity(
+    module: &TerminalModule,
+    mut root_type: StructuralTypeId,
+    argument: &StructuralArgument,
+    expected: &StructuralParameterDeclaration,
+    access: StructuralAccess,
+) -> Option<u64> {
+    if argument.access != access
+        || expected.access != access
         || !expected.qualifications.is_empty()
         || !expected.projected_qualifications.is_empty()
         || !module.structural_types.iter().any(|declaration| {

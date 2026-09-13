@@ -75,14 +75,36 @@ pub(super) fn append_operation(
             !crate::validation::proposition_observes_places(proposition, &[result.place])
         });
     }
-    if let OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-    | OperationKind::StructuralScalarFieldStore { destination, .. }
-    | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
-    | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. } = &operation.kind
-    {
+    if let OperationKind::WriteOnlyPrimitiveStore { destination, .. } = &operation.kind {
         axioms.retain(|proposition| {
             !crate::validation::proposition_observes_places(proposition, &[*destination])
         });
+    }
+    if matches!(
+        operation.kind,
+        OperationKind::StructuralScalarFieldStore { .. }
+            | OperationKind::StructuralByteSequenceFieldStore { .. }
+            | OperationKind::StructuralByteSequenceFieldByteStore { .. }
+    ) {
+        match crate::validation::structural_field_store_write_path(module, machine, operation) {
+            Some((root, written)) => axioms.retain(|proposition| {
+                !crate::validation::proposition_observes_write(proposition, root, &written)
+            }),
+            // A write whose exact path cannot be resolved forgets the root.
+            None => {
+                let root = match &operation.kind {
+                    OperationKind::StructuralScalarFieldStore { destination, .. }
+                    | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
+                    | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. } => {
+                        *destination
+                    }
+                    _ => unreachable!("store kinds are matched above"),
+                };
+                axioms.retain(|proposition| {
+                    !crate::validation::proposition_observes_places(proposition, &[root])
+                });
+            }
+        }
     }
     if let Some(equation) = crate::validation::structural_byte_sequence_field_length_equation(
         module, machine, operation,
