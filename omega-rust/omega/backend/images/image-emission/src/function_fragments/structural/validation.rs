@@ -291,13 +291,39 @@ fn validate_incoming_location(
     let invalid =
         || Error::Mismatch("structural incoming location differs from declared access or ABI");
     if access == terminal_psi::StructuralAccess::Owned {
-        return if location
-            == (StructuralSourceLocation::IncomingIndirectPointer {
-                register: pointer(placement)?,
-            }) {
-            Ok(())
-        } else {
-            Err(invalid())
+        let [
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: Some(_),
+                byte_size,
+                alignment,
+            },
+        ] = placement.locations.as_slice()
+        else {
+            return Err(invalid());
+        };
+        if placement.shape.class != calling_conventions::ValueClass::Integer
+            || *byte_size != placement.shape.byte_size
+            || *alignment != placement.shape.alignment
+        {
+            return Err(invalid());
+        }
+        return match (pointer, location) {
+            (
+                IndirectPointerLocation::Register(expected),
+                StructuralSourceLocation::IncomingIndirectPointer { register },
+            ) if *expected == register => Ok(()),
+            (
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset,
+                    alignment,
+                },
+                StructuralSourceLocation::IncomingIndirectStackPointer {
+                    stack_byte_offset: actual,
+                    alignment: actual_alignment,
+                },
+            ) if *stack_byte_offset == actual && *alignment == actual_alignment => Ok(()),
+            _ => Err(invalid()),
         };
     }
     if placement.shape.class != calling_conventions::ValueClass::BorrowedReference {

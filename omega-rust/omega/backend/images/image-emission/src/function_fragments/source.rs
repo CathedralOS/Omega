@@ -465,13 +465,15 @@ pub(super) fn parameter_abi(
     &[target_operations::TargetStructuralParameter],
 )> {
     let graph = &function.graph;
-    // Inline owned values have no pointer-home ABI. Retain the actual call
-    // plan for those Unit functions even without scalar parameters.
+    // Owned graph parameters retain their complete call plan, including Unit
+    // functions without scalar parameters. Pointer-home rows alone cannot
+    // reconstruct a general mixed register/stack ABI.
     if graph.call_plan.result.is_none()
         && (!graph.scalar_parameters.is_empty()
-            || graph.parameters.iter().any(|parameter| {
-                super::structural::inline_owned_placement(parameter.access, &parameter.placement)
-            }))
+            || graph
+                .parameters
+                .iter()
+                .any(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned))
         || graph.call_plan.result.is_some()
             && function.scalar_abi.is_none()
             && function.mixed_structural_scalar_abi.is_none()

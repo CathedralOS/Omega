@@ -32,24 +32,21 @@ pub(in crate::selection) fn entry(
             target: &parameter.target,
         })
         .collect::<Vec<_>>();
-    let legacy_indirect = crate::structural_unit_input::accepts(
+    if !crate::structural_unit_input::accepts_graph(
         &source.call_plan,
         &parameters,
         &signature.structural_types,
-    );
-    if !legacy_indirect
-        && !crate::structural_unit_input::accepts_graph(
-            &source.call_plan,
-            &parameters,
-            &signature.structural_types,
-        )
-    {
+    ) {
         return Err(SelectedInstructionError::UnsupportedSourceShape { function });
     }
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
+        let owned_pointer = crate::structural_unit_input::owned_indirect_pointer(
+            &parameter.semantic,
+            &parameter.target.placement,
+        );
         if parameter.semantic.access == StructuralAccess::Owned
-            && !legacy_indirect
+            && owned_pointer.is_none()
             && !crate::selection::aggregate_result_input::inline_argument_fragments(
                 &parameter.target.placement,
             )
@@ -176,12 +173,24 @@ pub(in crate::selection) fn entry(
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place == place)),
             _ => false,
         });
-        if !used {
+        // Owned arrivals can transfer into an aggregate without an intervening
+        // read. Preserve their input storage independently of the body shape,
+        // as for inline value fragments above.
+        if owned_pointer.is_none() && !used {
             continue;
         }
-        if let Some(abi_stack_byte_offset) =
-            crate::structural_reference_input::stack_pointer_offset(&parameter.target.placement)
-        {
+        // An indirect owned argument points at the ABI's value copy, while a
+        // borrowed argument points at its original referent. Both preserve
+        // pointer bits across calls, without changing their semantic access.
+        let stack_pointer_offset = match owned_pointer {
+            Some(IndirectPointerLocation::Stack {
+                stack_byte_offset, ..
+            }) => Some(stack_byte_offset),
+            _ => {
+                crate::structural_reference_input::stack_pointer_offset(&parameter.target.placement)
+            }
+        };
+        if let Some(abi_stack_byte_offset) = stack_pointer_offset {
             let native_parameter = source
                 .parameters
                 .len()

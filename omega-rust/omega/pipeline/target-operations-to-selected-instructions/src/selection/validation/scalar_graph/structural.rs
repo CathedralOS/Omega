@@ -153,7 +153,7 @@ pub(super) fn operation(
         node.kind,
         LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
     ) {
-        byte_views::write(replay, node)?;
+        byte_views::write(source, replay, node)?;
         return Ok(true);
     }
     if matches!(

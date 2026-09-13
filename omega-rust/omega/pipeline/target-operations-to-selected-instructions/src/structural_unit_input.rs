@@ -1,11 +1,10 @@
-//! Input-only recognition of the existing owned indirect-pair ABI.
+//! Reconstruct structural parameter shape and incoming ABI storage.
 
 use calling_conventions::{
-    CallPlan, CallingPolicy, EntryControl, IndirectPointerLocation, MachineRegister, ValueClass,
-    ValueLocation,
+    CallPlan, IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement,
 };
-use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
-use terminal_psi::{BindingRelevance, StructuralAccess, StructuralFieldType, StructuralTypeShape};
+use semantic_vocabulary::{IntegerCarrier, ScalarType};
+use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
 #[derive(Clone, Copy)]
 pub(crate) struct Parameter<'a> {
@@ -29,9 +28,21 @@ pub(crate) fn accepts_graph(
         .collect::<Vec<_>>();
     for (position, parameter) in parameters.iter().enumerate() {
         let semantic = parameter.semantic;
-        let Some(shape) =
+        // Multiplicity and qualification obligations govern operations, not
+        // the physical shape of an owned value. Exact source/ownership replay
+        // retains those obligations; layout must not require one body family
+        // merely to carry a qualified or linear value through its ABI.
+        let Some(shape) = (if semantic.access == StructuralAccess::Owned {
+            crate::structural_reference_input::primitive_array_shape(
+                semantic.structural_type,
+                structural_types,
+            )
+            .or_else(|| {
+                crate::structural_reference_input::shape(semantic.structural_type, structural_types)
+            })
+        } else {
             crate::structural_reference_input::parameter_shape(semantic, structural_types)
-        else {
+        }) else {
             return false;
         };
         if semantic.position as usize != position
@@ -42,7 +53,7 @@ pub(crate) fn accepts_graph(
             || parameter.target.structural_type != semantic.structural_type
             || parameter.target.access != semantic.access
             || parameter.target.multiplicity != semantic.multiplicity
-            || !parameter.target.projected_qualifications.is_empty()
+            || parameter.target.projected_qualifications != semantic.projected_qualifications
             || parameter.target.shape != shape
             || parameter.target.placement != call_plan.parameters[scalar_count + position]
         {
@@ -251,82 +262,32 @@ pub(crate) fn accepts_borrowed_view(
         })
 }
 
-pub(crate) fn accepts(
-    call_plan: &CallPlan,
-    parameters: &[Parameter<'_>],
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
-) -> bool {
-    if call_plan.policy != CallingPolicy::MicrosoftX64
-        || call_plan.result.is_some()
-        || !call_plan.callback_materializations.is_empty()
-        || call_plan.stack_alignment != 16
-        || call_plan.shadow_bytes != 32
-        || call_plan.entry_control != EntryControl::CallReturn
-        || parameters.len() != 2
-        || call_plan.parameters.len() != 2
+/// An indirect owned input uses the ABI's caller-prepared value copy. Keeping
+/// that address does not borrow the caller's original value or create another
+/// source owner. Callers must first reconstruct the complete plan with
+/// `accepts_graph`; the copy offset is an outbound obligation, not an incoming
+/// frame address. Only the pointer's register/stack location is read at entry.
+pub(crate) fn owned_indirect_pointer(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    placement: &ValuePlacement,
+) -> Option<IndirectPointerLocation> {
+    if parameter.access != StructuralAccess::Owned
+        || placement.shape.class != ValueClass::Integer
+        || placement.shape.byte_size == 0
     {
-        return false;
+        return None;
     }
-    for (index, parameter) in parameters.iter().enumerate() {
-        if parameter.semantic.position != index as u32
-            || parameter.semantic.is_self
-            || parameter.semantic.access != StructuralAccess::Owned
-            || parameter.target.place != parameter.semantic.place
-            || parameter.target.structural_type != parameter.semantic.structural_type
-            || parameter.target.multiplicity != parameter.semantic.multiplicity
-            || parameter.target.access != StructuralAccess::Owned
-            || parameter.target.shape.class != ValueClass::Integer
-            || parameter.target.shape.byte_size != 16
-            || parameter.target.shape.alignment != 8
-            || parameter.target.placement != call_plan.parameters[index]
-            || parameter.target.placement.locations.len() != 1
-        {
-            return false;
-        }
-        let ValueLocation::Indirect {
-            pointer: IndirectPointerLocation::Register(pointer),
-            copy_stack_byte_offset: Some(copy_stack_byte_offset),
+    let [
+        ValueLocation::Indirect {
+            pointer,
+            copy_stack_byte_offset: Some(_),
             byte_size,
             alignment,
-        } = parameter.target.placement.locations[0]
-        else {
-            return false;
-        };
-        if pointer != [MachineRegister::X86Rcx, MachineRegister::X86Rdx][index]
-            || copy_stack_byte_offset != [32, 48][index]
-            || byte_size != 16
-            || alignment != 8
-        {
-            return false;
-        }
-    }
-    if parameters[0].semantic.structural_type != parameters[1].semantic.structural_type
-        || parameters[0].semantic.multiplicity != parameters[1].semantic.multiplicity
-        || parameters[0].semantic.qualifications != parameters[1].semantic.qualifications
-        || parameters[0].semantic.place == parameters[1].semantic.place
-    {
-        return false;
-    }
-    let Some(declaration) = structural_types
-        .iter()
-        .find(|declaration| declaration.id == parameters[0].semantic.structural_type)
+        },
+    ] = placement.locations.as_slice()
     else {
-        return false;
+        return None;
     };
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return false;
-    };
-    if fields.len() != 2
-        || fields
-            .iter()
-            .any(|field| field.relevance != BindingRelevance::Relevant)
-    {
-        return false;
-    }
-    matches!(fields[0].field_type, StructuralFieldType::Scalar(ScalarType::Integer(integer))
-        if integer.carrier() == IntegerCarrier::Address && integer.sign() == IntegerSign::Unsigned
-            && integer.bits() == 64)
-        && matches!(fields[1].field_type, StructuralFieldType::Scalar(ScalarType::Integer(integer))
-            if integer.carrier() == IntegerCarrier::Fixed && integer.sign() == IntegerSign::Unsigned
-                && integer.bits() == 64)
+    (*byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment)
+        .then_some(*pointer)
 }

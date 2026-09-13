@@ -115,19 +115,6 @@ pub(super) fn inline_owned_placement(
             .all(|location| matches!(location,
                 ValueLocation::Register { .. } | ValueLocation::Stack { .. })))
 }
-fn pointer(placement: &ValuePlacement) -> Result<calling_conventions::MachineRegister, Error> {
-    match placement.locations.as_slice() {
-        [
-            ValueLocation::Indirect {
-                pointer: IndirectPointerLocation::Register(register),
-                ..
-            },
-        ] => Ok(*register),
-        _ => Err(Error::Unsupported(
-            "structural publication requires an incoming indirect register",
-        )),
-    }
-}
 fn source_location(
     function: &SelectedFunction,
     place: PlaceId,
@@ -150,8 +137,38 @@ fn incoming_location(
     placement: &ValuePlacement,
 ) -> Result<StructuralSourceLocation, Error> {
     if access == terminal_psi::StructuralAccess::Owned {
-        return Ok(StructuralSourceLocation::IncomingIndirectPointer {
-            register: pointer(placement)?,
+        let [
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: Some(_),
+                byte_size,
+                alignment,
+            },
+        ] = placement.locations.as_slice()
+        else {
+            return Err(Error::Mismatch("owned incoming home has no ABI value copy"));
+        };
+        if placement.shape.class != calling_conventions::ValueClass::Integer
+            || *byte_size != placement.shape.byte_size
+            || *alignment != placement.shape.alignment
+        {
+            return Err(Error::Mismatch(
+                "owned incoming home differs from value shape",
+            ));
+        }
+        return Ok(match pointer {
+            IndirectPointerLocation::Register(register) => {
+                StructuralSourceLocation::IncomingIndirectPointer {
+                    register: *register,
+                }
+            }
+            IndirectPointerLocation::Stack {
+                stack_byte_offset,
+                alignment,
+            } => StructuralSourceLocation::IncomingIndirectStackPointer {
+                stack_byte_offset: *stack_byte_offset,
+                alignment: *alignment,
+            },
         });
     }
     if placement.shape.class != calling_conventions::ValueClass::BorrowedReference {
@@ -307,9 +324,10 @@ pub(super) fn populate(
                 access: target.access,
                 shape: target.shape,
             });
-            // Direct incoming values retain their complete ABI and captured
-            // registers in graph replay; a pointer-only legacy home would lie
-            // about their residence. Replay independently verifies each capture.
+            // Inline values retain their complete ABI and captured registers
+            // in graph replay; a pointer-only home would misstate residence.
+            // Indirect inputs keep their published pointer-location record,
+            // including provider/call evidence consumed by installation.
             if unused_owned || inline_owned_placement(target.access, &target.placement) {
                 continue;
             }

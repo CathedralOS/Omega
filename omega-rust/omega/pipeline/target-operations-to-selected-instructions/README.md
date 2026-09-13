@@ -56,10 +56,11 @@ Plain record establishment uses the same aggregate homes. Each initializer rejoi
 its exact declared field, recursive layout, scalar value or completed owned child,
 and range obligation. Selection initializes padding and copies nested children at
 exact widths before publishing the result address. Child storage may come from an
-operation result or an owned entry parameter whose ABI fragments are already
-captured; borrowed operands cannot substitute for owned children. Scalar-field record block arrivals use the existing aggregate edge transport;
-nested record block arrivals and indirect owned entry arguments remain unsupported. Independent replay
-reconstructs field placement, child sources, stores, and the single operation charge.
+operation result or an owned entry parameter whose ABI storage is already
+captured; borrowed operands cannot substitute for owned children. Scalar-field
+record block arrivals use the existing aggregate edge transport; nested record
+block arrivals remain unsupported. Independent replay reconstructs field
+placement, child sources, stores, and the single operation charge.
 
 Scalar field observations retain the exact readable parameter, nominal field,
 result type, and original operation. Each read materializes a scalar SSA value
@@ -67,17 +68,28 @@ before subsequent calls or stores. Independent target and selected replay
 reconstructs the field offset and exact-width load from the declaration; a
 same-typed field or later reload cannot substitute for the retained observation.
 
-Owned record input observations use one `StructuralParameter` local slot keyed
-by the exact incoming place. Entry stores every captured register or inline stack
+Inline owned record input observations use one `StructuralParameter` local slot
+keyed by the exact incoming place. Entry stores every captured register or inline stack
 fragment before authored operations; the ordinary field load then snapshots its
 scalar value. Borrowed calls use that same home, and subsequent whole returns or
 nested copies read its current bytes rather than stale entry fragments. A borrowed
 input still denotes its original referent and is never copied into this slot.
-Inputs used only for whole-value transport retain fragment-only storage. Independent
-replay reconstructs the input slot, extent, writes and every field observation.
+Direct inputs used only for whole-value transport retain fragment-only storage.
+Independent replay reconstructs the input slot, extent, writes and every field observation.
 The [source/native parameter cases](../../../../tests/native-differential/tests/scalar_case_results/record_reads/parameters.rs)
 cover full-width values across calls, signed and Boolean subfields, and inline
-stack input capture. Indirect owned input transport remains unsupported.
+stack input capture.
+
+Indirect owned record inputs instead retain the ABI-prepared value copy's pointer;
+no second record copy or borrowed access is introduced. Entry captures pointer
+bits from the exact register or incoming stack slot before authored operations.
+The caller's payload-copy offset is not the incoming pointer-slot offset. Field
+reads and nested constructor operands consume this backing, even without an
+earlier field observation. Source/native controls cover both pointer placements,
+calls, nested results, and installation reload. Published pointer homes preserve
+owned versus borrowed identity; the full call plan and independent graph replay
+remain required. General indirect owned call forwarding and whole-parameter
+returns remain separate transport limits.
 
 Primitive arrays share that aggregate storage and call/return path without a sum
 tag. [Array input](src/selection/scalar_array_input.rs) reconstructs the declared

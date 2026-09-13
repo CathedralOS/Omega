@@ -3,6 +3,7 @@ use super::*;
 
 // Store through the original backing pointer; the descriptor itself is unchanged.
 pub(super) fn write(
+    function: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<(), SelectedInstructionError> {
@@ -19,7 +20,8 @@ pub(super) fn write(
     };
     let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(invalid)?;
     let (_, value_register, _, value_type) = builder.resolve(value).ok_or_else(invalid)?;
-    if row.result.is_some()
+    if crate::selection::established_view_input::view_type(function, destination).is_none()
+        || row.result.is_some()
         || index_type
             != ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
@@ -80,9 +82,20 @@ pub(super) fn write(
 }
 
 pub(in crate::selection) fn byte_observation(
+    function: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let source = match row.kind {
+        LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
+        | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. } => source,
+        _ => return Err(invalid()),
+    };
+    // An addressable record is not a byte descriptor. Reconstruct the semantic
+    // view type before interpreting any pointer home as backing and length.
+    if crate::selection::established_view_input::view_type(function, source).is_none() {
+        return Err(invalid());
+    }
     match row.kind {
         LegalizedScalarInstructionKind::ByteSequenceRead { .. } => byte_sequence_read(builder, row),
         LegalizedScalarInstructionKind::ByteSequenceLength {

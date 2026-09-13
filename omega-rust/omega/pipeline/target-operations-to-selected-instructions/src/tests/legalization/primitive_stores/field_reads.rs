@@ -3,6 +3,8 @@ use super::*;
 use abstract_operations::AbstractFunctionResult;
 use semantic_vocabulary::EdgeId;
 
+mod indirect_inputs;
+
 #[test]
 fn field_observations_replay_parameter_field_offset_and_result() {
     field_observations(StructuralAccess::SharedBorrow);
@@ -25,14 +27,6 @@ fn field_observations(access: StructuralAccess) {
             NativeTarget::macos_arm64(),
             NativeTarget::windows_x64(),
         ] {
-            // A two-u64 record uses Microsoft's still-unsupported indirect
-            // owned input ABI. Narrow records exercise its direct value route.
-            if access == StructuralAccess::Owned
-                && native == NativeTarget::windows_x64()
-                && scalar == integer(IntegerSign::Unsigned, 64)
-            {
-                continue;
-            }
             let (mut source, _, _) = fixture(native, scalar, false);
             let declaration = &mut source.structural_types.make_mut()[0];
             declaration.shape = StructuralTypeShape::Record {
@@ -112,7 +106,14 @@ fn field_observations(access: StructuralAccess) {
                 environment.constraints(),
             )
             .unwrap();
-            let captured_fragments = if access == StructuralAccess::Owned {
+            let indirect_owned = access == StructuralAccess::Owned
+                && matches!(
+                    legalized.plan().scalar_functions[0].call_plan.parameters[0]
+                        .locations
+                        .as_slice(),
+                    [calling_conventions::ValueLocation::Indirect { .. }]
+                );
+            let captured_fragments = if access == StructuralAccess::Owned && !indirect_owned {
                 1 + legalized.plan().scalar_functions[0].call_plan.parameters[0]
                     .locations
                     .len()
@@ -123,7 +124,10 @@ fn field_observations(access: StructuralAccess) {
                 selected.plan().functions[0].memory_accesses.len(),
                 2 + captured_fragments
             );
-            if access == StructuralAccess::Owned {
+            if indirect_owned {
+                assert!(selected.plan().functions[0].local_storage_slots.is_empty());
+            }
+            if access == StructuralAccess::Owned && !indirect_owned {
                 use selected_instructions::{
                     LocalStorageSlotId, SelectedInstructionKind as Instruction,
                 };

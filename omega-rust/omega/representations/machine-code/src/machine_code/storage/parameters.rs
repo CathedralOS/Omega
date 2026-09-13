@@ -68,6 +68,12 @@ pub enum StructuralSourceLocation {
     IncomingIndirectPointer {
         register: MachineRegister,
     },
+    /// Owned value backing reached through an incoming ABI stack pointer slot.
+    /// This is the pointer's ABI offset, not the payload copy's offset or a local home.
+    IncomingIndirectStackPointer {
+        stack_byte_offset: u32,
+        alignment: u16,
+    },
     /// Original borrowed referent reached through the incoming ABI pointer.
     /// A stack location contains pointer bits, not a copied referent or local home.
     IncomingBorrowedPointer {
@@ -79,7 +85,44 @@ impl StructuralSourceLocation {
     pub const fn stack_byte_offset(self) -> Option<u32> {
         match self {
             Self::Stack { byte_offset } => Some(byte_offset),
-            Self::IncomingIndirectPointer { .. } | Self::IncomingBorrowedPointer { .. } => None,
+            Self::IncomingIndirectPointer { .. }
+            | Self::IncomingIndirectStackPointer { .. }
+            | Self::IncomingBorrowedPointer { .. } => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_local_stack_residence_supplies_a_stack_home_offset() {
+        assert_eq!(
+            StructuralSourceLocation::Stack { byte_offset: 32 }.stack_byte_offset(),
+            Some(32)
+        );
+        for source in [
+            StructuralSourceLocation::IncomingIndirectPointer {
+                register: MachineRegister::X86Rcx,
+            },
+            StructuralSourceLocation::IncomingIndirectStackPointer {
+                stack_byte_offset: 32,
+                alignment: 8,
+            },
+            StructuralSourceLocation::IncomingBorrowedPointer {
+                location: calling_conventions::IndirectPointerLocation::Register(
+                    MachineRegister::Aarch64X(0),
+                ),
+            },
+            StructuralSourceLocation::IncomingBorrowedPointer {
+                location: calling_conventions::IndirectPointerLocation::Stack {
+                    stack_byte_offset: 32,
+                    alignment: 8,
+                },
+            },
+        ] {
+            assert_eq!(source.stack_byte_offset(), None, "{source:?}");
         }
     }
 }

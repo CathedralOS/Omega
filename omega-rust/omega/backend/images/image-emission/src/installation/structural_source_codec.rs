@@ -1,4 +1,4 @@
-//! Explicit structural source roles in installation format 88.
+//! Explicit structural source roles in the current installation envelope.
 use super::value_placement_codec::{decode_register, register_tag};
 use super::{InstallationError, Reader, push_u16, push_u32};
 use calling_conventions::IndirectPointerLocation;
@@ -15,6 +15,14 @@ pub(super) fn encode(
         StructuralSourceLocation::IncomingIndirectPointer { register } => {
             bytes.push(2);
             bytes.push(register_tag(register)?);
+        }
+        StructuralSourceLocation::IncomingIndirectStackPointer {
+            stack_byte_offset,
+            alignment,
+        } => {
+            bytes.push(5);
+            push_u32(bytes, stack_byte_offset);
+            push_u16(bytes, alignment);
         }
         StructuralSourceLocation::IncomingBorrowedPointer { location } => match location {
             IndirectPointerLocation::Register(register) => {
@@ -52,12 +60,94 @@ pub(super) fn decode(
                 alignment: reader.u16()?,
             },
         }),
+        5 => Ok(StructuralSourceLocation::IncomingIndirectStackPointer {
+            stack_byte_offset: reader.u32()?,
+            alignment: reader.u16()?,
+        }),
         tag => Err(InstallationError::InvalidStructuralSourceLocationTag(tag)),
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn owned_stack_pointer_wire_role_preserves_raw_geometry() {
+        let source = StructuralSourceLocation::IncomingIndirectStackPointer {
+            stack_byte_offset: 0x0102_0308,
+            alignment: 8,
+        };
+        let mut bytes = Vec::new();
+        encode(&mut bytes, source).unwrap();
+        assert_eq!(bytes, [5, 8, 3, 2, 1, 8, 0]);
+        assert_eq!(decode(&mut Reader::new(&bytes)).unwrap(), source);
+        let mut borrowed = bytes.clone();
+        borrowed[0] = 4;
+        assert_ne!(decode(&mut Reader::new(&borrowed)).unwrap(), source);
+
+        // Raw installation decoding must preserve even invalid proposals. The
+        // receiving plan rejects wrong offsets/alignment; decoding cannot repair
+        // them into the canonical pointer slot or confuse it with local storage.
+        for (stack_byte_offset, alignment) in [
+            (0x0102_0309, 8),
+            (0x0102_0310, 8),
+            (0x0102_0308, 0),
+            (0x0102_0308, 3),
+            (0x0102_0308, 16),
+            (u32::MAX, u16::MAX),
+        ] {
+            let proposal = StructuralSourceLocation::IncomingIndirectStackPointer {
+                stack_byte_offset,
+                alignment,
+            };
+            let mut encoded = Vec::new();
+            encode(&mut encoded, proposal).unwrap();
+            let mut reader = Reader::new(&encoded);
+            let decoded = decode(&mut reader).unwrap();
+            assert_eq!(reader.remaining(), 0);
+            assert_eq!(decoded, proposal);
+            assert_ne!(decoded, source);
+            assert_eq!(decoded.stack_byte_offset(), None);
+        }
+    }
+
+    #[test]
+    fn existing_source_role_tags_remain_stable() {
+        for (source, expected) in [
+            (
+                StructuralSourceLocation::Stack { byte_offset: 32 },
+                vec![1, 32, 0, 0, 0],
+            ),
+            (
+                StructuralSourceLocation::IncomingIndirectPointer {
+                    register: calling_conventions::MachineRegister::Aarch64X(0),
+                },
+                vec![2, 4],
+            ),
+            (
+                StructuralSourceLocation::IncomingBorrowedPointer {
+                    location: IndirectPointerLocation::Register(
+                        calling_conventions::MachineRegister::Aarch64X(0),
+                    ),
+                },
+                vec![3, 4],
+            ),
+            (
+                StructuralSourceLocation::IncomingBorrowedPointer {
+                    location: IndirectPointerLocation::Stack {
+                        stack_byte_offset: 32,
+                        alignment: 8,
+                    },
+                },
+                vec![4, 32, 0, 0, 0, 8, 0],
+            ),
+        ] {
+            let mut bytes = Vec::new();
+            encode(&mut bytes, source).unwrap();
+            assert_eq!(bytes, expected);
+            assert_eq!(decode(&mut Reader::new(&expected)).unwrap(), source);
+        }
+    }
     #[test]
     fn borrowed_pointer_wire_roles_retain_exact_stack_geometry() {
         let mut register = Vec::new();
@@ -103,6 +193,10 @@ mod tests {
             StructuralSourceLocation::IncomingIndirectPointer {
                 register: calling_conventions::MachineRegister::X86Rcx,
             },
+            StructuralSourceLocation::IncomingIndirectStackPointer {
+                stack_byte_offset: 32,
+                alignment: 8,
+            },
             StructuralSourceLocation::IncomingBorrowedPointer {
                 location: IndirectPointerLocation::Register(
                     calling_conventions::MachineRegister::Aarch64X(0),
@@ -123,12 +217,13 @@ mod tests {
             for length in 0..bytes.len() {
                 assert!(decode(&mut Reader::new(&bytes[..length])).is_err());
             }
-            if matches!(
-                source,
-                StructuralSourceLocation::IncomingBorrowedPointer { .. }
-            ) {
-                assert_eq!(source.stack_byte_offset(), None);
-            }
+            assert_eq!(
+                source.stack_byte_offset(),
+                match source {
+                    StructuralSourceLocation::Stack { byte_offset } => Some(byte_offset),
+                    _ => None,
+                }
+            );
         }
         assert_eq!(
             decode(&mut Reader::new(&[9])),

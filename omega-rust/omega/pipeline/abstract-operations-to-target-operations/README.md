@@ -73,12 +73,11 @@ retains its declaration identity and evaluated scalar operand or completed owned
 child. Target and legalized receiving checks reconstruct the field roster, scalar
 carriers, child types, range obligations, shape, and storage offsets. Selection
 initializes complete storage before publishing its address; nested copies use exact
-child extents and incoming owned values use captured ABI fragments. Calls borrowing
+child extents and incoming owned values use their captured ABI storage. Calls borrowing
 a local record retain the original home. Direct and hidden-pointer aggregate results
 use the same calling-plan custody. Scalar-field record block arrivals retain the
-existing aggregate edge transport. Nested record block arrivals and indirect owned
-entry arguments remain unsupported; no literal-only constructor or separate record storage
-graph is retained.
+existing aggregate edge transport. Nested record block arrivals remain unsupported;
+no literal-only constructor or separate record storage graph is retained.
 
 Shared calls can borrow a constructed plain record's existing home, including
 one produced by an ordinary call. The borrow passes its address, not copied
@@ -95,11 +94,15 @@ By-value record entry parameters retain their owned value ABI. Selection capture
 their register or inline stack fragments into one activation-local input home
 when field observations or borrowed calls need an address. Whole record returns
 and nested copies then use that current home; entry fragments cannot replace
-bytes changed by a completed mutable borrow. Indirect owned inputs remain an
-explicit transport limit, not implicitly borrowed pointers.
+bytes changed by a completed mutable borrow. Indirect owned record inputs retain
+the ABI-prepared value copy through its exact register- or stack-passed pointer.
+They remain owned values, not borrows of the caller's original record. Field
+observations and nested construction share that backing across calls. General
+indirect owned argument forwarding and whole-parameter returns remain separate
+transport limits.
 Source-produced integer getter controls cover direct and call-produced
-locals, tail completion, and nested scalar arguments. Nested record construction
-and mutable local receiver storage remain separate dependencies; shared
+locals, tail completion, and nested scalar arguments. Mutable local receiver
+storage remains a separate dependency; shared
 record-field receiver projections retain their original pointer and typed path.
 
 Integer XOR also follows ordinary scalar definitions, legalized operands and

@@ -169,7 +169,7 @@ pub(in crate::selection) fn validate_with_environment(
                     }
                     LegalizedScalarInstructionKind::ByteSequenceRead { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
-                        structural::byte_observation(&mut replay, operation)?
+                        structural::byte_observation(source, &mut replay, operation)?
                     }
                     LegalizedScalarInstructionKind::Compare {
                         predicate,

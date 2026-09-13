@@ -19,11 +19,17 @@ pub(super) fn has_incoming(function: &InstalledFunction) -> bool {
             matches!(
                 home.location,
                 StructuralSourceLocation::IncomingIndirectPointer { .. }
+                    | StructuralSourceLocation::IncomingIndirectStackPointer { .. }
             )
         })
 }
 
 pub(super) fn function_is_exact(record: &InstallationRecord, function: &InstalledFunction) -> bool {
+    // Current graph publication retains the complete normalized call plan.
+    // Older pointer-only records below retain their existing narrower checks.
+    if super::graph_structural::function_is_exact(function, record.target) {
+        return true;
+    }
     let calls = record
         .internal_unit_calls
         .iter()
@@ -144,6 +150,10 @@ pub(super) fn call_is_exact(
     if !function_is_exact(record, function)
         || !function_is_exact(record, callee)
         || call.arguments.len() != 2
+        // Function ABI validation now also admits general graph signatures;
+        // this legacy call projection still owes one home per argument.
+        || function.unit_parameter_homes.len() != call.arguments.len()
+        || callee.unit_parameter_homes.len() != call.arguments.len()
         || call.result.is_some()
         || call.semantic_result.is_some()
         || call.structural_result.is_some()
