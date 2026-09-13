@@ -1462,8 +1462,12 @@ Owners include
   [value-dispatch contract](wiki/spec/language/patterns.md) for owned/nonnumeric
   results with parameter/projected/borrowed/linear custody, structural/case/domain
   patterns and coverage. Owned call arms and record fields that move existing
-  affine children still need their exact residual transport. Remaining existing-local joins need
-  interleaved live-root ordering and residual transport across authored states;
+  affine children still need their exact residual transport. `5c986466a2`
+  admits candidate sources interleaved with other live affine owners: edge
+  arguments bind the join frontier positionally and the shared cleanup roster
+  splices residual and pass-through parameters per row in establishment
+  order (`pass/expressions/owned_match_interleaved_values`, macOS). Remaining
+  existing-local joins need residual transport across authored states;
   preserve exact origins and actual death edges.
   Owners: `validation/src/expression_types/{match_dispatch,result_type}.rs`,
   checked scalar computation/result continuations, Terminal production and
