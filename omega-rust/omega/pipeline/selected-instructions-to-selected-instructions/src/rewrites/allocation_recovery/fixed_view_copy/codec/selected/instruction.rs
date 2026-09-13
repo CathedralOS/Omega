@@ -418,6 +418,28 @@ mod tests {
     }
 
     #[test]
+    fn compare_i64_immediate_uses_tag_fifty_three_and_binds_immediate() {
+        let first = SelectedInstructionKind::CompareI64Immediate {
+            immediate: semantic_vocabulary::IntegerValue::Unsigned(0),
+        };
+        let second = SelectedInstructionKind::CompareI64Immediate {
+            immediate: semantic_vocabulary::IntegerValue::Unsigned(4095),
+        };
+        let mut first_bytes = Vec::new();
+        let mut second_bytes = Vec::new();
+        encode_kind(&mut first_bytes, first);
+        encode_kind(&mut second_bytes, second);
+        assert_eq!(first_bytes[0], 53);
+        assert_eq!(second_bytes[0], 53);
+        assert_ne!(first_bytes, second_bytes);
+        assert_eq!(decode_kind(&mut Cursor::new(&first_bytes)).unwrap(), first);
+        assert_eq!(
+            decode_kind(&mut Cursor::new(&second_bytes)).unwrap(),
+            second
+        );
+    }
+
+    #[test]
     fn conditional_branch_u64_less_than_uses_append_only_tag_eleven() {
         let mut bytes = Vec::new();
         encode_kind(
