@@ -441,6 +441,18 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   substituted entries, providers, scopes, targets, policies and missing summaries.
   Report prohibited possible behavior separately from insufficient evidence.
 
+  Resume: `build-evaluation::behavior_exclusions` holds the typed
+  `BehaviorExclusion`/`BehaviorExclusions` canonical union and
+  `establish_behavior_exclusions`, which walks the unoptimized Terminal static
+  call closure per entry and reports prohibited sites (crash terminators,
+  boundary fixed service reach and declared crash routes, port writes) separately
+  from evidence gaps (dynamic calls, unknown entries/callees/boundaries), never
+  consulting in-module public ceilings. Unit coverage:
+  `cargo nextest run -p build-evaluation behavior_exclusions`. Next: the
+  `Build` authoring surface for exclusions with retained declaration spans, then
+  the product-admission join over the selected entry roster and provider
+  candidates, then the compiled-corpus acceptance with optimizations on and off.
+
 - **BUILD-EXCLUSION-REALIZATION.** Extend the existing receiving-policy and native
   admission route in `omega-rust/omega/build/`, `omega-rust/omega/semantics/` and
   target backends to enforce excluded physical terminal classes without inventing
