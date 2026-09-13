@@ -49,7 +49,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   inventoried incoming edge, substituting the resolved source and dropping the
   matching edge-argument positions while retaining every value a proposition,
   projection, suspension frontier, ranking row, or recorded source-call join
-  names; SCCP, GVN, control-flow cleanup and proof-check elision remain open.
+  names; global value numbering removes an unconditionally-total scalar
+  operation that repeats a surviving operation with the same kind and resolved
+  operands in a dominating position, substituting the canonical survivor at
+  direct scalar uses under the same retention rules; SCCP, control-flow cleanup
+  and proof-check elision remain open.
 
 ## Product pruning and rollout
 

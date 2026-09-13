@@ -1,0 +1,587 @@
+//! Duplicate removal across dominator-equivalent scalar computations.
+//!
+//! Scanning in reverse postorder meets every dominating definition before the
+//! blocks it dominates, so a single pass suffices: each eligible operation's
+//! operands are first resolved through duplicates already collapsed to their
+//! canonical survivors, then matched against the surviving operations seen so
+//! far. The canonical survivor is the first match in scan order, and a
+//! duplicate's uses substitute the surviving result once — survivors are never
+//! remapped, so the substitution is never transitive.
+//!
+//! Blocks unreachable from the entry never enter the scan order and are left
+//! untouched; module validation already rejects them on the public entrance.
+
+use crate::retained::{crash_continuations, retain_crash_routes, retain_proposition};
+use semantic_vocabulary::{BlockId, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::{OperationKind, TerminalMachine, Terminator, ValueDeclaration};
+
+/// One surviving computation later duplicates may equal: the operation kind
+/// with operands resolved through already-collapsed duplicates, the block that
+/// must dominate a candidate, and the result declaration that must match.
+struct Leader {
+    kind: OperationKind,
+    block: BlockId,
+    result: ValueDeclaration,
+}
+
+pub(super) fn deduplicate(
+    machine: &mut TerminalMachine,
+    source_calls: &[lowered_psi::LoweredSourceCallOccurrence],
+    retained_values: &BTreeSet<ValueId>,
+) {
+    // Ranking evidence names exact value identities: it is proof and
+    // termination custody, not a use list the substitution can rewrite.
+    if machine.ranked_scc.is_some() {
+        return;
+    }
+    let mut retained_values = retained_values.clone();
+    for proposition in &machine.contract.requires {
+        retain_proposition(proposition, &mut retained_values);
+    }
+    for clause in &machine.contract.ensures {
+        retain_proposition(&clause.proposition, &mut retained_values);
+    }
+    for guarantee in &machine.contract.outcome_specific_ensures {
+        retain_proposition(&guarantee.proposition, &mut retained_values);
+    }
+    retain_crash_routes(&machine.contract.crash_routes, &mut retained_values);
+    let operations = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    for operation in &operations {
+        retain_crash_routes(crash_continuations(&operation.kind), &mut retained_values);
+    }
+    for block in &machine.blocks {
+        if let Terminator::Crash { site_guard, .. } = &block.terminator {
+            for term in site_guard {
+                retain_proposition(term.proposition(), &mut retained_values);
+            }
+        }
+    }
+    for occurrence in source_calls {
+        if operations
+            .iter()
+            .any(|operation| operation.id == occurrence.terminal_operation)
+        {
+            retained_values.extend(
+                occurrence
+                    .source_values_before_call
+                    .iter()
+                    .map(|value| value.id),
+            );
+        }
+    }
+    let order = reverse_postorder(machine);
+    let dominators = dominators(machine);
+    let mut representative: BTreeMap<ValueId, ValueId> = BTreeMap::new();
+    let mut removed = BTreeSet::new();
+    let mut leaders: Vec<Leader> = Vec::new();
+    for block_id in order {
+        let Some(block) = machine.blocks.iter().find(|block| block.id == block_id) else {
+            continue;
+        };
+        for operation in &block.operations {
+            let Some(result) = operation.result.scalar() else {
+                continue;
+            };
+            // A static reach binder position is semantic call evidence carried
+            // by the operation row; removal would orphan it.
+            if operation.static_reach_binding.is_some()
+                || !terminal_semantics::is_unconditionally_total_scalar(&operation.kind)
+            {
+                continue;
+            }
+            let mut kind = operation.kind.clone();
+            kind.map_scalar_uses(&mut |value| representative.get(&value).copied().unwrap_or(value));
+            // A value named by proof or custody sidecars keeps its own
+            // identity; it may still canonicalize a later duplicate.
+            if !retained_values.contains(&result.id)
+                && let Some(leader) = leaders.iter().find(|leader| {
+                    leader.kind == kind
+                        && dominators
+                            .get(&block_id)
+                            .is_some_and(|blocks| blocks.contains(&leader.block))
+                        && leader.result.scalar_type == result.scalar_type
+                        && leader.result.qualifications == result.qualifications
+                })
+            {
+                representative.insert(result.id, leader.result.id);
+                removed.insert(operation.id);
+                continue;
+            }
+            leaders.push(Leader {
+                kind,
+                block: block_id,
+                result,
+            });
+        }
+    }
+    if removed.is_empty() {
+        return;
+    }
+    for block in &mut machine.blocks {
+        block
+            .operations
+            .retain(|operation| !removed.contains(&operation.id));
+        for operation in &mut block.operations {
+            operation
+                .kind
+                .map_scalar_uses(&mut |value| representative.get(&value).copied().unwrap_or(value));
+        }
+        block
+            .terminator
+            .map_scalar_uses(&mut |value| representative.get(&value).copied().unwrap_or(value));
+    }
+}
+
+/// Reachable blocks in reverse postorder: every dominator precedes each block
+/// it dominates, so the leader scan meets a dominating definition first.
+fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
+    let successors = machine
+        .blocks
+        .iter()
+        .map(|block| {
+            let targets = match &block.terminator {
+                Terminator::Jump { target, .. } => vec![*target],
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => vec![when_true.target, when_false.target],
+                Terminator::StructuralCase { cases, .. } => {
+                    cases.iter().map(|case| case.target).collect()
+                }
+                Terminator::Return { .. }
+                | Terminator::ReturnUnit { .. }
+                | Terminator::ReturnUnitPartialAffine { .. }
+                | Terminator::ReturnUnitNominalAffine { .. }
+                | Terminator::ReturnStructural { .. }
+                | Terminator::Crash { .. } => Vec::new(),
+            };
+            (block.id, targets)
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut entered = BTreeSet::from([machine.entry]);
+    let mut finished = Vec::new();
+    let mut pending = vec![(machine.entry, 0usize)];
+    while let Some((block, position)) = pending.last_mut() {
+        let Some(target) = successors
+            .get(block)
+            .and_then(|targets| targets.get(*position))
+            .copied()
+        else {
+            finished.push(*block);
+            pending.pop();
+            continue;
+        };
+        *position += 1;
+        if entered.insert(target) {
+            pending.push((target, 0));
+        }
+    }
+    finished.reverse();
+    finished
+}
+
+/// Dominator sets over the reachable graph: a block dominates another only
+/// when every path from the entry passes through it.
+fn dominators(machine: &TerminalMachine) -> BTreeMap<BlockId, BTreeSet<BlockId>> {
+    let blocks = machine
+        .blocks
+        .iter()
+        .map(|block| block.id)
+        .collect::<BTreeSet<_>>();
+    let mut predecessors = blocks
+        .iter()
+        .map(|block| (*block, BTreeSet::new()))
+        .collect::<BTreeMap<_, _>>();
+    for block in &machine.blocks {
+        let targets = match &block.terminator {
+            Terminator::Jump { target, .. } => vec![*target],
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true.target, when_false.target],
+            Terminator::StructuralCase { cases, .. } => {
+                cases.iter().map(|case| case.target).collect()
+            }
+            Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnUnitPartialAffine { .. }
+            | Terminator::ReturnUnitNominalAffine { .. }
+            | Terminator::ReturnStructural { .. }
+            | Terminator::Crash { .. } => Vec::new(),
+        };
+        for target in targets {
+            if let Some(incoming) = predecessors.get_mut(&target) {
+                incoming.insert(block.id);
+            }
+        }
+    }
+    let mut dominators = blocks
+        .iter()
+        .map(|block| {
+            (
+                *block,
+                if *block == machine.entry {
+                    BTreeSet::from([*block])
+                } else {
+                    blocks.clone()
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    loop {
+        let mut changed = false;
+        for block in blocks
+            .iter()
+            .copied()
+            .filter(|block| *block != machine.entry)
+        {
+            let Some(incoming) = predecessors.get(&block) else {
+                continue;
+            };
+            let Some(first) = incoming.iter().next() else {
+                continue;
+            };
+            let mut common = dominators
+                .get(first)
+                .cloned()
+                .unwrap_or_else(|| BTreeSet::from([*first]));
+            for predecessor in incoming.iter().skip(1) {
+                let predecessor_dominators = dominators
+                    .get(predecessor)
+                    .cloned()
+                    .unwrap_or_else(|| BTreeSet::from([*predecessor]));
+                common.retain(|candidate| predecessor_dominators.contains(candidate));
+            }
+            common.insert(block);
+            if dominators.get(&block) != Some(&common) {
+                dominators.insert(block, common);
+                changed = true;
+            }
+        }
+        if !changed {
+            return dominators;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Machine-level boundary coverage for cases a validated module cannot
+    //! express: ranking evidence, retained proof values, reach bindings, and
+    //! result-declaration mismatches.
+
+    use super::*;
+    use semantic_vocabulary::{
+        ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
+        ScalarType,
+    };
+    use terminal_psi::{
+        Block, MachineContract, Operation, OperationResult, TerminalMachineResult,
+        TerminalRankedScc,
+    };
+
+    fn i32_type() -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+    }
+
+    fn i64_type() -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap())
+    }
+
+    fn i32(ordinal: u64) -> ValueDeclaration {
+        ValueDeclaration {
+            qualifications: Default::default(),
+            id: ValueId::new(ordinal).unwrap(),
+            scalar_type: i32_type(),
+        }
+    }
+
+    fn machine(blocks: Vec<Block>) -> TerminalMachine {
+        TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: MachineId::new(1).unwrap(),
+            attachment: None,
+            parameters: vec![i32(1), i32(2)],
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Scalar(i32(9)),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(1).unwrap(),
+            blocks,
+            contract: MachineContract {
+                id: ContractId::new(1).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }
+    }
+
+    fn block(ordinal: u64, operations: Vec<Operation>, terminator: Terminator) -> Block {
+        Block {
+            structural_parameters: Vec::new(),
+            id: BlockId::new(ordinal).unwrap(),
+            parameters: Vec::new(),
+            operations,
+            terminator,
+        }
+    }
+
+    fn constant(ordinal: u64, result: u64, value: i128) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            id: OperationId::new(ordinal).unwrap(),
+            result: OperationResult::Scalar(i32(result)),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Signed(value),
+            },
+        }
+    }
+
+    fn add(ordinal: u64, result: u64, left: u64, right: u64) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            id: OperationId::new(ordinal).unwrap(),
+            result: OperationResult::Scalar(i32(result)),
+            kind: OperationKind::WrappingIntegerAdd {
+                left: ValueId::new(left).unwrap(),
+                right: ValueId::new(right).unwrap(),
+            },
+        }
+    }
+
+    fn jump(ordinal: u64, target: u64, arguments: Vec<u64>) -> Terminator {
+        Terminator::Jump {
+            edge: EdgeId::new(ordinal).unwrap(),
+            target: BlockId::new(target).unwrap(),
+            arguments: arguments
+                .into_iter()
+                .map(|ordinal| ValueId::new(ordinal).unwrap())
+                .collect(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        }
+    }
+
+    fn return_value(ordinal: u64, value: u64) -> Terminator {
+        Terminator::Return {
+            edge: EdgeId::new(ordinal).unwrap(),
+            value: ValueId::new(value).unwrap(),
+            cleanup_actions: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn same_block_duplicate_collapses_to_the_earlier_result() {
+        let mut machine = machine(vec![block(
+            1,
+            vec![constant(10, 10, 1), add(11, 11, 1, 10), add(12, 12, 1, 10)],
+            return_value(1, 12),
+        )]);
+        deduplicate(&mut machine, &[], &BTreeSet::new());
+        let operations = &machine.blocks[0].operations;
+        assert_eq!(operations.len(), 2, "the second add is a duplicate");
+        let Terminator::Return { value, .. } = &machine.blocks[0].terminator else {
+            panic!("entry keeps its return")
+        };
+        assert_eq!(*value, ValueId::new(11).unwrap());
+    }
+
+    #[test]
+    fn dominating_duplicate_collapses_and_rewrites_downstream_operands() {
+        // v12 is a same-block duplicate of v11; v20's `add(v12, v2)` normalizes
+        // to `add(v11, v2)` and survives as a new computation; v30 repeats
+        // v11's kind in a dominated block and collapses.
+        let mut machine = machine(vec![
+            block(
+                1,
+                vec![constant(10, 10, 7), add(11, 11, 1, 10), add(12, 12, 1, 10)],
+                jump(1, 2, vec![]),
+            ),
+            block(2, vec![add(20, 20, 12, 2)], jump(2, 4, vec![20])),
+            block(3, vec![add(30, 30, 1, 10)], jump(3, 4, vec![30])),
+            block(4, vec![], return_value(4, 9)),
+        ]);
+        machine.blocks[3].parameters = vec![i32(41)];
+        machine.blocks[3].operations = vec![add(44, 44, 41, 2)];
+        machine.blocks[3].terminator = return_value(4, 44);
+        // b3 is reachable from b2's sibling edge: rebuild a diamond.
+        machine.blocks[0].terminator = Terminator::Conditional {
+            condition: ValueId::new(1).unwrap(),
+            when_true: terminal_psi::SuccessorEdge {
+                edge: EdgeId::new(1).unwrap(),
+                target: BlockId::new(2).unwrap(),
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            },
+            when_false: terminal_psi::SuccessorEdge {
+                edge: EdgeId::new(5).unwrap(),
+                target: BlockId::new(3).unwrap(),
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        deduplicate(&mut machine, &[], &BTreeSet::new());
+        assert_eq!(machine.blocks[0].operations.len(), 2, "v12 collapses");
+        assert_eq!(
+            machine.blocks[1].operations[0].kind,
+            OperationKind::WrappingIntegerAdd {
+                left: ValueId::new(11).unwrap(),
+                right: ValueId::new(2).unwrap()
+            },
+            "the surviving operand resolves the collapsed duplicate"
+        );
+        assert!(
+            machine.blocks[2].operations.is_empty(),
+            "v30 repeats v11 in a dominated block"
+        );
+        let Terminator::Jump { arguments, .. } = &machine.blocks[2].terminator else {
+            panic!("b3 keeps its jump")
+        };
+        assert_eq!(arguments, &[ValueId::new(11).unwrap()]);
+    }
+
+    #[test]
+    fn sibling_blocks_do_not_supply_leaders() {
+        // Identical constants in sibling arms: neither dominates the other, so
+        // both survive even though the kinds are equal.
+        let mut machine = machine(vec![
+            block(
+                1,
+                vec![],
+                Terminator::Conditional {
+                    condition: ValueId::new(1).unwrap(),
+                    when_true: terminal_psi::SuccessorEdge {
+                        edge: EdgeId::new(1).unwrap(),
+                        target: BlockId::new(2).unwrap(),
+                        arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                    when_false: terminal_psi::SuccessorEdge {
+                        edge: EdgeId::new(2).unwrap(),
+                        target: BlockId::new(3).unwrap(),
+                        arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ),
+            block(2, vec![constant(20, 20, 7)], return_value(3, 20)),
+            block(3, vec![constant(30, 30, 7)], return_value(4, 30)),
+        ]);
+        deduplicate(&mut machine, &[], &BTreeSet::new());
+        assert_eq!(machine.blocks[1].operations.len(), 1);
+        assert_eq!(machine.blocks[2].operations.len(), 1);
+    }
+
+    #[test]
+    fn equal_kind_with_different_result_type_is_not_a_duplicate() {
+        let mut machine = machine(vec![block(
+            1,
+            vec![
+                Operation {
+                    static_reach_binding: None,
+                    id: OperationId::new(10).unwrap(),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: ValueId::new(10).unwrap(),
+                        scalar_type: i64_type(),
+                    }),
+                    kind: OperationKind::IntegerWiden {
+                        operand: ValueId::new(1).unwrap(),
+                    },
+                },
+                Operation {
+                    static_reach_binding: None,
+                    id: OperationId::new(11).unwrap(),
+                    result: OperationResult::Scalar(i32(11)),
+                    kind: OperationKind::IntegerWiden {
+                        operand: ValueId::new(1).unwrap(),
+                    },
+                },
+            ],
+            return_value(1, 10),
+        )]);
+        deduplicate(&mut machine, &[], &BTreeSet::new());
+        assert_eq!(
+            machine.blocks[0].operations.len(),
+            2,
+            "a narrower result declaration is a different value"
+        );
+    }
+
+    #[test]
+    fn reach_bound_and_retained_operations_are_never_removed() {
+        let mut bound = add(11, 11, 1, 2);
+        bound.static_reach_binding = Some(0);
+        let mut bound_machine = machine(vec![block(
+            1,
+            vec![bound, add(12, 12, 1, 2)],
+            return_value(1, 12),
+        )]);
+        deduplicate(&mut bound_machine, &[], &BTreeSet::new());
+        assert_eq!(
+            bound_machine.blocks[0].operations.len(),
+            2,
+            "the reach binder cannot supply a removable duplicate"
+        );
+
+        let mut retained_machine = machine(vec![block(
+            1,
+            vec![constant(10, 10, 7), constant(11, 11, 7)],
+            return_value(1, 10),
+        )]);
+        let retained = BTreeSet::from([ValueId::new(11).unwrap()]);
+        deduplicate(&mut retained_machine, &[], &retained);
+        assert_eq!(
+            retained_machine.blocks[0].operations.len(),
+            2,
+            "a value named by proof sidecars keeps its producer"
+        );
+    }
+
+    #[test]
+    fn ranked_machine_is_left_unchanged() {
+        let mut machine = machine(vec![block(
+            1,
+            vec![constant(10, 10, 7), constant(11, 11, 7)],
+            return_value(1, 10),
+        )]);
+        machine.ranked_scc = Some(TerminalRankedScc::Natural(Vec::new()));
+        let before = machine.clone();
+        deduplicate(&mut machine, &[], &BTreeSet::new());
+        assert_eq!(machine, before, "ranking evidence freezes the machine");
+    }
+
+    #[test]
+    fn cyclic_machine_deduplicates_dominating_leaders() {
+        // A one-block loop: b1 is the entry and jumps to itself, so its
+        // operations dominate only their own successors. The second constant
+        // still collapses because it is later in the same dominating block.
+        let mut machine = machine(vec![block(
+            1,
+            vec![constant(10, 10, 7), constant(11, 11, 7)],
+            jump(1, 1, vec![]),
+        )]);
+        deduplicate(&mut machine, &[], &BTreeSet::new());
+        assert_eq!(machine.blocks[0].operations.len(), 1);
+    }
+}

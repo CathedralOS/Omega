@@ -5,12 +5,10 @@
 //! name value identities without listing direct uses, so every value they can
 //! mention is retained before resolution begins.
 
+use crate::retained::{crash_continuations, retain_crash_routes, retain_proposition};
 use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{
-    CrashRouteBucket, CrashRouteGuard, OperationKind as O, TerminalMachine, Terminator,
-    ValueDeclaration,
-};
+use terminal_psi::{TerminalMachine, Terminator, ValueDeclaration};
 
 pub(super) fn propagate(
     machine: &mut TerminalMachine,
@@ -230,67 +228,6 @@ fn resolve_in(
     visiting.remove(&value);
     memo.insert(value, result);
     result
-}
-
-fn retain_proposition(
-    proposition: &semantic_vocabulary::Proposition,
-    retained_values: &mut BTreeSet<ValueId>,
-) {
-    proposition.visit_value_ids(|value| {
-        retained_values.insert(value);
-    });
-}
-
-fn retain_crash_routes(routes: &[CrashRouteBucket], retained_values: &mut BTreeSet<ValueId>) {
-    for bucket in routes {
-        for alternative in &bucket.alternatives {
-            if let CrashRouteGuard::Predicate(term) = alternative {
-                retain_proposition(term.proposition(), retained_values);
-            }
-        }
-    }
-}
-
-fn crash_continuations(kind: &O) -> &[CrashRouteBucket] {
-    match kind {
-        O::Call {
-            crash_continuations,
-            ..
-        }
-        | O::CallUnit {
-            crash_continuations,
-            ..
-        }
-        | O::CallStructuralScalar {
-            crash_continuations,
-            ..
-        }
-        | O::CallDynamicScalar {
-            crash_continuations,
-            ..
-        }
-        | O::CallDynamicParameterScalar {
-            crash_continuations,
-            ..
-        }
-        | O::CallDynamicUnit {
-            crash_continuations,
-            ..
-        }
-        | O::CallDynamicParameterUnit {
-            crash_continuations,
-            ..
-        }
-        | O::CallStructural {
-            crash_continuations,
-            ..
-        }
-        | O::CallStructuralWithScalarArguments {
-            crash_continuations,
-            ..
-        } => crash_continuations,
-        _ => &[],
-    }
 }
 
 /// Drop the listed old positions from one edge's scalar arguments.
