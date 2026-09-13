@@ -303,6 +303,153 @@ const STORED_REFERENCE_SOURCE: &str = "data View { body: &mut i32; }
             value
         }";
 
+const OWNED_REFERENCE_RECORD_SOURCE: &str = "data View { body: &mut i32; }
+        machine forward(value: View) -> View { value }
+        machine replace(value: &mut i32) { value = 29; }
+        machine exercise(value: &mut i32) -> i32 {
+            let input: View = View { body: value };
+            let held: View = forward(input);
+            replace(held.body);
+            value
+        }";
+
+#[test]
+fn owned_reference_record_argument_preserves_original_storage() {
+    let checked =
+        typed_trees_to_checked_trees::lower_typed_trees(typed(OWNED_REFERENCE_RECORD_SOURCE))
+            .expect("owned reference record arguments reach checked trees");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_artifact()
+        .expect("owned reference record arguments preserve complete leaf custody");
+    execute(&artifact, 1, 1);
+}
+
+#[test]
+fn owned_reference_record_argument_composes_with_ordinary_work() {
+    let source = OWNED_REFERENCE_RECORD_SOURCE
+        .replace("machine forward(value: View) -> View { value }", "machine notify() {} machine forward(marker: i32, value: View) -> View { notify(); value }")
+        .replace("let input: View", "let marker: i32 = 4 + 5; let input: View")
+        .replace("forward(input)", "forward(marker, input)");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(&source)).unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_artifact()
+        .expect("owned ingress composes with scalar formals and ordinary effects");
+    execute(&artifact, 1, 1);
+}
+
+#[test]
+fn owned_reference_record_argument_rejects_changed_prior_custody() {
+    let original =
+        typed_trees_to_checked_trees::lower_typed_trees(typed(OWNED_REFERENCE_RECORD_SOURCE))
+            .unwrap();
+    let machine = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "exercise")
+        .unwrap();
+    let state = &original.machine_states(machine)[0];
+    let prior = validation::reference_result_custody::local_record_loans(
+        &original.typed,
+        &original.facts,
+        machine.symbol,
+        state,
+        0,
+    )
+    .unwrap()[0]
+        .1;
+    let returned = validation::reference_result_custody::local_record_loans(
+        &original.typed,
+        &original.facts,
+        machine.symbol,
+        state,
+        1,
+    )
+    .unwrap()[0]
+        .1;
+    for mutation in 0..4 {
+        let mut changed = original.clone();
+        match mutation {
+            0 => {
+                changed
+                    .facts
+                    .borrow
+                    .loans
+                    .get_mut(returned)
+                    .source_owner_symbol = symbols::SymbolHandle::invalid()
+            }
+            1 => changed.facts.borrow.loans.get_mut(prior).owner_path = arena::HandleSpan::empty(),
+            2 => {
+                changed.facts.borrow.loans.get_mut(prior).root_symbol =
+                    changed.facts.borrow.loans.get(returned).owner_symbol
+            }
+            3 => {
+                let plan = changed
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .machines
+                    .iter_mut()
+                    .find(|plan| plan.machine != machine.symbol && plan.structural_result.is_some())
+                    .unwrap();
+                plan.structural_result.as_mut().unwrap().reference_sources[0]
+                    .source
+                    .path
+                    .clear();
+            }
+            _ => unreachable!(),
+        }
+        if mutation < 3 {
+            assert!(
+                validation::reference_result_custody::local_record_loans(
+                    &changed.typed,
+                    &changed.facts,
+                    machine.symbol,
+                    state,
+                    1
+                )
+                .is_none(),
+                "changed prior custody {mutation}"
+            );
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
+                .produce_artifact()
+                .is_err(),
+            "changed transferred custody {mutation}"
+        );
+    }
+}
+
+#[test]
+fn reference_record_origin_roster_rejects_exponential_type_dags() {
+    let mut source = String::from("data Leaf { body: &mut i32; }");
+    let mut previous = "Leaf".to_owned();
+    for depth in 0..13 {
+        let name = format!("Level{depth}");
+        source.push_str(&format!(
+            "data {name} {{ left: {previous}; right: {previous}; }}"
+        ));
+        previous = name;
+    }
+    source.push_str(&format!(
+        "machine forward(value: {previous}) -> {previous} {{ value }}"
+    ));
+    let program = typed(&source);
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    assert!(!validation::reference_result_custody::is_reference_record(
+        &program,
+        state.return_type
+    ));
+    assert!(
+        validation::reference_result_custody::returned_record_sources(&program, state).is_none()
+    );
+}
+
 #[test]
 fn stored_reference_result_preserves_original_storage() {
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(STORED_REFERENCE_SOURCE))

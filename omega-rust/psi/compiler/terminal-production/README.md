@@ -578,9 +578,15 @@ exact returned-leaf origin query; independent lowering rejoins that map and the
 actual producer, call occurrence, and captured result loans. Origin reconstruction
 does not execute preceding effects or replace ordinary statement sequencing.
 Structural source ordinals rejoin full formal positions before selecting actual
-arguments, and emitted maps use canonical path order. Reference-bearing aggregate
-parameters, partial carrier disposal, and native reference storage remain separate
-dependencies.
+arguments, and emitted maps use canonical path order. Whole owned reference
+records also pass through ordinary helper parameters and returns. Source replay
+joins the prior local owner, exact leaf, active call premise, and captured result
+loan before transferring custody; it does not reinterpret the move as a reborrow
+or narrow conservative source lifetime unions. Source origin expansion has
+private limits of 4,096 reference leaves, 8,192 type visits, and depth 128 to bound
+compact type-DAG expansion. Borrowed aggregate parameters, projected owned leaf
+extraction with residual disposal, nested result operands, and native reference
+storage remain separate dependencies.
 
 Whole borrowed sum parameters support runtime `in` observations through ordinary
 scalar completion, including Boolean locals and Boolean composition. Checked

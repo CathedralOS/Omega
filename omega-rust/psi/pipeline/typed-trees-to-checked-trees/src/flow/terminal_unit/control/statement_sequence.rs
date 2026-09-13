@@ -106,7 +106,14 @@ fn returned_parameter(
         },
         type_identity: parameter.type_identity.clone(),
         multiplicity: parameter.multiplicity,
-        reference_sources: Vec::new(),
+        reference_sources: if validation::reference_result_custody::is_reference_record(
+            program,
+            state.return_type,
+        ) {
+            validation::reference_result_custody::returned_record_sources(program, state)?
+        } else {
+            Vec::new()
+        },
     })
 }
 
