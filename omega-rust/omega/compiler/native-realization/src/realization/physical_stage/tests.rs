@@ -8,6 +8,7 @@ use crate::realization::target_stage::lower_realization_target_stage;
 mod conditional;
 mod conditional_fixture;
 mod ordered_calls;
+mod runtime_spill_pressure;
 
 #[test]
 fn return_programs_publish_replayable_native_evidence_on_every_target() {

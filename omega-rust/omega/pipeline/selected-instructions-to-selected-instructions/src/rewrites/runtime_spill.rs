@@ -9,7 +9,8 @@
 //! Original parameter bindings remain exact. Replacing the destination's uses
 //! makes that parameter dead, so fresh liveness no longer requires its edge
 //! home tie. Their destination must likewise dominate every use. Terminator
-//! operands, outgoing value transports, and cyclic functions remain unsupported.
+//! operands and outgoing value transports remain unsupported; block-parameter
+//! victims additionally require an acyclic function.
 //!
 //! Each retained rewrite shares unchanged selected functions. Replay still
 //! restores and compares the complete source by content, so separately allocated
@@ -125,8 +126,9 @@ fn control(
     }
 }
 
-/// Cyclic functions retain their frozen-source contract, including prefixes and
-/// exits. Walk all components; block vector order is not execution order.
+/// Block-parameter victims' edge-initialized storage keeps cyclic functions
+/// frozen; single-definition instruction results rely on dominance alone.
+/// Walk all components; block vector order is not execution order.
 fn require_acyclic(
     function: &selected_instructions::SelectedFunction,
 ) -> Result<(), RuntimeSpillError> {
