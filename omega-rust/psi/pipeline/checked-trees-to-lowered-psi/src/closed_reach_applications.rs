@@ -75,15 +75,17 @@ pub(crate) fn retain_closed_reach_applications(
                 .ok_or(LoweringError::Unsupported(
                     "closed reach application lost the original template dependency",
                 ))?;
-        let selected_owner = checked
+        // An owner may retain unresolved installation reaches: their provider
+        // bounds stay in the ordinary conservative rows this projection
+        // replays, while the requirement structure itself remains in the
+        // module's separate installation dependency axis.
+        if checked
             .facts
             .service_reaches
             .for_machine(specialization.instance)
-            .ok_or(LoweringError::Unsupported(
-                "closed reach application lost its checked owner row",
-            ))?;
-        if !selected_owner.unresolved_installation_reaches.is_empty() {
-            continue;
+            .is_none()
+        {
+            return unsupported("closed reach application lost its checked owner row");
         }
         let mut dependencies = Vec::new();
         for dependency in inferred
@@ -183,10 +185,13 @@ pub(crate) fn retain_closed_reach_applications(
                                     .as_bytes(),
                             })
                     };
-                    if !reach.unresolved_installation_reaches.is_empty()
-                        || (dependencies.contains(&(position as u32))
-                            && callee.is_none()
-                            && schema.is_none())
+                    // An unresolved installation selection keeps its effective
+                    // row here: provider bounds are already part of the
+                    // conservative contract rows, and the requirement axis is
+                    // retained separately for installation substitution.
+                    if dependencies.contains(&(position as u32))
+                        && callee.is_none()
+                        && schema.is_none()
                     {
                         covered = false;
                         break;

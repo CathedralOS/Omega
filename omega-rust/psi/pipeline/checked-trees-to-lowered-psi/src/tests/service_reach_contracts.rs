@@ -1571,6 +1571,140 @@ fn bounded_boundary_helpers_replay_fixed_parent_and_invocation_reach() {
 }
 
 #[test]
+fn unresolved_installation_selection_keeps_closed_reach_application() {
+    let checked = checked_source(
+        r#"
+        pub boundary trait Console {}
+        pub boundary trait Installer { machine install() reaches <= Console; }
+        pub trait StepContract {
+            machine step() reaches Installer + Console invokes Installer;
+        }
+        machine installing() satisfies StepContract::step reaches Installer + Console invokes Installer; {
+            Installer::install();
+        }
+        machine traverse<machine Step>()
+        where machine Step satisfies StepContract::step;
+        {
+            Step();
+        }
+        pub machine enter() reaches Installer + Console invokes Installer; { traverse<installing>(); }
+    "#,
+    );
+    let lowered = lower_machine(&checked, "enter").expect("lower traverse");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
+        .produce_artifact()
+        .expect("publish installation-bound selection");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload");
+    assert_eq!(module, lowered.semantic_module);
+    drop(checked);
+    assert_eq!(module.boundary_machines.len(), 1);
+    assert_eq!(
+        service_names(&module, &module.boundary_machines[0].fixed_service_reach),
+        ["Installer"]
+    );
+    assert_eq!(
+        service_names(
+            &module,
+            &module.root_service_reach.installation_dependencies[0].upper_bound
+        ),
+        ["Console"]
+    );
+    assert_eq!(
+        service_names(&module, &module.root_service_reach.concrete),
+        ["Console", "Installer"]
+    );
+    let traverse = module
+        .machines
+        .iter()
+        .find(|machine| machine.closed_reach_application.is_some())
+        .expect("selected closure retains the closed application");
+    let application = traverse.closed_reach_application.as_ref().unwrap();
+    assert!(
+        application.fixed.is_empty(),
+        "the original template publishes no fixed row"
+    );
+    assert_eq!(application.dependencies, [0]);
+    assert_eq!(application.calls.len(), 1);
+    let terminal_psi::ClosedReachParameter::Machine(binding) = &application.telescope[0] else {
+        panic!("selected telescope position is a machine binding");
+    };
+    // The selected public contract remains the whole effective row: provider
+    // bounds stay conservative while the requirement axis is replayed
+    // separately through installation dependencies.
+    assert_eq!(
+        service_names(&module, &binding.selected_reach),
+        ["Console", "Installer"]
+    );
+    assert_eq!(
+        service_names(&module, &binding.upper_bound),
+        ["Console", "Installer"]
+    );
+    let installing = module
+        .machines
+        .iter()
+        .find(|machine| Some(machine.id) == binding.callee)
+        .expect("selected callback is emitted");
+    assert_eq!(installing.published_service_ceiling, binding.selected_reach);
+    assert_eq!(application.calls[0].binder, 0);
+    let consumer = traverse
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == application.calls[0].operation)
+        .expect("binder consumer operation is retained");
+    assert_eq!(consumer.static_reach_binding, Some(0));
+    terminal_verifier::verify_module(
+        &module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independently replay unresolved installation selection");
+    // A shrunken selected row is stale evidence: it no longer matches the
+    // emitted callable's public contract or the owner's substituted ceiling.
+    let mut stale = module.clone();
+    let stale_application = stale
+        .machines
+        .iter_mut()
+        .find_map(|machine| machine.closed_reach_application.as_mut())
+        .expect("stale application");
+    let terminal_psi::ClosedReachParameter::Machine(stale_binding) =
+        &mut stale_application.telescope[0]
+    else {
+        panic!("stale machine binding");
+    };
+    stale_binding.selected_reach.clear();
+    assert!(matches!(
+        terminal_verifier::validate_module(&stale),
+        Err(terminal_verifier::ModuleError::InvalidClosedReachApplication { .. })
+    ));
+    // Clearing the operation marker detaches the consumer half of the join.
+    let mut unmarked = module.clone();
+    let consumer_id = application.calls[0].operation;
+    unmarked
+        .machines
+        .iter_mut()
+        .flat_map(|machine| machine.blocks.iter_mut())
+        .flat_map(|block| block.operations.iter_mut())
+        .find(|operation| operation.id == consumer_id)
+        .expect("unmarked consumer")
+        .static_reach_binding = None;
+    assert!(matches!(
+        terminal_verifier::validate_module(&unmarked),
+        Err(terminal_verifier::ModuleError::InvalidClosedReachApplication { .. })
+    ));
+    // The installation dependency axis is enforced independently: shrinking
+    // its bound mismatches the boundary's published ceiling.
+    let mut shrunken = module;
+    shrunken.root_service_reach.installation_dependencies[0]
+        .upper_bound
+        .clear();
+    assert!(matches!(
+        terminal_verifier::validate_module(&shrunken),
+        Err(terminal_verifier::ModuleError::InstallationReachBoundaryMismatch(_))
+    ));
+}
+
+#[test]
 fn standalone_scalar_helpers_reject_reachful_or_missing_contracts() {
     let mut checked = checked_source(
         r#"
