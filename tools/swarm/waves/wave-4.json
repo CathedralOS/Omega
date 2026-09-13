@@ -1,0 +1,174 @@
+{
+  "wave": "w4",
+  "max_acu_limit": 10,
+  "devin_mode": "fusion",
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "w4"],
+  "owner_label_prefix": "Jarod / swarm-w4",
+  "exclusions": [
+    "SQUALR-HEADLESS",
+    "MACOS-APPLICATION-PUBLICATION",
+    "ALPHA-WINDOWS-CONFORMANCE",
+    "ADDRESS-TRANSLATION-CANARY",
+    "EXCEPTION-ROOTS-AND-TIMER",
+    "OMEGA-D",
+    "OFFLINE-REBUILD",
+    "CODEC-LINEAGE-CLOSURE",
+    "BOUNDARY-QUALIFICATION-PRESERVATION",
+    "CUSTODY-MUTATION-COVERAGE",
+    "GAMMA-PRODUCT-COMPARISON",
+    "TERMINATION-RANKING-CHECKS",
+    "BUILD-PRODUCT-REFERENCES",
+    "STRUCTURAL-GENERIC-MATCHING",
+    "CHAIN-MANIFEST",
+    "GAMMA-DERIVATION-CHECKER",
+    "BOOTSTRAP-RUNTIME-SOURCE",
+    "OPERATOR-MACHINE-SUPPLY",
+    "FILESYSTEM-RELEASE-CONTRACT",
+    "ANALYSIS-REVISION-REUSE",
+    "MATCH-SELECTIVE-LOWERING",
+    "MODULE-NAMESPACE-RESOLUTION",
+    "CALLBACK-PARAMETER-REQUIREMENT",
+    "BUMP-ALLOCATOR-CANARY",
+    "BOUNDED-INSTALLATION-REACH-ROWS",
+    "EXACT-MACHINE-SIMPLIFICATIONS",
+    "CASE-CONSTRAINTS",
+    "CRASH-CONTRACT"
+  ],
+  "sessions": [
+    {
+      "name": "strict-float-ranges",
+      "board": "TASKS.md",
+      "item": "STRICT-FLOAT-RANGES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/validation/src/type_references",
+        "omega-rust/psi/semantics/validation/src/expression_types",
+        "omega-rust/psi/semantics/validation/src/contract_entailment"
+      ],
+      "suggested_first_slice": "Replace the strict-floating declaration fence with one retained exclusive-range proof path that preserves the authored endpoint and rejects the endpoint and NaN through one type-reference or cast reader."
+    },
+    {
+      "name": "nominal-field-flow",
+      "board": "TASKS.md",
+      "item": "NOMINAL-FIELD-FLOW",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/transfers/scalar_values"
+      ],
+      "suggested_first_slice": "Add indexed text-writer numeric-conversion result evidence for one listed input class and carry that evidence through the existing scalar transfer path."
+    },
+    {
+      "name": "termination-progress",
+      "board": "TASKS.md",
+      "item": "TPR6",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/progress/origins.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/progress/lineage.rs"
+      ],
+      "suggested_first_slice": "Reconstruct one exact subject-bearing progress premise through a projected arrival in origins and lineage without touching the separate ranking checks."
+    },
+    {
+      "name": "spill-realization",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "SPILL-REALIZATION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+      ],
+      "suggested_first_slice": "Extend one returning-block runtime-spill recovery case from nonaddress u64 results through selected rewrite validation and register-home replay."
+    },
+    {
+      "name": "declarative-peepholes",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "DECLARATIVE-PEEPHOLES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs",
+        "omega-rust/omega/representations/optimization-core/src/selection.rs"
+      ],
+      "suggested_first_slice": "Extend the landed selected-lowering catalog descriptor with one symbolic instruction-pair rule while retaining its independent validator and optimization-core identity."
+    },
+    {
+      "name": "psi-pre-terminal",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "PSI-PRE-TERMINAL-OPTIMIZATION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src/dead_scalar_elimination"
+      ],
+      "suggested_first_slice": "Add one dead pure scalar elimination case to the existing lowered-Psi rewrite and validation path, leaving copy propagation for a separate slice."
+    },
+    {
+      "name": "structural-borrow-identity",
+      "board": "TASKS.md",
+      "item": "STRUCTURAL-BORROW-IDENTITY",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/tests"
+      ],
+      "suggested_first_slice": "Extend target signature validation and its focused tests for one projected borrowed argument/home identity while preserving BorrowedReference and rejecting substituted access shape."
+    },
+    {
+      "name": "write-only-borrow",
+      "board": "TASKS.md",
+      "item": "WRITE-ONLY-BORROW",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input",
+        "tests/native-differential/tests/terminal_psi_indexed_receivers"
+      ],
+      "suggested_first_slice": "Carry one projected write-only scalar receiver through scalar-graph legalization and the existing indexed-receiver native fixture, checking caller-visible mutation and read rejection."
+    },
+    {
+      "name": "build-semantic-exclusions",
+      "board": "TASKS.md",
+      "item": "BUILD-SEMANTIC-EXCLUSIONS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/build-evaluation/src/configuration.rs",
+        "omega-rust/omega/build/build-evaluation/src/declarations.rs"
+      ],
+      "suggested_first_slice": "Define the smallest typed exclusion configuration and retained declaration evidence needed to distinguish a permitted no-op Trap composition from an actual Console invocation."
+    },
+    {
+      "name": "general-call-clobbers",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "GENERAL-CALL-CLOBBERS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation"
+      ],
+      "suggested_first_slice": "Extend the landed call-preservation witness from attached-Unit fork/join to one general scalar call while keeping clobber replay in the preservation owner."
+    },
+    {
+      "name": "proof-relevance",
+      "board": "TASKS.md",
+      "item": "PROOF-RELEVANCE-MIGRATION",
+      "host": "linux",
+      "probe_only": true,
+      "owning_paths": [
+        "omega-rust/psi/semantics/validation/src/relevance",
+        "omega-rust/psi/representations/typed-trees/src/typed_trees/evidence/proof_only.rs"
+      ],
+      "suggested_first_slice": "Probe one remaining erased carrier from validation through proof-only representation and report whether its runtime layout and noninterference obligations fit a bounded slice."
+    },
+    {
+      "name": "plan-laid-views",
+      "board": "TASKS.md",
+      "item": "PLAN-LAID-VIEWS",
+      "host": "linux",
+      "probe_only": true,
+      "owning_paths": [
+        "omega-rust/psi/foundation/access-plans/src",
+        "omega-rust/psi/semantics/validation/src/placed_views"
+      ],
+      "suggested_first_slice": "Probe one checked-to-native plan-laid view replay path and record the exact missing placement, backing, range, or lifetime seam before attempting a bounded implementation."
+    }
+  ]
+}
