@@ -10,8 +10,8 @@ pub enum ArtifactLoweringError {
     ProofFingerprint(terminal_codec::ProofCodecError),
     Verification(terminal_verifier::VerificationError),
     UnsupportedUnsignedCountdownNativeCustody,
-    /// Ordinary/optimizer entrances do not own the separate plan-laid input
-    /// carrier and therefore may not silently discard it.
+    /// Entrances that do not own the separate plan-laid input carrier may not
+    /// silently discard the roster.
     PlacedViewInputsRequireCustodyLowering,
     Lowering(LoweringError),
 }

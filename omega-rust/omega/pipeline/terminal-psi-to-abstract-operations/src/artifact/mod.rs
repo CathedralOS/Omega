@@ -7,8 +7,15 @@ mod replay;
 mod retention;
 
 pub use error::ArtifactLoweringError;
-pub use native::{VerifiedNativeArtifactInput, lower_artifact_sections_for_native_realization};
-pub use replay::{lower_replay_artifact_sections, lower_replay_artifact_sections_for_optimization};
+pub use native::{
+    VerifiedNativeArtifactInput, VerifiedNativeArtifactInputWithPlacedViewInputs,
+    lower_artifact_sections_for_native_realization,
+    lower_artifact_sections_for_native_realization_with_placed_view_inputs,
+};
+pub use replay::{
+    lower_replay_artifact_sections, lower_replay_artifact_sections_for_optimization,
+    lower_replay_artifact_sections_with_placed_view_inputs,
+};
 
 use crate::optimization::VerifiedPsiOptimizationInput;
 use crate::shared::*;

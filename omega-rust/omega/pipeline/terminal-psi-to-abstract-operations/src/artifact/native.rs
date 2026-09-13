@@ -26,6 +26,30 @@ impl VerifiedNativeArtifactInput {
     }
 }
 
+/// One canonical native-admitted program plus its exact plan-laid input
+/// roster. The roster stays beside the verified native authority as semantic
+/// custody: it grants no backing, lifetime, or access-event authority, and
+/// remains visible inside the retained verifier context module.
+#[derive(Debug, Clone)]
+pub struct VerifiedNativeArtifactInputWithPlacedViewInputs {
+    input: VerifiedNativeArtifactInput,
+    placed_view_inputs: Vec<terminal_psi::TerminalPlacedViewInput>,
+}
+
+impl VerifiedNativeArtifactInputWithPlacedViewInputs {
+    pub fn plan(&self) -> &AbstractOperationPlan {
+        self.input.plan()
+    }
+
+    pub fn placed_view_inputs(&self) -> &[terminal_psi::TerminalPlacedViewInput] {
+        &self.placed_view_inputs
+    }
+
+    pub fn into_optimization_input(self) -> VerifiedPsiOptimizationInput {
+        self.input.into_optimization_input()
+    }
+}
+
 /// Decode one canonical artifact and select its only valid unoptimized native
 /// authority path. Legacy countdown input never falls back to ordinary
 /// admission. Natural-ranked input uses ordinary grouped proof verification,
@@ -42,6 +66,34 @@ pub fn lower_artifact_sections_for_native_realization(
     if !module.placed_view_inputs.is_empty() {
         return Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering);
     }
+    lower_decoded_native_module(&module, &proof, profile)
+}
+
+/// Decode one canonical artifact, admit it for native realization, and retain
+/// its exact plan-laid input roster beside the verified native authority. The
+/// roster remains semantic custody only: this stage neither supplies backing
+/// nor emits an access event.
+pub fn lower_artifact_sections_for_native_realization_with_placed_view_inputs(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &proof_admission::AdmissionProfile,
+) -> Result<VerifiedNativeArtifactInputWithPlacedViewInputs, ArtifactLoweringError> {
+    let module = terminal_codec::decode_module(semantic_bytes)
+        .map_err(ArtifactLoweringError::SemanticDecode)?;
+    let proof = terminal_codec::decode_proof_bundle(proof_bytes)
+        .map_err(ArtifactLoweringError::ProofDecode)?;
+    let input = lower_decoded_native_module(&module, &proof, profile)?;
+    Ok(VerifiedNativeArtifactInputWithPlacedViewInputs {
+        input,
+        placed_view_inputs: module.placed_view_inputs,
+    })
+}
+
+fn lower_decoded_native_module(
+    module: &terminal_psi::TerminalModule,
+    proof: &terminal_verifier::ProofBundle,
+    profile: &proof_admission::AdmissionProfile,
+) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
     if module.machines.iter().any(|machine| {
         machine
             .ranked_scc
@@ -50,7 +102,7 @@ pub fn lower_artifact_sections_for_native_realization(
     }) {
         Err(ArtifactLoweringError::UnsupportedUnsignedCountdownNativeCustody)
     } else {
-        let verified = terminal_verifier::verify_module(&module, &proof, profile)
+        let verified = terminal_verifier::verify_module(module, proof, profile)
             .map_err(ArtifactLoweringError::Verification)?;
         let plan =
             lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)?;
