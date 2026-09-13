@@ -140,10 +140,25 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   runtime coverage for it or silently change its working directory.
 
   The macOS ARM64 `window_app` [outer command](samples/gui/window_app/README.md)
-  at `bdf3195a4a` exits 1 at ordinary package review: acceptance is missing or
-  current requirements need review. No phase artifacts are produced. Complete
-  ordinary package review before identifying its next native failure; do not
-  infer it from the build-intent tests. The checked intent owner is
+  passes ordinary package review on macOS ARM64: `Main::main` declares
+  `reaches Clock + Console + Gui + Input` (the other three GUI samples declare
+  their exact sets likewise), and the README documents the
+  `omega update --project ... --target macos_arm64` → accept pending rows →
+  `--resume` flow that publishes a checkout-local `omega.lock` (gitignored;
+  relocated checkouts re-review). The command then exits 1 at accepted-package
+  realization: `InvalidUnitMachinePlan` for `Main::main` — an attached Unit
+  closure missing a checked transitive machine plan for its cyclic state
+  machine, the same gap tracked under **GENERAL-CYCLIC-EXECUTION** (shared
+  with `print_squares` and the Squalr entry). The test-owned
+  `gui_samples_compile_from_authored_program_entry_bindings` route passes
+  `window_app`, `window_demo`, and `image_viewer` on both GUI targets;
+  `windowed_calculator` retains two bounded-target proof diagnostics
+  (`self.col - 28 % 8` → `self.local_x`, `self.row - 18 % 9` →
+  `self.button_ly`) independent of service reach.
+  `sample_window_demo_runs_natively_exits_0` currently fails in test staging
+  (`omega_language_std/console.omg` missing from the staged temp package)
+  before sample compilation; unrelated to the reach declarations.
+  The checked intent owner is
   `build-evaluation/src/lib.rs`, carried by `compiler/src/pipeline/checked_entry.rs`.
   The retained native proposal still carries only the PE word.
 

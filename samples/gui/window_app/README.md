@@ -22,8 +22,24 @@ installed. These commands require ordinary accepted package review; absent or
 changed policy stops compilation and reports the review to complete. They do
 not authorize new admissions automatically.
 
-The macOS command currently stops at that review boundary without an accepted
-policy. Build evaluation and the checked compilation retain authored GUI intent;
-retaining it through native realization, supplying signing identity, and
-publishing a whole validated `.app` remain unfinished. This sample does not yet
-establish Finder launch behavior. See the [publication contract](../../../wiki/spec/build/macos_application.md).
+Complete that review once per checkout with the package manager:
+
+```sh
+target/debug/omega update --project samples/gui/window_app --target macos_arm64
+# edit the pending decision rows in build/package-manager/review-macos_arm64.txt
+target/debug/omega update --resume --project samples/gui/window_app
+```
+
+This publishes `omega.lock` beside `main.omg`. The lock records
+checkout-specific local source identities, so a relocated checkout reviews
+again rather than reusing another machine's acceptance.
+
+With the lock accepted, the macOS command proceeds past review and currently
+stops in Terminal production: `Main::main` is an attached Unit closure whose
+cyclic state machine is missing a checked transitive machine plan
+(`InvalidUnitMachinePlan`), the same compiler gap tracked under
+GENERAL-CYCLIC-EXECUTION. Build evaluation and the checked compilation retain
+authored GUI intent; retaining it through native realization, supplying signing
+identity, and publishing a whole validated `.app` remain unfinished. This
+sample does not yet establish Finder launch behavior. See the
+[publication contract](../../../wiki/spec/build/macos_application.md).
