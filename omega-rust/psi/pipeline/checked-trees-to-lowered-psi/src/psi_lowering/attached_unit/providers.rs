@@ -208,8 +208,15 @@ pub(super) fn checked_unit_provider_candidates(
                     .expect("candidate filter requires an attached provider type")
                     .as_str()
                     .to_owned(),
-                candidate_identity: checked_terminal_machine_name(checked, machine.symbol)?
-                    .to_owned(),
+                // Provider selection compares semantic overload identities;
+                // diagnostic display paths cannot distinguish those overloads.
+                candidate_identity: checked
+                    .typed
+                    .normalized_machine_overload_identity(machine)
+                    .ok_or(LoweringError::Unsupported(
+                        "provider candidate has no normalized callable identity",
+                    ))?
+                    .identity(),
             });
         }
     }

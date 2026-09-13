@@ -187,13 +187,29 @@ fn checked_unit_provider_candidates_are_cataloged_without_selection_or_call_rewr
             .collect::<Vec<_>>(),
         vec!["FirstProvider", "SecondProvider"]
     );
+    let expected_identities = ["FirstProvider::emit", "SecondProvider::emit"].map(|name| {
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("the exact source provider declaration");
+        checked
+            .typed
+            .normalized_machine_overload_identity(machine)
+            .expect("source provider has a normalized overload identity")
+            .identity()
+    });
     assert_eq!(
         module
             .provider_candidates
             .iter()
             .map(|candidate| candidate.candidate_identity.as_str())
             .collect::<Vec<_>>(),
-        vec!["FirstProvider::emit", "SecondProvider::emit"]
+        expected_identities
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
     );
     let entry = module
         .machines
@@ -227,7 +243,18 @@ fn checked_unit_provider_candidates_retain_linear_qualified_structural_inputs() 
         panic!("one exact ProgramEntry provider candidate")
     };
     assert_eq!(candidate.provider_identity, "ProgramProvider");
-    assert_eq!(candidate.candidate_identity, "ProgramProvider::enter");
+    let provider = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "ProgramProvider::enter")
+        .expect("the exact structural-input provider declaration");
+    let expected_identity = checked
+        .typed
+        .normalized_machine_overload_identity(provider)
+        .expect("source provider has a normalized overload identity")
+        .identity();
+    assert_eq!(candidate.candidate_identity, expected_identity);
     let [signature] = candidate.signature.parameters.as_slice() else {
         panic!("provider signature retains one structural root")
     };
