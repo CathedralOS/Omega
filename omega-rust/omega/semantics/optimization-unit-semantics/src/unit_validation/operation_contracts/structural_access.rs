@@ -87,7 +87,11 @@ pub(crate) fn structural_arguments_match(
         else {
             return false;
         };
-        let fixed_byte_view = projection == StructuralProjectionPolicy::Unit
+        // The byte-view presentation belongs to the borrowed argument, not
+        // the call's result or whether selection crosses a boundary. Terminal
+        // admits the same exact fixed range for ordinary calls on this route
+        // and boundaries. Keep the other call routes' existing restrictions.
+        let fixed_byte_view = matches!(projection, StructuralProjectionPolicy::Unit | StructuralProjectionPolicy::Boundary)
             && (argument.path.is_empty() || is_nonempty_field_path(&argument.path))
             && source.access == terminal_psi::StructuralAccess::MutableBorrow
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
