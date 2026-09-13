@@ -44,8 +44,11 @@ its semantic path, replay-validated physical placement, target and calling
 policy, and strong selection and boundary-plan commitments. Checked compilation
 records the exact carrier shape root while materializing each opaque; capture
 does not infer occurrences from equal layouts or an aggregate digest. Compiler
-composition still needs the immutable foreign-source join; it does not require
-a certified `PackageInstance` or lock-promotion stage.
+composition rejoins each actual foreign opaque use to the producer's own
+declaration and availability rows, bound to the immutable source instance the
+consumer compiled against, and enforces strong selected-application equality
+against the producer's own selection at the exchange; it does not require a
+certified `PackageInstance` or lock-promotion stage.
 
 ## Capture
 
