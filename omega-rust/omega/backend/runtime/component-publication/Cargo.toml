@@ -13,3 +13,15 @@ effects = { path = "../../../representations/effects" }
 executable-installation = { path = "../executable-installation" }
 external-roots = { path = "../external-roots" }
 image-emission = { path = "../../images/image-emission", features = ["installed-artifact"] }
+
+[dev-dependencies]
+calling-conventions = { path = "../../../representations/calling-conventions" }
+extents = { path = "../../../../psi/foundation/extents" }
+function-identity = { path = "../../../representations/function-identity" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+machine-code = { path = "../../../representations/machine-code" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+target = { path = "../../../representations/target" }
+target-operations = { path = "../../../representations/target-operations" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }

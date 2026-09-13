@@ -518,10 +518,20 @@ dependencies = [
 name = "component-publication"
 version = "0.1.0"
 dependencies = [
+ "calling-conventions",
  "effects",
  "executable-installation",
+ "extents",
  "external-roots",
+ "function-identity",
  "image-emission",
+ "layout-plans",
+ "machine-code",
+ "semantic-vocabulary",
+ "symbols",
+ "target",
+ "target-operations",
+ "terminal-psi",
 ]
 
 [[package]]
