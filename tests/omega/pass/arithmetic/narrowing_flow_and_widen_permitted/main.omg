@@ -3,9 +3,9 @@
 // the intersection-with-source-range behaviour that keeps proven-small values
 // (and `in Wrapping` sums) permissive -- a future over-strict check that rejected
 // these would break real code. All three stores below are sound and must compile.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; a: i8; b: i64; r: i32; s: i8; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 5;
     self.b = self.a;   // widening i8 -> i64 (always sound)
     self.r = self.b;   // b is proven {5}, so it narrows into i32 (range rule)
