@@ -65,9 +65,11 @@ Pick items that are:
 - each item's acceptance gates exit 0 on Linux; declare them in `host_gates`
   because `plan` runs them and refuses the wave otherwise,
 - an optimizer item's owning path must be the `X-to-X` stage crate at the
-  item's representation level, and that crate must exist and be on the `omega`
-  route; if the stage does not exist the slot is `probe_only` or dropped
-  (wave-3 miss: `EXACT-MACHINE-SIMPLIFICATIONS`),
+  item's representation level, and that compiler-tree crate under
+  `omega-rust/` must exist and be on the `omega` route; the route check does
+  not reject test-harness crates outside `omega-rust/`. If the stage does not
+  exist the slot is `probe_only` or dropped (wave-3 miss:
+  `EXACT-MACHINE-SIMPLIFICATIONS`),
 - a slot whose slice may not be one crate is declared `probe_only`, so a
   `verification_only` result is planned rather than counted as a miss.
 

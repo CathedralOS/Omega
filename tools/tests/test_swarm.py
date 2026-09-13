@@ -218,20 +218,49 @@ class SwarmTests(unittest.TestCase):
         self.assertEqual(crates["unreachable"],
                          {"name": "unreachable", "on_route": False})
 
-    def test_plan_refuses_off_route_crate_unless_probe_only(self):
-        (self.repository / "src" / "one" / "Cargo.toml").write_text(
+    def test_plan_scopes_off_route_rejection_to_compiler_crates(self):
+        (self.repository / "tests" / "native-differential" / "Cargo.toml").parent.mkdir(
+            parents=True)
+        (self.repository / "tests" / "native-differential" / "Cargo.toml").write_text(
             "[package]\nname = \"one\"\nversion = \"0.1.0\"\n", encoding="utf-8")
+        (self.repository / "omega-rust" / "one" / "Cargo.toml").parent.mkdir(
+            parents=True)
+        (self.repository / "omega-rust" / "one" / "Cargo.toml").write_text(
+            "[package]\nname = \"one-compiler\"\nversion = \"0.1.0\"\n",
+            encoding="utf-8")
         manifest_path = self.root / "wave.json"
         record = manifest()
+        record["sessions"][0]["owning_paths"] = [
+            "tests/native-differential/tests/scalar_case_results.rs"
+        ]
         manifest_path.write_text(json.dumps(record), encoding="utf-8")
-        route = {"src/one": {"name": "one", "on_route": False}}
+        route = {
+            "tests/native-differential": {"name": "one", "on_route": False},
+            "omega-rust/one": {"name": "one-compiler", "on_route": False},
+        }
+        with mock.patch.object(self.module, "route_crates", return_value=route), \
+                mock.patch.object(self.module, "emit") as emitted:
+            self.assertEqual(self.module.command_plan(
+                mock.Mock(manifest=str(manifest_path),
+                          skip_host_gates=True, skip_route_check=False),
+                self.repository), 0)
+            planned = emitted.call_args.args[0]["sessions"][0]
+        freshness = {line["path"]: line for line in planned["freshness"]}
+        self.assertFalse(freshness[
+            "tests/native-differential/tests/scalar_case_results.rs"
+        ]["on_route"])
+
+        record["wave"] = "w10"
+        record["sessions"][0]["owning_paths"] = ["omega-rust/one/src/lib.rs"]
+        record["sessions"][0].pop("probe_only", None)
+        manifest_path.write_text(json.dumps(record), encoding="utf-8")
         with mock.patch.object(self.module, "route_crates", return_value=route):
             with self.assertRaisesRegex(self.module.SwarmError, "not on the omega route"):
                 self.module.command_plan(
                     mock.Mock(manifest=str(manifest_path),
                               skip_host_gates=True, skip_route_check=False),
                     self.repository)
-        prompt_path = (self.module.build_directory(self.repository, "w9")
+        prompt_path = (self.module.build_directory(self.repository, "w10")
                        / "prompts" / "alpha.md")
         self.assertFalse(prompt_path.exists())
 
@@ -245,8 +274,9 @@ class SwarmTests(unittest.TestCase):
                 self.repository), 0)
             planned = emitted.call_args.args[0]["sessions"][0]
         freshness = {line["path"]: line for line in planned["freshness"]}
-        self.assertFalse(freshness["src/one"]["on_route"])
-        self.assertEqual(freshness["src/one"]["crate_name"], "one")
+        self.assertFalse(freshness["omega-rust/one/src/lib.rs"]["on_route"])
+        self.assertEqual(freshness["omega-rust/one/src/lib.rs"]["crate_name"],
+                         "one-compiler")
 
     def test_plan_skip_route_check_records_skipped(self):
         (self.repository / "src" / "one" / "Cargo.toml").write_text(
