@@ -102,6 +102,7 @@ pub(super) fn build_selected_operator_structural_scalar_return_machine(
                 multiplicity: Multiplicity::Affine,
                 access: CheckedStructuralAccess::Owned,
                 qualifications,
+                projected_qualifications: Vec::new(),
                 fused_service_erasure: None,
             })
         })

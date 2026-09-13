@@ -81,6 +81,7 @@ pub(in crate::attached_unit) fn emit_callable_body(
     }
     let content_entry_claims = content_conservation::lower_whole_content_entry_claims(
         checked,
+        &catalogs.structural_types,
         &entry.structural_parameters,
         &structural_parameters,
         &entry.entry_claims,

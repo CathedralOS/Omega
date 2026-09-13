@@ -236,6 +236,7 @@ pub(super) fn free_selected_operator_structural_signature(
                 multiplicity,
                 access,
                 qualifications,
+                projected_qualifications: Vec::new(),
                 fused_service_erasure: None,
             })
         })

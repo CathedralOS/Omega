@@ -247,14 +247,38 @@ pub(super) fn emit_structural(
             .iter()
             .map(|domain| lookup_domain_id(domain_ids, *domain))
             .collect::<Result<Vec<_>, _>>()?,
-        projected_qualifications: Vec::new(),
+        projected_qualifications: super::parameters::lower_projected_qualifications(
+            validation::structural_result_projected_qualifications(
+                &checked.typed,
+                checked
+                    .typed
+                    .machine_states(
+                        checked
+                            .machines()
+                            .iter()
+                            .find(|machine| machine.symbol == *target_machine)
+                            .ok_or(LoweringError::Unsupported(
+                                "structural result has no exact target machine",
+                            ))?,
+                    )
+                    .iter()
+                    .find(|candidate| candidate.symbol == *target_state)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural call target state is absent",
+                    ))?
+                    .return_type,
+            )
+            .map_err(LoweringError::Unsupported)?
+            .as_slice(),
+            domain_ids,
+        )?,
         claims: custody
             .returned_claim_transfers
             .iter()
             .map(|transfer| {
                 Ok(terminal_psi::StructuralResultClaimBinding {
                     claim: lookup_claim_id(claim_bindings, transfer.caller_claim)?,
-                    path: Vec::new(),
+                    path: lower_structural_path(&transfer.path),
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?,

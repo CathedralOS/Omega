@@ -60,6 +60,12 @@ pub(in crate::flow::terminal_unit) fn signature(
             type_identity,
             multiplicity,
             qualifications,
+            projected_qualifications: projected_parameter_qualifications(
+                program,
+                shapes,
+                reference,
+                &[],
+            )?,
         },
     ))
 }

@@ -22,6 +22,11 @@ mod boundary_arguments;
 #[path = "structural_return_source/service_reach.rs"]
 mod service_reach;
 
+#[path = "structural_return_source/projected_claims.rs"]
+mod projected_claims;
+#[path = "structural_return_source/projected_source_mutations.rs"]
+mod projected_source_mutations;
+
 const SOURCE: &str = r#"
     data ByteUnit {}
     data CountedQuantity<Unit> { magnitude: u64; }

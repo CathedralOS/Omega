@@ -321,7 +321,10 @@ pub(crate) fn lower_unit_parameters(
                     }
                 },
                 qualifications,
-                projected_qualifications: Vec::new(),
+                projected_qualifications: lower_projected_qualifications(
+                    &parameter.projected_qualifications,
+                    domain_ids,
+                )?,
             })
         })
         .collect()
@@ -477,6 +480,7 @@ pub(crate) struct StructuralResultCustody<'a> {
     pub results: &'a [(u32, terminal_psi::StructuralOperationResult)],
     pub domains: &'a [(SemanticDomainId, StructuralDomainId)],
     pub claims: &'a [(PermissionClaimIdentity, ClaimId)],
+    pub target_entry_claims: &'a [CheckedUnitEntryClaimPlan],
 }
 
 pub(crate) fn validate_transfer_shape(
@@ -609,6 +613,32 @@ pub(crate) fn validate_transfer_shape(
                     .filter(|transfer| transfer.argument_index as usize == argument_index)
                     .map(|transfer| lookup_claim_id(custody.claims, transfer.claim_identity))
                     .collect::<Result<Vec<_>, _>>()?;
+                let expected = custody
+                    .target_entry_claims
+                    .iter()
+                    .filter(|claim| claim.parameter_index as usize == argument_index)
+                    .collect::<Vec<_>>();
+                let projected_qualifications = lower_projected_qualifications(
+                    &target.projected_qualifications,
+                    custody.domains,
+                )?;
+                // A completed whole result carries the exact target claim set,
+                // with source identities rebased but relative paths unchanged.
+                // Counts alone cannot distinguish missing or swapped siblings.
+                let claims_match = !claims.is_empty()
+                    && claims.len() == expected.len()
+                    && result.claims.len() == claims.len()
+                    && claims.iter().zip(&expected).all(|(claim, expected)| {
+                        result
+                            .claims
+                            .iter()
+                            .filter(|result| {
+                                result.claim == *claim
+                                    && result.path == lower_structural_path(&expected.path)
+                            })
+                            .count()
+                            == 1
+                    });
                 if results.next().is_some()
                     || result.place != source.id
                     || result.structural_type != structural_type
@@ -621,14 +651,8 @@ pub(crate) fn validate_transfer_shape(
                     || target.is_self
                     || target.fused_service_erasure.is_some()
                     || result.qualifications != qualifications
-                    || !result.projected_qualifications.is_empty()
-                    || claims.len() != 1
-                    || result.claims.len() != 1
-                    || result
-                        .claims
-                        .iter()
-                        .zip(&claims)
-                        .any(|(result, claim)| result.claim != *claim || !result.path.is_empty())
+                    || result.projected_qualifications != projected_qualifications
+                    || !claims_match
                     || arguments[..argument_index].iter().any(|earlier| {
                         earlier.source_structural_result_binding_ordinal() == Some(binding_ordinal)
                     })
@@ -1004,6 +1028,23 @@ pub(crate) fn lower_structural_path(
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 StructuralPathSegment::FixedIndex(*index)
             }
+        })
+        .collect()
+}
+
+pub(crate) fn lower_projected_qualifications(
+    rows: &[checked_trees::CheckedStructuralPathQualification],
+    domain_ids: &[(language_semantics::SemanticDomainId, StructuralDomainId)],
+) -> Result<Vec<terminal_psi::StructuralPathQualification>, LoweringError> {
+    rows.iter()
+        .map(|row| {
+            if row.path.is_empty() {
+                return unsupported("projected qualification has an empty path");
+            }
+            Ok(terminal_psi::StructuralPathQualification {
+                path: lower_structural_path(&row.path),
+                domain: lookup_domain_id(domain_ids, row.domain)?,
+            })
         })
         .collect()
 }

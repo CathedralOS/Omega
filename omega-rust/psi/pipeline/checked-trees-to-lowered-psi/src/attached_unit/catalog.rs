@@ -611,7 +611,14 @@ pub(super) fn lower_unit_structural_domains_including(
         let body = UnitBody::find(plans, *symbol)?;
         for domain in body
             .structural_parameters()
-            .flat_map(|parameter| &parameter.qualifications)
+            .flat_map(|parameter| {
+                parameter.qualifications.iter().chain(
+                    parameter
+                        .projected_qualifications
+                        .iter()
+                        .map(|row| &row.domain),
+                )
+            })
             .chain(body.qualifications())
         {
             if !selected.contains(domain) {
@@ -623,7 +630,14 @@ pub(super) fn lower_unit_structural_domains_including(
         for domain in boundary
             .structural_parameters
             .iter()
-            .flat_map(|parameter| &parameter.qualifications)
+            .flat_map(|parameter| {
+                parameter.qualifications.iter().chain(
+                    parameter
+                        .projected_qualifications
+                        .iter()
+                        .map(|row| &row.domain),
+                )
+            })
             .chain(
                 boundary
                     .domain_requirements

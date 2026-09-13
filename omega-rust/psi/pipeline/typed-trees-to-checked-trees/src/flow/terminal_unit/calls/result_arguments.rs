@@ -326,19 +326,41 @@ pub(super) fn argument(
                     }
                 && event.root == place.root
                 && event.access == PermissionAccess::Owned
-                && facts.flow.ownership.segments.span_or_empty(event.segments)
-                    == place.segments.as_slice()
+                && (linear
+                    || facts.flow.ownership.segments.span_or_empty(event.segments)
+                        == place.segments.as_slice())
         });
     let event = events.next()?;
     // Non-self owned parameters transfer custody even at direct or nominal
     // boundaries. Consume events describe terminal self/claim settlement, not
     // an ordinary value handoff. Linear handoffs retain a known live claim;
     // affine handoffs have neither a claim identity nor a live obligation.
-    if events.next().is_some()
+    if linear {
+        // Moving one whole aggregate transfers every live claim below it.
+        // This operand check establishes typed source events; the enclosing
+        // call's custody replay joins their complete paths and identities to
+        // the callee entry/outcome set before retaining the operation.
+        let mut claims = Vec::new();
+        for event in std::iter::once(event).chain(events) {
+            let segments = facts.flow.ownership.segments.span_or_empty(event.segments);
+            if event.kind != PermissionEventKind::Transfer
+                || event.multiplicity != Multiplicity::Linear
+                || event.claim_identity == PermissionClaimIdentity::Unknown
+                || !event.obligation_live
+                || segments.len() != event.segments.len()
+                || claims.contains(&event.claim_identity)
+                || validation::structural_claim_path(program, parameter.type_reference, segments)
+                    .is_err()
+            {
+                return None;
+            }
+            claims.push(event.claim_identity);
+        }
+    } else if events.next().is_some()
         || event.kind != PermissionEventKind::Transfer
         || event.multiplicity != result.multiplicity
-        || (event.claim_identity != PermissionClaimIdentity::Unknown) != linear
-        || event.obligation_live != linear
+        || event.claim_identity != PermissionClaimIdentity::Unknown
+        || event.obligation_live
     {
         return None;
     }

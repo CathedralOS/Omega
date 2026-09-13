@@ -1058,6 +1058,16 @@ pub struct CheckedStructuralResultPlan {
     pub type_identity: String,
     pub multiplicity: Multiplicity,
     pub qualifications: Vec<SemanticDomainId>,
+    pub projected_qualifications: Vec<CheckedStructuralPathQualification>,
+}
+
+/// A qualification belongs to its exact subplace, independently of the claim
+/// identity or content theorem at that place. Rows use nonempty canonical paths
+/// and sort by path followed by normalized domain identity.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CheckedStructuralPathQualification {
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
+    pub domain: SemanticDomainId,
 }
 
 /// One concrete target-neutral structural shape. Identities are normalized
@@ -1215,6 +1225,7 @@ pub struct CheckedUnitStructuralParameterPlan {
     pub access: CheckedStructuralAccess,
     /// Strictly ordered normalized domain identities.
     pub qualifications: Vec<SemanticDomainId>,
+    pub projected_qualifications: Vec<CheckedStructuralPathQualification>,
     /// Present only for the first direct, owned affine
     /// `Service<R> in Bound` parameter rung. `None` on a typed Service
     /// parameter is a rejecting custody downgrade, never legacy behavior.
@@ -1510,6 +1521,9 @@ pub struct CheckedStructuralCallCustodyPlan {
 pub struct CheckedStructuralReturnedClaimTransferPlan {
     pub callee_claim: language_semantics::PermissionClaimIdentity,
     pub caller_claim: language_semantics::PermissionClaimIdentity,
+    /// Equal canonical input-relative and result-relative claim path. The
+    /// containing call transfers the whole owner, not a projected argument.
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
 }
 
 /// Exact state-local coordinate receiving one primitive boundary result in a

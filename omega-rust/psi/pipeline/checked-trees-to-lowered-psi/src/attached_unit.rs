@@ -923,7 +923,14 @@ fn assemble_unit_closure(
             _ => None,
         })
         .flat_map(|plan| &plan.structural_parameters)
-        .flat_map(|parameter| &parameter.qualifications)
+        .flat_map(|parameter| {
+            parameter.qualifications.iter().chain(
+                parameter
+                    .projected_qualifications
+                    .iter()
+                    .map(|row| &row.domain),
+            )
+        })
         .copied()
         .collect::<Vec<_>>();
     let (structural_domains, domain_ids) = catalog::lower_unit_structural_domains_including(
@@ -1331,6 +1338,7 @@ fn assemble_unit_closure(
         let plan = body.ordinary()?;
         let content_entry_claims = content_conservation::lower_whole_content_entry_claims(
             checked,
+            &structural_types,
             &plan.structural_parameters,
             parameters,
             &plan.entry_claims,

@@ -156,15 +156,16 @@ pub(super) fn lower_structural_content_projection(
     }))
 }
 
-/// Publish the exact content carried by whole structural entry claims.
+/// Publish the exact content carried by claims below whole structural entries.
 ///
 /// Structural claim identity remains authoritative. A qualification contributes
 /// content only when the checker retained its owner-unique `Content<A>` plan,
-/// and the projection must describe the same carrier as the parameter. This
-/// first bodyless-boundary slice deliberately rejects projected claim paths;
-/// partial custody needs the authored partition/replay lane.
+/// and the projection must describe the carrier at that exact claim path.
+/// Projected qualifications never qualify a sibling or the whole owner. This
+/// binds entry content, not a partition theorem or boundary admission.
 pub(super) fn lower_whole_content_entry_claims(
     checked: &CheckedTrees,
+    structural_types: &[StructuralTypeDeclaration],
     checked_parameters: &[CheckedUnitStructuralParameterPlan],
     parameters: &[StructuralParameterDeclaration],
     entry_claims: &[CheckedUnitEntryClaimPlan],
@@ -191,18 +192,93 @@ pub(super) fn lower_whole_content_entry_claims(
                 "content entry claim has an invalid terminal parameter",
             ))?;
 
-        let mut projections = checked_parameter
+        if checked_parameter
+            .qualifications
+            .windows(2)
+            .any(|pair| pair[0].0 >= pair[1].0)
+            || checked_parameter
+                .projected_qualifications
+                .windows(2)
+                .any(|pair| {
+                    pair[0].path > pair[1].path
+                        || (pair[0].path == pair[1].path && pair[0].domain.0 >= pair[1].domain.0)
+                })
+            || checked_parameter
+                .projected_qualifications
+                .iter()
+                .any(|row| row.path.is_empty())
+        {
+            return unsupported("content entry qualifications are not canonical");
+        }
+        let mut carrier = structural_types
+            .iter()
+            .find(|declaration| declaration.id == parameter.structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "content entry carrier is absent",
+            ))?;
+        if carrier.identity != checked_parameter.type_identity {
+            return unsupported("content entry carrier differs from its checked parameter");
+        }
+        let mut segments = Vec::with_capacity(entry_claim.path.len());
+        for segment in &entry_claim.path {
+            let child = match (segment, &carrier.shape) {
+                (
+                    CheckedUnitStructuralPathSegment::Field(identity),
+                    StructuralTypeShape::Record { fields },
+                ) => {
+                    let field = fields
+                        .iter()
+                        .find(|field| field.identity == *identity)
+                        .ok_or(LoweringError::Unsupported(
+                            "content claim field is absent from its carrier",
+                        ))?;
+                    if field.relevance != language_core::BindingRelevance::Relevant {
+                        return unsupported("content claim traverses an erased field");
+                    }
+                    let StructuralFieldType::Structural(child) = field.field_type else {
+                        return unsupported("content claim selects a nonstructural field");
+                    };
+                    segments.push(ContentPlaceSegment::Field(identity.clone()));
+                    child
+                }
+                (
+                    CheckedUnitStructuralPathSegment::FixedIndex(index),
+                    StructuralTypeShape::FixedArray { element, length },
+                ) if index < length => {
+                    segments.push(ContentPlaceSegment::FixedIndex(*index));
+                    *element
+                }
+                _ => return unsupported("content claim has an unsupported or mistyped path"),
+            };
+            carrier = structural_types
+                .iter()
+                .find(|declaration| declaration.id == child)
+                .ok_or(LoweringError::Unsupported(
+                    "content claim leaf carrier is absent",
+                ))?;
+        }
+        let qualifications = checked_parameter
             .qualifications
             .iter()
+            .copied()
+            .filter(|_| entry_claim.path.is_empty())
+            .chain(
+                checked_parameter
+                    .projected_qualifications
+                    .iter()
+                    .filter(|row| row.path == entry_claim.path)
+                    .map(|row| row.domain),
+            );
+        let mut projections = qualifications
             .filter_map(|qualification| {
                 checked
                     .facts
                     .qualifications
                     .content
-                    .for_semantic_domain(*qualification)
+                    .for_semantic_domain(qualification)
             })
             .map(|projection| {
-                if projection.carrier_identity != checked_parameter.type_identity {
+                if projection.carrier_identity != carrier.identity {
                     return unsupported(
                         "content projection carrier disagrees with its qualified parameter",
                     );
@@ -236,11 +312,6 @@ pub(super) fn lower_whole_content_entry_claims(
         if projections.is_empty() {
             continue;
         }
-        if !entry_claim.path.is_empty() {
-            return unsupported(
-                "bodyless content custody currently requires a whole structural parameter",
-            );
-        }
         projections.sort();
         if projections.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err(LoweringError::DuplicateContentIdentityProjection);
@@ -251,7 +322,7 @@ pub(super) fn lower_whole_content_entry_claims(
             input: ContentStructuralPlace {
                 version: ContentPlaceVersion::Entry,
                 root: parameter.place,
-                segments: Vec::new(),
+                segments,
             },
             projections,
         });
