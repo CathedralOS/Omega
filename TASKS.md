@@ -836,8 +836,21 @@ Owners include
   Tests witness formation, non-sort/non-function/unbound rejection,
   capture-avoiding substitution, strict-versus-relevant separation, step-ceiling
   refusal, and an exact 51-slot arena receipt for checking the polymorphic
-  identity. Next: level variables and universe-polymorphic declarations, Σ
-  pairs, and typed eta, before connecting to source or a theorem certificate.
+  identity.
+
+  Landed: dependent pairs — Σ formation at the maximum component level
+  (`Strict` only when both components are `Strict`), componentwise pair
+  checking with the second component checked at the codomain instantiated by
+  the first, `fst`/`snd` typing with dependent `snd` result, definitional
+  projection reduction, and pair eta in both directions during typed
+  conversion. Pair arguments in Π applications are routed through
+  componentwise checking so dependent codomains do not need non-dependent
+  inference. Tests witness dependent-codomain substitution, pairs flowing
+  through call arguments, projection reduction through function redexes,
+  relevant-versus-strict Σ formation, neutral pair eta, and non-pair
+  projection rejection. Next: level variables and universe-polymorphic
+  declarations and typed function eta, before connecting to source or a
+  theorem certificate.
 
   Implement the pinned reference core and selected
   [W-based profile](wiki/spec/proofs/inductive_profile.md): relevant identity,

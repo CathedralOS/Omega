@@ -52,6 +52,42 @@ pub fn shift(arena: &mut TermArena, term: TermHandle, cutoff: u32, amount: u32) 
                 argument: shifted_argument,
             })
         }
+        Term::Sigma { domain, codomain } => {
+            let shifted_domain = shift(arena, domain, cutoff, amount);
+            let shifted_codomain = shift(arena, codomain, cutoff + 1, amount);
+            if shifted_domain == domain && shifted_codomain == codomain {
+                return term;
+            }
+            arena.insert(Term::Sigma {
+                domain: shifted_domain,
+                codomain: shifted_codomain,
+            })
+        }
+        Term::Pair { first, second } => {
+            let shifted_first = shift(arena, first, cutoff, amount);
+            let shifted_second = shift(arena, second, cutoff, amount);
+            if shifted_first == first && shifted_second == second {
+                return term;
+            }
+            arena.insert(Term::Pair {
+                first: shifted_first,
+                second: shifted_second,
+            })
+        }
+        Term::Fst { pair } => {
+            let shifted_pair = shift(arena, pair, cutoff, amount);
+            if shifted_pair == pair {
+                return term;
+            }
+            arena.insert(Term::Fst { pair: shifted_pair })
+        }
+        Term::Snd { pair } => {
+            let shifted_pair = shift(arena, pair, cutoff, amount);
+            if shifted_pair == pair {
+                return term;
+            }
+            arena.insert(Term::Snd { pair: shifted_pair })
+        }
         Term::Sort(_) | Term::Dummy => term,
     }
 }
@@ -110,6 +146,42 @@ fn substitute_at(
                 function: new_function,
                 argument: new_operand,
             })
+        }
+        Term::Sigma { domain, codomain } => {
+            let new_domain = substitute_at(arena, domain, argument, depth);
+            let new_codomain = substitute_at(arena, codomain, argument, depth + 1);
+            if new_domain == domain && new_codomain == codomain {
+                return term;
+            }
+            arena.insert(Term::Sigma {
+                domain: new_domain,
+                codomain: new_codomain,
+            })
+        }
+        Term::Pair { first, second } => {
+            let new_first = substitute_at(arena, first, argument, depth);
+            let new_second = substitute_at(arena, second, argument, depth);
+            if new_first == first && new_second == second {
+                return term;
+            }
+            arena.insert(Term::Pair {
+                first: new_first,
+                second: new_second,
+            })
+        }
+        Term::Fst { pair } => {
+            let new_pair = substitute_at(arena, pair, argument, depth);
+            if new_pair == pair {
+                return term;
+            }
+            arena.insert(Term::Fst { pair: new_pair })
+        }
+        Term::Snd { pair } => {
+            let new_pair = substitute_at(arena, pair, argument, depth);
+            if new_pair == pair {
+                return term;
+            }
+            arena.insert(Term::Snd { pair: new_pair })
         }
         Term::Sort(_) | Term::Dummy => term,
     }
