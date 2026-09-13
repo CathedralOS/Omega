@@ -75,6 +75,161 @@ fn literal_encoding(text: &str, name: &str) -> String {
 }
 
 #[test]
+fn computed_nominal_leaves_preserve_carriers_fields_and_exact_arithmetic() {
+    let declarations = "data Leaf [copy] { count: u64; }
+        data Config [copy] { leaf: Leaf; flags: [bool; 2]; }";
+    let evaluated = evaluate(&format!("{declarations}
+        const SIZE: u64 = 7 / 2 * 2;
+        const CONFIG: Config = Config {{ flags: [SIZE == 7, false], leaf: Leaf {{ count: SIZE * 2 }} }};"))
+        .expect("selected nominal scalar leaves");
+    let config = constant(&evaluated, "CONFIG");
+    let receipt = config
+        .normalization
+        .as_ref()
+        .expect("nominal initializer receipt");
+    assert_eq!(
+        receipt.canonical_result_encoding,
+        literal_encoding(
+            &format!(
+                "{declarations}
+        const CONFIG: Config = Config {{ leaf: Leaf {{ count: 14 }}, flags: [true, false] }};"
+            ),
+            "CONFIG"
+        )
+    );
+    assert!(matches!(
+        evaluated
+            .expressions
+            .expression(receipt.authored_expression),
+        ExpressionNode::StructLiteral(_)
+    ));
+    assert_ne!(receipt.authored_expression, config.value);
+    assert!(
+        receipt
+            .selections
+            .iter()
+            .any(|origin| origin.declaration == constant(&evaluated, "SIZE").name.source_span())
+    );
+    syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&evaluated)
+        .expect("nominal initializer receipt independently rejoins authored selections");
+}
+
+#[test]
+fn computed_nominal_leaves_reject_invalid_unused_fields_and_constructor_shapes() {
+    for initializer in [
+        "Config { count: 200 + 100, enabled: true }",
+        "Config { count: 7 / 2, enabled: true }",
+        "Config { count: 2 + 1, enabled: 2 }",
+        "Config { count: 2 + 1 }",
+        "Config { count: 2 + 1, count: 2, enabled: true }",
+        "Other { count: 2 + 1, enabled: true }",
+    ] {
+        assert!(
+            evaluate(&format!(
+                "data Config [copy] {{ count: u8; enabled: bool; }}
+            data Other [copy] {{ count: u8; enabled: bool; }}
+            const UNUSED: Config = {initializer};"
+            ))
+            .is_err(),
+            "{initializer}"
+        );
+    }
+}
+
+#[test]
+fn computed_case_payloads_and_record_arrays_share_scalar_leaf_evaluation() {
+    let declarations = "data Value [copy] { case Empty; case Number(count: u64); }
+        data Row [copy] { count: u64; enabled: bool; }";
+    let evaluated = evaluate(&format!(
+        "{declarations}
+        const VALUE: Value = Value::Number {{ count: 7 / 2 * 2 }};
+        const ROWS: [Row; 2] = [Row {{ count: 1 + 1, enabled: true }},
+            Row {{ count: 7 / 2 * 2, enabled: false && (1u8 / 0 == 0) }}];"
+    ))
+    .expect("case and record array leaves");
+    for (name, value) in [
+        ("VALUE", "Value::Number { count: 7 }"),
+        (
+            "ROWS",
+            "[Row { count: 2, enabled: true }, Row { count: 7, enabled: false }]",
+        ),
+    ] {
+        let carrier = if name == "VALUE" { "Value" } else { "[Row; 2]" };
+        assert_eq!(
+            constant(&evaluated, name)
+                .normalization
+                .as_ref()
+                .unwrap()
+                .canonical_result_encoding,
+            literal_encoding(
+                &format!("{declarations} const {name}: {carrier} = {value};"),
+                name
+            )
+        );
+    }
+    syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&evaluated)
+        .expect("case constructor receipt replay");
+}
+
+#[test]
+fn computed_record_leaves_preserve_payloadless_case_siblings() {
+    let declarations = "data Mode [copy] { case On; case Off; }
+        data Config [copy] { mode: Mode; count: u64; }";
+    let evaluated = evaluate(&format!(
+        "{declarations}
+        const UNUSED: Mode = Mode::Off;
+        const CONFIG: Config = Config {{ mode: Mode::On, count: 7 / 2 * 2 }};"
+    ))
+    .expect("case literal is not a constant dependency");
+    assert_eq!(
+        constant(&evaluated, "CONFIG")
+            .normalization
+            .as_ref()
+            .unwrap()
+            .canonical_result_encoding,
+        literal_encoding(
+            &format!(
+                "{declarations} const CONFIG: Config = Config {{ mode: Mode::On, count: 7 }};"
+            ),
+            "CONFIG"
+        )
+    );
+    syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&evaluated)
+        .expect("case identity survives evaluation and receipt replay");
+}
+
+#[test]
+fn computed_nominal_leaves_reject_changed_result_and_dependency_receipts() {
+    let evaluated = evaluate(
+        "data Config [copy] { count: u64; }
+        const SIZE: u64 = 7 / 2 * 2;
+        const CONFIG: Config = Config { count: SIZE * 2 };",
+    )
+    .expect("nominal receipt baseline");
+    for mutation in ["result", "dependency", "operator"] {
+        let mut invalid = evaluated.clone();
+        let item = *invalid.root_item_handles().iter().find(|item| {
+            matches!(invalid.root_item(**item), Item::Const(definition) if definition.name.as_str() == "CONFIG")
+        }).unwrap();
+        let Item::Const(mut definition) = invalid.root_item(item).clone() else {
+            panic!("constant");
+        };
+        let receipt = definition.normalization.as_mut().unwrap();
+        match mutation {
+            "result" => receipt.canonical_result_encoding.push('0'),
+            "dependency" => receipt.selections.clear(),
+            "operator" => receipt.builtin_operators.clear(),
+            _ => unreachable!(),
+        }
+        invalid.items.replace_item(item, Item::Const(definition));
+        assert!(
+            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&invalid).is_err(),
+            "{mutation}"
+        );
+    }
+}
+
+#[test]
 fn computed_array_leaves_land_independently_and_retain_the_authored_array() {
     let (syntax, sources) = parse(
         "const SIZE: u64 = 7 / 2 * 2;

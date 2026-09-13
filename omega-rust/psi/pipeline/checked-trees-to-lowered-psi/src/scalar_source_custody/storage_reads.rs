@@ -124,6 +124,7 @@ fn validate_reads(
     let (_, state) = authored_state(checked, state)?;
     let mut authored_reads = Vec::new();
     let mut member_paths = Vec::new();
+    let mut unmatched_member_paths = Vec::new();
     collect_authored_storage_reads(
         checked,
         state,
@@ -133,6 +134,7 @@ fn validate_reads(
         &mut Vec::new(),
         &mut authored_reads,
         &mut member_paths,
+        &mut unmatched_member_paths,
     )?;
     let namespace = checked
         .state_parameters(state)
@@ -163,11 +165,12 @@ fn validate_reads(
                 }),
         )
         .collect::<Vec<_>>();
-    let namespace = ReadNamespace {
+    let mut namespace = ReadNamespace {
         scope,
         scalar: namespace,
         structural: checked.state_parameters(state),
         owned_field_paths: member_paths,
+        unmatched_member_paths,
         owned: checked
             .state_parameters(state)
             .iter()
@@ -179,9 +182,36 @@ fn validate_reads(
             .collect(),
     };
     let mut retained_reads = Vec::new();
-    collect_scalar_storage_reads(retained, &namespace, &mut Vec::new(), &mut retained_reads);
+    let mut needs_value_replay = false;
+    collect_scalar_storage_reads(
+        retained,
+        &mut namespace,
+        &mut Vec::new(),
+        &mut retained_reads,
+        &mut needs_value_replay,
+    );
     if retained_reads != authored_reads {
         return unsupported("scalar read differs from its authored binding or mutable place");
+    }
+    // Account for every authored value member, including receivers changed into
+    // a different expression kind. A literal projection also needs the enclosing
+    // scalar meaning replayed: leaf equality alone cannot justify replacing
+    // addition with multiplication or collapsing the complete computation.
+    if !namespace.unmatched_member_paths.is_empty() {
+        return unsupported("scalar value member has no corresponding retained literal");
+    }
+    if needs_value_replay {
+        let primitive = retained.primitive_type().ok_or(LoweringError::Unsupported(
+            "projected scalar expression has no declared carrier",
+        ))?;
+        super::value_correspondence::validate(
+            checked,
+            state.symbol,
+            scope.preceding_statements(),
+            expression,
+            primitive,
+            &checked_trees::CheckedCallScalarArgument::Pure(retained.clone()),
+        )?;
     }
     Ok(())
 }
@@ -232,6 +262,7 @@ struct ReadNamespace<'checked> {
     scalar: Vec<symbols::SymbolHandle>,
     structural: &'checked [checked_trees::signature::StateParameter],
     owned_field_paths: Vec<Vec<usize>>,
+    unmatched_member_paths: Vec<Vec<usize>>,
     // Structural positions are authored positions, including scalar formals.
     owned: Vec<symbols::SymbolHandle>,
 }
@@ -523,6 +554,7 @@ fn collect_authored_storage_reads(
     active: &mut Vec<ExpressionHandle>,
     reads: &mut Vec<StorageReadOccurrence>,
     member_paths: &mut Vec<Vec<usize>>,
+    unmatched_member_paths: &mut Vec<Vec<usize>>,
 ) -> Result<(), LoweringError> {
     use checked_trees::expression::BinaryOperator;
     if !checked.expression_table.expression_is_valid(expression) || active.contains(&expression) {
@@ -568,6 +600,33 @@ fn collect_authored_storage_reads(
             }
         }
         ExpressionNode::Member(member) => {
+            let (machine, _) = authored_state(checked, state.symbol)?;
+            // Only source-backed places and their exact collection metadata
+            // retain existing structural-read owners. A retained field, length,
+            // or predicate tag cannot turn a closed value (or a corrupted
+            // receiver) into a storage read.
+            if !validation::place_has_builtin_coordinates(
+                &checked.typed,
+                machine,
+                Some(state),
+                expression,
+            ) || validation::declared_place_type_raw(
+                &checked.typed,
+                machine,
+                Some(state),
+                expression,
+            )
+            .is_none()
+                && validation::collection_length_receiver(
+                    &checked.typed,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .is_none()
+            {
+                unmatched_member_paths.push(path.clone());
+            }
             if member.case_variant.is_none()
                 && matches!(
                     checked.expression_table.expression(member.receiver),
@@ -602,6 +661,7 @@ fn collect_authored_storage_reads(
                     active,
                     reads,
                     member_paths,
+                    unmatched_member_paths,
                 )?;
                 path.pop();
             }
@@ -616,6 +676,7 @@ fn collect_authored_storage_reads(
                 active,
                 reads,
                 member_paths,
+                unmatched_member_paths,
             )?;
         }
         ExpressionNode::Cast(cast) => {
@@ -628,6 +689,7 @@ fn collect_authored_storage_reads(
                 active,
                 reads,
                 member_paths,
+                unmatched_member_paths,
             )?;
         }
         ExpressionNode::Indexed(indexed) => {
@@ -641,6 +703,7 @@ fn collect_authored_storage_reads(
                 active,
                 reads,
                 member_paths,
+                unmatched_member_paths,
             )?;
             path.pop();
         }
@@ -664,9 +727,10 @@ fn collect_authored_storage_reads(
 
 fn collect_scalar_storage_reads(
     expression: &CheckedScalarExpression,
-    namespace: &ReadNamespace,
+    namespace: &mut ReadNamespace,
     path: &mut Vec<usize>,
     reads: &mut Vec<StorageReadOccurrence>,
+    needs_value_replay: &mut bool,
 ) {
     match expression {
         CheckedScalarExpression::StorageRead {
@@ -678,13 +742,13 @@ fn collect_scalar_storage_reads(
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             for (position, operand) in [(0, left), (1, right)] {
                 path.push(position);
-                collect_scalar_storage_reads(operand, namespace, path, reads);
+                collect_scalar_storage_reads(operand, namespace, path, reads, needs_value_replay);
                 path.pop();
             }
         }
         CheckedScalarExpression::StructuralParameterIndexedRead { index, .. } => {
             path.push(0);
-            collect_scalar_storage_reads(index, namespace, path, reads);
+            collect_scalar_storage_reads(index, namespace, path, reads, needs_value_replay);
             path.pop();
         }
         CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
@@ -692,10 +756,10 @@ fn collect_scalar_storage_reads(
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
         | CheckedScalarExpression::IntegerTrappingCast { operand, .. }
         | CheckedScalarExpression::IntegerWrappingCast { operand, .. } => {
-            collect_scalar_storage_reads(operand, namespace, path, reads);
+            collect_scalar_storage_reads(operand, namespace, path, reads, needs_value_replay);
         }
         CheckedScalarExpression::Boolean(expression) => {
-            collect_boolean_storage_reads(expression, namespace, path, reads);
+            collect_boolean_storage_reads(expression, namespace, path, reads, needs_value_replay);
         }
         CheckedScalarExpression::Parameter {
             position,
@@ -734,16 +798,28 @@ fn collect_scalar_storage_reads(
             );
         }
         CheckedScalarExpression::IntegerLiteral { .. }
-        | CheckedScalarExpression::IeeeFloatLiteral { .. }
-        | CheckedScalarExpression::StructuralParameterByteLength { .. } => {}
+        | CheckedScalarExpression::IeeeFloatLiteral { .. } => {
+            if namespace
+                .unmatched_member_paths
+                .iter()
+                .any(|source_path| source_path == path)
+            {
+                *needs_value_replay = true;
+                namespace
+                    .unmatched_member_paths
+                    .retain(|source_path| source_path != path);
+            }
+        }
+        CheckedScalarExpression::StructuralParameterByteLength { .. } => {}
     }
 }
 
 fn collect_boolean_storage_reads(
     expression: &CheckedBooleanExpression,
-    namespace: &ReadNamespace,
+    namespace: &mut ReadNamespace,
     path: &mut Vec<usize>,
     reads: &mut Vec<StorageReadOccurrence>,
+    needs_value_replay: &mut bool,
 ) {
     match expression {
         CheckedBooleanExpression::StorageRead { symbol } => {
@@ -755,21 +831,21 @@ fn collect_boolean_storage_reads(
             ));
         }
         CheckedBooleanExpression::Not(operand) => {
-            collect_boolean_storage_reads(operand, namespace, path, reads);
+            collect_boolean_storage_reads(operand, namespace, path, reads, needs_value_replay);
         }
         CheckedBooleanExpression::Equal { left, right }
         | CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } => {
             for (position, operand) in [(0, left), (1, right)] {
                 path.push(position);
-                collect_boolean_storage_reads(operand, namespace, path, reads);
+                collect_boolean_storage_reads(operand, namespace, path, reads, needs_value_replay);
                 path.pop();
             }
         }
         CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
             for (position, operand) in [(0, left), (1, right)] {
                 path.push(position);
-                collect_scalar_storage_reads(operand, namespace, path, reads);
+                collect_scalar_storage_reads(operand, namespace, path, reads, needs_value_replay);
                 path.pop();
             }
         }
@@ -810,8 +886,19 @@ fn collect_boolean_storage_reads(
                 },
             ));
         }
-        CheckedBooleanExpression::Constant(_)
-        | CheckedBooleanExpression::IeeeFloatComparison { .. }
+        CheckedBooleanExpression::Constant(_) => {
+            if namespace
+                .unmatched_member_paths
+                .iter()
+                .any(|source_path| source_path == path)
+            {
+                *needs_value_replay = true;
+                namespace
+                    .unmatched_member_paths
+                    .retain(|source_path| source_path != path);
+            }
+        }
+        CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {}
     }

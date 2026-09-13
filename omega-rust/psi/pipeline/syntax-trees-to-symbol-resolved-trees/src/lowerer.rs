@@ -98,6 +98,7 @@ pub fn lower_syntax_trees_for_const_argument_selection(
         bindings,
         ConstResolutionMode::ArgumentSelection,
     )
+    .map(|prepared| prepared.trees)
 }
 
 /// Private preparation evidence for semantic initializer evaluation. The forest
@@ -105,11 +106,41 @@ pub fn lower_syntax_trees_for_const_argument_selection(
 /// resolution result and grants no authority to type, execute, or publish it.
 pub struct ConstInitializerSelection {
     trees: SymbolResolvedTrees,
+    selection: crate::generic_data::constant_selection::ConstantSelection<'static>,
 }
 
 impl ConstInitializerSelection {
     pub fn trees(&self) -> &SymbolResolvedTrees {
         &self.trees
+    }
+
+    pub fn pending_leaves(
+        &self,
+        syntax: &SyntaxTrees,
+        definition: &syntax_trees::item::ConstDefinition,
+    ) -> Result<
+        Vec<(
+            syntax_trees::expression::ExpressionHandle,
+            syntax_trees::types::TypeReferenceHandle,
+        )>,
+        Vec<Diagnostic>,
+    > {
+        crate::constant::pending_const_initializer_leaves(syntax, definition, &self.selection)
+            .map_err(|reason| {
+                vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
+            })
+    }
+
+    pub fn canonicalize_value(
+        &self,
+        syntax: &SyntaxTrees,
+        definition: &syntax_trees::item::ConstDefinition,
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        crate::generic_data::canonicalize_selected_declared_const_definition(
+            syntax,
+            definition,
+            Some(&self.selection),
+        )
     }
 }
 
@@ -122,7 +153,7 @@ pub fn lower_syntax_trees_for_const_initializer_selection(
     sources: Option<Arc<SourceMap>>,
     bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
-    let trees = lower_syntax_trees_with_const_selection(
+    let preparation = lower_syntax_trees_with_const_selection(
         syntax,
         sources,
         bindings,
@@ -136,11 +167,15 @@ pub fn lower_syntax_trees_for_const_initializer_selection(
         }
         _ => None,
     }) {
-        let declaration = trees
+        preparation
+            .trees
             .const_declarations
             .iter()
             .find(|declaration| {
-                trees.symbols.symbol_source_span(declaration.symbol)
+                preparation
+                    .trees
+                    .symbols
+                    .symbol_source_span(declaration.symbol)
                     == Some(definition.name.source_span())
             })
             .ok_or_else(|| {
@@ -148,44 +183,9 @@ pub fn lower_syntax_trees_for_const_initializer_selection(
                     "initializer preparation lost its exact declaration",
                 )]
             })?;
-        use symbols::BuiltinTypeAtom;
-        let mut declared_type = declaration.declared_type.clone();
-        let valid = loop {
-            match &declared_type {
-                symbol_resolved_trees::types::TypeReference::FixedArray(array) => {
-                    if !matches!(
-                        array.length,
-                        symbol_resolved_trees::types::FixedArrayLength::Literal(_)
-                    ) {
-                        break false;
-                    }
-                    declared_type = trees.child_type_reference(array.element_type).clone();
-                }
-                symbol_resolved_trees::types::TypeReference::Named { symbol, .. } => {
-                    break matches!(
-                        trees.symbols.builtin_type_atom(*symbol),
-                        Some(
-                            BuiltinTypeAtom::I8
-                                | BuiltinTypeAtom::I16
-                                | BuiltinTypeAtom::I32
-                                | BuiltinTypeAtom::I64
-                                | BuiltinTypeAtom::U8
-                                | BuiltinTypeAtom::U16
-                                | BuiltinTypeAtom::U32
-                                | BuiltinTypeAtom::U64
-                                | BuiltinTypeAtom::Bool
-                        )
-                    );
-                }
-                _ => break false,
-            }
-        };
-        if !valid {
-            return Err(vec![Diagnostic::error("computed constant initializer requires an exact builtin integer or Boolean carrier")
-                .with_source_span(definition.name.source_span())]);
-        }
+        preparation.pending_leaves(syntax, definition)?;
     }
-    Ok(ConstInitializerSelection { trees })
+    Ok(preparation)
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -357,6 +357,7 @@ fn lower_syntax_trees_with_optional_sources(
         source_scoped_top_level_bindings,
         ConstResolutionMode::Complete,
     )
+    .map(|prepared| prepared.trees)
 }
 
 fn lower_syntax_trees_with_const_selection(
@@ -364,7 +365,7 @@ fn lower_syntax_trees_with_const_selection(
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     const_resolution_mode: ConstResolutionMode,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
     let constant_selection = crate::generic_data::constant_selection::ConstantSelection::new(
         syntax_trees,
         sources.clone(),
@@ -385,7 +386,13 @@ fn lower_syntax_trees_with_const_selection(
         lower_item(&mut lowerer, &syntax_trees, item).map_err(|diagnostic| vec![diagnostic])?;
     }
 
-    lowerer.finish()
+    let selection = lowerer.constant_selection.take().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "constant preparation lost its source-aware selector",
+        )]
+    })?;
+    let trees = lowerer.finish()?;
+    Ok(ConstInitializerSelection { trees, selection })
 }
 
 pub(crate) struct Lowerer {

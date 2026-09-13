@@ -509,11 +509,14 @@ These declaration encodings do not admit floating generic/domain indices,
 including an unused machine const binder. The two-file checked-source customer
 is `tests/omega/pass/modules/public_float_constants/main.omg`; package review
 retains the same encoding through serialization. Call-free integer/Boolean
-initializers evaluate at build time, including each leaf of a fixed-array
-initializer (`computed_constant_initializers` selects `[SIZE * 2, 3]` as an array
-index); the array identity is the canonical literal rebuilt from the evaluated
-leaves. Machine-call, nominal aggregate, floating and public NaN initializers
-still need their complete evaluation and explicit representation contexts. Closed module-owned
+initializers evaluate at build time, including each leaf of a fixed-array,
+closed record, or case-payload literal. `computed_constant_initializers` selects
+`[SIZE * 2, 3]` as an array index; `computed_nominal_constants` selects computed
+record fields in their declared carriers and executes a direct field read from
+the source-free Terminal artifact. Aggregate identity is the canonical literal
+rebuilt from evaluated leaves, retaining the exact constructor and field owners.
+Machine-call, aggregate-producing, floating and public NaN initializers still
+need their complete evaluation and explicit representation contexts. Closed module-owned
 record/case constants, including nested records and fixed arrays, use the existing
 structural encoder after selecting each declared carrier and constructor in its
 own source. Module-local nongeneric attachments use the same scope checks as

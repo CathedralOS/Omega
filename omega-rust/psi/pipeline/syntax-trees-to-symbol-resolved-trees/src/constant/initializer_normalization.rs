@@ -75,7 +75,10 @@ pub(crate) fn retain(
         visited.push(expression);
         use syntax_trees::expression::{ExpressionNode, MatchPattern};
         match syntax.expressions.expression(expression) {
-            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => {}
+            ExpressionNode::Integer(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::String(_) => {}
             ExpressionNode::Name(path) => {
                 let members = syntax.expressions.identifier_path_members(*path);
                 let (Some(first), Some(last)) = (members.first(), members.last()) else {
@@ -85,14 +88,26 @@ pub(crate) fn retain(
                     first.source_span().source_id,
                     source::Span::new(first.source_span().span.start, last.source_span().span.end),
                 );
-                references.push((
-                    reference,
-                    members
-                        .iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::"),
-                ));
+                let name = members
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
+                let identifier = syntax_trees::identifier::Identifier::new(name.clone(), reference);
+                if lowerer
+                    .constant_selection
+                    .as_ref()
+                    .is_some_and(|selection| {
+                        selection
+                            .bare_case(syntax, &identifier)
+                            .is_ok_and(|selected| selected.is_some())
+                    })
+                {
+                    // A literal case retains ordinary constructor selection;
+                    // it is not an evaluated named-constant dependency.
+                    continue;
+                }
+                references.push((reference, name));
             }
             ExpressionNode::Binary(binary) => {
                 operators.push(syntax.expressions.source_span(expression));
@@ -109,6 +124,16 @@ pub(crate) fn retain(
                         .copied(),
                 );
             }
+            ExpressionNode::StructLiteral(literal) => {
+                let fields = syntax.expressions.struct_fields(literal.fields);
+                if fields.len() != literal.fields.len() {
+                    return Err(error(
+                        reference,
+                        "authored constructor has a stale field span",
+                    ));
+                }
+                pending.extend(fields.iter().rev().map(|field| field.value));
+            }
             ExpressionNode::Match(dispatch) => {
                 for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
                     pending.push(arm.value);
@@ -121,7 +146,7 @@ pub(crate) fn retain(
             _ => {
                 return Err(error(
                     reference,
-                    "authored expression is outside scalar evaluation",
+                    "authored expression is outside constant leaf evaluation",
                 ));
             }
         }
@@ -254,6 +279,17 @@ fn append_retained_custody(
                     operators.push(reference);
                 }
             }
+            (Kind::StaticPathSegment, Target::Resolved(selected))
+                if matches!(
+                    program.symbols.get(selected.selected_symbol()).kind,
+                    SymbolKind::Module | SymbolKind::Data | SymbolKind::Variant
+                ) =>
+            {
+                // Bare literal cases retain their ordinary resolved namespace,
+                // carrier and case path rows. These are constructor custody,
+                // not evaluated constant dependencies. Other static selections
+                // must still select an exact retained constant below.
+            }
             (Kind::StaticPathSegment, Target::Resolved(selected)) => {
                 let declaration = program
                     .const_declarations
@@ -298,6 +334,17 @@ fn append_retained_custody(
                 if !origins.contains(&origin) {
                     origins.push(origin);
                 }
+            }
+            (
+                Kind::StructLiteralType
+                | Kind::StructLiteralCase
+                | Kind::StructLiteralField
+                | Kind::CaseReference,
+                Target::Resolved(_),
+            ) => {
+                // The resolved initializer retains these exact declaration
+                // selections through every copy. They are not scalar-evaluation
+                // premises and therefore do not occupy normalization receipt slots.
             }
             _ => {
                 return Err(error(

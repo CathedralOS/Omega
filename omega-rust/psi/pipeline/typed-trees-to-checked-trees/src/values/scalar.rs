@@ -2713,6 +2713,38 @@ fn lower_scalar_expression(
     {
         return Some(read);
     }
+    if let Some((leaf, primitive)) =
+        validation::closed_record_scalar_projection(program, expression)
+    {
+        let lowered = if is_integer(primitive) {
+            let ExpressionNode::Integer(literal) = program.expression_table.expression(leaf) else {
+                return None;
+            };
+            CheckedScalarExpression::IntegerLiteral {
+                literal: if literal.landing().is_some() {
+                    literal.clone()
+                } else {
+                    validation::land_anonymous_integer_expression(program, leaf, primitive, |_| {
+                        false
+                    })?
+                },
+            }
+        } else {
+            lower_scalar_expression(
+                program,
+                operators,
+                leaf,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+            )?
+            .0
+        };
+        return (lowered.primitive_type() == Some(primitive))
+            .then_some((lowered, ArithmeticDomain::Exact));
+    }
     if let Some(leaf) = constant_array_projection::selected_leaf(
         program,
         operators,
@@ -3345,6 +3377,14 @@ fn lower_boolean_expression(
     }
     if let Some(membership) = case_membership::lower(program, authored_parameters, expression) {
         return Some(membership);
+    }
+    if let Some((leaf, PrimitiveType::Bool)) =
+        validation::closed_record_scalar_projection(program, expression)
+    {
+        let ExpressionNode::Boolean(value) = program.expression_table.expression(leaf) else {
+            return None;
+        };
+        return Some(CheckedBooleanExpression::Constant(*value));
     }
     if let Some(leaf) = constant_array_projection::selected_leaf(
         program,

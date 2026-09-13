@@ -347,6 +347,12 @@ impl Context<'_> {
         if self.exhausted(depth) || !self.checked.expression_table.expression_is_valid(source) {
             return false;
         }
+        if let Some((selected, primitive)) =
+            validation::closed_record_scalar_projection(&self.checked.typed, source)
+        {
+            return value.primitive_type() == Some(primitive)
+                && self.scalar(selected, value, operands, depth + 1);
+        }
         if let Some(selected) = self.projected_literal(source) {
             return self.scalar(selected, value, operands, depth + 1);
         }
@@ -793,6 +799,11 @@ impl Context<'_> {
     }
 
     fn projected_literal(&self, source: ExpressionHandle) -> Option<ExpressionHandle> {
+        if let Some((selected, _)) =
+            validation::closed_record_scalar_projection(&self.checked.typed, source)
+        {
+            return Some(selected);
+        }
         if !matches!(
             self.checked.expression_table.expression(source),
             ExpressionNode::Indexed(_)

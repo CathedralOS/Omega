@@ -74,6 +74,7 @@ mod float_landing;
 pub use float_landing::land_float_literal_destinations;
 pub(crate) use float_landing::validate_anonymous_divisions;
 mod constant_arrays;
+mod record_projection;
 pub use constant_arrays::builtin_constant_array_projection_type;
 pub use constant_arrays::declared_constant_array_type;
 pub(crate) use constant_arrays::validate_constant_projection_destination;
@@ -81,6 +82,7 @@ pub use constant_arrays::{
     ScalarArrayElements, closed_constant_array_elements, closed_literal_array_elements,
     is_closed_primitive_array_type, scalar_array_elements,
 };
+pub use record_projection::closed_record_scalar_projection;
 mod integer_landing;
 mod integer_remainder;
 pub(crate) use integer_landing::anonymous_integer_landing_warnings;
