@@ -442,11 +442,7 @@ fn canonical_manifest_bytes(
         &mut bytes,
         &package.source_consumption_commitment().digest(),
     );
-    let source_rows = package.canonical_consumed_unit_bytes();
-    append_count(&mut bytes, source_rows.len());
-    for row in source_rows {
-        append_field(&mut bytes, &row);
-    }
+    package.append_canonical_consumed_units(&mut bytes);
     append_field(
         &mut bytes,
         subject.selected_build_machine_identity.as_bytes(),

@@ -106,15 +106,28 @@ impl PackageCompilationSubject {
         &self.consumed_units
     }
 
-    /// Canonical source rows used by the production compilation manifest.
+    /// Append the counted, length-prefixed source rows directly to a production
+    /// manifest. No separately allocated row collection is retained.
     /// Package-graph coordinates are carried separately by
     /// `dependency_closure`; absolute routing paths never enter these bytes.
     #[doc(hidden)]
-    pub fn canonical_consumed_unit_bytes(&self) -> Vec<Vec<u8>> {
-        self.consumed_units
-            .iter()
-            .map(canonical_consumed_unit_bytes)
-            .collect()
+    pub fn append_canonical_consumed_units(&self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(
+            &u64::try_from(self.consumed_units.len())
+                .expect("consumed source count fits u64")
+                .to_le_bytes(),
+        );
+        for unit in &self.consumed_units {
+            // Fill the length after writing the row, avoiding both a sizing
+            // traversal and temporary row storage.
+            let length_offset = bytes.len();
+            bytes.extend_from_slice(&0u64.to_le_bytes());
+            let row_start = bytes.len();
+            append_canonical_consumed_unit(bytes, unit);
+            let row_length = u64::try_from(bytes.len() - row_start)
+                .expect("consumed source row length fits u64");
+            bytes[length_offset..row_start].copy_from_slice(&row_length.to_le_bytes());
+        }
     }
 }
 
@@ -178,8 +191,11 @@ pub fn derive_source_consumption_commitment(
             .expect("loaded source count fits u64")
             .to_le_bytes(),
     );
+    let mut row_bytes = Vec::new();
     for unit in consumed_units {
-        hash_field(&mut digest, &canonical_consumed_unit_bytes(unit));
+        row_bytes.clear();
+        append_canonical_consumed_unit(&mut row_bytes, unit);
+        hash_field(&mut digest, &row_bytes);
     }
     Ok(PackageSourceConsumptionCommitment {
         digest: digest.finalize().into(),
@@ -401,6 +417,11 @@ fn same_source_coordinate(left: &ConsumedSourceUnit, right: &ConsumedSourceUnit)
 
 fn canonical_consumed_unit_bytes(unit: &ConsumedSourceUnit) -> Vec<u8> {
     let mut bytes = Vec::new();
+    append_canonical_consumed_unit(&mut bytes, unit);
+    bytes
+}
+
+fn append_canonical_consumed_unit(bytes: &mut Vec<u8>, unit: &ConsumedSourceUnit) {
     bytes.push(match unit.kind {
         ConsumedSourceUnitKind::PackageAuthored => 0,
         ConsumedSourceUnitKind::PackageGenerated => 1,
@@ -411,14 +432,14 @@ fn canonical_consumed_unit_bytes(unit: &ConsumedSourceUnit) -> Vec<u8> {
         None => bytes.push(0),
         Some(package) => {
             bytes.push(1);
-            append_field(&mut bytes, &package.digest());
+            append_field(bytes, &package.digest());
         }
     }
     match &unit.toolchain_namespace {
         None => bytes.push(0),
         Some(namespace) => {
             bytes.push(1);
-            append_field(&mut bytes, namespace.as_bytes());
+            append_field(bytes, namespace.as_bytes());
         }
     }
     bytes.extend_from_slice(
@@ -427,11 +448,10 @@ fn canonical_consumed_unit_bytes(unit: &ConsumedSourceUnit) -> Vec<u8> {
             .to_le_bytes(),
     );
     for component in &unit.relative_path {
-        append_field(&mut bytes, component.as_bytes());
+        append_field(bytes, component.as_bytes());
     }
     bytes.extend_from_slice(&unit.byte_count.to_le_bytes());
-    append_field(&mut bytes, &unit.content_digest);
-    bytes
+    append_field(bytes, &unit.content_digest);
 }
 
 fn canonical_path_components(
@@ -585,6 +605,137 @@ mod tests {
     use source::SourceId;
     use std::path::PathBuf;
     use std::sync::Arc;
+
+    fn canonical_row_fixture() -> Vec<ConsumedSourceUnit> {
+        let package = PackageKeyIdentity::from_digest([7; 32]).expect("package identity");
+        [
+            (
+                ConsumedSourceUnitKind::PackageAuthored,
+                Some(package),
+                None,
+                vec!["main.omg".to_owned()],
+            ),
+            (
+                ConsumedSourceUnitKind::PackageGenerated,
+                Some(package),
+                None,
+                vec!["generated".to_owned(), "λ.omg".to_owned()],
+            ),
+            (
+                ConsumedSourceUnitKind::ToolchainVirtual,
+                None,
+                Some("std".to_owned()),
+                vec!["<prelude>".to_owned()],
+            ),
+            (
+                ConsumedSourceUnitKind::ToolchainOwned,
+                None,
+                Some("core".to_owned()),
+                vec!["nested".to_owned(), "types.omg".to_owned()],
+            ),
+        ]
+        .into_iter()
+        .map(
+            |(kind, package, toolchain_namespace, relative_path)| ConsumedSourceUnit {
+                kind,
+                package,
+                toolchain_namespace,
+                relative_path,
+                byte_count: 123,
+                content_digest: [13; 32],
+            },
+        )
+        .collect()
+    }
+
+    #[test]
+    fn canonical_row_layout_and_source_commitment_are_stable() {
+        let units = canonical_row_fixture();
+        let mut identities = units
+            .iter()
+            .map(|unit| format!("{:x}", Sha256::digest(canonical_consumed_unit_bytes(unit))))
+            .collect::<Vec<_>>();
+        let package = units[0].package().expect("authored owner");
+        let inputs = super::super::PackageCompilationInputs::new_package(
+            package,
+            vec![super::super::PackageSourceBinding::new(
+                package,
+                "canonical-row-fixture",
+                std::env::current_dir().expect("package root"),
+            )],
+            Vec::new(),
+        )
+        .expect("single package graph");
+        let commitment = derive_source_consumption_commitment(&units, &inputs).expect("commitment");
+        identities.push(
+            commitment
+                .digest()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+        );
+        // Captured from the V3 row/commitment encoder before changing its storage.
+        assert_eq!(
+            identities,
+            [
+                "ae0e65b19e6af4b93dce85e0feb096a5858db96308d6c7e60d99915732e3a213",
+                "519ca0511d1018331db0e01bb39405e40d0660985e099f787918737492c15671",
+                "eb986861f4e7b8b2018605c9436f9aabf7e535182dd8ea9f774d90cdba4a9285",
+                "24b8039fc620e9d7d4a69da5af6c2a203ecabb369fcf263a8acb134cd1021141",
+                "0085e87aac427a0e725966f478af42996e1714c151c8e93e10b9ad423278c6bd",
+            ]
+        );
+    }
+
+    #[test]
+    fn canonical_source_rows_append_in_place_without_changing_framing() {
+        let fixture = canonical_row_fixture();
+        let package = fixture[0].package().expect("authored owner");
+        for row_count in [0, 1, 4, 4096] {
+            let mut units = (0..row_count)
+                .map(|ordinal| {
+                    let mut unit = fixture[ordinal % fixture.len()].clone();
+                    unit.relative_path
+                        .push(format!("{ordinal}-{}", "x".repeat(ordinal % 257)));
+                    unit
+                })
+                .collect::<Vec<_>>();
+            units.sort();
+            // Independent outer framing preserves the former manifest protocol:
+            // count, then each raw row's length and bytes, in canonical order.
+            let mut expected = b"manifest-prefix".to_vec();
+            expected.extend_from_slice(&(row_count as u64).to_le_bytes());
+            for unit in &units {
+                append_field(&mut expected, &canonical_consumed_unit_bytes(unit));
+            }
+            expected.extend_from_slice(b"manifest-suffix");
+            let subject = PackageCompilationSubject {
+                root: package,
+                dependency_closure: super::super::PackageDependencyClosure::from_canonical_parts(
+                    package,
+                    super::super::BuildDeclarationKind::Package,
+                    vec![package],
+                    Vec::new(),
+                )
+                .expect("single package closure"),
+                source_consumption_commitment: PackageSourceConsumptionCommitment::for_test(
+                    [1; 32],
+                ),
+                consumed_units: units,
+            };
+            let mut actual = Vec::with_capacity(expected.len());
+            actual.extend_from_slice(b"manifest-prefix");
+            let storage = actual.as_ptr();
+            subject.append_canonical_consumed_units(&mut actual);
+            actual.extend_from_slice(b"manifest-suffix");
+            assert_eq!(actual, expected, "{row_count} rows");
+            assert_eq!(
+                actual.as_ptr(),
+                storage,
+                "caller-supplied storage is retained"
+            );
+        }
+    }
 
     fn source(
         path: &str,
