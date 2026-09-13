@@ -294,12 +294,12 @@ fn nested_scalar_reads_use_the_original_owned_record_backing_from_canonical_byte
                 &bytes,
                 &proof,
                 &AdmissionProfile::default(),
-                &[scalar(value), TerminalScalarValue::Boolean(true)],
+                &[scalar(value), TerminalScalarValue::Boolean(value != 0)],
             )
             .unwrap();
             let mut meter = TerminalFuelMeter::with_allowance(100);
             let expected = if boolean {
-                TerminalScalarValue::Boolean(true)
+                TerminalScalarValue::Boolean(value != 0)
             } else {
                 scalar(value)
             };
