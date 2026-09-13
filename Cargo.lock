@@ -2135,9 +2135,15 @@ dependencies = [
  "lowered-psi-to-terminal-psi",
  "optimization",
  "semantic-vocabulary",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
  "terminal-psi",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
+ "validation",
 ]
 
 [[package]]

@@ -135,6 +135,7 @@ use crate::contract_entailment::validate_machine_contract_entailment;
 pub use crate::declaration_visibility::validate_declaration_visibility;
 pub use crate::slice_ranking::slice_tail_strictly_decreases;
 
+pub use crate::cleanup::{data_requires_nominal_drop, type_graph_requires_nominal_drop};
 pub use crate::data::data_requires_establishment;
 use crate::data::validate_data_field_types;
 use crate::domains::validate_domain_definitions;

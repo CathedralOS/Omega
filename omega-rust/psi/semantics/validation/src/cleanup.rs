@@ -1,11 +1,175 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use language_semantics::{MachineSupplyMode, TerminationGuarantee, TerminationInterface};
+use std::collections::BTreeSet;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::data::DataMember;
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// True when automatic disposal would have to run a reachable nominal
+/// `::drop`. Borrowed views do not own referent cleanup; callers assessing an
+/// owned receiver must pass its referent type rather than its loan type.
+pub fn type_graph_requires_nominal_drop(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    type_graph_requires_nominal_drop_with_substitutions(
+        program,
+        type_reference,
+        &[],
+        &mut BTreeSet::new(),
+    )
+}
+
+fn type_graph_requires_nominal_drop_with_substitutions(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    visited: &mut BTreeSet<String>,
+) -> bool {
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return false,
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Named { symbol, .. } => {
+                let Some((_, replacement)) = substitutions
+                    .iter()
+                    .rev()
+                    .find(|(parameter, _)| parameter == symbol)
+                else {
+                    break;
+                };
+                if *replacement == type_reference {
+                    return false;
+                }
+                type_reference = *replacement;
+            }
+            _ => break,
+        }
+    }
+
+    let identity = program
+        .normalized_type_identity_with_binders_and_substitutions(type_reference, &[], substitutions)
+        .into_string();
+    if !visited.insert(identity) {
+        return false;
+    }
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => false,
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_graph_requires_nominal_drop_with_substitutions(
+                program,
+                *base_type,
+                substitutions,
+                visited,
+            )
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_graph_requires_nominal_drop_with_substitutions(
+                program,
+                *element_type,
+                substitutions,
+                visited,
+            )
+        }
+        TypeReferenceNode::Named { symbol, name } => program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == *symbol || data.name.as_str() == name.as_str())
+            .is_some_and(|data| {
+                data_graph_requires_nominal_drop_with_substitutions(
+                    program,
+                    data,
+                    substitutions,
+                    visited,
+                )
+            }),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            let Some(data) = program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == *base_symbol)
+            else {
+                return false;
+            };
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            let parameters = program.data_type_parameters(data);
+            if arguments.len() != parameters.len() {
+                return false;
+            }
+            let mut nested_substitutions = substitutions.to_vec();
+            nested_substitutions.extend(
+                parameters
+                    .iter()
+                    .zip(arguments)
+                    .map(|(parameter, argument)| (parameter.symbol, *argument)),
+            );
+            data_graph_requires_nominal_drop_with_substitutions(
+                program,
+                data,
+                &nested_substitutions,
+                visited,
+            )
+        }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => false,
+    }
+}
+
+/// Check cleanup of an exact nominal owner, including its owned fields.
+/// An implicit `Self` type names its machine, so receiver provisioning uses
+/// the machine's resolved data declaration rather than inspecting the loan.
+pub fn data_requires_nominal_drop(
+    program: &TypedTrees,
+    data: &typed_trees::data::DataDefinition,
+) -> bool {
+    data_graph_requires_nominal_drop_with_substitutions(program, data, &[], &mut BTreeSet::new())
+}
+
+fn data_graph_requires_nominal_drop_with_substitutions(
+    program: &TypedTrees,
+    data: &typed_trees::data::DataDefinition,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    visited: &mut BTreeSet<String>,
+) -> bool {
+    if program.machines().iter().any(|machine| {
+        machine.name.as_str().ends_with("::drop") && machine.attached_data_symbol == data.symbol
+    }) {
+        return true;
+    }
+    program
+        .data_members(data)
+        .iter()
+        .any(|member| match member {
+            DataMember::Field(field) => type_graph_requires_nominal_drop_with_substitutions(
+                program,
+                field.type_reference,
+                substitutions,
+                visited,
+            ),
+            DataMember::Variant(variant) => {
+                program.data_payload_fields(variant).iter().any(|field| {
+                    type_graph_requires_nominal_drop_with_substitutions(
+                        program,
+                        field.type_reference,
+                        substitutions,
+                        visited,
+                    )
+                })
+            }
+        })
+}
 
 pub(crate) fn validate_cleanup_machine_declarations(
     program: &TypedTrees,
