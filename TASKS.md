@@ -553,6 +553,17 @@ with unavailable-host coverage explicit. Tampered identity, arguments, completio
 rows, or provider evidence reject independently. General completion syntax and
 other terminal services are not prerequisites.
 
+  Landed: `ProcessExit::exit_process(i32)` is declared in core/std with
+  per-target `process_exit_impl` providers and recognized as a canonical
+  requirement bound through selected-dispatch hosted custody — the interpreter
+  ends its simulated domain with the exact status and drained trace, and native
+  realization settles `HostedExitProcessI32` rows under `SelectedProcessExit`
+  custody (`tests/omega/pass/host/process_exit_i32_status{,_ordered}`,
+  macOS arm64 native run exits 70 with byte-ordered console output; Windows
+  provider declared, host execution unavailable). Open: remaining hosts'
+  physical runs, root-return/task-custody survivor contracts, and general
+  completion syntax.
+
 ## P1 - Authority, roots, and entry
 
 Owners include
