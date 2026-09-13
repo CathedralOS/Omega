@@ -1,10 +1,10 @@
-use super::{
-    SeededContinuationError, exact_field_symbol, exact_top_level_data_symbol,
-    lower_seeded_extension, lower_symbol_resolved_trees,
+use super::seeded_continuation::{
+    SeededContinuationError, SeededTypingBase, lower_seeded_extension,
     lower_symbol_resolved_trees_to_seeded_base, plain_data_extension_shape_is_supported,
     resolved_root_shape_is_supported, retained_typed_base_is_exact_prefix,
     seeded_extension_shape_is_supported,
 };
+use super::{exact_field_symbol, exact_top_level_data_symbol, lower_symbol_resolved_trees};
 use source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
@@ -314,7 +314,7 @@ fn inherited_trait_default_realizations_settle_exact_requirement_symbols() {
 fn seeded_plain_data_inputs(
     base_source: &str,
     extension_source: &str,
-) -> (super::SeededTypingBase, RebasedSeededSymbolResolvedTrees) {
+) -> (SeededTypingBase, RebasedSeededSymbolResolvedTrees) {
     let mut base_sources = SourceMap::default();
     let base_id = base_sources
         .add(PathBuf::from("base.omg"), base_source.to_owned())
@@ -366,7 +366,7 @@ fn seeded_plain_data_inputs(
 fn seeded_normalized_plain_data_inputs(
     base_source: &str,
     extension_source: &str,
-) -> (super::SeededTypingBase, RebasedSeededSymbolResolvedTrees) {
+) -> (SeededTypingBase, RebasedSeededSymbolResolvedTrees) {
     let mut base_sources = SourceMap::default();
     let base_id = base_sources
         .add(PathBuf::from("base.omg"), base_source.to_owned())
@@ -5586,7 +5586,10 @@ fn seeded_structured_const_instance_gate_replays_declarations_values_and_carrier
     );
     let frontier = base.typed().data_definitions().len();
     let resolved = extension.trees().clone();
-    assert!(resolved_root_shape_is_supported(&resolved, &base.resolved));
+    assert!(resolved_root_shape_is_supported(
+        &resolved,
+        &base.resolved_base_for_extension()
+    ));
     assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
 
     let config_index = (frontier..resolved.data_definitions.len())
@@ -5690,7 +5693,10 @@ fn seeded_structured_const_instance_gate_replays_declarations_values_and_carrier
     let mut public_support_const = resolved;
     public_support_const.const_declarations[0].is_public = true;
     assert!(
-        !resolved_root_shape_is_supported(&public_support_const, &base.resolved),
+        !resolved_root_shape_is_supported(
+            &public_support_const,
+            &base.resolved_base_for_extension()
+        ),
         "the bounded data continuation cannot grow the public const surface"
     );
 }
@@ -6583,9 +6589,10 @@ fn seeded_nominal_machine_gate_replays_the_exact_base_requirement_pair() {
         "trait GeneratedOperation { machine apply(value: u64) -> u64; }",
         "machine generated<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; { Selected(value) }",
     );
-    let data_frontier = base.resolved.data_definitions.len();
-    let machine_frontier = base.resolved.machines.len();
-    let trait_frontier = base.resolved.traits.len();
+    let resolved_base = base.resolved_base_for_extension();
+    let data_frontier = resolved_base.data_definitions.len();
+    let machine_frontier = resolved_base.machines.len();
+    let trait_frontier = resolved_base.traits.len();
     let resolved = extension.trees().clone();
     assert!(seeded_extension_shape_is_supported(
         &resolved,
@@ -6883,9 +6890,10 @@ fn seeded_structured_const_machine_gate_replays_carrier_and_value_occurrence_exa
         "data Config { count: u8; enabled: bool; } data Indexed<const C: Config> { marker: u8; } machine authored() -> u32 { 1 }",
         "pub machine generated<const C: Config>(value: Indexed<C>) {}",
     );
-    let data_frontier = base.resolved.data_definitions.len();
-    let machine_frontier = base.resolved.machines.len();
-    let trait_frontier = base.resolved.traits.len();
+    let resolved_base = base.resolved_base_for_extension();
+    let data_frontier = resolved_base.data_definitions.len();
+    let machine_frontier = resolved_base.machines.len();
+    let trait_frontier = resolved_base.traits.len();
     let resolved = extension.trees().clone();
     assert!(seeded_extension_shape_is_supported(
         &resolved,

@@ -54,10 +54,6 @@ const ANCHOR_HEADER_EXCEPTIONS: &[(&str, usize)] = &[
         1,
     ),
     (
-        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/lib.rs",
-        1,
-    ),
-    (
         "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/lib.rs",
         1,
     ),
