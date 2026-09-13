@@ -1546,17 +1546,20 @@ Owners include
   Remove the nested-call gate only when those result uses have real producers;
   a correct declared type or source origin alone does not realize a value.
   Resume at the checked/Terminal representation seam, not another evaluator
-  source-shape gate: realize reference-bearing aggregate parameters and projected
-  nested result operands with their recursive loan custody. The primitive-ingress
-  record route is available: at `7ee27ae715`, `cargo nextest run
-  -p checked-trees-to-lowered-psi --test reference_result_source --no-fail-fast`
+  source-shape gate: realize projected owned reference leaves with residual
+  carrier cleanup, then nested result operands with their recursive loan custody.
+  Whole owned record ingress and forwarding are available: at `74a7afca7c`,
+  `cargo nextest run -p checked-trees-to-lowered-psi --test reference_result_source --no-fail-fast`
   (macOS ARM64, `RUST_MIN_STACK=33554432`) checks canonical encoding, independent
-  verification, and fuel-stepped execution of `make_view(value)` followed by
-  `replace(held.body)`, restoring the caller's original backing after cleanup.
+  verification, and fuel-stepped execution of `forward(input)` followed by
+  `replace(held.body)`, preserving the transferred leaf and restoring the caller's
+  original backing after cleanup. `select(value: View) -> &mut i32 { value.body }`
+  must move the selected permission and dispose the remainder, not create a
+  reborrow whose parent dies at return.
   This is Terminal acceptance, not native acceptance. Reuse
   `validation/src/reference_result_custody.rs` for ordinary completion and
   independent source replay; preserve conservative lifetime unions when extending
-  exact runtime origins beyond primitive formal inputs. Transfer existing
+  exact runtime origins beyond the current whole-record route. Transfer existing
   permissions through owned call/edge/result moves and residual cleanup;
   `EstablishReference` creates a child loan and cannot substitute for moving an
   existing leaf. Keep carrier location distinct from loan occurrence/parent,
@@ -1568,7 +1571,7 @@ Owners include
   cover nested `select(forward_outer(...).inner)` and
   `select(forward_array(...)[0])` calls, not the simpler `make_view` binding.
   Keep those controls until their corresponding unchanged source cases execute
-  from encoded Terminal evidence, including their aggregate ingress custody.
+  from encoded Terminal evidence, including projected moves and array ingress.
 
 - **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
   semantic facts, flow transfer, and contract consumption. Collection elements
