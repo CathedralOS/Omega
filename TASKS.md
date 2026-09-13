@@ -1205,10 +1205,11 @@ Owners include
   [module/name contract](wiki/spec/language/modules.md) in
   `syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs`,
   `build-time-evaluation/src/const_initializers.rs`, and the shared generic
-  evaluator. Remaining forms include computed aggregate/open-template indices,
-  specialized module templates, foreign/generic constant
-  attachments, trait defaults, operator homes and qualified case membership in
-  declared-domain proof facts. Preserve exact lexical/package selection before
+  evaluator. Computed integer/Boolean leaves of fixed-array initializers now
+  evaluate (`computed_constant_initializers`). Remaining forms include computed
+  nominal aggregate/open-template indices, specialized module templates,
+  foreign/generic constant attachments, trait defaults, operator homes and
+  qualified case membership in declared-domain proof facts. Preserve exact lexical/package selection before
   evaluation, per-use exposure under specialization and owner-local imports.
   The [source pipeline map](omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization)
   owns the current probes.

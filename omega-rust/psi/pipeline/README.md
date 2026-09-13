@@ -455,9 +455,12 @@ equivalent literals that round to the same value share the value encoding.
 These declaration encodings do not admit floating generic/domain indices,
 including an unused machine const binder. The two-file checked-source customer
 is `tests/omega/pass/modules/public_float_constants/main.omg`; package review
-retains the same encoding through serialization. Computed initializers and
-public NaN identities still need their complete evaluation and explicit
-representation contexts. Closed module-owned
+retains the same encoding through serialization. Call-free integer/Boolean
+initializers evaluate at build time, including each leaf of a fixed-array
+initializer (`computed_constant_initializers` selects `[SIZE * 2, 3]` as an array
+index); the array identity is the canonical literal rebuilt from the evaluated
+leaves. Machine-call, nominal aggregate, floating and public NaN initializers
+still need their complete evaluation and explicit representation contexts. Closed module-owned
 record/case constants, including nested records and fixed arrays, use the existing
 structural encoder after selecting each declared carrier and constructor in its
 own source. Module-local nongeneric attachments use the same scope checks as
