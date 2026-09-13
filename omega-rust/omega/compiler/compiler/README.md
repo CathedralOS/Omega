@@ -21,6 +21,14 @@ Checked-only consumers supply one `CheckedCompileRequest` to `compile_to_checked
 Package inputs, build staging, session sponsors and replay evidence are request
 data, not alternate compilation entrypoints. The request enters the same prepared
 source continuation used by production and target batches.
+Candidate discovery can supply `CheckedCompileRequest::prepared_source_output`
+to retain an opaque `PreparedCheckedSource`, then consume it with a fresh request.
+The output slot is cleared before validation and published only on success.
+This reuses physical source loading and parsing, never checked semantics or build
+authority. Root paths and immutable package inputs must still match; callers retain
+their before/after physical-source custody checks and final source-consumption
+verification. Retention copies parsed storage for the discovery child and holds
+that frontier until the final child consumes it; it is not a persistent cache.
 
 [Native compilation](src/compiler/native.rs) prepares and realizes the native
 product; it is not owned by optional optimization or report writing. Re-entry

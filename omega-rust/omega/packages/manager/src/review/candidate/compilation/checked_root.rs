@@ -9,11 +9,17 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
     build_root: &Path,
     entry_path: &Path,
 ) -> Result<compiler::CheckedCompilation, CompileResolvedPackageReviewsError> {
-    let (reviews, checked) =
-        compile_with_semantic_bindings(target_closure, build_root, entry_path, &[])?;
+    let mut prepared_sources = vec![None; target_closure.source_closure().graph().packages().len()];
+    let (reviews, checked) = compile_with_semantic_bindings(
+        target_closure,
+        build_root,
+        entry_path,
+        &[],
+        PackageSourcePreparation::Retain(&mut prepared_sources),
+    )?;
     let semantic_binding_inputs = candidate_semantic_binding_inputs(&reviews)?;
     if semantic_binding_inputs.is_empty() {
-        return Ok(checked);
+        return Ok(*checked);
     }
     // Discovery is not the final checked product when bindings were proposed.
     drop((reviews, checked));
@@ -22,8 +28,9 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
         build_root,
         entry_path,
         &semantic_binding_inputs,
+        PackageSourcePreparation::Consume(&mut prepared_sources),
     )
-    .map(|(_, checked)| checked)
+    .map(|(_, checked)| *checked)
 }
 
 pub(super) fn compile_with_semantic_bindings(
@@ -31,8 +38,12 @@ pub(super) fn compile_with_semantic_bindings(
     build_root: &Path,
     entry_path: &Path,
     semantic_binding_inputs: &[ConsumerScopedSemanticBindingReviewInput],
+    source_preparation: PackageSourcePreparation<'_>,
 ) -> Result<
-    (CompilerIssuedPackageReviewSet, compiler::CheckedCompilation),
+    (
+        CompilerIssuedPackageReviewSet,
+        Box<compiler::CheckedCompilation>,
+    ),
     CompileResolvedPackageReviewsError,
 > {
     let closure = target_closure.source_closure();
@@ -46,6 +57,7 @@ pub(super) fn compile_with_semantic_bindings(
         build_session.evaluation_sponsor(),
         &semantic_bindings_by_consumer,
         Some(entry_path),
+        source_preparation,
     );
     let compiled = build_session.dispose(result)?;
     let root = closure.graph().root();
