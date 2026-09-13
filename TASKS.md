@@ -172,7 +172,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |
   | `cli_mvp` entry | The macOS probe at `48daf28aa4` stopped at `ProgramEntry receiver provisioning failed`. Resume **ENTRY-CONTENT-ROOTS** and **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION**; remove the retained-self retry only once the real bridge supplies its activation loan. |
-  | `print_squares` closure | The macOS probe at `a8908f279b` stopped at a missing checked transitive Unit plan. Psi's `flow/terminal_unit/` and `checked-trees-to-lowered-psi/src/attached_unit/` must retain projected calls, whole/indexed text writes, and runtime state values. **GENERAL-CYCLIC-EXECUTION** owns cyclic completion; **NOMINAL-FIELD-FLOW** owns declared field facts. |
+  | `print_squares` closure | `58dd5c0482` retains the checked transitive Unit plan and shared byte-field presentation; the probe now stops at `OperationProofUnavailable` for field-state obligations (nonzero divisor, indexed bounds, increment overflow). Psi must let retained evidence name storage observations such as `IntegerField` within the documented invariant scope. **GENERAL-CYCLIC-EXECUTION** owns cyclic completion; **NOMINAL-FIELD-FLOW** owns declared field facts. |
   | Fixed-range Console input/output | Compose the selected source provider and real byte leaves with original receiver storage, exact returned cases/prefix, once-only effects, and cleanup. Use the ordinary graph and provider replay, not the deleted Unit/boundary planner. Windows byte I/O still needs imported-call/fixup/frame custody; Linux runtime evidence requires matching hosts. |
   | Receiver and aggregate operations | Finish shared/indexed projections, owned/local roots, scalar-result receiver calls, nested sum results and whole replacements, including mixed foreign-result assignments. Extend the shared statement sequencer; **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, and **CML4** own the corresponding joins. |
   | Text and field proofs | Replace sample-local `Utf8`/compiler-name `valid_utf8` recognition with the [library encoding contract](wiki/spec/language/domains.md#byte-containers-and-encoding-domains). Keep raw bytes and qualify only validated prefixes; no byte-to-character re-encoding, hidden length writeback, or capacity-as-live-length proof. |
@@ -851,13 +851,20 @@ Owners include
   Linux x86-64 resume evidence: `print_squares`'s `Main::main` now declares
   `reaches Console` (the direct-boundary rule in
   [effects](wiki/spec/language/effects.md)); before that, every Console sample
-  stopped at source checking with `publishes service reach <none>`. The
-  filtered `samples_with_documented_exit_run_correctly` probe now stops at
-  Terminal production: `InvalidUnitMachinePlan` for `Main::main`, "attached
-  Unit closure is missing a checked transitive machine plan". The absent plan
-  is source production in `flow/terminal_unit/` (its Option-based builders do
-  not retain which local requirement failed), not the verifier or Omega
-  lowering; identify that requirement before touching cyclic verification.
+  stopped at source checking with `publishes service reach <none>`. `58dd5c0482`
+  retains composed cyclic Unit plans (`Main::main`,
+  `ConsoleNativeProvider::read_line`, `console_write_bytes`): the closure
+  keeps its checked transitive machine plan through nested/prefixed control
+  assembly, cyclic write-frame inference, trivially discardable affine
+  boundary results, and exact result custody/cleanup; shared inline byte
+  fields present to boundary byte-view parameters end to end. Store fact
+  invalidation is now scoped to the canonical written path, so disjoint
+  sibling-field observations survive (`repro_cyclic` b0-b8). The probe now
+  stops inside native proof production at `OperationProofUnavailable` for
+  field-state obligations — the nonzero divisor on `WrappingIntegerDivide`,
+  indexed-write bounds, and increment overflow — because scalar block
+  invariants still cannot name storage observations such as
+  `IntegerField`; that field-invariant scope gap is the next slice.
 
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
   operators, nested structural paths, calls, cycles, execution and package review.
