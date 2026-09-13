@@ -1,0 +1,140 @@
+{
+  "wave": "w3",
+  "max_acu_limit": 10,
+  "devin_mode": "fusion",
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "w3"],
+  "owner_label_prefix": "Jarod / swarm-w3",
+  "exclusions": [
+    "WRITE-ONLY-BORROW",
+    "SPILL-REALIZATION",
+    "SQUALR-HEADLESS",
+    "MACOS-APPLICATION-PUBLICATION",
+    "ALPHA-WINDOWS-CONFORMANCE",
+    "ADDRESS-TRANSLATION-CANARY",
+    "EXCEPTION-ROOTS-AND-TIMER",
+    "OMEGA-D",
+    "OFFLINE-REBUILD",
+    "CODEC-LINEAGE-CLOSURE",
+    "BOUNDARY-QUALIFICATION-PRESERVATION",
+    "CUSTODY-MUTATION-COVERAGE",
+    "GAMMA-PRODUCT-COMPARISON",
+    "TERMINATION-RANKING-CHECKS",
+    "BUILD-PRODUCT-REFERENCES",
+    "STRUCTURAL-GENERIC-MATCHING",
+    "CHAIN-MANIFEST",
+    "GAMMA-DERIVATION-CHECKER",
+    "BOOTSTRAP-RUNTIME-SOURCE",
+    "OPERATOR-MACHINE-SUPPLY",
+    "FILESYSTEM-RELEASE-CONTRACT",
+    "ANALYSIS-REVISION-REUSE"
+  ],
+  "sessions": [
+    {
+      "name": "match-selective",
+      "board": "TASKS.md",
+      "item": "MATCH-SELECTIVE-LOWERING",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/validation/src/expression_types",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/tests/value_dispatch.rs",
+        "omega-rust/psi/semantics/checked-interpreter/tests/value_dispatch.rs",
+        "tests/native-differential/tests/scalar_case_results.rs"
+      ],
+      "suggested_first_slice": "one selective Match dispatch shape whose result type and lowering are witnessed by the same fixture in the checked interpreter and the lowered-psi value_dispatch tests"
+    },
+    {
+      "name": "module-namespace",
+      "board": "TASKS.md",
+      "item": "MODULE-NAMESPACE-RESOLUTION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs",
+        "omega-rust/psi/semantics/build-time-evaluation/src/const_initializers.rs",
+        "omega-rust/omega/compiler/compiler/tests/module_machine_indices.rs",
+        "omega-rust/omega/compiler/compiler/tests/module_machine_indices"
+      ],
+      "suggested_first_slice": "a namespace/constant/index resolution probe from the board text; general array-value execution is a stated dependency, not this slice"
+    },
+    {
+      "name": "callback-parameter",
+      "board": "TASKS.md",
+      "item": "CALLBACK-PARAMETER-REQUIREMENT",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/tokens-to-syntax-trees/src/parser/machine.rs",
+        "omega-rust/psi/representations/typed-trees/src/typed_trees/calls/signature.rs",
+        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/state.rs",
+        "omega-rust/omega/build/provider-planning/src/calling_policy_plans.rs",
+        "omega-rust/omega/compiler/compiler/tests/calling_policy_plans.rs",
+        "omega-rust/omega/compiler/compiler/tests/callback_terminal_custody.rs"
+      ]
+    },
+    {
+      "name": "bump-allocator",
+      "board": "TASKS.md",
+      "item": "BUMP-ALLOCATOR-CANARY",
+      "host": "linux",
+      "owning_paths": [
+        "source/library/core/extent.omg",
+        "source/library/core/arena.omg",
+        "source/library/core/vec.omg",
+        "tests/omega/pass/memory"
+      ],
+      "suggested_first_slice": "the single qualified Extent canary with two allocations, exact cleanup and recomposition, and reset only after full return; no compiler-side allocator semantics"
+    },
+    {
+      "name": "installation-reach",
+      "board": "TASKS.md",
+      "item": "BOUNDED-INSTALLATION-REACH-ROWS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/packages/review/evidence/src/capture",
+        "omega-rust/omega/packages/review/evidence/tests/authority",
+        "omega-rust/omega/build/provider-planning/src/plans.rs"
+      ],
+      "suggested_first_slice": "the unresolved-requirement fence on selected installation reach rows, before the carrier-owned invocation route"
+    },
+    {
+      "name": "machine-simplifications",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "EXACT-MACHINE-SIMPLIFICATIONS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src",
+        "omega-rust/omega/compiler/compiler/tests/optimizer_opt_in.rs"
+      ],
+      "suggested_first_slice": "exactly one of the five listed transformations (copy removal is the smallest), independently verifiable with its own opt-in test"
+    },
+    {
+      "name": "case-constraints",
+      "board": "TASKS.md",
+      "item": "CASE-CONSTRAINTS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/values",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/payloadless_case_return.rs",
+        "omega-rust/omega/compiler/compiler/tests/canary_suite/value_and_type_checks.rs",
+        "tests/omega/pass/constraints",
+        "tests/omega/fail/constraints"
+      ],
+      "suggested_first_slice": "one case-local constraint rejection (invalid index or bound) with its pass and fail canaries; leave parser changes out unless the acceptance requires them"
+    },
+    {
+      "name": "crash-contract",
+      "board": "TASKS.md",
+      "item": "CRASH-CONTRACT",
+      "host": "linux",
+      "probe_only": true,
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/facts",
+        "omega-rust/psi/representations/checked-trees/src/checked_trees/facts/contract_plans.rs",
+        "omega-rust/psi/representations/terminal-psi/src",
+        "omega-rust/psi/pipeline/lowered-psi-to-terminal-psi/src",
+        "tests/native-differential/tests/terminal_psi_source/locals_calls_and_short_circuit.rs"
+      ],
+      "suggested_first_slice": "wave 2 found Terminal Psi has no carrier for a selected-operator crash site (MachineContract carries only crash_routes/requires/ensures); design the smallest Terminal row that carries it, and land it only if codec, verifier, and architecture tests stay one bounded change"
+    }
+  ]
+}
