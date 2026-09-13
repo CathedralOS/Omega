@@ -2449,9 +2449,49 @@ fn validate_claim_indices(
         else {
             return malformed("claim action references an unknown entry claim");
         };
-        if entry_claim.input != argument.place
-            || (!argument.path.is_empty() && entry_claim.path != argument.path)
-        {
+        // A returned claim keeps its identity but moves to the successful
+        // operation's result place. The codec checks that exact occurrence;
+        // the verifier, not this structural check, establishes its liveness.
+        let path = if entry_claim.input == argument.place {
+            Some(entry_claim.path.as_slice())
+        } else {
+            machine.structural_places.iter().find_map(|declaration| {
+                let StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                } = declaration.kind
+                else {
+                    return None;
+                };
+                if declaration.id != argument.place {
+                    return None;
+                }
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .find_map(|operation| {
+                        if operation.id != producer
+                            || !matches!(operation.kind, OperationKind::CallStructural { .. })
+                        {
+                            return None;
+                        }
+                        let result = operation.result.structural()?;
+                        if result.place != argument.place
+                            || result.structural_type != structural_type
+                            || result.multiplicity != StructuralMultiplicity::Linear
+                        {
+                            return None;
+                        }
+                        result
+                            .claims
+                            .iter()
+                            .find(|binding| binding.claim == claim)
+                            .map(|binding| binding.path.as_slice())
+                    })
+            })
+        };
+        if !path.is_some_and(|path| argument.path.is_empty() || path == argument.path) {
             return malformed("claim action does not match its structural argument path");
         }
     }

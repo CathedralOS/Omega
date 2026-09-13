@@ -2023,6 +2023,15 @@ pub(super) fn structural_call_arguments(
                             .terminal_structural_returns
                             .claim_free_affine_for_machine(target_machine.symbol)
                             .is_none()
+                        && !(program.type_multiplicity(target_state.return_type)
+                            == Multiplicity::Linear
+                            && super::control::checked_structural_result_type(
+                                program,
+                                &mut ShapeCollector::new(program),
+                                target_state.return_type,
+                                &[],
+                            )
+                            .is_some())
                         && !program
                             .primitive_type_reference(target_state.return_type)
                             .is_some_and(|result| {

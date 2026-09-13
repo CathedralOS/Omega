@@ -6,6 +6,76 @@ use checked_trees::{
 };
 
 #[test]
+fn linear_result_arguments_continue_the_producing_call_claim() {
+    let checked = checked(
+        r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> { machine project(subject: &Self) -> A; }
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: region.length } }
+        data Main {}
+        machine Main::forward(region: Region in Owned) -> Region in Owned { region }
+        machine Main::enter(region: Region in Owned) -> Region in Owned {
+            let first: Region in Owned = Main::forward(region);
+            let second: Region in Owned = Main::forward(first);
+            Main::forward(second)
+        }
+    "#,
+    );
+    let root = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| plan.machine == machine_named(&checked, "Main::enter"))
+        .expect("ordinary graph carries successive linear results");
+    let calls = root
+        .states
+        .iter()
+        .flat_map(|state| &state.operations)
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                result,
+                custody,
+                structural_arguments,
+                discard_result_on_return,
+                ..
+            } => {
+                assert!(
+                    !discard_result_on_return,
+                    "linear custody is never automatic cleanup debt"
+                );
+                Some((result, custody, structural_arguments))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 3);
+    for pair in calls.windows(2) {
+        let (produced, frontier, _) = pair[0];
+        let (returned, custody, arguments) = pair[1];
+        assert_eq!(
+            arguments[0].source_structural_result_binding_ordinal(),
+            Some(produced.binding_ordinal)
+        );
+        assert_ne!(produced.binding_ordinal, returned.binding_ordinal);
+        assert_eq!(
+            frontier.result_qualifications,
+            custody.result_qualifications
+        );
+        assert_eq!(
+            frontier.returned_claim_transfers[0].caller_claim,
+            custody.claim_transfers[0].claim_identity
+        );
+    }
+}
+
+#[test]
 fn retains_owned_affine_i64_record_literal_for_direct_unit_call() {
     let checked = checked(
         r#"

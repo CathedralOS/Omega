@@ -134,7 +134,11 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     {
         return unsupported("composed internal Unit call disagrees with its checked target");
     }
-    for (argument, target) in structural_arguments.iter().zip(entry.structural_parameters) {
+    for (argument_index, (argument, target)) in structural_arguments
+        .iter()
+        .zip(entry.structural_parameters)
+        .enumerate()
+    {
         if argument.byte_sequence_literal().is_some() {
             if argument.type_identity != target.type_identity
                 || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
@@ -155,6 +159,21 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
                     "composed Unit literal call lost its exact shared-view custody",
                 );
             }
+            continue;
+        }
+        if argument
+            .source_structural_result_binding_ordinal()
+            .is_some()
+        {
+            crate::attached_unit::structural_calls::validate_linear_result_consumer(
+                checked,
+                root,
+                state.state,
+                &state.operations,
+                operation,
+                argument_index,
+                target,
+            )?;
             continue;
         }
         let source = argument

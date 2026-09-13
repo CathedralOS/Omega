@@ -374,7 +374,7 @@ pub(super) fn build(
         } else {
             Vec::new()
         };
-        for operation in &operations {
+        for (producer_index, operation) in operations.iter().enumerate() {
             let result = match operation {
                 CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
@@ -393,7 +393,50 @@ pub(super) fn build(
                 CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => matches!(returned.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal),
                 _ => false,
             };
-            if !consumed {
+            // A linear result moved into an ordinary call is no longer owed by the
+            // state's terminator. Count its exact whole owned uses in the
+            // completed sequence; returning it as well would duplicate custody.
+            // Affine call-result consumers retain their ordinary statement
+            // owner until graph admission can replay their cleanup partition.
+            let call_transfers = operations[producer_index + 1..]
+                .iter()
+                .filter_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::StructuralCall {
+                        structural_arguments,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::CallUnit {
+                        structural_arguments,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::ScalarCall {
+                        structural_arguments,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::BoundaryCall {
+                        structural_arguments,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                        structural_arguments,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        structural_arguments,
+                        ..
+                    } => Some(structural_arguments),
+                    _ => None,
+                })
+                .flatten()
+                .filter(|argument| {
+                    result.multiplicity == Multiplicity::Linear
+                        && argument.source_structural_result_binding_ordinal()
+                            == Some(result.binding_ordinal)
+                        && argument.access == CheckedStructuralAccess::Owned
+                        && argument.path.is_empty()
+                })
+                .count();
+            if usize::from(consumed) + call_transfers != 1 {
                 return None;
             }
         }

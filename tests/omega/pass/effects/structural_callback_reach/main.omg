@@ -19,7 +19,10 @@ satisfies RegionForward::call
 
 machine Main::through_call<machine Selected>(region: Region in Owned) -> Region in Owned
 where machine Selected satisfies RegionForward::call;
-{ Selected(region) }
+{
+    let forwarded: Region in Owned = Selected(region);
+    Main::forward(forwarded)
+}
 
 machine Main::demand(region: Region in Owned) -> Region in Owned {
     Main::through_call<Main::forward>(region)

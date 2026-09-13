@@ -21,6 +21,13 @@ pub(super) fn argument(
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
     let projected = !place.segments.is_empty();
     let unrestricted_array = result.multiplicity == Multiplicity::Unrestricted;
+    let linear = result.multiplicity == Multiplicity::Linear;
+    // A whole linear result carries the producer's live claim, not affine
+    // cleanup debt. Its exact qualification and transfer events must agree
+    // with the consumer; projected and borrowed claim joins remain separate.
+    if linear && (projected || access != CheckedStructuralAccess::Owned) {
+        return None;
+    }
     if unrestricted_array
         && (projected
             || access != CheckedStructuralAccess::Owned
@@ -76,13 +83,11 @@ pub(super) fn argument(
         }
     };
     if parameter.is_self
-        || !matches!(
-            result.multiplicity,
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        )
         || (!projected && result.type_identity != target_identity)
         || program.type_multiplicity(referent) != result.multiplicity
-        || (!unrestricted_array && !validation::has_plain_owned_contents(program, referent))
+        || (!unrestricted_array
+            && !linear
+            && !validation::has_plain_owned_contents(program, referent))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
@@ -99,7 +104,11 @@ pub(super) fn argument(
             {
                 return None;
             }
-            if access == CheckedStructuralAccess::SharedBorrow || projected || unrestricted_array {
+            if access == CheckedStructuralAccess::SharedBorrow
+                || projected
+                || unrestricted_array
+                || linear
+            {
                 let source_state = crate::find_state(program, state)?;
                 let StatementNode::LocalData(local) = program
                     .statement_table
@@ -111,6 +120,7 @@ pub(super) fn argument(
                 if local.is_mutable
                     || local.symbol != symbol
                     || (!unrestricted_array
+                        && !linear
                         && !validation::has_plain_owned_contents(program, local.type_reference))
                     || program.type_multiplicity(local.type_reference) != result.multiplicity
                     || (unrestricted_array
@@ -120,6 +130,13 @@ pub(super) fn argument(
                         ))
                     || base_type_identity(program, local.type_reference, &[])?
                         != result.type_identity
+                {
+                    return None;
+                }
+                if linear
+                    && validation::structural_result_qualifications(program, local.type_reference)
+                        .ok()?
+                        != validation::structural_result_qualifications(program, referent).ok()?
                 {
                     return None;
                 }
@@ -251,12 +268,13 @@ pub(super) fn argument(
     let event = events.next()?;
     // Non-self owned parameters transfer custody even at direct or nominal
     // boundaries. Consume events describe terminal self/claim settlement, not
-    // this claim-free affine argument convention.
+    // an ordinary value handoff. Linear handoffs retain a known live claim;
+    // affine handoffs have neither a claim identity nor a live obligation.
     if events.next().is_some()
         || event.kind != PermissionEventKind::Transfer
-        || event.multiplicity != Multiplicity::Affine
-        || event.claim_identity != PermissionClaimIdentity::Unknown
-        || event.obligation_live
+        || event.multiplicity != result.multiplicity
+        || (event.claim_identity != PermissionClaimIdentity::Unknown) != linear
+        || event.obligation_live != linear
     {
         return None;
     }

@@ -2236,7 +2236,7 @@ pub(super) fn checked_unit_structural_result_local(
 /// Nominal cleanup still requires its checked settlement plan.
 /// Primitive arrays use their complete-shape classifier, including dimensions
 /// with no leaves; the older owned-storage classifier excludes empty arrays.
-fn checked_structural_result_type(
+pub(super) fn checked_structural_result_type(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
     result_type: TypeReferenceHandle,

@@ -471,6 +471,14 @@ pub(crate) fn lower_installation_machine_service_ceiling(
     )
 }
 
+/// The operation-owned result frontier, in the current source state's binding
+/// namespace. Declaration-only callers cannot admit claim-bearing results.
+pub(crate) struct StructuralResultCustody<'a> {
+    pub results: &'a [(u32, terminal_psi::StructuralOperationResult)],
+    pub domains: &'a [(SemanticDomainId, StructuralDomainId)],
+    pub claims: &'a [(PermissionClaimIdentity, ClaimId)],
+}
+
 pub(crate) fn validate_transfer_shape(
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
@@ -482,13 +490,15 @@ pub(crate) fn validate_transfer_shape(
     structural_types: &[StructuralTypeDeclaration],
     expected_claim_arguments: &[u32],
     primitive_locals: &[super::primitive_locals::PrimitiveLocal],
+    result_custody: Option<StructuralResultCustody<'_>>,
 ) -> Result<(), LoweringError> {
     if arguments.len() != target_parameters.len() {
         return unsupported(
             "Unit call structural argument arity does not match its checked target",
         );
     }
-    for (argument, target) in arguments.iter().zip(target_parameters) {
+    for (argument_index, (argument, target)) in arguments.iter().zip(target_parameters).enumerate()
+    {
         if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
             argument.source
         {
@@ -578,6 +588,57 @@ pub(crate) fn validate_transfer_shape(
             else {
                 return unsupported("Unit structural result source has no producer operation");
             };
+            if target.multiplicity == Multiplicity::Linear {
+                let custody = result_custody.as_ref().ok_or(LoweringError::Unsupported(
+                    "linear result argument has no completed operation custody",
+                ))?;
+                let mut results = custody
+                    .results
+                    .iter()
+                    .filter(|(ordinal, _)| *ordinal == binding_ordinal);
+                let (_, result) = results.next().ok_or(LoweringError::Unsupported(
+                    "linear result argument has no exact completed binding",
+                ))?;
+                let qualifications = target
+                    .qualifications
+                    .iter()
+                    .map(|domain| lookup_domain_id(custody.domains, *domain))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let claims = transfers
+                    .iter()
+                    .filter(|transfer| transfer.argument_index as usize == argument_index)
+                    .map(|transfer| lookup_claim_id(custody.claims, transfer.claim_identity))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if results.next().is_some()
+                    || result.place != source.id
+                    || result.structural_type != structural_type
+                    || structural_type != lookup_type_id(type_ids, &argument.type_identity)?
+                    || argument.type_identity != target.type_identity
+                    || result.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                    || !argument.path.is_empty()
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || target.access != argument.access
+                    || target.is_self
+                    || target.fused_service_erasure.is_some()
+                    || result.qualifications != qualifications
+                    || !result.projected_qualifications.is_empty()
+                    || claims.len() != 1
+                    || result.claims.len() != 1
+                    || result
+                        .claims
+                        .iter()
+                        .zip(&claims)
+                        .any(|(result, claim)| result.claim != *claim || !result.path.is_empty())
+                    || arguments[..argument_index].iter().any(|earlier| {
+                        earlier.source_structural_result_binding_ordinal() == Some(binding_ordinal)
+                    })
+                {
+                    return unsupported(
+                        "linear result argument differs from its completed claim frontier",
+                    );
+                }
+                continue;
+            }
             let record_borrow =
                 matches!(
                     argument.access,

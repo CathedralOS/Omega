@@ -139,6 +139,7 @@ pub(crate) fn emit_boundary_scalar_return(
         structural_types,
         &expected_claim_arguments,
         &[],
+        None,
     )?;
     if scalar_arguments.len() != boundary_scalar_parameters.len() {
         return unsupported(

@@ -752,7 +752,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                StructuralArgumentSourcePolicy::OnlyParameters,
+                StructuralArgumentSourcePolicy::ParametersOrLinearCallResults,
             )?;
             validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
@@ -1137,6 +1137,9 @@ fn unit_call_contract_propositions(callee: &TerminalMachine) -> impl Iterator<It
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StructuralArgumentSourcePolicy {
     OnlyParameters,
+    /// Whole linear call results retain their exact completed qualification and
+    /// claim occurrence; the frontier separately requires that occurrence live.
+    ParametersOrLinearCallResults,
     /// Boundary calls accept borrowed byte literals and whole affine call results,
     /// but not construction-local establishments.
     ParametersOrBoundaryActuals,
@@ -1160,6 +1163,50 @@ fn is_structural_call_result(caller: &TerminalMachine, place: PlaceId) -> bool {
                             | OperationKind::BoundaryCall { .. })
                 }))
     })
+}
+
+/// This is a static occurrence lookup, not availability evidence. The same
+/// claim can visit several results, so select by exact place and producer, never
+/// by a machine-wide search for the first occurrence of that claim identity.
+fn linear_call_result(
+    caller: &TerminalMachine,
+    place: PlaceId,
+) -> Option<(
+    &terminal_psi::Operation,
+    &terminal_psi::StructuralOperationResult,
+)> {
+    let mut declarations = caller
+        .structural_places
+        .iter()
+        .filter(|declaration| declaration.id == place);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() {
+        return None;
+    }
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = declaration.kind
+    else {
+        return None;
+    };
+    let mut operations = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == producer);
+    let operation = operations.next()?;
+    if operations.next().is_some()
+        || !matches!(operation.kind, OperationKind::CallStructural { .. })
+    {
+        return None;
+    }
+    let result = operation.result.structural()?;
+    (result.place == place
+        && result.structural_type == structural_type
+        && result.multiplicity == StructuralMultiplicity::Linear
+        && !result.claims.is_empty())
+    .then_some((operation, result))
 }
 
 pub(super) fn validate_structural_arguments(
@@ -1233,7 +1280,16 @@ pub(super) fn validate_structural_arguments(
                     }
                     match place.kind {
                         StructuralPlaceKind::OperationResult { .. }
-                            if source_policy != StructuralArgumentSourcePolicy::OnlyParameters
+                            if source_policy == StructuralArgumentSourcePolicy::ParametersOrLinearCallResults
+                                && argument.path.is_empty() && argument.access == StructuralAccess::Owned =>
+                        {
+                            let (_, result) = linear_call_result(caller, argument.place)?;
+                            Some((result.structural_type, result.multiplicity, StructuralAccess::Owned,
+                                result.qualifications.as_slice(), result.projected_qualifications.as_slice()))
+                        }
+                        StructuralPlaceKind::OperationResult { .. }
+                            if !matches!(source_policy, StructuralArgumentSourcePolicy::OnlyParameters
+                                | StructuralArgumentSourcePolicy::ParametersOrLinearCallResults)
                                 && source_policy != StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
                                 && (argument.path.is_empty() || argument.access != StructuralAccess::Owned)
                                 && super::record::completed_source(module, caller, argument.place).is_some() =>
@@ -1909,6 +1965,15 @@ fn validate_unit_call_claim_transfers(
             .filter(|claim| claim.input == argument.place && claim.path.starts_with(&argument.path))
             .map(|claim| &claim.path[argument.path.len()..])
             .collect::<Vec<_>>();
+        if let Some((_, result)) = linear_call_result(caller, argument.place) {
+            caller_claim_paths.extend(
+                result
+                    .claims
+                    .iter()
+                    .filter(|claim| claim.path.starts_with(&argument.path))
+                    .map(|claim| &claim.path[argument.path.len()..]),
+            );
+        }
         let mut callee_claim_paths = callee
             .entry_claims
             .iter()
@@ -1929,6 +1994,63 @@ fn validate_unit_call_claim_transfers(
             .filter(|binding| binding.input.root == argument.place)
             .map(|binding| (&binding.input.segments, &binding.projections))
             .collect::<Vec<_>>();
+        if let Some((producer, result)) = linear_call_result(caller, argument.place) {
+            let mismatch = || ModuleError::UnitCallContentClaimMismatch {
+                operation,
+                argument_index: argument_index as u32,
+            };
+            let OperationKind::CallStructural {
+                callee: producer_callee,
+                returned_claim_transfers,
+                ..
+            } = &producer.kind
+            else {
+                return Err(mismatch());
+            };
+            let source = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == *producer_callee)
+                .ok_or_else(mismatch)?;
+            let source_result = source.result.structural().ok_or_else(mismatch)?;
+            for claim in &result.claims {
+                let mut returned = returned_claim_transfers
+                    .iter()
+                    .filter(|transfer| transfer.caller_claim == claim.claim);
+                let transfer = returned.next().ok_or_else(mismatch)?;
+                if returned.next().is_some() {
+                    return Err(mismatch());
+                }
+                let Some(binding) = source
+                    .content_entry_claims
+                    .iter()
+                    .find(|binding| binding.claim == transfer.callee_claim)
+                else {
+                    continue;
+                };
+                // A returned permission identity alone does not establish a
+                // content theorem. Rebase only the producer callee's exact
+                // validated identity guarantee at its successful result.
+                let mut identities = source
+                    .content_identity_reshuffles
+                    .iter()
+                    .filter(|identity| identity.claim == transfer.callee_claim);
+                let identity = identities.next().ok_or_else(mismatch)?;
+                if identities.next().is_some() || identity.input != binding.input
+                    || identity.projections != binding.projections
+                    || identity.output.root != source_result.place
+                    || identity.output.version != semantic_vocabulary::ContentPlaceVersion::Current
+                    || identity.output.segments.len() != claim.path.len()
+                    || identity.output.segments.iter().zip(&claim.path).any(|(content, structural)| !matches!((content, structural),
+                        (semantic_vocabulary::ContentPlaceSegment::Field(left), StructuralPathSegment::Field(right)) if left == right)
+                        && !matches!((content, structural),
+                            (semantic_vocabulary::ContentPlaceSegment::FixedIndex(left), StructuralPathSegment::FixedIndex(right)) if left == right))
+                {
+                    return Err(mismatch());
+                }
+                caller_content.push((&identity.output.segments, &identity.projections));
+            }
+        }
         let mut callee_content = callee
             .content_entry_claims
             .iter()
@@ -1985,7 +2107,16 @@ fn validate_unit_call_claim_transfers(
                 argument_index: transfer.argument_index,
             });
         };
-        let Some((claim_input, claim_path)) = claim_input(caller, transfer.claim) else {
+        let result_claim = linear_call_result(caller, argument.place).and_then(|(_, result)| {
+            result
+                .claims
+                .iter()
+                .find(|binding| binding.claim == transfer.claim)
+                .map(|binding| (result.place, binding.path.as_slice()))
+        });
+        let Some((claim_input, claim_path)) =
+            result_claim.or_else(|| claim_input(caller, transfer.claim))
+        else {
             return Err(ModuleError::UnknownClaimAtOperation {
                 operation,
                 claim: transfer.claim,
