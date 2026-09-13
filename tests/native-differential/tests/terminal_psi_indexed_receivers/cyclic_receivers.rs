@@ -146,10 +146,16 @@ fn cyclic_record_field_store_replay_rejects_type_access_and_source_substitution(
     .unwrap();
     for mutation in 0..5 {
         let mut candidate = target.clone();
+        // The loop-carried store is the one fed by a block parameter; literal
+        // field stores in the caller must not shadow it under one graph shape.
         let store = candidate.functions.iter_mut().find_map(|function| {
             let graph = &mut function.graph;
             graph.blocks.iter_mut().flat_map(|block| &mut block.operations)
-                .find(|operation| matches!(operation, target_operations::TargetUnitOperation::StructuralScalarFieldStore { .. }))
+                .find(|operation| matches!(operation,
+                    target_operations::TargetUnitOperation::StructuralScalarFieldStore {
+                        source: target_operations::TargetUnitScalarArgumentSource::BlockParameter(_),
+                        ..
+                    }))
         }).unwrap();
         let target_operations::TargetUnitOperation::StructuralScalarFieldStore {
             destination,
