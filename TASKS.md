@@ -385,10 +385,16 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   entry reference and binds it without executing target code. Wrong scope/target,
   lookalike operations, helper enumeration of caller-private declarations,
   description-to-callable forgery and same-build generated/layout cycles reject.
-  Extend `build-evaluation/src/selection/root_bindings.rs`'s executed-request
-  join to lexical product-reference admission for foreign helpers; borrowing
-  the root Build must not lend the caller's product namespace. Remove the
-  computed-receiver implementation fence when ordinary call-result authority
+  `build-evaluation/src/selection/root_bindings.rs` now admits executed
+  `roots.bind` requests lexically against the occurrence's own package and
+  carries the exact machine symbol into `ProgramEntry` selection, so a foreign
+  helper binds its own package's entry through the borrowed root Build while
+  caller-private names reject; `compiler/tests/build_target_activation.rs`
+  pins both. Remaining: the owner-selected restricted description handoff
+  (`builder.product.entry(...)` and its non-callable description type), the
+  same-name-across-packages fence in `selection.rs` until Terminal production
+  and entry settlement select by symbol instead of machine name, and the
+  computed-receiver implementation fence once ordinary call-result authority
   and effect/loan traversal can carry that use.
   Final admission must rejoin the exact selected identity after generation.
 
