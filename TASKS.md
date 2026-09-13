@@ -85,6 +85,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   and subsequent native/provider failures. Do not restart isolated getter/setter
   helper milestones: the ordinary/composed Psi route now serves this application.
   Preserve its operation order, complete package graph and independent evidence;
+  the current `console: Console` field also needs reconciliation with canonical
+  `Service<Console> in Bound` establishment. The receiver bridge probe at
+  unpublished checkpoint `a64d1ab3a6` passes legalization but rejects its missing
+  service establishment row. Provider-specialization witnesses are not installed
+  authority. Finish selected-root-aware eligibility in
+  `terminal-production/src/production/receiver_eligibility.rs` and exact field
+  establishment through `selected-dispatch/src/service_custody/root.rs`; do not
+  make a missing row authorize an erased-field fallback. This is implementation
+  work under the [service binding contract](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md#service-bindings),
+  not an unanswered language decision.
   **MATCH-SELECTIVE-LOWERING** and **STATE-LOCAL-VALUE-FRONTIER** own any newly
   witnessed operation joins. These are engineering dependencies, not owner
   questions. Keep build-only packages explicitly unported.

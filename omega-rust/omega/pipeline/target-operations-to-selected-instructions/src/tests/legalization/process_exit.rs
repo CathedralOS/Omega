@@ -166,6 +166,15 @@ fn exit_admission_rejects_an_operation_after_the_boundary() {
 
 #[test]
 fn process_exit_retains_provider_specialization_and_service_custody_without_storage() {
+    provider_specialization_and_service_custody(false);
+}
+
+#[test]
+fn process_exit_composes_receiver_storage_with_provider_specialization_custody() {
+    provider_specialization_and_service_custody(true);
+}
+
+fn provider_specialization_and_service_custody(with_receiver: bool) {
     use semantic_vocabulary::{
         PlaceId, ServiceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
     };
@@ -194,6 +203,46 @@ fn process_exit_retains_provider_specialization_and_service_custody_without_stor
     source.functions[0].attachment = Some(attachment);
     source.functions[0].published_service_ceiling = vec![service];
     source.boundary_machines[0].published_service_ceiling = vec![service];
+    let provider_place = PlaceId::new(if with_receiver { 2 } else { 1 }).unwrap();
+    if with_receiver {
+        let parameter = source.functions[0].parameters.remove(0);
+        let value_field = StructuralFieldId::new(2).unwrap();
+        let terminal_psi::StructuralTypeShape::Record { fields } =
+            &mut source.structural_types.make_mut()[0].shape
+        else {
+            panic!("receiver record");
+        };
+        fields.push(terminal_psi::StructuralFieldDeclaration {
+            id: value_field,
+            identity: "exit_code".into(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: terminal_psi::StructuralFieldType::Scalar(parameter.scalar_type),
+        });
+        source.functions[0].structural_parameters.push(
+            terminal_psi::StructuralParameterDeclaration {
+                place: PlaceId::new(1).unwrap(),
+                position: 0,
+                is_self: true,
+                structural_type: attachment,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                access: terminal_psi::StructuralAccess::MutableBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+        );
+        source.functions[0].operations.insert(
+            0,
+            AbstractOperation::IntegerStructuralField {
+                psi_operation: OperationId::new(8).unwrap(),
+                result: abstract_operations::AbstractResult {
+                    value: parameter.value,
+                    scalar_type: parameter.scalar_type,
+                },
+                source: PlaceId::new(1).unwrap(),
+                field: value_field,
+            },
+        );
+    }
     let target = lower(
         &source,
         native,
@@ -212,7 +261,7 @@ fn process_exit_retains_provider_specialization_and_service_custody_without_stor
     unit.functions[0]
         .structural_places
         .push(terminal_psi::StructuralPlaceDeclaration {
-            id: PlaceId::new(1).unwrap(),
+            id: provider_place,
             kind: StructuralPlaceKind::ProviderAttachment {
                 attachment,
                 field,
@@ -222,7 +271,11 @@ fn process_exit_retains_provider_specialization_and_service_custody_without_stor
     unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
     optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
-    assert!(legal.plan().scalar_functions[0].structural.is_none());
+    assert_eq!(
+        legal.plan().scalar_functions[0].structural.is_some(),
+        with_receiver
+    );
+    validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
     for mutation in 0..8 {
         let mut changed = unit.clone();
         match mutation {
@@ -230,9 +283,7 @@ fn process_exit_retains_provider_specialization_and_service_custody_without_stor
             1 => changed.services = Vec::new().into(),
             2 => changed.functions[0].structural_places.clear(),
             3 => {
-                changed.functions[0]
-                    .declared_places
-                    .insert(PlaceId::new(1).unwrap());
+                changed.functions[0].declared_places.insert(provider_place);
             }
             7 => changed.boundary_machines[0]
                 .published_service_ceiling
@@ -242,13 +293,17 @@ fn process_exit_retains_provider_specialization_and_service_custody_without_stor
                     attachment,
                     field,
                     boundary,
-                } = &mut changed.functions[0].structural_places[0].kind
+                } = &mut changed.functions[0]
+                    .structural_places
+                    .last_mut()
+                    .unwrap()
+                    .kind
                 else {
                     panic!("provider root");
                 };
                 match mutation {
                     4 => *attachment = StructuralTypeId::new(2).unwrap(),
-                    5 => *field = StructuralFieldId::new(2).unwrap(),
+                    5 => *field = StructuralFieldId::new(3).unwrap(),
                     _ => *boundary = BoundaryMachineId::new(2).unwrap(),
                 }
             }

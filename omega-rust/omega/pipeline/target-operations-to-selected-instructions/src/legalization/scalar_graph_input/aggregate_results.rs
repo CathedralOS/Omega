@@ -99,9 +99,17 @@ pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
         == function
             .structural_places
             .iter()
+            .filter(|place| !matches!(place.kind, StructuralPlaceKind::ProviderAttachment { .. }))
             .map(|place| place.id)
             .collect::<std::collections::BTreeSet<_>>()
         && function.structural_places.iter().all(|place| {
+            // Provider attachments are semantic specialization witnesses, not
+            // receiver storage. Whole-unit custody checks the exact erased
+            // field, boundary and service; they must compose with runtime
+            // parameters and results without entering the declared-place set.
+            if let StructuralPlaceKind::ProviderAttachment { attachment, .. } = place.kind {
+                return function.attachment == Some(attachment);
+            }
             // One graph may own primitive storage alongside aggregate results.
             // Keep each place joined to its exact producer; the primitive input
             // validator separately checks the declared type and initializer.

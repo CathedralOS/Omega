@@ -29,6 +29,117 @@ fn source_plan(source: &str) -> abstract_operations::AbstractOperationPlan {
     .expect("verify and lower canonical artifact")
 }
 
+#[test]
+fn relevant_erased_record_fields_have_no_runtime_layout_or_scalar_access() {
+    use semantic_vocabulary::StructuralFieldId;
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape,
+    };
+    for scalar_storage in [true, false] {
+        let mut source = source_plan(
+            "data Main { value: i32; } machine Main::run(&mut self) { self.value = 65; }",
+        );
+        // This stage test retains an explicit receiver occurrence. Source-level
+        // removal of an unused empty self is a separate correspondence contract.
+        if !scalar_storage {
+            let entry = source
+                .functions
+                .iter_mut()
+                .find(|function| function.machine == source.entry)
+                .unwrap();
+            entry.operations.retain(|operation| {
+                matches!(
+                    operation,
+                    abstract_operations::AbstractOperation::ReturnUnit { .. }
+                )
+            });
+        }
+        let entry = source
+            .functions
+            .iter()
+            .find(|function| function.machine == source.entry)
+            .unwrap();
+        let receiver = entry.structural_parameters[0].structural_type;
+        let erased_field = StructuralFieldId::new(99).unwrap();
+        let declaration = source
+            .structural_types
+            .make_mut()
+            .iter_mut()
+            .find(|declaration| declaration.id == receiver)
+            .unwrap();
+        let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+            panic!("receiver record");
+        };
+        if !scalar_storage {
+            fields.clear();
+        }
+        fields.insert(
+            0,
+            StructuralFieldDeclaration {
+                id: erased_field,
+                identity: "service".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Erased {
+                    type_identity: "FusedService".into(),
+                },
+            },
+        );
+        for target in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
+            let lowered = crate::lower_to_target_operations(&source, target)
+                .expect("erased carrier occupies no bytes");
+            crate::validate_abstract_to_target_translation(&source, target, &lowered)
+                .expect("independent receiver shape replay");
+            let entry = lowered
+                .functions
+                .iter()
+                .find(|function| function.machine == source.entry)
+                .unwrap();
+            assert_eq!(
+                entry.graph.parameters[0].shape.byte_size,
+                if scalar_storage { 4 } else { 0 }
+            );
+            assert_eq!(
+                entry.graph.parameters[0].shape.class,
+                ValueClass::BorrowedReference
+            );
+            assert!(!entry.graph.parameters[0].placement.locations.is_empty());
+            let mut changed = lowered.clone();
+            let entry = changed
+                .functions
+                .iter_mut()
+                .find(|function| function.machine == source.entry)
+                .unwrap();
+            entry.graph.parameters[0].shape.byte_size += 1;
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, target, &changed).is_err()
+            );
+        }
+        if scalar_storage {
+            let entry = source
+                .functions
+                .iter_mut()
+                .find(|function| function.machine == source.entry)
+                .unwrap();
+            let store = entry
+                .operations
+                .iter_mut()
+                .find_map(|operation| match operation {
+                    abstract_operations::AbstractOperation::StructuralScalarFieldStore {
+                        field,
+                        ..
+                    } => Some(field),
+                    _ => None,
+                })
+                .expect("scalar field store");
+            *store = erased_field;
+            assert!(
+                crate::lower_to_target_operations(&source, NativeTarget::macos_arm64()).is_err(),
+                "runtime erasure grants no scalar access"
+            );
+        }
+    }
+}
+
 fn shared_source() -> abstract_operations::AbstractOperationPlan {
     source_plan(
         r#"
