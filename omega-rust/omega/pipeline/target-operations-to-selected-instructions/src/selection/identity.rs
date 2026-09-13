@@ -160,6 +160,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
         SelectedInstructionKind::ReturnUnit => 9,
         SelectedInstructionKind::CompareI64 => 10,
+        SelectedInstructionKind::CompareI64Immediate { .. } => 50,
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
         SelectedInstructionKind::CallScalar { .. } => 12,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
@@ -249,6 +250,16 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             bytes.extend_from_slice(&obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
+        SelectedInstructionKind::CompareI64Immediate { immediate } => match immediate {
+            semantic_vocabulary::IntegerValue::Signed(value) => {
+                bytes.push(0);
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+            semantic_vocabulary::IntegerValue::Unsigned(value) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        },
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseXorI64

@@ -44,6 +44,7 @@ pub struct SelectedConstraintKeys {
     pub subtract_i64_immediate: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
     pub compare_i64: RegisterConstraintKey,
+    pub compare_i64_immediate: RegisterConstraintKey,
     pub conditional_branch: RegisterConstraintKey,
     pub jump: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,

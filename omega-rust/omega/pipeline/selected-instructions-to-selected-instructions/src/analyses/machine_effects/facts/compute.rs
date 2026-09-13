@@ -136,6 +136,7 @@ fn terminal_selected_keys(
         subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,
         compare_i64: keys.compare_i64,
+        compare_i64_immediate: keys.compare_i64_immediate,
         conditional_branch: keys.conditional_branch,
         jump: keys.jump,
         return_float: keys.return_float.clone(),
@@ -218,6 +219,9 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::CallAggregate { .. } => MachineSemanticKind::CallAggregate,
         SelectedInstructionKind::ReturnAggregate { .. } => MachineSemanticKind::ReturnAggregate,
         SelectedInstructionKind::CompareI64 => MachineSemanticKind::CompareI64,
+        SelectedInstructionKind::CompareI64Immediate { .. } => {
+            MachineSemanticKind::CompareI64Immediate
+        }
         SelectedInstructionKind::MaterializeI64 { .. } => MachineSemanticKind::MaterializeI64,
         SelectedInstructionKind::CopyI64 => MachineSemanticKind::CopyI64,
         SelectedInstructionKind::Float32ToBits => MachineSemanticKind::Float32ToBits,

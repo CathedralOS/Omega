@@ -85,6 +85,13 @@ pub enum SelectedInstructionKind {
     /// state consumed by conditional control. This instruction has no scalar
     /// result; equality is represented by the zero condition.
     CompareI64,
+    /// Compare one i64 register bit-pattern against the encoded unsigned
+    /// immediate and define the same target condition state as `CompareI64`.
+    /// This instruction has no scalar result; the immediate retains the exact
+    /// literal source value admitted by the target encoding.
+    CompareI64Immediate {
+        immediate: IntegerValue,
+    },
     MaterializeI64 {
         value: IntegerValue,
     },

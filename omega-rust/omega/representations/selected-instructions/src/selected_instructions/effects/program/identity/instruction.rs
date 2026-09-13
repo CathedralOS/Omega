@@ -176,6 +176,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
         SelectedInstructionKind::ReturnUnit => 9,
         SelectedInstructionKind::CompareI64 => 10,
+        SelectedInstructionKind::CompareI64Immediate { .. } => 53,
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 12,
         SelectedInstructionKind::CallScalar { .. } => 13,
@@ -270,6 +271,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             encode_integer(bytes, immediate);
             bytes.extend_from_slice(&obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
+        }
+        SelectedInstructionKind::CompareI64Immediate { immediate } => {
+            encode_integer(bytes, immediate)
         }
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64

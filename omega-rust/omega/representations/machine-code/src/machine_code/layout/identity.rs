@@ -188,6 +188,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::ExactSubtractI64Immediate => 8,
         Family::ReturnUnit => 9,
         Family::CompareI64 => 10,
+        Family::CompareI64Immediate => 53,
         Family::ConditionalBranchU64LessThan => 11,
         Family::ConditionalBranchI64LessThan => 12,
         Family::CallScalar => 13,

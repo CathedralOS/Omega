@@ -72,15 +72,16 @@ pub use register_model::X86_64_HOSTED_WRITE_BYTE_I32;
 pub use register_model::x86_64_microsoft_register_call_keys;
 pub use register_model::x86_64_system_v_register_call_keys;
 pub use register_model::{
-    X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_ZERO,
-    X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_JUMP,
-    X86_64_LINUX_SYSTEM_CALL, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL,
-    X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_REQUIRED_REGISTER_CONSTRAINTS,
-    X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_CALL,
-    X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
-    X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
-    x86_64_fixed_register_view, x86_64_physical_register_model,
-    x86_64_preservation_convention_for_target, x86_64_register_constraint_catalog,
+    X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_IMMEDIATE,
+    X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64,
+    X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_JUMP, X86_64_LINUX_SYSTEM_CALL, X86_64_MATERIALIZE_I64,
+    X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT,
+    X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
+    X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN,
+    X86_64_SYSTEM_V_RETURN_UNIT, X86_64RegisterConstraintCatalogValidationError,
+    validate_x86_64_register_constraint_catalog, x86_64_fixed_register_view,
+    x86_64_physical_register_model, x86_64_preservation_convention_for_target,
+    x86_64_register_constraint_catalog,
 };
 pub use register_model::{
     X86_64_LOAD_PACKED, X86_64_STORE_PACKED, x86_64_microsoft_aggregate_call_keys,

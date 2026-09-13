@@ -45,6 +45,7 @@ impl SelectedConstraintKeys {
             self.return_unit,
             self.compare_i64,
             self.jump,
+            self.compare_i64_immediate,
         ])
         .collect()
     }
@@ -102,6 +103,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::ReturnScalar => self.return_i64,
             MachineSemanticKind::ReturnUnit => self.return_unit,
             MachineSemanticKind::CompareI64 => self.compare_i64,
+            MachineSemanticKind::CompareI64Immediate => self.compare_i64_immediate,
             MachineSemanticKind::ConditionalBranchU64LessThan => self.conditional_branch,
             MachineSemanticKind::ConditionalBranchI64LessThan => self.conditional_branch,
             MachineSemanticKind::CallScalar

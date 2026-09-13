@@ -16,8 +16,8 @@ use scalar_call::declaration as scalar_call_declaration;
 
 use crate::{
     AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64,
-    AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64, AARCH64_COMPARE_I64_ZERO,
-    AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_DARWIN_RETURN,
+    AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64, AARCH64_COMPARE_I64_IMMEDIATE,
+    AARCH64_COMPARE_I64_ZERO, AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_DARWIN_RETURN,
     AARCH64_DARWIN_RETURN_UNIT, AARCH64_MATERIALIZE_I64, AARCH64_SUBTRACT_I64,
     AARCH64_SUBTRACT_I64_IMMEDIATE, aarch64_aapcs64_register_call_keys,
 };
@@ -221,6 +221,7 @@ fn selected_keys(
         subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
         compare_i64: AARCH64_COMPARE_I64,
+        compare_i64_immediate: AARCH64_COMPARE_I64_IMMEDIATE,
         conditional_branch: AARCH64_CONDITIONAL_BRANCH,
         jump: crate::AARCH64_JUMP,
         return_float: crate::aarch64_float_scalar_return_keys(
@@ -330,6 +331,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::StorePacked => (vec![0, 1], vec![2]),
         MachineSemanticKind::Load8Indexed => (vec![0, 1], vec![2]),
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
+        MachineSemanticKind::CompareI64Immediate => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
         MachineSemanticKind::MaterializeBooleanEqual
@@ -391,7 +393,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             MachineEncodedTrapBehavior::NeverV1,
             MachineEncodedControlEffect::FallThroughV1,
         ),
-        MachineSemanticKind::CompareI64Zero | MachineSemanticKind::CompareI64 => (
+        MachineSemanticKind::CompareI64Zero
+        | MachineSemanticKind::CompareI64
+        | MachineSemanticKind::CompareI64Immediate => (
             vec![],
             units("nzcv"),
             MachineEncodedTrapBehavior::NeverV1,
