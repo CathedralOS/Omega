@@ -662,6 +662,25 @@ Owners include
   fenced until their general rules land. Acceptance includes nested field/index
   canaries on both Linux ISAs.
 
+  Resume evidence: `8ba0bd1fff` landed the index hop of a field/index path.
+  `SymbolicFieldValue::new_indexed{,_numbered}` carries an exact `element_index`
+  into a repeated field; `derive_symbolic_materialization`
+  (`omega-rust/psi/foundation/layout-plans/src/lib.rs`) resolves `field[index]`
+  to that element's `At` placement, checks the bound before any target
+  resolution, and joins the index into the duplicate-supply key. The write still
+  realizes as a resolved value, a loader-native `NativePointerRelocation`, or a
+  `RuntimeWriter`. macOS arm64 (`aarch64-apple-darwin`): `mbx nextest run -p
+  layout-plans --lib` 40 pass; `mbx nextest run -p compiler --test layout_plans
+  indexed_symbolic_materialization_preserves_the_exact_element_path` passes
+  `handlers[2]` through `compile_to_checked` -> `compute_layout_plan` ->
+  post-handoff `execute`; `isa-aarch64`/`isa-x86_64` `post_handoff_writer` legs
+  pass. Linux x86-64 and Linux aarch64 legs were unavailable on this host: no
+  `x86_64-unknown-linux-gnu`/`aarch64-unknown-linux-gnu` rustup targets, no
+  cross-linkers, and the Docker daemon was not running. Next acceptance: a
+  nested-record field path (`a.b`) needs an inner-placement carrier the flat
+  `LayoutPlanReport` does not yet expose, plus the two Linux canary legs on a
+  Linux host.
+
 ## P3 - Terminal Psi, PCC, and observation
 
 - **PCC-PRODUCT-PUBLICATION.** Implement the
