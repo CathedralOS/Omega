@@ -3,6 +3,7 @@
 use diagnostics::Diagnostic;
 
 pub(super) struct OptimizedFragmentPublicationRequest<'request> {
+    pub(super) hosted_receiver: Option<crate::NativeProgramEntrySettlement<'request>>,
     pub(super) boundary_application_coverage:
         Option<&'request boundary_applications::TerminalBoundaryApplicationCoverage>,
     pub(super) optimized_plan: &'request abstract_operations::AbstractOperationPlan,
@@ -22,11 +23,37 @@ pub(super) fn emit_optimized_fragments(
     Vec<Diagnostic>,
 > {
     let source = std::sync::Arc::new(stage_fragment_object(physical)?);
-    let object =
+    let mut object =
         image_emission::build_function_fragment_object_artifact(std::sync::Arc::clone(&source))
             .map_err(|error| {
                 super::diagnostics::realization_error("fragment object publication", error)
             })?;
+    // The publication receipt retains the complete immutable object, including
+    // entry metadata. Bind before capture; later equality must still reject
+    // any replacement, omission or mutation of that checked binding.
+    if let Some(entry) = request.hosted_receiver {
+        let contract = entry
+            .storage_entry()
+            .and_then(|storage| storage.physical_contract())
+            .ok_or_else(|| {
+                super::diagnostics::realization_error(
+                    "ProgramEntry receiver provisioning",
+                    "missing exact hosted physical contract",
+                )
+            })?;
+        let demand =
+            image_emission::derive_stack_demand(&object, object.entry()).map_err(|error| {
+                super::diagnostics::realization_error("ProgramEntry receiver stack demand", error)
+            })?;
+        image_emission::bind_macos_hosted_receiver(
+            &mut object,
+            entry.source(),
+            contract,
+            entry.fused_service_establishments(),
+            &demand,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+    }
     let scope = match request.boundary_application_coverage {
         Some(coverage) => {
             native_artifact::NativePhysicalEvidenceScope::from_validated_fragment_publication(

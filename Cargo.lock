@@ -733,6 +733,7 @@ dependencies = [
  "machine-code",
  "machine-emission",
  "object-file",
+ "program-entry-plan",
  "proof-admission",
  "register-model",
  "selected-instructions",

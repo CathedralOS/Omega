@@ -10,6 +10,9 @@ use package_compilation::{
 };
 use std::fmt::Write as _;
 
+#[path = "support/macos_entry_acceptance.rs"]
+mod macos_entry_acceptance;
+
 fn compile_native_and_publish(
     options: CompileOptions,
 ) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
@@ -258,31 +261,189 @@ data Build {
 
 #[test]
 fn return_only_identity_build_preserves_complete_native_evidence() {
-    let root = project(
-        "identity-native-evidence",
-        Some(
-            r#"machine build(builder: &mut Build) {
-    builder.application("identity-native-evidence");
-    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    let standard_library = native_evidence_standard_library();
+    let macos_entry = macos_entry_acceptance::candidate_macos_entry_binding(
+        &standard_library,
+        package_identity(2),
+    )
+    .expect("check and explicitly accept the real target entry contract");
+    for target in [
+        "windows_x86_64",
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+    ] {
+        let report = compile_source_native_evidence(
+            target,
+            false,
+            "data Main {} machine Main::main() {}\n",
+            &standard_library,
+            &macos_entry,
+        );
+        validate_source_native_evidence(&report);
+        let physical = report
+            .retained_native_artifact()
+            .unwrap()
+            .physical_evidence()
+            .expect("complete empty physical evidence");
+        assert!(physical.projection().operator_occurrences().is_empty());
+        assert!(physical.projection().boundary_occurrences().is_empty());
+        assert!(physical.children().is_empty());
+        publish_source_native_evidence(report, target);
+    }
+}
+
+#[test]
+fn scalar_returning_source_calls_preserve_native_evidence_on_every_target() {
+    let standard_library = native_evidence_standard_library();
+    let macos_entry = macos_entry_acceptance::candidate_macos_entry_binding(
+        &standard_library,
+        package_identity(2),
+    )
+    .expect("check and explicitly accept the real target entry contract");
+    for target in [
+        "windows_x86_64",
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+    ] {
+        for copy_propagation in [false, true] {
+            let report = compile_source_native_evidence(
+                target,
+                copy_propagation,
+                r#"
+machine pick(left: u64, right: u64) -> u64
+requires true
+ensures result == right
+{ transition { _ -> right } }
+data Main {}
+machine Main::main() {
+    let first: u64 = pick(7u64, 9u64);
+    let second: u64 = pick(first, first);
+    let third: u64 = pick(first, second);
 }
 "#,
-        ),
+                &standard_library,
+                &macos_entry,
+            );
+            validate_source_native_evidence(&report);
+            let artifact = report.retained_native_artifact().unwrap();
+            assert!(
+                image_emission::derive_stack_demand(artifact.object(), artifact.object().entry())
+                    .unwrap()
+                    .ceiling_bytes()
+                    > 0
+            );
+            publish_source_native_evidence(report, target);
+        }
+    }
+}
+
+fn native_evidence_standard_library() -> PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .find(|path| path.join("source/library/std").is_dir())
+        .expect("compiler checkout owns the authored standard package")
+        .join("source/library/std")
+}
+
+fn compile_source_native_evidence(
+    target: &str,
+    copy_propagation: bool,
+    source: &str,
+    standard_library: &std::path::Path,
+    macos_entry: &package_compilation::AcceptedSemanticBinding,
+) -> compiler::CompileReport {
+    let dependency = if target == "macos_arm64" {
+        format!(
+            "builder.depend(Source::Path {{ location: \"{}\" }});",
+            standard_library.to_string_lossy().replace('\\', "/")
+        )
+    } else {
+        String::new()
+    };
+    let optimization = if copy_propagation {
+        "builder.optimizations.enable(Optimization::CopyPropagation);"
+    } else {
+        ""
+    };
+    let root = project(
+        "source-native-evidence",
+        Some(&format!(
+            "machine build(builder: &mut Build) {{\n\
+             builder.application(\"source-native-evidence\");\n\
+             {dependency}\n\
+             builder.roots.bind({target}::ProgramEntry, Main::main);\n\
+             {optimization}\n}}\n"
+        )),
     );
-    std::fs::write(
-        root.join("main.omg"),
-        "data Main {} machine Main::main() {}\n",
-    )
-    .expect("write receiver-free Unit entry");
-    let report = compiler::compile(
-        CompileRequest::new(CompileOptions {
-            root_path: root.join("main.omg"),
-            build_dir: Some(root.join("build")),
-            target_name: Some("windows_x86_64".into()),
+    std::fs::write(root.join("main.omg"), source)
+        .expect("write source-owned native evidence fixture");
+    let mut request = CompileRequest::new(CompileOptions {
+        root_path: root.join("main.omg"),
+        build_dir: Some(root.join("build")),
+        target_name: Some(target.into()),
+    })
+    .with_requested_product(RequestedCompileProduct::NativeArtifact);
+    if target == "macos_arm64" {
+        let application = package_identity(1);
+        let standard = package_identity(2);
+        let inputs = PackageCompilationInputs::new(
+            application,
+            package_compilation::BuildDeclarationKind::Application,
+            vec![
+                PackageSourceBinding::new(application, "source-native-evidence", root.clone()),
+                PackageSourceBinding::new(
+                    standard,
+                    "omega-language-std",
+                    standard_library.to_path_buf(),
+                ),
+            ],
+            vec![PackageDependencyBinding::new(
+                application,
+                "omega_language_std",
+                standard,
+            )],
+        )
+        .expect("exact application and standard dependency graph")
+        .with_accepted_semantic_bindings(vec![macos_entry.clone()])
+        .expect("explicitly accepted checked target entry candidate");
+        request = request.with_package_inputs(inputs);
+    }
+    compiler::compile(request)
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| {
+            panic!("{target}, CopyPropagation={copy_propagation}: {diagnostics:?}")
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact),
-    )
-    .and_then(compiler::CompileOutcomes::into_single_report)
-    .expect("identity fragment publication preserves complete native evidence");
+}
+
+fn publish_source_native_evidence(report: compiler::CompileReport, target: &str) {
+    // Publication replaces retained artifact custody with a receipt. Replay and
+    // installation-record assertions therefore run before consuming the report.
+    let build_dir = report.root_path().parent().unwrap().join("build");
+    let report = report
+        .publish_retained_native_artifact(&build_dir)
+        .expect("publish the independently validated source-owned native artifact");
+    let executable = report
+        .checked_native_executable_path()
+        .expect("published executable receipt");
+    assert!(executable.is_file());
+    if target == "macos_arm64" {
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        {
+            let output = std::process::Command::new(executable)
+                .output()
+                .expect("execute published macOS source fixture");
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+        }
+        #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+        eprintln!(
+            "SKIP macOS process execution: requires a macOS arm64 host; image replay still checked"
+        );
+    }
+}
+
+fn validate_source_native_evidence(report: &compiler::CompileReport) {
     let artifact = report
         .retained_native_artifact()
         .expect("retained native artifact");
@@ -293,12 +454,24 @@ fn return_only_identity_build_preserves_complete_native_evidence() {
         artifact.physical_evidence_scope(),
         native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
-    let physical = artifact
-        .physical_evidence()
-        .expect("complete empty physical evidence");
-    assert!(physical.projection().operator_occurrences().is_empty());
-    assert!(physical.projection().boundary_occurrences().is_empty());
-    assert!(physical.children().is_empty());
+    assert!(artifact.physical_evidence().is_some());
+    let record = image_emission::build_installation_record(
+        artifact.image(),
+        semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
+    )
+    .unwrap();
+    let encoded = image_emission::encode_installation_record(&record).unwrap();
+    let decoded = image_emission::decode_installation_record(&encoded).unwrap();
+    image_emission::validate_installation_record(&decoded, artifact.image()).unwrap();
+    assert_eq!(
+        image_emission::derive_installation_stack_demand(
+            &decoded,
+            artifact.image(),
+            artifact.object().entry(),
+        )
+        .unwrap(),
+        image_emission::derive_stack_demand(artifact.object(), artifact.object().entry()).unwrap(),
+    );
 }
 
 #[test]

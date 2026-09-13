@@ -17,7 +17,7 @@ use super::{
     ConsumerScopedSemanticBindingReviewInput, ReviewedPackageProductionCandidate,
 };
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
-use package_pass::{CompiledPackageReviews, PackageSourcePreparation};
+use package_pass::{CompiledPackageReviews, PackageSourcePreparation, TargetEntryDiscovery};
 use session::ReviewBuildSession;
 use std::path::Path;
 
@@ -111,6 +111,7 @@ fn compile_candidate(
             build_root,
             inputs,
             retained_root_entry,
+            TargetEntryDiscovery::Disabled,
             PackageSourcePreparation::Independent,
         );
     }
@@ -120,6 +121,7 @@ fn compile_candidate(
         build_root,
         &[],
         retained_root_entry,
+        TargetEntryDiscovery::Dependencies,
         PackageSourcePreparation::Retain(&mut prepared_sources),
     )?;
     let discovered = candidate_semantic_binding_inputs(&preliminary.reviews)?;
@@ -134,6 +136,7 @@ fn compile_candidate(
         build_root,
         &discovered,
         retained_root_entry,
+        TargetEntryDiscovery::Disabled,
         PackageSourcePreparation::Consume(&mut prepared_sources),
     )
 }
@@ -143,6 +146,7 @@ fn compile_pass(
     build_root: &Path,
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
     retained_root_entry: Option<&Path>,
+    discovery: TargetEntryDiscovery,
     source_preparation: PackageSourcePreparation<'_>,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
@@ -155,6 +159,7 @@ fn compile_pass(
         session.evaluation_sponsor(),
         &bindings,
         retained_root_entry,
+        discovery,
         source_preparation,
     );
     let compiled = session.dispose(result)?;

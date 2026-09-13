@@ -108,6 +108,7 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         &fixture.0.join("discovery"),
         &[],
         None,
+        TargetEntryDiscovery::Dependencies,
         PackageSourcePreparation::Retain(&mut prepared_sources),
     )
     .map(|compiled| compiled.reviews)
@@ -123,6 +124,7 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         &fixture.0.join("consumed"),
         &[],
         None,
+        TargetEntryDiscovery::Disabled,
         PackageSourcePreparation::Consume(&mut prepared_sources),
     )
     .map(|compiled| compiled.reviews)
@@ -175,6 +177,7 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
         &fixture.0.join("discovery"),
         &[],
         None,
+        TargetEntryDiscovery::Dependencies,
         PackageSourcePreparation::Retain(&mut prepared_sources),
     )
     .map(|compiled| compiled.reviews)
@@ -198,6 +201,7 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
         &fixture.0.join("final"),
         &[],
         None,
+        TargetEntryDiscovery::Disabled,
         PackageSourcePreparation::Consume(&mut prepared_sources),
     )
     .map(|compiled| compiled.reviews);

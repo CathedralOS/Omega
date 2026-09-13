@@ -89,6 +89,7 @@ fn source_ordered_calls_reach_executable_publication() {
             let (object, _) = emit_optimized_fragments(
                 physical.physical,
                 OptimizedFragmentPublicationRequest {
+                    hosted_receiver: None,
                     boundary_application_coverage: None,
                     optimized_plan: &physical.optimized_plan,
                     terminal: physical.terminal,
@@ -182,6 +183,7 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
             let (object, _) = emit_optimized_fragments(
                 physical.physical,
                 OptimizedFragmentPublicationRequest {
+                    hosted_receiver: None,
                     boundary_application_coverage: None,
                     optimized_plan: &physical.optimized_plan,
                     terminal: physical.terminal,

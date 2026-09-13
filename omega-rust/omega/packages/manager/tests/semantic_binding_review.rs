@@ -1,5 +1,7 @@
 #[path = "support/accepted_policy.rs"]
 mod accepted_policy_fixture;
+#[path = "semantic_binding_review/macos_entry.rs"]
+mod macos_entry;
 
 use compiler::CheckedCompileRequest;
 use effects::{

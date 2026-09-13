@@ -7,6 +7,7 @@ use terminal_production::CheckedProgramEntryTerminalReceipt;
 /// roots and cannot authorize a physical bootstrap, image, or publication.
 #[derive(Debug, Clone, Copy)]
 pub struct NativeProgramEntrySettlement<'entry> {
+    pub(crate) checked_entry: Option<&'entry CheckedProgramEntryTerminalReceipt>,
     pub(crate) source: &'entry program_entry_plan::SelectedProgramEntrySourceSignature,
     pub(crate) semantic_calling_application: Option<&'entry BoundaryCallingPlanRealization>,
     pub(crate) physical_calling_application: Option<&'entry BoundaryCallingPlanRealization>,
@@ -35,12 +36,23 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
                 None => (None, None, None),
             };
         Self {
+            checked_entry: None,
             source,
             semantic_calling_application,
             physical_calling_application,
             storage_entry,
             fused_service_establishments,
         }
+    }
+
+    /// Retain source-owned entry evidence for replay against the exact artifact.
+    /// Attaching this receipt does not validate it or provision a receiver.
+    pub const fn with_checked_entry(
+        mut self,
+        checked_entry: &'entry CheckedProgramEntryTerminalReceipt,
+    ) -> Self {
+        self.checked_entry = Some(checked_entry);
+        self
     }
 
     pub const fn source(self) -> &'entry program_entry_plan::SelectedProgramEntrySourceSignature {
@@ -205,6 +217,7 @@ pub enum NativeProgramEntrySettlementError {
     TerminalPsiSubstitution,
     TerminalEntrySubstitution,
     TerminalEntryMultiplicity(usize),
+    ReceiverEligibilityDrift,
     FusedServiceEstablishmentDrift,
 }
 

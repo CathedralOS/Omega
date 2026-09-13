@@ -172,6 +172,10 @@ pub fn validate_function_fragment_object_artifact(
         ));
     }
     super::structural::validate_settlements(source, &artifact.boundary_settlements)?;
+    if let Some(binding) = artifact.hosted_receiver_binding() {
+        crate::hosted_receiver::validate_binding(artifact, binding)
+            .map_err(|_| Error::Mismatch("hosted receiver binding differs from replayed object"))?;
+    }
     Ok(())
 }
 
