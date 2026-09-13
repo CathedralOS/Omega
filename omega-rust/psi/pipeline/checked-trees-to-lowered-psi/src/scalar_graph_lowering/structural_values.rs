@@ -3,8 +3,10 @@
 //! completed fields commit through the same record emitter as Unit bodies.
 //! Only the completed root enters the local namespace. Nested owned records
 //! transfer into their parent, while a root survives through selected arguments.
-//! Whole record copies bind a fresh block home through ordinary owned edges.
-//! Reusing the source place would alias its storage instead of taking a snapshot.
+//! Whole local initializers bind fresh block homes: unrestricted values copy,
+//! affine values move. Retire a moved source name only once construction finishes.
+//! Final live locals rebind in declaration order at the selected cleanup edge;
+//! this preserves disposal order without remapping survivors after every move.
 
 use super::*;
 use checked_trees::{
@@ -14,12 +16,13 @@ use checked_trees::{
 pub(super) struct Prepared {
     pub(super) symbol: symbols::SymbolHandle,
     pub(super) place: PlaceId,
+    pub(super) consumed: Vec<(symbols::SymbolHandle, PlaceId)>,
     statement: u32,
     steps: Vec<Step>,
 }
 
 enum Step {
-    Copy {
+    Bind {
         source: StructuralArgument,
         destination: StructuralParameterDeclaration,
         prefix: Vec<QualifiedScalarType>,
@@ -87,18 +90,18 @@ pub(super) fn prepare(
     else {
         return unsupported("scalar structural producer lost its local destination");
     };
-    // Until transfer-bearing structural statements share this graph, each fresh
-    // affine root must still owe exactly one lexical final drop. Independently
-    // replay that obligation instead of trusting a producer's disposal flag.
-    crate::attached_unit::structural_values::source_custody::validate_local_ownership(
-        checked,
+    // Independently check the local's eventual drop or exact initializer move.
+    // The operation flag does not establish which owner survives to this exit.
+    validation::record_local_disposition(
+        &checked.typed,
+        &checked.facts,
         machine,
         state,
         result.statement_index,
-        local.symbol,
-        result.multiplicity,
-        true,
-    )?;
+    )
+    .ok_or(LoweringError::Unsupported(
+        "scalar record lost its exact final disposition",
+    ))?;
     let mut preparation = Preparation {
         checked,
         qualifications,
@@ -107,13 +110,44 @@ pub(super) fn prepare(
         next_place,
         prefix: value_types.to_vec(),
         steps: Vec::new(),
+        consumed: Vec::new(),
     };
-    let place = preparation.record(*value, local.type_reference)?;
+    let mut place = preparation.record(*value, local.type_reference)?;
+    if result.multiplicity == Multiplicity::Affine
+        && matches!(
+            checked
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .get(*value)
+                .kind,
+            CheckedStructuralValueKind::Place(_)
+        )
+    {
+        let structural_type = types
+            .iter()
+            .find(|declaration| declaration.identity == result.type_identity)
+            .ok_or(LoweringError::Unsupported(
+                "moved record lost its declared carrier",
+            ))?
+            .id;
+        place = preparation.bind_place(
+            StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            },
+            structural_type,
+            StructuralMultiplicity::Affine,
+        )?;
+    }
     Ok(Prepared {
         symbol: local.symbol,
         place,
         statement: result.statement_index,
         steps: preparation.steps,
+        consumed: preparation.consumed,
     })
 }
 
@@ -125,6 +159,7 @@ struct Preparation<'a> {
     next_place: &'a mut u64,
     prefix: Vec<QualifiedScalarType>,
     steps: Vec<Step>,
+    consumed: Vec<(symbols::SymbolHandle, PlaceId)>,
 }
 
 impl Preparation<'_> {
@@ -150,31 +185,39 @@ impl Preparation<'_> {
             return unsupported("scalar record has a nonrecord structural declaration");
         };
         if let CheckedStructuralValueKind::Place(argument) = &node.kind {
-            // Source replay above checks the authored name, destination carrier
-            // and earlier establishment. This join copies storage; affine moves
-            // additionally need the surviving-owner frontier transported here.
-            if self.checked.type_multiplicity(reference) != Multiplicity::Unrestricted
-                || argument.type_identity != identity.as_str()
-            {
-                return unsupported("scalar record copy changed its carrier or multiplicity");
+            if argument.type_identity != identity.as_str() {
+                return unsupported("scalar record transfer changed its carrier");
             }
             let source = self.bindings.owned_argument(argument)?;
-            let place = place_id(allocate_dense(self.next_place)?);
-            self.steps.push(Step::Copy {
-                source,
-                destination: StructuralParameterDeclaration {
-                    place,
-                    position: 0,
-                    is_self: false,
-                    structural_type: declaration.id,
-                    multiplicity: StructuralMultiplicity::Unrestricted,
-                    access: StructuralAccess::Owned,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                },
-                prefix: self.prefix.clone(),
-            });
-            return Ok(place);
+            return match self.checked.type_multiplicity(reference) {
+                Multiplicity::Unrestricted => {
+                    self.bind_place(source, declaration.id, StructuralMultiplicity::Unrestricted)
+                }
+                Multiplicity::Affine => {
+                    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol,
+                    } = argument.source
+                    else {
+                        return unsupported(
+                            "record parameter moves require their own source custody join",
+                        );
+                    };
+                    if self
+                        .consumed
+                        .iter()
+                        .any(|(candidate, place)| *candidate == symbol || *place == source.place)
+                    {
+                        return unsupported("record value transfers its source more than once");
+                    }
+                    self.consumed.push((symbol, source.place));
+                    // A nested owner transfers directly into EstablishRecord.
+                    // A whole local initializer instead binds a fresh block home.
+                    Ok(source.place)
+                }
+                Multiplicity::Linear => {
+                    unsupported("scalar record cannot transfer linear authority")
+                }
+            };
         }
         let CheckedStructuralValueKind::Record {
             data_symbol,
@@ -306,6 +349,30 @@ impl Preparation<'_> {
         });
         Ok(place)
     }
+
+    fn bind_place(
+        &mut self,
+        source: StructuralArgument,
+        structural_type: StructuralTypeId,
+        multiplicity: StructuralMultiplicity,
+    ) -> Result<PlaceId, LoweringError> {
+        let place = place_id(allocate_dense(self.next_place)?);
+        self.steps.push(Step::Bind {
+            source,
+            destination: StructuralParameterDeclaration {
+                place,
+                position: 0,
+                is_self: false,
+                structural_type,
+                multiplicity,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+            prefix: self.prefix.clone(),
+        });
+        Ok(place)
+    }
 }
 
 impl Prepared {
@@ -323,7 +390,7 @@ impl Prepared {
             .map(|step| match step {
                 Step::Scalar { prefix, .. }
                 | Step::Record { prefix, .. }
-                | Step::Copy { prefix, .. } => prefix,
+                | Step::Bind { prefix, .. } => prefix,
             })
             .ok_or(LoweringError::Unsupported(
                 "record construction has no completion",
@@ -342,7 +409,7 @@ impl Prepared {
         });
         for step in self.steps.into_iter().rev() {
             target = match step {
-                Step::Copy {
+                Step::Bind {
                     source,
                     destination,
                     prefix,
@@ -489,6 +556,8 @@ pub(super) fn exit_target(
     structural_arguments: &mut Vec<StructuralArgument>,
     target: usize,
     computations: &mut computations::Expansion<'_>,
+    types: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
 ) -> Result<usize, LoweringError> {
     let (machine, source) = source_custody::authored_state(checked, state)?;
     let graph = checked
@@ -508,13 +577,26 @@ pub(super) fn exit_target(
         .ok_or(LoweringError::Unsupported(
             "scalar cleanup lost its source state",
         ))?;
-    let mut discards = Vec::new();
-    for operation in retained.unit_operations.iter().rev() {
+    let mut owners = Vec::new();
+    let mut destinations = Vec::new();
+    for operation in &retained.unit_operations {
         let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } = operation
         else {
             continue;
         };
         if result.multiplicity != Multiplicity::Affine {
+            continue;
+        }
+        if !validation::record_local_disposition(
+            &checked.typed,
+            &checked.facts,
+            machine.symbol,
+            state,
+            result.statement_index,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "scalar cleanup lost its exact local disposition",
+        ))? {
             continue;
         }
         let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
@@ -533,13 +615,41 @@ pub(super) fn exit_target(
                 type_identity: result.type_identity.clone(),
                 access: checked_trees::CheckedStructuralAccess::Owned,
             })?;
-        discards.push(argument.place);
+        let structural_type = types
+            .iter()
+            .find(|declaration| declaration.identity == result.type_identity)
+            .ok_or(LoweringError::Unsupported(
+                "scalar cleanup lost its record carrier",
+            ))?
+            .id;
+        owners.push(argument);
+        destinations.push(StructuralParameterDeclaration {
+            place: place_id(allocate_dense(next_place)?),
+            position: u32::try_from(destinations.len())
+                .map_err(|_| LoweringError::Unsupported("local cleanup frontier exceeds u32"))?,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
     }
-    if discards.is_empty() {
+    if owners.is_empty() {
         return Ok(target);
     }
-    Ok(computations.push(LoweredScalarBranchState {
-        structural_parameters: Vec::new(),
+    // Moves give locals a mixture of operation-result and block-parameter homes.
+    // Bind the final live owners once in declaration order, after selected reads,
+    // so reverse parameter disposal agrees with source order without repeatedly
+    // remapping every survivor at each move. The ordinary edge verifier checks
+    // consumption, fresh binding and the complete resulting frontier.
+    let discards = destinations
+        .iter()
+        .rev()
+        .map(|parameter| parameter.place)
+        .collect();
+    let cleanup = computations.push(LoweredScalarBranchState {
+        structural_parameters: destinations,
         parameter_types: parameter_types.to_vec(),
         bindings: Vec::new(),
         structural_effects: Vec::new(),
@@ -548,6 +658,18 @@ pub(super) fn exit_target(
             arguments: computations::parameters(parameter_types),
             structural_arguments: std::mem::take(structural_arguments),
             trivial_affine_discards: discards,
+        },
+    });
+    Ok(computations.push(LoweredScalarBranchState {
+        structural_parameters: Vec::new(),
+        parameter_types: parameter_types.to_vec(),
+        bindings: Vec::new(),
+        structural_effects: Vec::new(),
+        terminator: LoweredScalarBranchTerminator::Jump {
+            target: cleanup,
+            arguments: computations::parameters(parameter_types),
+            structural_arguments: owners,
+            trivial_affine_discards: Vec::new(),
         },
     }))
 }

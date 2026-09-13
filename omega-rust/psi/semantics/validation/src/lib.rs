@@ -43,6 +43,10 @@ mod machine_specialization_identity;
 mod operators;
 mod owned_value_source;
 pub use owned_value_source::plain_owned_value_source;
+mod record_local_disposition;
+pub use record_local_disposition::record_local_disposition;
+mod permission_provenance;
+pub use permission_provenance::expression_permission_provenance;
 mod scalar_case_constructor;
 mod storage_contents;
 pub use scalar_case_constructor::{

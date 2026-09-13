@@ -429,6 +429,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                             &mut Vec::new(),
                             target,
                             &mut computations,
+                            structural_types,
+                            next_place,
                         )
                     })
                     .transpose()?;
@@ -510,6 +512,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         result_type,
                         return_sink,
                         &mut computations,
+                        structural_types,
+                        next_place,
                     )?;
                 let (when_false_target, when_false_arguments) =
                     branch_destinations::lower_destination(
@@ -525,6 +529,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         result_type,
                         return_sink,
                         &mut computations,
+                        structural_types,
+                        next_place,
                     )?;
                 guards::lower(
                     checked,
@@ -553,6 +559,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     successor,
                     scalar_bindings,
                     &mut computations,
+                    structural_types,
+                    next_place,
                 )?;
                 LoweredScalarBranchTerminator::Jump {
                     trivial_affine_discards: Vec::new(),
@@ -912,6 +920,8 @@ fn lower_scalar_graph_successor(
     successor: &CheckedScalarSuccessor,
     scalar_bindings: &storage::ScalarBindings,
     computations: &mut computations::Expansion<'_>,
+    structural_types: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
 ) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
     source_custody::validate_successor(checked, source_state, successor)?;
     let target = states
@@ -974,6 +984,8 @@ fn lower_scalar_graph_successor(
         &mut structural_arguments,
         target,
         computations,
+        structural_types,
+        next_place,
     )?;
     if let Some(entry) = computations.successor(
         source_state,

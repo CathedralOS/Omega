@@ -6,6 +6,8 @@ mod integer_inputs;
 mod permissions;
 #[path = "owned_scalar_graphs/record_locals.rs"]
 mod record_locals;
+#[path = "owned_scalar_graphs/record_moves.rs"]
+mod record_moves;
 #[path = "owned_scalar_graphs/selected_owned.rs"]
 mod selected_owned;
 #[path = "owned_scalar_graphs/source_custody.rs"]

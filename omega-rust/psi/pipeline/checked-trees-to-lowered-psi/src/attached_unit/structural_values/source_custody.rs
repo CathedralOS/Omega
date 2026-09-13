@@ -772,55 +772,62 @@ fn local_value_provenance(
     checked: &CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
-    mut statement: usize,
+    statement: usize,
 ) -> Result<language_semantics::PermissionProvenance, LoweringError> {
     use language_semantics::{PermissionEventSource, PermissionProvenance};
     let (_, source) = crate::scalar_source_custody::authored_state(checked, state)?;
     let statements = checked.statement_table.statements(source.statement_nodes);
-    loop {
-        if let Some((_, receipt)) = checked.facts.flow.ownership.owned_selection_at(
+    if let Some((_, receipt)) = checked.facts.flow.ownership.owned_selection_at(
+        state,
+        u32::try_from(statement)
+            .map_err(|_| LoweringError::Unsupported("local origin ordinal overflow"))?,
+    ) {
+        owned_selection::validate_receipt(
+            checked,
+            machine,
             state,
-            u32::try_from(statement)
-                .map_err(|_| LoweringError::Unsupported("local origin ordinal overflow"))?,
-        ) {
-            owned_selection::validate_receipt(
-                checked,
-                machine,
-                state,
-                receipt.statement_ordinal,
-                receipt,
-            )?;
-            return Ok(PermissionProvenance::Unknown);
-        }
-        let Some(StatementNode::LocalData(local)) = statements.get(statement) else {
-            return unsupported("owned local origin has no declaration");
-        };
-        let ExpressionNode::Name(name) = checked.expression_table.expression(local.initial_value)
-        else {
-            return Ok(PermissionProvenance::Established {
-                machine_symbol: machine,
-                state_symbol: state,
-                source: PermissionEventSource::Statement {
-                    statement_index: statement,
-                },
-            });
-        };
-        if !name.symbol.is_valid() || name.head_symbol != name.symbol || name.members.count() != 1 {
-            return unsupported("owned local origin is not a whole source");
-        }
-        if checked
-            .state_parameters(source)
-            .iter()
-            .any(|parameter| parameter.symbol == name.symbol)
-        {
-            return Ok(PermissionProvenance::Established {
-                machine_symbol: machine,
-                state_symbol: state,
-                source: PermissionEventSource::StateEntry,
-            });
-        }
-        let mut origins =
-            statements
+            receipt.statement_ordinal,
+            receipt,
+        )?;
+        return Ok(PermissionProvenance::Unknown);
+    }
+    let Some(StatementNode::LocalData(local)) = statements.get(statement) else {
+        return unsupported("owned local origin has no declaration");
+    };
+    let origin = validation::expression_permission_provenance(
+        &checked.typed,
+        local.initial_value,
+        &mut |expression| {
+            let ExpressionNode::Name(name) = checked.expression_table.expression(expression) else {
+                return Ok(None);
+            };
+            if !name.symbol.is_valid() {
+                return Err("owned local origin has an invalid source");
+            }
+            if name.head_symbol != name.symbol || name.members.count() != 1 {
+                return if expression == local.initial_value {
+                    Err("owned local origin is not a whole source")
+                } else {
+                    Ok(None)
+                };
+            }
+            if let Some(parameter) = checked
+                .state_parameters(source)
+                .iter()
+                .find(|parameter| parameter.symbol == name.symbol)
+            {
+                if checked.type_multiplicity(parameter.type_reference)
+                    == language_semantics::Multiplicity::Unrestricted
+                {
+                    return Ok(None);
+                }
+                return Ok(Some(PermissionProvenance::Established {
+                    machine_symbol: machine,
+                    state_symbol: state,
+                    source: PermissionEventSource::StateEntry,
+                }));
+            }
+            let mut origins = statements
                 .iter()
                 .enumerate()
                 .filter_map(|(ordinal, source)| match source {
@@ -829,20 +836,39 @@ fn local_value_provenance(
                     }
                     _ => None,
                 });
-        let Some((ordinal, origin)) = origins.next() else {
-            return unsupported("owned local origin has no source local");
-        };
-        if origins.next().is_some()
-            || ordinal >= statement
-            || checked.normalized_type_identity(origin.type_reference)
-                != checked.normalized_type_identity(local.type_reference)
-        {
-            return unsupported("owned local origin changed its prior source declaration");
-        }
-        // A move establishes a new place while preserving the value's origin.
-        // Strictly decreasing declarations also rule out forged origin cycles.
-        statement = ordinal;
-    }
+            let Some((ordinal, origin)) = origins.next() else {
+                return Err("owned local origin has no source local");
+            };
+            if origins.next().is_some()
+                || ordinal >= statement
+                || (expression == local.initial_value
+                    && checked.normalized_type_identity(origin.type_reference)
+                        != checked.normalized_type_identity(local.type_reference))
+            {
+                return Err("owned local origin changed its prior source declaration");
+            }
+            if checked.type_multiplicity(origin.type_reference)
+                == language_semantics::Multiplicity::Unrestricted
+            {
+                return Ok(None);
+            }
+            // Local dependencies strictly precede their use, including constructor children.
+            local_value_provenance(checked, machine, state, ordinal)
+                .map(Some)
+                .map_err(|error| match error {
+                    LoweringError::Unsupported(reason) => reason,
+                    _ => "owned local origin lost its prior provenance",
+                })
+        },
+    )
+    .map_err(LoweringError::Unsupported)?;
+    Ok(origin.unwrap_or(PermissionProvenance::Established {
+        machine_symbol: machine,
+        state_symbol: state,
+        source: PermissionEventSource::Statement {
+            statement_index: statement,
+        },
+    }))
 }
 
 pub(crate) fn validate_local_ownership(

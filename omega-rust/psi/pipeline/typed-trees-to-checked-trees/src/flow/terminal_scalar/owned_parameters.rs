@@ -208,8 +208,8 @@ pub(super) fn validate(
     }
     let mut actual_discards = Vec::new();
     let mut actual_transfers = Vec::new();
-    // Graph discovery has already retained every fresh record in this prefix.
-    // Its Establish/StateExit ledger belongs to unit_operations::record_ownership,
+    // Graph discovery has already retained every record value in this prefix.
+    // Its local ledger belongs to validation::record_local_disposition,
     // which must succeed before the completed graph is published. Keep that
     // local provenance separate from this whole-parameter transfer audit; an
     // unknown root still reaches the checks below and rejects.

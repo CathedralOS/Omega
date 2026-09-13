@@ -6,8 +6,8 @@ use checked_trees::{
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-/// Fresh records and unrestricted whole-place copies share ordered value
-/// establishment. Structural calls, affine transfers, references and selected
+/// Fresh records and whole-place copies or moves share ordered value
+/// establishment. Structural calls, references and selected
 /// results keep their existing owners until their custody joins scalar graph
 /// emission. Scalar operands are ordinary computations.
 pub(super) fn record_value_root<'plans>(
@@ -53,8 +53,11 @@ pub(super) fn record_value_root<'plans>(
             checked_trees::CheckedStructuralValueKind::Place(argument)
                 if argument.access == checked_trees::CheckedStructuralAccess::Owned
                     && argument.path.is_empty()
-                    && program.type_multiplicity(reference)
-                        == language_semantics::Multiplicity::Unrestricted
+                    && matches!(
+                        program.type_multiplicity(reference),
+                        language_semantics::Multiplicity::Unrestricted
+                            | language_semantics::Multiplicity::Affine
+                    )
                     && program.normalized_type_identity(reference).as_str()
                         == argument.type_identity => {}
             _ => return None,

@@ -183,6 +183,11 @@ fn declared_range_inference_record_copies_and_full_width_fields_execute() {
     let path = scratch.join("main.omg");
     for (name, text, expected) in [
         (
+            "moved_transition",
+            "data Value { value: u64; } data Inner { value: u64; flag: bool; } data Outer { inner: Inner; } machine moved_transition() -> u64 { let keep: Value = Value { value: 17 }; let first: Outer = Outer { inner: Inner { value: 256, flag: true } }; let second: Outer = first; transition second.inner.flag { true -> yes(second.inner.value ^ keep.value) _ -> no() } state yes(value: u64) { value } state no() { 0 } }",
+            273_u128,
+        ),
+        (
             "copied_transition",
             "data Value [copy] { value: u64; flag: bool; } data Outer [copy] { inner: Value; } machine copied_transition() -> u64 { let first: Outer = Outer { inner: Value { value: 256, flag: true } }; let second: Outer = first; transition second.inner.flag { true -> yes(second.inner.value) _ -> no() } state yes(value: u64) { value } state no() { 17 } }",
             256_u128,
