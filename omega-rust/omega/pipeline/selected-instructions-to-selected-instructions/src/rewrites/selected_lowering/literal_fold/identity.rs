@@ -4,7 +4,7 @@ use crate::{LiteralFoldIdentity, LiteralFoldPlan};
 
 pub fn literal_fold_identity(plan: &LiteralFoldPlan) -> LiteralFoldIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-literal-fold.v3\0");
+    bytes.extend_from_slice(b"omega.terminal-literal-fold.v4\0");
     bytes.extend_from_slice(&encode_terminal_literal_fold_content(plan));
     LiteralFoldIdentity(Sha256::digest(bytes).into())
 }
@@ -36,7 +36,13 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
                 bytes.extend_from_slice(&action.victim.0.to_le_bytes());
                 bytes.extend_from_slice(&action.consumer_instruction.0.to_le_bytes());
                 bytes.extend_from_slice(&action.left.0.to_le_bytes());
-                bytes.extend_from_slice(&action.result.0.to_le_bytes());
+                match action.result {
+                    None => bytes.push(0),
+                    Some(result) => {
+                        bytes.push(1);
+                        bytes.extend_from_slice(&result.0.to_le_bytes());
+                    }
+                }
                 bytes.extend_from_slice(&action.immediate.to_le_bytes());
                 bytes.push(match action.immediate_constraint.family {
                     register_model::RegisterConstraintFamily::Call => 0,
@@ -110,7 +116,7 @@ mod tests {
                     victim: VirtualRegisterId(3),
                     consumer_instruction: SelectedInstructionId(4),
                     left: VirtualRegisterId(2),
-                    result: VirtualRegisterId(4),
+                    result: Some(VirtualRegisterId(4)),
                     immediate: 12,
                     immediate_constraint: RegisterConstraintKey {
                         family: RegisterConstraintFamily::Instruction,

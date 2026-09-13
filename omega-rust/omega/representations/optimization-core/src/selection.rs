@@ -106,7 +106,7 @@ macro_rules! optimization_vocabulary {
 // phases, and canonical order. Build preludes are exhaustively checked against
 // the generated `ALL`, `build_case_name`, and `build_counter_field` views.
 optimization_vocabulary! {
-    20;
+    21;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         counter: "control_flow_cleanup",
@@ -207,6 +207,11 @@ optimization_vocabulary! {
         counter: "aarch64_elide_same_view_copy_i64_before_compare_i64_right_operand_v1",
         phase: PostAllocationMachine
     },
+    SelectedIncomingU12CompareImmediate = 21 => {
+        case: "SelectedIncomingU12CompareImmediate",
+        counter: "selected_incoming_u12_compare_immediate",
+        phase: SelectedLowering
+    },
 }
 
 impl Optimization {
@@ -238,7 +243,8 @@ impl Optimization {
             | Self::Aarch64ElideSameViewCopyI64BeforeReturnV1
             | Self::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1
             | Self::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1
-            | Self::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1 => None,
+            | Self::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1
+            | Self::SelectedIncomingU12CompareImmediate => None,
         }
     }
 }

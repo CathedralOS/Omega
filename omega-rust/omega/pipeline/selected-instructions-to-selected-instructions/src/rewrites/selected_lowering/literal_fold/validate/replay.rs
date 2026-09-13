@@ -138,22 +138,40 @@ fn reconstruct_action(
         immediate_row_for_consumer(consumer, rows).ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
-    let [left, right, result] = consumer.operands.as_slice() else {
-        return Err(LiteralFoldError::ConsumerMismatch {
-            function: function_index,
-        });
+    let result = match consumer.operands.as_slice() {
+        [left, right, result] => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        [left, right] => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || row.operands.len() != 1
+                || left.class != row.operands[0].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            None
+        }
+        _ => {
+            return Err(LiteralFoldError::ConsumerMismatch {
+                function: function_index,
+            });
+        }
     };
-    if left.access != RegisterOperandAccess::Use
-        || right.access != RegisterOperandAccess::Use
-        || right.virtual_register != candidate.victim
-        || result.access != RegisterOperandAccess::Def
-        || left.class != row.operands[0].class
-        || result.class != row.operands[1].class
-    {
-        return Err(LiteralFoldError::ConsumerMismatch {
-            function: function_index,
-        });
-    }
 
     Ok(LiteralFoldAction {
         block: candidate.block,
@@ -161,8 +179,8 @@ fn reconstruct_action(
         literal_instruction: *defining_instruction,
         victim: candidate.victim,
         consumer_instruction: consumer.id,
-        left: left.virtual_register,
-        result: result.virtual_register,
+        left: consumer.operands[0].virtual_register,
+        result,
         immediate,
         immediate_constraint: row.key,
     })
@@ -175,6 +193,7 @@ fn immediate_row_for_consumer<'a>(
     match consumer.kind {
         SelectedInstructionKind::ExactAddI64 { .. } => rows.add,
         SelectedInstructionKind::ExactSubtractI64 { .. } => rows.subtract,
+        SelectedInstructionKind::CompareI64 => rows.compare,
         _ => None,
     }
 }
@@ -280,6 +299,12 @@ fn rebuild_function(
                 accepted_fact,
             },
         ),
+        SelectedInstructionKind::CompareI64 => (
+            rows.compare,
+            SelectedInstructionKind::CompareI64Immediate {
+                immediate: IntegerValue::Unsigned(u128::from(action.immediate)),
+            },
+        ),
         _ => (None, consumer.kind),
     };
     let row = row
@@ -293,12 +318,20 @@ fn rebuild_function(
     operations.extend(consumer_provenance.operations);
     let mut fuel = literal.provenance.fuel;
     fuel.extend(consumer_provenance.fuel);
+    let registers = [Some(action.left), action.result];
+    if registers.iter().flatten().count() != row.operands.len() {
+        return Err(LiteralFoldError::ConsumerMismatch {
+            function: function_index,
+        });
+    }
     consumer.kind = rewritten_kind;
     consumer.constraint = action.immediate_constraint;
-    consumer.operands = vec![
-        selected_operand(&row.operands[0], action.left),
-        selected_operand(&row.operands[1], action.result),
-    ];
+    consumer.operands = row
+        .operands
+        .iter()
+        .zip(registers.iter().flatten())
+        .map(|(constraint, register)| selected_operand(constraint, *register))
+        .collect();
     consumer.implicit_uses = row.implicit_uses.clone();
     consumer.implicit_defs = row.implicit_defs.clone();
     consumer.clobbers = row.clobbers.clone();

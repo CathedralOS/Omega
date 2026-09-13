@@ -93,22 +93,42 @@ pub(super) fn derive_action(
     }
 
     let row = pair.row;
-    let [left, right, result] = consumer.operands.as_slice() else {
-        return Err(LiteralFoldError::ConsumerMismatch {
-            function: function_index,
-        });
+    let result = match consumer.operands.as_slice() {
+        [left, right, result] => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // Flag-defining consumers carry `[left, right]` uses and no `Def`.
+        [left, right] => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || row.operands.len() != 1
+                || left.class != row.operands[0].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            None
+        }
+        _ => {
+            return Err(LiteralFoldError::ConsumerMismatch {
+                function: function_index,
+            });
+        }
     };
-    if left.access != RegisterOperandAccess::Use
-        || right.access != RegisterOperandAccess::Use
-        || right.virtual_register != candidate.victim
-        || result.access != RegisterOperandAccess::Def
-        || left.class != row.operands[0].class
-        || result.class != row.operands[1].class
-    {
-        return Err(LiteralFoldError::ConsumerMismatch {
-            function: function_index,
-        });
-    }
+    let left = consumer.operands[0].virtual_register;
 
     Ok(LiteralFoldAction {
         block: candidate.block,
@@ -116,8 +136,8 @@ pub(super) fn derive_action(
         literal_instruction: *defining_instruction,
         victim: candidate.victim,
         consumer_instruction: consumer.id,
-        left: left.virtual_register,
-        result: result.virtual_register,
+        left,
+        result,
         immediate,
         immediate_constraint: row.key,
     })

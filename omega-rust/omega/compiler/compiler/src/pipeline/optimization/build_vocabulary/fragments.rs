@@ -19,6 +19,7 @@ pub(super) const DECLARATIONS: &str = r#"pub data Optimization {
     case Aarch64ElideSameViewCopyI64BeforeCompareZeroV1;
     case Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1;
     case Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1;
+    case SelectedIncomingU12CompareImmediate;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -42,6 +43,7 @@ pub data Optimizations {
     aarch64_elide_same_view_copy_i64_before_compare_zero_v1: u8 in Trapping;
     aarch64_elide_same_view_copy_i64_before_compare_i64_left_operand_v1: u8 in Trapping;
     aarch64_elide_same_view_copy_i64_before_compare_i64_right_operand_v1: u8 in Trapping;
+    selected_incoming_u12_compare_immediate: u8 in Trapping;
 }
 "#;
 
@@ -67,6 +69,7 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
         Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1 -> aarch64_elide_same_view_copy_i64_before_compare_zero_v1()
         Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1 -> aarch64_elide_same_view_copy_i64_before_compare_i64_left_operand_v1()
         Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1 -> aarch64_elide_same_view_copy_i64_before_compare_i64_right_operand_v1()
+        Optimization::SelectedIncomingU12CompareImmediate -> selected_incoming_u12_compare_immediate()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -147,6 +150,10 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
 
     state aarch64_elide_same_view_copy_i64_before_compare_i64_right_operand_v1(&mut self) {
         self.aarch64_elide_same_view_copy_i64_before_compare_i64_right_operand_v1 = self.aarch64_elide_same_view_copy_i64_before_compare_i64_right_operand_v1 + 1;
+    }
+
+    state selected_incoming_u12_compare_immediate(&mut self) {
+        self.selected_incoming_u12_compare_immediate = self.selected_incoming_u12_compare_immediate + 1;
     }
 }
 "#;

@@ -49,12 +49,13 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     );
     assert!(policy.enables_exact_add());
     assert!(policy.enables_exact_subtract());
+    assert!(policy.enables_compare());
 }
 
 #[test]
 fn catalog_rows_declare_symbolic_instruction_pairs() {
-    let [add, subtract] = SELECTED_LOWERING_RULE_CATALOG;
-    for entry in [add, subtract] {
+    let [add, subtract, compare] = SELECTED_LOWERING_RULE_CATALOG;
+    for entry in [add, subtract, compare] {
         let pair = entry.payload().pair();
         assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
         assert_eq!(pair.immediate_limit(), 4095);
@@ -86,6 +87,23 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_ne!(add_rule.consumer(), subtract_rule.consumer());
 
+    let compare_rule = compare.payload().pair();
+    assert_eq!(
+        compare_rule,
+        SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12
+    );
+    assert_eq!(compare_rule.consumer(), MachineSemanticKind::CompareI64);
+    assert_eq!(
+        compare_rule.rewritten(),
+        MachineSemanticKind::CompareI64Immediate
+    );
+    assert_eq!(
+        compare_rule.rewrite_consumer(SelectedInstructionKind::CompareI64, 12),
+        Some(SelectedInstructionKind::CompareI64Immediate {
+            immediate: IntegerValue::Unsigned(12),
+        })
+    );
+
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::EXACT_ADD_V1).collect::<Vec<_>>(),
         vec![SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12]
@@ -97,6 +115,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
             SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
             SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
         ]
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::COMPARE_V1).collect::<Vec<_>>(),
+        vec![SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12]
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -137,5 +159,9 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         subtract_rule.immediate_constraint_key(&keys),
         Some(keys.subtract_i64_immediate)
+    );
+    assert_eq!(
+        compare_rule.immediate_constraint_key(&keys),
+        Some(keys.compare_i64_immediate)
     );
 }

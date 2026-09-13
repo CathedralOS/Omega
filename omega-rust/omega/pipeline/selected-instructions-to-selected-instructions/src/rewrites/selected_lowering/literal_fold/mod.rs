@@ -8,6 +8,9 @@ pub(crate) mod model;
 pub(crate) mod pair_rule;
 pub(crate) mod validate;
 
+#[cfg(test)]
+mod tests;
+
 pub use identity::literal_fold_identity;
 pub use model::*;
 pub use pair_rule::*;

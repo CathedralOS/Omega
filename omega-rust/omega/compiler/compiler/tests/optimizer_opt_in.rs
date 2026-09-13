@@ -431,6 +431,42 @@ fn return_only_exact_subtract_rejoins_native_artifact_production() {
 }
 
 #[test]
+fn return_only_compare_immediate_selection_reaches_the_selected_lowering_gate() {
+    let root = project(
+        "compare-fail-closed",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-compare-fail-closed");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::SelectedIncomingU12CompareImmediate);
+}
+"#,
+        ),
+    );
+    let build_dir = root.join("build");
+    let diagnostics = compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some("windows_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect_err("selected-lowering selections reject at the common physical gate");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("UnconsumedPostTerminalPhase(SelectedLowering)"),
+        "unexpected diagnostic: {}",
+        diagnostics[0].message
+    );
+    assert!(!build_dir.join("omega-program").exists());
+    assert!(!build_dir.join("omega-program.exe").exists());
+}
+
+#[test]
 fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
     let absent = project("x86-rel8-default-off", None);
     let checked = compile_to_checked(CheckedCompileRequest::new(&absent.join("main.omg"), None))

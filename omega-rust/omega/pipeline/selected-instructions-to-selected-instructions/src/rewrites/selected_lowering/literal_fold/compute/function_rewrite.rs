@@ -64,12 +64,20 @@ pub(super) fn apply_action(
     operations.extend(consumer_provenance.operations);
     let mut fuel = literal.provenance.fuel;
     fuel.extend(consumer_provenance.fuel);
+    let registers = [Some(action.left), action.result];
+    if registers.iter().flatten().count() != row.operands.len() {
+        return Err(LiteralFoldError::ConsumerMismatch {
+            function: function_index,
+        });
+    }
     consumer.kind = rewritten_kind;
     consumer.constraint = action.immediate_constraint;
-    consumer.operands = vec![
-        selected_operand(&row.operands[0], action.left),
-        selected_operand(&row.operands[1], action.result),
-    ];
+    consumer.operands = row
+        .operands
+        .iter()
+        .zip(registers.iter().flatten())
+        .map(|(constraint, register)| selected_operand(constraint, *register))
+        .collect();
     consumer.implicit_uses = row.implicit_uses.clone();
     consumer.implicit_defs = row.implicit_defs.clone();
     consumer.clobbers = row.clobbers.clone();
