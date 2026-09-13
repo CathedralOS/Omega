@@ -1,4 +1,7 @@
 //! Validates structural, boundary, and effect operation custody.
+//! Scalar operands do not change structural conservation: both call encodings
+//! share the linear transfer, returned-claim and callee-content joins. Scalar
+//! types and dominance are checked by ordinary operation validation separately.
 
 use super::*;
 
@@ -460,7 +463,11 @@ pub(super) fn validate_unit_operation_static(
             returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
-        } => {
+        } if operation
+            .result
+            .structural()
+            .is_none_or(|result| result.multiplicity != StructuralMultiplicity::Linear) =>
+        {
             let callee = machines
                 .get(callee)
                 .copied()
@@ -587,8 +594,29 @@ pub(super) fn validate_unit_operation_static(
             returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
-            selected_evidence,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            ..
         } => {
+            let arguments = match &operation.kind {
+                OperationKind::CallStructuralWithScalarArguments { arguments, .. } => {
+                    arguments.as_slice()
+                }
+                _ => &[],
+            };
+            let selected_evidence = match &operation.kind {
+                OperationKind::CallStructural {
+                    selected_evidence, ..
+                } => selected_evidence.as_slice(),
+                _ => &[],
+            };
             let callee = machines
                 .get(callee)
                 .copied()
@@ -634,7 +662,7 @@ pub(super) fn validate_unit_operation_static(
                 }
                 return Ok(());
             }
-            if !callee.parameters.is_empty()
+            if callee.parameters.len() != arguments.len()
                 || structural_arguments.len() != 1
                 || !structural_arguments[0].path.is_empty()
                 || callee.structural_parameters.len() != 1
@@ -779,7 +807,7 @@ pub(super) fn validate_unit_operation_static(
                 module,
                 machine,
                 callee,
-                &[],
+                arguments,
                 structural_arguments,
                 crash_continuations,
                 operation.id,
@@ -1197,7 +1225,11 @@ fn linear_call_result(
         .filter(|operation| operation.id == producer);
     let operation = operations.next()?;
     if operations.next().is_some()
-        || !matches!(operation.kind, OperationKind::CallStructural { .. })
+        || !matches!(
+            operation.kind,
+            OperationKind::CallStructural { .. }
+                | OperationKind::CallStructuralWithScalarArguments { .. }
+        )
     {
         return None;
     }
@@ -1999,11 +2031,16 @@ fn validate_unit_call_claim_transfers(
                 operation,
                 argument_index: argument_index as u32,
             };
-            let OperationKind::CallStructural {
+            let (OperationKind::CallStructural {
                 callee: producer_callee,
                 returned_claim_transfers,
                 ..
-            } = &producer.kind
+            }
+            | OperationKind::CallStructuralWithScalarArguments {
+                callee: producer_callee,
+                returned_claim_transfers,
+                ..
+            }) = &producer.kind
             else {
                 return Err(mismatch());
             };

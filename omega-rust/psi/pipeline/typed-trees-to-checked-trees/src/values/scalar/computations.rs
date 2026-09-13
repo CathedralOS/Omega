@@ -282,16 +282,6 @@ pub(crate) fn build_checked_value_computation_plans(
                     continue;
                 }
                 if let StatementNode::Expression(expression) = statement
-                    && (validation::unit_statement_call_is_supported(
-                        program,
-                        machine,
-                        state,
-                        *expression,
-                    ) || super::call_arguments::is_scalar_return_call(
-                        program,
-                        state,
-                        *expression,
-                    ))
                     && let ExpressionNode::Call(call) =
                         program.expression_table.expression(*expression)
                 {

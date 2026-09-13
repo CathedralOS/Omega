@@ -1542,7 +1542,7 @@ Owners include
   Preserve whole-result claim and content lineage through ordinary call chains
   using `effects/structural_callback_reach` as the regression. Extend that same
   producer/consumer join to projected or freshly established returned claims,
-  multiple transferred linear claims and mixed scalar/linear call operands;
+  multiple transferred linear claims and their mixed scalar/structural operands;
   matching claim identities cannot substitute for checked content guarantees.
 
   Complete caller-specific saved-argument and result facts: nonliteral contract

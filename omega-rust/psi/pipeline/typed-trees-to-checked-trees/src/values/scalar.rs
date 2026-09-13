@@ -3,6 +3,9 @@
 //! still change declared meaning, so its source binding belongs to the graph,
 //! even when the payload tree could otherwise fold it away. Independent lowering
 //! replays that occurrence before emitting the qualification-change edge.
+//! Call operands are collected independently of the enclosing result category:
+//! scalar arguments still need exact occurrences when the callee returns custody.
+//! Recording operands does not admit the call or establish its result frontier.
 
 use checked_trees::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
@@ -171,7 +174,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         if !local.is_mutable
                             && let ExpressionNode::Call(call) =
                                 program.expression_table.expression(local.initial_value)
-                            && let Some(arguments) = lower_boundary_call_arguments(
+                            && let Some(arguments) = lower_call_arguments(
                                 program,
                                 operators,
                                 state,
@@ -186,7 +189,6 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
-                                true,
                             )
                         {
                             retain_call_arguments(
@@ -376,7 +378,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         );
                         if let ExpressionNode::Call(call) =
                             program.expression_table.expression(*expression)
-                            && let Some(arguments) = lower_boundary_call_arguments(
+                            && let Some(arguments) = lower_call_arguments(
                                 program,
                                 operators,
                                 state,
@@ -391,12 +393,6 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
-                                unit_statement
-                                    || call_arguments::is_scalar_return_call(
-                                        program,
-                                        state,
-                                        *expression,
-                                    ),
                             )
                         {
                             retain_call_arguments(
@@ -496,7 +492,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             scalar_qualified_call_expression(program, assignment.value)
                             && let ExpressionNode::Call(call) =
                                 program.expression_table.expression(expression)
-                            && let Some(arguments) = lower_boundary_call_arguments(
+                            && let Some(arguments) = lower_call_arguments(
                                 program,
                                 operators,
                                 state,
@@ -508,7 +504,6 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
-                                true,
                             )
                         {
                             retain_call_arguments(
@@ -582,7 +577,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         });
                     }
                     StatementNode::Call(call) => {
-                        if let Some(arguments) = lower_boundary_call_arguments(
+                        if let Some(arguments) = lower_call_arguments(
                             program,
                             operators,
                             state,
@@ -594,7 +589,6 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             &parameter_types,
                             &locals,
                             exact_integer_casts,
-                            true,
                         ) {
                             retain_call_arguments(
                                 arguments,
@@ -1000,7 +994,7 @@ fn call_is_boundary(program: &TypedTrees, target_symbol: symbols::SymbolHandle) 
 }
 
 #[allow(clippy::too_many_arguments)]
-fn lower_boundary_call_arguments(
+fn lower_call_arguments(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     state: &typed_trees::state::State,
@@ -1012,7 +1006,6 @@ fn lower_boundary_call_arguments(
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-    admit_internal_unit: bool,
 ) -> Option<Vec<(ExpressionHandle, CheckedLocatedScalarExpression)>> {
     let target_symbol = match call_site {
         crate::CallSite::Statement(call) => call.target_symbol,
@@ -1020,9 +1013,6 @@ fn lower_boundary_call_arguments(
         crate::CallSite::TransitionNamed { .. } => return None,
     };
     let is_boundary = call_is_boundary(program, target_symbol);
-    if !is_boundary && !admit_internal_unit {
-        return None;
-    }
 
     let target_parameters = crate::call_target_parameters(program, target_symbol)?;
     let explicit_arguments = crate::call_site_argument_expressions(program, call_site);

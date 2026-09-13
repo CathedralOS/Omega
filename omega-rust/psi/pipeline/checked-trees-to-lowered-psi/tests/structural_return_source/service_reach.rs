@@ -25,6 +25,253 @@ const NOMINAL_CALLBACK: &str = r#"
 "#;
 
 #[test]
+fn nominal_linear_callback_result_accepts_mixed_scalar_arguments() {
+    for body in [
+        "let forwarded: Region in Owned = Selected(region); Main::with_markers(7, forwarded, 9)",
+        "let forwarded: Region in Owned = Selected(region); Main::with_markers(Main::marker(7), forwarded, Main::marker(9))",
+        "let forwarded: Region in Owned = Selected(region); let marked: Region in Owned = Main::with_markers(Main::marker(7), forwarded, Main::marker(9)); Main::forward(marked)",
+        "let forwarded: Region in Owned = Main::with_markers(7, region, 9); let returned: Region in Owned = Main::with_markers(11, forwarded, 13); Main::forward(returned)",
+    ] {
+        let source = mixed_callback_source(body);
+        let checked = checked(&source);
+        let artifact =
+            terminal_production::TerminalProductionRequest::new(&checked, "Main::demand")
+                .produce_artifact()
+                .expect("publish scalar arguments around a live linear callback result");
+        drop(checked);
+        execute_identity(&artifact, 32);
+        // Computed operands cross ordinary continuation parameters; their
+        // exact source roots are covered by the mutation test below.
+        if body.contains("Main::marker") {
+            continue;
+        }
+        let module = decode_module(artifact.semantic_bytes()).expect("reload mixed operands");
+        let mut actual_pairs = Vec::new();
+        for machine in &module.machines {
+            for block in &machine.blocks {
+                for (call_index, operation) in block.operations.iter().enumerate() {
+                    let terminal_psi::OperationKind::CallStructuralWithScalarArguments {
+                        arguments,
+                        claim_transfers,
+                        ..
+                    } = &operation.kind
+                    else {
+                        continue;
+                    };
+                    assert_eq!(arguments.len(), 2);
+                    assert_eq!(
+                        claim_transfers[0].argument_index, 0,
+                        "the structural index is not its authored parameter position"
+                    );
+                    let values = arguments
+                        .iter()
+                        .map(|argument| {
+                            let mut value = *argument;
+                            let mut available = &block.operations[..call_index];
+                            loop {
+                                let (source_index, source) = available
+                                    .iter()
+                                    .enumerate()
+                                    .find(|(_, candidate)| {
+                                        candidate
+                                            .result
+                                            .scalar()
+                                            .is_some_and(|result| result.id == value)
+                                    })
+                                    .expect("each scalar producer precedes its consumer");
+                                match &source.kind {
+                                    terminal_psi::OperationKind::IntegerConstant { value } => {
+                                        break *value;
+                                    }
+                                    terminal_psi::OperationKind::Call { arguments, .. } => {
+                                        assert_eq!(arguments.len(), 1);
+                                        value = arguments[0];
+                                        available = &available[..source_index];
+                                    }
+                                    _ => panic!("literal or identity marker call"),
+                                }
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    actual_pairs.push(values);
+                }
+            }
+        }
+        let mut expected = vec![vec![
+            semantic_vocabulary::IntegerValue::Unsigned(7),
+            semantic_vocabulary::IntegerValue::Unsigned(9),
+        ]];
+        if body.contains("11, forwarded, 13") {
+            expected.push(vec![
+                semantic_vocabulary::IntegerValue::Unsigned(11),
+                semantic_vocabulary::IntegerValue::Unsigned(13),
+            ]);
+        }
+        assert_eq!(actual_pairs, expected);
+    }
+}
+
+fn mixed_callback_source(body: &str) -> String {
+    NOMINAL_CALLBACK.replace("{ Selected(region) }", &format!("{{ {body} }}"))
+        + "machine Main::with_markers(before: u64, region: Region in Owned, after: u64) -> Region in Owned { region }\n machine Main::marker(value: u64) -> u64 { value }"
+}
+
+#[test]
+fn mixed_linear_call_rejects_changed_source_operand_positions() {
+    for body in [
+        "let forwarded: Region in Owned = Selected(region); Main::with_markers(7, forwarded, 9)",
+        "let forwarded: Region in Owned = Selected(region); Main::with_markers(Main::marker(7), forwarded, Main::marker(9))",
+    ] {
+        let checked = checked(&mixed_callback_source(body));
+        let _artifact =
+            terminal_production::TerminalProductionRequest::new(&checked, "Main::demand")
+                .produce_artifact()
+                .expect("unchanged mixed call publishes");
+        for mutation in ["scalar_order", "scalar_arity", "claim_position"] {
+            let mut invalid = checked.clone();
+            let operation = invalid.facts.flow.terminal_unit_effects.composed_machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.states)
+            .flat_map(|state| &mut state.operations)
+            .find(|operation| matches!(operation,
+                checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { scalar_arguments, .. }
+                if scalar_arguments.len() == 2))
+            .expect("mixed call in the shared graph");
+            let checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
+                scalar_arguments,
+                custody,
+                ..
+            } = operation
+            else {
+                unreachable!()
+            };
+            match mutation {
+                "scalar_order" => scalar_arguments.swap(0, 1),
+                "scalar_arity" => {
+                    scalar_arguments.pop();
+                }
+                "claim_position" => custody.claim_transfers[0].argument_index = 1,
+                _ => unreachable!(),
+            }
+            assert!(
+                terminal_production::TerminalProductionRequest::new(&invalid, "Main::demand")
+                    .produce_artifact()
+                    .is_err(),
+                "changed {mutation} must reject at source replay"
+            );
+        }
+    }
+}
+
+#[test]
+fn mixed_linear_call_replay_rejects_stale_values_and_claims() {
+    let checked = checked(&mixed_callback_source(
+        "let first: Region in Owned = Main::with_markers(7, region, 9); Main::with_markers(11, first, 13)",
+    ));
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::demand")
+        .produce_artifact()
+        .expect("publish mixed producer and consumer");
+    drop(checked);
+    execute_identity(&artifact, 32);
+    let module = decode_module(artifact.semantic_bytes()).expect("reload without source");
+    for mutation in [
+        "scalar_arity",
+        "future_scalar",
+        "stale_input",
+        "own_result",
+        "returned_claim",
+        "qualification",
+        "multiplicity",
+        "content_guarantee",
+        "scalar_type",
+    ] {
+        let mut invalid = module.clone();
+        if mutation == "content_guarantee" || mutation == "scalar_type" {
+            let leaf = invalid
+                .machines
+                .iter_mut()
+                .find(|machine| {
+                    machine.parameters.len() == 2 && !machine.content_identity_reshuffles.is_empty()
+                })
+                .expect("mixed callee's checked content guarantee");
+            if mutation == "content_guarantee" {
+                leaf.content_identity_reshuffles.clear();
+            } else {
+                leaf.parameters[0].scalar_type = semantic_vocabulary::ScalarType::Boolean;
+            }
+        } else {
+            let caller = invalid
+                .machines
+                .iter_mut()
+                .find(|machine| {
+                    machine.blocks.iter().flat_map(|block| &block.operations)
+                    .filter(|operation| matches!(operation.kind,
+                        terminal_psi::OperationKind::CallStructuralWithScalarArguments { .. }))
+                    .count() == 2
+                })
+                .expect("two mixed calls in authored order");
+            let calls = caller
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .filter(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::CallStructuralWithScalarArguments { .. }
+                    )
+                })
+                .collect::<Vec<_>>();
+            let [producer, consumer]: [&mut terminal_psi::Operation; 2] = calls.try_into().unwrap();
+            let terminal_psi::OperationKind::CallStructuralWithScalarArguments {
+                arguments: produced_arguments,
+                ..
+            } = &mut producer.kind
+            else {
+                unreachable!()
+            };
+            let terminal_psi::OperationKind::CallStructuralWithScalarArguments {
+                arguments,
+                structural_arguments,
+                returned_claim_transfers,
+                ..
+            } = &mut consumer.kind
+            else {
+                unreachable!()
+            };
+            match mutation {
+                "scalar_arity" => {
+                    arguments.pop();
+                }
+                "future_scalar" => produced_arguments[0] = arguments[0],
+                "stale_input" => {
+                    structural_arguments[0].place = caller.structural_parameters[0].place
+                }
+                "own_result" => {
+                    structural_arguments[0].place = consumer.result.structural().unwrap().place
+                }
+                "returned_claim" => returned_claim_transfers.clear(),
+                "qualification" | "multiplicity" => {
+                    let terminal_psi::OperationResult::Structural(result) = &mut consumer.result
+                    else {
+                        unreachable!()
+                    };
+                    if mutation == "qualification" {
+                        result.qualifications.clear();
+                    } else {
+                        result.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            terminal_verifier::validate_module(&invalid).is_err(),
+            "source-free {mutation} must reject independently of an old proof fingerprint"
+        );
+    }
+}
+
+#[test]
 fn nominal_linear_callback_result_feeds_an_ordinary_call() {
     for body in [
         "let forwarded: Region in Owned = Selected(region); Main::forward(forwarded)",

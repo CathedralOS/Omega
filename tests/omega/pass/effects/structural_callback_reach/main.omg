@@ -17,11 +17,17 @@ machine Main::forward(region: Region in Owned) -> Region in Owned
 satisfies RegionForward::call
 { region }
 
+machine Main::with_markers(before: u64, region: Region in Owned, after: u64) -> Region in Owned
+{ region }
+
+machine Main::marker(value: u64) -> u64 { value }
+
 machine Main::through_call<machine Selected>(region: Region in Owned) -> Region in Owned
 where machine Selected satisfies RegionForward::call;
 {
     let forwarded: Region in Owned = Selected(region);
-    Main::forward(forwarded)
+    let marked: Region in Owned = Main::with_markers(Main::marker(7), forwarded, Main::marker(9));
+    Main::forward(marked)
 }
 
 machine Main::demand(region: Region in Owned) -> Region in Owned {
