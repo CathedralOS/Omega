@@ -10,9 +10,67 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+// An owned formal has a compact type DAG but its returned-origin roster is
+// materialized by path. Bound that expansion before semantic classification or
+// allocation. These are private production limits, not reference semantics;
+// the leaf limit matches the executable ingress roster's current capacity.
+const MAX_REFERENCE_ORIGIN_LEAVES: usize = 4096;
+const MAX_REFERENCE_ORIGIN_VISITS: usize = MAX_REFERENCE_ORIGIN_LEAVES * 2;
+const MAX_REFERENCE_ORIGIN_DEPTH: usize = 128;
+
+fn reference_origin_expansion_is_bounded(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    fn visit(
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+        depth: usize,
+        visits: &mut usize,
+        leaves: &mut usize,
+    ) -> Option<()> {
+        *visits = visits.checked_add(1)?;
+        if *visits > MAX_REFERENCE_ORIGIN_VISITS || depth > MAX_REFERENCE_ORIGIN_DEPTH {
+            return None;
+        }
+        let symbol = match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { .. } => {
+                *leaves = leaves.checked_add(1)?;
+                return (*leaves <= MAX_REFERENCE_ORIGIN_LEAVES).then_some(());
+            }
+            TypeReferenceNode::Named { symbol, .. } => *symbol,
+            TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                return visit(program, *base_type, depth + 1, visits, leaves);
+            }
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => {
+                return visit(program, *element_type, depth + 1, visits, leaves);
+            }
+            _ => return Some(()),
+        };
+        if let Some(data) = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == symbol)
+        {
+            for member in program.data_members(data) {
+                if let typed_trees::data::DataMember::Field(field) = member {
+                    visit(program, field.type_reference, depth + 1, visits, leaves)?;
+                }
+            }
+        }
+        Some(())
+    }
+    visit(program, reference, 0, &mut 0, &mut 0).is_some()
+}
+
 /// Closed record construction can contain real mutable-reference carriers.
 /// This classifier grants neither an initializer origin nor a loan lifetime.
 pub fn is_reference_record(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    if !reference_origin_expansion_is_bounded(program, reference) {
+        return false;
+    }
     fn visit(
         program: &TypedTrees,
         reference: TypeReferenceHandle,
@@ -152,7 +210,7 @@ fn construction_sources_with_calls(
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
-    active_calls: &mut Vec<SymbolHandle>,
+    active_origins: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     if parts(program, reference).is_some() {
         return Some(vec![checked_trees::CheckedReferenceResultSourcePlan {
@@ -166,6 +224,62 @@ fn construction_sources_with_calls(
     if !is_reference_record(program, reference) {
         return None;
     }
+    if let ExpressionNode::Name(name) = program.expression_table.expression(expression) {
+        let [spelling] = program.expression_table.name_path_members(name.members) else {
+            return None;
+        };
+        if let Some(local) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.symbol == name.symbol => Some(local),
+                _ => None,
+            })
+        {
+            if local.is_mutable
+                || name.head_symbol != name.symbol
+                || local.name != *spelling
+                || program.symbols.get(name.symbol).parent != state.symbol
+                || program.normalized_type_identity(local.type_reference)
+                    != program.normalized_type_identity(reference)
+                || active_origins.contains(&local.symbol)
+            {
+                return None;
+            }
+            active_origins.push(local.symbol);
+            let sources = construction_sources_with_calls(
+                program,
+                state,
+                local.initial_value,
+                reference,
+                active_origins,
+            );
+            active_origins.pop();
+            return sources;
+        }
+        let (ordinal, parameter) = program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| {
+                !parameter.is_const
+                    && program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+            })
+            .enumerate()
+            .find(|(_, parameter)| parameter.symbol == name.symbol)?;
+        if parameter.is_self
+            || name.head_symbol != name.symbol
+            || program.symbols.get(name.symbol).parent != state.symbol
+            || parameter.name != *spelling
+            || program.normalized_type_identity(parameter.type_reference)
+                != program.normalized_type_identity(reference)
+        {
+            return None;
+        }
+        return formal_record_sources(program, reference, u32::try_from(ordinal).ok()?);
+    }
     if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
         let machine = program.machines().iter().find(|machine| {
             machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
@@ -177,7 +291,7 @@ fn construction_sources_with_calls(
         let [destination] = program.machine_states(machine) else {
             return None;
         };
-        if active_calls.contains(&destination.symbol)
+        if active_origins.contains(&destination.symbol)
             || program.normalized_type_identity(destination.return_type)
                 != program.normalized_type_identity(reference)
         {
@@ -199,15 +313,15 @@ fn construction_sources_with_calls(
         else {
             return None;
         };
-        active_calls.push(destination.symbol);
+        active_origins.push(destination.symbol);
         let sources = construction_sources_with_calls(
             program,
             destination,
             *returned,
             destination.return_type,
-            active_calls,
+            active_origins,
         )?;
-        active_calls.pop();
+        active_origins.pop();
         sources
             .into_iter()
             .map(|mut source| {
@@ -217,9 +331,6 @@ fn construction_sources_with_calls(
                 else {
                     return None;
                 };
-                if !source.source.path.is_empty() {
-                    return None;
-                }
                 let (position, parameter) = parameters
                     .iter()
                     .enumerate()
@@ -229,18 +340,112 @@ fn construction_sources_with_calls(
                             .is_none()
                     })
                     .nth(parameter_index as usize)?;
-                source.source = initializer_source(
-                    program,
-                    state,
-                    *arguments.get(position)?,
-                    parameter.type_reference,
-                )?;
+                source.source = if source.source.path.is_empty() {
+                    initializer_source(
+                        program,
+                        state,
+                        *arguments.get(position)?,
+                        parameter.type_reference,
+                    )?
+                } else {
+                    let (last, path) = source.source.path.split_last()?;
+                    if *last != checked_trees::CheckedUnitStructuralPathSegment::Referent
+                        || !is_reference_record(program, parameter.type_reference)
+                    {
+                        return None;
+                    }
+                    let actual = construction_sources_with_calls(
+                        program,
+                        state,
+                        *arguments.get(position)?,
+                        parameter.type_reference,
+                        active_origins,
+                    )?;
+                    let mut matching = actual.iter().filter(|actual| actual.path == path);
+                    let selected = matching.next()?;
+                    if matching.next().is_some() {
+                        return None;
+                    }
+                    selected.source.clone()
+                };
                 Some(source)
             })
             .collect()
     } else {
-        record_construction_sources(program, state, expression, reference, active_calls)
+        record_construction_sources(program, state, expression, reference, active_origins)
     }
+}
+
+/// An owned formal transports its existing reference leaves. The source path
+/// names each borrowed referent; it does not authorize creating a fresh loan
+/// or moving storage through the referent boundary.
+fn formal_record_sources(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    parameter_index: u32,
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
+    fn visit(
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+        parameter_index: u32,
+        path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        output: &mut Vec<checked_trees::CheckedReferenceResultSourcePlan>,
+    ) -> Option<()> {
+        if let Some((referent, access)) = parts(program, reference) {
+            let mut source_path = path.clone();
+            source_path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+            output.push(checked_trees::CheckedReferenceResultSourcePlan {
+                path: path.clone(),
+                source: checked_trees::CheckedUnitStructuralArgumentPlan {
+                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index,
+                    },
+                    path: source_path,
+                    type_identity: program.normalized_type_identity(referent).into_string(),
+                    access,
+                },
+            });
+            return Some(());
+        }
+        if crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
+            return Some(());
+        }
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(reference)
+        else {
+            return None;
+        };
+        let data = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == *symbol)?;
+        for member in program.data_members(data) {
+            let typed_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+            path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                field
+                    .identity
+                    .map(|identity| format!("#{identity}"))
+                    .unwrap_or_else(|| field.name.as_str().to_owned()),
+            ));
+            visit(program, field.type_reference, parameter_index, path, output)?;
+            path.pop();
+        }
+        Some(())
+    }
+    if !is_reference_record(program, reference) {
+        return None;
+    }
+    let mut output = Vec::new();
+    visit(
+        program,
+        reference,
+        parameter_index,
+        &mut Vec::new(),
+        &mut output,
+    )?;
+    Some(output)
 }
 
 fn record_construction_sources(
@@ -248,7 +453,7 @@ fn record_construction_sources(
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
-    active_calls: &mut Vec<SymbolHandle>,
+    active_origins: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(reference)
@@ -288,7 +493,7 @@ fn record_construction_sources(
             state,
             initializer.value,
             field.type_reference,
-            active_calls,
+            active_origins,
         )? {
             source.path.insert(
                 0,
@@ -412,10 +617,28 @@ pub fn local_record_loans(
         if matching.next().is_some()
             || loan.statement_index != statement_index as usize
             || loan.root_symbol != parameter.symbol
-            || loan.source_owner_symbol.is_valid()
             || loan.kind != checked_trees::BorrowAccessKind::Mutable
             || !facts.borrow.loan_segments(loan).is_empty()
         {
+            return None;
+        }
+        if let Some((owner, prior)) = moved_record_source(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            &source.path,
+        )? {
+            let previous = facts.borrow.loans.get(prior);
+            if loan.source_owner_symbol != owner
+                || loan.root_symbol != previous.root_symbol
+                || loan.kind != previous.kind
+                || facts.borrow.loan_segments(loan) != facts.borrow.loan_segments(previous)
+            {
+                return None;
+            }
+        } else if loan.source_owner_symbol.is_valid() {
             return None;
         }
         let mut activations = facts
@@ -437,6 +660,150 @@ pub fn local_record_loans(
         output.push((source, handle));
     }
     Some(output)
+}
+
+/// Replay an owned actual's captured leaf at the exact consuming call. This
+/// establishes source correspondence, not a new reborrow lineage: the owned
+/// carrier and its existing permission move together.
+fn moved_record_source(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    result_path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<Option<(SymbolHandle, arena::Handle<checked_trees::BorrowLoanFact>)>> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let StatementNode::LocalData(local) = statements.get(statement_index as usize)? else {
+        return None;
+    };
+    let ExpressionNode::Call(call) = program.expression_table.expression(local.initial_value)
+    else {
+        return Some(None);
+    };
+    let destination = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .find(|candidate| candidate.symbol == call.target_symbol)?;
+    let sources = returned_record_sources(program, destination)?;
+    let source = sources.iter().find(|source| source.path == result_path)?;
+    if source.source.path.is_empty() {
+        return Some(None);
+    }
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+        source.source.source
+    else {
+        return None;
+    };
+    let (position, parameter) = program
+        .state_parameters(destination)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| {
+            !parameter.is_const
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .nth(parameter_index as usize)?;
+    if !is_reference_record(program, parameter.type_reference) {
+        return None;
+    }
+    let actual = *program
+        .expression_table
+        .expression_handles(call.arguments)
+        .get(position)?;
+    let ExpressionNode::Name(name) = program.expression_table.expression(actual) else {
+        return None;
+    };
+    if name.head_symbol != name.symbol
+        || program
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            != 1
+    {
+        return None;
+    }
+    let (prior_index, prior_local) = statements
+        .get(..statement_index as usize)?
+        .iter()
+        .enumerate()
+        .find_map(|(index, statement)| match statement {
+            StatementNode::LocalData(local) if local.symbol == name.symbol => Some((index, local)),
+            _ => None,
+        })?;
+    if program.normalized_type_identity(prior_local.type_reference)
+        != program.normalized_type_identity(parameter.type_reference)
+    {
+        return None;
+    }
+    let (last, path) = source.source.path.split_last()?;
+    if *last != checked_trees::CheckedUnitStructuralPathSegment::Referent {
+        return None;
+    }
+    let prior = local_record_loans(
+        program,
+        facts,
+        machine,
+        state,
+        u32::try_from(prior_index).ok()?,
+    )?;
+    let mut matching = prior.iter().filter(|(source, _)| source.path == path);
+    let (_, handle) = matching.next()?;
+    if matching.next().is_some()
+        || !record_loan_is_active(facts, machine, state.symbol, statement_index, *handle)
+    {
+        return None;
+    }
+    Some(Some((prior_local.symbol, *handle)))
+}
+
+fn record_loan_is_active(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: u32,
+    loan: arena::Handle<checked_trees::BorrowLoanFact>,
+) -> bool {
+    let Some(flow) = state_flow(facts, machine, state) else {
+        return false;
+    };
+    let Some(entries) = facts.flow.control.statements.span(flow.statements) else {
+        return false;
+    };
+    let mut entries = entries
+        .iter()
+        .filter(|entry| entry.statement_index == statement_index as usize);
+    let Some(entry) = entries.next() else {
+        return false;
+    };
+    entries.next().is_none()
+        && facts.flow.contexts.constraint_refs.span(entry.entry_constraints).is_some_and(|constraints|
+            constraints.iter().filter(|constraint| matches!(constraint.kind, checked_trees::FlowConstraintKind::BorrowLoan { loan: active } if active == loan)).count() == 1)
+        && facts.borrow.loans.get(loan).statement_index < statement_index as usize
+        && release_statement(facts, machine, state, loan).is_some_and(|end| statement_index < end)
+}
+
+/// Whole owned operands retain every captured leaf until their consuming call.
+pub fn owned_record_argument(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    source_statement: u32,
+) -> bool {
+    source_statement < statement_index
+        && local_record_loans(program, facts, machine, state, source_statement).is_some_and(
+            |loans| {
+                !loans.is_empty()
+                    && loans.iter().all(|(_, loan)| {
+                        record_loan_is_active(facts, machine, state.symbol, statement_index, *loan)
+                    })
+            },
+        )
 }
 
 /// A projected argument crosses the stored carrier only after its exact local

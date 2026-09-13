@@ -1061,6 +1061,9 @@ pub(in crate::flow) fn build_call_operation(
                                 ) || validation::has_plain_owned_contents_with_numeric_constraints(
                                     program,
                                     parameter.type_reference,
+                                ) || validation::reference_result_custody::is_reference_record(
+                                    program,
+                                    parameter.type_reference,
                                 ))
                                 && base_type_identity(program, parameter.type_reference, &[])
                                     .is_some_and(|identity| identity == argument.type_identity)

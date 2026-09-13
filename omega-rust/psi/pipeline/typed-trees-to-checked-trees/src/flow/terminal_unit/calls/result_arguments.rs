@@ -89,6 +89,20 @@ pub(super) fn argument(
     let projected = !place.segments.is_empty();
     let unrestricted = result.multiplicity == Multiplicity::Unrestricted;
     let linear = result.multiplicity == Multiplicity::Linear;
+    let owned_reference_record = !projected
+        && access == CheckedStructuralAccess::Owned
+        && validation::reference_result_custody::is_reference_record(
+            program,
+            parameter.type_reference,
+        )
+        && validation::reference_result_custody::owned_record_argument(
+            program,
+            facts,
+            machine,
+            source_state,
+            u32::try_from(call.statement_index).ok()?,
+            result.statement_index,
+        );
     // A whole linear result carries the producer's live claim, not affine
     // cleanup debt. Its exact qualification and transfer events must agree
     // with the consumer; projected and borrowed claim joins remain separate.
@@ -156,7 +170,10 @@ pub(super) fn argument(
     if parameter.is_self
         || (!projected && result.type_identity != target_identity)
         || program.type_multiplicity(referent) != result.multiplicity
-        || (!unrestricted && !linear && !validation::has_plain_owned_contents(program, referent))
+        || (!unrestricted
+            && !linear
+            && !owned_reference_record
+            && !validation::has_plain_owned_contents(program, referent))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
@@ -177,6 +194,7 @@ pub(super) fn argument(
                 || projected
                 || unrestricted
                 || linear
+                || owned_reference_record
             {
                 let source_state = crate::find_state(program, state)?;
                 let StatementNode::LocalData(local) = program
@@ -190,6 +208,7 @@ pub(super) fn argument(
                     || local.symbol != symbol
                     || (!unrestricted
                         && !linear
+                        && !owned_reference_record
                         && !validation::has_plain_owned_contents(program, local.type_reference))
                     || program.type_multiplicity(local.type_reference) != result.multiplicity
                     || (unrestricted

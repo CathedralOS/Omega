@@ -80,8 +80,17 @@ pub(crate) fn validate(
         }
         _ => return unsupported("owned value operand has no ordinary source place"),
     };
+    // Whole formal forwarding transports existing leaf custody. Completion
+    // independently compares its exact returned-origin map; this does not admit
+    // local record moves or owned projections without their separate replay.
+    let owned_reference_parameter =
+        matches!(
+            argument.source,
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+        ) && validation::reference_result_custody::is_reference_record(&checked.typed, source);
     if checked.primitive_type_reference(source).is_some()
-        || !validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, source)
+        || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, source)
+            || owned_reference_parameter)
         || checked.normalized_type_identity(source) != checked.normalized_type_identity(expected)
         || checked.normalized_type_identity(source).as_str() != argument.type_identity
     {
