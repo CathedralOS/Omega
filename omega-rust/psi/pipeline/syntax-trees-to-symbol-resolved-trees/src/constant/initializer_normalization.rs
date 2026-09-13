@@ -99,6 +99,16 @@ pub(crate) fn retain(
                 pending.push(binary.right);
                 pending.push(binary.left);
             }
+            ExpressionNode::ArrayLiteral(elements) => {
+                pending.extend(
+                    syntax
+                        .expressions
+                        .expression_handles(*elements)
+                        .iter()
+                        .rev()
+                        .copied(),
+                );
+            }
             ExpressionNode::Match(dispatch) => {
                 for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
                     pending.push(arm.value);

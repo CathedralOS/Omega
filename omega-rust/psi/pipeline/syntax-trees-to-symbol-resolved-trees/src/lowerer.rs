@@ -130,9 +130,7 @@ pub fn lower_syntax_trees_for_const_initializer_selection(
     )?;
     for definition in syntax.root_items().filter_map(|item| match item {
         syntax_trees::item::Item::Const(definition)
-            if crate::constant::requires_scalar_const_initializer_evaluation(
-                syntax, definition,
-            ) =>
+            if crate::constant::requires_const_initializer_evaluation(syntax, definition) =>
         {
             Some(definition)
         }
@@ -151,22 +149,36 @@ pub fn lower_syntax_trees_for_const_initializer_selection(
                 )]
             })?;
         use symbols::BuiltinTypeAtom;
-        let valid = match &declaration.declared_type {
-            symbol_resolved_trees::types::TypeReference::Named { symbol, .. } => matches!(
-                trees.symbols.builtin_type_atom(*symbol),
-                Some(
-                    BuiltinTypeAtom::I8
-                        | BuiltinTypeAtom::I16
-                        | BuiltinTypeAtom::I32
-                        | BuiltinTypeAtom::I64
-                        | BuiltinTypeAtom::U8
-                        | BuiltinTypeAtom::U16
-                        | BuiltinTypeAtom::U32
-                        | BuiltinTypeAtom::U64
-                        | BuiltinTypeAtom::Bool
-                )
-            ),
-            _ => false,
+        let mut declared_type = declaration.declared_type.clone();
+        let valid = loop {
+            match &declared_type {
+                symbol_resolved_trees::types::TypeReference::FixedArray(array) => {
+                    if !matches!(
+                        array.length,
+                        symbol_resolved_trees::types::FixedArrayLength::Literal(_)
+                    ) {
+                        break false;
+                    }
+                    declared_type = trees.child_type_reference(array.element_type).clone();
+                }
+                symbol_resolved_trees::types::TypeReference::Named { symbol, .. } => {
+                    break matches!(
+                        trees.symbols.builtin_type_atom(*symbol),
+                        Some(
+                            BuiltinTypeAtom::I8
+                                | BuiltinTypeAtom::I16
+                                | BuiltinTypeAtom::I32
+                                | BuiltinTypeAtom::I64
+                                | BuiltinTypeAtom::U8
+                                | BuiltinTypeAtom::U16
+                                | BuiltinTypeAtom::U32
+                                | BuiltinTypeAtom::U64
+                                | BuiltinTypeAtom::Bool
+                        )
+                    );
+                }
+                _ => break false,
+            }
         };
         if !valid {
             return Err(vec![Diagnostic::error("computed constant initializer requires an exact builtin integer or Boolean carrier")

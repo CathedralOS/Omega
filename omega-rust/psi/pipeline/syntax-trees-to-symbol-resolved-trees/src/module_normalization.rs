@@ -92,7 +92,7 @@ pub(crate) fn validate_with_const_resolution_mode(
                 if module_sources.contains(&constant.name.source_span().source_id) =>
             {
                 if mode == crate::lowerer::ConstResolutionMode::InitializerSelection
-                    && crate::constant::requires_scalar_const_initializer_evaluation(syntax, constant)
+                    && crate::constant::requires_const_initializer_evaluation(syntax, constant)
                 {
                     // Only value admission is deferred. Ordinary resolution
                     // still validates the declaration's namespace and carrier.

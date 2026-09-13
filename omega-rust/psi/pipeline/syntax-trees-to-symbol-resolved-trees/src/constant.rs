@@ -41,7 +41,8 @@
 //!   reach that form through build-time evaluation, retaining declaration-owned
 //!   original syntax and selection receipts. Initializer preparation is a
 //!   separate non-executing mode: pending expressions acquire no value identity.
-//!   Calls, computed aggregates and floating computations still need evaluation.
+//!   Computed integer/Boolean array leaves now evaluate independently. Calls,
+//!   nominal aggregates and floating computations still need evaluation.
 //! - A const may not collide with a case of its scope type: `Type::NAME` must
 //!   stay unambiguous against case-constructor paths, which substitution
 //!   would otherwise shadow.
@@ -65,25 +66,78 @@ pub(crate) mod initializer_normalization;
 /// Route unfinished scalar initializers to semantic preparation. Spelling only
 /// chooses this route: preparation independently checks the resolved builtin
 /// carrier before returning evidence. Literal validation remains unconditional.
-pub fn requires_scalar_const_initializer_evaluation(
+pub fn requires_const_initializer_evaluation(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> bool {
-    let syntax_trees::types::TypeReferenceNode::Named(name) = syntax
-        .type_references
-        .type_reference(definition.type_reference)
-    else {
-        return false;
-    };
-    matches!(
-        name.as_str(),
-        "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool"
-    ) && !matches!(
-        syntax.expressions.expression(definition.value),
-        syntax_trees::expression::ExpressionNode::Integer(_)
-            | syntax_trees::expression::ExpressionNode::Boolean(_)
-            | syntax_trees::expression::ExpressionNode::String(_)
-    )
+    !pending_const_initializer_leaves(syntax, definition).is_empty()
+}
+
+pub fn pending_const_initializer_leaves(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+) -> Vec<(
+    syntax_trees::expression::ExpressionHandle,
+    syntax_trees::types::TypeReferenceHandle,
+)> {
+    use syntax_trees::expression::ExpressionNode;
+    use syntax_trees::types::{FixedArrayLength, TypeReferenceNode};
+
+    fn collect(
+        syntax: &SyntaxTrees,
+        expression: syntax_trees::expression::ExpressionHandle,
+        type_reference: syntax_trees::types::TypeReferenceHandle,
+        leaves: &mut Vec<(
+            syntax_trees::expression::ExpressionHandle,
+            syntax_trees::types::TypeReferenceHandle,
+        )>,
+    ) -> bool {
+        match syntax.type_references.type_reference(type_reference) {
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: FixedArrayLength::Literal(_),
+            } => {
+                let ExpressionNode::ArrayLiteral(elements) =
+                    syntax.expressions.expression(expression)
+                else {
+                    return false;
+                };
+                for element in syntax.expressions.expression_handles(*elements) {
+                    if !collect(syntax, *element, *element_type, leaves) {
+                        return false;
+                    }
+                }
+                true
+            }
+            TypeReferenceNode::Named(name)
+                if matches!(
+                    name.as_str(),
+                    "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool"
+                ) =>
+            {
+                if !matches!(
+                    syntax.expressions.expression(expression),
+                    ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
+                ) {
+                    leaves.push((expression, type_reference));
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
+    let mut leaves = Vec::new();
+    if collect(
+        syntax,
+        definition.value,
+        definition.type_reference,
+        &mut leaves,
+    ) {
+        leaves
+    } else {
+        Vec::new()
+    }
 }
 
 /// Public declaration identity includes floating scalars with determined bits, independently
@@ -230,7 +284,7 @@ pub(crate) fn retain_const_initializer(
 ) -> Result<ExpressionHandle, Diagnostic> {
     let pending = lowerer.const_resolution_mode
         == crate::lowerer::ConstResolutionMode::InitializerSelection
-        && requires_scalar_const_initializer_evaluation(syntax, definition);
+        && requires_const_initializer_evaluation(syntax, definition);
     if !pending && !has_scalar_initializer(syntax, definition) {
         if crate::module_normalization::module_literal_constant(syntax, definition) {
             // Unused private arrays still owe declaration shape and landing.
