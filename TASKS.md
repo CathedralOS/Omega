@@ -889,8 +889,17 @@ Owners include
   inference. Tests witness dependent-codomain substitution, pairs flowing
   through call arguments, projection reduction through function redexes,
   relevant-versus-strict Σ formation, neutral pair eta, and non-pair
-  projection rejection. Next: level variables and universe-polymorphic
-  declarations and typed function eta, before connecting to source or a
+  projection rejection.
+
+  Landed: typed function eta in conversion. At a `Pi` shared type a lambda
+  and a non-lambda convert exactly when the non-lambda applied to the
+  fresh de Bruijn variable converts to the lambda's body at the exact
+  codomain; a strict `Pi` still collapses by irrelevance before the rule
+  is reached. Tests witness both eta directions, strict-domain and
+  dependent-codomain Π combinations, eta through dependent type
+  arguments, the no-pointwise-collapse control, and refusal of the
+  wrapper rule at a non-function shared type. Next: level variables and
+  universe-polymorphic declarations, before connecting to source or a
   theorem certificate.
 
   Implement the pinned reference core and selected
@@ -900,10 +909,10 @@ Owners include
   formation, constructor, dependent-induction and computation correspondence,
   then independently check its declaration applications. Structural round trips
   do not establish meaning. General source punctuation is not a kernel blocker.
-  Implement [typed function eta](wiki/spec/proofs/inductive_profile.md#typed-function-eta)
-  in conversion, preserving exact Π types, freshness, levels and admitted sort
-  combinations. Justify substitution, preservation, normalization and decidable
-  conversion for the combined rules; no untyped wrapper-deletion shortcut.
+  Justify substitution, preservation, normalization and decidable conversion
+  for the combined rules, including the landed
+  [typed function eta](wiki/spec/proofs/inductive_profile.md#typed-function-eta);
+  no untyped wrapper-deletion shortcut.
   Acceptance: independently checked universe-polymorphic dependent functions
   and pairs, strict same-statement conversion and relevant witness separation;
   malformed universes, capture-changing substitution and illegal elimination

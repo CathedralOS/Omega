@@ -28,8 +28,12 @@
 //! `Apply` routes pair arguments through it so dependent pairs flow through
 //! calls. Conversion includes the reference core's pair eta: at a `Sigma`
 //! shared type a literal pair and a non-pair convert exactly when the
-//! non-pair's projections convert to the components. Typed function eta and
-//! level variables remain separate steps.
+//! non-pair's projections convert to the components. It also includes the
+//! profile's typed function eta: at a `Pi` shared type a lambda and a
+//! non-lambda convert exactly when the non-lambda applied to the fresh
+//! variable converts to the lambda's body, so the wrapper rule is decided
+//! by the type and never deletes an untyped `x ↦ f x` shape. Level
+//! variables and universe-polymorphic declarations remain separate steps.
 
 mod conversion;
 mod substitution;

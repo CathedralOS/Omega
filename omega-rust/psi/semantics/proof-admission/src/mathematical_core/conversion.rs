@@ -1,9 +1,17 @@
 //! Typed conversion for the Π/Σ fragment: β and pair-projection weak-head
 //! normalization under a step ceiling, pair eta at a `Sigma` shared type,
-//! and definitional proof irrelevance gated on the *shared type's* sort —
-//! never on the shape of either side. Function eta is a separate step.
+//! typed function eta at a `Pi` shared type, and definitional proof
+//! irrelevance gated on the *shared type's* sort — never on the shape of
+//! either side.
+//!
+//! Function eta is the profile's selected extension (`inductive_profile.md`
+//! §typed-function-eta): a lambda and a non-lambda convert only when the
+//! shared type weak-head normalizes to `Pi`, and only through the typed
+//! rule `x ↦ f x ≡ f`. The judgment never deletes a wrapper shape at a
+//! non-function shared type and grants no pointwise-equality collapse:
+//! `x ↦ g x` and `f` convert only when `g` and `f` already do.
 
-use super::substitution::substitute;
+use super::substitution::{shift, substitute};
 use super::term::{Term, TermArena, TermHandle};
 use super::typing::{Context, CoreError, infer_sort, infer_type};
 
@@ -323,6 +331,36 @@ pub fn convertible(
                     let left_second = arena.insert(Term::Snd { pair: left });
                     let second_type = substitute(arena, codomain, left_first);
                     convertible(arena, context, left_second, second, second_type, budget)
+                }
+                _ => Ok(false),
+            }
+        }
+        (Term::Lambda { .. }, _) | (_, Term::Lambda { .. }) => {
+            // Function eta: `x ↦ f x ≡ f` at a checked `Pi`. Only the shared
+            // type authorizes the rule — when it weak-head normalizes to
+            // `Pi`, the context gains its domain, the fresh variable is
+            // de Bruijn index 0 by construction, and the non-lambda side is
+            // shifted under the new binder so none of its variables can
+            // capture it. The comparison then runs at the exact codomain,
+            // so an `f x` body converts only when `f` itself does; a
+            // pointwise match is never enough. A strict `Pi` never reaches
+            // here — irrelevance already collapsed its inhabitants.
+            let type_head = weak_head_normalize(arena, shared_type, budget)?;
+            match arena.get(type_head) {
+                Term::Pi { domain, codomain } => {
+                    let (lambda_body, other) = match (arena.get(left), arena.get(right)) {
+                        (Term::Lambda { body, .. }, _) => (body, right),
+                        (_, Term::Lambda { body, .. }) => (body, left),
+                        _ => unreachable!("a lambda arm is present"),
+                    };
+                    let extended = context.extend(domain);
+                    let lifted = shift(arena, other, 0, 1);
+                    let fresh = arena.insert(Term::Variable(0));
+                    let applied = arena.insert(Term::Apply {
+                        function: lifted,
+                        argument: fresh,
+                    });
+                    convertible(arena, &extended, lambda_body, applied, codomain, budget)
                 }
                 _ => Ok(false),
             }
