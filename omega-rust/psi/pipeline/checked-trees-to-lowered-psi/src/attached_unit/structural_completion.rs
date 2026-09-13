@@ -40,8 +40,14 @@ pub(super) fn validate(
     };
     if state.symbol != machine.state
         || !source.body_is_present
-        || result.multiplicity != checked.type_multiplicity(state.return_type)
-        || !(validation::is_closed_primitive_array_type(&checked.typed, state.return_type)
+        || result.multiplicity
+            != validation::reference_result_custody::result_multiplicity(
+                &checked.typed,
+                state.return_type,
+            )
+        || !(validation::reference_result_custody::parts(&checked.typed, state.return_type)
+            .is_some()
+            || validation::is_closed_primitive_array_type(&checked.typed, state.return_type)
             || validation::has_plain_owned_contents_with_numeric_constraints(
                 &checked.typed,
                 state.return_type,
@@ -65,65 +71,92 @@ pub(super) fn validate(
     let Some(StatementNode::Expression(expression)) = statements.last() else {
         return unsupported("structural result source has no completion value");
     };
+    if !result.reference_sources.is_empty() {
+        let mut establishments = machine.operations.iter().filter(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::EstablishReference { .. }
+            )
+        });
+        let establishment = establishments.next().ok_or(LoweringError::Unsupported(
+            "returned reference has no establishment",
+        ))?;
+        if establishments.next().is_some() {
+            return unsupported("returned reference has ambiguous establishments");
+        }
+        super::reference_results::validate_establishment(checked, machine, establishment)?;
+    } else if validation::reference_result_custody::parts(&checked.typed, state.return_type)
+        .is_some()
+    {
+        return unsupported("reference result omits its retained ingress source");
+    }
     match result.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-            let mut producers = machine
-                .operations
-                .iter()
-                .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        result: candidate,
-                        discard_result_on_return: false,
-                        ..
-                    } if candidate.binding_ordinal == binding_ordinal => Some((candidate, true)),
-                    CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                        source,
-                        result: candidate,
-                        ..
-                    } if candidate.binding_ordinal == binding_ordinal => Some((
-                        candidate,
-                        *source == CheckedArrayConstructionSource::Statement,
-                    )),
-                    CheckedUnitEffectOperationPlan::StructuralCall {
-                        coordinate,
-                        result: candidate,
-                        ..
-                    } if candidate.binding_ordinal == binding_ordinal => {
-                        Some((candidate, coordinate.call_ordinal == 0))
-                    }
-                    _ => None,
-                });
-            let (binding, owns_statement_result) = producers.next().ok_or(
-                LoweringError::Unsupported("returned structural value has no exact producer"),
-            )?;
-            if producers.next().is_some()
-                || !owns_statement_result
-                || binding.type_identity != result.type_identity
-                || binding.multiplicity != result.multiplicity
-            {
-                return unsupported("returned structural producer is ambiguous or changed");
-            }
-            if let ExpressionNode::Name(path) =
-                checked.typed.expression_table.expression(*expression)
-            {
-                let Some(StatementNode::LocalData(local)) =
-                    statements.get(binding.statement_index as usize)
-                else {
-                    return unsupported("returned structural binding has no declaration");
-                };
-                if path.symbol != local.symbol
-                    || path.head_symbol != local.symbol
-                    || checked
-                        .typed
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        != 1
+            if !result.reference_sources.is_empty() {
+                // The exact authored ingress, result binding and tail coordinate
+                // were checked above; ordinary statement coverage still follows.
+            } else {
+                let mut producers =
+                    machine
+                        .operations
+                        .iter()
+                        .filter_map(|operation| match operation {
+                            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                result: candidate,
+                                discard_result_on_return: false,
+                                ..
+                            } if candidate.binding_ordinal == binding_ordinal => {
+                                Some((candidate, true))
+                            }
+                            CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                                source,
+                                result: candidate,
+                                ..
+                            } if candidate.binding_ordinal == binding_ordinal => Some((
+                                candidate,
+                                *source == CheckedArrayConstructionSource::Statement,
+                            )),
+                            CheckedUnitEffectOperationPlan::StructuralCall {
+                                coordinate,
+                                result: candidate,
+                                ..
+                            } if candidate.binding_ordinal == binding_ordinal => {
+                                Some((candidate, coordinate.call_ordinal == 0))
+                            }
+                            _ => None,
+                        });
+                let (binding, owns_statement_result) = producers.next().ok_or(
+                    LoweringError::Unsupported("returned structural value has no exact producer"),
+                )?;
+                if producers.next().is_some()
+                    || !owns_statement_result
+                    || binding.type_identity != result.type_identity
+                    || binding.multiplicity != result.multiplicity
                 {
-                    return unsupported("returned structural binding differs from source");
+                    return unsupported("returned structural producer is ambiguous or changed");
                 }
-            } else if binding.statement_index as usize + 1 != statements.len() {
-                return unsupported("returned constructor differs from source");
+                if let ExpressionNode::Name(path) =
+                    checked.typed.expression_table.expression(*expression)
+                {
+                    let Some(StatementNode::LocalData(local)) =
+                        statements.get(binding.statement_index as usize)
+                    else {
+                        return unsupported("returned structural binding has no declaration");
+                    };
+                    if path.symbol != local.symbol
+                        || path.head_symbol != local.symbol
+                        || checked
+                            .typed
+                            .expression_table
+                            .name_path_members(path.members)
+                            .len()
+                            != 1
+                    {
+                        return unsupported("returned structural binding differs from source");
+                    }
+                } else if binding.statement_index as usize + 1 != statements.len() {
+                    return unsupported("returned constructor differs from source");
+                }
             }
         }
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {

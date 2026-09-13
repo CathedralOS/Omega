@@ -124,6 +124,7 @@ mod primitive_store;
 mod providers;
 mod receiver_aliases;
 mod receiver_calls;
+use validation::reference_result_custody as reference_results;
 pub(crate) mod returns;
 mod scalar_locals;
 mod scalar_targets;
@@ -485,6 +486,8 @@ pub(crate) fn build_checked_unit_effect_plans(
                     } => true,
                     CheckedUnitEffectOperationPlan::PortWrite { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                    | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
                     | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
@@ -751,6 +754,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 retained_type_identities.insert(result.type_identity.as_str());
             }
             CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());

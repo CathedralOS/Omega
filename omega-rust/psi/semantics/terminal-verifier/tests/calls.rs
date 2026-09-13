@@ -1173,6 +1173,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                 parameters: Vec::new(),
                 ranked_scc: None,
                 result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                    reference_sources: Vec::new(),
                     place: place_id(2),
                     structural_type: result_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1250,6 +1251,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                 parameters: Vec::new(),
                 ranked_scc: None,
                 result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                    reference_sources: Vec::new(),
                     place: place_id(4),
                     structural_type: result_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,

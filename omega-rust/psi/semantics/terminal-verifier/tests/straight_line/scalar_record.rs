@@ -287,6 +287,7 @@ fn runtime_scalar_record_can_return_with_exact_multiplicity() {
         };
         result.multiplicity = multiplicity;
         machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: PlaceId::new(2).unwrap(),
             structural_type: result.structural_type,
             multiplicity,

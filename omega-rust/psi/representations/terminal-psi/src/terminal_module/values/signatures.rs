@@ -91,6 +91,16 @@ pub struct StructuralResultDeclaration {
     /// Strictly ordered exact qualifications transferred with nonempty paths
     /// beneath the result root.
     pub projected_qualifications: Vec<StructuralPathQualification>,
+    /// Exact reference leaves and their formal ingress sources. Verification
+    /// reconstructs each returned carrier's origin before accepting this map;
+    /// callers substitute actual places only after successful completion.
+    pub reference_sources: Vec<StructuralReferenceResultSource>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralReferenceResultSource {
+    pub path: Vec<StructuralPathSegment>,
+    pub source: StructuralArgument,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

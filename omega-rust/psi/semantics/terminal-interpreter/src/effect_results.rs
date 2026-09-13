@@ -74,7 +74,7 @@ impl TerminalExecution {
         result: &OperationResult,
     ) -> Result<(), TerminalInterpretError> {
         if let OperationResult::Structural(result) = result
-            && (contains_bounded_integer(&self.structural_types, result.structural_type)
+            && (requires_materialized_host_custody(&self.structural_types, result.structural_type)
                 || self.structural_values.contains_key(&result.place)
                 || self.scalar_case_values.contains_key(&result.place)
                 || self
@@ -91,9 +91,9 @@ impl TerminalExecution {
     }
 }
 
-/// Opaque host values carry neither complete scalar contents nor selected sum
-/// payloads. Type identity alone cannot establish a numeric field restriction.
-pub(super) fn contains_bounded_integer(
+/// Opaque host identities establish neither bounded contents nor a reference's
+/// captured loan and original backing.
+pub(super) fn requires_materialized_host_custody(
     types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
@@ -108,6 +108,7 @@ pub(super) fn contains_bounded_integer(
         };
         let mut fields = Vec::new();
         match &declaration.shape {
+            StructuralTypeShape::Reference { .. } => return true,
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
             StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
             StructuralTypeShape::Record { fields: members } => fields.extend(members),

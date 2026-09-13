@@ -31,6 +31,7 @@ pub(super) fn array_fixture(target: target::NativeTarget, length: u16) -> Legali
     };
     source.structural = Some(legalized_operations::LegalizedStructuralContract {
         result: Some(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: PlaceId::new(2).unwrap(),
             structural_type: array,
             multiplicity: StructuralMultiplicity::Unrestricted,

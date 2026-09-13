@@ -140,6 +140,7 @@ fn execution() -> TerminalExecution {
             },
         )]),
         structural_primitive_storage: BTreeMap::new(),
+        reference_referents: BTreeMap::new(),
         structural_primitive_entry_places: BTreeMap::new(),
         local_structural_identities:
             primitive_storage::LocalStructuralIdentities::with_reserved_identities([101]),
@@ -313,6 +314,7 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
     let callee = execution.machines.get_mut(&callee_id).unwrap();
     callee.structural_parameters.push(token_parameter.clone());
     callee.result = TerminalMachineResult::Structural(terminal_psi::StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: place(6),
         structural_type: token_type,
         multiplicity: StructuralMultiplicity::Affine,

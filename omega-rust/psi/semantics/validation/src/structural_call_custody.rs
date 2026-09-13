@@ -167,11 +167,19 @@ pub fn reconstruct_structural_call_custody(
         .find(|state| state.symbol == *target_state)
         .ok_or("structural call has no exact callee state")?;
     if target.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || program.type_multiplicity(destination.return_type) != result.multiplicity
+        || crate::reference_result_custody::result_multiplicity(program, destination.return_type)
+            != result.multiplicity
     {
         return Err("structural call result differs from the callee contract");
     }
-    let result_qualifications = structural_result_qualifications(program, destination.return_type)?;
+    let result_qualifications =
+        if crate::reference_result_custody::parts(program, destination.return_type).is_some() {
+            // The reference carrier transports a loan, not owned referent claims.
+            // Exact ingress substitution and its weakening are reconstructed below.
+            Vec::new()
+        } else {
+            structural_result_qualifications(program, destination.return_type)?
+        };
     let mut states = facts
         .flow
         .control
@@ -228,7 +236,24 @@ pub fn reconstruct_structural_call_custody(
         if !result_qualifications.is_empty() || !transfers.is_empty() {
             return Err("claim-bearing structural call has no returned claim frontier");
         }
-        return Ok(CheckedStructuralCallCustodyPlan::default());
+        let reference_loan =
+            if crate::reference_result_custody::parts(program, destination.return_type).is_some() {
+                crate::reference_result_custody::result_loan(
+                    program,
+                    facts,
+                    caller_machine,
+                    source_state,
+                    call,
+                    result,
+                )
+                .ok_or("reference result has no exact returned ingress and loan lifetime")?
+            } else {
+                arena::Handle::invalid()
+            };
+        return Ok(CheckedStructuralCallCustodyPlan {
+            reference_loan,
+            ..Default::default()
+        });
     }
 
     // Whole-result forwarding has one input-origin output. Projected outputs
@@ -374,6 +399,7 @@ pub fn reconstruct_structural_call_custody(
         return Err("structural returned claim has ambiguous or projected entry custody");
     }
     Ok(CheckedStructuralCallCustodyPlan {
+        reference_loan: arena::Handle::invalid(),
         result_qualifications,
         claim_transfers: vec![CheckedUnitClaimTransferPlan {
             claim_identity: transfer.claim_identity,

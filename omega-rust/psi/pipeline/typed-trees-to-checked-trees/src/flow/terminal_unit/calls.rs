@@ -838,6 +838,15 @@ pub(in crate::flow) fn build_call_operation(
             Some(ExpectedCallValueResult::Scalar(expected)) => {
                 program.primitive_type_reference(target_state.return_type) != Some(*expected)
             }
+            Some(ExpectedCallValueResult::Structural(expected))
+                if super::reference_results::parts(program, target_state.return_type).is_some() =>
+            {
+                expected.multiplicity != Multiplicity::Affine
+                    || program
+                        .normalized_type_identity(target_state.return_type)
+                        .as_str()
+                        != expected.type_identity
+            }
             Some(expected @ ExpectedCallValueResult::Structural(_)) => {
                 !boundary_value_result_matches(program, target_state.return_type, expected)
             }
@@ -1007,6 +1016,19 @@ pub(in crate::flow) fn build_call_operation(
             completion_receipts: transfers,
         })
     } else if let Some(ExpectedCallValueResult::Structural(result)) = expected_call_result {
+        let reference_loan =
+            if super::reference_results::parts(program, target_state.return_type).is_some() {
+                super::reference_results::result_loan(
+                    program,
+                    facts,
+                    machine.symbol,
+                    state,
+                    call,
+                    result,
+                )?
+            } else {
+                arena::Handle::invalid()
+            };
         // A result signature is available before its ordinary or graph body plan.
         // The closure pass below retains this call only when that complete body
         // was produced, avoiding an authored machine-order dependency.
@@ -1056,19 +1078,24 @@ pub(in crate::flow) fn build_call_operation(
                     )
             })
             && transfers.is_empty()
-            && ((matches!(
-                result.multiplicity,
-                Multiplicity::Affine | Multiplicity::Unrestricted
-            ) && validation::has_plain_owned_contents_with_numeric_constraints(
-                program,
-                target_state.return_type,
-            ) && matches!(
-                program
-                    .type_reference_table
-                    .type_reference(target_state.return_type),
-                TypeReferenceNode::Named { .. }
-            )) || (result.multiplicity == Multiplicity::Unrestricted
-                && validation::is_closed_primitive_array_type(program, target_state.return_type)))
+            && (reference_loan.is_valid()
+                || (matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                ) && validation::has_plain_owned_contents_with_numeric_constraints(
+                    program,
+                    target_state.return_type,
+                ) && matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(target_state.return_type),
+                    TypeReferenceNode::Named { .. }
+                ))
+                || (result.multiplicity == Multiplicity::Unrestricted
+                    && validation::is_closed_primitive_array_type(
+                        program,
+                        target_state.return_type,
+                    )))
             && program
                 .machine_states(target_machine)
                 .first()
@@ -1079,7 +1106,10 @@ pub(in crate::flow) fn build_call_operation(
                 coordinate,
                 source_site,
                 result: result.clone(),
-                custody: Default::default(),
+                custody: checked_trees::CheckedStructuralCallCustodyPlan {
+                    reference_loan,
+                    ..Default::default()
+                },
                 target_machine: target_machine.symbol,
                 target_state: target_state.symbol,
                 target_contract_report_fingerprint: target_contract.report_fingerprint,
@@ -1087,7 +1117,8 @@ pub(in crate::flow) fn build_call_operation(
                 service_reach: call.service_reach,
                 scalar_arguments,
                 structural_arguments,
-                discard_result_on_return: result.multiplicity == Multiplicity::Affine,
+                discard_result_on_return: result.multiplicity == Multiplicity::Affine
+                    && !reference_loan.is_valid(),
             });
         }
         let target = facts
@@ -1442,6 +1473,19 @@ pub(super) fn ordinary_projected_call_is_supported(
     allow_field_path_projection: bool,
 ) -> bool {
     if arguments.iter().all(|argument| argument.path.is_empty()) {
+        return true;
+    }
+    // A retained result carrier presents its borrowed referent, not a moved
+    // aggregate field. Exact producing local/loan custody was rejoined by the
+    // shared result argument builder and is independently replayed in lowering.
+    if arguments.iter().all(|argument| {
+        argument.path.is_empty()
+            || (argument
+                .source_structural_result_binding_ordinal()
+                .is_some()
+                && argument.path == [CheckedUnitStructuralPathSegment::Referent]
+                && argument.access == CheckedStructuralAccess::MutableBorrow)
+    }) {
         return true;
     }
 
@@ -2585,6 +2629,33 @@ fn exact_structural_argument_access(
     place: &crate::flow::CanonicalPlace,
     target_access: CheckedStructuralAccess,
 ) -> Option<CheckedStructuralAccess> {
+    let returned_loan = crate::find_state(program, state)
+        .and_then(|source_state| {
+            let StatementNode::LocalData(local) = program
+                .statement_table
+                .statements(source_state.statement_nodes)
+                .get(call.statement_index)?
+            else {
+                return None;
+            };
+            let result = CheckedUnitStructuralResultBindingPlan {
+                statement_index: u32::try_from(call.statement_index).ok()?,
+                binding_ordinal: 0,
+                type_identity: program
+                    .normalized_type_identity(local.type_reference)
+                    .into_string(),
+                multiplicity: Multiplicity::Affine,
+            };
+            super::reference_results::result_loan(
+                program,
+                facts,
+                machine,
+                source_state,
+                call,
+                &result,
+            )
+        })
+        .unwrap_or_else(arena::Handle::invalid);
     exact_structural_borrow_access(
         program,
         &facts.borrow,
@@ -2593,6 +2664,7 @@ fn exact_structural_argument_access(
         call,
         place,
         target_access,
+        returned_loan,
     )
 }
 
@@ -2604,6 +2676,7 @@ fn exact_structural_borrow_access(
     call: &checked_trees::FlowCallFact,
     place: &crate::flow::CanonicalPlace,
     target_access: CheckedStructuralAccess,
+    returned_loan: arena::Handle<checked_trees::BorrowLoanFact>,
 ) -> Option<CheckedStructuralAccess> {
     if target_access == CheckedStructuralAccess::Owned {
         return Some(CheckedStructuralAccess::Owned);
@@ -2654,6 +2727,7 @@ fn exact_structural_borrow_access(
             borrow_call,
             call,
             root_symbol,
+            returned_loan,
         )
     {
         return Some(CheckedStructuralAccess::MutableBorrow);
@@ -2720,6 +2794,16 @@ pub(super) fn call_claim_transfers(
             continue;
         }
         let source_parameter_index = argument.source_parameter_index();
+        if argument
+            .source_structural_result_binding_ordinal()
+            .is_some()
+            && argument.path == [CheckedUnitStructuralPathSegment::Referent]
+            && argument.access == CheckedStructuralAccess::MutableBorrow
+        {
+            // The reference's retained loan authorizes this borrow; it does
+            // not transfer an owned referent claim to the callee.
+            continue;
+        }
         if source_parameter_index.is_none() {
             if (argument.source_local_declaration_ordinal().is_none()
                 && argument

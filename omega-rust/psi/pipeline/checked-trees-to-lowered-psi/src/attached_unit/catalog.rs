@@ -351,6 +351,11 @@ pub(crate) fn lower_unit_structural_type_roots(
         let plan = selected_declaration(checked, identity)?;
         active.push(identity.to_owned());
         match &plan.shape {
+            CheckedUnitStructuralTypeShape::Reference {
+                referent_identity, ..
+            } => {
+                collect(checked, referent_identity, active, selected)?;
+            }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
             CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
             CheckedUnitStructuralTypeShape::Record { fields } => {
@@ -417,6 +422,18 @@ pub(crate) fn lower_unit_structural_type_roots(
     for plan in selected {
         let identity = plan.identity.clone();
         let shape = match &plan.shape {
+            CheckedUnitStructuralTypeShape::Reference {
+                referent_identity,
+                access,
+            } => {
+                if *access != checked_trees::CheckedStructuralAccess::MutableBorrow {
+                    return unsupported("reference type has no retained mutable access");
+                }
+                StructuralTypeShape::Reference {
+                    referent: lookup_type_id(&type_ids, referent_identity)?,
+                    access: StructuralAccess::MutableBorrow,
+                }
+            }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive) => {
                 StructuralTypeShape::PrimitiveScalar(terminal_scalar_type(*primitive)?)
             }
@@ -752,6 +769,8 @@ pub(super) fn lower_unit_services_including(
                 }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }

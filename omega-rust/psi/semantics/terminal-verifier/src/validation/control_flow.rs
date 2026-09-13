@@ -288,6 +288,7 @@ pub(super) fn validate_control_flow(
             )?;
             super::primitive_storage::validate_uses(machine, operation, &available_primitives)?;
             super::record::validate_uses(module, machine, operation, &available_structural)?;
+            super::references::validate_uses(machine, operation, &available_structural)?;
             validate_operation_operands(
                 module,
                 machine,

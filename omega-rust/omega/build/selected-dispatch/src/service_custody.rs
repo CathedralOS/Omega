@@ -297,7 +297,8 @@ fn structural_shape_contains_fused_service(shape: &CheckedUnitStructuralTypeShap
                     .iter()
                     .any(|case| case.fields.iter().any(fused_service_field))
         }
-        CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+        CheckedUnitStructuralTypeShape::Reference { .. }
+        | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
         | CheckedUnitStructuralTypeShape::ByteSequence(_)
         | CheckedUnitStructuralTypeShape::FixedArray { .. } => false,
     }

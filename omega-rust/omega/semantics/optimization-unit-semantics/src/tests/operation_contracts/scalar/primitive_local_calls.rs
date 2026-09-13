@@ -77,6 +77,7 @@ fn activation_local_cannot_escape_as_structural_return() {
     let function = &mut plan.functions[0];
     function.result =
         AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: id(80, PlaceId::new),
             structural_type: id(55, StructuralTypeId::new),
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

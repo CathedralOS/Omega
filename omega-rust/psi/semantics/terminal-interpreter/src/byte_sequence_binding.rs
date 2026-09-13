@@ -183,11 +183,7 @@ impl TerminalExecution {
             prepared.scalar_arrays = scalar_arrays;
             return Ok(prepared);
         }
-        let values = resolve_structural_arguments(
-            &self.structural_types,
-            &self.structural_values,
-            &opaque_arguments,
-        )?;
+        let values = self.resolve_reference_call_arguments(&opaque_arguments)?;
         let byte_sequences =
             self.bind_byte_sequence_arguments(&opaque_parameters, &opaque_arguments, &values)?;
         Ok(StructuralCallArguments {

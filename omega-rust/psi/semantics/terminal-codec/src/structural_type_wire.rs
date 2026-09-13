@@ -20,6 +20,11 @@ pub(super) fn encode_structural_type(
     writer.id(declaration.id);
     writer.string("structural type identity", &declaration.identity)?;
     match &declaration.shape {
+        StructuralTypeShape::Reference { referent, access } => {
+            writer.u8(7);
+            writer.id(*referent);
+            super::structural_signature_wire::encode_structural_access(writer, *access);
+        }
         StructuralTypeShape::PrimitiveScalar(scalar_type) => {
             writer.u8(6);
             encode_scalar_type(writer, *scalar_type);
@@ -84,6 +89,10 @@ pub(super) fn decode_structural_type(
     let id = reader.id("StructuralTypeId")?;
     let identity = reader.string("structural type identity")?;
     let shape = match reader.u8()? {
+        7 => StructuralTypeShape::Reference {
+            referent: reader.id("StructuralTypeId")?,
+            access: super::structural_signature_wire::decode_structural_access(reader)?,
+        },
         6 => StructuralTypeShape::PrimitiveScalar(decode_scalar_type(reader)?),
         1 => StructuralTypeShape::Record {
             fields: decode_counted(reader, decode_structural_field)?,

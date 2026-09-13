@@ -30,6 +30,8 @@ pub enum StructuralEffectResultShape {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectCustody {
+    ExactReferenceSource,
+    ExactReferenceCarrier,
     ExactPrimitiveLocal,
     ExactReadablePrimitiveRoot,
     ExactReadableSumRoot,
@@ -51,6 +53,8 @@ pub enum StructuralEffectCustody {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectAction {
+    EstablishReference,
+    ReleaseReference,
     EstablishPrimitiveLocal,
     ReadPrimitive,
     ObserveCaseMembership,
@@ -95,6 +99,10 @@ pub enum StructuralEffectGoalShape {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectFrontierPolicy {
+    /// Capture an existing loan; add carrier ownership without moving its referent.
+    CapturesLoanAndAddsReferenceCarrier,
+    /// End carrier custody and its loan, without disposing the referent.
+    ReleasesReferenceCarrier,
     /// Consume exact whole owned children before publishing the complete parent.
     TransfersOwnedChildrenAndAddsOwnedPlace,
     RequiresAndKeepsWriteOnlyPrimitivePlace,
@@ -189,7 +197,27 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 22] = [
+        Self {
+            tag: OperationSemanticTag::EstablishReference,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Structural,
+                StructuralEffectCustody::ExactReferenceSource,
+                StructuralEffectAction::EstablishReference,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier,
+            ),
+        },
+        Self {
+            tag: OperationSemanticTag::ReleaseReference,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Unit,
+                StructuralEffectCustody::ExactReferenceCarrier,
+                StructuralEffectAction::ReleaseReference,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::ReleasesReferenceCarrier,
+            ),
+        },
         Self {
             tag: OperationSemanticTag::EstablishScalarArray,
             schema: structural_effect_leaf(
@@ -405,6 +433,8 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
     matches!(
         tag,
         OperationSemanticTag::EstablishPrimitiveLocal
+            | OperationSemanticTag::EstablishReference
+            | OperationSemanticTag::ReleaseReference
             | OperationSemanticTag::PrimitiveScalarRead
             | OperationSemanticTag::StructuralCaseMembership
             | OperationSemanticTag::WriteOnlyPrimitiveStore
@@ -465,6 +495,8 @@ pub fn validate_structural_effect_semantic_rows(
         }
     }
     for tag in [
+        OperationSemanticTag::EstablishReference,
+        OperationSemanticTag::ReleaseReference,
         OperationSemanticTag::EstablishPrimitiveLocal,
         OperationSemanticTag::PrimitiveScalarRead,
         OperationSemanticTag::StructuralCaseMembership,
@@ -495,6 +527,13 @@ pub fn validate_structural_effect_semantic_rows(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructuralEffectObservation {
+    ReferenceEstablished {
+        source: terminal_psi::StructuralArgument,
+        destination: PlaceId,
+    },
+    ReferenceReleased {
+        source: PlaceId,
+    },
     ScalarArrayEstablished {
         destination: PlaceId,
         elements: Vec<ValueId>,
@@ -659,6 +698,8 @@ impl StructuralEffectObservation {
                 ..
             } => Some(proposition),
             Self::RecordEstablished { .. }
+            | Self::ReferenceEstablished { .. }
+            | Self::ReferenceReleased { .. }
             | Self::PrimitiveLocalEstablished { .. }
             | Self::ScalarArrayEstablished { .. }
             | Self::PrimitiveRead { .. }
@@ -685,6 +726,8 @@ fn validate_structural_effect_schema(
     schema: StructuralEffectLeafSchema,
 ) -> Result<(), OperationSemanticError> {
     let action_tag = match schema.action {
+        StructuralEffectAction::EstablishReference => OperationSemanticTag::EstablishReference,
+        StructuralEffectAction::ReleaseReference => OperationSemanticTag::ReleaseReference,
         StructuralEffectAction::EstablishPrimitiveLocal => {
             OperationSemanticTag::EstablishPrimitiveLocal
         }
@@ -741,6 +784,19 @@ fn validate_structural_effect_schema(
     let valid = action_tag == tag
         && schema.goal == expected_goal
         && match schema.action {
+            StructuralEffectAction::EstablishReference => {
+                schema.result == StructuralEffectResultShape::Structural
+                    && schema.custody == StructuralEffectCustody::ExactReferenceSource
+                    && schema.external_effect == StructuralEffectExternalEffect::None
+                    && schema.frontier
+                        == StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier
+            }
+            StructuralEffectAction::ReleaseReference => {
+                schema.result == StructuralEffectResultShape::Unit
+                    && schema.custody == StructuralEffectCustody::ExactReferenceCarrier
+                    && schema.external_effect == StructuralEffectExternalEffect::None
+                    && schema.frontier == StructuralEffectFrontierPolicy::ReleasesReferenceCarrier
+            }
             StructuralEffectAction::EstablishPrimitiveLocal => {
                 schema.result == StructuralEffectResultShape::Structural
                     && schema.custody == StructuralEffectCustody::ExactPrimitiveLocal
@@ -930,6 +986,31 @@ pub fn structural_effect_leaf_observation_in(
     let schema = row.schema;
     validate_structural_effect_result(operation, tag, schema)?;
     let observation = match (schema.action, &operation.kind) {
+        (
+            StructuralEffectAction::EstablishReference,
+            OperationKind::EstablishReference { source },
+        ) => {
+            let result = operation.result.structural().ok_or(
+                OperationSemanticError::StructuralEffectResultShapeMismatch(tag),
+            )?;
+            if source.access != terminal_psi::StructuralAccess::MutableBorrow
+                || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+            {
+                return Err(OperationSemanticError::StructuralEffectActionShapeMismatch(
+                    tag,
+                ));
+            }
+            StructuralEffectObservation::ReferenceEstablished {
+                source: source.clone(),
+                destination: result.place,
+            }
+        }
+        (StructuralEffectAction::ReleaseReference, OperationKind::ReleaseReference { source }) => {
+            StructuralEffectObservation::ReferenceReleased { source: *source }
+        }
         (
             StructuralEffectAction::EstablishPrimitiveLocal,
             OperationKind::EstablishPrimitiveLocal { value },
@@ -1206,6 +1287,93 @@ mod tests {
     use super::*;
 
     #[test]
+    fn reference_actions_preserve_source_and_separate_carrier_custody() {
+        let source = terminal_psi::StructuralArgument {
+            place: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+        };
+        let destination = PlaceId::new(2).unwrap();
+        let establish = Operation {
+            static_reach_binding: None,
+            id: OperationId::new(1).unwrap(),
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place: destination,
+                structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishReference {
+                source: source.clone(),
+            },
+        };
+        let release = Operation {
+            static_reach_binding: None,
+            id: OperationId::new(2).unwrap(),
+            result: OperationResult::Unit,
+            kind: OperationKind::ReleaseReference {
+                source: destination,
+            },
+        };
+        for (operation, expected, frontier) in [
+            (
+                &establish,
+                StructuralEffectObservation::ReferenceEstablished {
+                    source,
+                    destination,
+                },
+                StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier,
+            ),
+            (
+                &release,
+                StructuralEffectObservation::ReferenceReleased {
+                    source: destination,
+                },
+                StructuralEffectFrontierPolicy::ReleasesReferenceCarrier,
+            ),
+        ] {
+            let observation = structural_effect_leaf_observation(operation)
+                .unwrap()
+                .unwrap();
+            assert_eq!(observation, expected);
+            assert!(observation.local_equation().is_none());
+            assert!(observation.canonical_obligation().is_none());
+            let schema = structural_effect_semantic_row(&operation.kind)
+                .unwrap()
+                .unwrap()
+                .schema();
+            assert_eq!(schema.frontier(), frontier);
+            assert_eq!(schema.fuel(), StructuralEffectFuelPolicy::ConsumeOne);
+            assert_eq!(
+                schema.external_effect(),
+                StructuralEffectExternalEffect::None
+            );
+            let mut wrong_result = operation.clone();
+            wrong_result.result = if operation.result == OperationResult::Unit {
+                establish.result.clone()
+            } else {
+                OperationResult::Unit
+            };
+            assert!(structural_effect_leaf_observation(&wrong_result).is_err());
+        }
+        let mut ownership_forgery = establish;
+        let OperationKind::EstablishReference { source } = &mut ownership_forgery.kind else {
+            unreachable!()
+        };
+        source.access = terminal_psi::StructuralAccess::Owned;
+        assert!(structural_effect_leaf_observation(&ownership_forgery).is_err());
+        let mut drifted = StructuralEffectSemanticRow::ALL;
+        let release_row = drifted
+            .iter_mut()
+            .find(|row| row.tag == OperationSemanticTag::ReleaseReference)
+            .unwrap();
+        release_row.schema.frontier = StructuralEffectFrontierPolicy::KeepsPlaceFrontier;
+        assert!(structural_effect_leaf_observation_in(&release, &drifted).is_err());
+    }
+
+    #[test]
     fn primitive_local_actions_retain_exact_subjects_without_scalar_equations() {
         let local = OperationResult::Structural(terminal_psi::StructuralOperationResult {
             place: PlaceId::new(23).unwrap(),
@@ -1412,13 +1580,15 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 20);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 22);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
                 .map(|row| row.tag())
                 .collect::<BTreeSet<_>>(),
             BTreeSet::from([
+                OperationSemanticTag::EstablishReference,
+                OperationSemanticTag::ReleaseReference,
                 OperationSemanticTag::EstablishPrimitiveLocal,
                 OperationSemanticTag::PrimitiveScalarRead,
                 OperationSemanticTag::StructuralCaseMembership,

@@ -43,6 +43,9 @@ pub(crate) fn structural_shape(
             .copied()
             .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
         match &declaration.shape {
+            StructuralTypeShape::Reference { .. } => Err(
+                LoweringError::UnsupportedStructuralReference(structural_type),
+            ),
             StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
                 Ok(ValueShape::integer(1, 1))
             }
@@ -364,6 +367,11 @@ pub(super) fn resolve_structural_projection_path(
     let mut selected_shape = None;
     for segment in path {
         let (selected_type, shape, local_offset) = match segment {
+            StructuralPathSegment::Referent => {
+                return Err(LoweringError::UnsupportedStructuralReference(
+                    structural_type,
+                ));
+            }
             StructuralPathSegment::Field(_) => resolve_structural_field_path(
                 structural_type,
                 std::slice::from_ref(segment),

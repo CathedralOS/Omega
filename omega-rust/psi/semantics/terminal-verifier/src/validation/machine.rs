@@ -18,6 +18,7 @@ pub(super) fn validate_machine(
     if machine.blocks.is_empty() {
         return Err(ModuleError::MachineHasNoBlocks(machine.id));
     }
+    super::references::validate_machine(module, machine)?;
 
     let contract_receiver = nominal_cleanup_contract_receiver(module, machine.id);
     let mut blocks = BTreeMap::new();
@@ -226,6 +227,7 @@ pub(super) fn validate_machine(
             if matches!(
                 operation.kind,
                 OperationKind::EstablishRecord { .. }
+                    | OperationKind::EstablishReference { .. }
                     | OperationKind::EstablishScalarArray { .. }
                     | OperationKind::EstablishPrimitiveLocal { .. }
             ) {
@@ -235,6 +237,7 @@ pub(super) fn validate_machine(
             if matches!(
                 operation.kind,
                 OperationKind::CallUnit { .. }
+                    | OperationKind::ReleaseReference { .. }
                     | OperationKind::WriteOnlyPrimitiveStore { .. }
                     | OperationKind::StructuralScalarFieldStore { .. }
                     | OperationKind::StructuralByteSequenceFieldStore { .. }
@@ -380,6 +383,8 @@ pub(super) fn validate_machine(
                 }
                 OperationKind::CallUnit { .. }
                 | OperationKind::WriteOnlyPrimitiveStore { .. }
+                | OperationKind::EstablishReference { .. }
+                | OperationKind::ReleaseReference { .. }
                 | OperationKind::StructuralScalarFieldStore { .. }
                 | OperationKind::StructuralByteSequenceFieldStore { .. }
                 | OperationKind::StructuralByteSequenceFieldByteStore { .. }

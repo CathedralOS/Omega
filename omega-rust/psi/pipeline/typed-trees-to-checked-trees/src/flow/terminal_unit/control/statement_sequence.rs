@@ -42,6 +42,34 @@ fn returned_parameter(
             .is_some_and(|source| source.symbol == path.symbol)
     })?;
     let source = source_parameters.get(parameter.position as usize)?;
+    if let Some((_, access)) = super::super::reference_results::parts(program, state.return_type) {
+        if super::super::reference_results::source_parameter(program, state)?
+            != parameter.position as usize
+            || parameter.access != access
+            || !parameter.qualifications.is_empty()
+        {
+            return None;
+        }
+        let source = CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            path: Vec::new(),
+            type_identity: parameter.type_identity.clone(),
+            access,
+        };
+        return Some(CheckedUnitStructuralReturnPlan {
+            source: source.source.clone(),
+            type_identity: program
+                .normalized_type_identity(state.return_type)
+                .into_string(),
+            multiplicity: Multiplicity::Affine,
+            reference_sources: vec![checked_trees::CheckedReferenceResultSourcePlan {
+                path: Vec::new(),
+                source,
+            }],
+        });
+    }
     if parameter.access != CheckedStructuralAccess::Owned
         || parameter.multiplicity != program.type_multiplicity(state.return_type)
         || program.normalized_type_identity(source.type_reference)
@@ -87,6 +115,7 @@ fn returned_parameter(
         },
         type_identity: parameter.type_identity.clone(),
         multiplicity: parameter.multiplicity,
+        reference_sources: Vec::new(),
     })
 }
 
@@ -295,6 +324,7 @@ pub(in crate::flow::terminal_unit) fn build(
         })
     {
         let statement_index = u32::try_from(index).ok()?;
+        append_reference_releases(facts, machine.symbol, state.symbol, statement_index, &mut operations)?;
         let completes_machine = matches!(statement, StatementNode::Expression(_))
             && !is_unit(program, state.return_type);
         let mut structural_result = None;
@@ -791,7 +821,7 @@ pub(in crate::flow::terminal_unit) fn build(
             .find(|(_, source)| *source == facts::PlaceRoot::Symbol(path.symbol))
             .map(|(binding, _)| binding.clone())
     });
-    let structural_result = if let Some(binding) = returned_local {
+    let mut structural_result = if let Some(binding) = returned_local {
         if Some(binding.type_identity.as_str())
             != base_type_identity(program, state.return_type, &binders).as_deref()
             || binding.multiplicity != program.type_multiplicity(state.return_type)
@@ -943,6 +973,46 @@ pub(in crate::flow::terminal_unit) fn build(
     } else {
         None
     };
+    if let Some(result) = &mut structural_result
+        && let [reference] = result.reference_sources.as_slice()
+    {
+        let binding = CheckedUnitStructuralResultBindingPlan {
+            statement_index: u32::try_from(
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .len()
+                    .checked_sub(1)?,
+            )
+            .ok()?,
+            binding_ordinal: u32::try_from(structural_count).ok()?,
+            type_identity: shapes.add_reference_type(state.return_type, &binders)?,
+            multiplicity: Multiplicity::Affine,
+        };
+        operations.push(CheckedUnitEffectOperationPlan::EstablishReference {
+            result: binding.clone(),
+            source: reference.source.clone(),
+        });
+        result.source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: binding.binding_ordinal,
+        };
+    }
+    // Release each returned carrier at its actual checked weakening boundary,
+    // before any scalar completion or following statement can reuse the parent.
+    append_reference_releases(
+        facts,
+        machine.symbol,
+        state.symbol,
+        u32::try_from(
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .len()
+                .checked_sub(1)?,
+        )
+        .ok()?,
+        &mut operations,
+    )?;
     if scalar_control.is_none()
         && returned_scalar_call.is_none()
         && let Some(primitive_type) = program.primitive_type_reference(state.return_type)
@@ -1126,6 +1196,36 @@ fn scalar_computation_local_at(
         },
         checked_trees::CheckedCallScalarArgument::Computation(root.root),
     ))
+}
+
+fn append_reference_releases(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: u32,
+    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+) -> Option<()> {
+    let mut pending = Vec::new();
+    for operation in operations.iter() {
+        if let CheckedUnitEffectOperationPlan::StructuralCall {
+            result, custody, ..
+        } = operation
+            && custody.reference_loan.is_valid()
+        {
+            let loan = custody.reference_loan;
+            let boundary =
+                super::super::reference_results::release_statement(facts, machine, state, loan)?;
+            if boundary == statement_index && !operations.iter().any(|operation| {
+                matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loan: released, .. } if *released == loan)
+            }) {
+                pending.push(CheckedUnitEffectOperationPlan::ReleaseReference {
+                    statement_index, binding_ordinal: result.binding_ordinal, loan,
+                });
+            }
+        }
+    }
+    operations.extend(pending);
+    Some(())
 }
 
 fn append_call_cleanup(
@@ -1316,6 +1416,11 @@ fn consume_result(
     let producer = producers.next()?;
     if producers.next().is_some() {
         return None;
+    }
+    if let CheckedUnitEffectOperationPlan::StructuralCall { custody, .. } = producer
+        && custody.reference_loan.is_valid()
+    {
+        return (projected && access == CheckedStructuralAccess::MutableBorrow).then_some(());
     }
     // Unrestricted whole-value arguments copy their payload. They retain
     // a live producer without acquiring an affine disposal obligation.

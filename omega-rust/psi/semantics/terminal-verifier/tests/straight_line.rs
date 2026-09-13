@@ -411,6 +411,7 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
     });
     let machine = &mut module.machines[0];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: result_place,
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -5179,6 +5180,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: output_root,
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,
@@ -5292,6 +5294,7 @@ fn structural_call_module() -> TerminalModule {
     let claim = ClaimId::new(1).unwrap();
     let call = OperationId::new(1).unwrap();
     let caller_result_declaration = StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: caller_result,
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
@@ -5299,6 +5302,7 @@ fn structural_call_module() -> TerminalModule {
         projected_qualifications: Vec::new(),
     };
     let callee_result_declaration = StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: callee_result,
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
@@ -7309,6 +7313,7 @@ fn payloadless_guard_module() -> (TerminalModule, StructuralCaseId, StructuralCa
     }];
     let machine = &mut module.machines[0];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: result_place,
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -7411,6 +7416,7 @@ fn multi_exit_payloadless_guard_module() -> (
         },
     ];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: result_place,
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,

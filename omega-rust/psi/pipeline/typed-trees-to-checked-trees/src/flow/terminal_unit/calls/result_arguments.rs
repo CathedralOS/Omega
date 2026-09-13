@@ -18,6 +18,61 @@ pub(super) fn argument(
     target_identity: &str,
     allow_projection: bool,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let source_state = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .find(|candidate| candidate.symbol == state)?;
+    if let Some(StatementNode::LocalData(local)) = program
+        .statement_table
+        .statements(source_state.statement_nodes)
+        .get(result.statement_index as usize)
+        && super::super::reference_results::parts(program, local.type_reference).is_some()
+    {
+        let (_, access) =
+            super::super::reference_results::parts(program, parameter.type_reference)?;
+        if place.root != facts::PlaceRoot::Symbol(local.symbol)
+            || !place.segments.is_empty()
+            || result.type_identity
+                != program
+                    .normalized_type_identity(local.type_reference)
+                    .as_str()
+            || program.normalized_type_identity(parameter.type_reference)
+                != program.normalized_type_identity(local.type_reference)
+        {
+            return None;
+        }
+        let flow = state_flow(facts, machine, state)?;
+        let producer = facts
+            .flow
+            .control
+            .calls
+            .span_or_empty(flow.calls)
+            .iter()
+            .find(|producer| producer.authored_expression == local.initial_value)?;
+        let loan = super::super::reference_results::result_loan(
+            program,
+            facts,
+            machine,
+            source_state,
+            producer,
+            result,
+        )?;
+        let end = super::super::reference_results::release_statement(facts, machine, state, loan)?;
+        if call.statement_index <= result.statement_index as usize
+            || call.statement_index >= end as usize
+        {
+            return None;
+        }
+        return Some(CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            },
+            path: vec![CheckedUnitStructuralPathSegment::Referent],
+            type_identity: target_identity.to_owned(),
+            access,
+        });
+    }
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
     let projected = !place.segments.is_empty();
     let unrestricted_array = result.multiplicity == Multiplicity::Unrestricted;

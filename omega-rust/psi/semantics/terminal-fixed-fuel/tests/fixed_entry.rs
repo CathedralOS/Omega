@@ -93,6 +93,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
     }];
     let machine = &mut module.machines[0];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: result_place,
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -168,6 +169,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
             parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                reference_sources: Vec::new(),
                 place: caller_result_place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -885,6 +887,7 @@ fn structural_return_is_one_normal_edge_unit() {
         },
     ];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: result_place,
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
@@ -974,6 +977,7 @@ fn each_trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
         projected_qualifications: Vec::new(),
     }];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: result_place,
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,

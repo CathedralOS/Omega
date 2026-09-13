@@ -292,7 +292,8 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
             Some(result.statement_index)
         }
-        CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+        CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } => {
             Some(result.statement_index)
@@ -335,6 +336,7 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         }
         CheckedUnitEffectOperationPlan::ByteSequenceWrite(store) => Some(store.statement_index),
         CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+        | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
         | CheckedUnitEffectOperationPlan::Complete { .. } => None,
     }
 }

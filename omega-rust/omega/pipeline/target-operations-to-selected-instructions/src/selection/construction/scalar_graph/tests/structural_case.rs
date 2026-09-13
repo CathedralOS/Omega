@@ -39,6 +39,7 @@ fn joined_structural_return_rejects_owner_declaration_and_abi_substitution() {
             .push(declaration.clone());
         source.structural.as_mut().unwrap().result =
             Some(terminal_psi::StructuralResultDeclaration {
+                reference_sources: Vec::new(),
                 place: semantic_vocabulary::PlaceId::new(100).unwrap(),
                 structural_type: declaration.structural_type,
                 multiplicity: declaration.multiplicity,

@@ -4,7 +4,7 @@ use super::operation_encoding::*;
 use super::structural_encoding::*;
 use super::*;
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v26\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v27\0";
 const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
     b"omega.psi-optimization-structural-domain-catalog.v1\0";
 
@@ -330,6 +330,10 @@ fn encode_structural_result(bytes: &mut CanonicalBytes, result: &StructuralResul
     encode_multiplicity(bytes, result.multiplicity);
     encode_ids(bytes, &result.qualifications);
     encode_projected_qualification_roster(bytes, &result.projected_qualifications);
+    bytes.slice(&result.reference_sources, |bytes, reference| {
+        bytes.slice(&reference.path, encode_structural_path_segment);
+        encode_structural_argument(bytes, &reference.source);
+    });
 }
 
 fn encode_node(bytes: &mut CanonicalBytes, node: &OptimizationNode) {

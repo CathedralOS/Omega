@@ -53,6 +53,7 @@ fn provider_module() -> TerminalModule {
     let candidate = &mut module.machines[1];
     candidate.structural_parameters = vec![parameter];
     candidate.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: PlaceId::new(2).unwrap(),
         structural_type,
         multiplicity: StructuralMultiplicity::Affine,

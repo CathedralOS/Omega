@@ -753,6 +753,8 @@ pub(super) fn validate_operation_operands(
         OperationKind::SaturatingIntegerDivide { .. } => None,
         OperationKind::SaturatingIntegerRemainder { .. } => None,
         OperationKind::Call { .. }
+        | OperationKind::EstablishReference { .. }
+        | OperationKind::ReleaseReference { .. }
         | OperationKind::EstablishPrimitiveLocal { .. }
         | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::WriteOnlyPrimitiveStore { .. }

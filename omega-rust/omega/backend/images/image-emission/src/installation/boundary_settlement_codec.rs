@@ -637,6 +637,9 @@ fn encode_structural_path(
     );
     for segment in path {
         match segment {
+            StructuralPathSegment::Referent => {
+                return Err(InstallationError::UnsupportedStructuralReturnShape);
+            }
             StructuralPathSegment::Field(identity) => {
                 if identity.is_empty() {
                     return Err(InstallationError::InvalidBoundaryResult);

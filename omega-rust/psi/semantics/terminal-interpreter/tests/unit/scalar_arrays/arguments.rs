@@ -75,6 +75,7 @@ fn call_result(
 fn return_array(machine: &mut TerminalMachine, source: PlaceId) {
     let place = place_id(machine.id.get() * 1000 + 99);
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place,
         structural_type: structural_type_id(1),
         multiplicity: StructuralMultiplicity::Unrestricted,

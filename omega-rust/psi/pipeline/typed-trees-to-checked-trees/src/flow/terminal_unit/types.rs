@@ -66,6 +66,8 @@ pub(super) fn return_unit_affine_discards(
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+            | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+            | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
@@ -1185,6 +1187,35 @@ impl<'program> ShapeCollector<'program> {
         false
     }
 
+    pub(super) fn add_reference_type(
+        &mut self,
+        reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<String> {
+        let (referent, access) = super::reference_results::parts(self.program, reference)?;
+        let referent_identity = self.add_type(referent, binders, &[])?;
+        let identity = self
+            .program
+            .normalized_type_identity_with_binders_and_substitutions(reference, binders, &[])
+            .into_string();
+        let plan = CheckedUnitStructuralTypePlan {
+            identity: identity.clone(),
+            shape: CheckedUnitStructuralTypeShape::Reference {
+                referent_identity,
+                access,
+            },
+        };
+        if self
+            .types
+            .get(&identity)
+            .is_some_and(|existing| existing != &plan)
+        {
+            return None;
+        }
+        self.types.insert(identity.clone(), plan);
+        Some(identity)
+    }
+
     pub(super) fn add_type(
         &mut self,
         type_reference: TypeReferenceHandle,
@@ -1652,6 +1683,11 @@ impl<'program> ShapeCollector<'program> {
                     continue;
                 };
                 match &plan.shape {
+                    CheckedUnitStructuralTypeShape::Reference {
+                        referent_identity, ..
+                    } => {
+                        retained.insert(referent_identity.clone());
+                    }
                     CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
                     | CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields } => {

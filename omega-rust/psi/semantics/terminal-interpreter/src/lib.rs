@@ -13,6 +13,7 @@ use byte_sequence_binding::{ByteSequenceBinding, StructuralCallArguments};
 mod byte_sequence_view;
 mod byte_sequence_write;
 mod record;
+mod reference;
 mod scalar_array;
 mod structural_byte_arrays;
 pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
@@ -528,6 +529,9 @@ pub struct TerminalExecution {
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    /// A reference carrier owns this descriptor, never the referent's backing.
+    /// Carrier identities survive structural call/return moves across frames.
+    reference_referents: BTreeMap<StructuralRuntimePlace, TerminalStructuralValue>,
     /// Mutable primitive contents live outside call frames. Machine-local
     /// place maps are only views into this stable logical storage arena.
     structural_primitive_storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
@@ -1055,6 +1059,7 @@ impl TerminalExecution {
             blocks,
             values,
             structural_values,
+            reference_referents: BTreeMap::new(),
             structural_primitive_storage,
             structural_primitive_entry_places,
             local_structural_identities: primitive_storage::LocalStructuralIdentities::new(
@@ -1496,6 +1501,24 @@ impl TerminalExecution {
             .zip(&callee.structural_parameters)
             .any(|(argument, parameter)| {
                 !argument.path.is_empty()
+                    && !(argument.path == [StructuralPathSegment::Referent]
+                        && argument.access != StructuralAccess::Owned
+                        && parameter.access == argument.access
+                        && prepared_arguments
+                            .values
+                            .get(&parameter.place)
+                            .is_some_and(|value| {
+                                value.structural_type == parameter.structural_type
+                                    && self
+                                        .structural_types
+                                        .get(&value.structural_type)
+                                        .is_some_and(|declaration| {
+                                            matches!(
+                                                declaration.shape,
+                                                StructuralTypeShape::PrimitiveScalar(_)
+                                            )
+                                        })
+                            }))
                     && !matches!(
                         prepared_arguments.byte_sequences.get(&parameter.place),
                         Some(
@@ -1719,6 +1742,12 @@ impl TerminalExecution {
                     return meter_status(error);
                 }
                 match operation.kind.clone() {
+                    OperationKind::EstablishReference { source } => {
+                        self.establish_reference(&operation, &source)?;
+                    }
+                    OperationKind::ReleaseReference { source } => {
+                        self.release_reference(&operation, source)?;
+                    }
                     OperationKind::EstablishScalarArray { elements } => {
                         self.execute_scalar_array_establishment(&operation, &elements)?;
                     }
@@ -3400,7 +3429,11 @@ impl TerminalExecution {
                     // root-addressed carrier; projected cleanup removes only the
                     // exact semantic paths and leaves the opaque root untouched.
                     for place in trivial_affine_discards {
-                        self.structural_values.remove(place);
+                        reference::discard_structural_value(
+                            &mut self.structural_values,
+                            &mut self.reference_referents,
+                            *place,
+                        );
                         self.scalar_case_values.remove(place);
                         self.live_affine_frontier.remove(&StructuralAffineDiscard {
                             place: *place,
@@ -3495,10 +3528,19 @@ impl TerminalExecution {
                     if let Some(first) = residual_affine_discards.first() {
                         // Every remaining semantic path was validated and disposed.
                         // Only now may the dead result's opaque backing leave storage.
-                        self.structural_values.remove(&first.place);
+                        reference::discard_structural_value(
+                            &mut self.structural_values,
+                            &mut self.reference_referents,
+                            first.place,
+                        );
                     }
                     for place in trivial_affine_discards {
-                        if self.structural_values.remove(place).is_none()
+                        if reference::discard_structural_value(
+                            &mut self.structural_values,
+                            &mut self.reference_referents,
+                            *place,
+                        )
+                        .is_none()
                             && self.scalar_case_values.remove(place).is_none()
                         {
                             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
@@ -3535,7 +3577,12 @@ impl TerminalExecution {
                     )?;
                     bindings.validate_discards(self, &successor.trivial_affine_discards, &[])?;
                     for place in &successor.trivial_affine_discards {
-                        if self.structural_values.remove(place).is_none()
+                        if reference::discard_structural_value(
+                            &mut self.structural_values,
+                            &mut self.reference_referents,
+                            *place,
+                        )
+                        .is_none()
                             && self.scalar_case_values.remove(place).is_none()
                         {
                             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
@@ -3593,7 +3640,11 @@ impl TerminalExecution {
                         return meter_status(error);
                     }
                     for place in &successor.trivial_affine_discards {
-                        self.structural_values.remove(place);
+                        reference::discard_structural_value(
+                            &mut self.structural_values,
+                            &mut self.reference_referents,
+                            *place,
+                        );
                         self.scalar_case_values.remove(place);
                         remove_affine_root(&mut self.live_affine_frontier, *place);
                     }
@@ -3642,7 +3693,11 @@ impl TerminalExecution {
                     // Frame-local byte views and loans end here and carry
                     // no affine cleanup, including locally established literals.
                     for place in self.byte_sequence_values.keys() {
-                        self.structural_values.remove(place);
+                        reference::discard_structural_value(
+                            &mut self.structural_values,
+                            &mut self.reference_referents,
+                            *place,
+                        );
                     }
                     self.byte_sequence_values.clear();
                     self.retire_plain_locals();
@@ -3650,6 +3705,7 @@ impl TerminalExecution {
                         &self.structural_types,
                         &self.machines,
                         &mut self.structural_values,
+                        &mut self.reference_referents,
                         &mut self.scalar_case_values,
                         &mut self.live_affine_frontier,
                         &mut self.live_claims,
@@ -3733,7 +3789,12 @@ impl TerminalExecution {
                         return meter_status(error);
                     }
                     for place in trivial_affine_discards {
-                        if self.structural_values.remove(place).is_none()
+                        if reference::discard_structural_value(
+                            &mut self.structural_values,
+                            &mut self.reference_referents,
+                            *place,
+                        )
+                        .is_none()
                             && self.scalar_case_values.remove(place).is_none()
                         {
                             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
@@ -3944,7 +4005,11 @@ impl TerminalExecution {
                         self.scalar_case_values.remove(source);
                         remove_affine_root(&mut self.live_affine_frontier, *source);
                         for place in trivial_affine_discards {
-                            self.structural_values.remove(place);
+                            reference::discard_structural_value(
+                                &mut self.structural_values,
+                                &mut self.reference_referents,
+                                *place,
+                            );
                             self.scalar_case_values.remove(place);
                             remove_affine_root(&mut self.live_affine_frontier, *place);
                         }
@@ -3994,6 +4059,7 @@ impl TerminalExecution {
                     let value = self.structural_values.get(source).cloned().ok_or(
                         TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
                     )?;
+                    self.validate_reference_return(signature, &value)?;
                     if value.structural_type != signature.structural_type
                         || signature
                             .qualifications
@@ -4071,7 +4137,11 @@ impl TerminalExecution {
                         self.live_claims.remove(claim);
                     }
                     for place in trivial_affine_discards {
-                        self.structural_values.remove(place);
+                        reference::discard_structural_value(
+                            &mut self.structural_values,
+                            &mut self.reference_referents,
+                            *place,
+                        );
                         self.scalar_case_values.remove(place);
                         remove_affine_root(&mut self.live_affine_frontier, *place);
                     }
@@ -4149,6 +4219,7 @@ fn commit_cleanup_actions(
     structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     machines: &BTreeMap<MachineId, ExecutableMachine>,
     structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    reference_referents: &mut BTreeMap<StructuralRuntimePlace, TerminalStructuralValue>,
     scalar_case_values: &mut BTreeMap<PlaceId, TerminalScalarCaseValue>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
@@ -4158,7 +4229,12 @@ fn commit_cleanup_actions(
     for action in actions {
         match action {
             TerminalAffineCleanupAction::DiscardRoot(place) => {
-                if (structural_values.remove(place).is_none()
+                if (reference::discard_structural_value(
+                    structural_values,
+                    reference_referents,
+                    *place,
+                )
+                .is_none()
                     && scalar_case_values.remove(place).is_none())
                     || !remove_affine_root(frontier, *place)
                 {
@@ -4181,7 +4257,11 @@ fn commit_cleanup_actions(
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
                 if !frontier.iter().any(|entry| entry.place == discard.place) {
-                    structural_values.remove(&discard.place);
+                    reference::discard_structural_value(
+                        structural_values,
+                        reference_referents,
+                        discard.place,
+                    );
                 }
             }
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
@@ -4606,6 +4686,7 @@ fn split_affine_frontier_at_projection(
             selected
         }
         StructuralTypeShape::PrimitiveScalar(_)
+        | StructuralTypeShape::Reference { .. }
         | StructuralTypeShape::ByteSequence(_)
         | StructuralTypeShape::FixedArray { .. }
         | StructuralTypeShape::Sum { .. }

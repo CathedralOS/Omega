@@ -46,6 +46,7 @@ fn fixture(
     let function = &mut source.functions[0];
     function.result =
         AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: PlaceId::new(2).unwrap(),
             structural_type: root,
             multiplicity: StructuralMultiplicity::Unrestricted,

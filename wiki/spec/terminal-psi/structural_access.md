@@ -34,6 +34,29 @@ its own staged write does not establish caller-visible writeback.
 
 ## Construction and receiving checks
 
+A first-class `Reference { referent, access }` structural value owns a permission
+carrier, not its referent. `EstablishReference` captures the exact source place;
+the explicit `Referent` path segment crosses the borrowed boundary. Owned
+transfer, claims, and referent cleanup cannot cross that segment. Exclusive
+carriers have affine custody even when their referent is unrestricted.
+
+Structural result signatures bind each returned reference leaf to its exact
+formal ingress source. Independent verification reconstructs actual origins
+from establishments and call substitution, rejects local escapes, and checks
+the result mapping against the returned carrier. Returning or moving a carrier
+does not end its loan. `ReleaseReference` ends it only after its descendants
+have ended; same-block restoration therefore precedes any renewed parent use.
+Formation, release, and successful return commit only after their fuel charge.
+
+The current executable slice retains whole mutable primitive references through
+ordinary calls and returns. Stored-reference aggregates, reference-valued entry
+parameters or host-entry results, reference projections into host-boundary
+calls, shared/write-only carriers, and native realization remain explicit
+implementation limits. Ordinary calls may temporarily attenuate a mutable
+carrier to shared or write-only access without creating such a carrier. None
+of the unsupported forms gains authority merely because its shape or source
+lifetime resembles an admitted reference.
+
 Structural signatures derive from parameter declarations and resolved referent
 shapes through one exhaustive access classifier. All structural-call producers
 must use that construction; they cannot attach access to an independently

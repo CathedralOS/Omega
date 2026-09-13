@@ -46,6 +46,9 @@ fn subloan(path: Vec<StructuralPathSegment>, access: StructuralAccess) -> PsiOpt
     for (position, segment) in path.iter().rev().enumerate() {
         let structural_type = id(7_100 + position as u64, StructuralTypeId::new);
         let shape = match segment {
+            StructuralPathSegment::Referent => {
+                panic!("native subloan fixture requires an owned field or array projection")
+            }
             StructuralPathSegment::Field(identity) => StructuralTypeShape::Record {
                 fields: vec![StructuralFieldDeclaration {
                     id: id(8_100 + position as u64, StructuralFieldId::new),

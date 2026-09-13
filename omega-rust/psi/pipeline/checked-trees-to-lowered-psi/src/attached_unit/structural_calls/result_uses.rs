@@ -287,6 +287,22 @@ pub(crate) fn validate_usage(
                     .map(move |operation| (index, operation))
             })
     {
+        if let CheckedUnitEffectOperationPlan::ReleaseReference {
+            binding_ordinal, ..
+        } = operation
+            && *binding_ordinal == result.binding_ordinal
+        {
+            super::super::reference_results::validate_releases(checked, caller)?;
+            if consumed
+                || disposed
+                || operation_index <= producer.operation_index
+                || producer.discard
+            {
+                return unsupported("reference carrier is released after losing custody");
+            }
+            disposed = true;
+            continue;
+        }
         if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             result: selected, ..
         } = operation
@@ -712,6 +728,31 @@ pub(crate) fn validate_consumer(
                 (*position == parameter.position).then_some(*expression)
             });
         let binding_ordinal = argument.source_structural_result_binding_ordinal();
+        if let Some(expression) = expression
+            && super::super::reference_results::validate_consumer(
+                checked,
+                caller,
+                *coordinate,
+                argument,
+                parameter,
+                expression,
+            )?
+        {
+            if authored.boundary
+                || parameter.is_self
+                || target_entry_claims
+                    .iter()
+                    .any(|claim| claim.parameter_index as usize == index)
+                || claim_transfers
+                    .iter()
+                    .any(|transfer| transfer.argument_index as usize == index)
+            {
+                return unsupported(
+                    "reference result consumer acquired unrelated boundary or claim custody",
+                );
+            }
+            continue;
+        }
         if parameter.is_self
             && binding_ordinal.is_some()
             && matches!(

@@ -58,6 +58,16 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
             }
         }
         match operation.kind.clone() {
+            OperationKind::EstablishReference { source } => {
+                writer.u8(69);
+                writer.id(source.place);
+                super::structural_signature_wire::encode_structural_access(writer, source.access);
+                encode_structural_path(writer, "reference source path", &source.path)?;
+            }
+            OperationKind::ReleaseReference { source } => {
+                writer.u8(70);
+                writer.id(source);
+            }
             OperationKind::EstablishPrimitiveLocal { value } => {
                 writer.u8(61);
                 writer.id(value);
@@ -981,6 +991,16 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             },
             61 => OperationKind::EstablishPrimitiveLocal {
                 value: reader.id("ValueId")?,
+            },
+            69 => OperationKind::EstablishReference {
+                source: terminal_psi::StructuralArgument {
+                    place: reader.id("PlaceId")?,
+                    access: super::structural_signature_wire::decode_structural_access(reader)?,
+                    path: decode_structural_path(reader)?,
+                },
+            },
+            70 => OperationKind::ReleaseReference {
+                source: reader.id("PlaceId")?,
             },
             62 => OperationKind::PrimitiveScalarRead {
                 source: reader.id("PlaceId")?,

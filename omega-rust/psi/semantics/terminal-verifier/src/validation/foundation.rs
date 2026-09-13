@@ -205,6 +205,19 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     for declaration in &module.structural_types {
         match &declaration.shape {
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::Reference { referent, access } => {
+                if !types.contains_key(referent) {
+                    return Err(ModuleError::UnknownStructuralType(*referent));
+                }
+                if *access != StructuralAccess::MutableBorrow
+                    || !matches!(
+                        types[referent].shape,
+                        StructuralTypeShape::PrimitiveScalar(_)
+                    )
+                {
+                    return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
+                }
+            }
             StructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let StructuralFieldType::Structural(target) = &field.field_type
@@ -240,6 +253,55 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                     }
                 }
             }
+        }
+    }
+    // Stored reference leaves need recursive loan disposal and carrier paths;
+    // an owned aggregate must not silently acquire unchecked borrowed payload.
+    for declaration in &module.structural_types {
+        let children: Vec<StructuralTypeId> = match &declaration.shape {
+            StructuralTypeShape::Record { fields } => fields
+                .iter()
+                .filter_map(|field| {
+                    if let StructuralFieldType::Structural(child) = field.field_type {
+                        Some(child)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            StructuralTypeShape::Sum { cases } => cases
+                .iter()
+                .flat_map(|case| &case.fields)
+                .filter_map(|field| {
+                    if let StructuralFieldType::Structural(child) = field.field_type {
+                        Some(child)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            StructuralTypeShape::Mixed { fields, cases } => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| &case.fields))
+                .filter_map(|field| {
+                    if let StructuralFieldType::Structural(child) = field.field_type {
+                        Some(child)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            StructuralTypeShape::FixedArray { element, .. } => vec![*element],
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::Reference { .. } => Vec::new(),
+        };
+        if children.iter().any(|child| {
+            types.get(child).is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+            })
+        }) {
+            return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
         }
     }
     validate_structural_type_graph(&types)?;
@@ -347,6 +409,24 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     let mut boundary_ids = BTreeSet::new();
     let mut boundary_names = BTreeSet::new();
     for boundary in &module.boundary_machines {
+        let reference_type = boundary
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.structural_type)
+            .chain(match &boundary.result {
+                BoundaryMachineResult::Structural(result) => Some(result.structural_type),
+                _ => None,
+            })
+            .find(|structural_type| {
+                types.get(structural_type).is_some_and(|declaration| {
+                    matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+                })
+            });
+        if let Some(structural_type) = reference_type {
+            // Boundary result signatures do not yet carry reference-source
+            // contracts, so they cannot transfer or manufacture loan custody.
+            return Err(ModuleError::InvalidStructuralTypeIdentity(structural_type));
+        }
         if !boundary_ids.insert(boundary.id) {
             return Err(ModuleError::DuplicateBoundaryMachine(boundary.id));
         }
@@ -1421,6 +1501,9 @@ fn validate_structural_type_graph(
         let declaration = types[&id];
         match &declaration.shape {
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::Reference { referent, .. } => {
+                visit(*referent, types, active, complete)?;
+            }
             StructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let StructuralFieldType::Structural(target) = &field.field_type {

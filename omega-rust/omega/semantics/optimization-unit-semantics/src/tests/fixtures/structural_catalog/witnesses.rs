@@ -109,6 +109,7 @@ pub(crate) fn compressed_trivial_affine_return_unit_with_prefix(
                 parameter(second_tail, 2, terminal_psi::StructuralMultiplicity::Affine),
             ],
             result: AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {
+                reference_sources: Vec::new(),
                 place: result,
                 structural_type,
                 multiplicity: terminal_psi::StructuralMultiplicity::Linear,

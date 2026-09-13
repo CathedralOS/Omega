@@ -4,6 +4,9 @@ use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 pub enum StructuralPathSegment {
     Field(String),
     FixedIndex(u64),
+    /// Cross a reference carrier's borrowed boundary. This never grants owned
+    /// access to the referent or includes it in the carrier's cleanup.
+    Referent,
 }
 
 /// Whether a scalar-store carrier path is within the currently executable

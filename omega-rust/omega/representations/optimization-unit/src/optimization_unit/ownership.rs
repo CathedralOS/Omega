@@ -156,6 +156,7 @@ fn encode_frontier_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
                 bytes.push(2);
                 bytes.extend_from_slice(&index.to_le_bytes());
             }
+            StructuralPathSegment::Referent => bytes.push(3),
         }
     }
 }

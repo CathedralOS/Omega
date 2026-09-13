@@ -409,7 +409,8 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                             && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
                     })
                     .map(|field| field.id),
-                StructuralTypeShape::PrimitiveScalar(_)
+                StructuralTypeShape::Reference { .. }
+                | StructuralTypeShape::PrimitiveScalar(_)
                 | StructuralTypeShape::ByteSequence(_)
                 | StructuralTypeShape::FixedArray { .. }
                 | StructuralTypeShape::Sum { .. }

@@ -67,6 +67,19 @@ pub(super) fn validate(
             _ => (1, 1),
         };
         let expected = match &plan.shape {
+            CheckedUnitStructuralTypeShape::Reference {
+                referent_identity,
+                access,
+            } => {
+                if *access != checked_trees::CheckedStructuralAccess::MutableBorrow {
+                    return unsupported("stored reference type lost its access");
+                }
+                pending.push(referent_identity);
+                StructuralTypeShape::Reference {
+                    referent: lookup_type_id(&type_ids, referent_identity)?,
+                    access: StructuralAccess::MutableBorrow,
+                }
+            }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive) => {
                 StructuralTypeShape::PrimitiveScalar(terminal_scalar_type(*primitive)?)
             }

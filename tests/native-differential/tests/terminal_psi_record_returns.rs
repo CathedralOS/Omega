@@ -136,6 +136,7 @@ fn optimized_record(
     ]);
     machine.result = terminal_psi::TerminalMachineResult::Structural(
         terminal_psi::StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: result,
             structural_type: record,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,

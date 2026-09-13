@@ -2,6 +2,9 @@ use crate::shared::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    /// Native publication must retain executable reference loan custody before
+    /// admitting carrier establishment or release.
+    UnsupportedReferenceCustody(semantic_vocabulary::OperationId),
     /// Boundary crash permissions need explicit downstream outcome/effect support.
     UnsupportedBoundaryCrashContract(semantic_vocabulary::BoundaryMachineId),
     InvalidPrimitiveLocalEstablishment(semantic_vocabulary::OperationId),

@@ -31,6 +31,11 @@ pub(super) fn encode_signature(bytes: &mut Vec<u8>, value: &LegalizedStructuralC
                 &result.projected_qualifications,
                 true,
             );
+            length(bytes, result.reference_sources.len());
+            for reference in &result.reference_sources {
+                encode_path(bytes, &reference.path);
+                encode_semantic_argument(bytes, &reference.source);
+            }
         }
     }
     length(bytes, value.structural_places.len());
@@ -69,6 +74,17 @@ pub(super) fn decode_signature(
             projected_qualifications: super::projected_qualifications::decode_projected(
                 cursor, true,
             )?,
+            reference_sources: {
+                let count = cursor.length()?;
+                let mut sources = Vec::new();
+                for _ in 0..count {
+                    sources.push(terminal_psi::StructuralReferenceResultSource {
+                        path: decode_path(cursor)?,
+                        source: decode_semantic_argument(cursor)?,
+                    });
+                }
+                sources
+            },
         }),
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };

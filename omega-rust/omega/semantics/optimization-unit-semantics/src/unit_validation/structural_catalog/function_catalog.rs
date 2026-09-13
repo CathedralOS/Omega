@@ -178,6 +178,7 @@ pub(crate) fn validate_function_structural_catalog(
     }
     if let Some(result) = function.result.structural()
         && (places.get(&result.place) != Some(&StructuralPlaceKind::Result)
+            || !result.reference_sources.is_empty()
             || !types.contains_key(&result.structural_type)
             || !structural_qualifications_match(
                 result.structural_type,
@@ -321,21 +322,25 @@ pub(crate) fn validate_function_structural_catalog(
                 .find(|entry| entry.claim == claim.claim)
                 .is_none_or(|entry| {
                     entry.input == claim.input.root
-                        && claim.input.segments
+                        && Some(&claim.input.segments)
                             == entry
                                 .path
                                 .iter()
                                 .map(|segment| match segment {
                                     terminal_psi::StructuralPathSegment::Field(identity) => {
-                                        semantic_vocabulary::ContentPlaceSegment::Field(
+                                        Some(semantic_vocabulary::ContentPlaceSegment::Field(
                                             identity.clone(),
-                                        )
+                                        ))
                                     }
                                     terminal_psi::StructuralPathSegment::FixedIndex(index) => {
-                                        semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index)
+                                        Some(semantic_vocabulary::ContentPlaceSegment::FixedIndex(
+                                            *index,
+                                        ))
                                     }
+                                    terminal_psi::StructuralPathSegment::Referent => None,
                                 })
-                                .collect::<Vec<_>>()
+                                .collect::<Option<Vec<_>>>()
+                                .as_ref()
                 });
             expected != Some(claim.claim)
                 || claim.input.version != semantic_vocabulary::ContentPlaceVersion::Entry

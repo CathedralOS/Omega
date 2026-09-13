@@ -324,6 +324,202 @@ fn write_only_boolean_store_survives_unit_call_and_is_atomic_at_fuel_exhaustion(
     );
 }
 
+fn reference_release_module() -> TerminalModule {
+    let mut module = write_only_primitive_call_module();
+    module.machines.truncate(1);
+    let reference_type = structural_type_id(94);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: reference_type,
+        identity: "test::MutableU8Reference".into(),
+        shape: StructuralTypeShape::Reference {
+            referent: structural_type_id(91),
+            access: StructuralAccess::MutableBorrow,
+        },
+    });
+    let caller = &mut module.machines[0];
+    caller.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(94),
+        kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+            producer: operation_id(94),
+            structural_type: reference_type,
+        },
+    });
+    caller.blocks[0].operations = vec![
+        Operation {
+            static_reach_binding: None,
+            id: operation_id(94),
+            result: OperationResult::Structural(StructuralOperationResult {
+                place: place_id(94),
+                structural_type: reference_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishReference {
+                source: StructuralArgument {
+                    place: place_id(91),
+                    path: Vec::new(),
+                    access: StructuralAccess::MutableBorrow,
+                },
+            },
+        },
+        Operation {
+            static_reach_binding: None,
+            id: operation_id(95),
+            result: OperationResult::Unit,
+            kind: OperationKind::ReleaseReference {
+                source: place_id(94),
+            },
+        },
+    ];
+    module
+}
+
+#[test]
+fn reference_release_preserves_backing_and_is_atomic_at_fuel_exhaustion() {
+    let semantic = encode_module(&reference_release_module()).unwrap();
+    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let initial = TerminalStructuralPrimitiveValue {
+        argument_index: 0,
+        value: TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            value: IntegerValue::Unsigned(7),
+        },
+    };
+    let mut execution =
+        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            &[TerminalStructuralValue {
+                opaque_identity: 94,
+                structural_type: structural_type_id(91),
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            &[initial],
+        )
+        .expect("verified reference establishment and release start");
+    let mut meter = TerminalFuelMeter::with_allowance(1);
+    let exhausted = execution.resume(&mut meter).unwrap();
+    assert!(
+        matches!(exhausted, TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+        site: FuelChargeSite::Operation(id), ..
+    }) if id == operation_id(95))
+    );
+    assert_eq!(execution.resume(&mut meter).unwrap(), exhausted);
+    assert_eq!(execution.structural_primitive_values(), vec![initial]);
+    meter.replenish(2).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(execution.structural_primitive_values(), vec![initial]);
+    assert_eq!(
+        meter
+            .usage()
+            .at(FuelChargeSite::Operation(operation_id(94)))
+            .unwrap()
+            .executions(),
+        1
+    );
+    assert_eq!(
+        meter
+            .usage()
+            .at(FuelChargeSite::Operation(operation_id(95)))
+            .unwrap()
+            .executions(),
+        1
+    );
+}
+
+#[test]
+fn mutable_reference_temporarily_lends_shared_read_and_write_only_store() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        let mut module = reference_release_module();
+        let mut callee = write_only_primitive_call_module().machines.remove(1);
+        callee.structural_parameters[0].access = access;
+        if access == StructuralAccess::SharedBorrow {
+            let mut read = callee.blocks[0].operations.remove(0);
+            read.kind = OperationKind::PrimitiveScalarRead {
+                source: place_id(92),
+            };
+            callee.blocks[0].operations = vec![read];
+        }
+        module.machines.push(callee);
+        module.machines[0].blocks[0].operations.insert(
+            1,
+            Operation {
+                static_reach_binding: None,
+                id: operation_id(91),
+                result: OperationResult::Unit,
+                kind: OperationKind::CallUnit {
+                    callee: machine_id(92),
+                    arguments: Vec::new(),
+                    structural_arguments: vec![StructuralArgument {
+                        place: place_id(94),
+                        path: vec![StructuralPathSegment::Referent],
+                        access,
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            },
+        );
+        let semantic = encode_module(&module).unwrap();
+        let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let mut execution =
+            TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                &[],
+                &[TerminalStructuralValue {
+                    opaque_identity: 94,
+                    structural_type: structural_type_id(91),
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                &[TerminalStructuralPrimitiveValue {
+                    argument_index: 0,
+                    value: TerminalScalarValue::Integer {
+                        scalar_type: integer,
+                        value: IntegerValue::Unsigned(1),
+                    },
+                }],
+            )
+            .expect("temporary reference permission attenuation verifies");
+        assert_eq!(
+            execution
+                .resume(&mut TerminalFuelMeter::unbounded())
+                .unwrap(),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        );
+        assert_eq!(
+            execution.structural_primitive_values(),
+            vec![TerminalStructuralPrimitiveValue {
+                argument_index: 0,
+                value: TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(if access == StructuralAccess::WriteOnlyBorrow {
+                        7
+                    } else {
+                        1
+                    }),
+                },
+            }]
+        );
+    }
+}
+
 #[test]
 fn structural_scalar_field_store_is_visible_through_a_projected_call_without_replay() {
     let module = structural_scalar_field_call_module();
@@ -758,6 +954,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                reference_sources: Vec::new(),
                 place: result_place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Linear,
@@ -3212,6 +3409,7 @@ fn payloadless_case_module() -> TerminalModule {
     }];
     let machine = &mut module.machines[0];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
         place: result_place,
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -3280,6 +3478,7 @@ fn payloadless_call_module() -> TerminalModule {
         parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: place_id(4),
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -5239,6 +5438,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         }],
         ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: caller_result,
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,
@@ -5354,6 +5554,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         }],
         ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place: callee_result,
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,

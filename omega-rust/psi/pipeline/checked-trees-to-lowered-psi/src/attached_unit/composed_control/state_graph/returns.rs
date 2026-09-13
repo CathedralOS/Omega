@@ -315,6 +315,7 @@ pub(super) fn result(
     });
     Ok(TerminalMachineResult::Structural(
         StructuralResultDeclaration {
+            reference_sources: Vec::new(),
             place,
             structural_type: lookup_type_id(&catalogs.type_ids, &result.type_identity)?,
             multiplicity: match result.multiplicity {

@@ -124,6 +124,7 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
                             hash.update([2]);
                             hash.update(index.to_le_bytes());
                         }
+                        StructuralPathSegment::Referent => hash.update([3]),
                     }
                 }
             }
