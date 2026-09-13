@@ -4,6 +4,7 @@ mod compute;
 mod model;
 mod validate;
 
+pub(crate) use compute::machine_semantic_kind;
 pub use model::*;
 pub use selected_instructions::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,

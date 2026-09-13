@@ -193,7 +193,7 @@ fn exact_declaration<'a>(
     instruction: &SelectedInstruction,
     catalog: &'a ValidatedMachineEffectCatalog,
 ) -> Result<&'a MachineEffectDeclaration, MachineEffectError> {
-    let semantic = semantic(instruction.kind);
+    let semantic = machine_semantic_kind(instruction.kind);
     let mut matches = catalog
         .catalog()
         .declarations
@@ -212,7 +212,7 @@ fn exact_declaration<'a>(
     Ok(declaration)
 }
 
-fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
+pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSemanticKind {
     match kind {
         SelectedInstructionKind::CompareI64Zero => MachineSemanticKind::CompareI64Zero,
         SelectedInstructionKind::CallAggregate { .. } => MachineSemanticKind::CallAggregate,

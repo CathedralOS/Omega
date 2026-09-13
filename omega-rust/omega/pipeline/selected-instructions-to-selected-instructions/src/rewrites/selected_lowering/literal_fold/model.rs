@@ -51,6 +51,10 @@ impl LiteralFoldPolicy {
         Self { enabled_rules: 0 }
     }
 
+    pub const fn contains(self, other: Self) -> bool {
+        other.enabled_rules != 0 && self.enabled_rules & other.enabled_rules == other.enabled_rules
+    }
+
     pub const fn union(self, other: Self) -> Self {
         Self {
             enabled_rules: self.enabled_rules | other.enabled_rules,

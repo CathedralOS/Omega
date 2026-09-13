@@ -1,12 +1,13 @@
 use optimization_core::{Optimization, OptimizationCatalogDescriptor, OptimizationPhaseMismatch};
 
 use super::super::RegisterAllocationRuleTargetApplicability;
-use super::LiteralFoldPolicy;
+use super::{LiteralFoldPolicy, SelectedInstructionPairRule};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SelectedLoweringRuleCatalogPayload {
     target: RegisterAllocationRuleTargetApplicability,
     policy: LiteralFoldPolicy,
+    pair: SelectedInstructionPairRule,
 }
 
 impl SelectedLoweringRuleCatalogPayload {
@@ -16,6 +17,10 @@ impl SelectedLoweringRuleCatalogPayload {
 
     pub const fn policy(self) -> LiteralFoldPolicy {
         self.policy
+    }
+
+    pub const fn pair(self) -> SelectedInstructionPairRule {
+        self.pair
     }
 }
 
@@ -29,6 +34,7 @@ pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 2] 
         SelectedLoweringRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
             policy: LiteralFoldPolicy::EXACT_ADD_V1,
+            pair: SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
         },
     ),
     SelectedLoweringRuleCatalogEntry::new(
@@ -36,9 +42,20 @@ pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 2] 
         SelectedLoweringRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
             policy: LiteralFoldPolicy::EXACT_SUBTRACT_V1,
+            pair: SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
         },
     ),
 ];
+
+/// Descriptors of every catalog row enabled by `policy`, in catalog order.
+pub fn enabled_pair_rules(
+    policy: LiteralFoldPolicy,
+) -> impl Iterator<Item = SelectedInstructionPairRule> {
+    SELECTED_LOWERING_RULE_CATALOG
+        .into_iter()
+        .filter(move |entry| policy.contains(entry.payload().policy()))
+        .map(|entry| entry.payload().pair())
+}
 
 /// Compatibility view derived from the descriptor catalog.
 pub const ORDERED_SELECTED_LOWERING_RULES: [Optimization; 2] = [

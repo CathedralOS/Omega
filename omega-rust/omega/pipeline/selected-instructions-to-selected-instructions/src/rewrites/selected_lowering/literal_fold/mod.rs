@@ -5,10 +5,12 @@ use crate::*;
 pub(crate) mod compute;
 pub(crate) mod identity;
 pub(crate) mod model;
+pub(crate) mod pair_rule;
 pub(crate) mod validate;
 
 pub use identity::literal_fold_identity;
 pub use model::*;
+pub use pair_rule::*;
 pub use validate::validate_literal_fold;
 
 /// Fold one classified incoming unsigned-12-bit literal into its immediately

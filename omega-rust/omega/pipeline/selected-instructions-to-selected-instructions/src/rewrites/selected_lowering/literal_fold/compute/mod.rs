@@ -21,7 +21,7 @@ use crate::{
     ValidatedSelectedAnalysis, ValidatedSpillChoices,
 };
 
-use constraints::select_immediate_rows;
+use constraints::select_admitted_pairs;
 use functions::derive_function_folds;
 use roots::validate_literal_fold_roots;
 use usage::{ensure_budget, fold_usage};
@@ -55,7 +55,7 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
         reservations,
         selected_keys,
     )?;
-    let rows = select_immediate_rows(constraints, selected_keys, policy)?;
+    let rows = select_admitted_pairs(constraints, selected_keys, policy)?;
     let (functions, transformed) = derive_function_folds(selected, recovery, &rows)?;
     let applied = functions
         .iter()
