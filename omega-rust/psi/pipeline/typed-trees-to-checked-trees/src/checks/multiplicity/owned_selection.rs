@@ -1,8 +1,8 @@
 //! Conditional whole-local transfers, keyed by existing source selection nodes.
 //! Availability is conservative; residual custody remains in the receipts until
-//! the actual death edge. On paths that construct a fresh result the unselected
-//! sources are discarded at the join edge; on paths that select an existing
-//! source the complement stays in the receipt until the actual death edge.
+//! the actual death edge. A path constructing a fresh result discards, at the
+//! join edge, the one source whose residual slot the result displaces; every
+//! other complement stays in the receipt until the actual death edge.
 
 use super::*;
 use arena::Handle;
