@@ -261,3 +261,74 @@ fn loop_carried_u64_pressure_recovers_through_runtime_spill() {
         .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
     }
 }
+
+#[test]
+fn loop_carried_spill_frame_replays_private_accesses_through_callable_publication() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let (target_program, post_terminal) = lower(target);
+        let physical = crate::stage_optimized_verified_physical_pipeline(
+            target_program,
+            post_terminal.selections(),
+        )
+        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+        let layout = physical.fixed_frame_for_test().frame().plan();
+        let frame = layout.functions.first().unwrap();
+        assert!(
+            !frame.local_storage_slots.is_empty() && frame.frame_size_bytes != 0,
+            "{target:?}: spill storage must occupy a nonzero frame: {frame:?}"
+        );
+        let emitted = machine_emission::stage_optimized_function_fragment_emission(
+            physical.into_function_fragment_emission_source(),
+        )
+        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+        let function = emitted.fragments().functions.first().unwrap();
+        assert!(
+            function.blocks.len() > 3,
+            "{target:?}: {}",
+            function.blocks.len()
+        );
+        let has_backward_branch = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter_map(|row| row.branch.as_deref())
+            .any(|branch| match branch {
+                machine_code::FunctionFragmentBranchEvidence::Conditional(branch) => {
+                    branch.byte_displacement < 0
+                }
+                machine_code::FunctionFragmentBranchEvidence::Jump(jump) => {
+                    jump.byte_displacement < 0
+                }
+            });
+        assert!(has_backward_branch, "{target:?}: loop back edge");
+        let applied = machine_emission::stage_function_fragment_frame_application(emitted)
+            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+        assert_eq!(applied.receipt().epilogue_application_count(), 1);
+        let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
+            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+        let object = object_file::stage_optimized_relocation_free_object_container(text)
+            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+        let (semantic, proof) = artifact();
+        let module = terminal_codec::decode_module(&semantic).unwrap();
+        let proof = terminal_codec::decode_proof_bundle(&proof).unwrap();
+        let optimization =
+            terminal_codec::build_identity_optimization_execution_record(&module, &proof).unwrap();
+        let terminal = terminal_codec::CanonicalTerminalArtifact::from_parts(
+            &module,
+            &proof,
+            &optimization,
+            None,
+        )
+        .unwrap();
+        let artifact = object_file::stage_validated_optimized_object_artifact(terminal, object)
+            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+        let callable = native_artifact::stage_validated_optimized_ordinary_callable_entry(artifact)
+            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+        assert_eq!(callable.entry().returns.len(), 1, "{target:?}");
+    }
+}

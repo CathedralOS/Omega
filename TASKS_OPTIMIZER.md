@@ -228,14 +228,19 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   fixed/precolored intervals, and rematerialization cost decisions while
   preserving exact register-unit aliases, liveness, and target custody.
 
-- **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the current
-  bounded ordinary CFG family: broader CFG admission, stack-argument storage, red-zone policy,
-  probing, unwind information, stable-address loans, and dynamic-allocation
-  constraints. General calls need target-owned frame, callee-save,
-  link-register, and call-site alignment plans. Acceptance: every admitted frame
-  policy replays its exact physical accesses through callable publication;
-  requirements artifacts
-  remain non-authoritative until that replay succeeds.
+- **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the landed
+  CFG families: stack-argument storage, red-zone policy, probing, unwind
+  information, stable-address loans, and dynamic-allocation constraints.
+  General calls need target-owned frame, callee-save, link-register, and
+  call-site alignment plans. Witnessed: the ordinary three-block/two-return
+  fixture and the cyclic loop-carried runtime-spill fixture (six emitted
+  blocks, backward branch, nonzero local spill storage) both replay through
+  frame application, relocation-free object construction, and validated
+  ordinary callable publication on x86-64 and AArch64
+  (`runtime_spill_pressure::loop_carried_spill_frame_replays_private_accesses_through_callable_publication`).
+  Acceptance: every admitted frame policy replays its exact physical accesses
+  through callable publication; requirements artifacts remain
+  non-authoritative until that replay succeeds.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
