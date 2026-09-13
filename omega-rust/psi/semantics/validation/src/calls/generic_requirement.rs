@@ -2,6 +2,91 @@
 
 use super::*;
 
+/// The requirement already selected its trait telescope. Raw signature handles
+/// still name that telescope (`&mut Message`, not the caller's `&mut M`), so a
+/// stored reference must compare under its bound rather than against raw ids.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn validate_requirement_call_arguments(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    value_env: &ValueEnv,
+    arguments: &[ExpressionHandle],
+    parameters: &[StateParameter],
+    receiver: Option<TypeReferenceHandle>,
+    requirement: &crate::traits::GenericBoundRequirement<'_>,
+    writable_roots: &WritableRoots<'_, '_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_call_arguments_with_type_correspondence(
+        program,
+        machine,
+        state,
+        value_env,
+        arguments,
+        requirement.signature.name.as_str(),
+        parameters,
+        None,
+        writable_roots,
+        false,
+        &[],
+        |argument, required| {
+            let raw_actual =
+                crate::places::declared_place_type_raw(program, machine, state, argument);
+            // Explicit borrows and non-reference destinations retain ordinary
+            // syntax/type matching. This correspondence is for stored refs;
+            // it never exempts their access or subsequent domain checks.
+            if !matches!(
+                program.expression_table.expression(argument),
+                ExpressionNode::Borrow(_)
+            ) && declared_reference_access(program, required).is_some()
+                && let Some(actual) = raw_actual
+                && declared_reference_access(program, actual).is_some()
+            {
+                // Ordinary calls permit mutable-to-shared attenuation. Trait
+                // signature matching is invariant in access, so compare the
+                // referents explicitly for that one permitted call relation.
+                let (actual, required) = match (
+                    program.type_reference_table.type_reference(actual),
+                    program.type_reference_table.type_reference(required),
+                ) {
+                    (
+                        TypeReferenceNode::Reference {
+                            referee: actual,
+                            access: language_semantics::ReferenceAccess::Mutable,
+                            ..
+                        },
+                        TypeReferenceNode::Reference {
+                            referee: required,
+                            access: language_semantics::ReferenceAccess::Shared,
+                            ..
+                        },
+                    ) => (*actual, *required),
+                    _ => (actual, required),
+                };
+                return match receiver {
+                    Some(receiver) => crate::traits::generic_bound_argument_matches(
+                        program,
+                        actual,
+                        required,
+                        crate::places::unwrapped_type_reference(program, receiver)
+                            .unwrap_or(receiver),
+                        requirement,
+                    ),
+                    None => crate::traits::named_conformance_argument_matches(
+                        program,
+                        actual,
+                        required,
+                        requirement,
+                    ),
+                };
+            }
+            argument_matches_type_reference_handle(program, argument, required)
+        },
+        diagnostics,
+    );
+}
+
 /// Recover the public requirement of an exact evidence-child call in its
 /// declaring generic machine. This grants no concrete realization identity.
 pub fn named_conformance_target_requirement<'program>(
@@ -193,15 +278,15 @@ pub(super) fn validate_named_conformance_arguments(
             parameter.type_reference = *argument;
         }
     }
-    validate_call_arguments_handles(
+    validate_requirement_call_arguments(
         program,
         machine,
         state,
         value_env,
         arguments,
-        requirement.signature.name.as_str(),
         &parameters,
         None,
+        &requirement,
         writable_roots,
         diagnostics,
     );

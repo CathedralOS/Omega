@@ -1520,7 +1520,8 @@ Owners include
   relocate runtime descriptors without copying referents, and reject nested
   reference host interfaces until their custody exists. Reuse existing typed
   projection/result maps; structural-element array construction remains a
-  further dependency beyond the record route. Keep the full-checking rejection control in
+  further dependency beyond the record route. Keep the full-checking rejection
+  control in
   `typed-trees-to-checked-trees/src/tests/borrow/carrier_results.rs` until the
   unchanged reference-bearing customer executes from encoded Terminal evidence.
 

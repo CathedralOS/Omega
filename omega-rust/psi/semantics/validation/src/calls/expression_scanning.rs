@@ -679,15 +679,15 @@ fn validate_expression_call_bounds(
                     &requirement,
                     diagnostics,
                 );
-                validate_call_arguments_handles(
+                super::generic_requirement::validate_requirement_call_arguments(
                     program,
                     current_machine,
                     Some(current_state),
                     value_env,
                     arguments,
-                    signature.name.as_str(),
                     program.state_signature_parameters(signature),
-                    None,
+                    Some(type_reference),
+                    &requirement,
                     writable_roots,
                     diagnostics,
                 );
