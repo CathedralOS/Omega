@@ -1,23 +1,31 @@
 //! The typed decrease rule shared by runtime and proof slice recursion.
 
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 
 /// A taken nonempty-slice guard makes its exact parameter's `start..` tail
-/// strictly shorter whenever `start` normalizes to an immutable integer bound
-/// of at least 1 and the guard proves `parameter.len >= start`.
+/// strictly shorter whenever `start` is provably positive and the guard proves
+/// `parameter.len >= start`.
 ///
-/// Both bounds route through the shared immutable-integer-bound normalization,
-/// so a literal (`items[2..]` under `items.len >= 2`) and an immutable local
-/// copy (`items[step..]` under `items.len >= step` with `let step = 2`) admit;
-/// mutable, computed, or ambiguous bounds stay unknown rather than guessing a
-/// value from spelling. A `0..` tail is the whole slice and never decreases,
-/// and a guard below `start` cannot establish that the tail is a valid window
-/// or a strict decrease. The caller owns guard dominance and binding
-/// stability; this predicate does not establish either from matching
-/// expression text.
+/// Both bounds route through the shared immutable-integer-bound normalization
+/// into an ordering key: an exact literal, or one immutable binding's value
+/// identity (an immutable parameter leaf, or an immutable local whose
+/// initializer stays symbolic) shifted by a compile-time constant under Exact
+/// arithmetic. Two bounds naming the same symbol order by their offsets, so
+/// `items[i + 1..]` admits under `items.len > i` (proving `len >= i + 1`) or
+/// `items.len >= i + 1`. A symbolic bound also orders against a literal start
+/// through its declared floor -- `len >= step` proves `len >= 2` when
+/// `step: u64 [2..=8]` floors at 2. The `start >= 1` obligation uses the same
+/// floor evidence: `i + 1` is positive for any unsigned `i`, while `step`
+/// needs a declared range flooring at 1. Mutable, ambiguous, cross-symbol, and
+/// literal-over-symbol orderings stay unknown rather than guessing a value
+/// from spelling: `literal >= symbol` would need the symbol's ceiling, which a
+/// plain `u64` does not have inside i64. A `0..` tail is the whole slice and
+/// never decreases. The caller owns guard dominance and binding stability;
+/// this predicate does not establish either from matching expression text.
 pub fn slice_tail_strictly_decreases(
     program: &TypedTrees,
     guard: ExpressionHandle,
@@ -39,13 +47,10 @@ pub fn slice_tail_strictly_decreases(
     {
         return false;
     }
-    let Some(start) = crate::normalize_immutable_integer_bound_to_usize(program, range.start)
-    else {
+    let Some(start) = tail_bound(program, range.start) else {
         return false;
     };
-    // `parameter[start..]` has length `len - start`: strictly shorter than
-    // `len` only when `start >= 1`.
-    if start < 1 {
+    if !tail_bound_is_positive(program, start) {
         return false;
     }
     let guard = match program.expression_table.expression(guard) {
@@ -67,27 +72,142 @@ pub fn slice_tail_strictly_decreases(
         return false;
     };
     // `len > m` proves `len >= m + 1`, so it discharges `len >= start` when
-    // `m >= start - 1`; `len >= m` needs `m >= start` directly.
+    // `m + 1 >= start`; `len >= m` needs `m >= start` directly.
+    let bonus = match binary.operator {
+        BinaryOperator::Greater => 1,
+        BinaryOperator::GreaterOrEqual => 0,
+        _ => return false,
+    };
     length.member.as_str() == "len"
         && names_parameter(program, length.receiver, parameter)
-        && match binary.operator {
-            BinaryOperator::Greater => normalized_bound_at_least(program, binary.right, start - 1),
-            BinaryOperator::GreaterOrEqual => {
-                normalized_bound_at_least(program, binary.right, start)
-            }
-            _ => false,
-        }
+        && tail_bound(program, binary.right)
+            .is_some_and(|bound| bound_ordering_at_least(program, bound, start, bonus))
 }
 
-/// A guard bound that normalizes to an immutable integer of at least
-/// `minimum`; every other shape stays unknown rather than approximating.
-fn normalized_bound_at_least(
+/// One immutable range bound as an ordering key: an exact literal value, or
+/// one immutable binding's value identity shifted by a compile-time constant.
+/// `Symbol` keeps *which* binding the bound reads, never a guessed value.
+#[derive(Debug, Clone, Copy)]
+enum TailBound {
+    Literal(usize),
+    Symbol { symbol: SymbolHandle, offset: i64 },
+}
+
+/// Normalize an integer-bound expression to an ordering key through the shared
+/// immutable-integer-bound machinery. Every other shape -- mutable, ambiguous,
+/// cyclic, qualified, or computed beyond a constant shift -- stays unknown.
+fn tail_bound(program: &TypedTrees, expression: ExpressionHandle) -> Option<TailBound> {
+    if let Some(value) = crate::normalize_immutable_integer_bound_to_usize(program, expression) {
+        return Some(TailBound::Literal(value));
+    }
+    if let Some(bound) = crate::immutable_integer_bound_symbol_offset(program, expression) {
+        return Some(TailBound::Symbol {
+            symbol: bound.symbol,
+            offset: bound.offset,
+        });
+    }
+    if let Some(leaf) = crate::normalize_immutable_integer_bound_expression(program, expression) {
+        return match program.expression_table.expression(leaf) {
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && path.head_symbol == path.symbol
+                    && program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        == 1 =>
+            {
+                Some(TailBound::Symbol {
+                    symbol: path.symbol,
+                    offset: 0,
+                })
+            }
+            _ => None,
+        };
+    }
+    crate::immutable_integer_bound_value_symbol(program, expression)
+        .map(|symbol| TailBound::Symbol { symbol, offset: 0 })
+}
+
+/// `bound + bonus >= start` over ordering keys. `bonus` is 1 when the guard is
+/// `len > bound` (which proves `len >= bound + 1`), 0 for `len >= bound`.
+fn bound_ordering_at_least(
     program: &TypedTrees,
-    expression: ExpressionHandle,
-    minimum: usize,
+    bound: TailBound,
+    start: TailBound,
+    bonus: i64,
 ) -> bool {
-    crate::normalize_immutable_integer_bound_to_usize(program, expression)
-        .is_some_and(|bound| bound >= minimum)
+    match (bound, start) {
+        (TailBound::Literal(bound), TailBound::Literal(start)) => {
+            bound as i128 + bonus as i128 >= start as i128
+        }
+        (
+            TailBound::Symbol {
+                symbol: bound_symbol,
+                offset: bound_offset,
+            },
+            TailBound::Symbol {
+                symbol: start_symbol,
+                offset: start_offset,
+            },
+        ) => {
+            bound_symbol == start_symbol
+                && bound_offset
+                    .checked_add(bonus)
+                    .is_some_and(|bound| bound >= start_offset)
+        }
+        // `symbol + offset >= literal` holds for every stored value when the
+        // symbol's declared floor already clears `literal - offset - bonus`.
+        (TailBound::Symbol { symbol, offset }, TailBound::Literal(start)) => {
+            i64::try_from(start).ok().is_some_and(|start| {
+                bound_symbol_floor(program, symbol)
+                    .and_then(|floor| floor.checked_add(offset))
+                    .and_then(|low| low.checked_add(bonus))
+                    .is_some_and(|low| low >= start)
+            })
+        }
+        // `literal >= symbol + offset` for every stored value would need the
+        // symbol's ceiling, which a plain `u64` does not have inside i64.
+        (TailBound::Literal(_), TailBound::Symbol { .. }) => false,
+    }
+}
+
+/// `start >= 1`: a literal by its value, a symbol by its declared carrier
+/// floor plus its constant shift (`i + 1` is positive for any unsigned `i`;
+/// `step` needs a declared range flooring at 1).
+fn tail_bound_is_positive(program: &TypedTrees, start: TailBound) -> bool {
+    match start {
+        TailBound::Literal(value) => value >= 1,
+        TailBound::Symbol { symbol, offset } => bound_symbol_floor(program, symbol)
+            .and_then(|floor| floor.checked_add(offset))
+            .is_some_and(|floor| floor >= 1),
+    }
+}
+
+/// The enforced lower bound of one immutable bound symbol's declared type: the
+/// integer carrier's representable floor (unsigned types floor at zero),
+/// tightened by an enforced declared range minimum. `None` for a non-integer
+/// or unresolved binding -- never a guessed value.
+fn bound_symbol_floor(program: &TypedTrees, symbol: SymbolHandle) -> Option<i64> {
+    let type_reference = crate::places::bound_symbol_declared_type(program, symbol)?;
+    let carrier = match program
+        .type_reference_table
+        .primitive_type(type_reference)?
+    {
+        PrimitiveType::U8
+        | PrimitiveType::U16
+        | PrimitiveType::U32
+        | PrimitiveType::U64
+        | PrimitiveType::Addr => 0,
+        PrimitiveType::I8 => i8::MIN as i64,
+        PrimitiveType::I16 => i16::MIN as i64,
+        PrimitiveType::I32 => i32::MIN as i64,
+        PrimitiveType::I64 => i64::MIN,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => return None,
+    };
+    let declared = crate::arithmetic_domains::enforced_declared_range(program, type_reference)
+        .and_then(|interval| interval.low);
+    Some(carrier.max(declared.unwrap_or(i64::MIN)))
 }
 
 fn names_parameter(
@@ -131,6 +251,7 @@ mod tests {
     use typed_trees::name::Identifier;
     use typed_trees::state::State;
     use typed_trees::statement::{StatementNode, TableLocalData};
+    use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 
     fn symbol(index: u32) -> SymbolHandle {
         SymbolHandle::from_arena_index(index)
@@ -229,12 +350,7 @@ mod tests {
         program: &mut TypedTrees,
         locals: impl IntoIterator<Item = (SymbolHandle, &'static str, ExpressionHandle, bool)>,
     ) {
-        let element = program
-            .type_reference_table
-            .insert(TypeReferenceNode::Named {
-                symbol: SymbolHandle::invalid(),
-                name: Identifier::generated_static("u64"),
-            });
+        let element = integer_type(program, "u64");
         let mut machine = Machine::default();
         let mut state = State::default();
         for (symbol, name, initial_value, is_mutable) in locals {
@@ -252,6 +368,74 @@ mod tests {
         }
         program.push_machine_state(&mut machine, state);
         program.push_machine(machine);
+    }
+
+    fn integer_type(program: &mut TypedTrees, name: &'static str) -> TypeReferenceHandle {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated_static(name),
+            })
+    }
+
+    fn ranged_u64_type(
+        program: &mut TypedTrees,
+        minimum_value: i64,
+        maximum_value: i64,
+    ) -> TypeReferenceHandle {
+        let minimum = integer(program, minimum_value);
+        let maximum = integer(program, maximum_value);
+        let base_type = integer_type(program, "u64");
+        let mut constraints = arena::HandleSpan::default();
+        program.type_reference_table.push_constraint(
+            &mut constraints,
+            TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive: true,
+            },
+        );
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            })
+    }
+
+    fn install_parameters(
+        program: &mut TypedTrees,
+        parameters: impl IntoIterator<Item = (SymbolHandle, &'static str, TypeReferenceHandle, bool)>,
+    ) {
+        let mut machine = Machine::default();
+        let mut state = State::default();
+        for (symbol, name, type_reference, is_mutable) in parameters {
+            program.push_state_parameter(
+                &mut state,
+                StateParameter {
+                    symbol,
+                    name: Identifier::generated_static(name),
+                    type_reference,
+                    is_const: false,
+                    is_mutable,
+                    is_self: false,
+                },
+            );
+        }
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+    }
+
+    fn shifted(program: &mut TypedTrees, base: ExpressionHandle, offset: i64) -> ExpressionHandle {
+        let offset = integer(program, offset);
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: base,
+                operator: BinaryOperator::Add,
+                right: offset,
+            }))
     }
 
     #[test]
@@ -340,6 +524,159 @@ mod tests {
         let items = name(&mut program, "items", symbol(1));
         let zero = integer(&mut program, 0);
         let guard = length_guard(&mut program, items, BinaryOperator::Greater, zero);
+        assert!(!slice_tail_strictly_decreases(
+            &program, guard, argument, &parameter
+        ));
+    }
+
+    #[test]
+    fn symbolic_shifted_start_decreases_under_a_strict_same_symbol_guard() {
+        // `items[i + 1..]` under `items.len > i`: the strict guard proves
+        // `len >= i + 1`, and the constant shift over `i`'s unsigned carrier
+        // floor proves the start positive even though `i` stays unknown.
+        let mut program = TypedTrees::default();
+        let parameter = slice_parameter(&mut program, symbol(1));
+        let u64_type = integer_type(&mut program, "u64");
+        install_parameters(&mut program, [(symbol(2), "i", u64_type, false)]);
+        let items = name(&mut program, "items", symbol(1));
+        let i = name(&mut program, "i", symbol(2));
+        let start = shifted(&mut program, i, 1);
+        let argument = tail(&mut program, items, start);
+        let items = name(&mut program, "items", symbol(1));
+        let i = name(&mut program, "i", symbol(2));
+        let guard = length_guard(&mut program, items, BinaryOperator::Greater, i);
+
+        assert!(slice_tail_strictly_decreases(
+            &program, guard, argument, &parameter
+        ));
+    }
+
+    #[test]
+    fn matching_symbolic_offsets_decrease_under_an_inclusive_guard() {
+        // `items[i + 1..]` under `items.len >= i + 1`: the guard bound and the
+        // tail start share `i`'s value identity, so their constant offsets
+        // order directly.
+        let mut program = TypedTrees::default();
+        let parameter = slice_parameter(&mut program, symbol(1));
+        let u64_type = integer_type(&mut program, "u64");
+        install_parameters(&mut program, [(symbol(2), "i", u64_type, false)]);
+        let items = name(&mut program, "items", symbol(1));
+        let i = name(&mut program, "i", symbol(2));
+        let start = shifted(&mut program, i, 1);
+        let argument = tail(&mut program, items, start);
+        let items = name(&mut program, "items", symbol(1));
+        let i = name(&mut program, "i", symbol(2));
+        let bound = shifted(&mut program, i, 1);
+        let guard = length_guard(&mut program, items, BinaryOperator::GreaterOrEqual, bound);
+
+        assert!(slice_tail_strictly_decreases(
+            &program, guard, argument, &parameter
+        ));
+    }
+
+    #[test]
+    fn declared_floor_admits_an_unshifted_symbolic_start() {
+        // `items[step..]` under `items.len >= step` with `step: u64 [1..=8]`:
+        // the enforced declared range supplies the `step >= 1` evidence the
+        // unsigned carrier floor alone cannot.
+        let mut program = TypedTrees::default();
+        let parameter = slice_parameter(&mut program, symbol(1));
+        let step_type = ranged_u64_type(&mut program, 1, 8);
+        install_parameters(&mut program, [(symbol(2), "step", step_type, false)]);
+        let items = name(&mut program, "items", symbol(1));
+        let step = name(&mut program, "step", symbol(2));
+        let argument = tail(&mut program, items, step);
+        let items = name(&mut program, "items", symbol(1));
+        let step = name(&mut program, "step", symbol(2));
+        let guard = length_guard(&mut program, items, BinaryOperator::GreaterOrEqual, step);
+
+        assert!(slice_tail_strictly_decreases(
+            &program, guard, argument, &parameter
+        ));
+    }
+
+    #[test]
+    fn symbolic_bounds_stay_unknown_without_positive_start_evidence() {
+        let mut program = TypedTrees::default();
+        let parameter = slice_parameter(&mut program, symbol(1));
+        let u64_type = integer_type(&mut program, "u64");
+        install_parameters(&mut program, [(symbol(2), "i", u64_type, false)]);
+
+        // `items[i..]` under `items.len > i` with a plain `u64` `i`: `i` may
+        // be zero, so the tail can be the whole slice. Value identity alone
+        // never proves `start >= 1`.
+        let items = name(&mut program, "items", symbol(1));
+        let i = name(&mut program, "i", symbol(2));
+        let argument = tail(&mut program, items, i);
+        let items = name(&mut program, "items", symbol(1));
+        let i = name(&mut program, "i", symbol(2));
+        let guard = length_guard(&mut program, items, BinaryOperator::Greater, i);
+        assert!(!slice_tail_strictly_decreases(
+            &program, guard, argument, &parameter
+        ));
+
+        // `items[i + 1..]` under `items.len >= i`: `len` may equal `i`, so the
+        // shifted start is not a proven in-range window.
+        let items = name(&mut program, "items", symbol(1));
+        let i = name(&mut program, "i", symbol(2));
+        let start = shifted(&mut program, i, 1);
+        let argument = tail(&mut program, items, start);
+        let items = name(&mut program, "items", symbol(1));
+        let i = name(&mut program, "i", symbol(2));
+        let guard = length_guard(&mut program, items, BinaryOperator::GreaterOrEqual, i);
+        assert!(!slice_tail_strictly_decreases(
+            &program, guard, argument, &parameter
+        ));
+
+        // `items[j + 1..]` under `items.len > i`: different immutable symbols
+        // do not order.
+        let u64_type = integer_type(&mut program, "u64");
+        install_parameters(&mut program, [(symbol(3), "j", u64_type, false)]);
+        let items = name(&mut program, "items", symbol(1));
+        let j = name(&mut program, "j", symbol(3));
+        let start = shifted(&mut program, j, 1);
+        let argument = tail(&mut program, items, start);
+        let items = name(&mut program, "items", symbol(1));
+        let i = name(&mut program, "i", symbol(2));
+        let guard = length_guard(&mut program, items, BinaryOperator::Greater, i);
+        assert!(!slice_tail_strictly_decreases(
+            &program, guard, argument, &parameter
+        ));
+    }
+
+    #[test]
+    fn mutable_and_computed_bounds_do_not_fake_symbolic_identity() {
+        let mut program = TypedTrees::default();
+        let parameter = slice_parameter(&mut program, symbol(1));
+        let u64_type = integer_type(&mut program, "u64");
+        install_parameters(&mut program, [(symbol(2), "i", u64_type, true)]);
+
+        // `items[i + 1..]` under `items.len > i` with `mut i`: a mutable bound
+        // keeps no value identity, so the tail stays unknown.
+        let items = name(&mut program, "items", symbol(1));
+        let i = name(&mut program, "i", symbol(2));
+        let start = shifted(&mut program, i, 1);
+        let argument = tail(&mut program, items, start);
+        let items = name(&mut program, "items", symbol(1));
+        let i = name(&mut program, "i", symbol(2));
+        let guard = length_guard(&mut program, items, BinaryOperator::Greater, i);
+        assert!(!slice_tail_strictly_decreases(
+            &program, guard, argument, &parameter
+        ));
+
+        // `items[j..]` under `items.len >= j` where `let j = <computed>` keeps
+        // `j`'s value identity but its plain `u64` floor cannot prove
+        // `j >= 1` -- the initializer's arithmetic is not read back into a
+        // value.
+        let zero = integer(&mut program, 0);
+        let computed = shifted(&mut program, zero, 0);
+        install_locals(&mut program, [(symbol(3), "j", computed, false)]);
+        let items = name(&mut program, "items", symbol(1));
+        let j = name(&mut program, "j", symbol(3));
+        let argument = tail(&mut program, items, j);
+        let items = name(&mut program, "items", symbol(1));
+        let j = name(&mut program, "j", symbol(3));
+        let guard = length_guard(&mut program, items, BinaryOperator::GreaterOrEqual, j);
         assert!(!slice_tail_strictly_decreases(
             &program, guard, argument, &parameter
         ));
