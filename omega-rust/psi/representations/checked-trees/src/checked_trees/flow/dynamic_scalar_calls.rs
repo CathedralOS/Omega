@@ -517,12 +517,31 @@ impl CheckedStructuralScalarFieldStoreValue {
     }
 }
 
+/// Exact source root for a field write. Parameter positions are authored state
+/// positions, not dense structural-parameter indexes; locals keep symbol identity
+/// so ordered lowering can resolve their current home after copies or moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedStructuralScalarFieldStoreDestination {
+    Parameter { position: u32 },
+    Local { symbol: SymbolHandle },
+}
+
+impl CheckedStructuralScalarFieldStoreDestination {
+    /// Parameter-only consumers reject local storage instead of inventing an index.
+    pub fn parameter_position(self) -> Option<u32> {
+        match self {
+            Self::Parameter { position } => Some(position),
+            Self::Local { .. } => None,
+        }
+    }
+}
+
 /// Checked custody for one replacement of an exact primitive field.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralScalarFieldStorePlan {
     pub statement_index: u32,
-    pub destination_parameter_position: u32,
-    /// Exact structural path from the destination parameter to the carrier;
+    pub destination: CheckedStructuralScalarFieldStoreDestination,
+    /// Exact structural path from the destination root to the carrier;
     /// the final primitive field is retained separately below.
     pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
     pub field_identity: String,

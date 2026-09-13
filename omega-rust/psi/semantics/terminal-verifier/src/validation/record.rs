@@ -256,6 +256,7 @@ pub(super) fn validate_uses(
 
         OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. } => validate(*source)?,
+        OperationKind::StructuralScalarFieldStore { destination, .. } => validate(*destination)?,
         OperationKind::CallUnit {
             structural_arguments,
             ..

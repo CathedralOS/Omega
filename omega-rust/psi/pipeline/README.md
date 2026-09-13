@@ -255,7 +255,15 @@ order before reverse-order disposal, without remapping every survivor at each mo
 `owned_scalar_graphs/record_moves.rs` exercises move chains, authored field reads,
 distinct child origins, affine formals beside locals, resumptions and malformed
 receipt/cleanup rejection through canonical Terminal bytes. The focused
-`declared_range_inference` canaries retain local mutation gaps. Parameter-origin
+`owned_scalar_graphs/record_stores.rs` executes local scalar-field writes through
+the same ordered sequence, including nested destinations, RHS calls, independent
+copies, moved homes and captured scalar values. Each write uses the current home
+and the existing `StructuralScalarFieldStore`; it introduces no reference carrier
+or wire operation. Plain `let` permits member writes under existing source rules;
+`mut` gates whole-local rebinding. Bounded leaf stores still need independently
+reconstructed range obligations. The `declared_range_inference` canaries retain
+the separate borrowed-local-call mutation gap. Native owned/local field stores
+remain explicitly unsupported. Parameter-origin
 moves into local storage still need their formal/local custody join.
 Cyclic record construction remains rejected by
 Terminal's cycle admission until repeated establishment and per-iteration custody

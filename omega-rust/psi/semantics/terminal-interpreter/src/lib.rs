@@ -2453,14 +2453,16 @@ impl TerminalExecution {
                         let machine = self.machines.get(&self.current_machine).ok_or(
                             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
                         )?;
-                        let parameter = machine
+                        let access = machine
                             .structural_parameters
                             .iter()
+                            .chain(machine.blocks.values().flat_map(|block| &block.structural_parameters))
                             .find(|parameter| parameter.place == destination)
                             .filter(|parameter| {
                                 matches!(
                                     parameter.access,
-                                    StructuralAccess::MutableBorrow
+                                    StructuralAccess::Owned
+                                        | StructuralAccess::MutableBorrow
                                         | StructuralAccess::WriteOnlyBorrow
                                 ) && matches!(
                                     parameter.multiplicity,
@@ -2468,6 +2470,22 @@ impl TerminalExecution {
                                         | StructuralMultiplicity::Affine
                                 ) && parameter.qualifications.is_empty()
                                     && parameter.projected_qualifications.is_empty()
+                            })
+                            .map(|parameter| parameter.access)
+                            .or_else(|| {
+                                machine.blocks.values().flat_map(|block| &block.operations)
+                                    .filter(|producer| matches!(producer.kind,
+                                        OperationKind::EstablishRecord { .. }
+                                            | OperationKind::CallStructural { .. }
+                                            | OperationKind::CallStructuralWithScalarArguments { .. }))
+                                    .filter_map(|producer| producer.result.structural())
+                                    .find(|result| result.place == destination
+                                        && matches!(result.multiplicity,
+                                            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine)
+                                        && result.qualifications.is_empty()
+                                        && result.projected_qualifications.is_empty()
+                                        && result.claims.is_empty())
+                                    .map(|_| StructuralAccess::Owned)
                             })
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         let source = self
@@ -2481,7 +2499,7 @@ impl TerminalExecution {
                             &[StructuralArgument {
                                 place: destination,
                                 path,
-                                access: parameter.access,
+                                access,
                             }],
                         )?
                         .pop()

@@ -15,6 +15,9 @@ pub(super) fn statement_index(
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<u32, LoweringError> {
     match operation {
+        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
+            Ok(store.statement_index)
+        }
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
             Ok(result.statement_index)
         }

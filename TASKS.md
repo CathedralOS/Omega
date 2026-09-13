@@ -1420,10 +1420,13 @@ Owners include
   after complete typing; substitution retains the original constrained argument.
   Finish open/template-dependent and machine-computed argument ranges, type
   equations and omitted data binders without a source-display identity key.
-  Connect local record mutation and transfer-bearing state-transition storage joins;
+  Connect borrowed-local mutation calls and transfer-bearing state-transition storage joins;
   `declared_range_inference_local_effects_retain_pending_terminal_boundaries`
-  retains nongeneric mutation reproductions of missing checked scalar control plans.
-  Require copy-after-mutation controls to execute from canonical Terminal bytes.
+  retains the nongeneric borrowed-call reproduction of a missing checked scalar
+  control plan. Direct local scalar-field writes compose with copies and moves
+  through canonical Terminal execution in `owned_scalar_graphs/record_stores.rs`.
+  Bounded leaf stores still need exact range obligations; native owned/local
+  field stores still need their physical storage realization.
   Fresh record locals, unrestricted whole/nested copies and affine local moves
   retain guard/argument reads through the scalar graph's ordered statements.
   Copies bind independent block homes; moves retire their source and preserve

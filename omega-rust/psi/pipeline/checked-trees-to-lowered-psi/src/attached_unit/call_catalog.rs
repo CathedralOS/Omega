@@ -135,6 +135,15 @@ pub(super) fn discover(
                 .for_machine(*source)
             {
                 for operation in graph.states.iter().flat_map(|state| &state.unit_operations) {
+                    if matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                    ) {
+                        // Store RHS calls are source-checked computation roots
+                        // in the scalar closure above. The write adds no callee;
+                        // ordered lowering independently validates its destination.
+                        continue;
+                    }
                     if matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } if calls.is_empty())
                     {
                         // Scalar field calls already belong to the computation

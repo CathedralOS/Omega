@@ -1,5 +1,228 @@
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
+#[test]
+fn mutable_record_field_stores_keep_local_identity_and_authored_order() {
+    for (copy, target, result, value) in [
+        ("[copy]", "first", "second.value", "5"),
+        ("[copy]", "first", "first.value", "identity(5)"),
+        ("", "second", "second.value", "identity(5)"),
+    ] {
+        let checked = check_source(&format!(
+            "data Value {copy} {{ value: u64; }}
+             machine identity(value: u64) -> u64 {{ value }}
+             machine enter() -> u64 {{
+                 let mut first: Value = Value {{ value: 256 }};
+                 let mut second: Value = first;
+                 {target}.value = {value};
+                 {result}
+             }}"
+        ));
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "enter")
+            .unwrap();
+        let state = &checked.typed.machine_states(machine)[0];
+        let statements = checked
+            .typed
+            .statement_table
+            .statements(state.statement_nodes);
+        let typed_trees::statement::StatementNode::LocalData(local) =
+            &statements[if target == "first" { 0 } else { 1 }]
+        else {
+            panic!("local");
+        };
+        let graph = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(machine.symbol)
+            .expect("mutable record scalar graph");
+        let [
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. },
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. },
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
+        ] = graph.states[0].unit_operations.as_slice()
+        else {
+            panic!("ordered record operations");
+        };
+        assert_eq!(store.statement_index, 2);
+        assert_eq!(
+            store.destination,
+            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local {
+                symbol: local.symbol
+            }
+        );
+        assert!(store.carrier_path.is_empty());
+        assert_eq!(store.destination.parameter_position(), None);
+        assert!(graph.states[0].bindings.is_empty());
+        if value.contains("identity") {
+            assert!(matches!(
+                store.value,
+                checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_)
+            ));
+        }
+    }
+}
+
+#[test]
+fn nested_local_field_store_retains_its_exact_carrier() {
+    let checked = check_source(
+        "data Inner [copy] { value: u64; }
+         data Outer [copy] { left: Inner; right: Inner; }
+         machine enter(value: u64) -> u64 {
+             let mut record: Outer = Outer { left: Inner { value: 256 }, right: Inner { value: 2 } };
+             record.right.value = value;
+             record.left.value
+         }"
+    );
+    let machine = checked.machines()[0].symbol;
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine)
+        .expect("nested record store graph");
+    let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) =
+        &graph.states[0].unit_operations[1]
+    else {
+        panic!("store");
+    };
+    assert_eq!(
+        store.carrier_path,
+        vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
+            "right".into()
+        )]
+    );
+    assert_eq!(store.field_identity, "value");
+}
+
+#[test]
+fn local_store_rejects_missing_destination_and_rhs_custody() {
+    let original = check_source(
+        "data Value [copy] { value: u64; }
+         machine enter() -> u64 {
+             let mut record: Value = Value { value: 256 };
+             record.value = 5;
+             record.value
+         }",
+    );
+    let machine = original.machines()[0].clone();
+    let state = original.typed.machine_states(&machine)[0].clone();
+    for destination in [true, false] {
+        let mut changed = original.clone();
+        let statements = changed
+            .typed
+            .statement_table
+            .statements_mut(state.statement_nodes);
+        let typed_trees::statement::StatementNode::Assignment(assignment) = &mut statements[1]
+        else {
+            panic!("assignment");
+        };
+        if destination {
+            assignment.target = typed_trees::expression::ExpressionHandle::invalid();
+        } else {
+            assignment.value = typed_trees::expression::ExpressionHandle::invalid();
+        }
+        let typed_trees::statement::StatementNode::Assignment(assignment) = &changed
+            .typed
+            .statement_table
+            .statements(state.statement_nodes)[1]
+        else {
+            panic!("assignment");
+        };
+        assert!(
+            crate::flow::terminal_unit::build_local_scalar_field_store(
+                &changed.typed,
+                &changed.facts,
+                &machine,
+                &state,
+                1,
+                assignment,
+            )
+            .is_none()
+        );
+    }
+}
+
+#[test]
+fn bounded_local_field_store_waits_for_a_write_range_obligation() {
+    let checked = check_source(
+        "data Value [copy] { value: u64[0..=256]; }
+         machine enter() -> u64 {
+             let mut record: Value = Value { value: 256 };
+             record.value = 5;
+             record.value
+         }",
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(checked.machines()[0].symbol)
+            .is_none()
+    );
+}
+
+#[test]
+fn source_rejects_record_rebinding_and_invalid_bounds() {
+    for (field_type, result_type, body) in [
+        (
+            "u64",
+            "u64",
+            "let first: Value = Value { value: 256 }; first = Value { value: 5 }; first.value",
+        ),
+        (
+            "u64[0..=256]",
+            "u64",
+            "let mut first: Value = Value { value: 256 }; first.value = 257; first.value",
+        ),
+        (
+            "u64",
+            "u64[256..=256]",
+            "let mut first: Value = Value { value: 256 }; first.value = 5; first.value",
+        ),
+    ] {
+        let source = format!(
+            "data Value {{ value: {field_type}; }} machine enter() -> {result_type} {{ {body} }}"
+        );
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        assert!(crate::lower_typed_trees(typed).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn field_fill_without_mutable_binding_retains_its_store() {
+    // Source permits member/index filling without `let mut`; only whole-local
+    // rebinding is gated by that modifier. Owned field storage must retain the
+    // same ordered write regardless of whole-binding mutability.
+    let checked = check_source(
+        "data Value { value: u64; }
+         machine enter() -> u64 {
+             let first: Value = Value { value: 256 };
+             first.value = 5;
+             first.value
+         }",
+    );
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(checked.machines()[0].symbol)
+        .expect("owned field fill graph");
+    assert!(matches!(
+        graph.states[0].unit_operations[1],
+        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+    ));
+}
+
 fn checked(copy: &str, prefix: &str, initializer: &str) -> checked_trees::CheckedTrees {
     let source = format!(
         "data Value {copy} {{ value: u64[0..257]; flag: bool; }}

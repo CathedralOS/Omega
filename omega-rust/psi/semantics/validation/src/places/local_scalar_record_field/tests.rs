@@ -270,7 +270,7 @@ fn local_field_rejects_early_and_reordered_declarations() {
 }
 
 #[test]
-fn local_field_rejects_mutable_and_conflicting_receiver_identity() {
+fn local_field_observes_mutable_storage_and_rejects_conflicting_receiver_identity() {
     let (original, machine, state, expression) = fixture();
     let mut program = original.clone();
     let owner = program.machines()[0].clone();
@@ -281,7 +281,7 @@ fn local_field_rejects_mutable_and_conflicting_receiver_identity() {
         panic!("local");
     };
     local.is_mutable = true;
-    assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_none());
+    assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_some());
     let mut program = original;
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         panic!("member");

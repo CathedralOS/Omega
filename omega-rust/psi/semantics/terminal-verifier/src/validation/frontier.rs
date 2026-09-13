@@ -1227,6 +1227,7 @@ fn validate_owned_reads(
     let observation = match operation.kind {
         OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. } => Some(source),
+        OperationKind::StructuralScalarFieldStore { destination, .. } => Some(destination),
         _ => None,
     };
     let reads = arguments

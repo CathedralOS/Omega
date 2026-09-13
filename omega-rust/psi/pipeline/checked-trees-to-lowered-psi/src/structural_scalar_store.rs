@@ -56,7 +56,12 @@ pub(super) fn lower_structural_scalar_store_place(
     let (path, field) = lower_structural_field_place(
         store.statement_index,
         expected_statement_index,
-        store.destination_parameter_position,
+        store
+            .destination
+            .parameter_position()
+            .ok_or(LoweringError::Unsupported(
+                "parameter store route cannot substitute a local destination",
+            ))?,
         &store.carrier_path,
         &store.field_identity,
         parameter,
@@ -109,9 +114,31 @@ pub(super) fn lower_structural_field_place<'a>(
     {
         return unsupported("structural scalar store lost exact exclusive custody");
     }
+    lower_structural_field_path(
+        parameter.structural_type,
+        carrier_path,
+        field_identity,
+        structural_types,
+    )
+}
+
+/// Shared geometry follows exact declarations; callers separately establish the
+/// root's current ownership or exclusive-borrow authority.
+pub(super) fn lower_structural_field_path<'a>(
+    root_type: StructuralTypeId,
+    carrier_path: &[CheckedUnitStructuralPathSegment],
+    field_identity: &str,
+    structural_types: &'a [StructuralTypeDeclaration],
+) -> Result<
+    (
+        Vec<StructuralPathSegment>,
+        &'a terminal_psi::StructuralFieldDeclaration,
+    ),
+    LoweringError,
+> {
     let declaration = structural_types
         .iter()
-        .find(|declaration| declaration.id == parameter.structural_type)
+        .find(|declaration| declaration.id == root_type)
         .ok_or(LoweringError::Unsupported(
             "structural scalar store root type is absent",
         ))?;

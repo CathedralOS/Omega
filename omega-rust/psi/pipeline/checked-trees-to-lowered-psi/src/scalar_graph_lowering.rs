@@ -6,6 +6,7 @@ use crate::scalar_qualifications::PreparedScalarQualifications;
 mod bindings;
 pub(crate) mod branch_destinations;
 pub(crate) mod cycles;
+mod field_stores;
 pub(crate) mod structural_values;
 pub(crate) mod unit_operations;
 use crate::scalar_computations as computations;

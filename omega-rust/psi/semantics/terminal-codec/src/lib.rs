@@ -1317,23 +1317,67 @@ fn validate_operation_foundation(
             if operation.result != OperationResult::Unit {
                 return malformed("structural scalar field store declares a non-Unit result");
             }
-            let Some(parameter) = machine
+            let destination_type = if let Some(parameter) = machine
                 .structural_parameters
                 .iter()
+                .chain(
+                    machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.structural_parameters),
+                )
                 .find(|parameter| parameter.place == *destination)
-            else {
-                return malformed("structural scalar field store destination is not a parameter");
+            {
+                if !matches!(
+                    parameter.multiplicity,
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                ) || !matches!(
+                    parameter.access,
+                    terminal_psi::StructuralAccess::Owned
+                        | terminal_psi::StructuralAccess::MutableBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                ) || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return malformed(
+                        "structural scalar field store has invalid destination custody",
+                    );
+                }
+                parameter.structural_type
+            } else {
+                let Some(result) = machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter(|producer| {
+                        matches!(
+                            producer.kind,
+                            OperationKind::EstablishRecord { .. }
+                                | OperationKind::CallStructural { .. }
+                                | OperationKind::CallStructuralWithScalarArguments { .. }
+                        )
+                    })
+                    .filter_map(|producer| producer.result.structural())
+                    .find(|result| result.place == *destination)
+                else {
+                    return malformed(
+                        "structural scalar field store destination has no record home",
+                    );
+                };
+                if !matches!(
+                    result.multiplicity,
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                ) || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !result.claims.is_empty()
+                {
+                    return malformed("structural scalar field store has invalid local custody");
+                }
+                // Foundation validation also checks the exact producer/place binding;
+                // ordered availability and whole affine liveness belong to verification.
+                result.structural_type
             };
-            if !matches!(
-                parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            ) || !matches!(
-                parameter.access,
-                terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
-            ) || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-                || !is_bounded_structural_scalar_store_path(path)
+            if !is_bounded_structural_scalar_store_path(path)
                 || machine
                     .entry_claims
                     .iter()
@@ -1345,7 +1389,7 @@ fn validate_operation_foundation(
             {
                 return malformed("structural scalar field store has invalid destination custody");
             }
-            let parent_type = validate_structural_path(module, parameter.structural_type, path)?;
+            let parent_type = validate_structural_path(module, destination_type, path)?;
             let Some(expected) = module
                 .structural_types
                 .iter()

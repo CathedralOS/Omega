@@ -19,8 +19,7 @@ pub(super) fn record_value_root<'plans>(
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<&'plans checked_trees::CheckedStructuralValueRoot> {
     let root = plans.root_at(state, ordinal)?;
-    if local.is_mutable
-        || root.machine != machine
+    if root.machine != machine
         || root.expression != local.initial_value
         || root.type_reference != local.type_reference
     {

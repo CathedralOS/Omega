@@ -217,10 +217,9 @@ pub(super) fn validate(
         .iter()
         .filter_map(|statement| match statement {
             typed_trees::statement::StatementNode::LocalData(local)
-                if !local.is_mutable
-                    && program
-                        .primitive_type_reference(local.type_reference)
-                        .is_none() =>
+                if program
+                    .primitive_type_reference(local.type_reference)
+                    .is_none() =>
             {
                 Some(facts::PlaceRoot::Symbol(local.symbol))
             }

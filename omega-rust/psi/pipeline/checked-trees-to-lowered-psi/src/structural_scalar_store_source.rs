@@ -395,26 +395,36 @@ pub(crate) fn validate_assignment(
     store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
 ) -> Result<(), LoweringError> {
     let (owner, state) = crate::scalar_source_custody::authored_state(checked, state_symbol)?;
-    if owner.symbol != machine {
+    if owner.symbol != machine || statement_index != store.statement_index {
         return unsupported("structural scalar store has a different authored machine");
     }
     let source = crate::call_source_custody::projected_receivers::store_destination(
         checked,
         machine,
         state_symbol,
+        Some(statement_index as usize),
         assignment.target,
     )?;
-    let parameter = checked
-        .state_parameters(state)
-        .get(store.destination_parameter_position as usize)
-        .ok_or(LoweringError::Unsupported(
-            "structural scalar store has no authored destination parameter",
-        ))?;
+    let destination = match store.destination {
+        checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+            checked
+                .state_parameters(state)
+                .get(position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "structural scalar store has no authored destination parameter",
+                ))?
+                .symbol
+        }
+        checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+            local_destination(checked, state, statement_index, symbol)?;
+            symbol
+        }
+    };
     let mut path = store.carrier_path.clone();
     path.push(CheckedUnitStructuralPathSegment::Field(
         store.field_identity.clone(),
     ));
-    if source.root != parameter.symbol || source.path != path {
+    if source.root != destination || source.path != path {
         return unsupported("structural scalar store destination drifted from its authored place");
     }
     if computation_root(checked, machine, state_symbol, store)?.is_some() {
@@ -471,6 +481,44 @@ pub(crate) fn validate_assignment(
         binding,
         terminal_scalar_type(primitive_type)?,
     )
+}
+
+/// A local store names a unique, earlier owned declaration. Its current live
+/// home is resolved separately by the ordered lowering namespace, so a move
+/// cannot be undone merely by finding the old declaration again.
+/// Source mutability gates whole-local rebinding, not field writes.
+pub(crate) fn local_destination<'a>(
+    checked: &'a CheckedTrees,
+    state: &checked_trees::state::State,
+    statement: u32,
+    symbol: symbols::SymbolHandle,
+) -> Result<&'a checked_trees::statement::TableLocalData, LoweringError> {
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let mut locals =
+        statements
+            .iter()
+            .enumerate()
+            .filter_map(|(ordinal, statement)| match statement {
+                StatementNode::LocalData(local) if local.symbol == symbol => Some((ordinal, local)),
+                _ => None,
+            });
+    let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(
+        "record store has no source local",
+    ))?;
+    if !symbol.is_valid()
+        || locals.next().is_some()
+        || ordinal >= statement as usize
+        || !validation::has_plain_owned_contents_with_numeric_constraints(
+            &checked.typed,
+            local.type_reference,
+        )
+        || checked
+            .primitive_type_reference(local.type_reference)
+            .is_some()
+    {
+        return unsupported("record store lost its owned structural declaration");
+    }
+    Ok(local)
 }
 
 /// Select a computation only through its exact authored assignment coordinate.

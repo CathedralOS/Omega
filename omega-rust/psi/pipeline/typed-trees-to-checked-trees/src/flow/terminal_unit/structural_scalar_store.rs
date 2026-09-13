@@ -1,10 +1,149 @@
-//! Exact projected scalar-store admission for ordinary attached Unit bodies.
+//! Exact projected scalar-store admission for parameter and local storage.
 
 use super::*;
 
 mod frame;
 #[cfg(test)]
 mod tests;
+
+/// Local storage uses the same ordered scalar effect as borrowed parameters.
+/// Only the destination authority differs; the captured RHS keeps its original
+/// checked evaluation and statement identity.
+pub(in crate::flow) fn build_local_scalar_field_store(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> Option<CheckedStructuralScalarFieldStorePlan> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index as usize,
+        assignment.target,
+    )?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    let mut locals =
+        statements
+            .iter()
+            .enumerate()
+            .filter_map(|(ordinal, statement)| match statement {
+                StatementNode::LocalData(local) if local.symbol == symbol => Some((ordinal, local)),
+                _ => None,
+            });
+    let (ordinal, local) = locals.next()?;
+    if locals.next().is_some() || ordinal >= statement_index as usize {
+        return None;
+    }
+    super::scalar_graph_record_shapes(program, local.type_reference)?;
+    validation::record_local_disposition(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        u32::try_from(ordinal).ok()?,
+    )?;
+    let (leaf, carriers) = place.segments.split_last()?;
+    let facts::PlaceSegment::Field {
+        symbol: field_symbol,
+    } = leaf
+    else {
+        return None;
+    };
+    let mut carrier_type = local.type_reference;
+    let mut carrier_path = Vec::with_capacity(carriers.len());
+    for segment in carriers {
+        let facts::PlaceSegment::Field { symbol } = segment else {
+            return None;
+        };
+        let owner = crate::field_domain::data_definition_for_field_type(program, carrier_type)?;
+        if !plain_record(owner, program) {
+            return None;
+        }
+        let field = exact_relevant_field(program, owner, *symbol)?;
+        carrier_path.push(CheckedUnitStructuralPathSegment::Field(
+            terminal_field_identity(program, field.symbol)?,
+        ));
+        carrier_type = field.type_reference;
+    }
+    let owner = crate::field_domain::data_definition_for_field_type(program, carrier_type)?;
+    if !plain_record(owner, program) {
+        return None;
+    }
+    let field = exact_relevant_field(program, owner, *field_symbol)?;
+    // A bounded leaf needs its actual write obligation, not just the carrier.
+    let TypeReferenceNode::Named {
+        symbol: primitive_symbol,
+        name,
+    } = program
+        .type_reference_table
+        .type_reference(field.type_reference)
+    else {
+        return None;
+    };
+    let atom = program.symbols.builtin_type_atom(*primitive_symbol)?;
+    if name.as_str() != atom.symbol_name() {
+        return None;
+    }
+    let primitive_type = program.primitive_type_reference(field.type_reference)?;
+    if !matches!(
+        primitive_type,
+        PrimitiveType::Bool
+            | PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+    ) || program.arithmetic_domain_for_type_reference(field.type_reference)
+        != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    let role = CheckedScalarExpressionRole::AssignmentValue;
+    let computations = &facts.values.scalar_computations;
+    let value = if let Some(root) = computations.root_at(state.symbol, statement_index, role) {
+        if root.machine != machine.symbol
+            || !computations.nodes.is_valid(root.root)
+            || computations.nodes.get(root.root).authored_root != assignment.value
+            || computations.nodes.get(root.root).primitive_type != primitive_type
+            || facts
+                .values
+                .scalar_expressions
+                .expression_at(state.symbol, statement_index, role)
+                .is_some()
+        {
+            return None;
+        }
+        checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(root.root)
+    } else {
+        let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
+            state.symbol,
+            statement_index,
+            role,
+        )?;
+        if binding.expression != assignment.value
+            || crate::values::scalar_expression_type(value) != Some(primitive_type)
+        {
+            return None;
+        }
+        checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone())
+    };
+    Some(CheckedStructuralScalarFieldStorePlan {
+        statement_index,
+        destination: checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol },
+        carrier_path,
+        field_identity: terminal_field_identity(program, field.symbol)?,
+        primitive_type,
+        value,
+    })
+}
 
 pub(super) fn build_structural_scalar_field_store(
     program: &TypedTrees,
@@ -466,7 +605,10 @@ fn build_structural_field_store_at(
         return Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
             CheckedStructuralScalarFieldStorePlan {
                 statement_index,
-                destination_parameter_position: destination.position,
+                destination:
+                    checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                        position: destination.position,
+                    },
                 carrier_path,
                 field_identity: terminal_field_identity(program, field.symbol)?,
                 primitive_type,
@@ -554,7 +696,9 @@ fn build_structural_field_store_at(
     Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
         CheckedStructuralScalarFieldStorePlan {
             statement_index,
-            destination_parameter_position: destination.position,
+            destination: checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                position: destination.position,
+            },
             carrier_path,
             field_identity: terminal_field_identity(program, field.symbol)?,
             primitive_type,

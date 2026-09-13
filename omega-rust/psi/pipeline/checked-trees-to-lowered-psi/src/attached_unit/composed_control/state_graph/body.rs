@@ -315,7 +315,7 @@ pub(in crate::attached_unit::composed_control) fn emit_store(
 ) -> Result<(), LoweringError> {
     let destination = parameters
         .iter()
-        .find(|parameter| parameter.position == store.destination_parameter_position)
+        .find(|parameter| Some(parameter.position) == store.destination.parameter_position())
         .ok_or(LoweringError::Unsupported(
             "Unit graph store destination is absent",
         ))?;

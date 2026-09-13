@@ -1570,7 +1570,9 @@ fn checked_caller_structural_scalar_field_store_plan(
 
     Some(checked_trees::CheckedStructuralScalarFieldStorePlan {
         statement_index: 0,
-        destination_parameter_position,
+        destination: checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+            position: destination_parameter_position,
+        },
         carrier_path: selected_carrier_path.to_vec(),
         field_identity: terminal_field_identity(program, direct_field.symbol)?,
         primitive_type,
@@ -2022,7 +2024,9 @@ fn checked_realization_structural_scalar_field_store_plan(
     Some((
         checked_trees::CheckedStructuralScalarFieldStorePlan {
             statement_index: u32::try_from(statement_index).ok()?,
-            destination_parameter_position: u32::try_from(*self_position).ok()?,
+            destination: checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                position: u32::try_from(*self_position).ok()?,
+            },
             carrier_path,
             field_identity: terminal_field_identity(program, field.symbol)?,
             primitive_type,

@@ -626,7 +626,7 @@ pub(crate) fn operand_source(
         .statements(source.statement_nodes)
         .get(statement as usize)
     {
-        Some(StatementNode::LocalData(local)) if !local.is_mutable => local.initial_value,
+        Some(StatementNode::LocalData(local)) => local.initial_value,
         Some(StatementNode::Expression(expression)) => *expression,
         _ => return unsupported("structural operand has no authored value scope"),
     };

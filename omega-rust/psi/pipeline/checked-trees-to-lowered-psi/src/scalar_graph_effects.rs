@@ -11,6 +11,32 @@ pub(crate) fn emit(
 ) -> Result<(), LoweringError> {
     for effect in effects {
         match effect {
+            LoweredScalarEffect::StoreScalarField {
+                destination,
+                path,
+                field,
+                value_position,
+                scalar_type,
+            } => {
+                let value = values
+                    .get(*value_position)
+                    .filter(|value| value.scalar_type == *scalar_type)
+                    .ok_or(LoweringError::Unsupported(
+                        "record store lost its completed scalar operand",
+                    ))?;
+                let id = operations.allocate();
+                operations.push(Operation {
+                    static_reach_binding: None,
+                    id,
+                    result: OperationResult::Unit,
+                    kind: OperationKind::StructuralScalarFieldStore {
+                        destination: *destination,
+                        path: path.clone(),
+                        field: *field,
+                        value: value.id,
+                    },
+                });
+            }
             LoweredScalarEffect::EstablishRecord(record) => {
                 crate::scalar_graph_lowering::structural_values::emit(
                     record, values, operations, calls,

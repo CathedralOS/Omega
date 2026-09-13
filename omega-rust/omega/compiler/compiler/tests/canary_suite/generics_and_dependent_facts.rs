@@ -142,37 +142,28 @@ fn declared_range_inference_returns_the_selected_endpoint() {
 #[test]
 fn declared_range_inference_local_effects_retain_pending_terminal_boundaries() {
     // Attribute the remaining Terminal boundary without generic machinery.
-    // Keep mutation customers until their storage joins connect.
+    // Direct local writes execute below; borrowed calls still need their join.
     let scratch = unique_no_output_build_dir();
     fs::create_dir_all(&scratch).unwrap();
     let path = scratch.join("main.omg");
-    for (name, text) in [
-        (
-            "local_store",
-            "data Value [copy] { value: u64; } machine local_store() -> u64 { let mut first: Value = Value { value: 256 }; let second: Value = first; first.value = 5; second.value }",
+    fs::write(&path,
+        "data Value [copy] { value: u64; } machine change(value: &mut Value) { value.value = 5; } machine borrowed_store() -> u64 { let mut first: Value = Value { value: 256 }; let second: Value = first; change(&mut first); second.value }",
+    ).unwrap();
+    let plain =
+        compile_reviewed_repository_fixture(CheckedCompileRequest::new(&path, None)).unwrap();
+    let plain = terminal_production::TerminalProductionRequest::new(&plain, "borrowed_store")
+        .produce_artifact();
+    assert!(
+        matches!(
+            plain,
+            Err(terminal_production::TerminalArtifactProductionError::Lowering(_))
         ),
-        (
-            "borrowed_store",
-            "data Value [copy] { value: u64; } machine change(value: &mut Value) { value.value = 5; } machine borrowed_store() -> u64 { let mut first: Value = Value { value: 256 }; let second: Value = first; change(&mut first); second.value }",
-        ),
-    ] {
-        fs::write(&path, text).unwrap();
-        let plain =
-            compile_reviewed_repository_fixture(CheckedCompileRequest::new(&path, None)).unwrap();
-        let plain =
-            terminal_production::TerminalProductionRequest::new(&plain, name).produce_artifact();
-        assert!(
-            matches!(
-                plain,
-                Err(terminal_production::TerminalArtifactProductionError::Lowering(_))
-            ),
-            "{name}: {plain:?}"
-        );
-        assert!(
-            format!("{plain:?}").contains("source-independent checked scalar control plan"),
-            "{name}: {plain:?}"
-        );
-    }
+        "borrowed_store: {plain:?}"
+    );
+    assert!(
+        format!("{plain:?}").contains("source-independent checked scalar control plan"),
+        "borrowed_store: {plain:?}"
+    );
     fs::remove_dir_all(scratch).unwrap();
 }
 
@@ -182,6 +173,11 @@ fn declared_range_inference_record_copies_and_full_width_fields_execute() {
     fs::create_dir_all(&scratch).unwrap();
     let path = scratch.join("main.omg");
     for (name, text, expected) in [
+        (
+            "local_store",
+            "data Value [copy] { value: u64; } machine local_store() -> u64 { let mut first: Value = Value { value: 256 }; let second: Value = first; first.value = 5; second.value }",
+            256_u128,
+        ),
         (
             "moved_transition",
             "data Value { value: u64; } data Inner { value: u64; flag: bool; } data Outer { inner: Inner; } machine moved_transition() -> u64 { let keep: Value = Value { value: 17 }; let first: Outer = Outer { inner: Inner { value: 256, flag: true } }; let second: Outer = first; transition second.inner.flag { true -> yes(second.inner.value ^ keep.value) _ -> no() } state yes(value: u64) { value } state no() { 0 } }",

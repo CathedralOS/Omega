@@ -83,8 +83,13 @@ pub(super) fn validate(
             ExpressionNode::Name(_) => (expression, language_core::ReferenceAccess::Mutable),
             _ => return unsupported("mutable boundary bytes lost their authored borrow"),
         };
-        let source =
-            projected_receivers::store_destination(checked, machine.symbol, state.symbol, target)?;
+        let source = projected_receivers::store_destination(
+            checked,
+            machine.symbol,
+            state.symbol,
+            None,
+            target,
+        )?;
         let parameter = argument
             .source_parameter_index()
             .and_then(|parameter_index| caller_parameters.get(parameter_index as usize))

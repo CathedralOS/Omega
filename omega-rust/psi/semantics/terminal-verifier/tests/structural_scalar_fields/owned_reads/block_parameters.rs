@@ -2,6 +2,8 @@ use super::*;
 
 #[path = "block_parameters/returns.rs"]
 mod returns;
+#[path = "block_parameters/stores.rs"]
+mod stores;
 
 fn block_reader(scalar_type: ScalarType, multiplicity: StructuralMultiplicity) -> TerminalModule {
     let mut module = owned_reader(multiplicity, scalar_type);

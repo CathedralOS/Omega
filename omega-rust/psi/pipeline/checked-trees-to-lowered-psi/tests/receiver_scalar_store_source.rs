@@ -400,7 +400,7 @@ fn assert_receiver_store_with_access(
     else {
         panic!("one source store followed by Unit return")
     };
-    assert_eq!(store.destination_parameter_position, 0);
+    assert_eq!(store.destination.parameter_position(), Some(0));
     assert_eq!(store.statement_index, 0);
     assert_eq!(store.field_identity, "value");
 
