@@ -1,10 +1,11 @@
-//! Type inference for the synthetic `let __hoist_N = <indexed read>;` temps the
+//! Type inference for the synthetic `let __hoist_N = <indexed read>;` temps and
+//! borrowed membership subjects (`&<indexed place>`) that the
 //! operand-hoisting normalization synthesizes (see the syntax -> symbol-resolved
 //! `statement::hoist_operand_indexed_reads`). Those temps carry a `Unit`
 //! declared type (the inference sentinel) because the language has no local type
 //! inference and the element type is not knowable at the hoist site. Here, with
 //! the resolved data-field types available, the temp's element type is derived
-//! from its indexed-read initializer so the later domain/range/layout checks and
+//! from its initializer, retaining reference access for observations, so later domain/range/layout checks and
 //! codegen see a concrete declared type that matches the element read.
 
 use crate::lowerer::Lowerer;
@@ -29,6 +30,23 @@ pub(super) fn infer_hoist_temp_type(
     initial_value: ExpressionHandle,
 ) -> Result<Option<typed::types::TypeReferenceHandle>, Diagnostic> {
     let expressions = &lowerer.source_trees.tables.bodies.expressions;
+
+    // Membership normalization captures indexed storage through a loan, not
+    // an owned element snapshot. Keep that access mode on the inferred local
+    // so downstream observation and ownership checks see the original place.
+    if let ExpressionNode::Borrow(borrow) = expressions.expression(initial_value) {
+        let (target, access) = (borrow.target, borrow.access);
+        let Some(referee) = infer_hoist_temp_type(lowerer, attached_data, state, target)? else {
+            return Ok(None);
+        };
+        return Ok(Some(lowerer.typed_trees.type_reference_table.insert(
+            typed::types::TypeReferenceNode::Reference {
+                referee,
+                access,
+                lifetime: None,
+            },
+        )));
+    }
 
     // A pure-builtin guard subject the syntax->symbol-resolved lowering hoisted
     // (`let __hoist = min(self.a, self.b)`): the temp's type is its FIRST

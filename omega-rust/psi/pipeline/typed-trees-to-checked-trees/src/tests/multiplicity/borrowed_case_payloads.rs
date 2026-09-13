@@ -108,6 +108,210 @@ fn borrowed_copy_case_payload_can_feed_owned_state_parameter() {
 }
 
 #[test]
+fn borrowed_indexed_affine_case_observation_preserves_array() {
+    for receiver in ["&", "&mut"] {
+        let source = format!(
+            r#"
+            data Kind {{ case Missing; case Other; }}
+            data Holder {{ kinds: [Kind; 2]; }}
+            machine Holder::observe({receiver} self, slot: u64 [0..=1]) -> i32 {{
+                transition self.kinds[slot] {{
+                    Kind::Missing -> found(slot)
+                    _ -> other()
+                }}
+                state found({receiver} self, slot: u64 [0..=1]) -> i32 {{
+                    transition self.kinds[slot] in Kind::Missing {{
+                        true -> 1
+                        false -> 2
+                    }}
+                }}
+                state other({receiver} self) -> i32 {{ 0 }}
+            }}
+        "#
+        );
+        check_case_source(&source)
+            .expect("case tests observe indexed affine values without extracting them");
+    }
+}
+
+#[test]
+fn borrowed_indexed_affine_value_extraction_still_rejects() {
+    rejects_borrowed_transfer(
+        r#"
+        data Kind { case Missing; case Other; }
+        data Holder { kinds: [Kind; 2]; }
+        machine Holder::take(&mut self, slot: u64 [0..=1]) -> Kind {
+            self.kinds[slot]
+        }
+    "#,
+    );
+}
+
+#[test]
+fn indexed_case_observation_preserves_consumed_index_arguments() {
+    let source = r#"
+        data Kind { case Missing; case Other; }
+        data Token {}
+        data Holder { kinds: [Kind; 2]; }
+        machine slot(token: Token) -> u64 [0..=1] { 1 }
+        machine consume(token: Token) {}
+        machine Holder::observe(&self, token: Token) -> bool {
+            let result: bool = self.kinds[slot(token)] in Kind::Missing;
+            consume(token);
+            result
+        }
+    "#;
+    check_case_source(&source.replace("            consume(token);", ""))
+        .expect("one index computation consumes its argument once");
+    let diagnostics = check_case_source(source).expect_err("the index already consumed token");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("token")
+                && (diagnostic.message.contains("move") || diagnostic.message.contains("consum"))),
+        "{diagnostics:#?}"
+    );
+}
+
+const INDEXED_REPLACEMENT: &str = r#"
+        data Kind { case Missing; case Other; }
+        data Holder { kinds: [Kind; 2]; }
+        machine Holder::replace(&mut self, slot: u64 [0..=1]) {
+            transition self.kinds[slot] {
+                Kind::Missing -> fill(slot)
+                Kind::Other -> fill(slot)
+            }
+            state fill(&mut self, slot: u64 [0..=1]) {
+                self.kinds[slot] = Kind::Other;
+            }
+        }
+    "#;
+
+#[test]
+fn indexed_case_observation_loan_ends_before_selected_arm_mutation() {
+    check_case_source(INDEXED_REPLACEMENT)
+        .expect("a tag observation does not freeze the selected successor");
+}
+
+#[test]
+fn indexed_case_successor_requires_exact_state_exit_resource() {
+    let original = check_case_source(INDEXED_REPLACEMENT).expect("checked replacement");
+    crate::checks::check_checked_facts(&original.typed, &original.facts)
+        .expect("untampered evidence replays");
+    let resource = original
+        .facts
+        .borrow
+        .direct_loan_resources
+        .iter()
+        .find(|(_, resource)| {
+            resource.weakening_reason == checked_trees::FlowBorrowWeakeningReason::StateExit
+        })
+        .expect("observation closes at source-state exit")
+        .0;
+    for mutation in 0..3 {
+        let mut changed = original.clone();
+        match mutation {
+            0 => changed
+                .facts
+                .borrow
+                .direct_loan_resources
+                .reset_retain_capacity(),
+            1 => {
+                changed
+                    .facts
+                    .borrow
+                    .direct_loan_resources
+                    .get_mut(resource)
+                    .state_symbol = Default::default()
+            }
+            _ => {
+                changed
+                    .facts
+                    .borrow
+                    .direct_loan_resources
+                    .get_mut(resource)
+                    .weakening_source =
+                    checked_trees::FlowInvalidationSource::Statement { statement_index: 0 }
+            }
+        }
+        let diagnostics = crate::checks::check_checked_facts(&changed.typed, &changed.facts)
+            .expect_err("missing or retargeted scope closure cannot authorize successor mutation");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("borrow")),
+            "{diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn indexed_observation_keeps_ordinary_and_argument_calls_before_scope_exit() {
+    for body in [
+        "let held: &Kind = &self.kinds[slot]; _ = self.reset(); transition held { Kind::Missing -> fill(slot) _ -> fill(slot) }",
+        "transition self.kinds[slot] { Kind::Missing -> fill(self.reset()) _ -> fill(slot) }",
+    ] {
+        let source = format!(
+            r#"
+            data Kind {{ case Missing; case Other; }}
+            data Holder {{ kinds: [Kind; 2]; }}
+            machine Holder::reset(&mut self) -> u64 [0..=1] {{ self.kinds[0] = Kind::Other; 0 }}
+            machine Holder::replace(&mut self, slot: u64 [0..=1]) {{
+                {body}
+                state fill(&mut self, slot: u64 [0..=1]) {{ self.kinds[slot] = Kind::Other; }}
+            }}
+        "#
+        );
+        let diagnostics =
+            check_case_source(&source).expect_err("pre-exit calls retain active loans");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("still active")),
+            "{diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn indexed_observation_cannot_release_a_loan_carried_into_successor() {
+    for (parameter_type, argument, observation) in [
+        ("&Kind", "&self.kinds[slot]", "held"),
+        (
+            "Wrapped",
+            "Wrapped { kind: &self.kinds[slot] }",
+            "held.kind",
+        ),
+    ] {
+        let source = format!(
+            r#"
+            data Kind {{ case Missing; case Other; }}
+            data Holder {{ kinds: [Kind; 2]; }}
+            data Wrapped {{ kind: &Kind; }}
+            machine Holder::replace(&mut self, slot: u64 [0..=1]) -> bool {{
+                transition self.kinds[slot] {{
+                    Kind::Missing -> fill(slot, {argument})
+                    _ -> fill(slot, {argument})
+                }}
+                state fill(&mut self, slot: u64 [0..=1], held: {parameter_type}) -> bool {{
+                    self.kinds[slot] = Kind::Other;
+                    {observation} in Kind::Other
+                }}
+            }}
+        "#
+        );
+        let diagnostics =
+            check_case_source(&source).expect_err("carried loans remain live in successor");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("still active")),
+            "{diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn borrowed_affine_sum_tag_observation_does_not_extract_payload() {
     let source = format!(
         "{TYPES}\n{}",
