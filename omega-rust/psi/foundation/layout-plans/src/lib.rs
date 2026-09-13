@@ -1028,6 +1028,13 @@ const fn stable_identity_suffix(member_identity: Option<u64>) -> &'static str {
     }
 }
 
+fn symbolic_index_display(element_index: Option<u64>) -> String {
+    match element_index {
+        Some(index) => format!("[{index}]"),
+        None => String::new(),
+    }
+}
+
 /// One ordinary scalar supplied to a validated dictated-layout materializer.
 /// Positional fields select compiler-validated plan entries by name; numbered
 /// fields use their stable member identity. Callers never provide a byte
@@ -1303,6 +1310,7 @@ impl RelocationTarget {
 pub struct SymbolicFieldValue {
     pub field: String,
     member_identity: Option<u64>,
+    element_index: Option<u64>,
     pub width_bits: u16,
     pub target: RelocationTarget,
 }
@@ -1321,6 +1329,7 @@ impl SymbolicFieldValue {
         Ok(Self {
             field: field.into(),
             member_identity: None,
+            element_index: None,
             width_bits,
             target,
         })
@@ -1337,6 +1346,42 @@ impl SymbolicFieldValue {
         let mut value = Self::new(field, width_bits, target)?;
         value.member_identity = Some(member_identity);
         Ok(value)
+    }
+
+    /// Constructs a symbolic value addressed to the `element_index`-th element
+    /// of a repeated field. The exact index is preserved symbolically until
+    /// materialization assigns it the element's `At` offset; physical lowering
+    /// may choose that offset but cannot change which element is accessed.
+    /// Index bounds are checked against the field's element placements when the
+    /// plan is derived, not when the caller builds this value.
+    pub fn new_indexed(
+        field: impl Into<String>,
+        element_index: u64,
+        width_bits: u16,
+        target: RelocationTarget,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        let mut value = Self::new(field, width_bits, target)?;
+        value.element_index = Some(element_index);
+        Ok(value)
+    }
+
+    /// `new_indexed` carrying the compiler-retained stable member identity.
+    pub fn new_indexed_numbered(
+        field: impl Into<String>,
+        member_identity: u64,
+        element_index: u64,
+        width_bits: u16,
+        target: RelocationTarget,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        let mut value = Self::new_indexed(field, element_index, width_bits, target)?;
+        value.member_identity = Some(member_identity);
+        Ok(value)
+    }
+
+    /// The exact element index preserved on this symbolic field/index path, if
+    /// any. `None` means the symbolic value covers every placement of the field.
+    pub const fn element_index(&self) -> Option<u64> {
+        self.element_index
     }
 }
 
@@ -2864,20 +2909,26 @@ pub fn derive_symbolic_materialization(
         .joined_with_layout(layout.align, byte_len)?;
     validate_materialization_field_identities(layout)?;
 
+    // `field[index]` is a distinct semantic slot from `field[j]` and from the
+    // whole-field `field`, so the exact index joins the name and identity when
+    // detecting a duplicate supply. Without it two elements of one array would
+    // collide even though they write disjoint element placements.
     let mut supplied = std::collections::BTreeSet::new();
     let mut names = std::collections::BTreeSet::new();
     for symbolic in symbolic_fields {
-        if !names.insert(symbolic.field.as_str()) {
+        if !names.insert((symbolic.field.as_str(), symbolic.element_index)) {
             return Err(MaterializationDiagnostic(format!(
-                "symbolic field `{}` is supplied more than once",
-                symbolic.field
+                "symbolic field `{}`{} is supplied more than once",
+                symbolic.field,
+                symbolic_index_display(symbolic.element_index)
             )));
         }
         let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
-        if !supplied.insert(key) {
+        if !supplied.insert((key, symbolic.element_index)) {
             return Err(MaterializationDiagnostic(format!(
-                "symbolic field `{}` repeats stable member identity #{}",
+                "symbolic field `{}`{} repeats stable member identity #{}",
                 symbolic.field,
+                symbolic_index_display(symbolic.element_index),
                 symbolic
                     .member_identity
                     .expect("only numbered symbolic values can collide after name validation")
@@ -2923,10 +2974,11 @@ pub fn derive_symbolic_materialization(
         .iter()
         .map(|symbolic| {
             let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
-            planned
+            let entries = planned
                 .get(&key)
-                .expect("symbolic layout membership validated above")
-                .iter()
+                .expect("symbolic layout membership validated above");
+            select_materialization_entries(entries, symbolic)?
+                .into_iter()
                 .map(|entry| {
                     let write = write_from_entry(entry, symbolic)?;
                     validate_write(byte_len, &write)?;
@@ -3008,6 +3060,52 @@ pub fn derive_symbolic_materialization(
         placement,
         actions,
     })
+}
+
+/// Resolves a symbolic `element_index` to the exact element `At` placement it
+/// names. An index is the second hop of a field/index path (`field[index]`):
+/// every layout entry for the field must be an element `At`, and the index must
+/// name one of those elements. Entries are ordered by offset so the index
+/// selects the semantic element rather than whichever entry the producer
+/// emitted first. Without an index the symbolic value covers every placement,
+/// which is how a fragmented field is tiled. The bound is checked here, before
+/// any destination byte offset is assigned, so physical lowering cannot change
+/// which element is accessed.
+fn select_materialization_entries<'a>(
+    entries: &'a [&'a LayoutFieldEntryReport],
+    symbolic: &SymbolicFieldValue,
+) -> Result<Vec<&'a LayoutFieldEntryReport>, MaterializationDiagnostic> {
+    let Some(element_index) = symbolic.element_index else {
+        return Ok(entries.to_vec());
+    };
+    if entries
+        .iter()
+        .any(|entry| !matches!(entry.placement, LayoutPlacementReport::At { .. }))
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "symbolic field `{}` element index {element_index} cannot address a fragmented or stored-integer placement",
+            symbolic.field
+        )));
+    }
+    let mut elements = entries.to_vec();
+    elements.sort_by_key(|entry| match entry.placement {
+        LayoutPlacementReport::At { offset } => offset,
+        LayoutPlacementReport::IntegerAt { .. } | LayoutPlacementReport::Bits { .. } => u64::MAX,
+    });
+    let index = usize::try_from(element_index).map_err(|_| {
+        MaterializationDiagnostic(format!(
+            "symbolic field `{}` element index {element_index} cannot be represented on this host",
+            symbolic.field
+        ))
+    })?;
+    let Some(entry) = elements.get(index) else {
+        return Err(MaterializationDiagnostic(format!(
+            "symbolic field `{}` element index {element_index} is outside its {} element placements",
+            symbolic.field,
+            elements.len()
+        )));
+    };
+    Ok(vec![*entry])
 }
 
 fn write_from_entry(
