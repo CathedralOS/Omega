@@ -1,0 +1,28 @@
+// FAIL canary (ENT4): a nominal binder is never selected implicitly; the caller
+// must name the satisfying machine even when exactly one exists.
+
+trait Handler {
+    machine call(value: i32) -> i32;
+}
+
+machine chosen(value: i32) -> i32
+satisfies Handler::call
+{
+    value
+}
+
+machine register<machine Selected>(value: i32) -> i32
+where machine Selected satisfies Handler::call;
+{
+    Selected(value)
+}
+
+machine caller(value: i32) -> i32 {
+    register(value)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
