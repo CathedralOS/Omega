@@ -7,6 +7,7 @@ use crate::pipeline::source::{ImportQueue, SourceStorage};
 use crate::pipeline::stage::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use crate::pipeline::timing::CompileTimings;
 use diagnostics::Diagnostic;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
@@ -98,24 +99,43 @@ pub(super) fn retain_generated_syntax_extension(
     let mut sources = (**base_sources).clone();
     let mut units = Vec::with_capacity(generated_sources.len());
     let mut retained = Vec::with_capacity(generated_sources.len());
-    for generated in generated_sources {
+    // Included paths have already been validated by staged-output custody.
+    // Retain their owners while collision checks borrow paths from both strata.
+    let logical_paths = generated_sources
+        .iter()
+        .map(|generated| {
+            let mut logical_path = package_root.join(".omega/generated");
+            for component in generated.relative_path().split(|byte| *byte == b'/') {
+                logical_path.push(
+                    std::str::from_utf8(component)
+                        .expect("validated generated source paths retain UTF-8 components"),
+                );
+            }
+            logical_path
+        })
+        .collect::<Vec<_>>();
+    let collisions = if logical_paths.is_empty() {
+        Vec::new()
+    } else {
+        let mut loaded_paths = base_sources
+            .files()
+            .map(|existing| existing.path.as_path())
+            .collect::<HashSet<_>>();
+        logical_paths
+            .iter()
+            .map(|path| !loaded_paths.insert(path.as_path()))
+            .collect::<Vec<_>>()
+    };
+    for ((generated, logical_path), collides) in
+        generated_sources.iter().zip(logical_paths).zip(collisions)
+    {
         let source = std::str::from_utf8(generated.bytes()).map_err(|_| {
             vec![Diagnostic::error(format!(
                 "included generated source `{}` is not UTF-8 Omega source",
                 String::from_utf8_lossy(generated.relative_path())
             ))]
         })?;
-        let mut logical_path = package_root.join(".omega/generated");
-        for component in generated.relative_path().split(|byte| *byte == b'/') {
-            logical_path.push(
-                std::str::from_utf8(component)
-                    .expect("validated generated source paths retain UTF-8 components"),
-            );
-        }
-        if sources
-            .files()
-            .any(|existing| existing.path == logical_path)
-        {
+        if collides {
             return Err(vec![Diagnostic::error(format!(
                 "generated source logical path `{}` collides with an existing source",
                 logical_path.display()
@@ -197,27 +217,34 @@ fn append_dependency_generated_sources_to_storage(
             .package_root(bundle.package())
             .expect("validated generated-source bundle retains its package root");
         for source in bundle.sources() {
-            let logical_path = generated_source_logical_path(package_root, source)?;
-            if logical_path.exists()
-                || entries
-                    .iter()
-                    .any(|(existing, _, _): &(PathBuf, _, _)| existing == &logical_path)
-            {
+            // Keep path errors in authored order with physical collisions.
+            entries.push((
+                generated_source_logical_path(package_root, source),
+                source,
+                bundle.package(),
+            ));
+        }
+    }
+    {
+        let mut loaded_paths = HashSet::with_capacity(entries.len());
+        for (logical_path, _, _) in &entries {
+            let logical_path = logical_path.as_ref().map_err(Clone::clone)?;
+            if logical_path.exists() || !loaded_paths.insert(logical_path.as_path()) {
                 return Err(vec![Diagnostic::error(format!(
                     "generated dependency source logical path `{}` collides with another source",
                     logical_path.display(),
                 ))]);
             }
-            entries.push((logical_path, source.clone(), bundle.package()));
         }
     }
 
     for (logical_path, _, _) in &entries {
-        imports.mark_loaded(logical_path.clone());
+        imports.mark_loaded(logical_path.as_ref().map_err(Clone::clone)?.clone());
     }
 
     let mut retained = Vec::with_capacity(entries.len());
     for (logical_path, source, package) in entries {
+        let logical_path = logical_path?;
         let text = std::str::from_utf8(source.bytes()).map_err(|_| {
             vec![Diagnostic::error(format!(
                 "included generated source `{}` is not UTF-8 Omega source",
@@ -244,7 +271,7 @@ fn append_dependency_generated_sources_to_storage(
         )?;
         imports.enqueue(discovered)?;
         extend_source_storage(source_storage, parsed)?;
-        retained.push((source_id, source));
+        retained.push((source_id, source.clone()));
     }
     Ok(retained)
 }
@@ -635,6 +662,261 @@ fn assemble_syntax(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct GeneratedSourcePackages {
+        directory: PathBuf,
+        consumer: PathBuf,
+        producer: PathBuf,
+    }
+
+    impl GeneratedSourcePackages {
+        fn new() -> Self {
+            static NEXT_FIXTURE: std::sync::atomic::AtomicU64 =
+                std::sync::atomic::AtomicU64::new(0);
+            let sequence = NEXT_FIXTURE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let directory = std::env::temp_dir().join(format!(
+                "omega-source-collision-{}-{sequence}",
+                std::process::id()
+            ));
+            std::fs::create_dir(&directory).expect("unique temporary package directory");
+            std::fs::create_dir(directory.join("consumer")).expect("consumer directory");
+            std::fs::create_dir(directory.join("producer")).expect("producer directory");
+            Self {
+                consumer: directory.join("consumer").canonicalize().unwrap(),
+                producer: directory.join("producer").canonicalize().unwrap(),
+                directory,
+            }
+        }
+    }
+
+    impl Drop for GeneratedSourcePackages {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.directory);
+        }
+    }
+
+    fn generated_source(path: &[u8], bytes: &[u8]) -> build_output::PackageGeneratedSource {
+        let tree = build_output::replayed_single_ordinary_file(path, bytes)
+            .expect("canonical retained generated source");
+        build_output::select_included_sources(&tree, &[path.to_vec()])
+            .expect("explicit generated source selection")
+            .pop()
+            .expect("one selected source")
+    }
+
+    #[test]
+    fn generated_source_collisions_reject_existing_new_and_late_paths() {
+        let root = Path::new("collision-package");
+        let mut base = source::SourceMap::default();
+        base.add(root.join(".omega/generated/existing.omg"), String::new());
+        let base = Arc::new(base);
+        for paths in [
+            vec!["existing.omg"],
+            vec!["new.omg", "new.omg"],
+            vec!["z.omg", "a.omg", "middle.omg", "existing.omg"],
+            vec!["z.omg", "a.omg", "middle.omg", "z.omg"],
+        ] {
+            let generated = paths
+                .iter()
+                .map(|path| generated_source(path.as_bytes(), b"data Generated {}"))
+                .collect::<Vec<_>>();
+            let diagnostics = retain_generated_syntax_extension(&base, root, None, &generated)
+                .err()
+                .expect("existing or earlier generated paths must reject");
+            assert!(
+                diagnostics[0]
+                    .message
+                    .contains("collides with an existing source")
+            );
+            assert!(diagnostics[0].message.contains(paths.last().unwrap()));
+            assert_eq!(base.len(), 1);
+        }
+    }
+
+    #[test]
+    fn generated_source_collisions_preserve_utf8_and_parse_diagnostic_order() {
+        let root = Path::new("collision-package");
+        let mut base = source::SourceMap::default();
+        base.add(root.join(".omega/generated/existing.omg"), String::new());
+        let base = Arc::new(base);
+        let invalid_utf8 = [generated_source(b"existing.omg", &[0xff])];
+        let diagnostics = retain_generated_syntax_extension(&base, root, None, &invalid_utf8)
+            .err()
+            .expect("invalid text precedes collision on the same unit");
+        assert!(diagnostics[0].message.contains("is not UTF-8 Omega source"));
+
+        let invalid_syntax = [
+            generated_source(b"first.omg", b"data {"),
+            generated_source(b"existing.omg", b"data Later {}"),
+        ];
+        let diagnostics = retain_generated_syntax_extension(&base, root, None, &invalid_syntax)
+            .err()
+            .expect("earlier syntax error precedes later collision");
+        assert!(diagnostics[0].message.contains("first.omg"));
+        assert!(!diagnostics[0].message.contains("collides"));
+    }
+
+    #[test]
+    fn generated_source_collisions_preserve_clean_authored_source_order() {
+        let root = Path::new("collision-package");
+        let mut base = source::SourceMap::default();
+        base.add(root.join("main.omg"), String::new());
+        let base = Arc::new(base);
+        let generated = [
+            generated_source(b"z.omg", b"data LastAlphabetically {}"),
+            generated_source(b"a.omg", b"data FirstAlphabetically {}"),
+            generated_source(b"middle.omg", b"data Middle {}"),
+        ];
+        let extension = retain_generated_syntax_extension(&base, root, None, &generated)
+            .expect("unique generated paths remain in authored order");
+        for (position, unit) in extension.units.iter().enumerate() {
+            assert_eq!(unit.source_id, source::SourceId(position + 1));
+            assert_eq!(
+                unit.path,
+                generated_source_logical_path(root, &generated[position]).unwrap()
+            );
+            assert_eq!(
+                extension.sources.get(unit.source_id).unwrap().path,
+                unit.path
+            );
+            assert_eq!(
+                extension.generated_source_custody[position].1,
+                generated[position]
+            );
+        }
+        assert_eq!(extension.sources.len(), 4);
+        assert_eq!(base.len(), 1);
+    }
+
+    fn dependency_generated_inputs(
+        generated: Vec<build_output::PackageGeneratedSource>,
+        consumer_root: &Path,
+        dependency_root: &Path,
+    ) -> PackageCompilationInputs {
+        use package_compilation::{
+            PackageDependencyBinding, PackageGeneratedSourceBundle, PackageSourceBinding,
+            PackageSourceConsumptionCommitment,
+        };
+        let root = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32])
+            .expect("nonzero root identity");
+        let dependency = semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32])
+            .expect("nonzero dependency identity");
+        let inputs = PackageCompilationInputs::new_package(
+            root,
+            vec![
+                PackageSourceBinding::new(root, "consumer", consumer_root.to_path_buf()),
+                PackageSourceBinding::new(dependency, "producer", dependency_root.to_path_buf()),
+            ],
+            vec![PackageDependencyBinding::new(root, "producer", dependency)],
+        )
+        .expect("closed dependency graph");
+        let bundle = PackageGeneratedSourceBundle::from_checked(
+            dependency,
+            target::TargetProfile::WindowsX64,
+            inputs.dependency_closure_for(dependency),
+            PackageSourceConsumptionCommitment::for_test([3; 32]),
+            generated,
+        );
+        inputs
+            .with_complete_dependency_generated_sources(vec![bundle])
+            .expect("complete generated-source handoff")
+    }
+
+    #[test]
+    fn dependency_generated_source_collisions_reject_late_duplicates_before_parsing() {
+        let packages = GeneratedSourcePackages::new();
+        let inputs = dependency_generated_inputs(
+            vec![
+                generated_source(b"z.omg", b"data {"),
+                generated_source(b"a.omg", b"data First {}"),
+                generated_source(b"z.omg", b"data Last {}"),
+            ],
+            &packages.consumer,
+            &packages.producer,
+        );
+        let mut storage = SourceStorage::default();
+        let diagnostics = append_dependency_generated_sources_to_storage(
+            &mut storage,
+            &mut ImportQueue::default(),
+            Some("windows_x86_64"),
+            &inputs,
+            &mut CompileTimings::default(),
+        )
+        .expect_err("dependency path collisions precede parsing all units");
+        assert!(diagnostics[0].message.contains("z.omg"));
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("collides with another source")
+        );
+        assert_eq!(storage.next_source_id(), 0);
+    }
+
+    #[test]
+    fn dependency_generated_source_collisions_preserve_clean_authored_order() {
+        let packages = GeneratedSourcePackages::new();
+        let generated = vec![
+            generated_source(b"z.omg", b"data LastAlphabetically {}"),
+            generated_source(b"a.omg", b"data FirstAlphabetically {}"),
+        ];
+        let inputs =
+            dependency_generated_inputs(generated.clone(), &packages.consumer, &packages.producer);
+        let mut storage = SourceStorage::default();
+        let retained = append_dependency_generated_sources_to_storage(
+            &mut storage,
+            &mut ImportQueue::default(),
+            Some("windows_x86_64"),
+            &inputs,
+            &mut CompileTimings::default(),
+        )
+        .expect("clean handoff retains authored order");
+        for (position, (source_id, source)) in retained.iter().enumerate() {
+            assert_eq!(*source_id, source::SourceId(position));
+            assert_eq!(source, &generated[position]);
+            assert_eq!(
+                storage.sources.get(*source_id).unwrap().path,
+                generated_source_logical_path(&packages.producer, source).unwrap()
+            );
+        }
+        assert_eq!(storage.next_source_id(), 2);
+    }
+
+    #[test]
+    fn dependency_generated_source_collisions_reject_physical_paths_only_for_dependencies() {
+        let packages = GeneratedSourcePackages::new();
+        let root = &packages.producer;
+        let generated_directory = root.join(".omega/generated");
+        std::fs::create_dir_all(&generated_directory).expect("create physical collision directory");
+        let physical_path = generated_directory.join("existing.omg");
+        std::fs::write(&physical_path, b"physical bytes must not be read")
+            .expect("create physical collision");
+        let generated = vec![generated_source(b"existing.omg", b"data Generated {}")];
+        let inputs = dependency_generated_inputs(generated.clone(), &packages.consumer, root);
+        let mut storage = SourceStorage::default();
+        let dependency_result = append_dependency_generated_sources_to_storage(
+            &mut storage,
+            &mut ImportQueue::default(),
+            Some("windows_x86_64"),
+            &inputs,
+            &mut CompileTimings::default(),
+        );
+        let continuation_result = retain_generated_syntax_extension(
+            &Arc::new(source::SourceMap::default()),
+            root,
+            None,
+            &generated,
+        );
+        let diagnostics = dependency_result.expect_err("dependency physical path must reject");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("collides with another source")
+        );
+        assert_eq!(storage.next_source_id(), 0);
+        let extension =
+            continuation_result.expect("own continuation does not inspect physical paths");
+        assert_eq!(extension.source_count(), 1);
+    }
 
     #[test]
     fn retained_generated_syntax_extension_rejects_equal_but_distinct_base_sources() {
