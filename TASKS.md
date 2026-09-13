@@ -64,6 +64,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   The application lock records its reviewed macOS baseline. Checkout-specific
   local identities require ordinary update/review when relocated; see its README.
 
+  Relocation preparation at working checkpoint `7f124da93f` (2026-09-13,
+  same app/std pins and macOS environment): `omega update --project
+  samples/apps/squalr/squalr-tests --target macos_arm64` checks all 17 packages
+  and exits 3 at ordinary pending review. Preserve the historical tracked lock;
+  do not mistake a relocated lock rejection for the native failure above.
+  Review includes Console reads and Filesystem authority, not just entry binding.
+  Finish that local review before rerunning the outer command; this preparation
+  does not establish receiver provisioning or native execution.
+
   Next dependency: **ENTRY-CONTENT-ROOTS** and
   **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION**, owned by
   `native-realization/src/realization/native_artifact.rs`, `program-entry-plan`
