@@ -303,8 +303,28 @@ fn expression_selection_violation(
 // source-owned selections as machine expressions, then establish context-free
 // operator meaning through the shared exact query. Never substitute the
 // callee's lexical context for the caller's argument expressions.
+pub(crate) fn require_call_expression_selection(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    authority: Option<&dyn BuildTimeSelectionAuthority>,
+) -> Result<(), String> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return Err("range endpoint lost its original call selection".to_owned());
+    };
+    if let Some(violation) = expression_occurrence_violation(program, expression, authority) {
+        return Err(violation);
+    }
+    if call.receiver.is_valid()
+        && let Some(violation) = expression_occurrence_violation(program, call.receiver, authority)
+    {
+        return Err(violation);
+    }
+    Ok(())
+}
+
 pub(crate) fn require_closed_integer_argument(
     program: &TypedTrees,
+    evaluated: &TypedTrees,
     expression: ExpressionHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
 ) -> Result<(), String> {
@@ -315,10 +335,25 @@ pub(crate) fn require_closed_integer_argument(
             continue;
         }
         visited.push(expression);
-        if let Some(violation) = expression_occurrence_violation(program, expression, authority) {
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Call(_)
+        ) {
+            require_call_expression_selection(program, expression, authority)?;
+        } else if let Some(violation) =
+            expression_occurrence_violation(program, expression, authority)
+        {
             return Err(violation);
         }
         match program.expression_table.expression(expression) {
+            ExpressionNode::Call(call) => {
+                // The range evaluator admits the exact call before replacing
+                // it in its working tree. Resolve occurrence custody here in
+                // the original tree, where CheckedCall still has its target.
+                pending.extend(
+                    program.expression_table.expression_handles(call.arguments).iter().rev().copied(),
+                );
+            }
             ExpressionNode::Binary(binary) => {
                 pending.push(binary.right);
                 pending.push(binary.left);
@@ -329,7 +364,7 @@ pub(crate) fn require_closed_integer_argument(
             _ => return Err("range endpoint argument requires a closed integer expression with context-independent operator meaning".to_owned()),
         }
     }
-    program.closed_integer_value_in(expression, SymbolHandle::invalid())
+    evaluated.closed_integer_value_in(expression, SymbolHandle::invalid())
         .map(|_| ())
         .ok_or_else(|| "range endpoint argument requires a closed integer expression with context-independent operator meaning".to_owned())
 }
