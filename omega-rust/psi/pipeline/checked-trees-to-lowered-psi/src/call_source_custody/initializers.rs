@@ -3,6 +3,24 @@
 use super::*;
 use checked_trees::statement::StatementNode;
 
+/// A discarded invocation produces a value but no source-local binding.
+pub(crate) fn discards_result(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+) -> Result<bool, LoweringError> {
+    let (_, source) = crate::scalar_source_custody::authored_state(checked, state)?;
+    let statement = checked
+        .statement_table
+        .statements(source.statement_nodes)
+        .get(coordinate.statement_index as usize)
+        .ok_or(LoweringError::Unsupported(
+            "call result has no authored statement",
+        ))?;
+    Ok(coordinate.call_ordinal == 0
+        && matches!(statement, StatementNode::Call(call) if call.discards_result))
+}
+
 /// A discarded statement result has an operation-owned place, not a fabricated
 /// local. Reconstruct its plain-owned custody from the exact authored call
 /// signature; the continuation owner separately requires immediate disposal.

@@ -161,6 +161,32 @@ pub(super) fn installation_cannot_change_call_or_result(
             reject(&changed, mutation + 5);
         }
     }
+    for (function_index, function) in record.functions().iter().enumerate() {
+        if function.scalar_call_stacks.is_empty() {
+            continue;
+        }
+        for mutation in 0..6 {
+            let mut changed = record.clone();
+            let function = &mut changed.functions_mut_for_test()[function_index];
+            match mutation {
+                0 => function.scalar_call_stacks.clear(),
+                1 => function.scalar_call_stacks[0].target = function.machine,
+                2 => {
+                    function.scalar_call_stacks[0].owner =
+                        target_operations::CallSiteOwner::Operation(
+                            semantic_vocabulary::OperationId::new(9999).unwrap(),
+                        )
+                }
+                3 => function.scalar_call_stacks[0].text_offset += 1,
+                4 => function.scalar_call_stacks[0].caller_live_bytes += 16,
+                5 => function
+                    .scalar_call_stacks
+                    .push(function.scalar_call_stacks[0]),
+                _ => unreachable!(),
+            }
+            reject(&changed, mutation + 11);
+        }
+    }
     let mut old_format = image_emission::encode_installation_record(record).unwrap();
     old_format[8..10]
         .copy_from_slice(&(image_emission::INSTALLATION_FORMAT_MARKER - 1).to_le_bytes());

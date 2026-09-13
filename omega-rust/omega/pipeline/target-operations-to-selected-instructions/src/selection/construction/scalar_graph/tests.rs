@@ -1,5 +1,6 @@
 //! Projection controls over raw graph data; no source-admission receipt is invented.
 use super::*;
+mod aggregate_returns;
 mod boolean_equality;
 mod boolean_values;
 mod borrowed_calls;

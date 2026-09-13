@@ -80,7 +80,12 @@ pub(super) fn argument(
         )?;
         Some(pointer)
     } else {
-        None
+        builder
+            .transport
+            .pointers
+            .iter()
+            .find(|(owner, _)| *owner == place)
+            .map(|(_, pointer)| *pointer)
     };
     let outgoing = if let Some(ValueLocation::Stack {
         stack_byte_offset, ..

@@ -261,12 +261,18 @@ pub(super) fn validate_unit_operation_sequence(
                         "Unit scalar result local or call coordinate is not canonical",
                     );
                 }
-                next_scalar_binding =
-                    next_scalar_binding
-                        .checked_add(1)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit scalar result binding ordinal space is exhausted",
-                        ))?;
+                if !crate::call_source_custody::initializers::discards_result(
+                    checked,
+                    machine.state,
+                    *coordinate,
+                )? {
+                    next_scalar_binding =
+                        next_scalar_binding
+                            .checked_add(1)
+                            .ok_or(LoweringError::Unsupported(
+                                "Unit scalar result binding ordinal space is exhausted",
+                            ))?;
+                }
                 *coordinate
             }
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {

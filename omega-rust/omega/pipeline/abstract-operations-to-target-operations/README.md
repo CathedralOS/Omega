@@ -91,15 +91,17 @@ block arrivals: the actual source place is retained rather than relabeled as an
 incoming parameter. Availability and field identity are checked separately from
 physical layout, and each load produces a fresh scalar before later operations.
 By-value record entry parameters retain their owned value ABI. Selection captures
-their register or inline stack fragments into one activation-local input home
+their register fragments into one activation-local input home
 when field observations or borrowed calls need an address. Whole record returns
 and nested copies then use that current home; entry fragments cannot replace
-bytes changed by a completed mutable borrow. Indirect owned record inputs retain
+bytes changed by a completed mutable borrow. Inline stack inputs use their
+existing incoming value storage. Indirect owned record inputs retain
 the ABI-prepared value copy through its exact register- or stack-passed pointer.
 They remain owned values, not borrows of the caller's original record. Field
-observations and nested construction share that backing across calls. General
-indirect owned argument forwarding and whole-parameter returns remain separate
-transport limits.
+observations, nested construction, and whole-parameter returns share that backing
+across calls. Input and result placement are independently selected by the
+complete call plan; a stack-passed value may return through hidden result storage.
+General indirect owned argument forwarding remains a separate transport limit.
 Source-produced integer getter controls cover direct and call-produced
 locals, tail completion, and nested scalar arguments. Mutable local receiver
 storage remains a separate dependency; shared

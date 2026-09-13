@@ -147,15 +147,8 @@ pub(super) fn validate(
                             optimized.structural_parameters.iter().any(|semantic| {
                                 semantic.place == *expected_source
                             && semantic.access == terminal_psi::StructuralAccess::Owned
-                            && (semantic.multiplicity
-                                == terminal_psi::StructuralMultiplicity::Affine
-                                || semantic.multiplicity
-                                    == terminal_psi::StructuralMultiplicity::Unrestricted
-                                    && crate::structural_reference_input::primitive_array_shape(
-                                        semantic.structural_type,
-                                        &plan.structural_types,
-                                    )
-                                    .is_some())
+                            && semantic.multiplicity
+                                != terminal_psi::StructuralMultiplicity::Linear
                             && !semantic.is_self
                             && semantic.qualifications.is_empty()
                             && semantic.projected_qualifications.is_empty()

@@ -11,6 +11,7 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 mod owned_places;
+pub(crate) use owned_places::validate as validate_owned_place;
 mod owned_selection;
 #[cfg(test)]
 mod tests;

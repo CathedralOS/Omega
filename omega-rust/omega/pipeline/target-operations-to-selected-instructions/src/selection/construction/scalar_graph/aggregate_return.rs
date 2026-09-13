@@ -49,6 +49,37 @@ pub(super) fn build(
     }) {
         return Err(invalid());
     }
+    // Prefer current addressable backing, including owned ABI indirection.
+    // Inline inputs with no addressable home retain their captured fragments.
+    // Both direct and hidden-pointer results consume this same source choice.
+    let pointer = if let Some(slot) = slot {
+        let pointer = super::structural_case::register(builder, place, 0, 64, false)?;
+        super::structural_case::memory(
+            builder,
+            block.id,
+            place,
+            0,
+            u32::from(placement.shape.byte_size),
+            SelectedMemoryAccessRole::AddressLocal { slot },
+        )?;
+        builder.emit(
+            SelectedInstructionKind::FrameAddress {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+            &[pointer],
+            Default::default(),
+        )?;
+        Some(pointer)
+    } else {
+        builder
+            .transport
+            .pointers
+            .iter()
+            .find(|(owner, _)| *owner == place)
+            .map(|(_, pointer)| *pointer)
+    };
     if crate::selection::aggregate_result_input::indirect_result(placement, source.call_plan.policy)
         .is_some()
     {
@@ -56,7 +87,8 @@ pub(super) fn build(
             source,
             block,
             returned,
-            slot.ok_or_else(invalid)?,
+            place,
+            pointer.ok_or_else(invalid)?,
             placement,
             builder,
         )?;
@@ -90,25 +122,7 @@ pub(super) fn build(
             }))
     }).copied().ok_or_else(invalid)?;
     let mut registers = Vec::new();
-    if let Some(slot) = slot {
-        let pointer = super::structural_case::register(builder, place, 0, 64, false)?;
-        super::structural_case::memory(
-            builder,
-            block.id,
-            place,
-            0,
-            u32::from(placement.shape.byte_size),
-            SelectedMemoryAccessRole::AddressLocal { slot },
-        )?;
-        builder.emit(
-            SelectedInstructionKind::FrameAddress {
-                slot: FrameStorageSlotId::Local(slot),
-                byte_offset: 0,
-            },
-            builder.constraints.keys.frame_address.ok_or_else(invalid)?,
-            &[pointer],
-            Default::default(),
-        )?;
+    if let Some(pointer) = pointer {
         for location in &placement.locations {
             let ValueLocation::Register {
                 value_byte_offset,

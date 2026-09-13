@@ -144,7 +144,11 @@ pub(super) fn validate(
                 || source_parameter.is_const
                 || source_parameter.is_mutable
                 || source_parameter.is_self
-                || parameter.multiplicity != Multiplicity::Unrestricted
+                || !matches!(
+                    parameter.multiplicity,
+                    Multiplicity::Unrestricted | Multiplicity::Affine
+                )
+                || parameter.multiplicity != result.multiplicity
                 || !parameter.qualifications.is_empty()
                 || parameter.is_self
                 || parameter.fused_service_erasure.is_some()
@@ -161,7 +165,34 @@ pub(super) fn validate(
             {
                 return unsupported("returned structural parameter differs from its owned source");
             }
-            super::scalar_arrays::validate_shape(checked, source_parameter.type_reference)?;
+            if validation::is_closed_primitive_array_type(
+                &checked.typed,
+                source_parameter.type_reference,
+            ) {
+                super::scalar_arrays::validate_shape(checked, source_parameter.type_reference)?;
+            } else if super::structural_values::plain_record(
+                checked,
+                source_parameter.type_reference,
+            ) {
+                super::structural_values::source_custody::validate_owned_place(
+                    checked,
+                    machine.machine,
+                    machine.state,
+                    u32::try_from(statements.len() - 1).map_err(|_| {
+                        LoweringError::Unsupported("return statement ordinal exceeds u32")
+                    })?,
+                    *expression,
+                    state.return_type,
+                    &checked_trees::CheckedUnitStructuralArgumentPlan {
+                        source: result.source.clone(),
+                        path: Vec::new(),
+                        type_identity: result.type_identity.clone(),
+                        access: CheckedStructuralAccess::Owned,
+                    },
+                )?;
+            } else {
+                return unsupported("returned parameter has no plain owned storage carrier");
+            }
         }
         _ => return unsupported("structural return source is not an owned whole value"),
     }

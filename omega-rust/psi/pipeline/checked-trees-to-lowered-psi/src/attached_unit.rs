@@ -2355,7 +2355,11 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                                 "nested argument group produces more than one scalar binding",
                             );
                         }
-                    } else {
+                    } else if !crate::call_source_custody::initializers::discards_result(
+                        checked,
+                        plan.state,
+                        *coordinate,
+                    )? {
                         scalar_result_values.push(value);
                     }
                     continue;
@@ -3037,7 +3041,11 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                                 "nested argument group produces more than one scalar binding",
                             );
                         }
-                    } else {
+                    } else if !crate::call_source_custody::initializers::discards_result(
+                        checked,
+                        plan.state,
+                        *coordinate,
+                    )? {
                         scalar_result_values.push(value);
                     }
                     continue;

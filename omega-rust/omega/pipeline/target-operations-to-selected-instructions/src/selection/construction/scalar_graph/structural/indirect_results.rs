@@ -129,7 +129,8 @@ pub(in crate::selection) fn returned(
     source: &LegalizedScalarFunction,
     block: &legalized_operations::LegalizedScalarBlock,
     returned: &legalized_operations::LegalizedScalarReturn,
-    slot: LocalStorageSlotId,
+    place: PlaceId,
+    input: VirtualRegisterId,
     placement: &calling_conventions::ValuePlacement,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
@@ -140,25 +141,6 @@ pub(in crate::selection) fn returned(
         .ok_or_else(invalid)?
         .place;
     let pointer = builder.transport.result_pointer.ok_or_else(invalid)?;
-    let place = slot.structural_place().ok_or_else(invalid)?;
-    let input = transport_register(builder, place, 0)?;
-    super::super::structural_case::memory(
-        builder,
-        block.id,
-        place,
-        0,
-        u32::from(placement.shape.byte_size),
-        SelectedMemoryAccessRole::AddressLocal { slot },
-    )?;
-    builder.emit(
-        SelectedInstructionKind::FrameAddress {
-            slot: selected_instructions::FrameStorageSlotId::Local(slot),
-            byte_offset: 0,
-        },
-        builder.constraints.keys.frame_address.ok_or_else(invalid)?,
-        &[input],
-        Default::default(),
-    )?;
     let mut offset = 0u32;
     while offset < u32::from(placement.shape.byte_size) {
         let width = (u32::from(placement.shape.byte_size) - offset).min(8) as u16;

@@ -59,9 +59,10 @@ pub(in crate::selection) fn entry(
             )
         {
             // Inline stack bytes are the owned payload, not a pointer to a
-            // caller-owned referent. Capture every exact fragment at entry so
-            // later calls use ordinary value preservation, just as register
-            // parameters do. The frame encoder alone adds prologue/return bias.
+            // caller-owned referent. The incoming value copy remains valid
+            // throughout this activation, including across calls. Retain its
+            // address instead of making every payload fragment live at once.
+            // The frame encoder alone adds prologue/return bias.
             if let Some(ValueLocation::Stack {
                 stack_byte_offset: base,
                 ..
@@ -94,7 +95,6 @@ pub(in crate::selection) fn entry(
                     let ValueLocation::Stack {
                         stack_byte_offset,
                         value_byte_offset,
-                        byte_size,
                         ..
                     } = location
                     else {
@@ -104,21 +104,8 @@ pub(in crate::selection) fn entry(
                     if stack_byte_offset.checked_sub(*base) != Some(offset) {
                         return Err(invalid());
                     }
-                    let output = transport_register(builder, place, offset)?;
-                    super::super::structural_case::memory(
-                        builder,
-                        source.entry_block,
-                        place,
-                        offset,
-                        u32::from(*byte_size),
-                        selected_instructions::SelectedMemoryAccessRole::ReadPlace,
-                    )?;
-                    super::super::aggregate_memory::load(
-                        builder, address, output, offset, *byte_size,
-                    )?;
-                    builder.transport.fragments.push((place, offset, output));
                 }
-                retain_owned_home(source, parameter, builder)?;
+                builder.transport.pointers.push((place, address));
                 continue;
             }
             for location in &parameter.target.placement.locations {

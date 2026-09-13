@@ -196,7 +196,7 @@ pub(super) fn match_input(
         {
             return Err(invalid);
         }
-        nodes::validate(block, optimized, plan)?;
+        nodes::validate(block, optimized)?;
     }
     let entry = optimized
         .blocks

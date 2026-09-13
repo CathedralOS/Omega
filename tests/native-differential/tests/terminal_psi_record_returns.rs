@@ -36,9 +36,9 @@ fn optimized_record(
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "forward")
         .produce_artifact()
         .unwrap();
-    // The frontend does not yet produce mixed structural-result bodies. Retain
-    // its ordinary verified write/call operations and explicitly author the
-    // independent Terminal parameter/result contract for this native customer.
+    // Retain ordinary verified write/call operations and explicitly author the
+    // Terminal parameter/result contract for the receiving-corruption controls.
+    // Fully source-authored return cases live in scalar_case_results/record_reads.
     let mut module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let record = semantic_vocabulary::StructuralTypeId::new(90001).unwrap();
     let input = semantic_vocabulary::PlaceId::new(90002).unwrap();
@@ -334,18 +334,15 @@ fn two_register_record_returns_preserve_both_fragments_across_calls() {
 }
 
 #[test]
-fn four_byte_record_keeps_the_existing_direct_return_admission_fence() {
+fn four_byte_record_uses_the_same_owned_return_transport() {
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
         NativeTarget::macos_arm64(),
         NativeTarget::windows_x64(),
     ] {
-        let result = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-            optimized_record(false, &[32]),
-            target,
-        );
-        assert!(matches!(result, Err(abstract_operations_to_target_operations::LoweringError::UnsupportedStructuralReturnPlacement(_))));
+        let text = native_text_for(target, false, &[32]);
+        assert!(!text.text_section().bytes.is_empty());
     }
 }
 

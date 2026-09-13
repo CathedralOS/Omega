@@ -226,7 +226,6 @@ fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -
 pub(super) fn validate(
     block: &OptimizationBlock,
     optimized: &PsiOptimizationFunction,
-    plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     let (terminator, body) = block.nodes.split_last().ok_or(invalid.clone())?;
@@ -532,5 +531,5 @@ pub(super) fn validate(
             return Err(invalid);
         }
     }
-    super::control::validate(terminator, body, optimized, plan)
+    super::control::validate(terminator, body, optimized)
 }
