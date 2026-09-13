@@ -505,8 +505,8 @@ fn checked_operator_provider_reports_retain_strong_plan_authority() {
     );
 
     for relative in [
-        "omega-rust/omega/build/selected-dispatch/src/operator_adapter.rs",
-        "omega-rust/omega/build/selected-dispatch/src/float_intrinsic.rs",
+        "omega-rust/omega/build/selected-dispatch/src/selected_dispatch/operator_adapter.rs",
+        "omega-rust/omega/build/selected-dispatch/src/selected_dispatch/float_intrinsic.rs",
     ] {
         let path = root.join(relative);
         let dispatch = fs::read_to_string(&path)
