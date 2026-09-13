@@ -3,11 +3,21 @@
 This crate is the compiler-owned entrance for provider-backed opaque value
 representations.
 
-`src/lib.rs` harvests `Build::select_representation<Opaque, Conformance>()`
+Start at [representation_selection.rs](src/representation_selection.rs). It
+harvests `Build::select_representation<Opaque, Conformance>()`
 from the authoritative build machine, closes the exact named conformance, and
 validates its compiler-owned trait, opaque subject, and concrete carrier. It
 does not accept byte sizes, alignments, ABI classes, or movement rules from
 source.
+
+The same file exposes final-graph rederivation beside the initial harvest, then
+the per-selection conformance closure they share. Its subordinate
+[carrier_closure.rs](src/representation_selection/carrier_closure.rs) checks the
+complete carrier graph for inertness and, when required, semantic copy.
+[representation_trait.rs](src/representation_trait.rs) independently recognizes
+the toolchain-owned trait; package availability review uses that check without
+activating a build selection. Retained selection values belong to the sibling
+`representation-selections` representation crate.
 
 D44 requires every v1 selection to carry the explicit role-tagged lifecycle
 disposition `Inert`. Admission must derive that disposition from the complete
