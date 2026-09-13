@@ -1,155 +1,173 @@
-//! Prepare the requested project, compile it, settle admission, and publish its output.
+//! Prepare a project, compile it, settle admission, and publish the requested product.
 
-pub(crate) mod admissions;
-pub(crate) mod publication;
-pub(crate) mod samples;
+pub mod publication;
 
-use crate::arguments::CompileArguments;
-use admissions::report_unsettled_admissions;
 use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
+    ArtifactEmissionPolicy, CompileOptions, CompileReport, CompileRequest, OptimizationRollback,
+    RequestedCompileProduct, TrustAdmissionSettlement, compile,
 };
+use diagnostics::Diagnostic;
+use package_manager::operations as packages;
+use std::path::PathBuf;
 
-pub(crate) fn compile_project(arguments: CompileArguments) {
-    let mut options = CompileOptions {
-        build_dir: arguments.build_dir,
-        root_path: arguments.root_path,
-        target_name: arguments.target_name,
-    };
-    // Artifact placement belongs to the user-authored entrypoint. Package
-    // preparation may replace only the compilation root with an immutable
-    // resolver snapshot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProjectProduct {
+    Check,
+    NativeArtifact,
+}
+
+/// Project policy and product selection, independent of argument spelling.
+pub struct CompileProjectRequest {
+    pub options: CompileOptions,
+    pub product: ProjectProduct,
+    pub artifact_policy: ArtifactEmissionPolicy,
+    pub offline: bool,
+    pub accept_admissions: bool,
+    pub optimization_rollback: OptimizationRollback,
+}
+
+impl CompileProjectRequest {
+    pub fn new(options: CompileOptions) -> Self {
+        Self {
+            options,
+            product: ProjectProduct::NativeArtifact,
+            artifact_policy: ArtifactEmissionPolicy::Full,
+            offline: false,
+            accept_admissions: false,
+            optimization_rollback: OptimizationRollback::default(),
+        }
+    }
+}
+
+pub struct CompileProjectOutcome {
+    pub report: CompileReport,
+    /// Present only after native publication succeeds.
+    pub executable_path: Option<PathBuf>,
+}
+
+#[derive(Debug)]
+pub enum CompileProjectError {
+    Diagnostics(Vec<Diagnostic>),
+    Preparation(packages::PrepareLocalProjectError),
+    PackageCheck(packages::CheckPreparedLocalProjectError),
+    PackageNative(packages::CompilePreparedLocalProjectNativeError),
+    UnsettledAdmissions(TrustAdmissionSettlement),
+    Publication(String),
+}
+
+impl std::fmt::Display for CompileProjectError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Diagnostics(diagnostics) => {
+                for (index, diagnostic) in diagnostics.iter().enumerate() {
+                    if index != 0 {
+                        writeln!(formatter)?;
+                    }
+                    write!(formatter, "{diagnostic}")?;
+                }
+                Ok(())
+            }
+            Self::Preparation(error) => write!(formatter, "{error}"),
+            Self::PackageCheck(error) => write!(formatter, "{error}"),
+            Self::PackageNative(error) => write!(formatter, "{error}"),
+            Self::UnsettledAdmissions(_) => {
+                write!(formatter, "project trust admissions are not settled")
+            }
+            Self::Publication(error) => write!(formatter, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for CompileProjectError {}
+
+pub fn compile_project(
+    request: CompileProjectRequest,
+) -> Result<CompileProjectOutcome, CompileProjectError> {
+    let CompileProjectRequest {
+        mut options,
+        product,
+        artifact_policy,
+        offline,
+        accept_admissions,
+        optimization_rollback,
+    } = request;
+    // Placement and policy belong to the authored project, not its resolver snapshot.
     let build_dir = options.retain_build_dir();
     let policy_root_path = options.root_path.clone();
-
-    let artifact_policy = if arguments.output_only {
-        ArtifactEmissionPolicy::OutputOnly
-    } else {
-        ArtifactEmissionPolicy::Full
-    };
-    let target_profile =
-        target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
-            .unwrap_or_else(|diagnostic| {
-                eprintln!("{diagnostic}");
-                std::process::exit(1);
-            });
-    let prepared_project = match package_manager::operations::prepare_local_project_with_options(
+    let target = target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
+        .map_err(|diagnostic| CompileProjectError::Diagnostics(vec![diagnostic]))?;
+    let prepared = packages::prepare_local_project_with_options(
         &options.root_path,
-        package_manager::operations::LocalProjectPreparationOptions {
-            target: target_profile,
-            offline: arguments.offline,
-        },
-    ) {
-        Ok(prepared) => prepared,
-        Err(error) => {
-            eprintln!("{error}");
-            std::process::exit(1);
+        packages::LocalProjectPreparationOptions { target, offline },
+    )
+    .map_err(CompileProjectError::Preparation)?;
+    let admissions = trust_ledger::read_trust_admissions(&policy_root_path)
+        .map_err(CompileProjectError::Diagnostics)?;
+    let report = match (prepared, product) {
+        (Some(prepared), ProjectProduct::NativeArtifact) => {
+            let request =
+                packages::PreparedLocalProjectNativeRequest::new(prepared, &build_dir, target)
+                    .with_artifact_policy(artifact_policy)
+                    .with_accepted_trust_admissions(admissions)
+                    .with_optimization_rollback(optimization_rollback);
+            packages::compile_prepared_local_project_for_native(request)
+                .map_err(CompileProjectError::PackageNative)?
         }
-    };
-    let requested_product = if arguments.check_only {
-        RequestedCompileProduct::Check
-    } else {
-        RequestedCompileProduct::NativeArtifact
-    };
-    let accepted_admissions = match trust_ledger::read_trust_admissions(&policy_root_path) {
-        Ok(admissions) => admissions,
-        Err(diagnostics) => {
-            for diagnostic in diagnostics {
-                eprintln!("{diagnostic}");
-            }
-            std::process::exit(1);
-        }
-    };
-    let report = match prepared_project {
-        Some(prepared) if !arguments.check_only => {
-            let request = package_manager::operations::PreparedLocalProjectNativeRequest::new(
-                prepared,
-                &build_dir,
-                target_profile,
-            )
-            .with_artifact_policy(artifact_policy)
-            .with_accepted_trust_admissions(accepted_admissions)
-            .with_optimization_rollback(arguments.optimization_rollback);
-            package_manager::operations::compile_prepared_local_project_for_native(request)
-                .unwrap_or_else(|error| {
-                    eprintln!("{error}");
-                    std::process::exit(1);
-                })
-        }
-        Some(prepared) => {
-            if !arguments.optimization_rollback.is_empty() {
-                let names = arguments
-                    .optimization_rollback
+        (Some(prepared), ProjectProduct::Check) => {
+            if !optimization_rollback.is_empty() {
+                let names = optimization_rollback
                     .requested_disabled()
                     .as_slice()
                     .iter()
                     .map(|optimization| format!("`{}`", optimization.build_case_name()))
                     .collect::<Vec<_>>()
                     .join(", ");
-                eprintln!("optimization rollback {names} names stages not executed by Check");
-                std::process::exit(1);
+                return Err(CompileProjectError::Diagnostics(vec![Diagnostic::error(
+                    format!("optimization rollback {names} names stages not executed by Check"),
+                )]));
             }
-            let request = package_manager::operations::PreparedLocalProjectCheckRequest::new(
-                prepared,
-                &build_dir,
-                target_profile,
-            )
-            .with_artifact_policy(artifact_policy)
-            .with_accepted_trust_admissions(accepted_admissions);
-            package_manager::operations::check_prepared_local_project(request).unwrap_or_else(
-                |error| {
-                    eprintln!("{error}");
-                    std::process::exit(1);
-                },
-            )
+            let request =
+                packages::PreparedLocalProjectCheckRequest::new(prepared, &build_dir, target)
+                    .with_artifact_policy(artifact_policy)
+                    .with_accepted_trust_admissions(admissions);
+            packages::check_prepared_local_project(request)
+                .map_err(CompileProjectError::PackageCheck)?
         }
-        None => {
-            let request = CompileRequest::new(options)
-                .with_requested_product(requested_product)
-                .with_artifact_policy(artifact_policy)
-                .with_optimization_rollback(arguments.optimization_rollback)
-                .with_accepted_trust_admissions(accepted_admissions);
-            compile(request)
-                .and_then(compiler::CompileOutcomes::into_single_report)
-                .unwrap_or_else(|diagnostics| {
-                    for diagnostic in diagnostics {
-                        eprintln!("{diagnostic}");
-                    }
-                    std::process::exit(1);
-                })
+        (None, product) => {
+            let product = match product {
+                ProjectProduct::Check => RequestedCompileProduct::Check,
+                ProjectProduct::NativeArtifact => RequestedCompileProduct::NativeArtifact,
+            };
+            compile(
+                CompileRequest::new(options)
+                    .with_requested_product(product)
+                    .with_artifact_policy(artifact_policy)
+                    .with_optimization_rollback(optimization_rollback)
+                    .with_accepted_trust_admissions(admissions),
+            )
+            .and_then(compiler::CompileOutcomes::into_single_report)
+            .map_err(CompileProjectError::Diagnostics)?
         }
     };
     let settlement = report.trust_admission_settlement();
-    if arguments.accept_admissions {
-        if let Err(diagnostics) =
-            trust_ledger::accept_trust_admissions(&policy_root_path, settlement.required())
-        {
-            for diagnostic in diagnostics {
-                eprintln!("{diagnostic}");
-            }
-            std::process::exit(1);
-        }
+    if accept_admissions {
+        trust_ledger::accept_trust_admissions(&policy_root_path, settlement.required())
+            .map_err(CompileProjectError::Diagnostics)?;
     } else if !settlement.is_exactly_admitted() {
-        report_unsettled_admissions(settlement);
-        std::process::exit(1);
+        return Err(CompileProjectError::UnsettledAdmissions(settlement.clone()));
     }
-    if arguments.check_only {
-        println!("{}", report.summary());
-    } else {
-        match publication::publish_native_artifact(report, &build_dir) {
-            Ok((published, path)) => {
-                if let Some(receipt) = published.optimization_rollback_receipt() {
-                    println!("optimizer rollback: {receipt}");
-                }
-                println!("published native output to {}", path.display());
-                for pair in published.pcc_publications() {
-                    println!("published {pair}");
-                }
-            }
-            Err(error) => {
-                eprintln!("{error}");
-                std::process::exit(1);
-            }
+    match product {
+        ProjectProduct::Check => Ok(CompileProjectOutcome {
+            report,
+            executable_path: None,
+        }),
+        ProjectProduct::NativeArtifact => {
+            let (report, path) = publication::publish_native_artifact(report, &build_dir)
+                .map_err(CompileProjectError::Publication)?;
+            Ok(CompileProjectOutcome {
+                report,
+                executable_path: Some(path),
+            })
         }
     }
 }

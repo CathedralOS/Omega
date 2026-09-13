@@ -1,7 +1,9 @@
 # Terminal inspection
 
-[mod.rs](mod.rs) owns inspection and its text view;
-[arguments/inspection.rs](../arguments/inspection.rs) parses the request. [evidence.rs](evidence.rs) verifies the selected module before trying
+[mod.rs](mod.rs) owns the reusable inspection operation;
+[cli/inspection.rs](../cli/inspection.rs) owns its text view and
+[cli/arguments/inspection.rs](../cli/arguments/inspection.rs) parses the request.
+[evidence.rs](evidence.rs) verifies the selected module before trying
 the existing fixed-work deriver. Inspection grants no execution or native authority.
 
 Natural-ranked and unranked modules use ordinary verification. Only an actual

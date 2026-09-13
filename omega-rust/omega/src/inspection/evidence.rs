@@ -10,13 +10,13 @@ use terminal_psi::{ProofBundle, TerminalModule, TerminalRankedScc};
 use terminal_verifier::{VerificationError, verify_module, verify_module_for_fixed_fuel};
 
 #[derive(Debug)]
-pub(super) enum FixedFuel {
+pub enum FixedFuel {
     Available(FixedEntryFuelCertificate),
     Unavailable(FixedFuelError),
 }
 
 #[derive(Debug)]
-pub(super) enum InspectionError {
+pub enum InspectionError {
     Verification(VerificationError),
     FixedFuel(FixedFuelError),
 }

@@ -1,11 +1,8 @@
-mod arguments;
-mod compilation;
-mod execution;
-mod inspection;
-mod packages;
+mod cli;
 
 use arguments::Invocation;
 use artifacts::allocations::CountingAllocator;
+use cli::{arguments, compilation, execution, inspection, packages};
 use std::process::ExitCode;
 
 #[global_allocator]
@@ -29,13 +26,13 @@ fn main() -> ExitCode {
         .name("omega-command".to_owned())
         .stack_size(COMPILER_STACK_SIZE)
         .spawn(move || match invocation {
-            Invocation::Compile(request) => compilation::compile_project(request),
+            Invocation::Compile(request) => compilation::compile_project_command(request),
             Invocation::Run(request) => execution::run(request),
             Invocation::InspectTerminal(request) => inspection::run(request),
             Invocation::Package { command, options } => packages::run(command, options),
             Invocation::AuditSource(request) => packages::source::run(request),
             Invocation::AuditPackages(request) => packages::audit::run(request),
-            Invocation::RefreshSamples(root) => compilation::samples::refresh(&root),
+            Invocation::RefreshSamples(root) => cli::samples::refresh(&root),
             Invocation::Help(usage) => println!("{usage}"),
         });
     match worker {

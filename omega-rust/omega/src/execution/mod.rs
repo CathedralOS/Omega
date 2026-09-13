@@ -1,161 +1,152 @@
-//! Dev probe harness: compile a `.omg` NATIVELY, run it, and report the exit
-//! code -- and (`--both`) interpret the same program and report agreement.
-//! This is the one-shot loop the canary/probe workflow repeats constantly
-//! (scratchpad probe -> native exit vs interp exit) without needing a
-//! throwaway Rust test each time.
-//!
-//!   omega run path/to/main.omg
-//!   omega run --both path/to/main.omg
-//!   omega run --keep path/to/main.omg
-//!
-//! Ordinary probes emit only the executable because their temporary build
-//! directory is deleted immediately. `--keep` retains the full compiler report
-//! and visualization set for inspection.
-//! Projects use ordinary package preparation and accepted policy. `--both`
-//! observes the same checked package program through `compilation`, including
-//! generated source; it cannot grant missing package or trust acceptance.
-//!
-//! Exit code: the PROBE's native exit code (so shell `$?` composes), 200 on
-//! compile failure, 201 on comparison frontend failure or native/interp
-//! disagreement under `--both`. An unsupported interpreter execution is reported
-//! as declined, not as agreement.
+//! Compile, publish, and optionally execute one project with a private output directory.
+//! Interpreter comparison observes the same checked package input. This operation
+//! neither prints nor exits; callers decide how to present outcomes and exit status.
 
 mod compilation;
+mod temporary_output;
 
-use crate::arguments::RunArguments;
-use compiler::{ArtifactEmissionPolicy, CompileOptions};
-use std::process::Command;
+use compiler::{ArtifactEmissionPolicy, CompileOptions, CompileReport, TrustAdmissionSettlement};
+use diagnostics::Diagnostic;
+use std::path::PathBuf;
+use std::process::{Command, Output};
+use temporary_output::TemporaryOutput;
 
-pub(crate) fn run(arguments: RunArguments) -> ! {
-    let RunArguments {
-        both,
-        keep,
-        target_name,
-        main_path,
-    } = arguments;
+pub struct RunRequest {
+    pub root_path: PathBuf,
+    /// An explicit target produces an image without executing it on the host.
+    pub target_name: Option<String>,
+    pub compare_interpreter: bool,
+    pub keep_artifacts: bool,
+}
 
-    let build_dir = std::env::temp_dir().join(format!("omega-probe-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&build_dir);
+pub struct RunOutcome {
+    pub report: CompileReport,
+    /// Removed on return unless keep_artifacts was requested.
+    pub build_dir: PathBuf,
+    pub execution: ExecutionOutcome,
+}
 
-    let artifact_policy = probe_artifact_policy(keep);
+pub enum ExecutionOutcome {
+    TargetOnly {
+        target_name: String,
+    },
+    Host {
+        output: Output,
+        comparison: InterpreterComparison,
+    },
+}
+
+/// Exit-code comparison only, not an equivalence proof or an output comparison.
+#[derive(Debug)]
+pub enum InterpreterComparison {
+    NotRequested,
+    Declined(String),
+    Agrees { exit_code: i32 },
+    Disagrees { interpreter_exit_code: i32 },
+    Failed(Vec<Diagnostic>),
+}
+
+#[derive(Debug)]
+pub enum RunError {
+    TemporaryStorage(std::io::Error),
+    Compilation(Vec<Diagnostic>),
+    UnsettledAdmissions(TrustAdmissionSettlement),
+    Publication(String),
+    Spawn {
+        executable: PathBuf,
+        error: std::io::Error,
+    },
+}
+
+impl std::fmt::Display for RunError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TemporaryStorage(error) => {
+                write!(formatter, "cannot create run output directory: {error}")
+            }
+            Self::Compilation(diagnostics) => {
+                write!(formatter, "native compile FAILED:")?;
+                for diagnostic in diagnostics {
+                    write!(formatter, "\n  {diagnostic}")?;
+                }
+                Ok(())
+            }
+            Self::UnsettledAdmissions(_) => {
+                write!(formatter, "project trust admissions are not settled")
+            }
+            Self::Publication(error) => write!(formatter, "native publication FAILED: {error}"),
+            Self::Spawn { executable, error } => write!(
+                formatter,
+                "native run failed to spawn {}: {error}",
+                executable.display()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RunError {}
+
+pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
+    let output_directory =
+        TemporaryOutput::create(request.keep_artifacts).map_err(RunError::TemporaryStorage)?;
+    let build_dir = output_directory.path().to_path_buf();
     let compilation::ProbeCompilation {
         report,
         interpretation,
-    } = match compilation::compile(
+    } = compilation::compile(
         CompileOptions {
-            root_path: main_path.clone(),
+            root_path: request.root_path,
             build_dir: Some(build_dir.clone()),
-            target_name: target_name.clone(),
+            target_name: request.target_name.clone(),
         },
-        artifact_policy,
-        both && target_name.is_none(),
-    ) {
-        Ok(compilation) => compilation,
-        Err(diagnostics) => {
-            eprintln!("native compile FAILED:");
-            for diagnostic in diagnostics {
-                eprintln!("  {diagnostic}");
-            }
-            std::process::exit(200);
-        }
-    };
-    if !report.trust_admission_settlement().is_exactly_admitted() {
-        crate::compilation::admissions::report_unsettled_admissions(
-            report.trust_admission_settlement(),
-        );
-        std::process::exit(200);
-    }
-    let exe = match crate::compilation::publication::publish_native_artifact(report, &build_dir) {
-        Ok((published, path)) => {
-            for pair in published.pcc_publications() {
-                eprintln!("published {pair}");
-            }
-            path
-        }
-        Err(error) => {
-            eprintln!("native publication FAILED: {error}");
-            std::process::exit(200);
-        }
-    };
-    if let Some(target) = &target_name {
-        // Cross-target images do not run on the host; compiling IS the check.
-        eprintln!(
-            "compiled for target `{target}` OK ({})",
-            build_dir.display()
-        );
-        if !keep {
-            let _ = std::fs::remove_dir_all(&build_dir);
-        }
-        std::process::exit(0);
-    }
-
-    let output = Command::new(&exe)
-        .output()
-        .unwrap_or_else(|error| panic!("native run failed to spawn {}: {error}", exe.display()));
-    let native_code = output.status.code().unwrap_or(-1);
-    print!("{}", String::from_utf8_lossy(&output.stdout));
-    eprint!("{}", String::from_utf8_lossy(&output.stderr));
-    eprintln!("native exit: {native_code}");
-
-    if let Some(interpretation) = interpretation {
-        match interpretation {
-            Ok(outcome) => {
-                if let Some(reason) = &outcome.error {
-                    eprintln!("interp: DECLINED ({reason})");
-                } else {
-                    eprintln!("interp exit: {}", outcome.exit_code);
-                    if outcome.exit_code != native_code {
-                        eprintln!(
-                            "DIVERGENCE: native {native_code} vs interp {}",
-                            outcome.exit_code
-                        );
-                        let _ = std::fs::remove_dir_all(&build_dir);
-                        std::process::exit(201);
-                    }
-                }
-            }
-            Err(diagnostics) => {
-                eprintln!("interp frontend compile FAILED:");
-                for diagnostic in diagnostics {
-                    eprintln!("  {diagnostic}");
-                }
-                if !keep {
-                    let _ = std::fs::remove_dir_all(&build_dir);
-                }
-                std::process::exit(201);
-            }
-        }
-    }
-
-    if keep {
-        eprintln!("build dir kept: {}", build_dir.display());
-    } else {
-        let _ = std::fs::remove_dir_all(&build_dir);
-    }
-    std::process::exit(native_code);
-}
-
-fn probe_artifact_policy(keep: bool) -> ArtifactEmissionPolicy {
-    if keep {
-        ArtifactEmissionPolicy::Full
-    } else {
-        ArtifactEmissionPolicy::OutputOnly
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn disposable_probe_skips_auxiliary_artifacts() {
-        assert_eq!(
-            probe_artifact_policy(false),
+        if request.keep_artifacts {
+            ArtifactEmissionPolicy::Full
+        } else {
             ArtifactEmissionPolicy::OutputOnly
-        );
+        },
+        request.compare_interpreter && request.target_name.is_none(),
+    )
+    .map_err(RunError::Compilation)?;
+    if !report.trust_admission_settlement().is_exactly_admitted() {
+        return Err(RunError::UnsettledAdmissions(
+            report.trust_admission_settlement().clone(),
+        ));
     }
+    let (report, executable) =
+        crate::compilation::publication::publish_native_artifact(report, &build_dir)
+            .map_err(RunError::Publication)?;
+    let execution = match request.target_name {
+        Some(target_name) => ExecutionOutcome::TargetOnly { target_name },
+        None => {
+            let output = Command::new(&executable)
+                .output()
+                .map_err(|error| RunError::Spawn { executable, error })?;
+            let comparison = compare_interpretation(output.status.code(), interpretation);
+            ExecutionOutcome::Host { output, comparison }
+        }
+    };
+    Ok(RunOutcome {
+        report,
+        build_dir,
+        execution,
+    })
+}
 
-    #[test]
-    fn kept_probe_retains_full_artifacts() {
-        assert_eq!(probe_artifact_policy(true), ArtifactEmissionPolicy::Full);
+fn compare_interpretation(
+    native_exit: Option<i32>,
+    interpretation: Option<Result<checked_interpreter::InterpretOutcome, Vec<Diagnostic>>>,
+) -> InterpreterComparison {
+    match interpretation {
+        None => InterpreterComparison::NotRequested,
+        Some(Err(diagnostics)) => InterpreterComparison::Failed(diagnostics),
+        Some(Ok(outcome)) => match outcome.error {
+            Some(reason) => InterpreterComparison::Declined(reason),
+            None if native_exit == Some(outcome.exit_code) => InterpreterComparison::Agrees {
+                exit_code: outcome.exit_code,
+            },
+            None => InterpreterComparison::Disagrees {
+                interpreter_exit_code: outcome.exit_code,
+            },
+        },
     }
 }
