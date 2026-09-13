@@ -53,7 +53,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Acceptance: exact `build.omg` opt-ins execute before immutable Terminal
   publication, preserving proof, ownership, effects, qualifications and execution
   evidence. Standalone Psi and separately authorized resumed lowering need no
-  original frontend state or hidden consumer-side Psi optimization.
+  original frontend state or hidden consumer-side Psi optimization. Landed:
+  dead total scalar elimination also removes unused scalar block parameters and
+  their edge arguments in proof-free, unranked machines; copy propagation, SCCP,
+  GVN, control-flow cleanup and proof-check elision remain open.
 
 ## Product pruning and rollout
 
