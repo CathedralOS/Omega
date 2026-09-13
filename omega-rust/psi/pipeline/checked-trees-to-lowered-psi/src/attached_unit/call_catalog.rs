@@ -135,6 +135,12 @@ pub(super) fn discover(
                 .for_machine(*source)
             {
                 for operation in graph.states.iter().flat_map(|state| &state.unit_operations) {
+                    if matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } if calls.is_empty())
+                    {
+                        // Scalar field calls already belong to the computation
+                        // closure. A fresh record adds storage, not a callee.
+                        continue;
+                    }
                     let CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } = operation
                     else {
                         return unsupported("scalar graph retained an unsupported Unit effect");

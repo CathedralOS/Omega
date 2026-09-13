@@ -11,6 +11,10 @@ pub(super) fn retain_catalog_roots<'checked>(
 ) -> Result<(), LoweringError> {
     for callee in callees {
         if let CheckedScalarCallee::Graph(graph) = callee {
+            type_roots.extend(graph.states.iter().flat_map(|state| &state.unit_operations).filter_map(|operation| match operation {
+                checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => Some(result.type_identity.clone()),
+                _ => None,
+            }));
             let reach = checked
                 .facts
                 .service_reaches

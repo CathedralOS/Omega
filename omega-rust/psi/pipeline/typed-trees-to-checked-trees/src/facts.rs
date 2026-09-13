@@ -133,6 +133,7 @@ pub(crate) fn build_check_facts(
         program,
         &values.scalar_expressions,
         &values.scalar_computations,
+        &values.structural_values,
     );
     flow.terminal_machines = crate::flow::build_checked_terminal_machine_selections(program);
     flow.terminal_debug = crate::flow::build_checked_terminal_debug_plans(program);

@@ -142,7 +142,7 @@ fn declared_range_inference_returns_the_selected_endpoint() {
 #[test]
 fn declared_range_inference_local_effects_retain_pending_terminal_boundaries() {
     // Attribute the remaining Terminal boundary without generic machinery.
-    // Keep mutation and direct-transition customers until their storage joins connect.
+    // Keep mutation customers until their storage joins connect.
     let scratch = unique_no_output_build_dir();
     fs::create_dir_all(&scratch).unwrap();
     let path = scratch.join("main.omg");
@@ -154,10 +154,6 @@ fn declared_range_inference_local_effects_retain_pending_terminal_boundaries() {
         (
             "borrowed_store",
             "data Value [copy] { value: u64; } machine change(value: &mut Value) { value.value = 5; } machine borrowed_store() -> u64 { let mut first: Value = Value { value: 256 }; let second: Value = first; change(&mut first); second.value }",
-        ),
-        (
-            "local_transition",
-            "data Value [copy] { value: u64; flag: bool; } data Outer [copy] { inner: Value; } machine local_transition() -> u64 { let bounded: Outer = Outer { inner: Value { value: 256, flag: true } }; transition bounded.inner.flag { true -> yes(bounded.inner.value) _ -> no() } state yes(value: u64) { value } state no() { 0 } }",
         ),
     ] {
         fs::write(&path, text).unwrap();
@@ -186,6 +182,16 @@ fn declared_range_inference_record_copies_and_full_width_fields_execute() {
     fs::create_dir_all(&scratch).unwrap();
     let path = scratch.join("main.omg");
     for (name, text, expected) in [
+        (
+            "local_transition",
+            "data Value [copy] { value: u64; flag: bool; } data Outer [copy] { inner: Value; } machine local_transition() -> u64 { let bounded: Outer = Outer { inner: Value { value: 256, flag: true } }; transition bounded.inner.flag { true -> yes(bounded.inner.value) _ -> no() } state yes(value: u64) { value } state no() { 0 } }",
+            256_u128,
+        ),
+        (
+            "local_transition_false",
+            "data Value [copy] { value: u64; flag: bool; } data Outer [copy] { inner: Value; } machine local_transition_false() -> u64 { let bounded: Outer = Outer { inner: Value { value: 256, flag: false } }; transition bounded.inner.flag { true -> yes(bounded.inner.value) _ -> no() } state yes(value: u64) { value } state no() { 0 } }",
+            0,
+        ),
         (
             "copied",
             "data Value [copy] { value: u64; } machine copied() -> u64 { let first: Value = Value { value: 256 }; let second: Value = first; first.value ^ second.value }",

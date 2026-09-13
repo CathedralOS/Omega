@@ -68,6 +68,7 @@ fn owned_countdown_retains_mixed_positions_and_exact_nat_judgment() {
             &checked,
             &checked.facts.values.scalar_expressions,
             &checked.facts.values.scalar_computations,
+            &checked.facts.values.structural_values,
         );
         assert!(
             discovered.for_machine(machine).is_some(),
@@ -444,6 +445,7 @@ fn cyclic_owned_signature_does_not_erase_mutability_linearity_or_qualifications(
             &program,
             &checked.facts.values.scalar_expressions,
             &checked.facts.values.scalar_computations,
+            &checked.facts.values.structural_values,
         );
         assert!(plans.for_machine(machine).is_none(), "mutation {mutation}");
     }

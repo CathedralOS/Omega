@@ -11,6 +11,11 @@ pub(crate) fn emit(
 ) -> Result<(), LoweringError> {
     for effect in effects {
         match effect {
+            LoweredScalarEffect::EstablishRecord(record) => {
+                crate::scalar_graph_lowering::structural_values::emit(
+                    record, values, operations, calls,
+                )?;
+            }
             LoweredScalarEffect::EstablishScalarCase(case) => {
                 crate::scalar_computations::cases::emit(case, values, next_value, operations)?
             }

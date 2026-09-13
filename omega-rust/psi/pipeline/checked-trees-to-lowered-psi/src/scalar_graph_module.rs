@@ -7,6 +7,54 @@ mod qualifications;
 mod ranking;
 use crate::scalar_contracts;
 
+/// Continuations are built backward, but fresh record producer identities must
+/// follow production order: independent affine cleanup uses reverse producer
+/// order. Allocate operations in CFG reverse-postorder, retaining block indices
+/// and their parameter/target namespace. Keep unrelated existing graph bytes
+/// stable; they do not yet introduce statement-owned record lifetimes.
+fn emission_order(states: &[LoweredScalarBranchState]) -> Vec<usize> {
+    if !states.iter().any(|state| {
+        state
+            .structural_effects
+            .iter()
+            .any(|effect| matches!(effect, LoweredScalarEffect::EstablishRecord(_)))
+    }) {
+        return (0..states.len()).collect();
+    }
+    let mut visited = vec![false; states.len()];
+    let mut pending = vec![(0, false)];
+    let mut order = Vec::with_capacity(states.len());
+    while let Some((position, completing)) = pending.pop() {
+        if completing {
+            order.push(position);
+            continue;
+        }
+        if visited[position] {
+            continue;
+        }
+        visited[position] = true;
+        pending.push((position, true));
+        match &states[position].terminator {
+            LoweredScalarBranchTerminator::Jump { target, .. }
+            | LoweredScalarBranchTerminator::Qualify { target, .. } => {
+                pending.push((*target, false))
+            }
+            LoweredScalarBranchTerminator::Conditional {
+                when_true_target,
+                when_false_target,
+                ..
+            } => {
+                pending.push((*when_false_target, false));
+                pending.push((*when_true_target, false));
+            }
+            LoweredScalarBranchTerminator::Return { .. }
+            | LoweredScalarBranchTerminator::Crash(_) => {}
+        }
+    }
+    order.reverse();
+    order
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_scalar_graph_module(
     states: &[LoweredScalarBranchState],
@@ -130,7 +178,8 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     let mut pending_blocks = Vec::new();
     let mut inlined_blocks = Vec::new();
     let mut blocks = Vec::with_capacity(states.len());
-    for (index, state) in states.iter().enumerate() {
+    for index in emission_order(states) {
+        let state = &states[index];
         let operation_start = all_operations.len();
         let current_parameters = &state_parameters[index];
         let source_block = block_id(
@@ -1230,9 +1279,12 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         merge_content_place_declaration(&mut structural_places, place)
             .expect("checked lowering rejects conflicting structural places");
     }
-    for place in crate::scalar_computations::arrays::declarations(&all_operations).chain(
-        crate::scalar_computations::cases::declarations(&all_operations),
-    ) {
+    for place in crate::scalar_computations::arrays::declarations(&all_operations)
+        .chain(crate::scalar_computations::cases::declarations(
+            &all_operations,
+        ))
+        .chain(crate::scalar_graph_lowering::structural_values::declarations(&all_operations))
+    {
         merge_content_place_declaration(&mut structural_places, place)?;
     }
     for parameter in structural_parameters {

@@ -68,10 +68,49 @@ pub(super) fn validate(
         }
     }
     let mut actual = Vec::new();
+    // Parameter origins and fresh local origins have different lifetimes.
+    // Rejoin each retained local producer before excluding its ledger here;
+    // bindings later checks complete statement coverage and selected cleanup.
+    let mut local_roots = Vec::new();
+    if let Some(retained) = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine)
+        .and_then(|graph| {
+            graph
+                .states
+                .iter()
+                .find(|candidate| candidate.state == state.symbol)
+        })
+    {
+        for operation in &retained.unit_operations {
+            let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                ..
+            } = operation
+            else {
+                continue;
+            };
+            crate::attached_unit::structural_values::source_custody::validate(
+                checked,
+                machine,
+                state.symbol,
+                operation,
+            )?;
+            let Some(checked_trees::statement::StatementNode::LocalData(local)) =
+                statements.get(result.statement_index as usize)
+            else {
+                return unsupported("owned scalar graph local lost its authored declaration");
+            };
+            local_roots.push(facts::PlaceRoot::Symbol(local.symbol));
+        }
+    }
     for (_, event) in ownership.permissions.iter().filter(|(_, event)| {
         event.machine_symbol == machine
             && event.state_symbol == state.symbol
             && event.access == PermissionAccess::Owned
+            && !local_roots.contains(&event.root)
     }) {
         if event.claim_identity != PermissionClaimIdentity::Unknown
             || event.provenance != PermissionProvenance::Unknown

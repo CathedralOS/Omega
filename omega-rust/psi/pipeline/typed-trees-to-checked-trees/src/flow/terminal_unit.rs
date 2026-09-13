@@ -247,6 +247,40 @@ pub(super) fn scalar_case_value_shapes(
     Some(shapes.types.into_values().collect())
 }
 
+/// Scalar control retains complete fresh-record storage in the same declaration
+/// namespace as the ordinary structural value emitter, including nested bounds.
+pub(super) fn scalar_graph_record_shapes(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
+    if !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
+        || !matches!(
+            program.type_multiplicity(reference),
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        )
+        || !matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. }
+        )
+    {
+        return None;
+    }
+    let mut shapes = ShapeCollector::new(program);
+    shapes.add_type(reference, &[], &[])?;
+    if !shapes.domains.is_empty()
+        || !shapes.types.values().all(|declaration| {
+            matches!(&declaration.shape, CheckedUnitStructuralTypeShape::Record { fields }
+            if fields.iter().all(|field| !field.relevance.is_erased()
+                && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)
+                    | CheckedUnitStructuralFieldType::BoundedInteger(_)
+                    | CheckedUnitStructuralFieldType::Structural { .. })))
+        })
+    {
+        return None;
+    }
+    Some(shapes.types.into_values().collect())
+}
+
 /// Reconstruct the exact direct-record shape admitted by the first checked
 /// projected-transition cleanup rung. Keeping this next to `ShapeCollector`
 /// makes the result use the same normalized field/type identities as the

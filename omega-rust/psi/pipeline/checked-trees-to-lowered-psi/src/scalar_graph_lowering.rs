@@ -6,6 +6,7 @@ use crate::scalar_qualifications::PreparedScalarQualifications;
 mod bindings;
 pub(crate) mod branch_destinations;
 pub(crate) mod cycles;
+pub(crate) mod structural_values;
 pub(crate) mod unit_operations;
 use crate::scalar_computations as computations;
 pub(crate) mod guards;
@@ -364,17 +365,15 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 matches!(when_true, CheckedScalarBranchDestination::Return { .. })
                     || matches!(when_false, CheckedScalarBranchDestination::Return { .. })
             }
-            CheckedScalarStateTerminator::Return { statement_ordinal } => checked
-                .facts
-                .values
-                .scalar_computations
-                .roots
-                .iter()
-                .any(|(_, root)| {
+            CheckedScalarStateTerminator::Return { statement_ordinal } => {
+                checked.facts.values.scalar_computations.roots.iter().any(|(_, root)| {
                     root.state == state.state
                         && root.statement_ordinal == *statement_ordinal
                         && root.role == CheckedScalarExpressionRole::Return
-                }),
+                }) || state.unit_operations.iter().any(|operation| {
+                    matches!(operation, checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } if result.multiplicity == Multiplicity::Affine)
+                })
+            }
             _ => false,
         })
         .then_some(states.len());
@@ -414,12 +413,26 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             structural_parameters,
             primitive_locals,
             structural_types,
+            next_place,
         )?;
         let value_types = &prepared.value_types;
         let scalar_bindings = &prepared.scalar_bindings;
         let terminator = match &state.terminator {
             CheckedScalarStateTerminator::Return { statement_ordinal } => {
-                let computed_entry = if let Some(target) = return_sink {
+                let completed_target = return_sink
+                    .map(|target| {
+                        structural_values::exit_target(
+                            checked,
+                            state.state,
+                            scalar_bindings,
+                            &[result_type],
+                            &mut Vec::new(),
+                            target,
+                            &mut computations,
+                        )
+                    })
+                    .transpose()?;
+                let computed_entry = if let Some(target) = completed_target {
                     computations.return_value(
                         state.state,
                         *statement_ordinal,
@@ -452,7 +465,16 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         );
                     }
                     validate_direct_parameter_types(&expression, &scalar_carriers(value_types))?;
-                    LoweredScalarBranchTerminator::Return { expression }
+                    if let Some(target) = completed_target {
+                        LoweredScalarBranchTerminator::Jump {
+                            target,
+                            arguments: vec![expression],
+                            structural_arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        }
+                    } else {
+                        LoweredScalarBranchTerminator::Return { expression }
+                    }
                 }
             }
             CheckedScalarStateTerminator::Crash { statement_ordinal } => {
@@ -917,7 +939,7 @@ fn lower_scalar_graph_successor(
         .ok_or(LoweringError::Unsupported(
             "scalar successor lost its source state",
         ))?;
-    let structural_arguments = plans
+    let mut structural_arguments = plans
         .structural_transfers
         .span(successor.structural_transfers)
         .ok_or(LoweringError::Unsupported(
@@ -943,6 +965,15 @@ fn lower_scalar_graph_successor(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let target = structural_values::exit_target(
+        checked,
+        source_state,
+        scalar_bindings,
+        &target_parameter_types,
+        &mut structural_arguments,
+        target,
+        computations,
+    )?;
     if let Some(entry) = computations.successor(
         source_state,
         successor,
