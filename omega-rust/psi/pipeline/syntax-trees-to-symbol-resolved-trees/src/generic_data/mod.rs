@@ -204,7 +204,7 @@ fn unique_domain_index_parameters<'syntax>(
 /// value's structural encoding is semantic material; its display text remains
 /// diagnostic-only. Constrained public constants stay unsupported until their
 /// declaration-site proof obligations are checked rather than erased here.
-pub(crate) fn canonicalize_declared_const_definition(
+pub fn canonicalize_declared_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> Result<CanonicalConstValue, String> {

@@ -213,10 +213,7 @@ fn lower_item_with_exposure(
         syntax::item::Item::Const(definition) => {
             let pending = lowerer.const_resolution_mode
                 == crate::lowerer::ConstResolutionMode::InitializerSelection
-                && crate::constant::requires_scalar_const_initializer_evaluation(
-                    syntax_trees,
-                    definition,
-                );
+                && crate::constant::requires_const_initializer_evaluation(syntax_trees, definition);
             if !pending {
                 crate::constant::validate_const_definition(syntax_trees, definition)?;
             }

@@ -36,6 +36,7 @@ fn computed_constant_customer_checks_integer_boolean_indices_and_body() {
     assert_body_value(&checked, "read_match", 7);
     assert!(!selections(&checked, "SIZE", identity(1)).is_empty());
     assert!(!selections(&checked, "ENABLED", identity(1)).is_empty());
+    assert!(!selections(&checked, "SIZES", identity(1)).is_empty());
 }
 
 #[test]
@@ -357,6 +358,39 @@ fn computed_module_constants_keep_same_leaf_forward_dependencies_and_literal_typ
             }
         }
     }
+}
+
+#[test]
+fn computed_module_array_constants_check_and_reject_bad_private_landings() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings;
+         const SIZE: u64 = 7 / 2 * 2;
+         pub const SIZES: [u64; 2] = [SIZE * 2, 3];",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use settings;
+         data Indexed<const Selected: [u64; 2]> { value: u8; }
+         machine keep(value: Indexed<settings::SIZES>) -> Indexed<settings::SIZES> { value }",
+    );
+    let checked = compile(&root, root_inputs(&root));
+    assert!(!selections(&checked, "settings::SIZES", identity(1)).is_empty());
+
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings;
+         const SIZE: u64 = 7 / 2 * 2;
+         pub const SIZES: [u64; 2] = [SIZE * 2, 3];
+         const BAD: [u8; 1] = [200 + 100];",
+    );
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("unused private module array still lands its leaves");
 }
 
 #[test]

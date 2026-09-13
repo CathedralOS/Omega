@@ -49,6 +49,148 @@ fn integer_encoding(syntax: &SyntaxTrees, name: &str, value: i128) {
     ));
 }
 
+fn array_leaves(
+    syntax: &SyntaxTrees,
+    expression: syntax_trees::expression::ExpressionHandle,
+) -> Vec<ExpressionNode> {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::ArrayLiteral(elements) => syntax
+            .expressions
+            .expression_handles(*elements)
+            .iter()
+            .flat_map(|element| array_leaves(syntax, *element))
+            .collect(),
+        leaf => vec![leaf.clone()],
+    }
+}
+
+fn literal_encoding(text: &str, name: &str) -> String {
+    let (syntax, _) = parse(text);
+    syntax_trees_to_symbol_resolved_trees::canonicalize_declared_const_definition(
+        &syntax,
+        constant(&syntax, name),
+    )
+    .expect("literal array canonicalization")
+    .encoding
+}
+
+#[test]
+fn computed_array_leaves_land_independently_and_retain_the_authored_array() {
+    let (syntax, sources) = parse(
+        "const SIZE: u64 = 7 / 2 * 2;
+         const SIZES: [u64; 2] = [SIZE * 2, 3];
+         const FLAGS: [bool; 2] = [SIZE == 6, false];
+         const GRID: [[u8; 2]; 1] = [[1 + 1, 2]];",
+    );
+    let authored_sizes = constant(&syntax, "SIZES").value;
+    let authored_span = syntax.expressions.source_span(authored_sizes);
+    let evaluated = super::evaluate(syntax, Some(sources), &[], None).expect("array leaves");
+
+    assert_eq!(
+        array_leaves(&evaluated, constant(&evaluated, "SIZES").value),
+        vec![
+            ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(14)),
+            ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(3)),
+        ]
+    );
+    assert_eq!(
+        array_leaves(&evaluated, constant(&evaluated, "FLAGS").value),
+        vec![
+            ExpressionNode::Boolean(false),
+            ExpressionNode::Boolean(false)
+        ]
+    );
+    assert_eq!(
+        array_leaves(&evaluated, constant(&evaluated, "GRID").value),
+        vec![
+            ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(2)),
+            ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(2)),
+        ]
+    );
+    let sizes = constant(&evaluated, "SIZES");
+    let ExpressionNode::ArrayLiteral(elements) = evaluated
+        .expressions
+        .expression(sizes.normalization.as_ref().unwrap().authored_expression)
+    else {
+        panic!("authored array receipt");
+    };
+    assert!(matches!(
+        evaluated
+            .expressions
+            .expression(evaluated.expressions.expression_handles(*elements)[0]),
+        ExpressionNode::Binary(_)
+    ));
+    assert_eq!(
+        evaluated.expressions.source_span(sizes.value),
+        authored_span
+    );
+    assert!(
+        sizes
+            .normalization
+            .as_ref()
+            .unwrap()
+            .selections
+            .iter()
+            .any(|origin| origin.declaration == constant(&evaluated, "SIZE").name.source_span())
+    );
+    assert!(
+        constant(&evaluated, "FLAGS")
+            .normalization
+            .as_ref()
+            .unwrap()
+            .selections
+            .iter()
+            .any(|origin| origin.declaration == constant(&evaluated, "SIZE").name.source_span())
+    );
+    assert!(
+        constant(&evaluated, "GRID")
+            .normalization
+            .as_ref()
+            .unwrap()
+            .selections
+            .is_empty()
+    );
+    for (name, literal) in [
+        ("SIZES", "const SIZES: [u64; 2] = [14, 3];"),
+        ("FLAGS", "const FLAGS: [bool; 2] = [false, false];"),
+        ("GRID", "const GRID: [[u8; 2]; 1] = [[2, 2]];"),
+    ] {
+        assert_eq!(
+            constant(&evaluated, name)
+                .normalization
+                .as_ref()
+                .unwrap()
+                .canonical_result_encoding,
+            literal_encoding(literal, name)
+        );
+    }
+}
+
+#[test]
+fn computed_array_leaves_owe_their_declared_landing_even_when_private_and_unused() {
+    let errors = evaluate("const BAD: [u8; 1] = [200 + 100]; machine run() -> u64 { 0 }")
+        .expect_err("private array landing");
+    assert!(
+        errors
+            .iter()
+            .any(|error| { error.message.contains("land") || error.message.contains("u8") })
+    );
+}
+
+#[test]
+fn computed_array_leaves_stay_call_free() {
+    let errors = evaluate(
+        "const CALL: [u64; 1] = [read()];
+         machine read() -> u64 { 1 }",
+    )
+    .expect_err("array calls are outside initializer evaluation");
+    assert!(errors.iter().any(|error| {
+        error
+            .message
+            .contains("call-free integer/Boolean expressions")
+    }));
+}
+
 #[test]
 fn anonymous_fractional_intermediate_lands_once_and_retains_authored_expression() {
     let (syntax, sources) = parse("const SIZE: u64 = 7 / 2 * 2;");
