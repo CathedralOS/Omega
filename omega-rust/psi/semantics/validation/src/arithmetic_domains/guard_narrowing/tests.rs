@@ -208,6 +208,35 @@ fn arrival_bounds_include_changed_loop_argument() {
 }
 
 #[test]
+fn cyclic_dependent_arrival_bounds_stay_within_the_declared_range() {
+    // A `delivered + 1` delivery in a dependent-bounded cycle seeds the
+    // target parameter's environment intersected with its declared range:
+    // the transition delivery already proves the argument fits. Without
+    // that clamp the joined arrival widened past `self.max` on every
+    // fixpoint round -- a guard `x + 1 <= self.max` cannot narrow the sum
+    // against the field bound -- and reads then trusted a value the
+    // parameter can never hold (heat_grid's `y * 4 + x` hoist temps were
+    // rejected with an env interval of (0, 23) against their synthesized
+    // `[0..=11]`).
+    assert_eq!(
+        delivered_bounds(
+            "data Limits { max: u32 [0..=4]; }
+    machine Limits::main(&mut self) {
+        transition { _ -> append(0) }
+        state append(&mut self, delivered: u32 [0..=self.max]) {
+            transition delivered + 1 <= self.max { true -> append(delivered + 1) _ -> done() }
+        }
+        state done(&mut self) { crash Trap; }
+    }"
+        ),
+        Some(Interval {
+            low: Some(0),
+            high: Some(4)
+        })
+    );
+}
+
+#[test]
 fn arrival_bounds_keep_guarded_loop_contribution() {
     assert_eq!(
         delivered_bounds(

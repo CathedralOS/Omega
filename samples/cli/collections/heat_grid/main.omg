@@ -24,7 +24,7 @@ data Main {
     max_x: u32 [0..=3];
     hottest: u32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.max_y = 2;
     self.max_x = 3;
     self.cells[11] = 40;

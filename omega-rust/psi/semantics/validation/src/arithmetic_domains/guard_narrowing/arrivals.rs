@@ -361,7 +361,20 @@ impl ArrivalWalk<'_, '_> {
             // A scalar value is a snapshot taken at its own argument position.
             // Reference parameters retain only facts surviving later arguments.
             if !is_reference(self.program, parameter.type_reference) {
-                rebound.set(parameter.name.as_str().to_owned(), *interval);
+                // The delivered argument is range-proved against the
+                // parameter's declared range at the transition site, so the
+                // recorded interval is intersected with that enforced range
+                // before seeding -- the same clamp `record_assignment` applies
+                // to local stores. Without it a cyclic delivery (`x + 1` under
+                // `x <= self.max`) widens the joined arrival past the declared
+                // bound on every fixpoint round, and later reads then trust a
+                // value the parameter can never hold.
+                let interval = match enforced_declared_range(self.program, parameter.type_reference)
+                {
+                    Some(declared) => interval.intersect(declared),
+                    None => *interval,
+                };
+                rebound.set(parameter.name.as_str().to_owned(), interval);
             }
         }
         self.join(symbol, rebound);
