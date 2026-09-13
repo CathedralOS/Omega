@@ -1,7 +1,7 @@
 use super::fixture::*;
 use package_manager::declarations::{PackageName, PackageSelection};
-use package_manager::operations::{PackageCommand, PackageCommandStatus};
 use package_manager::resolution::graph::CanonicalDependencySourceRequest;
+use package_manager::{PackageCommand, PackageCommandStatus};
 use package_source::ImmutableSourceResolution;
 use std::fs;
 

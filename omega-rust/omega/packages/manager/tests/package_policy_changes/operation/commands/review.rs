@@ -127,6 +127,31 @@ fn missing_review_document_reports_its_name_and_preserves_project_files() {
 }
 
 #[test]
+fn discard_does_not_decode_project_or_proposal_contents() {
+    let tree = fixture(PURE);
+    fs::write(tree.path("sources/root/build.omg"), [0xff]).unwrap();
+    fs::write(tree.path("sources/root/omega.lock"), [0xff]).unwrap();
+    fs::create_dir_all(proposal_path(&tree).parent().unwrap()).unwrap();
+    fs::write(proposal_path(&tree), [0xff]).unwrap();
+    let before = accepted_files(&tree);
+
+    let discarded = execute_package_command(
+        PackageCommand::DiscardReview,
+        PackageCommandOptions {
+            project_root: tree.path("sources/root"),
+            targets: Vec::new(),
+            offline: true,
+        },
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(discarded.status, PackageCommandStatus::ReviewDiscarded);
+    assert!(!proposal_path(&tree).exists());
+    assert_eq!(accepted_files(&tree), before);
+}
+
+#[test]
 fn discard_abandons_only_pending_review_and_never_rolls_back_accepted_files() {
     let tree = fixture(ASSUMPTION);
     assert_eq!(

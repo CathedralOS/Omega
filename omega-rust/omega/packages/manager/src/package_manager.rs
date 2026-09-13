@@ -1,36 +1,70 @@
-//! Load accepted state, stage the command, check its exact graph, and publish.
+//! Package command lifecycle: recover, select an edit, resolve, review, publish.
+//!
+//! Start at [`execute_package_command`]. Edit planning, review documents and
+//! publication custody stay with their subordinate owners; CLI parsing and
+//! printing stay in the binary. Compiler preparation is separate in [`crate::operations`].
 
-#[path = "source_review.rs"]
+mod model;
+mod planning;
+mod proposal;
+mod review;
 mod source_review;
+mod state;
 
-use super::model::{
-    PackageCommand, PackageCommandError, PackageCommandOutcome, PackageCommandStatus, failure,
-};
-use super::proposal::PendingPackageChange;
-use super::{planning, review, state};
 use crate::declarations::BuildFileReplacement;
 use crate::lock::{PackageLock, PackageLockRecoveryLimits};
 use crate::operations::{
-    PackageFileTransaction, publish_reviewed_package_change, review_package_change,
-    stage_build_dependency_edit,
+    PackageFileTransaction, PackagePublicationLimits, publish_reviewed_package_change,
+    review_package_change, stage_build_dependency_edit,
 };
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
     GitResolutionOptions, PackageSourceClosureLimits,
     resolve_staged_external_local_project_closure_with_options,
 };
+use model::failure;
+pub use model::{
+    PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
+    PackageCommandOutcome, PackageCommandStatus,
+};
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use proposal::PendingPackageChange;
 use sha2::{Digest, Sha256};
 use target::TargetProfile;
 
-pub(super) fn execute(
+/// Execute one package command under the project's publication authority.
+/// An absent storage input selects the operator's ordinary resolver storage;
+/// embedded callers may instead borrow their own. Discard requires neither.
+pub fn execute_package_command(
     command: PackageCommand,
-    requested_targets: Vec<TargetProfile>,
-    offline: bool,
-    transaction: &mut PackageFileTransaction,
-    storage: &SourceResolverStorage,
+    options: PackageCommandOptions,
+    storage: Option<&SourceResolverStorage>,
 ) -> Result<PackageCommandOutcome, PackageCommandError> {
+    let mut transaction =
+        PackageFileTransaction::open(&options.project_root, PackagePublicationLimits::default())
+            .map_err(failure)?;
+    transaction.recover().map_err(failure)?;
+    if matches!(command, PackageCommand::DiscardReview) {
+        return state::discard(&transaction);
+    }
+    let ordinary_storage;
+    let storage = match storage {
+        Some(storage) => storage,
+        None => {
+            ordinary_storage =
+                SourceResolverStorage::for_current_user_excluding_primary_git_roots(&[transaction
+                    .project_root()
+                    .to_path_buf()])
+                .map_err(failure)?;
+            &ordinary_storage
+        }
+    };
+    let PackageCommandOptions {
+        targets: requested_targets,
+        offline,
+        ..
+    } = options;
     let files = transaction.command_state_files().map_err(failure)?;
     let mut pending_file = state::read(&files, state::PROPOSAL)?;
     let (before_build, before_lock) = transaction.read_pair().map_err(failure)?;
@@ -41,61 +75,83 @@ pub(super) fn execute(
     let accepted = accepted_text.map(|text| PackageLock::recover_text(text, PackageLockRecoveryLimits::default())).transpose()
         .map_err(|error| failure(format!("cannot read accepted omega.lock: {error}; restore a compatible lock or explicitly remove it and run omega update for fresh review; no revision was refreshed")))?;
     let resume = matches!(command, PackageCommand::Resume { .. });
-    let recovered = if let PackageCommand::Resume { kind } = &command {
-        if !requested_targets.is_empty() {
-            return Err(failure("--resume uses the pending proposal's targets"));
-        }
-        let file = pending_file.as_ref().ok_or_else(|| {
-            failure("no pending package review; start an install or update first")
-        })?;
-        let proposal = PendingPackageChange::recover(state::text(file)?).map_err(failure)?;
-        if proposal.kind != *kind {
-            return Err(failure(
-                "pending proposal belongs to the other package command",
-            ));
-        }
-        if proposal.before_build != digest(&before_build)
-            || proposal.before_lock != before_lock.as_deref().map(digest)
-        {
-            return Err(failure(
-                "build.omg or omega.lock changed since the proposal; use --discard-review and start a fresh command",
-            ));
-        }
-        Some(proposal)
-    } else {
-        if pending_file.is_some() {
-            return Err(failure(
-                "a package review is pending; use --resume, or --discard-review to abandon that proposal before starting another command",
-            ));
-        }
-        None
-    };
-    let (kind, replacement, updates, targets) = if let Some(proposal) = &recovered {
-        (
-            proposal.kind,
-            BuildFileReplacement::from_sources(
-                transaction.project_root().join("build.omg"),
+    if !resume && pending_file.is_some() {
+        return Err(failure(
+            "a package review is pending; use --resume, or --discard-review to abandon that proposal before starting another command",
+        ));
+    }
+    let (plan, targets, recovered) = match command {
+        PackageCommand::Install {
+            source,
+            revision,
+            alias,
+            package,
+        } => (
+            planning::install(
+                source,
+                revision,
+                alias,
+                package,
+                transaction.project_root(),
                 before,
-                proposal.proposed_build.clone(),
-            )
-            .map_err(failure)?,
-            Some(Vec::new()),
-            proposal.targets.clone(),
-        )
-    } else {
-        let plan = planning::plan(
-            command,
-            transaction.project_root(),
-            before,
-            accepted.as_ref(),
-        )?;
-        (
-            plan.kind,
-            plan.replacement,
-            plan.updates,
+            )?,
             targets(requested_targets, accepted.as_ref())?,
-        )
+            None,
+        ),
+        PackageCommand::Update { packages, revision } => (
+            planning::update(
+                packages,
+                revision,
+                transaction.project_root(),
+                before,
+                accepted.as_ref(),
+            )?,
+            targets(requested_targets, accepted.as_ref())?,
+            None,
+        ),
+        PackageCommand::Resume { kind } => {
+            if !requested_targets.is_empty() {
+                return Err(failure("--resume uses the pending proposal's targets"));
+            }
+            let file = pending_file.as_ref().ok_or_else(|| {
+                failure("no pending package review; start an install or update first")
+            })?;
+            let proposal = PendingPackageChange::recover(state::text(file)?).map_err(failure)?;
+            if proposal.kind != kind {
+                return Err(failure(
+                    "pending proposal belongs to the other package command",
+                ));
+            }
+            if proposal.before_build != digest(&before_build)
+                || proposal.before_lock != before_lock.as_deref().map(digest)
+            {
+                return Err(failure(
+                    "build.omg or omega.lock changed since the proposal; use --discard-review and start a fresh command",
+                ));
+            }
+            (
+                planning::Plan {
+                    kind,
+                    replacement: BuildFileReplacement::from_sources(
+                        transaction.project_root().join("build.omg"),
+                        before,
+                        proposal.proposed_build.clone(),
+                    )
+                    .map_err(failure)?,
+                    updates: Some(Vec::new()),
+                },
+                proposal.targets.clone(),
+                Some(proposal),
+            )
+        }
+        // Discard normally returns before source/storage acquisition above.
+        PackageCommand::DiscardReview => return state::discard(&transaction),
     };
+    let planning::Plan {
+        kind,
+        replacement,
+        updates,
+    } = plan;
     let stage = stage_build_dependency_edit(&replacement, storage, LocalSourceLimits::default())
         .map_err(failure)?;
     if recovered.as_ref().is_some_and(|proposal| {
@@ -109,8 +165,7 @@ pub(super) fn execute(
         .as_ref()
         .map(|proposal| &proposal.source)
         .or_else(|| accepted.as_ref().map(|lock| lock.targets()[0].source()));
-    let context =
-        ExternalSourceContext::derive(super::super::prepare_project::LOCAL_PROJECT_CONTEXT);
+    let context = ExternalSourceContext::derive(crate::operations::LOCAL_PROJECT_CONTEXT);
     let acquisition = if offline {
         GitExactRevisionAcquisition::Offline
     } else {
@@ -177,10 +232,10 @@ pub(super) fn execute(
     } else {
         None
     };
-    let mut choices = review::prepare(&files, transaction, &reviews, resume, accepted.is_none())?;
+    let mut choices = review::prepare(&files, &transaction, &reviews, resume, accepted.is_none())?;
     choices.report.push_str(&source_review::prepare(
         &files,
-        transaction,
+        &transaction,
         accepted.as_ref(),
         &closure,
         storage,
@@ -212,9 +267,14 @@ pub(super) fn execute(
         .iter()
         .zip(choices.resolutions.iter())
         .collect::<Vec<_>>();
-    let published =
-        publish_reviewed_package_change(transaction, &replacement, &stage, &paired, accepted_text)
-            .map_err(failure)?;
+    let published = publish_reviewed_package_change(
+        &mut transaction,
+        &replacement,
+        &stage,
+        &paired,
+        accepted_text,
+    )
+    .map_err(failure)?;
     choices.report.push_str(&format!(
         "\nPublished build.omg and omega.lock for {} packages across {} targets.",
         published.targets()[0].source().packages().len(),

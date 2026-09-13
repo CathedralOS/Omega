@@ -1,6 +1,6 @@
 //! Build edit planning and source-qualified update selection.
 
-use super::model::{PackageCommand, PackageCommandError, PackageCommandKind, failure};
+use super::model::{PackageCommandError, PackageCommandKind, failure};
 use crate::declarations::{
     AliasName, BuildDependencyEditPlan, BuildFileReplacement, DependencySourceRequest, PackageKey,
     PackageName, PackageSelection, plan_dependency_addition_from_source,
@@ -18,114 +18,104 @@ pub(super) struct Plan {
     pub updates: Option<Vec<PackageKey>>,
 }
 
-pub(super) fn plan(
-    command: PackageCommand,
+pub(super) fn install(
+    source: String,
+    revision: Option<String>,
+    alias: Option<String>,
+    package: Option<String>,
+    root: &Path,
+    before: &str,
+) -> Result<Plan, PackageCommandError> {
+    let build_path = root.join("build.omg");
+    let alias = alias.map(AliasName::parse).transpose().map_err(failure)?;
+    let request = source_request(source, revision, alias, package)?;
+    let edit =
+        plan_dependency_addition_from_source(build_path.clone(), before.to_owned(), &request)
+            .map_err(failure)?;
+    let proposed = proposed(edit, before)?;
+    Ok(Plan {
+        kind: PackageCommandKind::Install,
+        replacement: BuildFileReplacement::from_sources(build_path, before, proposed)
+            .map_err(failure)?,
+        updates: Some(Vec::new()),
+    })
+}
+
+pub(super) fn update(
+    packages: Vec<String>,
+    revision: Option<String>,
     root: &Path,
     before: &str,
     accepted: Option<&PackageLock>,
 ) -> Result<Plan, PackageCommandError> {
     let build_path = root.join("build.omg");
     let subject = accepted.map(|lock| lock.targets()[0].source());
-    match command {
-        PackageCommand::Install {
-            source,
-            revision,
-            alias,
-            package,
-        } => {
-            let alias = alias.map(AliasName::parse).transpose().map_err(failure)?;
-            let request = source_request(source, revision, alias, package)?;
-            let edit = plan_dependency_addition_from_source(
+    if revision.is_some() && packages.len() != 1 {
+        return Err(failure(
+            "--to requires exactly one package or root dependency alias",
+        ));
+    }
+    let updates = if packages.is_empty() {
+        None
+    } else {
+        let subject = subject.ok_or_else(|| failure("omega.lock is missing; run omega update without package selections to review the complete graph first"))?;
+        Some(select_packages(subject, &packages)?)
+    };
+    let mut proposed_source = before.to_owned();
+    if let Some(revision) = revision {
+        let subject = subject.expect("selected update has an accepted graph");
+        let selected = &updates.as_ref().expect("--to has one selection")[0];
+        let mut replaced = false;
+        for edge in subject.dependency_requests().iter().filter(|edge| {
+            edge.requester() == subject.root().selected().key()
+                && edge.purpose().is_product()
+                && edge.selected().key().source_lineage() == selected.source_lineage()
+        }) {
+            let CanonicalDependencySourceRequest::Git {
+                explicit_alias,
+                repository,
+                revision: before_revision,
+                selection,
+            } = edge.request()
+            else {
+                continue;
+            };
+            let validated = GitSourceRequest::new(repository.clone(), Some(revision.clone()))
+                .map_err(failure)?;
+            let before_request = DependencySourceRequest::Git {
+                explicit_alias: explicit_alias.clone(),
+                repository: repository.clone(),
+                revision: before_revision.clone(),
+                selection: selection.clone(),
+            };
+            let candidate = DependencySourceRequest::Git {
+                explicit_alias: explicit_alias.clone(),
+                repository: repository.clone(),
+                revision: validated.requested_revision().to_owned(),
+                selection: selection.clone(),
+            };
+            let edit = plan_dependency_replacement_from_source(
                 build_path.clone(),
-                before.to_owned(),
-                &request,
+                proposed_source.clone(),
+                &before_request,
+                &candidate,
             )
             .map_err(failure)?;
-            let proposed = proposed(edit, before)?;
-            Ok(Plan {
-                kind: PackageCommandKind::Install,
-                replacement: BuildFileReplacement::from_sources(build_path, before, proposed)
-                    .map_err(failure)?,
-                updates: Some(Vec::new()),
-            })
+            proposed_source = proposed(edit, &proposed_source)?;
+            replaced = true;
         }
-        PackageCommand::Update { packages, revision } => {
-            if revision.is_some() && packages.len() != 1 {
-                return Err(failure(
-                    "--to requires exactly one package or root dependency alias",
-                ));
-            }
-            let updates = if packages.is_empty() {
-                None
-            } else {
-                let subject = subject.ok_or_else(|| failure("omega.lock is missing; run omega update without package selections to review the complete graph first"))?;
-                Some(select_packages(subject, &packages)?)
-            };
-            let mut proposed_source = before.to_owned();
-            if let Some(revision) = revision {
-                let subject = subject.expect("selected update has an accepted graph");
-                let selected = &updates.as_ref().expect("--to has one selection")[0];
-                let mut replaced = false;
-                for edge in subject.dependency_requests().iter().filter(|edge| {
-                    edge.requester() == subject.root().selected().key()
-                        && edge.purpose().is_product()
-                        && edge.selected().key().source_lineage() == selected.source_lineage()
-                }) {
-                    let CanonicalDependencySourceRequest::Git {
-                        explicit_alias,
-                        repository,
-                        revision: before_revision,
-                        selection,
-                    } = edge.request()
-                    else {
-                        continue;
-                    };
-                    let validated =
-                        GitSourceRequest::new(repository.clone(), Some(revision.clone()))
-                            .map_err(failure)?;
-                    let before_request = DependencySourceRequest::Git {
-                        explicit_alias: explicit_alias.clone(),
-                        repository: repository.clone(),
-                        revision: before_revision.clone(),
-                        selection: selection.clone(),
-                    };
-                    let candidate = DependencySourceRequest::Git {
-                        explicit_alias: explicit_alias.clone(),
-                        repository: repository.clone(),
-                        revision: validated.requested_revision().to_owned(),
-                        selection: selection.clone(),
-                    };
-                    let edit = plan_dependency_replacement_from_source(
-                        build_path.clone(),
-                        proposed_source.clone(),
-                        &before_request,
-                        &candidate,
-                    )
-                    .map_err(failure)?;
-                    proposed_source = proposed(edit, &proposed_source)?;
-                    replaced = true;
-                }
-                if !replaced {
-                    return Err(failure(
-                        "--to requires a root-authored Git dependency; transitive requests belong to their declaring package and local paths have no Git revision",
-                    ));
-                }
-            }
-            Ok(Plan {
-                kind: PackageCommandKind::Update,
-                replacement: BuildFileReplacement::from_sources(
-                    build_path,
-                    before,
-                    proposed_source,
-                )
-                .map_err(failure)?,
-                updates,
-            })
-        }
-        PackageCommand::Resume { .. } | PackageCommand::DiscardReview => {
-            unreachable!("resume and discard do not create edit plans")
+        if !replaced {
+            return Err(failure(
+                "--to requires a root-authored Git dependency; transitive requests belong to their declaring package and local paths have no Git revision",
+            ));
         }
     }
+    Ok(Plan {
+        kind: PackageCommandKind::Update,
+        replacement: BuildFileReplacement::from_sources(build_path, before, proposed_source)
+            .map_err(failure)?,
+        updates,
+    })
 }
 
 fn proposed(edit: BuildDependencyEditPlan, before: &str) -> Result<String, PackageCommandError> {

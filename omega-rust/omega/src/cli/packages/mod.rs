@@ -3,12 +3,12 @@
 pub(crate) mod audit;
 pub(crate) mod source;
 
-use package_manager::operations::{
+use package_manager::{
     PackageCommand, PackageCommandOptions, PackageCommandStatus, execute_package_command,
 };
 
 pub(crate) fn run(command: PackageCommand, options: PackageCommandOptions) {
-    let outcome = execute_package_command(command, options).unwrap_or_else(|error| {
+    let outcome = execute_package_command(command, options, None).unwrap_or_else(|error| {
         eprintln!("{error}");
         std::process::exit(1);
     });

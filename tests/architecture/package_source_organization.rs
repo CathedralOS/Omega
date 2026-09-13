@@ -22,6 +22,7 @@ const MANAGER_OWNERS: &[&str] = &[
     "declarations",
     "lock",
     "operations",
+    "package_manager",
     "resolution",
     "review",
 ];
@@ -75,6 +76,13 @@ fn assert_documented_owners(crate_root: &Path, owners: &[&str]) {
     let source_root = crate_root.join("src");
     let expected = std::iter::once("lib.rs".to_owned())
         .chain(owners.iter().map(|owner| (*owner).to_owned()))
+        .chain(owners.iter().filter_map(|owner| {
+            let named_root = format!("{owner}.rs");
+            source_root
+                .join(&named_root)
+                .is_file()
+                .then_some(named_root)
+        }))
         .collect::<BTreeSet<_>>();
     assert_eq!(
         directory_entries(&source_root),
@@ -93,7 +101,20 @@ fn assert_documented_owners(crate_root: &Path, owners: &[&str]) {
             "{} must advertise `{owner}` in both human and Rust entrances",
             crate_root.display()
         );
-        let entrance = source_root.join(owner).join("mod.rs");
+        // A semantic filename is a valid entrance; do not force every owner
+        // behind a directory's anonymous mod.rs wiring.
+        let named_root = source_root.join(format!("{owner}.rs"));
+        let directory_root = source_root.join(owner).join("mod.rs");
+        assert_ne!(
+            named_root.is_file(),
+            directory_root.is_file(),
+            "owner must have one Rust module entrance: {owner}"
+        );
+        let entrance = if named_root.is_file() {
+            named_root
+        } else {
+            directory_root
+        };
         let source = fs::read_to_string(&entrance)
             .unwrap_or_else(|error| panic!("read {}: {error}", entrance.display()));
         assert!(

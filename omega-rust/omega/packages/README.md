@@ -35,7 +35,7 @@ Follow the supported source-change flow through:
 
 `omega install` and `omega update` use that flow, including selective updates,
 per-target review files, `--resume`, and recoverable publication. Start at the
-[command operation](manager/src/operations/package_commands/README.md) for usage
+[command operation](manager/src/package_manager/README.md) for usage
 and its source map. The [task board](../../../TASKS.md) contains
 only remaining work. Source-code diffs are separate from editable capability decisions;
 verified old local snapshots can be recovered from the existing cache. Install

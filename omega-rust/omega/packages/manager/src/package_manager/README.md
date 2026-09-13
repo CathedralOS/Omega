@@ -1,14 +1,13 @@
 # Install and update
 
-Enter through [`../package_commands.rs`](../package_commands.rs). The CLI at
+Enter through [`../package_manager.rs`](../package_manager.rs). The CLI at
 `omega/src/cli/arguments/packages.rs` parses arguments; this operation owns resolution,
 checking, review, and publication.
 
 ```text
-package_commands/
+package_manager/
 ├── model.rs       commands and outcomes
 ├── planning.rs    dependency edits and exact update selections
-├── candidate.rs   stage, resolve, check every target, and publish
 ├── review.rs      compiler findings and per-change decisions
 ├── source_review.rs  separate bounded source-code diagnostics
 ├── old_sources.rs    exact old-source recovery through custody issuers
@@ -98,7 +97,7 @@ Ignored `build/package-manager/` contains:
   Its contents are hostile source data and cannot supply project decisions.
 - `check-<target>/`: disposable compiler/build outputs.
 - `transaction.lock` and `pending`: the separate publication mutex and
-  commit-intent journal, owned by [publication](../publication/README.md).
+  commit-intent journal, owned by [publication](../operations/publication/README.md).
 
 Resume fetches only the proposed exact pins if needed and not offline, recompiles, and rejects
 source, graph, accepted-file, or finding drift. Missing old source does not

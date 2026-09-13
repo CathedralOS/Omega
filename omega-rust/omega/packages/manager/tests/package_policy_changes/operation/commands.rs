@@ -1,9 +1,9 @@
 //! Command acceptance uses real staged source and compiler-generated findings.
 
 use super::*;
-use package_manager::operations::{
+use package_manager::{
     PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
-    PackageCommandOutcome, PackageCommandStatus, execute_package_command_with_storage,
+    PackageCommandOutcome, PackageCommandStatus, execute_package_command,
 };
 
 #[path = "commands/review.rs"]
@@ -28,14 +28,14 @@ fn execute(
     command: PackageCommand,
     targets: Vec<TargetProfile>,
 ) -> Result<PackageCommandOutcome, PackageCommandError> {
-    execute_package_command_with_storage(
+    execute_package_command(
         command,
         PackageCommandOptions {
             project_root: tree.path("sources/root"),
             targets,
             offline: false,
         },
-        &tree.storage("command-cache"),
+        Some(&tree.storage("command-cache")),
     )
 }
 

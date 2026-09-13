@@ -1,5 +1,5 @@
 use super::fixture::*;
-use package_manager::operations::{PackageCommand, PackageCommandStatus};
+use package_manager::{PackageCommand, PackageCommandStatus};
 
 include!("offline.rs");
 
