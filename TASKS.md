@@ -59,22 +59,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   execution. Invocation output lives under its ignored `build/verification/`.
   Initialization is explicit and needs private repository access.
 
-  Resume evidence: compiler `96854008a0`, macOS ARM64 (2026-09-13), Python 3.13
-  and `RUST_MIN_STACK=67108864`: the outer command exits 200 before compilation
-  because historical `omega.lock` policy belongs to a different source graph,
-  root or target. The app is at `7a272a896c85`, with standard package pin
-  `a91d878cb9252647d977c45787969b16e6ef937a`. Checkout-specific local identities
-  require ordinary update/review when relocated; see its README. This rejection
-  does not exercise the receiver bridge or establish native acceptance.
-
-  Relocation preparation at working checkpoint `7f124da93f` (2026-09-13,
-  same app/std pins and macOS environment): `omega update --project
-  samples/apps/squalr/squalr-tests --target macos_arm64` checks all 17 packages
-  and exits 3 at ordinary pending review. Preserve the historical tracked lock;
-  do not mistake a relocated lock rejection for the native failure above.
-  Review includes Console reads and Filesystem authority, not just entry binding.
-  Finish that local review before rerunning the outer command; this preparation
-  does not establish receiver provisioning or native execution.
+  Resume: the tracked app is `7a272a896c85`, with std pinned to
+  `a91d878cb9252647d977c45787969b16e6ef937a`. Compiler `bf35e75acb` checks the complete
+  17-package graph when the application imports `omega::language::core::service`
+  and declares `console: Service<Console> in Bound`; its geometry is unchanged.
+  On macOS ARM64 with Python 3.13 and `RUST_MIN_STACK=67108864`, ordinary
+  `omega update --project samples/apps/squalr/squalr-tests --target macos_arm64`
+  exits 3 at pending Console-read/native-supply/FilesystemHost decisions. The
+  available Git identity cannot publish to the private application repository
+  (403), so its tracked pin still needs that source correction. Publish it there
+  before advancing the gitlink. Preserve the historical lock outside the package
+  while completing checkout-local review; restoring it still makes the outer
+  native command exit 200 before compilation. No native acceptance is established.
 
   Bridge owners: **ENTRY-CONTENT-ROOTS** and
   **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION**, owned by
