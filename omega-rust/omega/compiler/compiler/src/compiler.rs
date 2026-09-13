@@ -50,17 +50,31 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                 let trust_settlement = admission.into_settlement();
 
                 let report = match request.shared.requested_product {
-                    RequestedCompileProduct::Check => CompileReport::check_only(
-                        target.options.root_path,
-                        checked.source_file_count(),
-                    )
-                    .map_err(|message| vec![Diagnostic::error(message)])?,
-                    RequestedCompileProduct::TerminalArtifact => terminal_product::compile_report(
-                        target.options.root_path,
-                        checked,
-                        &target.configuration.terminal_admission_profile,
-                        &target.configuration.optimization_rollback,
-                    )?,
+                    RequestedCompileProduct::Check => {
+                        if checked.pcc_requests().any() {
+                            Err(vec![Diagnostic::error(
+                                "a check-only stop cannot satisfy an optional proof-product request",
+                            )])?
+                        }
+                        CompileReport::check_only(
+                            target.options.root_path,
+                            checked.source_file_count(),
+                        )
+                        .map_err(|message| vec![Diagnostic::error(message)])?
+                    }
+                    RequestedCompileProduct::TerminalArtifact => {
+                        if checked.pcc_requests().native {
+                            Err(vec![Diagnostic::error(
+                                "a Terminal stop cannot satisfy a native proof-product request",
+                            )])?
+                        }
+                        terminal_product::compile_report(
+                            target.options.root_path,
+                            checked,
+                            &target.configuration.terminal_admission_profile,
+                            &target.configuration.optimization_rollback,
+                        )?
+                    }
                     RequestedCompileProduct::NativeArtifact => {
                         let terminal = native::prepare(target, checked)?;
                         native_inputs.realize(terminal)?

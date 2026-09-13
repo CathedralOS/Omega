@@ -154,6 +154,8 @@ pub fn realize_accepted_native_report(
     validate_accepted_terminal_production_subject(&report, evidence)?;
     let root_path = report.root_path().to_path_buf();
     let source_file_count = report.source_file_count;
+    let pcc_requests = report.pcc_requests();
+    let pcc_admission_profile = report.terminal_admission_profile().clone();
     let production_subject = report
         .production_manifest()
         .map(|manifest| manifest.subject().clone());
@@ -194,6 +196,7 @@ pub fn realize_accepted_native_report(
         production_subject,
     )
     .map(|report| report.with_trust_admission_settlement(trust_settlement))
+    .map(|report| report.with_pcc_context(pcc_requests, pcc_admission_profile))
     .map_err(|message| vec![Diagnostic::error(message)])
 }
 

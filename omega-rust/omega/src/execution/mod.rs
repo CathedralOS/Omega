@@ -66,7 +66,12 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         std::process::exit(200);
     }
     let exe = match crate::compilation::publication::publish_native_artifact(report, &build_dir) {
-        Ok((_published, path)) => path,
+        Ok((published, path)) => {
+            for pair in published.pcc_publications() {
+                eprintln!("published {pair}");
+            }
+            path
+        }
         Err(error) => {
             eprintln!("native publication FAILED: {error}");
             std::process::exit(200);

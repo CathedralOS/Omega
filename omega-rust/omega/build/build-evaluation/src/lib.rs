@@ -79,7 +79,7 @@ use build_time_evaluation::{
     BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemMetadataLayout, BuildTimeValue,
     PreparedBuildMachineEntry, PreparedBuildMachineProgram,
 };
-pub use configuration::{BuildConfig, HostedApplicationIntent};
+pub use configuration::{BuildConfig, HostedApplicationIntent, PccRequests};
 
 use configuration::extract_build_config;
 pub use declarations::{WireCompatibilityDemand, harvest_provider_selections, harvest_root_grants};
@@ -481,6 +481,21 @@ pub fn admit_build_program(
             BuildTimeValue::Struct {
                 type_name: "$OmegaBuildLogFacet".to_owned(),
                 fields: Vec::new(),
+            },
+        ));
+    }
+    // Optional proof-product requests (wiki/spec/proofs/publication.md). Both
+    // flags are independent and false until the root build machine assigns
+    // them; dependency metadata cannot enable or override the selection.
+    if has_exact_toolchain_build_facet(typed, "Pcc") {
+        build_fields.push((
+            "pcc".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "Pcc".to_owned(),
+                fields: vec![
+                    ("psi".to_owned(), BuildTimeValue::Bool(false)),
+                    ("native".to_owned(), BuildTimeValue::Bool(false)),
+                ],
             },
         ));
     }

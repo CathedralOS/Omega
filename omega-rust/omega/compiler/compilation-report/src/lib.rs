@@ -82,9 +82,14 @@ use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
 mod optimization_rollback;
+mod pcc;
 mod production_manifest;
 mod terminal_product;
 pub use optimization_rollback::OptimizationRollbackReceipt;
+pub use pcc::{
+    NativePccCustodyEvidence, PccPublicationReceipt, build_native_proof_sidecar,
+    verify_native_proof_sidecar,
+};
 pub use production_manifest::{
     FinalRealizationEvidenceError, ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject,
@@ -153,8 +158,17 @@ pub fn executable_installation_evidence_digest(
     ExecutableInstallationEvidenceDigest::from_digest(digest.finalize().into())
 }
 
-fn native_publication_certificate_digest(
-    artifact: &RetainedNativeArtifact,
+/// The native publication certificate commitment, computed componentwise so
+/// PCC receivers can recompute it from sidecar-carried custody fields without
+/// holding the retained artifact. Strong typed digests remain the authority;
+/// compact `u64` coordinates stay report-only.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn native_publication_certificate_digest(
+    native_artifact_identity: &[u8; 32],
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    target: target::NativeTarget,
+    final_image_symbol_digest: image::FinalImageSymbolDigest,
     boundary_contract_report_fingerprint: Option<u64>,
     text_validation_digest: image::CompilerTextDerivationDigest,
     function_validation_digest: image::CompilerFunctionValidationDigest,
@@ -164,12 +178,11 @@ fn native_publication_certificate_digest(
 ) -> NativePublicationCertificateDigest {
     let mut digest = Sha256::new();
     digest.update(b"omega.native-publication-certificate.sha256.v1\0");
-    digest.update(artifact.identity().as_bytes());
-    digest.update((artifact.semantic_bytes().len() as u64).to_le_bytes());
-    digest.update(artifact.semantic_bytes());
-    digest.update((artifact.proof_bytes().len() as u64).to_le_bytes());
-    digest.update(artifact.proof_bytes());
-    let target = artifact.target();
+    digest.update(native_artifact_identity);
+    digest.update((semantic_bytes.len() as u64).to_le_bytes());
+    digest.update(semantic_bytes);
+    digest.update((proof_bytes.len() as u64).to_le_bytes());
+    digest.update(proof_bytes);
     digest.update([match target.architecture {
         target::Architecture::Aarch64 => 1,
         target::Architecture::X86_64 => 2,
@@ -181,7 +194,7 @@ fn native_publication_certificate_digest(
     }]);
     digest.update((target.pointer_size as u64).to_le_bytes());
     digest.update((target.pointer_alignment as u64).to_le_bytes());
-    digest.update(artifact.image().final_image_symbol_digest().as_bytes());
+    digest.update(final_image_symbol_digest.as_bytes());
     digest.update([u8::from(boundary_contract_report_fingerprint.is_some())]);
     digest.update(
         boundary_contract_report_fingerprint
@@ -196,7 +209,8 @@ fn native_publication_certificate_digest(
     NativePublicationCertificateDigest::from_digest(digest.finalize().into())
 }
 
-fn native_publication_evidence_digest(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn native_publication_evidence_digest(
     native_artifact_identity: &[u8; 32],
     certificate_digest: NativePublicationCertificateDigest,
     callback_placement_identity_report_fingerprint: u64,
@@ -227,7 +241,7 @@ fn native_publication_evidence_digest(
     NativePublicationEvidenceDigest::from_digest(digest.finalize().into())
 }
 
-fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
+pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
     let mut digest = Sha256::new();
     digest.update(b"omega.published-executable-container.sha256.v1\0");
     digest.update((bytes.len() as u64).to_le_bytes());
@@ -236,6 +250,21 @@ fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
 }
 
 fn publish_exact_executable_bytes(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+    publish_exact_bytes(path, bytes, true)
+}
+
+/// Publish ordinary non-executable product bytes — Psi artifacts and `.proof`
+/// companions — with the same stage/replay/rename/replay discipline as the
+/// executable path.
+fn publish_exact_file_bytes(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+    publish_exact_bytes(path, bytes, false)
+}
+
+fn publish_exact_bytes(
+    path: &std::path::Path,
+    bytes: &[u8],
+    executable: bool,
+) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| "native publication path has no parent directory".to_owned())?;
@@ -259,7 +288,9 @@ fn publish_exact_executable_bytes(path: &std::path::Path, bytes: &[u8]) -> Resul
     }
     std::fs::rename(&staged, path)
         .map_err(|error| format!("failed to publish {}: {error}", path.display()))?;
-    make_executable(path)?;
+    if executable {
+        make_executable(path)?;
+    }
     let installed = std::fs::read(path)
         .map_err(|error| format!("failed to replay {}: {error}", path.display()))?;
     if installed != bytes {
@@ -280,6 +311,52 @@ fn make_executable(path: &std::path::Path) -> Result<(), String> {
 #[cfg(not(unix))]
 fn make_executable(_path: &std::path::Path) -> Result<(), String> {
     Ok(())
+}
+
+/// The adjacent `.proof`/`.psi` companion path beside `path`, formed by
+/// appending `suffix` to the complete artifact filename per the contract.
+fn appended_file_name_path(path: &std::path::Path, suffix: &str) -> PathBuf {
+    let mut name = path
+        .file_name()
+        .expect("a publication path always has a file name")
+        .to_os_string();
+    name.push(suffix);
+    path.with_file_name(name)
+}
+
+/// Producer-side pair validation for one Psi artifact/companion: replay the
+/// exact checks a receiver performs under a self-consistent policy so a
+/// malformed or internally inconsistent pair can never be reported as
+/// published.
+fn validate_psi_pair(
+    psi_bytes: &[u8],
+    sidecar: &terminal_codec::PccProofSidecar,
+    admission_profile: &proof_admission::AdmissionProfile,
+) -> Result<(), String> {
+    let policy =
+        terminal_codec::PccReceiverPolicy::for_offered_claim(sidecar, admission_profile.clone());
+    match terminal_codec::verify_psi_proof_sidecar(psi_bytes, &sidecar.to_bytes(), &policy) {
+        terminal_codec::PccVerificationOutcome::Complete(_) => Ok(()),
+        outcome => Err(format!(
+            "psi proof sidecar failed producer validation: {outcome:?}"
+        )),
+    }
+}
+
+/// Producer-side pair validation for one native executable/companion pair.
+fn validate_native_pair(
+    executable_bytes: &[u8],
+    sidecar: &terminal_codec::PccProofSidecar,
+    admission_profile: &proof_admission::AdmissionProfile,
+) -> Result<(), String> {
+    let policy =
+        terminal_codec::PccReceiverPolicy::for_offered_claim(sidecar, admission_profile.clone());
+    match pcc::verify_native_proof_sidecar(executable_bytes, &sidecar.to_bytes(), &policy) {
+        terminal_codec::PccVerificationOutcome::Complete(_) => Ok(()),
+        outcome => Err(format!(
+            "native proof sidecar failed producer validation: {outcome:?}"
+        )),
+    }
 }
 
 /// Immutable custody for one compiler-published executable container.
@@ -460,6 +537,16 @@ pub struct CompileReport {
     /// Filesystem-free comparison between the request's explicit admissions
     /// and every trust obligation reconstructed by compilation.
     trust_admission_settlement: trust_model::TrustAdmissionSettlement,
+    /// The normalized Build's two independent optional proof-product
+    /// requests. Both are off by default; neither grants receiving authority.
+    pcc_requests: build_evaluation::PccRequests,
+    /// The admission profile under which the retained artifact's evidence was
+    /// produced. Publication names it as the sidecar's checker profile and
+    /// uses it for the producer-side pair validation.
+    terminal_admission_profile: proof_admission::AdmissionProfile,
+    /// Every artifact/`.proof` companion pair this report published, each
+    /// carrying separate artifact and sidecar byte sizes.
+    pcc_publications: Vec<PccPublicationReceipt>,
 }
 
 impl CompileReport {
@@ -492,6 +579,9 @@ impl CompileReport {
             optimization_rollback: None,
             production_manifest: None,
             trust_admission_settlement: Default::default(),
+            pcc_requests: build_evaluation::PccRequests::default(),
+            terminal_admission_profile: proof_admission::AdmissionProfile::default(),
+            pcc_publications: Vec::new(),
         };
         if report.has_consistent_executable_publication_custody() {
             Ok(report)
@@ -524,6 +614,9 @@ impl CompileReport {
             optimization_rollback,
             production_manifest,
             trust_admission_settlement: Default::default(),
+            pcc_requests: build_evaluation::PccRequests::default(),
+            terminal_admission_profile: proof_admission::AdmissionProfile::default(),
+            pcc_publications: Vec::new(),
         };
         if !report.has_consistent_executable_publication_custody() {
             return Err("compiler report retained inconsistent native-artifact custody");
@@ -591,11 +684,65 @@ impl CompileReport {
             )
         })?;
         let output_path = build_dir.join(&output.file_name);
+
+        // Every requested artifact/companion pair is staged, validated and
+        // published before the executable itself becomes visible. A failed
+        // pair therefore never produces a certified-looking install, and a
+        // sidecar can never be left bound to bytes this report did not write.
+        let mut pcc_publications = Vec::new();
+        if self.pcc_requests.psi {
+            let psi_bytes = artifact.psi_artifact().to_bytes();
+            let psi_sidecar = terminal_codec::build_psi_proof_sidecar(
+                artifact.psi_artifact(),
+                &self.terminal_admission_profile,
+                &psi_bytes,
+            )
+            .map_err(|error| format!("cannot build the psi proof sidecar: {error}"))?;
+            let psi_sidecar_bytes = psi_sidecar.to_bytes();
+            validate_psi_pair(&psi_bytes, &psi_sidecar, &self.terminal_admission_profile)?;
+            let psi_path = appended_file_name_path(&output_path, ".psi");
+            publish_exact_file_bytes(&psi_path, &psi_bytes)?;
+            let psi_sidecar_path = appended_file_name_path(&psi_path, ".proof");
+            publish_exact_file_bytes(&psi_sidecar_path, &psi_sidecar_bytes)?;
+            pcc_publications.push(PccPublicationReceipt {
+                product: terminal_codec::PccProductKind::Psi,
+                artifact_path: psi_path,
+                artifact_byte_len: psi_bytes.len() as u64,
+                sidecar_path: psi_sidecar_path,
+                sidecar_byte_len: psi_sidecar_bytes.len() as u64,
+            });
+        }
+        if self.pcc_requests.native {
+            let native_sidecar = pcc::build_native_proof_sidecar(
+                artifact,
+                &output.bytes,
+                &self.terminal_admission_profile,
+            )?;
+            let native_sidecar_bytes = native_sidecar.to_bytes();
+            validate_native_pair(
+                &output.bytes,
+                &native_sidecar,
+                &self.terminal_admission_profile,
+            )?;
+            let native_sidecar_path = appended_file_name_path(&output_path, ".proof");
+            publish_exact_file_bytes(&native_sidecar_path, &native_sidecar_bytes)?;
+            pcc_publications.push(PccPublicationReceipt {
+                product: terminal_codec::PccProductKind::Native,
+                artifact_path: output_path.clone(),
+                artifact_byte_len: output.bytes.len() as u64,
+                sidecar_path: native_sidecar_path,
+                sidecar_byte_len: native_sidecar_bytes.len() as u64,
+            });
+        }
         publish_exact_executable_bytes(&output_path, &output.bytes)?;
 
         let container_digest = executable_container_digest(&output.bytes);
         let certificate_digest = native_publication_certificate_digest(
-            artifact,
+            &native_artifact_identity,
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            artifact.target(),
+            artifact.image().final_image_symbol_digest(),
             boundary_contract_report_fingerprint,
             text_validation_digest,
             function_validation_digest,
@@ -653,11 +800,96 @@ impl CompileReport {
             optimization_rollback: self.optimization_rollback,
             production_manifest: self.production_manifest,
             trust_admission_settlement: self.trust_admission_settlement,
+            pcc_requests: self.pcc_requests,
+            terminal_admission_profile: self.terminal_admission_profile,
+            pcc_publications,
         };
         if !report.has_consistent_executable_publication_custody() {
             return Err("published native report failed custody replay".to_owned());
         }
         Ok(report)
+    }
+
+    /// Publish the retained Terminal product as one `<root>.psi` artifact,
+    /// plus its adjacent `.proof` companion when the normalized Build
+    /// requested Psi PCC. The artifact is staged, validated and replayed
+    /// before the pair is reported.
+    pub fn publish_retained_terminal_artifact(
+        self,
+        build_dir: &std::path::Path,
+    ) -> Result<Self, String> {
+        if self.output_kind != CompileOutputKind::TerminalArtifact
+            || self.wrote_output
+            || self.retained_native_artifact.is_some()
+            || self.executable_publication.is_some()
+        {
+            return Err(
+                "terminal publication requires exactly one retained terminal artifact".to_owned(),
+            );
+        }
+        let artifact = self.artifact.as_ref().ok_or_else(|| {
+            "terminal publication requires exactly one retained terminal artifact".to_owned()
+        })?;
+        artifact.validate().map_err(|error| {
+            format!("refusing to publish an invalid terminal artifact: {error}")
+        })?;
+        let stem = self
+            .root_path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .filter(|stem| !stem.is_empty())
+            .ok_or_else(|| "terminal publication requires a named root file".to_owned())?;
+        std::fs::create_dir_all(build_dir).map_err(|error| {
+            format!(
+                "failed to create output directory {}: {error}",
+                build_dir.display()
+            )
+        })?;
+        let psi_path = build_dir.join(format!("{stem}.psi"));
+        let psi_bytes = artifact.artifact().to_bytes();
+        let mut pcc_publications = Vec::new();
+        // The companion is built and validated before any pair bytes become
+        // visible, so a failed pair never leaves a certified-looking artifact.
+        let psi_sidecar_bytes = if self.pcc_requests.psi {
+            let psi_sidecar = terminal_codec::build_psi_proof_sidecar(
+                artifact.artifact(),
+                &self.terminal_admission_profile,
+                &psi_bytes,
+            )
+            .map_err(|error| format!("cannot build the psi proof sidecar: {error}"))?;
+            let psi_sidecar_bytes = psi_sidecar.to_bytes();
+            validate_psi_pair(&psi_bytes, &psi_sidecar, &self.terminal_admission_profile)?;
+            Some(psi_sidecar_bytes)
+        } else {
+            None
+        };
+        publish_exact_file_bytes(&psi_path, &psi_bytes)?;
+        if let Some(psi_sidecar_bytes) = psi_sidecar_bytes {
+            let psi_sidecar_path = appended_file_name_path(&psi_path, ".proof");
+            publish_exact_file_bytes(&psi_sidecar_path, &psi_sidecar_bytes)?;
+            pcc_publications.push(PccPublicationReceipt {
+                product: terminal_codec::PccProductKind::Psi,
+                artifact_path: psi_path.clone(),
+                artifact_byte_len: psi_bytes.len() as u64,
+                sidecar_path: psi_sidecar_path,
+                sidecar_byte_len: psi_sidecar_bytes.len() as u64,
+            });
+        }
+        Ok(Self {
+            root_path: self.root_path,
+            source_file_count: self.source_file_count,
+            wrote_output: true,
+            output_kind: CompileOutputKind::TerminalArtifact,
+            retained_native_artifact: None,
+            artifact: self.artifact,
+            executable_publication: None,
+            optimization_rollback: self.optimization_rollback,
+            production_manifest: self.production_manifest,
+            trust_admission_settlement: self.trust_admission_settlement,
+            pcc_requests: self.pcc_requests,
+            terminal_admission_profile: self.terminal_admission_profile,
+            pcc_publications,
+        })
     }
 
     pub fn root_path(&self) -> &std::path::Path {
@@ -715,6 +947,38 @@ impl CompileReport {
         self
     }
 
+    /// Retain the normalized Build's optional proof-product requests and the
+    /// admission profile that produced the retained evidence. Publication
+    /// uses these to emit and self-validate every requested pair; they confer
+    /// no receiving authority.
+    pub fn with_pcc_context(
+        mut self,
+        pcc_requests: build_evaluation::PccRequests,
+        terminal_admission_profile: proof_admission::AdmissionProfile,
+    ) -> Self {
+        self.pcc_requests = pcc_requests;
+        self.terminal_admission_profile = terminal_admission_profile;
+        self
+    }
+
+    /// The normalized Build's two independent optional proof-product
+    /// requests retained on this report.
+    pub const fn pcc_requests(&self) -> build_evaluation::PccRequests {
+        self.pcc_requests
+    }
+
+    /// Every artifact/`.proof` companion pair published by this report, each
+    /// reporting artifact and sidecar byte sizes separately.
+    pub fn pcc_publications(&self) -> &[PccPublicationReceipt] {
+        &self.pcc_publications
+    }
+
+    /// The admission profile under which this report's retained evidence was
+    /// produced, retained for pair publication by downstream product routes.
+    pub const fn terminal_admission_profile(&self) -> &proof_admission::AdmissionProfile {
+        &self.terminal_admission_profile
+    }
+
     pub const fn trust_admission_settlement(&self) -> &trust_model::TrustAdmissionSettlement {
         &self.trust_admission_settlement
     }
@@ -749,6 +1013,9 @@ impl CompileReport {
             optimization_rollback: None,
             production_manifest,
             trust_admission_settlement: Default::default(),
+            pcc_requests: build_evaluation::PccRequests::default(),
+            terminal_admission_profile: proof_admission::AdmissionProfile::default(),
+            pcc_publications: Vec::new(),
         };
         report
             .has_consistent_executable_publication_custody()
@@ -1023,6 +1290,9 @@ mod tests {
             optimization_rollback: None,
             production_manifest: None,
             trust_admission_settlement: Default::default(),
+            pcc_requests: build_evaluation::PccRequests::default(),
+            terminal_admission_profile: proof_admission::AdmissionProfile::default(),
+            pcc_publications: Vec::new(),
         }
     }
 

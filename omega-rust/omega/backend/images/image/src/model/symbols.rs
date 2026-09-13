@@ -15,6 +15,13 @@ impl FinalImageSymbolDigest {
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
+
+    /// Reconstruct the strong digest carried by checked custody evidence so
+    /// receivers can recompute the same commitment without the producing
+    /// image.
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
 }
 
 pub fn final_image_symbol_digest(image: &FinalImage) -> FinalImageSymbolDigest {

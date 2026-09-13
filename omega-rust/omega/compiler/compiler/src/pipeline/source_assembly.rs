@@ -467,12 +467,20 @@ pub data BuildOutput {
 }
 pub data BuildLog {
 }
+// Optional proof-carrying product requests (wiki/spec/proofs/publication.md).
+// Both flags are independent and default to false; they request adjacent
+// `.proof` sidecars, never a different pipeline or weaker checking.
+pub data Pcc {
+    psi: bool;
+    native: bool;
+}
 pub data Build {
     // compiler-owned Build.target field
     // compiler-owned Build.x86_deployment_features field
     subsystem: Subsystem;
     freestanding: bool;
     optimizations: Optimizations;
+    pcc: Pcc;
     source: BuildSource;
     output: BuildOutput;
     log: BuildLog;

@@ -90,6 +90,7 @@ impl PreparedNativeCompilation {
             ..
         } = request.configuration;
         let post_terminal = rollback.effective().project_post_terminal();
+        let pcc_requests = checked.pcc_requests();
         let artifact = realization::realize(
             &checked,
             &admission,
@@ -106,6 +107,7 @@ impl PreparedNativeCompilation {
             rollback.into_receipt(),
             production_subject,
         )
+        .map(|report| report.with_pcc_context(pcc_requests, terminal_admission_profile))
         .map_err(|message| vec![Diagnostic::error(message)])?;
         crate::compiler::native_checked::NativeCompilationWithCheckedReceipt::new(checked, report)
             .map(crate::compiler::native_checked::NativeCompilationWithCheckedReceipt::into_report)

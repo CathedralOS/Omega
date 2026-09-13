@@ -51,6 +51,14 @@ impl AdmissionProfile {
         }
     }
 
+    /// The complete accepted-admission set in canonical order. Readers
+    /// needing a stable profile identity (for example a PCC sidecar's
+    /// checker-profile field) iterate this set rather than reserializing
+    /// private state.
+    pub fn acceptances(&self) -> impl Iterator<Item = &AdmissionAcceptance> {
+        self.accepted.iter()
+    }
+
     fn accepts(&self, evidence: AdmissionEvidence) -> bool {
         self.accepted.contains(&AdmissionAcceptance {
             site: evidence.site,

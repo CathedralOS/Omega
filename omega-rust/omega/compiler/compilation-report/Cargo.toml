@@ -22,6 +22,7 @@ native-artifact = { path = "../../backend/artifacts/native-artifact" }
 numerics = { path = "../../../psi/foundation/numerics" }
 package-compilation = { path = "../../build/package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
+proof-admission = { path = "../../../psi/semantics/proof-admission" }
 optimization-core = { path = "../../representations/optimization-core" }
 target = { path = "../../representations/target" }
 target-operations = { path = "../../representations/target-operations" }
