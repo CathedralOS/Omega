@@ -399,12 +399,15 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   caller-private names reject; `compiler/tests/build_target_activation.rs`
   pins both. Terminal production and native entry settlement now rejoin the
   selected machine by exact `SymbolHandle`, so the same-name-across-packages
-  fence in `selection.rs` is removed. Remaining: the owner-selected restricted
-  description handoff (`builder.product.entry(...)` and its non-callable
-  description type) and the computed-receiver implementation fence once
-  ordinary call-result authority and effect/loan traversal can carry that
-  use.
-  Final admission must rejoin the exact selected identity after generation.
+  fence in `selection.rs` is removed. The compiler-owned `Build.product`
+  facet and `BuildProduct::entry(path, slot)` logical query now issue an
+  opaque non-callable `ProductEntryRef` description under the query
+  occurrence's lexical package without executing product code; `roots.bind`
+  accepts a delegated single-name implementation operand only as a retained
+  `ProductEntryRef` place, and final admission rejoins the exact selected
+  symbol after generation. Remaining: provider/schema description kinds and
+  the computed-receiver implementation fence once ordinary call-result
+  authority and effect/loan traversal can carry that use.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** In build evaluation, its host custody adapters and
   compiler publication, implement coherent captured inventories, narrowed inputs,
