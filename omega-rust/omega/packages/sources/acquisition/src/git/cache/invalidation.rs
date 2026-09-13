@@ -10,6 +10,8 @@ use crate::SourceResolveError;
 use crate::custody::platform::same_capability_file_identity;
 #[cfg(all(test, unix))]
 use crate::custody::publication::direct_cache_child_name;
+#[cfg(unix)]
+use crate::custody::publication::synchronize_directory;
 #[cfg(all(test, unix))]
 use crate::custody::tree::{CacheCustodyKind, verify_git_cache_root_custody};
 use crate::limits::GIT_CACHE_METADATA;
@@ -78,12 +80,7 @@ pub(super) fn synchronize_cache_parent(
     cache_directory: &CapabilityDirectory,
     cache_root: &Path,
 ) -> Result<(), SourceResolveError> {
-    cache_directory
-        .try_clone()
-        .map_err(|error| io_error(cache_root, error))?
-        .into_std_file()
-        .sync_all()
-        .map_err(|error| io_error(cache_root, error))
+    synchronize_directory(cache_directory).map_err(|error| io_error(cache_root, error))
 }
 
 #[cfg(not(unix))]

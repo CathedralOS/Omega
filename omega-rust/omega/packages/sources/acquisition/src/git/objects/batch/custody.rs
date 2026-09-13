@@ -18,6 +18,8 @@ use crate::custody::platform::{
     same_capability_file_identity, verify_capability_cache_node_owner_and_mode,
     verify_macos_open_cache_extended_acl_custody,
 };
+#[cfg(unix)]
+use crate::custody::publication::synchronize_directory;
 use crate::custody::tree::CacheCustodyKind;
 use crate::error::{SourceResolveError, cache_invalid};
 use crate::limits::STAGING_SEQUENCE;
@@ -150,12 +152,7 @@ impl PendingGitBatchRequest {
             .remove_file(&self.name)
             .map_err(|error| io_error(&self.display_path, error))?;
         #[cfg(unix)]
-        self.parent
-            .try_clone()
-            .map_err(|error| io_error(&self.display_path, error))?
-            .into_std_file()
-            .sync_all()
-            .map_err(|error| io_error(&self.display_path, error))?;
+        synchronize_directory(&self.parent).map_err(|error| io_error(&self.display_path, error))?;
         self.removed = true;
         Ok(())
     }
