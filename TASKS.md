@@ -55,9 +55,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   execution. Invocation output lives under its ignored `build/verification/`.
   Initialization is explicit and needs private repository access.
 
-  Resume evidence: compiler `aa6c20a74f`, macOS ARM64, Python 3.13 and
+  Resume evidence: compiler `1923be202c`, macOS ARM64, Python 3.13 and
   `RUST_MIN_STACK=67108864` reaches verified Terminal production and abstract
-  lowering, then exits 200 after 199.419 seconds at `ProgramEntry receiver
+  lowering, then exits 200 after 200.436 seconds at `ProgramEntry receiver
   provisioning`: the executable entry retains `self`, but no root-backed bridge
   constructs and lends its receiver. The app is at `7a272a896c85`, with standard
   package pin `a91d878cb9252647d977c45787969b16e6ef937a`.
