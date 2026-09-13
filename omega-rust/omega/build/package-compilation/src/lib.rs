@@ -24,3 +24,4 @@ pub use source_consumption::{
     derive_package_compilation_subject, derive_source_consumption_commitment,
     toolchain_source_identities, toolchain_source_identity_digest, verify_current_files,
 };
+pub use source_snapshot::capture_package_source_input;

@@ -1,7 +1,9 @@
 //! Canonical identity of one retained build observation.
 
 #[cfg(test)]
-use crate::{BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemReplayVerdict};
+use crate::{
+    BUILD_OBSERVATION_SCHEMA_VERSION, BuildCapturedSourceInventory, BuildFilesystemReplayVerdict,
+};
 use crate::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
@@ -45,6 +47,14 @@ impl BuildObservationSummary {
                 digest.update([1]);
                 digest.update(identity.policy_version().to_le_bytes());
                 digest.update(identity.source_content_commitment());
+            }
+        }
+        match self.captured_source_inventory() {
+            None => digest.update([0]),
+            Some(inventory) => {
+                digest.update([1]);
+                digest.update(inventory.entry_count().to_le_bytes());
+                digest.update(inventory.file_bytes().to_le_bytes());
             }
         }
         let replay_verdict = self.filesystem_replay_verdict();
@@ -405,6 +415,7 @@ mod tests {
                 checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
             filesystem_operation_attempts: Vec::new(),
             canonical_source_metadata_identity: None,
+            captured_source_inventory: None,
             filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
                 BuildFilesystemReplayDisposition::NotReplayed,
             ),
@@ -424,9 +435,9 @@ mod tests {
         assert_eq!(
             identity.digest(),
             [
-                0xfe, 0x93, 0xb8, 0x79, 0x5f, 0x44, 0x05, 0x84, 0x07, 0xd5, 0x5a, 0x12, 0x3a, 0xf3,
-                0x4d, 0x33, 0x38, 0x0f, 0x49, 0xb1, 0x47, 0x32, 0xef, 0x43, 0xa0, 0xc9, 0x8a, 0x69,
-                0x6c, 0x50, 0xf4, 0x6b,
+                0x2d, 0x2c, 0x4f, 0xaa, 0x6e, 0x53, 0x1a, 0xdb, 0x0e, 0x61, 0xf6, 0x60, 0x71, 0xb0,
+                0xbc, 0x15, 0xe8, 0x06, 0xa0, 0x15, 0xcf, 0xf9, 0x13, 0x1d, 0xa4, 0x60, 0xf4, 0x91,
+                0x3a, 0xf0, 0xea, 0x67,
             ],
             "the current package build-observation byte contract remains stable"
         );
@@ -460,6 +471,13 @@ mod tests {
         let mut changed = empty_summary();
         changed.filesystem_replay_verdict =
             BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::Complete);
+        assert_ne!(baseline, changed.identity());
+
+        let mut changed = empty_summary();
+        changed.captured_source_inventory = Some(BuildCapturedSourceInventory {
+            entry_count: 3,
+            file_bytes: 7,
+        });
         assert_ne!(baseline, changed.identity());
 
         let mut changed = empty_summary();

@@ -439,6 +439,143 @@ fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
     let _ = std::fs::remove_dir_all(session);
 }
 
+fn bound_build_output_session(label: &str) -> (PathBuf, FilesystemSponsor, PathBuf) {
+    let session = std::env::temp_dir().join(format!(
+        "omega-build-snapshot-{label}-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&session);
+    std::fs::create_dir(&session).expect("create build snapshot session");
+    let session = std::fs::canonicalize(session).expect("canonicalize build snapshot session");
+    let sponsor = FilesystemSponsor::new(&session).expect("create build snapshot sponsor");
+    let build_dir = session.join("output");
+    let bound_build_dir = sponsor
+        .bind_path(&build_dir)
+        .expect("bind build snapshot output root");
+    let prepared_build_dir = sponsor
+        .prepare_create_directory(&bound_build_dir)
+        .expect("prepare build snapshot output root");
+    std::fs::create_dir(&build_dir).expect("create build snapshot output root");
+    prepared_build_dir
+        .commit()
+        .expect("commit build snapshot output root");
+    (session, sponsor, build_dir)
+}
+
+#[test]
+fn build_snapshot_binds_captured_source_reads_and_linear_output_completion() {
+    let profile = target::TargetProfile::host();
+    let project = Project::new("snapshot-outputs");
+    let main_source = "data Main { value: u8; }\n";
+    project.write("main.omg", main_source);
+    let templates = project.root.join("templates");
+    std::fs::create_dir(&templates).expect("create template directory");
+    let banner = b"HELLO {{name}}\n";
+    std::fs::write(templates.join("banner.tmpl"), banner).expect("write template");
+    let build_source = r#"machine build(builder: &mut Build) {
+    builder.application("build-snapshot-outputs");
+    let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
+    let template_descriptor: i32 = builder.source.open(template, 0);
+    let mut banner_bytes: [u8; 7];
+    let read_count: i64 = builder.source.read(template_descriptor, &mut banner_bytes, 7);
+    let source_close: i32 = builder.source.close(template_descriptor);
+
+    let artifact: BuildPath = builder.output.resolve("artifact.txt");
+    let output_descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(output_descriptor, "banner read\n");
+    let output_close: i32 = builder.output.close(output_descriptor);
+}
+"#;
+    project.write("build.omg", build_source);
+
+    let (session, sponsor, build_dir) = bound_build_output_session("granted");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.to_owned()),
+        package_inputs: Some(package_inputs(&project.root)),
+        filesystem_sponsor: Some(sponsor),
+        build_snapshot: Some(build_evaluation::BuildSnapshotRequest::new([
+            b"artifact.txt".to_vec(),
+        ])),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect("captured snapshot reads and a completed required output publish the build");
+    set_canonical_source_tree_permissions(&project.root, false);
+
+    let observation = checked
+        .build_observation_summary()
+        .expect("snapshot execution retains observations");
+    let inventory = observation
+        .captured_source_inventory()
+        .expect("the snapshot occurrence retains captured inventory evidence");
+    assert_eq!(
+        inventory.entry_count(),
+        5,
+        "root, both sources, the template directory, and the template"
+    );
+    assert_eq!(
+        inventory.file_bytes(),
+        (main_source.len() + build_source.len() + banner.len()) as u64,
+    );
+    assert!(observation.canonical_source_metadata_identity().is_some());
+    let staged = observation
+        .staged_output_tree()
+        .expect("completed outputs remain in staged custody");
+    let artifact = staged
+        .sealed_entry(b"artifact.txt")
+        .expect("the required output is discoverable in sealed custody");
+    let build_output::BuildStagedOutputEntryKind::File { bytes, executable } = artifact.kind()
+    else {
+        panic!("a required output completes only as a sealed regular file")
+    };
+    assert_eq!(bytes, b"banner read\n");
+    assert!(!executable);
+    let _ = std::fs::remove_dir_all(session);
+}
+
+#[test]
+fn build_snapshot_rejects_an_omitted_required_output() {
+    let profile = target::TargetProfile::host();
+    let project = Project::new("snapshot-omitted");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("build-snapshot-omitted");
+    let artifact: BuildPath = builder.output.resolve("artifact.txt");
+    let output_descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(output_descriptor, "partial\n");
+    let output_close: i32 = builder.output.close(output_descriptor);
+}
+"#,
+    );
+
+    let (session, sponsor, build_dir) = bound_build_output_session("omitted");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.to_owned()),
+        package_inputs: Some(package_inputs(&project.root)),
+        filesystem_sponsor: Some(sponsor),
+        build_snapshot: Some(build_evaluation::BuildSnapshotRequest::new([
+            b"missing.txt".to_vec(),
+        ])),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect_err("an invocation-required output the build never completed must reject");
+    set_canonical_source_tree_permissions(&project.root, false);
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("required build output `missing.txt`")
+                && diagnostic.message.contains("omitted")
+        }),
+        "unexpected snapshot diagnostics: {diagnostics:#?}"
+    );
+    let _ = std::fs::remove_dir_all(session);
+}
+
 #[test]
 fn serialized_replay_record_reproduces_the_full_admitted_activation() {
     let profile = target::TargetProfile::WindowsX64;

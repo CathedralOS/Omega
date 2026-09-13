@@ -129,6 +129,7 @@ fn summary() -> BuildObservationSummary {
             checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
         filesystem_operation_attempts: source_directory_attempts(),
         canonical_source_metadata_identity: None,
+        captured_source_inventory: None,
         filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
             BuildFilesystemReplayDisposition::Complete,
         ),

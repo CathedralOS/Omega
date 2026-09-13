@@ -197,6 +197,7 @@ fn replay_summary() -> BuildObservationSummary {
             output_close,
         ],
         canonical_source_metadata_identity: None,
+        captured_source_inventory: None,
         filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
             BuildFilesystemReplayDisposition::Complete,
         ),

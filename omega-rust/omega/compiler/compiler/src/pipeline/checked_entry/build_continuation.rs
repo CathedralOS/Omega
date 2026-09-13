@@ -46,6 +46,7 @@ pub(super) fn evaluate_build_and_continue(
         filesystem_sponsor,
         evaluation_sponsor,
         replay_record,
+        build_snapshot,
     } = child;
     // CLI aliases end at request admission. Every source, build, provider, and
     // artifact consumer below observes only the catalog's canonical spelling.
@@ -69,6 +70,7 @@ pub(super) fn evaluate_build_and_continue(
         build_dir,
         filesystem_sponsor,
         replay_record,
+        build_snapshot,
     )?;
     let admitted_build = crate::pipeline::build_config::admit_build_program(
         frontend.typed(),

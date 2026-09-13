@@ -48,6 +48,7 @@ pub(super) fn summary(operation_tag: u16) -> BuildObservationSummary {
             checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
         filesystem_operation_attempts: vec![operand_free_unknown_descriptor_failure(operation_tag)],
         canonical_source_metadata_identity: None,
+        captured_source_inventory: None,
         filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
             BuildFilesystemReplayDisposition::SourceInputsOnly,
         ),

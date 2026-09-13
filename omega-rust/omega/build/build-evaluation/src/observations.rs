@@ -105,7 +105,7 @@ impl BuildEvaluationUsage {
     }
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 75;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 76;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -908,6 +908,29 @@ impl BuildFilesystemReplayVerdict {
     }
 }
 
+/// Extent evidence of the captured immutable input inventory a build
+/// occurrence executed against. The inventory's content identity is the
+/// summary's canonical source metadata commitment; this evidence records that
+/// the run was bound to a complete compiler-captured inventory and how much
+/// retained input state it represented.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildCapturedSourceInventory {
+    pub(super) entry_count: u64,
+    pub(super) file_bytes: u64,
+}
+
+impl BuildCapturedSourceInventory {
+    /// Complete inventory size in canonical rows, including the source root.
+    pub const fn entry_count(self) -> u64 {
+        self.entry_count
+    }
+
+    /// Total retained regular-file bytes across the inventory.
+    pub const fn file_bytes(self) -> u64 {
+        self.file_bytes
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildObservationSummary {
     pub(super) schema_version: u32,
@@ -916,6 +939,7 @@ pub struct BuildObservationSummary {
     pub(super) filesystem_operation_schema_version: u32,
     pub(super) filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
     pub(super) canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
+    pub(super) captured_source_inventory: Option<BuildCapturedSourceInventory>,
     pub(super) filesystem_replay_verdict: BuildFilesystemReplayVerdict,
     pub(super) included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
     pub(super) staged_output_tree: Option<BuildStagedOutputTree>,
@@ -962,6 +986,14 @@ impl BuildObservationSummary {
         &self,
     ) -> Option<BuildCanonicalSourceMetadataIdentity> {
         self.canonical_source_metadata_identity
+    }
+
+    /// Extent evidence of the captured immutable input inventory this build
+    /// occurrence executed against. `Some` means every Source read was served
+    /// from a fresh private materialization of the compiler-captured
+    /// inventory bound to the recorded canonical metadata commitment.
+    pub const fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
+        self.captured_source_inventory
     }
 
     pub const fn staged_output_tree(&self) -> Option<&BuildStagedOutputTree> {

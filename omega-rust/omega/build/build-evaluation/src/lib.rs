@@ -92,19 +92,19 @@ pub use filesystem_scope::{
 
 pub use observations::{
     BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION, BUILD_OBSERVATION_SCHEMA_VERSION,
-    BuildCanonicalSourceMetadataIdentity, BuildEvaluationUsage, BuildFilesystemAuthorizedPath,
-    BuildFilesystemByteOperand, BuildFilesystemGrantAccess, BuildFilesystemGrantRefusal,
-    BuildFilesystemGrantRefusalReason, BuildFilesystemLogicalHandleIdentity,
-    BuildFilesystemLogicalHandleInput, BuildFilesystemLogicalHandleInputResolution,
-    BuildFilesystemLogicalHandleKind, BuildFilesystemLogicalHandleOutput,
-    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMetadataObservation,
-    BuildFilesystemMetadataObservationKind, BuildFilesystemMutableByteOperand,
-    BuildFilesystemMutableByteOperandResolution, BuildFilesystemMutableI64Operand,
-    BuildFilesystemMutableI64OperandResolution, BuildFilesystemObservedByteRegion,
-    BuildFilesystemObservedByteRegionKind, BuildFilesystemOperationAttempt,
-    BuildFilesystemOperationObservationClass, BuildFilesystemOperationResult,
-    BuildFilesystemPathLikeOperand, BuildFilesystemProvider, BuildFilesystemReplayDisposition,
-    BuildFilesystemReplayVerdict, BuildFilesystemReturnedPath,
+    BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory, BuildEvaluationUsage,
+    BuildFilesystemAuthorizedPath, BuildFilesystemByteOperand, BuildFilesystemGrantAccess,
+    BuildFilesystemGrantRefusal, BuildFilesystemGrantRefusalReason,
+    BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,
+    BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
+    BuildFilesystemLogicalHandleOutput, BuildFilesystemLogicalHandleOutputSource,
+    BuildFilesystemMetadataObservation, BuildFilesystemMetadataObservationKind,
+    BuildFilesystemMutableByteOperand, BuildFilesystemMutableByteOperandResolution,
+    BuildFilesystemMutableI64Operand, BuildFilesystemMutableI64OperandResolution,
+    BuildFilesystemObservedByteRegion, BuildFilesystemObservedByteRegionKind,
+    BuildFilesystemOperationAttempt, BuildFilesystemOperationObservationClass,
+    BuildFilesystemOperationResult, BuildFilesystemPathLikeOperand, BuildFilesystemProvider,
+    BuildFilesystemReplayDisposition, BuildFilesystemReplayVerdict, BuildFilesystemReturnedPath,
     BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
     BuildFilesystemRootedPathOperandResolution, BuildFilesystemScalarOperand,
     BuildFilesystemScalarOperandValue, BuildIncludedSourceHandoff, BuildObservationClass,
@@ -148,6 +148,37 @@ use vocabulary::{
 };
 
 pub use vocabulary::is_build_machine;
+
+/// Invocation-level request to execute one build occurrence against a
+/// captured immutable source snapshot and to require the named outputs to
+/// complete as sealed regular files before the build result may publish.
+///
+/// The request is a plain carrier: it expresses intent but grants nothing by
+/// itself. The caller binds the captured input inventory and the roster onto
+/// the build's filesystem scope; admission then materializes the inventory's
+/// fresh private snapshot and completion checking enforces the roster against
+/// retained staged-output custody. Capture requires the source root's
+/// canonical sealed form (the same physical inventory validated for canonical
+/// Source metadata); an unsealed or mutating root fails capture rather than
+/// producing a falsely attributed snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildSnapshotRequest {
+    required_outputs: Vec<Vec<u8>>,
+}
+
+impl BuildSnapshotRequest {
+    pub fn new(required_outputs: impl IntoIterator<Item = Vec<u8>>) -> Self {
+        Self {
+            required_outputs: required_outputs.into_iter().collect(),
+        }
+    }
+
+    /// Required sealed output paths in canonical slash-separated form. An
+    /// empty roster still runs against the captured source snapshot.
+    pub fn required_outputs(&self) -> &[Vec<u8>] {
+        &self.required_outputs
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComputedBuildConfig {
@@ -549,6 +580,7 @@ pub fn admit_build_program(
         let filesystem = if filesystem_reachable {
             filesystem_scope.ensure_write_roots()?;
             filesystem_scope.ensure_canonical_source_metadata()?;
+            filesystem_scope.ensure_captured_snapshot()?;
             filesystem_scope.filesystem_access()
         } else {
             BuildMachineFilesystemAccess::Virtual
@@ -1304,16 +1336,21 @@ pub fn execute_admitted_build_program(
                     "build-time evaluation of `{machine_name}` handed off a generated source outside the compiler-issued Output root"
                 )));
             }
-            Ok(BuildIncludedSourceHandoff {
-                relative_path: source.relative_path().to_vec(),
-                filesystem_attempt_ordinal: u64::try_from(
-                    source.filesystem_attempt_ordinal(),
-                )
+            let filesystem_attempt_ordinal = u64::try_from(source.filesystem_attempt_ordinal())
                 .map_err(|_| {
                     Diagnostic::error(format!(
                         "build-time evaluation of `{machine_name}` produced an included-source ordinal that exceeds canonical u64"
                     ))
-                })?,
+                })?;
+            if filesystem_attempt_ordinal > filesystem_operation_attempts.len() as u64 {
+                return Err(Diagnostic::error(format!(
+                    "build-time evaluation of `{machine_name}` handed off generated source `{}` at an ordinal outside this occurrence's filesystem attempt custody",
+                    String::from_utf8_lossy(source.relative_path())
+                )));
+            }
+            Ok(BuildIncludedSourceHandoff {
+                relative_path: source.relative_path().to_vec(),
+                filesystem_attempt_ordinal,
             })
         })
         .collect::<Result<Vec<_>, Diagnostic>>()
@@ -1399,6 +1436,10 @@ pub fn execute_admitted_build_program(
             "build-time evaluation of `{machine_name}` observed filesystem host state outside its static observation ceiling"
         ))]);
     }
+    // Linear required-output custody: every declared member must be completed
+    // by exactly one sealed regular file in retained staged-output custody
+    // before any generated source is selected or the result may publish.
+    filesystem_scope.verify_required_outputs(staged_output_tree.as_ref(), &machine_name)?;
     let generated_sources = match staged_output_tree.as_ref() {
         Some(tree) => {
             let included_source_paths = included_source_handoffs
@@ -1470,6 +1511,7 @@ pub fn execute_admitted_build_program(
             filesystem_operation_attempts,
             canonical_source_metadata_identity: filesystem_scope
                 .canonical_source_metadata_identity(),
+            captured_source_inventory: filesystem_scope.captured_source_inventory(),
             filesystem_replay_verdict,
             included_source_handoffs,
             staged_output_tree,

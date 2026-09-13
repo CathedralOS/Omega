@@ -46,6 +46,7 @@ pub fn replayable_unknown_descriptor_summary() -> BuildObservationSummary {
             grant_refusals: Vec::new(),
         }],
         canonical_source_metadata_identity: None,
+        captured_source_inventory: None,
         filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
             BuildFilesystemReplayDisposition::SourceInputsOnly,
         ),

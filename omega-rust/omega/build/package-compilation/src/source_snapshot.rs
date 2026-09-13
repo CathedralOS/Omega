@@ -1,6 +1,7 @@
 //! Captures and revalidates the complete physical Source root seen by build evaluation.
 //! Rows and content commitments are always reconstructed from the filesystem.
 
+use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
 use checked_interpreter::{
     CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION, CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRow,
@@ -9,7 +10,7 @@ use checked_interpreter::{
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1\0";
 const CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
@@ -36,8 +37,54 @@ struct CapturedPhysicalMetadataRow {
 }
 
 pub(super) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, String> {
-    let mut stack = vec![(root.to_path_buf(), Vec::<u8>::new())];
+    capture_rows(
+        root.to_path_buf(),
+        |path, physical, aggregate_content_bytes| {
+            capture_physical_metadata_row(path, physical, aggregate_content_bytes)
+                .map(|row| (row, ()))
+        },
+    )
+    .map(|(index, _)| index)
+}
+
+/// Capture one complete compiler-owned immutable build input for this exact
+/// physical source root: every directory, every regular file's exact bytes,
+/// and every inert relative symlink spelling, bound to the same canonical
+/// source metadata index the build's filesystem grants will enforce.
+///
+/// The retained entries and the index's source-content commitment come from
+/// one coherent traversal, so the inventory cannot be narrower, wider, or
+/// staler than the metadata a build is granted. Callers capture before
+/// execution; a later replay never rereads the host to rebuild this input.
+pub fn capture_package_source_input(
+    source_root: &Path,
+) -> Result<CapturedBuildSourceInput, String> {
+    let canonical_root = crate::package_compilation::canonical_source_root(source_root)?;
+    let (index, retained) = capture_rows(canonical_root, capture_physical_source_row)?;
+    CapturedBuildSourceInput::from_capture_rows(index, retained).map_err(|diagnostics| {
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.to_string())
+            .collect::<Vec<_>>()
+            .join("; ")
+    })
+}
+
+/// One coherent traversal of the canonical sealed source root. Every visited
+/// path produces both its canonical metadata row and one capture-authority
+/// payload, so a caller cannot assemble an index and a retained inventory
+/// that disagree with each other.
+fn capture_rows<T>(
+    canonical_root: PathBuf,
+    mut row_for: impl FnMut(
+        &Path,
+        &std::fs::Metadata,
+        &mut u64,
+    ) -> Result<(CapturedPhysicalMetadataRow, T), String>,
+) -> Result<(CanonicalFilesystemMetadataIndex, Vec<(Vec<u8>, T)>), String> {
+    let mut stack = vec![(canonical_root, Vec::<u8>::new())];
     let mut rows = BTreeMap::<Vec<u8>, CapturedPhysicalMetadataRow>::new();
+    let mut retained = Vec::<(Vec<u8>, T)>::new();
     let mut aggregate_path_bytes = 0usize;
     let mut aggregate_content_bytes = 0u64;
 
@@ -50,12 +97,14 @@ pub(super) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, S
         let physical = std::fs::symlink_metadata(&path).map_err(|error| {
             format!("could not inspect canonical Source metadata path: {error}")
         })?;
-        let captured =
-            capture_physical_metadata_row(&path, &physical, &mut aggregate_content_bytes)?;
+        let (captured, entry) = row_for(&path, &physical, &mut aggregate_content_bytes)?;
         if rows.insert(relative_path.clone(), captured).is_some() {
             return Err(format!(
                 "physical Source traversal duplicated a path: {relative_path:?}"
             ));
+        }
+        if !relative_path.is_empty() {
+            retained.push((relative_path.clone(), entry));
         }
 
         if physical.is_dir() {
@@ -104,12 +153,13 @@ pub(super) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, S
     }
 
     let commitment = canonical_build_source_content_commitment(&rows)?;
-    CanonicalFilesystemMetadataIndex::version_1(
+    let index = CanonicalFilesystemMetadataIndex::version_1(
         commitment,
         rows.into_iter()
             .map(|(path, row)| CanonicalFilesystemMetadataRow::new(path, row.kind)),
     )
-    .map_err(|error| format!("could not construct canonical Source metadata: {error}"))
+    .map_err(|error| format!("could not construct canonical Source metadata: {error}"))?;
+    Ok((index, retained))
 }
 
 fn capture_physical_metadata_row(
@@ -175,6 +225,155 @@ fn capture_physical_metadata_row(
         "physical Source path {} has an unsupported filesystem kind",
         path.display()
     ))
+}
+
+fn capture_physical_source_row(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+    aggregate_content_bytes: &mut u64,
+) -> Result<(CapturedPhysicalMetadataRow, CapturedSourceEntry), String> {
+    if metadata.is_dir() {
+        #[cfg(unix)]
+        require_canonical_mode(path, metadata, 0o555)?;
+        return Ok((
+            CapturedPhysicalMetadataRow {
+                kind: CanonicalFilesystemMetadataRowKind::Directory,
+                content_digest: None,
+            },
+            CapturedSourceEntry::Directory,
+        ));
+    }
+    if metadata.is_file() {
+        #[cfg(unix)]
+        let executable = {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = metadata.permissions().mode() & 0o777;
+            match mode {
+                0o444 => false,
+                0o555 => true,
+                _ => {
+                    return Err(format!(
+                        "physical Source file {} has noncanonical mode {mode:#o}",
+                        path.display()
+                    ));
+                }
+            }
+        };
+        #[cfg(not(unix))]
+        let executable = false;
+        charge_canonical_source_content(aggregate_content_bytes, metadata.len())?;
+        let bytes = read_canonical_source_file(path, metadata)?;
+        let entry = CapturedSourceEntry::file(bytes, executable);
+        return Ok((
+            CapturedPhysicalMetadataRow {
+                kind: CanonicalFilesystemMetadataRowKind::File {
+                    executable,
+                    logical_byte_length: metadata.len(),
+                },
+                content_digest: entry.content_digest(),
+            },
+            entry,
+        ));
+    }
+    if metadata.file_type().is_symlink() {
+        let target = std::fs::read_link(path).map_err(|error| {
+            format!(
+                "could not read canonical Source symlink {}: {error}",
+                path.display()
+            )
+        })?;
+        let target = os_str_bytes(target.as_os_str())?;
+        let target_length = u64::try_from(target.len())
+            .map_err(|_| "canonical Source symlink target length exceeds u64".to_owned())?;
+        charge_canonical_source_content(aggregate_content_bytes, target_length)?;
+        let entry = CapturedSourceEntry::symlink(target);
+        return Ok((
+            CapturedPhysicalMetadataRow {
+                kind: CanonicalFilesystemMetadataRowKind::Symlink {
+                    target_spelling_logical_byte_length: target_length,
+                },
+                content_digest: entry.content_digest(),
+            },
+            entry,
+        ));
+    }
+    Err(format!(
+        "physical Source path {} has an unsupported filesystem kind",
+        path.display()
+    ))
+}
+
+fn read_canonical_source_file(
+    path: &Path,
+    initial_metadata: &std::fs::Metadata,
+) -> Result<Vec<u8>, String> {
+    let mut file = std::fs::File::open(path).map_err(|error| {
+        format!(
+            "could not open canonical Source file {}: {error}",
+            path.display()
+        )
+    })?;
+    let mut bytes = Vec::new();
+    let file_length = usize::try_from(initial_metadata.len())
+        .map_err(|_| "canonical Source file length exceeds usize".to_owned())?;
+    bytes
+        .try_reserve_exact(file_length)
+        .map_err(|_| "canonical Source file allocation failed on this compiler host".to_owned())?;
+    let mut observed = 0u64;
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let count = file.read(&mut buffer).map_err(|error| {
+            format!(
+                "could not read canonical Source file {}: {error}",
+                path.display()
+            )
+        })?;
+        if count == 0 {
+            break;
+        }
+        observed = observed
+            .checked_add(u64::try_from(count).expect("fixed buffer read fits u64"))
+            .filter(|observed| *observed <= initial_metadata.len())
+            .ok_or_else(|| {
+                format!(
+                    "canonical Source file {} grew while captured",
+                    path.display()
+                )
+            })?;
+        bytes.extend_from_slice(&buffer[..count]);
+    }
+    if observed != initial_metadata.len() {
+        return Err(format!(
+            "canonical Source file {} changed length while captured",
+            path.display()
+        ));
+    }
+    let final_metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        format!(
+            "could not recheck canonical Source file {}: {error}",
+            path.display()
+        )
+    })?;
+    if !final_metadata.is_file() || final_metadata.len() != initial_metadata.len() {
+        return Err(format!(
+            "canonical Source file {} changed identity while captured",
+            path.display()
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if final_metadata.dev() != initial_metadata.dev()
+            || final_metadata.ino() != initial_metadata.ino()
+            || final_metadata.mode() != initial_metadata.mode()
+        {
+            return Err(format!(
+                "canonical Source file {} changed identity or mode while captured",
+                path.display()
+            ));
+        }
+    }
+    Ok(bytes)
 }
 
 fn charge_canonical_source_content(total: &mut u64, amount: u64) -> Result<(), String> {

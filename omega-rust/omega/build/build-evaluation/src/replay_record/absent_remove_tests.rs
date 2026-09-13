@@ -52,6 +52,7 @@ fn summary() -> BuildObservationSummary {
             absent_remove(9, b"missing-first.bin"),
         ],
         canonical_source_metadata_identity: None,
+        captured_source_inventory: None,
         filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
             BuildFilesystemReplayDisposition::Complete,
         ),
