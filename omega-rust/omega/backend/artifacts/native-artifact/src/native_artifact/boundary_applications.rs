@@ -37,7 +37,7 @@ pub(super) fn validate_boundary_application_coverage(
     Ok(())
 }
 
-pub(super) fn boundary_application_coverage_identity(
+pub(crate) fn boundary_application_coverage_identity(
     coverage: Option<&TerminalBoundaryApplicationCoverage>,
 ) -> Option<[u8; 32]> {
     let coverage = coverage?;
