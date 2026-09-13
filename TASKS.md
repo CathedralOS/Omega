@@ -1020,10 +1020,15 @@ Owners include
   Resume: `[erased]` parses only on data fields and case payload fields
   (`tokens-to-syntax-trees/src/parser/data.rs`); every runtime use of those
   two carriers rejects in `validation/src/relevance/`, layout strips them, and
-  synthesized `Equatable` now skips them. Next acceptance: decide whether the
-  spec's binding-occurrence wording requires `[erased]` on parameters and
-  locals (`parser/state.rs`); if so, admit them with the same relevance walk
-  and a fail canary for a runtime read.
+  synthesized `Equatable` now skips them. The spec's binding-occurrence
+  wording does cover parameters and `let` locals; the bracket grammar is now
+  shared across all `name [properties]: Type` bindings and `[erased]` at
+  those two sites fails closed with a targeted diagnostic rather than
+  parse-and-dropping the marker. Next acceptance: carry `BindingRelevance`
+  on `StateParameterNode`/`TableLocalData` and their resolved/typed twins,
+  propagate through lowering, exempt them in `proof_only_faces`, reject
+  runtime reads in `relevance/runtime_uses.rs`, strip erased parameters in
+  the ABI, and register a fail canary for a runtime read.
 
 ## P4 - ABI, borrowing, and callbacks
 
