@@ -1498,9 +1498,13 @@ Owners include
   field obligations, while corrupted elements and stale aliased fields reject
   at calls, transitions, and returns. Do not encode universal coverage as an
   unresolved index or assume arbitrary incoming storage is zero-initialized.
-  Indexed text writers still need numeric conversion result evidence for
-  unknown inputs, effectful nested arguments, nonlocal storage, and remaining
-  cast policies beyond selected normal-return scalar snapshots consumed by
+  Unknown scalar parameters and locals now bound conversion results by their
+  primitive carrier (`values/bounds/sources.rs`; regression
+  `unknown_scalar_inputs_bound_conversion_results_by_their_carrier`, Linux
+  `cargo nextest run -p typed-trees-to-checked-trees`). Indexed text writers
+  still need numeric conversion result evidence for effectful nested
+  arguments, nonlocal storage, and remaining cast policies beyond selected
+  normal-return scalar snapshots consumed by
   `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`.
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
