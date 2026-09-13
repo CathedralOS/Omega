@@ -113,8 +113,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `installation_function_row_rejects_every_one_field_substitution`) — machine,
   attachment, unit stack, and scalar stack are independently representable and
   rejected by replay; text offset, byte count, dropped rows, and the unit-body
-  flag are rejected at encoding as non-canonical. Remaining: internal unit
-  call rows, boundary settlements, dynamic tables, and private callback rows.
+  flag are rejected at encoding as non-canonical. Landed: installed internal
+  unit call rows
+  (`installation_internal_unit_call_row_rejects_every_one_field_substitution`)
+  — the cleanup-owned call's byte count is independently representable and
+  rejected by replay; every other field on operation- and cleanup-owned rows,
+  dropped rows, and the semantic-result projection are rejected at encoding
+  as non-canonical. Remaining: boundary settlements, dynamic tables, and
+  private callback rows.
 
 ## Psi optimization and loops
 
