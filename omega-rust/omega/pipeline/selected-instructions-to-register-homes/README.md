@@ -119,7 +119,7 @@ block removed detects any path that could bypass the store.
 Original bindings and registers remain intact; the now-unused parameter no
 longer contributes a live edge tie. Entry parameters, unsupported incoming paths,
 uses reachable without initialization, terminal/edge uses, and
-cyclic/ranked block-parameter functions still reject. Only changed blocks' settlement indices
+block parameters in cyclic functions still reject. Only changed blocks' settlement indices
 move; edges and other blocks remain identical. Rewritten values and spill
 addresses never expand the candidate roster. Each cumulative rewrite gets fresh
 liveness, ranges, legality, and homes; independent replay reconstructs each
