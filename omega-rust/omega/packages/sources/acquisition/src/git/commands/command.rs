@@ -30,26 +30,10 @@ pub(crate) fn sealed_git_command(
         });
     }
 
-    let mutable_root = match phase {
-        ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
-            Some(working_directory)
-        }
-        ResolverExecutionPhase::TransportDiscovery
-        | ResolverExecutionPhase::RepositoryInspection => None,
-    };
-    let command_result = match phase {
-        ResolverExecutionPhase::RepositoryInspection => executor
-            .execution_backend
-            .prepare_inspection(working_directory),
-        ResolverExecutionPhase::TransportDiscovery => executor
-            .execution_backend
-            .prepare_discovery(working_directory),
-        ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
-            executor.execution_backend.prepare(phase, mutable_root)
-        }
-    };
-    let mut command =
-        command_result.map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+    let mut command = executor
+        .execution_backend
+        .prepare(phase, working_directory)
+        .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
             message: error.to_string(),
         })?;
     command

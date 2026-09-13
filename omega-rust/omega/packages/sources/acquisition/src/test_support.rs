@@ -321,10 +321,7 @@ pub(crate) fn shell_command(script: &str) -> resolver_execution::ResolverPrepare
     let backend = ResolverExecutionBackend::open(&shell, &[] as &[PathBuf])
         .expect("open test resolver backend");
     let mut command = backend
-        .prepare(
-            ResolverExecutionPhase::Fetch,
-            Some(temporary_root.as_path()),
-        )
+        .prepare(ResolverExecutionPhase::Fetch, temporary_root.as_path())
         .expect("prepare bounded test shell");
     command.args(["-c", script]);
     command
