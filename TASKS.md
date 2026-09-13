@@ -255,19 +255,6 @@ Source inspection identified the costs below; it did not establish their share
 of whole-compilation time. Record compared inputs, work counts and timings;
 do not claim a faster compiler from a smaller helper alone.
 
-- **FLOW-DIRTY-STATES.** In
-  `typed-trees-to-checked-trees/src/flow/{builder,state_values}.rs`, remove
-  remaining semantic-baseline copies only if customer-sized measurement justifies
-  the change. Comparisons against `14e9fd8173` reduced requested
-  bytes but did not establish a timing win; direct restoration probes were a
-  small share of checking. Do not add an arena rewind framework to close an item.
-  Acceptance: cyclic/reverse-ordered dependencies beside independent machines
-  revisit only affected transfers, agree with the whole-pass reference, and
-  preserve first-pass cost, context links, generations, all-predecessor facts
-  and conservative nonconvergence. Use `checking_allocations` and
-  `complete_checking_matches_reference_with_reverse_chain_and_cycle` in the
-  owning crate; measure full checking, not restoration alone.
-
 - **PACKAGE-PREPARATION-REUSE.** Measurement-gated in
   `omega-rust/omega/packages/manager/src/review/candidate/compilation.rs` and
   compiler source preparation. The macOS ARM64 `cli_mvp` probe at `9d9075eb61`
