@@ -120,7 +120,9 @@ pub(super) fn lower(
                     .ok_or_else(invalid)?;
                 if !matches!(
                     source.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    StructuralAccess::Owned
+                        | StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
                 ) || source.multiplicity == StructuralMultiplicity::Linear
                     || !source.qualifications.is_empty()
                     || !source.projected_qualifications.is_empty()

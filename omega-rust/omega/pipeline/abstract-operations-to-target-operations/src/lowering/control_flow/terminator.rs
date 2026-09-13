@@ -4,19 +4,30 @@ use super::{observations, structural_case};
 use crate::lowering::shared::*;
 use target_operations::{TargetControlSuccessor, TargetControlTerminator};
 
-fn plain_home_cleanup(live: &LiveDefinitions, actions: &[TerminalAffineCleanupAction]) -> bool {
+fn plain_home_cleanup(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    actions: &[TerminalAffineCleanupAction],
+) -> bool {
     let mut discarded = BTreeSet::new();
     actions.iter().all(|action| {
         let TerminalAffineCleanupAction::DiscardRoot(place) = action else {
             return false;
         };
         discarded.insert(*place)
-            && live.structural_homes.get(place).is_some_and(|home| {
+            && (live.structural_homes.get(place).is_some_and(|home| {
                 home.multiplicity() == StructuralMultiplicity::Affine
                     && !home.has_claims()
                     && home.qualifications().is_empty()
                     && home.projected_qualifications().is_empty()
-            })
+            }) || function.structural_parameters.iter().any(|parameter| {
+                parameter.place == *place
+                    && parameter.access == StructuralAccess::Owned
+                    && parameter.multiplicity == StructuralMultiplicity::Affine
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+                    && function.entry_claims.is_empty()
+            }))
     })
 }
 
@@ -39,13 +50,16 @@ pub(super) fn lower_terminator(
     // Plain aggregate homes need no executable destructor, but their exact
     // edge-local disposition remains part of the independently replayed plan.
     // A constructor temporary can die before a join, not only at function exit.
+    // Owned parameters owe the same no-code disposition after observation;
+    // current ownership validation, not their physical home kind, establishes
+    // availability and exact disposal order.
     let cleanup = |places: &[PlaceId]| {
         let actions = places
             .iter()
             .copied()
             .map(TerminalAffineCleanupAction::DiscardRoot)
             .collect::<Vec<_>>();
-        if !plain_home_cleanup(live, &actions) {
+        if !plain_home_cleanup(function, live, &actions) {
             return Err(invalid());
         }
         Ok(actions)
@@ -171,7 +185,7 @@ pub(super) fn lower_terminator(
             if *result != expected.value
                 || *scalar_type != expected.scalar_type
                 || (!cleanup_actions.is_empty()
-                    && !plain_home_cleanup(live, cleanup_actions)
+                    && !plain_home_cleanup(function, live, cleanup_actions)
                     && !(super::super::unobserved_owned::accepts(function, structural_types)
                         && super::super::unobserved_owned::cleanup(function, cleanup_actions)))
             {
@@ -211,7 +225,7 @@ pub(super) fn lower_terminator(
             // Current ownership validation owns the exact live frontier and
             // discard order. Native admission only proves each retained action
             // is a no-code discard of an available boundary result home.
-            if !plain_home_cleanup(live, cleanup_actions)
+            if !plain_home_cleanup(function, live, cleanup_actions)
                 && !(super::super::unobserved_owned::accepts(function, structural_types)
                     && super::super::unobserved_owned::cleanup(function, cleanup_actions))
             {

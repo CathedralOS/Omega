@@ -5,6 +5,15 @@ use semantic_vocabulary::EdgeId;
 
 #[test]
 fn field_observations_replay_parameter_field_offset_and_result() {
+    field_observations(StructuralAccess::SharedBorrow);
+}
+
+#[test]
+fn owned_field_observations_replay_value_abi_home_and_exact_initialization() {
+    field_observations(StructuralAccess::Owned);
+}
+
+fn field_observations(access: StructuralAccess) {
     for scalar in [
         integer(IntegerSign::Signed, 8),
         integer(IntegerSign::Unsigned, 64),
@@ -16,6 +25,14 @@ fn field_observations_replay_parameter_field_offset_and_result() {
             NativeTarget::macos_arm64(),
             NativeTarget::windows_x64(),
         ] {
+            // A two-u64 record uses Microsoft's still-unsupported indirect
+            // owned input ABI. Narrow records exercise its direct value route.
+            if access == StructuralAccess::Owned
+                && native == NativeTarget::windows_x64()
+                && scalar == integer(IntegerSign::Unsigned, 64)
+            {
+                continue;
+            }
             let (mut source, _, _) = fixture(native, scalar, false);
             let declaration = &mut source.structural_types.make_mut()[0];
             declaration.shape = StructuralTypeShape::Record {
@@ -30,7 +47,7 @@ fn field_observations_replay_parameter_field_offset_and_result() {
             };
             let function = &mut source.functions[0];
             function.parameters.clear();
-            function.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            function.structural_parameters[0].access = access;
             let parameter = function.structural_parameters[0].clone();
             let read = |ordinal| {
                 let psi_operation = OperationId::new(ordinal).unwrap();
@@ -95,7 +112,96 @@ fn field_observations_replay_parameter_field_offset_and_result() {
                 environment.constraints(),
             )
             .unwrap();
-            assert_eq!(selected.plan().functions[0].memory_accesses.len(), 2);
+            let captured_fragments = if access == StructuralAccess::Owned {
+                1 + legalized.plan().scalar_functions[0].call_plan.parameters[0]
+                    .locations
+                    .len()
+            } else {
+                0
+            };
+            assert_eq!(
+                selected.plan().functions[0].memory_accesses.len(),
+                2 + captured_fragments
+            );
+            if access == StructuralAccess::Owned {
+                use selected_instructions::{
+                    LocalStorageSlotId, SelectedInstructionKind as Instruction,
+                };
+                let retained = &selected.plan().functions[0];
+                assert_eq!(retained.local_storage_slots.len(), 1);
+                assert_eq!(
+                    retained.local_storage_slots[0].id,
+                    LocalStorageSlotId::StructuralParameter {
+                        place: parameter.place
+                    }
+                );
+                let incoming = retained
+                    .virtual_registers
+                    .iter()
+                    .find(|register| {
+                        matches!(
+                            register.origin,
+                            selected_instructions::VirtualRegisterOrigin::StructuralParameter { .. }
+                        )
+                    })
+                    .unwrap()
+                    .id;
+                for mutation in [
+                    "extent",
+                    "slot owner",
+                    "initialization width",
+                    "missing initialization",
+                    "value as pointer",
+                ] {
+                    let mut changed = selected.plan().clone();
+                    let function = &mut changed.functions[0];
+                    match mutation {
+                        "extent" => function.local_storage_slots[0].byte_size += 1,
+                        "slot owner" => {
+                            function.local_storage_slots[0].id =
+                                LocalStorageSlotId::StructuralParameter {
+                                    place: PlaceId::new(99).unwrap(),
+                                }
+                        }
+                        "initialization width" | "missing initialization" => {
+                            let store = function.blocks[0]
+                                .instructions
+                                .iter_mut()
+                                .find(|row| matches!(row.kind, Instruction::Store { .. }))
+                                .unwrap();
+                            if mutation == "missing initialization" {
+                                store.kind = Instruction::CopyI64;
+                            } else if let Instruction::Store { byte_size, .. } = &mut store.kind {
+                                *byte_size += 1;
+                            }
+                        }
+                        _ => {
+                            let read = function.blocks[0]
+                                .instructions
+                                .iter_mut()
+                                .find(|row| {
+                                    matches!(
+                                        row.kind,
+                                        Instruction::Load8 { .. } | Instruction::Load64 { .. }
+                                    )
+                                })
+                                .unwrap();
+                            read.operands[0].virtual_register = incoming;
+                        }
+                    }
+                    assert!(
+                        crate::validate_selected_instructions(
+                            &legalized,
+                            &constraints,
+                            environment.physical(),
+                            environment.constraints(),
+                            changed
+                        )
+                        .is_err(),
+                        "{native:?} {scalar:?} {mutation}"
+                    );
+                }
+            }
             let mut changed = selected.plan().clone();
             let instruction = changed.functions[0].blocks[0]
                 .instructions

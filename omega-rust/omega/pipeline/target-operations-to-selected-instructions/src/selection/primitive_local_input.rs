@@ -102,7 +102,8 @@ pub(super) fn readable(
     })
 }
 
-/// The same load kernel reads primitive storage and exact shared record fields.
+/// Exact field geometry is independent of whether its home came from an owned
+/// value ABI, an established local, or an original borrowed referent.
 pub(super) fn read_geometry(
     source: &LegalizedScalarFunction,
     row: &legalized_operations::LegalizedScalarInstruction,
@@ -121,12 +122,6 @@ pub(super) fn read_geometry(
                 return None;
             }
             if !argument.path.is_empty() {
-                return None;
-            }
-            if signature.parameters.iter().any(|parameter| {
-                parameter.semantic.place == argument.place
-                    && parameter.semantic.access == StructuralAccess::Owned
-            }) {
                 return None;
             }
             let structural_type = if let Some(parameter) = signature

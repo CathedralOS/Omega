@@ -7,6 +7,9 @@ const DECLARATIONS: &str = "data Record { payload: u64; }
 
 const DRIVER: &str = "#include <stdbool.h>\n#include <stdint.h>\nextern uint64_t omega_entry(bool selected, uint64_t payload);\nint main(void) { return omega_entry(true, UINT64_MAX) == UINT64_MAX && omega_entry(false, UINT64_C(0x123456789abcdef0)) == UINT64_C(0x123456789abcdef0) ? 0 : 1; }";
 
+#[path = "record_reads/parameters.rs"]
+mod parameters;
+
 #[test]
 fn immutable_record_local_field_reaches_native_execution() {
     let artifact = produce_source(

@@ -136,6 +136,141 @@ fn field_types() -> [ScalarType; 3] {
     ]
 }
 
+fn owned_field_fixture(
+    scalar_type: ScalarType,
+    multiplicity: StructuralMultiplicity,
+) -> (AbstractFunction, TargetFunction) {
+    let (mut function, mut target) = field_fixture(scalar_type);
+    let parameter = &mut function.structural_parameters[0];
+    parameter.is_self = false;
+    parameter.access = StructuralAccess::Owned;
+    parameter.multiplicity = multiplicity;
+    target.graph.parameters[0].access = StructuralAccess::Owned;
+    target.graph.parameters[0].multiplicity = multiplicity;
+    let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
+        &mut target.graph.blocks[0].operations[0]
+    else {
+        unreachable!()
+    };
+    source.access = StructuralAccess::Owned;
+    (function, target)
+}
+
+#[test]
+fn owned_parameter_field_membership_keeps_exact_value_access_and_graph_replay() {
+    for scalar_type in field_types() {
+        for multiplicity in [
+            StructuralMultiplicity::Affine,
+            StructuralMultiplicity::Unrestricted,
+        ] {
+            let (function, target) = owned_field_fixture(scalar_type, multiplicity);
+            assert!(retained(&function, &function.operations[0], &target));
+            assert!(super::super::requires_graph_storage_replay(
+                &function.operations
+            ));
+            for mutation in 0..6 {
+                let mut changed = target.clone();
+                let TargetUnitOperation::StructuralScalarFieldRead {
+                    result,
+                    source,
+                    field,
+                    ..
+                } = &mut changed.graph.blocks[0].operations[0]
+                else {
+                    unreachable!()
+                };
+                match mutation {
+                    0 => source.access = StructuralAccess::SharedBorrow,
+                    1 => changed.graph.parameters[0].access = StructuralAccess::SharedBorrow,
+                    2 => source.place = PlaceId::new(2).unwrap(),
+                    3 => source
+                        .path
+                        .push(StructuralPathSegment::Field("nested".into())),
+                    4 => result.value = ValueId::new(2).unwrap(),
+                    _ => *field = StructuralFieldId::new(2).unwrap(),
+                }
+                assert!(!retained(&function, &function.operations[0], &changed));
+            }
+        }
+        // Even matching declarations cannot grant access to a linear or write-only root.
+        let (function, target) = owned_field_fixture(scalar_type, StructuralMultiplicity::Linear);
+        assert!(!retained(&function, &function.operations[0], &target));
+        let (mut function, mut target) =
+            owned_field_fixture(scalar_type, StructuralMultiplicity::Affine);
+        function.structural_parameters[0].access = StructuralAccess::WriteOnlyBorrow;
+        target.graph.parameters[0].access = StructuralAccess::WriteOnlyBorrow;
+        let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
+            &mut target.graph.blocks[0].operations[0]
+        else {
+            unreachable!()
+        };
+        source.access = StructuralAccess::WriteOnlyBorrow;
+        assert!(!retained(&function, &function.operations[0], &target));
+    }
+}
+
+#[test]
+fn observed_owned_parameter_discard_keeps_exact_scalar_exit_accounting() {
+    use super::super::control_flow;
+    use target_operations::{
+        TargetBooleanExpression, TargetScalarExpression, TargetUnitScalarHomeRequirement,
+    };
+    use terminal_psi::TerminalAffineCleanupAction;
+
+    let (mut function, mut target) =
+        owned_field_fixture(ScalarType::Boolean, StructuralMultiplicity::Affine);
+    let edge = EdgeId::new(1).unwrap();
+    let value = ValueId::new(1).unwrap();
+    let actions = vec![TerminalAffineCleanupAction::DiscardRoot(
+        function.structural_parameters[0].place,
+    )];
+    function.operations[1] = AbstractOperation::Return {
+        psi_edge: edge,
+        result: value,
+        value,
+        scalar_type: ScalarType::Boolean,
+        cleanup_actions: actions.clone(),
+    };
+    target.graph.blocks[0].terminator = TargetControlTerminator::ReturnScalar {
+        psi_edge: edge,
+        source_value: value,
+        expression: TargetScalarExpression::Boolean(TargetBooleanExpression::ScalarHome(
+            TargetUnitScalarHomeRequirement {
+                defining_operation: OperationId::new(1).unwrap(),
+                source_value: value,
+                scalar_type: ScalarType::Boolean,
+                shape: ValueShape::integer(1, 1),
+            },
+        )),
+        cleanup_actions: actions,
+    };
+    assert!(retained(&function, &function.operations[0], &target));
+    assert!(control_flow::retained(&function.operations[1], &target));
+    for mutation in 0..5 {
+        let mut changed = target.clone();
+        let TargetControlTerminator::ReturnScalar {
+            psi_edge,
+            source_value,
+            cleanup_actions,
+            ..
+        } = &mut changed.graph.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => cleanup_actions.clear(),
+            1 => {
+                cleanup_actions[0] =
+                    TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(2).unwrap())
+            }
+            2 => *psi_edge = EdgeId::new(2).unwrap(),
+            3 => *source_value = ValueId::new(2).unwrap(),
+            _ => changed.graph.blocks.push(changed.graph.blocks[0].clone()),
+        }
+        assert!(!control_flow::retained(&function.operations[1], &changed));
+    }
+}
+
 #[test]
 fn structural_field_membership_requires_exact_source_result_type_access_path_and_field() {
     for scalar_type in field_types() {

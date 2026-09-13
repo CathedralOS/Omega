@@ -227,6 +227,12 @@ pub fn decode_local_storage_slot(
     cursor: &mut Cursor<'_>,
 ) -> Result<crate::LocalStorageSlotId, PreAllocationMachineEffectDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 4 {
+        return Ok(crate::LocalStorageSlotId::StructuralParameter {
+            place: semantic_vocabulary::PlaceId::new(cursor.u64()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        });
+    }
     if tag == 3 {
         return Ok(crate::LocalStorageSlotId::StructuralBlockParameter {
             block: semantic_vocabulary::BlockId::new(cursor.u64()?)
@@ -536,6 +542,65 @@ fn decode_u16s(cursor: &mut Cursor<'_>) -> Result<Vec<u16>, PreAllocationMachine
         values.push(cursor.u16()?);
     }
     Ok(values)
+}
+
+#[cfg(test)]
+mod local_slot_tests {
+    use super::*;
+    use crate::LocalStorageSlotId;
+    use semantic_vocabulary::{BlockId, PlaceId};
+
+    #[test]
+    fn owned_entry_slot_codec_retains_place_without_operation_or_block_identity() {
+        let place = PlaceId::new(0x0102_0304_0506_0708).unwrap();
+        let slot = LocalStorageSlotId::StructuralParameter { place };
+        assert_eq!(slot.operation(), None);
+        assert_eq!(slot.structural_place(), Some(place));
+        let mut encoded = Vec::new();
+        slot.encode_identity(&mut encoded);
+        assert_eq!(encoded, [4, 8, 7, 6, 5, 4, 3, 2, 1]);
+        let mut cursor = Cursor::new(&encoded);
+        assert_eq!(decode_local_storage_slot(&mut cursor).unwrap(), slot);
+        assert_eq!(cursor.remaining(), 0);
+
+        for changed in [
+            LocalStorageSlotId::StructuralParameter {
+                place: PlaceId::new(place.get() + 1).unwrap(),
+            },
+            LocalStorageSlotId::StructuralBlockParameter {
+                block: BlockId::new(1).unwrap(),
+                place,
+            },
+            LocalStorageSlotId::Structural {
+                operation: OperationId::new(1).unwrap(),
+                place,
+            },
+        ] {
+            let mut changed_bytes = Vec::new();
+            changed.encode_identity(&mut changed_bytes);
+            assert_ne!(changed_bytes, encoded);
+        }
+    }
+
+    #[test]
+    fn owned_entry_slot_decoder_rejects_zero_truncation_and_unknown_tag() {
+        let encoded = [4, 1, 0, 0, 0, 0, 0, 0, 0];
+        for length in 0..encoded.len() {
+            assert!(decode_local_storage_slot(&mut Cursor::new(&encoded[..length])).is_err());
+        }
+        let mut zero_place = encoded;
+        zero_place[1] = 0;
+        assert_eq!(
+            decode_local_storage_slot(&mut Cursor::new(&zero_place)),
+            Err(PreAllocationMachineEffectDecodeError::InvalidField)
+        );
+        let mut unknown_tag = encoded;
+        unknown_tag[0] = 5;
+        assert_eq!(
+            decode_local_storage_slot(&mut Cursor::new(&unknown_tag)),
+            Err(PreAllocationMachineEffectDecodeError::InvalidField)
+        );
+    }
 }
 
 #[cfg(test)]

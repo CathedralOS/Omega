@@ -121,6 +121,7 @@ pub(in crate::selection) fn entry(
                     )?;
                     builder.transport.fragments.push((place, offset, output));
                 }
+                retain_owned_home(source, parameter, builder)?;
                 continue;
             }
             for location in &parameter.target.placement.locations {
@@ -160,6 +161,7 @@ pub(in crate::selection) fn entry(
                 )?;
                 builder.transport.fragments.push((place, offset, output));
             }
+            retain_owned_home(source, parameter, builder)?;
             continue;
         }
         let used = crate::selection::established_view_input::transferred(source, place) || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| match &row.kind {
@@ -258,5 +260,81 @@ pub(in crate::selection) fn entry(
         )?;
         builder.transport.pointers.push((place, output));
     }
+    Ok(())
+}
+
+/// Field loads need an addressable value, not an incoming register interpreted
+/// as a pointer. Capture one function-owned home from the already retained ABI
+/// fragments before any authored calls; unobserved values keep fragment-only
+/// transport. This is value storage, never a copy of a borrowed referent.
+fn retain_owned_home(
+    source: &LegalizedScalarFunction,
+    parameter: &legalized_operations::LegalizedCallUnitParameter,
+    builder: &mut Builder<'_>,
+) -> Result<(), SelectedInstructionError> {
+    let place = parameter.semantic.place;
+    if !crate::selection::record_input::parameter_home_required(source, place) {
+        return Ok(());
+    }
+    let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
+    let shape = parameter.target.shape;
+    builder
+        .transport
+        .local_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: u32::from(shape.byte_size),
+            alignment: shape.alignment,
+        });
+    let pointer = transport_register(builder, place, 0)?;
+    super::super::structural_case::memory(
+        builder,
+        source.entry_block,
+        place,
+        0,
+        u32::from(shape.byte_size),
+        selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot },
+    )?;
+    builder.emit(
+        SelectedInstructionKind::FrameAddress {
+            slot: selected_instructions::FrameStorageSlotId::Local(slot),
+            byte_offset: 0,
+        },
+        builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+        &[pointer],
+        Default::default(),
+    )?;
+    for location in &parameter.target.placement.locations {
+        let (offset, width) = match location {
+            ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            }
+            | ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                ..
+            } => (u32::from(*value_byte_offset), *byte_size),
+            _ => return Err(invalid()),
+        };
+        let value = builder
+            .transport
+            .fragments
+            .iter()
+            .find(|(stored, byte_offset, _)| *stored == place && *byte_offset == offset)
+            .map(|(_, _, value)| *value)
+            .ok_or_else(invalid)?;
+        super::super::structural_case::memory(
+            builder,
+            source.entry_block,
+            place,
+            offset,
+            u32::from(width),
+            selected_instructions::SelectedMemoryAccessRole::WritePlace,
+        )?;
+        super::super::aggregate_memory::store(builder, pointer, value, offset, width)?;
+    }
+    builder.transport.pointers.push((place, pointer));
     Ok(())
 }

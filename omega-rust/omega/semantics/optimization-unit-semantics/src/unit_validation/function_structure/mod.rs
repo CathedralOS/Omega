@@ -22,7 +22,6 @@ pub(crate) use fact_index::reconstruct_fact_index;
 
 pub(crate) fn validate_function(
     function: &PsiOptimizationFunction,
-    unit_entry: MachineId,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     services: &BTreeMap<ServiceId, &terminal_psi::ServiceDeclaration>,
@@ -61,7 +60,7 @@ pub(crate) fn validate_function(
         &control_flow.blocks,
         &control_flow.predecessors,
     )?;
-    structural_roots::validate_structural_root_operations(function, unit_entry, structural_types)?;
+    structural_roots::validate_structural_root_operations(function, structural_types)?;
     mutable_views::validate(function, structural_types)?;
     provenance::validate_provenance_fuel_effects(function)?;
     fact_index::validate_fact_index(function)?;

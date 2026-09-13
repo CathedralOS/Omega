@@ -101,7 +101,6 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
     for function in &unit.functions {
         validate_function(
             function,
-            unit.entry,
             &machines,
             &boundary_machines,
             &services,

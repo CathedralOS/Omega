@@ -14,7 +14,15 @@ pub(super) fn validate(
     let (place, placement, slot) = if let Some((parameter, placement)) =
         crate::selection::aggregate_result_input::returned_parameter(source, &returned.value)
     {
-        (parameter.semantic.place, placement, None)
+        let place = parameter.semantic.place;
+        let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
+        let slot = replay
+            .transport
+            .local_slots
+            .iter()
+            .any(|home| home.id == slot)
+            .then_some(slot);
+        (place, placement, slot)
     } else {
         let (slot, placement) =
             crate::selection::aggregate_result_input::returned(source, &returned.value)

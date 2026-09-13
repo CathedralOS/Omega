@@ -10,8 +10,13 @@ pub struct OutgoingArgumentSlotId {
 }
 
 /// Activation-local storage identity, independent of any call's ABI copies.
+/// Owned input storage retains value bytes; it does not copy a borrowed referent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LocalStorageSlotId {
+    /// Function-owned input storage identified by its exact parameter place.
+    StructuralParameter {
+        place: PlaceId,
+    },
     StructuralBlockParameter {
         block: BlockId,
         place: PlaceId,
@@ -33,15 +38,17 @@ impl LocalStorageSlotId {
     pub const fn operation(self) -> Option<OperationId> {
         match self {
             Self::Structural { operation, .. } | Self::Boundary { operation } => Some(operation),
-            Self::Spill { .. } | Self::StructuralBlockParameter { .. } => None,
+            Self::Spill { .. }
+            | Self::StructuralBlockParameter { .. }
+            | Self::StructuralParameter { .. } => None,
         }
     }
 
     pub const fn structural_place(self) -> Option<PlaceId> {
         match self {
-            Self::Structural { place, .. } | Self::StructuralBlockParameter { place, .. } => {
-                Some(place)
-            }
+            Self::Structural { place, .. }
+            | Self::StructuralBlockParameter { place, .. }
+            | Self::StructuralParameter { place } => Some(place),
             Self::Boundary { .. } | Self::Spill { .. } => None,
         }
     }
@@ -49,6 +56,10 @@ impl LocalStorageSlotId {
     /// Tagged storage-origin identity; boundary scratch never fabricates a place.
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         match self {
+            Self::StructuralParameter { place } => {
+                bytes.push(4);
+                bytes.extend_from_slice(&place.get().to_le_bytes());
+            }
             Self::StructuralBlockParameter { block, place } => {
                 bytes.push(3);
                 bytes.extend_from_slice(&block.get().to_le_bytes());

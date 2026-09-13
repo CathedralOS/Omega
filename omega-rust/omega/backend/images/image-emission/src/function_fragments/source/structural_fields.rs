@@ -1,7 +1,7 @@
 //! Publication joins field observations to their exact ordinary graph operations.
 //! Mandatory object/source replay derives layout and validates the selected load,
-//! including its original referent. No second field-offset calculator or legacy
-//! expression-tree realization belongs at this publication boundary.
+//! including the original referent or owned input's current local home. No second
+//! field-offset calculator or legacy expression-tree realization belongs here.
 
 use abstract_operations::{AbstractFunction, AbstractOperation, AbstractResult};
 use semantic_vocabulary::ScalarType;
@@ -85,7 +85,9 @@ fn read_access(
         if parameter.position as usize != position
             || !matches!(
                 parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                StructuralAccess::Owned
+                    | StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
             )
             || parameter.multiplicity == StructuralMultiplicity::Linear
             || !parameter.qualifications.is_empty()

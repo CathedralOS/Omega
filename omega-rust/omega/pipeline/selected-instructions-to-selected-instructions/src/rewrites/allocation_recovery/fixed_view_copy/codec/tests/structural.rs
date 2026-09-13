@@ -323,6 +323,50 @@ fn compiler_spill_origin_and_local_slot_round_trip_without_source_authority() {
 }
 
 #[test]
+fn owned_entry_slot_round_trip_binds_parameter_place_and_origin() {
+    use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
+    let place = PlaceId::new(67).unwrap();
+    let slot = LocalStorageSlotId::StructuralParameter { place };
+    let mut source = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    std::sync::Arc::make_mut(&mut source.transformed).functions[0]
+        .local_storage_slots
+        .push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+    let encoded = source.encode();
+    assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), source);
+    let identity = target_operations_to_selected_instructions::selected_instruction_plan_identity(
+        &source.transformed,
+    );
+    for changed_slot in [
+        LocalStorageSlotId::StructuralParameter {
+            place: PlaceId::new(68).unwrap(),
+        },
+        LocalStorageSlotId::StructuralBlockParameter {
+            block: semantic_vocabulary::BlockId::new(1).unwrap(),
+            place,
+        },
+        LocalStorageSlotId::Structural {
+            operation: OperationId::new(1).unwrap(),
+            place,
+        },
+    ] {
+        let mut changed = source.clone();
+        std::sync::Arc::make_mut(&mut changed.transformed).functions[0].local_storage_slots[0].id =
+            changed_slot;
+        assert_ne!(changed.encode(), encoded);
+        assert_ne!(
+            target_operations_to_selected_instructions::selected_instruction_plan_identity(
+                &changed.transformed
+            ),
+            identity
+        );
+    }
+}
+
+#[test]
 fn scalar_abi_address_codec_binds_origin_instruction_and_payload_identity() {
     let mut source = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let value = semantic_vocabulary::ValueId::new(17).unwrap();
