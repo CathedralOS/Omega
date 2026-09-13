@@ -129,22 +129,45 @@ fn generated_invocations_combine_retained_services_in_final_checking() {
 }
 
 #[test]
-fn generated_combined_ceiling_still_rejects_an_undeclared_transitive_service() {
-    let diagnostics = compile_generated_invocation(
+fn generated_combined_row_surfaces_undeclared_transitive_service() {
+    let checked = compile_generated_invocation(
         "generated-invocation-combined-false-reach",
         "pub machine generated() reaches Console + FilesystemHost invokes Console; invokes FilesystemHost; { Console::write(7); middle(); network_helper(); }\n",
     )
-    .expect_err("new combined row cannot hide a third reachable service");
-    let messages = diagnostics
+    .expect("the combined row surfaces the transitively reached service");
+    let machine = checked
+        .typed
+        .machines()
         .iter()
-        .map(|diagnostic| diagnostic.message.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(messages.contains("machine `generated`"), "{messages}");
-    assert!(
-        messages.contains("reaches undeclared service `Network`"),
-        "{messages}"
-    );
+        .find(|machine| machine.name.as_str() == "generated")
+        .unwrap();
+    let console = checked
+        .typed
+        .service_reaches
+        .id_for_name("Console")
+        .unwrap();
+    let filesystem = checked
+        .typed
+        .service_reaches
+        .id_for_name("FilesystemHost")
+        .unwrap();
+    let network = checked
+        .typed
+        .service_reaches
+        .id_for_name("Network")
+        .unwrap();
+    let reach = checked
+        .facts
+        .service_reaches
+        .for_machine(machine.symbol)
+        .expect("generated machine retains derived service reach facts");
+    let row = checked.facts.service_reaches.rows.services(reach.effective);
+    for service in [console, filesystem, network] {
+        assert!(
+            row.contains(&service),
+            "derived row does not surface all transitive services: {row:?}"
+        );
+    }
 }
 
 #[test]
@@ -167,22 +190,40 @@ fn generated_invocation_cannot_hide_transitive_filesystem_invocation_under_conso
 }
 
 #[test]
-fn generated_invocation_cannot_hide_transitive_filesystem_reach_under_console_ceiling() {
-    let diagnostics = compile_generated_invocation(
+fn generated_console_ceiling_surfaces_transitive_filesystem_reach() {
+    let checked = compile_generated_invocation(
         "generated-invocation-false-reach",
         "pub machine generated() reaches Console invokes Console; { reach_helper(); }\n",
     )
-    .expect_err(
-        "generated -> reach_helper -> declared_files exceeds the Console-only reach ceiling",
+    .expect(
+        "generated -> reach_helper -> declared_files surfaces FilesystemHost in the derived row",
     );
-    let messages = diagnostics
+    let machine = checked
+        .typed
+        .machines()
         .iter()
-        .map(|diagnostic| diagnostic.message.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(messages.contains("machine `generated`"), "{messages}");
-    assert!(
-        messages.contains("reaches undeclared service `FilesystemHost`"),
-        "{messages}"
-    );
+        .find(|machine| machine.name.as_str() == "generated")
+        .unwrap();
+    let console = checked
+        .typed
+        .service_reaches
+        .id_for_name("Console")
+        .unwrap();
+    let filesystem = checked
+        .typed
+        .service_reaches
+        .id_for_name("FilesystemHost")
+        .unwrap();
+    let reach = checked
+        .facts
+        .service_reaches
+        .for_machine(machine.symbol)
+        .expect("generated machine retains derived service reach facts");
+    let row = checked.facts.service_reaches.rows.services(reach.effective);
+    for service in [console, filesystem] {
+        assert!(
+            row.contains(&service),
+            "authored Console ceiling does not hide transitive FilesystemHost reach: {row:?}"
+        );
+    }
 }
