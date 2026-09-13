@@ -24,12 +24,17 @@ pub(crate) fn nominal_owner(
     compilation: &CheckedCompilation,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalOwner, Vec<Diagnostic>> {
-    nominal_owner_from_symbols(&compilation.typed.symbols, symbol)
+    nominal_owner_from_symbols(
+        &compilation.typed.symbols,
+        symbol,
+        compilation.exact_toolchain_sources(),
+    )
 }
 
 pub(crate) fn nominal_owner_from_symbols(
     symbols: &symbols::SymbolTable,
     symbol: SymbolHandle,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<PackageReviewNominalOwner, Vec<Diagnostic>> {
     if let Some(package) = symbols.symbol_package_identity(symbol) {
         return Ok(PackageReviewNominalOwner::Package(package));
@@ -42,7 +47,7 @@ pub(crate) fn nominal_owner_from_symbols(
     };
     match source_file.origin {
         source::SourceOrigin::Toolchain => Ok(PackageReviewNominalOwner::ToolchainSource(
-            toolchain_source_identity(source_file)?,
+            toolchain_source_identity(source_file, exact_toolchain_sources)?,
         )),
         source::SourceOrigin::User => Ok(PackageReviewNominalOwner::Unresolved),
     }
@@ -50,9 +55,28 @@ pub(crate) fn nominal_owner_from_symbols(
 
 pub(crate) fn toolchain_source_identity(
     source_file: &source::SourceFile,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<PackageReviewToolchainSourceIdentity, Vec<Diagnostic>> {
+    if source_file.origin != source::SourceOrigin::Toolchain {
+        return Err(vec![Diagnostic::error(format!(
+            "toolchain source identity requested for non-toolchain source `{}`",
+            source_file.path.display(),
+        ))]);
+    }
+    // This is the same checked source snapshot and sorted digest roster used
+    // by review type identity. SourceId is only its private join coordinate;
+    // canonical review bytes retain the compiler-computed digest, not the ID.
+    // Rehashing each declaration would repeatedly process the same file bytes.
+    let position = exact_toolchain_sources
+        .binary_search_by_key(&source_file.source_id.0, |(source_id, _)| source_id.0)
+        .map_err(|_| {
+            vec![Diagnostic::error(format!(
+                "reviewed toolchain source `{}` has no exact checked source identity",
+                source_file.path.display(),
+            ))]
+        })?;
     Ok(PackageReviewToolchainSourceIdentity {
-        digest: package_compilation::toolchain_source_identity_digest(source_file)?,
+        digest: exact_toolchain_sources[position].1,
     })
 }
 

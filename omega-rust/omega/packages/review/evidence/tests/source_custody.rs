@@ -21,6 +21,34 @@ fn canonical_row_sorting_keeps_exact_declaration_sources_paired() {
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
     .expect("out-of-source-order declarations should check");
+    // Compare compiler-retained identities against the unchanged source-byte
+    // framing owner before review reuses them for declarations and locations.
+    let toolchain_sources = checked
+        .typed
+        .symbols
+        .source_files()
+        .filter(|source| source.origin == source::SourceOrigin::Toolchain)
+        .collect::<Vec<_>>();
+    assert!(
+        !toolchain_sources.is_empty(),
+        "fixture retains its toolchain source owners"
+    );
+    assert_eq!(
+        toolchain_sources.len(),
+        checked.exact_toolchain_sources().len()
+    );
+    for source in toolchain_sources {
+        let retained = checked
+            .exact_toolchain_sources()
+            .iter()
+            .find(|(source_id, _)| *source_id == source.source_id)
+            .unwrap()
+            .1;
+        assert_eq!(
+            retained,
+            package_compilation::toolchain_source_identity_digest(source).unwrap()
+        );
+    }
     let review = project_checked_package_review(&checked).expect("package review should close");
     let canonical_rows = review.canonical_rows().expect("canonical review rows");
     let data_rows = canonical_rows

@@ -1,5 +1,5 @@
 use super::super::providers::selection::validate_selected_provider_declaration_owner;
-use super::declarations::{nominal_owner_from_symbols, toolchain_source_identity};
+use super::declarations::nominal_owner_from_symbols;
 use super::types::{
     validate_package_type_identity_input, validate_package_type_identity_input_inner,
 };
@@ -253,7 +253,48 @@ fn generated_symbol_owner(
     let mut symbols = builder.finish();
     let generated =
         symbols.insert_generated_root_from(authored, SymbolKind::Machine, "generated_origin");
-    nominal_owner_from_symbols(&symbols, generated).expect("generated nominal owner")
+    let identities = symbols
+        .source_files()
+        .filter(|source| source.origin == SourceOrigin::Toolchain)
+        .map(|source| {
+            (
+                source.source_id,
+                package_compilation::toolchain_source_identity_digest(source).unwrap(),
+            )
+        })
+        .collect::<Vec<_>>();
+    nominal_owner_from_symbols(&symbols, generated, &identities).expect("generated nominal owner")
+}
+
+// The untouched source-consumption owner is the independent byte-framing oracle.
+fn toolchain_source_identity(
+    source: &SourceFile,
+) -> Result<PackageReviewToolchainSourceIdentity, Vec<diagnostics::Diagnostic>> {
+    let digest = package_compilation::toolchain_source_identity_digest(source)?;
+    super::declarations::toolchain_source_identity(source, &[(source.source_id, digest)])
+}
+
+#[test]
+fn retained_toolchain_source_identity_matches_raw_digest_and_requires_exact_source_row() {
+    let source = toolchain_source("service.omg", "trait Host {}");
+    let digest = package_compilation::toolchain_source_identity_digest(&source).unwrap();
+    let retained =
+        super::declarations::toolchain_source_identity(&source, &[(source.source_id, digest)])
+            .unwrap();
+    assert_eq!(retained.digest(), digest);
+    assert!(super::declarations::toolchain_source_identity(&source, &[]).is_err());
+    assert!(
+        super::declarations::toolchain_source_identity(
+            &source,
+            &[(SourceId(source.source_id.0 + 1), digest)]
+        )
+        .is_err()
+    );
+    let mut user = source.clone();
+    user.origin = SourceOrigin::User;
+    assert!(
+        super::declarations::toolchain_source_identity(&user, &[(user.source_id, digest)]).is_err()
+    );
 }
 
 #[test]
@@ -311,6 +352,11 @@ fn generated_nominals_follow_exact_derivation_ownership() {
         generated_symbol_owner(SourceOrigin::User, Some(package_identity)),
         PackageReviewNominalOwner::Package(package_identity)
     );
+    assert_eq!(
+        generated_symbol_owner(SourceOrigin::Toolchain, Some(package_identity)),
+        generated_symbol_owner(SourceOrigin::Toolchain, None),
+        "package metadata cannot override toolchain source origin"
+    );
 
     let mut builder = SymbolTableBuilder::new();
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
@@ -322,7 +368,7 @@ fn generated_nominals_follow_exact_derivation_ownership() {
     .expect("source-free symbol");
     let symbols: SymbolTable = builder.finish();
     assert_eq!(
-        nominal_owner_from_symbols(&symbols, source_free).expect("source-free nominal owner"),
+        nominal_owner_from_symbols(&symbols, source_free, &[]).expect("source-free nominal owner"),
         PackageReviewNominalOwner::Unresolved
     );
 }

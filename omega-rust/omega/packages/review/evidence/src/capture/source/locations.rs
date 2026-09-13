@@ -164,9 +164,9 @@ pub(crate) fn canonical_source_span_location(
                 ))]
             })?,
         ),
-        source::SourceOrigin::Toolchain => {
-            PackageReviewSourceLocationOwner::Toolchain(toolchain_source_identity(source_file)?)
-        }
+        source::SourceOrigin::Toolchain => PackageReviewSourceLocationOwner::Toolchain(
+            toolchain_source_identity(source_file, compilation.exact_toolchain_sources())?,
+        ),
     };
     let relative_path = canonical_review_relative_path(source_file)?;
     Ok(PackageReviewSourceLocation {
