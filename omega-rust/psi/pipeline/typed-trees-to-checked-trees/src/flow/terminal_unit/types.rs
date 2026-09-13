@@ -1019,11 +1019,6 @@ fn partial_affine_source_contents_are_owned(
     if !reference.is_valid() {
         return false;
     }
-    if let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        return partial_affine_source_contents_are_owned(program, *base_type, visited);
-    }
     // Range and policy constraints do not give primitive fields cleanup or
     // reference access. This classifier peels constraints but rejects references.
     if program.primitive_type_reference(reference).is_some() {

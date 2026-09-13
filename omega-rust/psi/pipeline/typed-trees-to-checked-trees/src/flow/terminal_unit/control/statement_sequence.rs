@@ -990,20 +990,22 @@ pub(in crate::flow::terminal_unit) fn build(
     }
     // Release each returned carrier at its actual checked weakening boundary,
     // before any scalar completion or following statement can reuse the parent.
-    append_reference_releases(
-        facts,
-        machine.symbol,
-        state.symbol,
-        u32::try_from(
-            program
-                .statement_table
-                .statements(state.statement_nodes)
-                .len()
-                .checked_sub(1)?,
-        )
-        .ok()?,
-        &mut operations,
-    )?;
+    // An empty body cannot have established a call-result reference. Do not
+    // require a last-statement coordinate for an ordinary empty helper/state.
+    if let Some(statement_index) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .len()
+        .checked_sub(1)
+    {
+        append_reference_releases(
+            facts,
+            machine.symbol,
+            state.symbol,
+            u32::try_from(statement_index).ok()?,
+            &mut operations,
+        )?;
+    }
     if scalar_control.is_none()
         && returned_scalar_call.is_none()
         && let Some(primitive_type) = program.primitive_type_reference(state.return_type)

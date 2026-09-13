@@ -208,8 +208,9 @@ fn projected_claims_reject_incomplete_portable_return_frontiers() {
             invalid
                 .machines
                 .iter_mut()
-                .find(|machine| machine.parameters.len() == 1
-                    && machine.content_identity_reshuffles.len() == 2)
+                .find(|machine| {
+                    machine.parameters.len() == 1 && machine.content_identity_reshuffles.len() == 2
+                })
                 .unwrap()
                 .content_identity_reshuffles
                 .pop();
