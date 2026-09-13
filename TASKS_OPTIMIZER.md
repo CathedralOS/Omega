@@ -95,7 +95,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   differential testing beyond the landed exact-integer lane to float, trap,
   atomic, placed-memory, cleanup, and transition behavior. Acceptance: fixed
   seeded corpora replay deterministically and native observations equal the
-  reference interpreter under the same observation profile.
+  reference interpreter under the same observation profile. Landed: the
+  seeded IEEE binary64 comparison lane
+  (`tests/native-differential/tests/optimizer_corpus/ieee_compare.rs`, 64
+  cases, NaN/signed-zero/infinity/subnormal mixtures) replays on x86-64 and
+  AArch64 and executes natively on Linux x86-64 with host `f64` as a third
+  oracle. Remaining: trap, atomic, placed-memory, cleanup, and transition
+  lanes.
 
 - **CUSTODY-MUTATION-COVERAGE.** Complete authenticated one-field mutation
   tests for every remaining manifest, receipt, codec, and artifact-custody
