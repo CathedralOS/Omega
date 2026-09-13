@@ -1156,10 +1156,12 @@ Owners include
 
 - **MATCH-SELECTIVE-LOWERING.** Complete the
   [value-dispatch contract](wiki/spec/language/patterns.md) for owned/nonnumeric
-  results with parameter/projected/borrowed/linear custody, mixed fresh/existing
-  conditional transfers, structural/case/domain patterns and coverage. Remaining
-  existing-local joins need interleaved live-root ordering and residual transport
-  across authored states; preserve exact origins and actual death edges.
+  results with parameter/projected/borrowed/linear custody, structural/case/domain
+  patterns and coverage. Mixed conditional transfers admit fresh scalar-case arms
+  beside existing locals (`owned_match_mixed_values`); fresh record and call arms
+  still need their own residual carrier. Remaining existing-local joins need
+  interleaved live-root ordering and residual transport across authored states;
+  preserve exact origins and actual death edges.
   Owners: `validation/src/expression_types/{match_dispatch,result_type}.rs`,
   checked scalar computation/result continuations, Terminal production and
   canonical package-review contract/index projection. Preserve a once-evaluated
