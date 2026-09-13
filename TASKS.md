@@ -1377,14 +1377,24 @@ Owners include
   and typed trees), and conformance, callable-shape and review-evidence
   signature comparisons key on that variant, so a parser-only spelling that
   reuses `Const` would silently strengthen the public binder to `const`.
-  Next acceptance: add the runtime-capable staging to the value-binder kind in
-  all three representations and their identity/snapshot readers (about 55
-  Rust files match `TypeParameterKind::Const {` without `..`), parse
-  `<Count: u32>` into it, route static arguments through the existing const
-  specialization, and reject a runtime argument with a diagnostic naming the
-  missing dynamic realization; pin `tests/omega/pass/generics/` and
-  `tests/omega/fail/generics/` fixtures for both. The one-body dynamic
-  realization follows that representation landing.
+  First slice landed: `TypeParameterKind::Value { type_reference }` runs
+  through syntax, symbol-resolved and typed trees; machine signature generics
+  parse `<Count: u32>` into it while `<const Count: u32>` keeps the static
+  const binder. Static arguments (literals, const declarations, and a caller's
+  forwarded `Value`/`const` binder) specialize through the existing const
+  path; canonical template identity encodes the kind distinctly (`V`, tag 5),
+  review-evidence codecs carry `Value` as tag 4 in both public and review
+  signature records, and conformance/callable-kind matching pairs `Value`
+  only with `Value`. A runtime argument rejects in monomorphization's
+  authored-argument validation with "dynamic realization of value generic
+  arguments is not yet supported", pinned by
+  `tests/omega/pass/generics/value_generic_static_specialization` and
+  `tests/omega/fail/generics/value_generic_runtime_argument`. Next
+  acceptance: the one-body dynamic realization — admit a runtime value
+  argument into a `Value` binder by carrying it as an ordinary runtime
+  subject through checked facts, lowered Psi and Terminal production, so one
+  dynamic machine body serves distinct runtime counts without per-value code
+  generation.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Implement
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
