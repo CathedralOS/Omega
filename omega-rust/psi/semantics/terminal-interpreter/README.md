@@ -63,6 +63,19 @@ cannot collide with declared places or supplied host identities. This support
 does not provide native allocation or permit owned local escape; see
 [structural access](../../../../wiki/spec/terminal-psi/structural_access.md).
 
+## References stored in records
+
+[record.rs](src/record.rs) stages descriptor relocation together with ordinary
+record payload construction. Nested packing changes the carrier's owner and
+field path, never the original primitive backing. [reference.rs](src/reference.rs)
+resolves typed field paths ending in `Referent`; whole-owner cleanup removes
+descriptor subtrees without disposing the borrowed storage. The verifier checks
+loan ancestry and cleanup order independently. The source-free
+[reference-record tests](tests/unit/reference_records.rs) exercise original
+storage mutation, reborrowing, nested moves, and once-only fuel resumption.
+This local storage route does not admit reference-bearing aggregate parameters,
+results, partial transfers, host interfaces, or native execution.
+
 ## Bounded byte fields
 
 Whole-field replacement supplies live backing associated with the original
