@@ -34,7 +34,7 @@ BOARDS = ("TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md")
 MAX_ATTEMPTS = 3
 PROMPT_FIELDS = ("name", "wave", "item", "board", "owner_label", "exclusions",
                  "max_acu_limit", "suggested_first_slice_block",
-                 "structured_output_schema")
+                 "probe_block", "structured_output_schema")
 
 STRUCTURED_OUTPUT_SCHEMA = {
     "type": "object",
@@ -127,6 +127,15 @@ def validate_manifest(manifest, repository):
             raise SwarmError(f"{session['name']}: host must be linux, got {session['host']!r}.")
         if not isinstance(session["owning_paths"], list) or not session["owning_paths"]:
             raise SwarmError(f"{session['name']}: owning_paths must be a non-empty list.")
+        if "host_gates" in session:
+            gates = session["host_gates"]
+            if (not isinstance(gates, list) or not gates
+                    or any(not isinstance(command, str) or not command.strip()
+                           for command in gates)):
+                raise SwarmError(f"{session['name']}: host_gates must be a non-empty "
+                                 "list of non-empty strings.")
+        if "probe_only" in session and not isinstance(session["probe_only"], bool):
+            raise SwarmError(f"{session['name']}: probe_only must be a boolean.")
         for path in session["owning_paths"]:
             if path in claimed:
                 raise SwarmError(f"Owning path {path} is claimed by both "
@@ -140,6 +149,40 @@ def validate_manifest(manifest, repository):
             raise SwarmError(f"{session['name']}: item {session['item']} not found "
                              f"in {session['board']} (no {marker!r} marker).")
     return sessions
+
+
+def run_host_gates(repository, session):
+    results = []
+    for command in session.get("host_gates", []):
+        try:
+            result = subprocess.run(command, shell=True, cwd=repository,
+                                    capture_output=True, text=True, timeout=600)
+        except subprocess.TimeoutExpired:
+            exit_code = -1
+        else:
+            exit_code = result.returncode
+        results.append({"command": command, "exit": exit_code})
+    return results
+
+
+def host_gate_results(repository, sessions, skip=False):
+    if skip:
+        return {session["name"]: "skipped" for session in sessions}
+    results = {session["name"]: run_host_gates(repository, session)
+               for session in sessions}
+    failures = []
+    for session in sessions:
+        if session.get("probe_only"):
+            continue
+        for result in results[session["name"]]:
+            if result["exit"] != 0:
+                failures.append(
+                    f"{session['name']}: host gate failed on this host: "
+                    f"{result['command']} (exit {result['exit']}); mark the slot "
+                    "probe_only or drop it")
+    if failures:
+        raise SwarmError("\n".join(failures))
+    return results
 
 
 def load_manifest(path, repository):
@@ -161,9 +204,21 @@ def freshness_probe(repository, session):
         recent = git(repository, "log", "--since=7.days.ago", "--format=%H",
                      "--", path)
         count = len(recent.splitlines()) if recent else 0
+        source_path = repository / path
+        crate = None
+        if source_path.exists():
+            candidate = source_path if source_path.is_dir() else source_path.parent
+            while True:
+                if (candidate / "Cargo.toml").is_file():
+                    crate = candidate.relative_to(repository).as_posix() or "."
+                    break
+                if candidate == repository:
+                    break
+                candidate = candidate.parent
         lines.append({"path": path,
                       "last_commit": last or "no commits",
-                      "commits_7d": count})
+                      "commits_7d": count,
+                      "crate": crate})
     return lines
 
 
@@ -174,6 +229,14 @@ def render_prompt(template, manifest, session):
         slice_block = (
             "Suggested first slice (a suggestion only; the board item's "
             "acceptance governs): " + session["suggested_first_slice"])
+    probe_block = ""
+    if session.get("probe_only"):
+        probe_block = (
+            "Probe-only slot: the coordinator expects this item may not have a "
+            "bounded first slice on this host. `verification_only` with the "
+            "witnessed rejection, the exact missing seam, and the next "
+            "acceptance in `remaining_dependency` is a planned success here, "
+            "not a failure; still land a bounded improvement if one exists.")
     values = {
         "name": session["name"],
         "wave": manifest["wave"],
@@ -183,6 +246,7 @@ def render_prompt(template, manifest, session):
         "exclusions": ", ".join(manifest["exclusions"]),
         "max_acu_limit": manifest["max_acu_limit"],
         "suggested_first_slice_block": slice_block,
+        "probe_block": probe_block,
         "structured_output_schema": json.dumps(STRUCTURED_OUTPUT_SCHEMA, indent=2),
     }
     return template.format_map(values)
@@ -269,6 +333,8 @@ def write_receipts(directory, receipts):
 
 def command_plan(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
+    gate_results = host_gate_results(repository, manifest["sessions"],
+                                     skip=arguments.skip_host_gates)
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
         encoding="utf-8")
     wave_directory = build_directory(repository, manifest["wave"])
@@ -289,6 +355,8 @@ def command_plan(arguments, repository):
             "item": session["item"],
             "board": session["board"],
             "prompt": str(prompt_path.relative_to(repository)),
+            "host_gates": gate_results[session["name"]],
+            "probe_only": bool(session.get("probe_only", False)),
             "freshness": freshness_probe(repository, session),
             "body": request_body(manifest, session, prompt),
         })
@@ -298,6 +366,9 @@ def command_plan(arguments, repository):
 
 def command_launch(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
+    if not arguments.dry_run:
+        host_gate_results(repository, manifest["sessions"],
+                          skip=arguments.skip_host_gates)
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
         encoding="utf-8")
     wave_directory = build_directory(repository, manifest["wave"])
@@ -443,9 +514,11 @@ def main(argv=None):
     subparsers = parser.add_subparsers(dest="command", required=True)
     plan = subparsers.add_parser("plan")
     plan.add_argument("--manifest", required=True)
+    plan.add_argument("--skip-host-gates", action="store_true")
     launch = subparsers.add_parser("launch")
     launch.add_argument("--manifest", required=True)
     launch.add_argument("--dry-run", action="store_true")
+    launch.add_argument("--skip-host-gates", action="store_true")
     launch.add_argument("--relaunch")
     status = subparsers.add_parser("status")
     status.add_argument("--wave", required=True)

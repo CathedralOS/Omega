@@ -139,6 +139,70 @@ class SwarmTests(unittest.TestCase):
         with self.assertRaises(self.module.SwarmError):
             self.validate({"wave": "w9"})
 
+    def test_manifest_rejects_bad_host_gates_and_probe_only(self):
+        for value in ([], [""], ["true", 3]):
+            with self.subTest(host_gates=value):
+                record = manifest({"host_gates": value})
+                with self.assertRaisesRegex(self.module.SwarmError, "alpha"):
+                    self.validate(record)
+        for value in ("true", 1, None):
+            with self.subTest(probe_only=value):
+                record = manifest({"probe_only": value})
+                with self.assertRaisesRegex(self.module.SwarmError, "alpha"):
+                    self.validate(record)
+
+    def test_plan_refuses_failing_host_gate_unless_probe_only(self):
+        manifest_path = self.root / "wave.json"
+        failing = manifest({"host_gates": ["exit 3"]})
+        manifest_path.write_text(json.dumps(failing), encoding="utf-8")
+        with self.assertRaisesRegex(self.module.SwarmError, "exit 3"):
+            self.module.command_plan(
+                mock.Mock(manifest=str(manifest_path), skip_host_gates=False),
+                self.repository)
+        prompt_path = (self.module.build_directory(self.repository, "w9")
+                       / "prompts" / "alpha.md")
+        self.assertFalse(prompt_path.exists())
+
+        probe = manifest({"host_gates": ["exit 3"], "probe_only": True})
+        manifest_path.write_text(json.dumps(probe), encoding="utf-8")
+        with mock.patch.object(self.module, "emit") as emitted:
+            self.assertEqual(self.module.command_plan(
+                mock.Mock(manifest=str(manifest_path), skip_host_gates=False),
+                self.repository), 0)
+            planned = emitted.call_args.args[0]["sessions"][0]
+        self.assertEqual(planned["host_gates"], [{"command": "exit 3", "exit": 3}])
+        self.assertTrue(planned["probe_only"])
+        self.assertIn(
+            "Probe-only slot",
+            prompt_path.read_text(encoding="utf-8"))
+
+        passing = manifest({"host_gates": ["true"]})
+        manifest_path.write_text(json.dumps(passing), encoding="utf-8")
+        with mock.patch.object(self.module, "emit") as emitted:
+            self.assertEqual(self.module.command_plan(
+                mock.Mock(manifest=str(manifest_path), skip_host_gates=False),
+                self.repository), 0)
+            planned = emitted.call_args.args[0]["sessions"][0]
+        self.assertEqual(planned["host_gates"], [{"command": "true", "exit": 0}])
+        self.assertFalse(planned["probe_only"])
+        self.assertNotIn(
+            "Probe-only slot",
+            prompt_path.read_text(encoding="utf-8"))
+
+    def test_launch_dry_run_skips_gates_and_skip_flag(self):
+        record = manifest({"host_gates": ["exit 3"]})
+        manifest_path = self.root / "wave.json"
+        manifest_path.write_text(json.dumps(record), encoding="utf-8")
+        self.assertEqual(self.module.main(
+            ["--repository", str(self.repository), "launch",
+             "--manifest", str(manifest_path), "--dry-run"]), 0)
+        with mock.patch.object(self.module, "emit") as emitted:
+            self.assertEqual(self.module.main(
+                ["--repository", str(self.repository), "plan",
+                 "--manifest", str(manifest_path), "--skip-host-gates"]), 0)
+            planned = emitted.call_args.args[0]["sessions"][0]
+        self.assertEqual(planned["host_gates"], "skipped")
+
     def test_prompt_rendering_has_no_unresolved_placeholders(self):
         record = manifest()
         self.validate(record)
@@ -287,6 +351,20 @@ class SwarmTests(unittest.TestCase):
         for line in probe:
             self.assertEqual(line["commits_7d"], 1)
             self.assertIn("Swarm Test", line["last_commit"])
+            self.assertIsNone(line["crate"])
+
+    def test_freshness_probe_reports_crate(self):
+        (self.repository / "src" / "one" / "Cargo.toml").write_text(
+            "[package]\nname = \"one\"\nversion = \"0.1.0\"\n", encoding="utf-8")
+        (self.repository / "src" / "two").mkdir()
+        record = manifest({"owning_paths": ["src/one", "src/two"]})
+        self.validate(record)
+        probe = self.module.freshness_probe(self.repository,
+                                            record["sessions"][0])
+        crates = {line["path"]: line["crate"] for line in probe}
+        self.assertEqual(crates["src/one"], "src/one")
+        self.assertIsNone(crates["src/two"])
+        self.assertIsNone(crates["TASKS.md"])
 
 
 if __name__ == "__main__":
