@@ -104,6 +104,68 @@ fn copy_affinity_prefers_the_assigned_partner_home() {
 }
 
 #[test]
+fn copy_affinity_biases_toward_a_still_viable_unassigned_partner() {
+    let physical = aliased_physical();
+    // Register 0 is placed first (earlier first point) with views {0, 2}
+    // legal; its copy partner can only still take {1, 2}. Preferring the
+    // shared view 2 lets the later partner coalesce instead of dropping the
+    // affinity when the plain first candidate 0 is chosen.
+    let mut legality = legality(&[(0, 2), (1, 2)]);
+    set_candidates(&mut legality, 0, &[0, 2]);
+    set_candidates(&mut legality, 1, &[1, 2]);
+    let ranges = copy_ranges(&[]);
+
+    let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+    assert_eq!(
+        homes
+            .assignments
+            .iter()
+            .map(|assignment| assignment.view)
+            .collect::<Vec<_>>(),
+        vec![RegisterViewId(2), RegisterViewId(2)]
+    );
+    assert_eq!(
+        validate::replay_function(0, &legality, &ranges, &physical).unwrap(),
+        homes
+    );
+
+    let mut uncoalesced = homes.clone();
+    uncoalesced.assignments[0].view = RegisterViewId(0);
+    assert!(matches!(
+        validate::validate_function(0, &uncoalesced, &legality, &ranges, &physical),
+        Err(RegisterHomeError::VirtualRegisterMismatch {
+            function: 0,
+            register: 0,
+        })
+    ));
+}
+
+#[test]
+fn copy_affinity_falls_back_when_no_unassigned_partner_view_is_shared() {
+    let physical = aliased_physical();
+    // The unassigned partner cannot take view 0, so the plain first
+    // candidate stands and the later partner keeps its own home.
+    let mut legality = legality(&[(0, 2), (1, 2)]);
+    set_candidates(&mut legality, 0, &[0]);
+    set_candidates(&mut legality, 1, &[1, 2]);
+    let ranges = copy_ranges(&[]);
+
+    let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+    assert_eq!(
+        homes
+            .assignments
+            .iter()
+            .map(|assignment| assignment.view)
+            .collect::<Vec<_>>(),
+        vec![RegisterViewId(0), RegisterViewId(1)]
+    );
+    assert_eq!(
+        validate::replay_function(0, &legality, &ranges, &physical).unwrap(),
+        homes
+    );
+}
+
+#[test]
 fn copy_affinity_never_overrides_interference() {
     let physical = physical();
     let mut legality = legality(&[(0, 2), (0, 2)]);

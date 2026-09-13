@@ -23,6 +23,12 @@ pub(crate) fn compute_function(
     }
     let domains = build_domains(function, legality, ranges)?;
     let conflicts = PreparedConflicts::new(&domains, ranges, physical);
+    let mut domain_of = BTreeMap::<VirtualRegisterId, usize>::new();
+    for (domain_index, domain) in domains.iter().enumerate() {
+        for member in &domain.members {
+            domain_of.insert(member.virtual_register, domain_index);
+        }
+    }
     let mut unassigned = (0..domains.len()).collect::<Vec<_>>();
     let mut homes = BTreeMap::<VirtualRegisterId, RegisterViewId>::new();
     // Preserve the original first selection's domain/candidate validation order.
@@ -62,10 +68,13 @@ pub(crate) fn compute_function(
         // liveness, and interference facts are untouched, and domain selection
         // order is unchanged.
         let view = preferred_view(
-            &domains[domain_index],
-            &viable[domain_index],
+            domain_index,
+            &domains,
+            &viable,
+            &unassigned,
             &homes,
             &ranges.copy_affinities,
+            &domain_of,
         )
         .ok_or(RegisterHomeError::NoCompatibleHome {
             function,
@@ -112,28 +121,57 @@ pub(crate) fn compute_function(
     })
 }
 
+/// Choose a home among candidates that are already legal for this domain.
+/// An assigned copy partner's home wins first. When the partner is still
+/// unassigned, a view that partner can still take lets its own placement
+/// complete the coalesce; disjoint partners keep the plain first candidate.
 fn preferred_view(
-    domain: &AllocationDomain<'_>,
-    viable: &[RegisterViewId],
+    domain_index: usize,
+    domains: &[AllocationDomain<'_>],
+    viable: &[Vec<RegisterViewId>],
+    unassigned: &[usize],
     homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &[CopyAffinity],
+    domain_of: &BTreeMap<VirtualRegisterId, usize>,
 ) -> Option<RegisterViewId> {
-    viable
+    let domain = &domains[domain_index];
+    let candidates = &viable[domain_index];
+    candidates
         .iter()
         .copied()
         .find(|view| {
             affinities.iter().any(|affinity| {
-                let partner = if domain.contains(affinity.source) {
-                    affinity.destination
-                } else if domain.contains(affinity.destination) {
-                    affinity.source
-                } else {
-                    return false;
-                };
-                homes.get(&partner) == Some(view)
+                affinity_partner(domain, *affinity)
+                    .is_some_and(|partner| homes.get(&partner) == Some(view))
             })
         })
-        .or_else(|| viable.first().copied())
+        .or_else(|| {
+            candidates.iter().copied().find(|view| {
+                affinities.iter().any(|affinity| {
+                    affinity_partner(domain, *affinity).is_some_and(|partner| {
+                        domain_of.get(&partner).is_some_and(|&partner_domain| {
+                            partner_domain != domain_index
+                                && unassigned.contains(&partner_domain)
+                                && viable[partner_domain].binary_search(view).is_ok()
+                        })
+                    })
+                })
+            })
+        })
+        .or_else(|| candidates.first().copied())
+}
+
+fn affinity_partner(
+    domain: &AllocationDomain<'_>,
+    affinity: CopyAffinity,
+) -> Option<VirtualRegisterId> {
+    if domain.contains(affinity.source) {
+        Some(affinity.destination)
+    } else if domain.contains(affinity.destination) {
+        Some(affinity.source)
+    } else {
+        None
+    }
 }
 
 fn select_domain(

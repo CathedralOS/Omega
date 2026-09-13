@@ -60,6 +60,12 @@ pub(crate) fn replay_function(
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<FunctionRegisterHomes, RegisterHomeError> {
     let mut domains = domain::reconstruct(function, legality, ranges)?;
+    let mut domain_of = BTreeMap::<VirtualRegisterId, usize>::new();
+    for (domain_index, domain) in domains.iter().enumerate() {
+        for register in &domain.registers {
+            domain_of.insert(*register, domain_index);
+        }
+    }
     let mut unassigned = (0..domains.len()).collect::<BTreeSet<_>>();
     let mut assigned = BTreeMap::<VirtualRegisterId, RegisterViewId>::new();
     // Admit every candidate in the original first-pass order before choosing a
@@ -101,16 +107,22 @@ pub(crate) fn replay_function(
             .into_iter()
             .next()
             .expect("nonempty unassigned roster has a ranked domain");
-        let domain = &domains[selected_domain];
         // Affinity only reorders among already-legal candidates: aliases,
         // liveness, and interference facts are untouched, and domain selection
         // order is unchanged.
-        let view = preferred_view(domain, &assigned, &ranges.copy_affinities).ok_or(
-            RegisterHomeError::NoCompatibleHome {
-                function,
-                register: domain.leader.0,
-            },
-        )?;
+        let view = preferred_view(
+            selected_domain,
+            &domains,
+            &unassigned,
+            &assigned,
+            &ranges.copy_affinities,
+            &domain_of,
+        )
+        .ok_or(RegisterHomeError::NoCompatibleHome {
+            function,
+            register: domains[selected_domain].leader.0,
+        })?;
+        let domain = &domains[selected_domain];
         let mut newly_assigned = BTreeMap::new();
         for register in &domain.registers {
             assigned.insert(*register, view);
@@ -148,28 +160,58 @@ pub(crate) fn replay_function(
     })
 }
 
+/// Independently replay the producer's candidate preference: an assigned copy
+/// partner's home wins first, then a view an unassigned partner can still
+/// take, then the plain first candidate.
 fn preferred_view(
-    domain: &domain::ReplayDomain,
+    domain_index: usize,
+    domains: &[domain::ReplayDomain],
+    unassigned: &BTreeSet<usize>,
     assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &[CopyAffinity],
+    domain_of: &BTreeMap<VirtualRegisterId, usize>,
 ) -> Option<RegisterViewId> {
+    let domain = &domains[domain_index];
     domain
         .candidates
         .iter()
         .copied()
         .find(|view| {
             affinities.iter().any(|affinity| {
-                let partner = if domain.registers.contains(&affinity.source) {
-                    affinity.destination
-                } else if domain.registers.contains(&affinity.destination) {
-                    affinity.source
-                } else {
-                    return false;
-                };
-                assigned.get(&partner) == Some(view)
+                affinity_partner(domain, *affinity)
+                    .is_some_and(|partner| assigned.get(&partner) == Some(view))
+            })
+        })
+        .or_else(|| {
+            domain.candidates.iter().copied().find(|view| {
+                affinities.iter().any(|affinity| {
+                    affinity_partner(domain, *affinity).is_some_and(|partner| {
+                        domain_of.get(&partner).is_some_and(|&partner_domain| {
+                            partner_domain != domain_index
+                                && unassigned.contains(&partner_domain)
+                                && domains[partner_domain]
+                                    .candidates
+                                    .binary_search(view)
+                                    .is_ok()
+                        })
+                    })
+                })
             })
         })
         .or_else(|| domain.candidates.first().copied())
+}
+
+fn affinity_partner(
+    domain: &domain::ReplayDomain,
+    affinity: CopyAffinity,
+) -> Option<VirtualRegisterId> {
+    if domain.registers.contains(&affinity.source) {
+        Some(affinity.destination)
+    } else if domain.registers.contains(&affinity.destination) {
+        Some(affinity.source)
+    } else {
+        None
+    }
 }
 
 fn validate_assignment_order(
