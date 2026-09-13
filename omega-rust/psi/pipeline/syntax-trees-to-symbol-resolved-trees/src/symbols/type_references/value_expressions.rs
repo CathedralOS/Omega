@@ -54,7 +54,9 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 .span_or_empty(constrained.constraints)
             {
                 match constraint {
-                    TypeConstraint::Range { minimum, maximum } => {
+                    TypeConstraint::Range {
+                        minimum, maximum, ..
+                    } => {
                         for expression in [*minimum, *maximum] {
                             assign_statement_expression_symbols(
                                 symbols,

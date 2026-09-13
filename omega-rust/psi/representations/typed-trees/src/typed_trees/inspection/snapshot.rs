@@ -1116,6 +1116,7 @@ pub enum TypeConstraintSnapshot {
     Range {
         minimum: ExpressionSnapshot,
         maximum: ExpressionSnapshot,
+        end_inclusive: bool,
     },
     ArithmeticDomain {
         domain: String,
@@ -2343,9 +2344,14 @@ fn type_constraint_snapshot(
                 .map(establishment_route_snapshot)
                 .collect(),
         },
-        TypeConstraintNode::Range { minimum, maximum } => TypeConstraintSnapshot::Range {
+        TypeConstraintNode::Range {
+            minimum,
+            maximum,
+            end_inclusive,
+        } => TypeConstraintSnapshot::Range {
             minimum: expression_snapshot(program, *minimum),
             maximum: expression_snapshot(program, *maximum),
+            end_inclusive: *end_inclusive,
         },
         TypeConstraintNode::ArithmeticDomain(domain) => TypeConstraintSnapshot::ArithmeticDomain {
             domain: domain.name().to_owned(),

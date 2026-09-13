@@ -169,7 +169,12 @@ pub(super) fn validate_target_ranges(
             break;
         };
         for constraint in program.type_reference_table.constraints(*constraints) {
-            let TypeConstraintNode::Range { minimum, maximum } = constraint else {
+            let TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+            else {
                 continue;
             };
             let integer_proven = source_primitive.and_then(primitive_range).is_some()
@@ -178,15 +183,23 @@ pub(super) fn validate_target_ranges(
                     .and_then(primitive_range)
                     .is_some()
                 && integer_bound(program, *minimum)
-                    .zip(integer_bound(program, *maximum))
+                    .zip(
+                        crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)
+                            .and_then(|value| {
+                                value
+                                    .to_i64()
+                                    .map(i128::from)
+                                    .or_else(|| value.to_u64().map(i128::from))
+                            }),
+                    )
                     .is_some_and(|(minimum, maximum)| {
                         minimum <= maximum
                             && source_bounds.is_some_and(|(low, high)| {
                                 minimum <= low && low <= high && high <= maximum
                             })
                     });
-            let float_proven =
-                float_membership(program, machine, state, cast, env, *minimum, *maximum);
+            let float_proven = *end_inclusive
+                && float_membership(program, machine, state, cast, env, *minimum, *maximum);
             if !integer_proven && !float_proven {
                 let span = Some(program.expression_table.source_span(cast.value));
                 if diagnostics.iter().any(|existing| {

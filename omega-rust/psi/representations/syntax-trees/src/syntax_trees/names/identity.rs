@@ -664,7 +664,9 @@ fn count_type_reference_handle(
                             count_type_reference_handle(syntax_trees, *argument, counts);
                         }
                     }
-                    crate::types::TypeConstraintNode::Range { minimum, maximum } => {
+                    crate::types::TypeConstraintNode::Range {
+                        minimum, maximum, ..
+                    } => {
                         count_expression_handle(syntax_trees, *minimum, counts);
                         count_expression_handle(syntax_trees, *maximum, counts);
                     }

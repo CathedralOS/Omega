@@ -123,9 +123,11 @@ impl ProofConstraint {
                 language_semantics::value_domain::ValueDomain::from_name(name.as_str())
                     .map(|domain| Self::Named(Identifier::generated_static(domain.proof_name())))
             }
-            TypeConstraintNode::Range { minimum, maximum } => {
-                Self::range_from_expression_handles(program, *minimum, *maximum)
-            }
+            TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } => Self::range_from_expression_handles(program, *minimum, *maximum, *end_inclusive),
             // Arithmetic policy is not a predicate, but the proof derivation
             // needs it to judge facts established by the operation (for
             // example, finite Saturating add/subtract/multiply stays Finite).
@@ -137,33 +139,27 @@ impl ProofConstraint {
         program: &TypedTrees,
         minimum: ExpressionHandle,
         maximum: ExpressionHandle,
+        end_inclusive: bool,
     ) -> Option<Self> {
-        // CONSTANT integer expressions fold (`[0 - 1..=40]` -> -1..=40; they
-        // used to behave unbounded), then the node reader covers the
-        // `u32::MAX`-style named-constant spelling.
-        let integer_bound = |bound: ExpressionHandle| {
-            validation::closed_integer_range_bound(program, bound)
-                .and_then(|value| value.to_i64())
-                .or_else(|| {
-                    integer_constant_value_from_node(
-                        program,
-                        program.expression_table.expression(bound),
-                    )
-                })
-        };
-        if let (Some(minimum), Some(maximum)) = (integer_bound(minimum), integer_bound(maximum)) {
+        // Endpoint evaluation keeps its selected arithmetic. Only the completed
+        // upper value is converted to an inclusive proof-integer bound.
+        let integer_bound = validation::closed_integer_range_bound(program, minimum);
+        if let (Some(minimum), Some(maximum)) = (
+            integer_bound.as_ref(),
+            validation::closed_integer_range_maximum(program, maximum, end_inclusive),
+        ) {
             return Some(Self::IntegerRange {
-                minimum: BigInt::from_i64(minimum),
-                maximum: BigInt::from_i64(maximum),
+                minimum: minimum.clone(),
+                maximum,
             });
         }
-        // R1 dependent maximum (`[0..=self.count]`, `[0..self.count]` after
-        // the parser's `- 1` normalization): literal minimum + admissible
-        // symbolic maximum mints the relational atom.
-        if let Some(minimum) = integer_bound(minimum)
-            && let Some(symbolic) = typed_trees::dependent_ranges::symbolic_max_bound(
+        // Symbolic proof atoms retain inclusive offsets, not executable
+        // subtraction. Validation fences an unrepresentable offset first.
+        if let Some(minimum) = integer_bound.as_ref().and_then(BigInt::to_i64)
+            && let Some(symbolic) = typed_trees::dependent_ranges::symbolic_range_maximum(
                 &program.expression_table,
                 maximum,
+                end_inclusive,
             )
         {
             return Some(Self::IntegerRangeSymbolicMax {
@@ -173,9 +169,12 @@ impl ProofConstraint {
             });
         }
         // R1 sibling-length maximum (`[0..items.len]` -> len - 1).
-        if let Some(minimum) = integer_bound(minimum)
-            && let Some(sibling) =
-                typed_trees::dependent_ranges::sibling_len_bound(&program.expression_table, maximum)
+        if let Some(minimum) = integer_bound.as_ref().and_then(BigInt::to_i64)
+            && let Some(sibling) = typed_trees::dependent_ranges::sibling_range_maximum(
+                &program.expression_table,
+                maximum,
+                end_inclusive,
+            )
         {
             return Some(Self::IntegerRangeSiblingLenMax {
                 minimum,
@@ -184,15 +183,14 @@ impl ProofConstraint {
             });
         }
 
+        // Exclusive floating bounds require their own proof vocabulary. Source
+        // validation rejects them; never mint an inclusive fact for that source.
+        if !end_inclusive {
+            return None;
+        }
         Some(Self::FloatRange {
-            minimum: FloatLiteral::new(float_constant_value_from_node(
-                program,
-                program.expression_table.expression(minimum),
-            )?),
-            maximum: FloatLiteral::new(float_constant_value_from_node(
-                program,
-                program.expression_table.expression(maximum),
-            )?),
+            minimum: FloatLiteral::new(float_range_bound(program, minimum)?),
+            maximum: FloatLiteral::new(float_range_bound(program, maximum)?),
         })
     }
 }
@@ -2769,42 +2767,16 @@ fn float_binary_range(
     }
 }
 
-fn integer_constant_value_from_node(
-    program: &TypedTrees,
-    expression: &ExpressionNode,
-) -> Option<i64> {
-    match expression {
-        ExpressionNode::Integer(value) => value.value_i64(),
-        ExpressionNode::Name(path)
-            if program
-                .expression_table
-                .name_path_members(path.members)
-                .iter()
-                .map(|member| member.as_str())
-                .eq(["u32", "MAX"]) =>
-        {
-            Some(u32::MAX as i64)
-        }
-        _ => None,
-    }
-}
-
-fn float_constant_value_from_node(
-    program: &TypedTrees,
-    expression: &ExpressionNode,
-) -> Option<f64> {
-    match expression {
+fn float_range_bound(program: &TypedTrees, expression: ExpressionHandle) -> Option<f64> {
+    match program.expression_table.expression(expression) {
         ExpressionNode::Float(value) => Some(value.value()),
-        ExpressionNode::Integer(value) => value.value_i64().map(|value| value as f64),
-        ExpressionNode::Name(path)
-            if program
-                .expression_table
-                .name_path_members(path.members)
-                .iter()
-                .map(|member| member.as_str())
-                .eq(["u32", "MAX"]) =>
-        {
-            Some(u32::MAX as f64)
+        // Mixed floating ranges may have integer endpoints, but that does not
+        // erase their selected landing or authorize a same-spelled constant.
+        // A failed exact endpoint cannot fall back to its raw literal text.
+        ExpressionNode::Integer(_) | ExpressionNode::Name(_) => {
+            validation::closed_integer_range_bound(program, expression)
+                .and_then(|value| value.to_i64())
+                .map(|value| value as f64)
         }
         _ => None,
     }
@@ -2829,5 +2801,162 @@ fn constrained_type_reference(
         | TypeReferenceNode::Named { .. }
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => None,
+    }
+}
+
+#[cfg(test)]
+mod range_tests {
+    use super::*;
+    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+
+    fn program_with_u8() -> TypedTrees {
+        let mut builder = symbols::SymbolTableBuilder::new();
+        let root = builder.insert_root(
+            symbols::SymbolKind::Root,
+            symbols::SymbolNameRef::Static("root"),
+        );
+        let builtins = symbols::SymbolTableBuilder::child_handles(
+            builder.insert_children(root, symbols::builtin_type_symbols()),
+        )
+        .collect::<Vec<_>>();
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..TypedTrees::default()
+        };
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: builtins[symbols::BuiltinTypeAtom::U8.ordinal()],
+                name: Identifier::generated("u8"),
+            });
+        program
+    }
+
+    #[test]
+    fn proof_range_rejects_invalid_integer_landing_in_float_fallback() {
+        for floating_peer in [false, true] {
+            for invalid_minimum in [false, true] {
+                let mut program = program_with_u8();
+                let invalid = program.expression_table.insert(ExpressionNode::Integer(
+                    IntegerLiteral::from_value(256).with_landing(IntegerLanding {
+                        landed_type: LandedIntegerType::U8,
+                        domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                    }),
+                ));
+                let peer = program.expression_table.insert(if floating_peer {
+                    ExpressionNode::Float(FloatLiteral::new(0.0))
+                } else {
+                    ExpressionNode::Integer(IntegerLiteral::from_value(0))
+                });
+                let (minimum, maximum) = if invalid_minimum {
+                    (invalid, peer)
+                } else {
+                    (peer, invalid)
+                };
+                assert_eq!(
+                    ProofConstraint::from_node(
+                        &program,
+                        &TypeConstraintNode::Range {
+                            minimum,
+                            maximum,
+                            end_inclusive: true,
+                        }
+                    ),
+                    None,
+                    "invalid integer endpoint must not mint floating evidence"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn proof_range_preserves_valid_mixed_float_endpoints() {
+        for floating_minimum in [false, true] {
+            let mut program = program_with_u8();
+            let integer = program.expression_table.insert(ExpressionNode::Integer(
+                IntegerLiteral::from_value(2).with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::U8,
+                    domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                }),
+            ));
+            let floating =
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Float(FloatLiteral::new(
+                        if floating_minimum { 0.5 } else { 3.5 },
+                    )));
+            let (minimum, maximum, expected_minimum, expected_maximum) = if floating_minimum {
+                (floating, integer, 0.5, 2.0)
+            } else {
+                (integer, floating, 2.0, 3.5)
+            };
+            assert_eq!(
+                ProofConstraint::from_node(
+                    &program,
+                    &TypeConstraintNode::Range {
+                        minimum,
+                        maximum,
+                        end_inclusive: true,
+                    }
+                ),
+                Some(ProofConstraint::FloatRange {
+                    minimum: FloatLiteral::new(expected_minimum),
+                    maximum: FloatLiteral::new(expected_maximum),
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn proof_range_normalizes_exclusive_bounds_without_carrier_arithmetic() {
+        for (minimum, maximum, expected_maximum) in [(0, 8, 7), (0, 0, -1), (-128, -128, -129)] {
+            let mut program = TypedTrees::default();
+            let minimum_handle = program
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(minimum)));
+            let maximum_handle = program
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(maximum)));
+            assert_eq!(
+                ProofConstraint::from_node(
+                    &program,
+                    &TypeConstraintNode::Range {
+                        minimum: minimum_handle,
+                        maximum: maximum_handle,
+                        end_inclusive: false,
+                    }
+                ),
+                Some(ProofConstraint::IntegerRange {
+                    minimum: BigInt::from_i64(minimum),
+                    maximum: BigInt::from_i64(expected_maximum),
+                }),
+            );
+        }
+    }
+
+    #[test]
+    fn proof_range_retains_full_width_unsigned_exclusive_maximum() {
+        let mut program = TypedTrees::default();
+        let minimum = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)));
+        let maximum = program.expression_table.insert(ExpressionNode::Integer(
+            IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "18446744073709551616")
+                .unwrap(),
+        ));
+        assert_eq!(
+            ProofConstraint::from_node(
+                &program,
+                &TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive: false,
+                }
+            ),
+            Some(ProofConstraint::IntegerRange {
+                minimum: BigInt::zero(),
+                maximum: BigInt::from_u128(u128::from(u64::MAX)),
+            }),
+        );
     }
 }

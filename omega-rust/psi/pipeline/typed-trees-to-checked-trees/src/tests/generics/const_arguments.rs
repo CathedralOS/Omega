@@ -17,6 +17,18 @@ fn accepts(source: &str) -> CheckedTrees {
 }
 
 #[test]
+fn exclusive_integer_normalization_does_not_claim_strict_float_support() {
+    accepts("machine valid(value: f64[0.0..=1.5]) { }");
+    let errors = check("machine unsupported(value: f64[0.0..1.5]) { }")
+        .expect_err("strict floating predicates require their own evidence");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("exclusive floating range"))
+    );
+}
+
+#[test]
 fn declared_range_endpoints_select_const_arguments_before_compatibility() {
     let checked = accepts(
         "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
@@ -54,6 +66,60 @@ fn literal_exclusive_and_inclusive_ranges_keep_the_same_type_identity() {
         program.normalized_type_identity(parameters[0].type_reference),
         program.normalized_type_identity(parameters[2].type_reference)
     );
+}
+
+#[test]
+fn range_inference_converts_authored_upper_endpoint_kinds_exactly() {
+    for (formal, actual, expected) in [
+        ("0..=N", "0..18446744073709551616", "18446744073709551615"),
+        ("0..N", "0..=256", "257"),
+        ("0..=N", "0..257", "256"),
+        ("0..N", "0..=7u64 / 2 * 2", "7"),
+        ("0..=N", "0..7u64 / 2 * 2", "5"),
+    ] {
+        let checked = accepts(&format!(
+            "machine bound<const N: u64>(value: u64[{formal}]) -> u64 {{ N }}
+             machine inferred(value: u64[{actual}]) -> u64 {{ bound(value) }}"
+        ));
+        assert_eq!(checked.machine_specializations.len(), 1);
+        assert_eq!(
+            checked.machine_specializations[0].const_arguments,
+            [expected],
+            "{formal} from {actual}"
+        );
+    }
+}
+
+#[test]
+fn typed_and_computed_range_endpoints_keep_normalized_identity() {
+    let checked = accepts(
+        "machine compare(first: u64[0..7u64 / 2 * 2], same: u64[0..=5],
+             different: u64[0..7 / 2 * 2], full: u64[0..18446744073709551616],
+             full_inclusive: u64[0..=18446744073709551615u64]) -> u64 { first }",
+    );
+    let program = &checked.typed;
+    let state = &program.machine_states(&program.machines()[0])[0];
+    let parameters = program.state_parameters(state);
+    let identity =
+        |position: usize| program.normalized_type_identity(parameters[position].type_reference);
+    assert_eq!(identity(0), identity(1));
+    assert_ne!(identity(0), identity(2));
+    assert_eq!(identity(3), identity(4));
+}
+
+#[test]
+fn exclusive_predecessor_cannot_repair_an_invalid_typed_endpoint() {
+    for endpoint in ["256u8", "255u8 + 1"] {
+        let source = format!(
+            "machine bound<const N: u64>(value: u64[0..=N]) -> u64 {{ N }}
+             machine invalid(value: u64[0..{endpoint}]) -> u64 {{ bound(value) }}"
+        );
+        assert!(
+            check(&source).is_err(),
+            "invalid authored endpoint accepted: {source}"
+        );
+    }
+    accepts("machine valid(value: u64[0..256]) -> u64 { value }");
 }
 
 #[test]

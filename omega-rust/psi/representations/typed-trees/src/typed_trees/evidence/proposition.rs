@@ -283,7 +283,9 @@ fn type_reference_mentions_any(
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| match constraint {
-                        TypeConstraintNode::Range { minimum, maximum } => {
+                        TypeConstraintNode::Range {
+                            minimum, maximum, ..
+                        } => {
                             expression_mentions_any(program, *minimum, symbols)
                                 || expression_mentions_any(program, *maximum, symbols)
                         }

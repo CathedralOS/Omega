@@ -46,6 +46,7 @@ fn index_destination_rejects_range_constraints_even_under_exact_policy() {
         TypeConstraintNode::Range {
             minimum: binary.left,
             maximum: binary.right,
+            end_inclusive: true,
         },
         TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Exact),
     ]);

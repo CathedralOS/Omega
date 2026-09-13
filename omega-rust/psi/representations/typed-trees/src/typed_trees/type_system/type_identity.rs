@@ -1268,19 +1268,16 @@ fn normalized_constraints(
             TypeConstraintNode::Named(name) => {
                 NormalizedConstraint::Named(name.as_str().to_owned())
             }
-            TypeConstraintNode::Range { minimum, maximum } => {
-                let (minimum, maximum) =
-                    if context.qualification == TypeIdentityQualification::PackageQualified {
-                        (
-                            normalize_index_expression(program, *minimum, context),
-                            normalize_index_expression(program, *maximum, context),
-                        )
-                    } else {
-                        (
-                            program.expression_table.display_name(*minimum),
-                            program.expression_table.display_name(*maximum),
-                        )
-                    };
+            TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } => {
+                // Canonical identity and range checking share exact endpoint
+                // evaluation. Keep symbolic end-kind when evaluation is open;
+                // flow facts never supply static type identity.
+                let minimum = normalized_range_endpoint(program, *minimum, true, context);
+                let maximum = normalized_range_endpoint(program, *maximum, *end_inclusive, context);
                 NormalizedConstraint::Range { minimum, maximum }
             }
             TypeConstraintNode::ArithmeticDomain(domain) => {
@@ -1300,6 +1297,43 @@ fn normalized_constraints(
             },
         })
         .collect()
+}
+
+fn normalized_range_endpoint(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    end_inclusive: bool,
+    context: &TypeIdentityContext<'_>,
+) -> String {
+    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+        && let Some(identity) =
+            substitution::range_endpoint(program, path.symbol, end_inclusive, context)
+    {
+        return identity;
+    }
+    if let Some(value) = program.closed_integer_range_endpoint(expression, end_inclusive) {
+        return normalized_range_integer(&value, context);
+    }
+    // Open endpoints retain the same binder slots, exact substitutions and
+    // declaration ownership as other const indices. Diagnostic spelling cannot
+    // distinguish two owners' same-named binders, even in ordinary identity.
+    let identity = normalize_index_expression(program, expression, context);
+    if end_inclusive {
+        identity
+    } else {
+        compound("exclusive-end", [identity])
+    }
+}
+
+fn normalized_range_integer(
+    value: &numerics::bignum::BigInt,
+    context: &TypeIdentityContext<'_>,
+) -> String {
+    if context.qualification == TypeIdentityQualification::PackageQualified {
+        atom("integer", &value.to_string())
+    } else {
+        value.to_string()
+    }
 }
 
 fn normalized_declared_domain_identity(
@@ -1535,6 +1569,291 @@ mod tests {
         SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
     };
 
+    #[test]
+    fn symbolic_range_endpoints_preserve_owner_slots_and_substitution() {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let owners = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [
+                (SymbolKind::Module, SymbolNameRef::Static("First")),
+                (SymbolKind::Module, SymbolNameRef::Static("Second")),
+            ],
+        ))
+        .collect::<Vec<_>>();
+        let first = SymbolTableBuilder::child_handles(
+            builder.insert_children(owners[0], [(SymbolKind::Data, SymbolNameRef::Static("N"))]),
+        )
+        .next()
+        .expect("first endpoint owner");
+        let second = SymbolTableBuilder::child_handles(
+            builder.insert_children(owners[1], [(SymbolKind::Data, SymbolNameRef::Static("N"))]),
+        )
+        .next()
+        .expect("second endpoint owner");
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..TypedTrees::default()
+        };
+        let first_expression =
+            program
+                .expression_table
+                .insert_tree(&Expression::Name(NamePath::resolved(
+                    vec![Identifier::generated("N")],
+                    first,
+                    first,
+                )));
+        let second_expression =
+            program
+                .expression_table
+                .insert_tree(&Expression::Name(NamePath::resolved(
+                    vec![Identifier::generated("N")],
+                    second,
+                    second,
+                )));
+        let second_reference = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: second,
+                name: Identifier::generated("N"),
+            });
+        for qualification in [
+            super::TypeIdentityQualification::Ordinary,
+            super::TypeIdentityQualification::PackageQualified,
+        ] {
+            let context = super::TypeIdentityContext {
+                binders: &[],
+                substitutions: &[],
+                active_const_substitutions: &[],
+                exact_toolchain_sources: &[],
+                missing_exact_nominal_owner: None,
+                qualification,
+            };
+            let identity = |expression, context: &super::TypeIdentityContext<'_>| {
+                super::normalized_range_endpoint(&program, expression, false, context)
+            };
+            assert_ne!(
+                identity(first_expression, &context),
+                identity(second_expression, &context),
+                "equal diagnostic names cannot merge distinct declaration owners"
+            );
+            let first_slot = [(first, "$C0".to_owned())];
+            let second_slot = [(second, "$C0".to_owned())];
+            let another_slot = [(second, "$C1".to_owned())];
+            assert_eq!(
+                identity(
+                    first_expression,
+                    &super::TypeIdentityContext {
+                        binders: &first_slot,
+                        ..context
+                    }
+                ),
+                identity(
+                    second_expression,
+                    &super::TypeIdentityContext {
+                        binders: &second_slot,
+                        ..context
+                    }
+                ),
+                "corresponding binder slots remain alpha-equivalent"
+            );
+            assert_ne!(
+                identity(
+                    first_expression,
+                    &super::TypeIdentityContext {
+                        binders: &first_slot,
+                        ..context
+                    }
+                ),
+                identity(
+                    second_expression,
+                    &super::TypeIdentityContext {
+                        binders: &another_slot,
+                        ..context
+                    }
+                )
+            );
+            let replacements = [(first, second_reference)];
+            let substituted = super::TypeIdentityContext {
+                substitutions: &replacements,
+                ..context
+            };
+            assert_eq!(
+                identity(first_expression, &substituted),
+                identity(second_expression, &context)
+            );
+            assert_eq!(
+                identity(second_expression, &substituted),
+                identity(second_expression, &context),
+                "substitution selects a symbol, not its same-spelled sibling"
+            );
+            assert_ne!(
+                identity(first_expression, &context),
+                super::normalized_range_endpoint(&program, first_expression, true, &context),
+                "an open exclusive endpoint retains its end-kind"
+            );
+        }
+    }
+
+    #[test]
+    fn range_endpoint_substitution_normalizes_values_without_erasing_typed_failure() {
+        use numerics::{
+            arithmetic::ArithmeticDomain,
+            literals::{IntegerLanding, IntegerLiteral, LandedIntegerType},
+        };
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let builtins = SymbolTableBuilder::child_handles(
+            builder.insert_children(root, builtin_type_symbols()),
+        )
+        .collect::<Vec<_>>();
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..TypedTrees::default()
+        };
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: builtins[symbols::BuiltinTypeAtom::U8.ordinal()],
+                name: Identifier::generated("u8"),
+            });
+        let binder = SymbolHandle::from_arena_index(501);
+        let endpoint = program
+            .expression_table
+            .insert_tree(&Expression::Name(NamePath::resolved(
+                vec![Identifier::generated("N")],
+                binder,
+                binder,
+            )));
+        let seven = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(7)));
+        let eight = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(8)));
+        let eight_expression = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(eight));
+        let eight_atom = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("8"),
+            });
+        let typed = program.expression_table.insert(ExpressionNode::Integer(
+            IntegerLiteral::from_value(255).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::U8,
+                domain: ArithmeticDomain::Exact,
+            }),
+        ));
+        let one = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+        let overflow = program.expression_table.insert(ExpressionNode::Binary(
+            crate::expression::TableBinaryExpression {
+                left: typed,
+                operator: BinaryOperator::Add,
+                right: one,
+            },
+        ));
+        let invalid_literal = program.expression_table.insert(ExpressionNode::Integer(
+            IntegerLiteral::from_value(256).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::U8,
+                domain: ArithmeticDomain::Exact,
+            }),
+        ));
+        let mathematical_predecessor = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(255)));
+        let invalid_references = [overflow, invalid_literal].map(|expression| {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::ConstExpression(expression))
+        });
+        for qualification in [
+            super::TypeIdentityQualification::Ordinary,
+            super::TypeIdentityQualification::PackageQualified,
+        ] {
+            let context = super::TypeIdentityContext {
+                binders: &[],
+                substitutions: &[],
+                active_const_substitutions: &[],
+                exact_toolchain_sources: &[],
+                missing_exact_nominal_owner: None,
+                qualification,
+            };
+            for replacement in [eight_expression, eight_atom] {
+                let substitutions = [(binder, replacement)];
+                let substituted = super::TypeIdentityContext {
+                    substitutions: &substitutions,
+                    ..context
+                };
+                assert_eq!(
+                    super::normalized_range_endpoint(&program, endpoint, false, &substituted),
+                    super::normalized_range_endpoint(&program, seven, true, &context),
+                    "direct binder substitution must normalize before inclusive identity"
+                );
+            }
+            for (expression, replacement) in [overflow, invalid_literal]
+                .into_iter()
+                .zip(invalid_references)
+            {
+                assert!(
+                    program
+                        .closed_integer_expression_value(expression)
+                        .is_none()
+                );
+                let substitutions = [(binder, replacement)];
+                let substituted = super::TypeIdentityContext {
+                    substitutions: &substitutions,
+                    ..context
+                };
+                let actual =
+                    super::normalized_range_endpoint(&program, endpoint, false, &substituted);
+                assert_eq!(
+                    actual,
+                    super::normalized_range_endpoint(&program, expression, false, &context)
+                );
+                assert_ne!(
+                    actual,
+                    super::normalized_range_endpoint(
+                        &program,
+                        mathematical_predecessor,
+                        true,
+                        &context
+                    ),
+                    "substitution cannot repair an invalid typed endpoint"
+                );
+            }
+        }
+    }
+    #[test]
+    fn closed_range_endpoints_keep_canonical_numeric_formatting() {
+        let mut program = TypedTrees::default();
+        let eight = program.expression_table.insert(ExpressionNode::Integer(
+            numerics::literals::IntegerLiteral::from_value(8),
+        ));
+        let seven = program.expression_table.insert(ExpressionNode::Integer(
+            numerics::literals::IntegerLiteral::from_value(7),
+        ));
+        for qualification in [
+            super::TypeIdentityQualification::Ordinary,
+            super::TypeIdentityQualification::PackageQualified,
+        ] {
+            let context = super::TypeIdentityContext {
+                binders: &[],
+                substitutions: &[],
+                active_const_substitutions: &[],
+                exact_toolchain_sources: &[],
+                missing_exact_nominal_owner: None,
+                qualification,
+            };
+            assert_eq!(
+                super::normalized_range_endpoint(&program, eight, false, &context),
+                super::normalized_range_endpoint(&program, seven, true, &context)
+            );
+        }
+    }
     #[test]
     fn generated_concrete_generic_nominal_normalizes_to_its_exact_origin() {
         let mut program = TypedTrees::default();

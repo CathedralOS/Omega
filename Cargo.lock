@@ -2246,6 +2246,7 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
+ "semantic-vocabulary",
  "serde",
  "serde_json",
  "source",

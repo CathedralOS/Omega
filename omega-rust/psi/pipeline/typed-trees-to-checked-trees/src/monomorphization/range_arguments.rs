@@ -5,8 +5,9 @@
 //! Explicit selections remain fixed and repeated inferred occurrences must agree.
 //! Never use value/flow bounds or intersect predicates to manufacture a maximum.
 //!
-//! Endpoints include the parser's inclusive-end conversion. Closed anonymous
-//! arithmetic uses the shared exact numeric evaluator and canonical const leaves,
+//! Authored endpoints retain their inclusion kind. The shared numeric query
+//! checks each endpoint before taking an exclusive predecessor in proof integers.
+//! Closed anonymous arithmetic uses exact evaluation and canonical const leaves,
 //! so inference cannot truncate fractions or overflow an intermediate carrier.
 //! Closed builtin typed arithmetic retains exact constant points and checks
 //! each fixed-width operation before interval projection. Named computations and
@@ -17,16 +18,34 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
-use validation::{closed_integer_range_bound, declared_integer_range as declared_range};
+use validation::{
+    closed_integer_range_bound, closed_integer_range_maximum,
+    declared_integer_range as declared_range,
+};
 
 pub(super) fn collect_literals(program: &TypedTrees, literals: &mut Vec<String>) {
     for (_, constraints) in program.type_reference_table.constrained_type_references() {
         for constraint in program.type_reference_table.constraints(constraints) {
-            if let TypeConstraintNode::Range { minimum, maximum } = constraint {
-                for endpoint in [*minimum, *maximum] {
-                    if let Some(value) = closed_integer_range_bound(program, endpoint) {
-                        literals.push(value.to_string());
-                    }
+            if let TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+            {
+                if let Some(value) = closed_integer_range_bound(program, *minimum) {
+                    literals.push(value.to_string());
+                }
+                if let Some(value) = closed_integer_range_maximum(program, *maximum, *end_inclusive)
+                {
+                    literals.push(value.to_string());
+                    // Either authored boundary kind may be required by the
+                    // callee. This conversion is proof-integer normalization,
+                    // not solving an arbitrary endpoint equation.
+                    literals.push(
+                        value
+                            .add(&numerics::bignum::BigInt::from_u64(1))
+                            .to_string(),
+                    );
                 }
             }
         }
@@ -42,20 +61,33 @@ pub(super) fn infer(
     candidate_index: usize,
     proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
 ) {
-    let Some((required_carrier, required_endpoints)) = declared_range(program, required) else {
+    let Some((required_carrier, required_endpoints, required_inclusive)) =
+        declared_range(program, required)
+    else {
         return;
     };
-    let Some((actual_carrier, actual_endpoints)) = declared_range(program, actual) else {
+    let Some((actual_carrier, actual_endpoints, actual_inclusive)) =
+        declared_range(program, actual)
+    else {
         return;
     };
     if required_carrier != actual_carrier {
         return;
     }
-    let values =
-        match actual_endpoints.map(|endpoint| closed_integer_range_bound(program, endpoint)) {
-            [Some(minimum), Some(maximum)] if minimum <= maximum => Some([minimum, maximum]),
-            _ => None,
-        };
+    let values = match [
+        closed_integer_range_bound(program, actual_endpoints[0]),
+        closed_integer_range_maximum(program, actual_endpoints[1], actual_inclusive),
+    ] {
+        [Some(minimum), Some(maximum)] if minimum <= maximum => Some([
+            minimum,
+            if required_inclusive {
+                maximum
+            } else {
+                maximum.add(&numerics::bignum::BigInt::from_u64(1))
+            },
+        ]),
+        _ => None,
+    };
     for (endpoint_index, required_endpoint) in required_endpoints.into_iter().enumerate() {
         let ExpressionNode::Name(name) = program.expression_table.expression(required_endpoint)
         else {
@@ -111,7 +143,7 @@ mod tests {
         let (range, _, constraints) = program
             .type_reference_table
             .constrained_type_reference_sites()[0];
-        let (_, endpoints) = declared_range(&program, range).expect("one declared range");
+        let (_, endpoints, _) = declared_range(&program, range).expect("one declared range");
         assert_eq!(
             closed_integer_range_bound(&program, endpoints[1])
                 .expect("literal endpoint")

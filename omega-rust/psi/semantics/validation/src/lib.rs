@@ -184,6 +184,7 @@ pub use literals::land_anonymous_integer_expression_with_warning;
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
 /// typed-trees machine-monomorphization pass's param-position inference.
 pub use literals::land_float_literal_destinations;
+pub use literals::land_integer_value;
 pub use literals::select_anonymous_numeric_match_arm;
 pub use literals::{
     ScalarArrayElements, closed_constant_array_elements, closed_literal_array_elements,
@@ -230,7 +231,9 @@ pub use traits::{
     resolve_dynamic_call_targets, revalidate_top_level_requirement_realization,
 };
 pub use type_references::normalize_open_index_expressions;
-pub use type_references::{closed_integer_range_bound, declared_integer_range};
+pub use type_references::{
+    closed_integer_range_bound, closed_integer_range_maximum, declared_integer_range,
+};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};

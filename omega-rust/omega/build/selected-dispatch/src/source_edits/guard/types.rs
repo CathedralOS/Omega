@@ -31,7 +31,9 @@ pub(super) fn capture(
             constraints.extend_from_slice(table.constraints(*span));
             for constraint in &constraints {
                 match constraint {
-                    TypeConstraintNode::Range { minimum, maximum } => {
+                    TypeConstraintNode::Range {
+                        minimum, maximum, ..
+                    } => {
                         builder.expression(*minimum)?;
                         builder.expression(*maximum)?;
                     }

@@ -55,7 +55,10 @@ pub(super) fn expressions(
             } = program.type_reference_table.type_reference(reference)
             {
                 for constraint in program.type_reference_table.constraints(*constraints) {
-                    if let TypeConstraintNode::Range { minimum, maximum } = constraint {
+                    if let TypeConstraintNode::Range {
+                        minimum, maximum, ..
+                    } = constraint
+                    {
                         expressions.extend([*minimum, *maximum]);
                     }
                 }

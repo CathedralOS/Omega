@@ -55,20 +55,23 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                     ..Default::default()
                 })
             }
-            resolved::types::TypeConstraintNode::Range { minimum, maximum } => {
-                typed::types::TypeConstraintNode::Range {
-                    minimum: lower_expression_handle_from_table(
-                        &source_trees.tables.bodies.expressions,
-                        typed_trees,
-                        *minimum,
-                    )?,
-                    maximum: lower_expression_handle_from_table(
-                        &source_trees.tables.bodies.expressions,
-                        typed_trees,
-                        *maximum,
-                    )?,
-                }
-            }
+            resolved::types::TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } => typed::types::TypeConstraintNode::Range {
+                end_inclusive: *end_inclusive,
+                minimum: lower_expression_handle_from_table(
+                    &source_trees.tables.bodies.expressions,
+                    typed_trees,
+                    *minimum,
+                )?,
+                maximum: lower_expression_handle_from_table(
+                    &source_trees.tables.bodies.expressions,
+                    typed_trees,
+                    *maximum,
+                )?,
+            },
             resolved::types::TypeConstraintNode::ArithmeticDomain(domain) => {
                 typed::types::TypeConstraintNode::ArithmeticDomain(*domain)
             }
@@ -192,20 +195,23 @@ fn lower_type_constraint_node_with_context(
                 },
             ))
         }
-        resolved::types::TypeConstraint::Range { minimum, maximum } => {
-            Ok(typed::types::TypeConstraintNode::Range {
-                minimum: lower_expression_handle_from_table(
-                    &source_trees.tables.bodies.expressions,
-                    typed_trees,
-                    *minimum,
-                )?,
-                maximum: lower_expression_handle_from_table(
-                    &source_trees.tables.bodies.expressions,
-                    typed_trees,
-                    *maximum,
-                )?,
-            })
-        }
+        resolved::types::TypeConstraint::Range {
+            minimum,
+            maximum,
+            end_inclusive,
+        } => Ok(typed::types::TypeConstraintNode::Range {
+            end_inclusive: *end_inclusive,
+            minimum: lower_expression_handle_from_table(
+                &source_trees.tables.bodies.expressions,
+                typed_trees,
+                *minimum,
+            )?,
+            maximum: lower_expression_handle_from_table(
+                &source_trees.tables.bodies.expressions,
+                typed_trees,
+                *maximum,
+            )?,
+        }),
         resolved::types::TypeConstraint::ArithmeticDomain(domain) => {
             Ok(typed::types::TypeConstraintNode::ArithmeticDomain(*domain))
         }

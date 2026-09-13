@@ -1,4 +1,5 @@
 machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+machine exclusive_upper_bound<const N: u64>(value: u64[0..N]) -> u64 { N }
 
 machine inferred(value: u64[0..=256]) -> u64 { upper_bound(value) }
 machine computed(value: u64[0..=128 + 128]) -> u64 { upper_bound(value) }
@@ -11,3 +12,8 @@ machine explicit(value: u64[0..=256]) -> u64 { upper_bound<512>(value) }
 machine limit() -> u64 { 256 }
 machine named(value: u64[0..=limit()]) -> u64 { upper_bound(value) }
 machine call_named() -> u64 { named(256) }
+machine named_exclusive(value: u64[0..limit()]) -> u64 { upper_bound(value) }
+machine exclusive_full_u64(value: u64[0..18446744073709551616]) -> u64 { upper_bound(value) }
+machine inclusive_to_exclusive(value: u64[0..=256]) -> u64 { exclusive_upper_bound(value) }
+machine exclusive_to_inclusive(value: u64[0..257]) -> u64 { upper_bound(value) }
+machine typed_exclusive(value: u64[0..7u64 / 2 * 2]) -> u64 { upper_bound(value) }

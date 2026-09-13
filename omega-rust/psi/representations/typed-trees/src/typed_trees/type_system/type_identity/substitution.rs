@@ -71,6 +71,61 @@ fn index_reference(
     }
 }
 
+/// Resolve only a direct endpoint binder. Substituting an expression retains its
+/// source-selected arithmetic; decoded static integers need no synthetic AST.
+pub(super) fn range_endpoint(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+    end_inclusive: bool,
+    context: &TypeIdentityContext<'_>,
+) -> Option<String> {
+    let (_, reference) = selected(context, symbol)?;
+    if context.active_const_substitutions.len() >= 64
+        || context.active_const_substitutions.contains(&symbol)
+    {
+        return Some(rejected(context));
+    }
+    let mut active = context.active_const_substitutions.to_vec();
+    active.push(symbol);
+    let nested = TypeIdentityContext {
+        active_const_substitutions: &active,
+        ..*context
+    };
+    Some(
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::ConstExpression(expression) => {
+                super::normalized_range_endpoint(program, *expression, end_inclusive, &nested)
+            }
+            TypeReferenceNode::Named { symbol, name } => {
+                if let Some(identity) = range_endpoint(program, *symbol, end_inclusive, &nested) {
+                    return Some(identity);
+                }
+                if let Some(value) = integer(program, *symbol, name.as_str()) {
+                    let value = crate::closed_numeric::canonical_integer_range_endpoint(
+                        numerics::bignum::BigInt::from_i128(value),
+                        end_inclusive,
+                    );
+                    super::normalized_range_integer(&value, &nested)
+                } else {
+                    let identity = normalize_const_or_nominal_name(
+                        program,
+                        *symbol,
+                        name.as_str(),
+                        "const-name",
+                        &nested,
+                    );
+                    if end_inclusive {
+                        identity
+                    } else {
+                        compound("exclusive-end", [identity])
+                    }
+                }
+            }
+            _ => rejected(&nested),
+        },
+    )
+}
+
 pub(super) fn array_length(
     program: &TypedTrees,
     symbol: SymbolHandle,

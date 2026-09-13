@@ -1277,21 +1277,13 @@ Owners include
   Replace the range-argument exclusion in `generic_data/arguments.rs` only with exact identity
   and constrained-shell substitution, not a source-display cache key.
 
-  Before canonical range identity, replace parser-generated exclusive-end
-  subtraction with an authored endpoint and end-kind retained through syntax,
-  resolution, typing, substitution and snapshots. The shared semantic reader
-  must check the original endpoint and then take an exclusive predecessor in
-  proof integers, not the endpoint's runtime carrier. Preserve symbolic end
-  identity and update dependent-range/proof readers together. Include exclusive
-  `0u64` and signed-minimum ends, invalid `256u8`, and inclusive/exclusive
-  equivalents. Keep the checker regression
-  `literal_exclusive_and_inclusive_ranges_keep_the_same_type_identity` passing;
-  call inference alone misses identity differences introduced by synthetic
-  subtraction. The source pipeline map records the parser failure witnesses.
-  Empty declarations must remain legal without making delivery of
-  a value into them succeed; current inverted-range rejection is not that
-  contract. No owner decision is needed: these are the canonical-range rules
-  linked above, not a new language surface.
+  Extend remaining named computations through build-time admission, using
+  `typed-trees/src/typed_trees/type_system/closed_numeric.rs` and its existing
+  identity/substitution consumers for the resulting endpoints. Preserve
+  authored endpoint landing, exact binder identity and proof-integer exclusive
+  normalization; do not introduce another arithmetic evaluator or infer layout
+  from flow bounds. The source
+  pipeline map records the maintained customer and remaining native boundary.
 
   Acceptance: TinyBytes' `Length == u64[0..=Capacity]` binds omitted Capacity from
   its supplied type before layout; inclusive/exclusive equivalent intervals
@@ -1607,6 +1599,15 @@ Owners include
   Keep IEEE runtime comparison distinct from mathematical meaning equality;
   NaN payloads erase only in the meaning projection and signed zeros remain
   distinct there.
+
+- **STRICT-FLOAT-RANGES.** Implement exclusive floating range evidence in
+  validation's type-reference/cast readers, proof constraints and retained
+  entry predicates. The current declaration fence reports missing strict
+  floating evidence explicitly. Preserve the authored endpoint and IEEE order;
+  integer predecessor arithmetic is not floating range normalization. Accept
+  values below the endpoint and reject the endpoint itself and NaN, including
+  call/store delivery and independent replay. See
+  [numeric qualifications](wiki/spec/language/numeric_values.md#value-qualifications-and-policy-adapters).
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that

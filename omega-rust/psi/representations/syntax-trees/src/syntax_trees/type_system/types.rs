@@ -503,6 +503,9 @@ pub enum TypeConstraintNode {
     Range {
         minimum: crate::expression::ExpressionHandle,
         maximum: crate::expression::ExpressionHandle,
+        /// The authored upper endpoint is inclusive only for `..=`. Preserve
+        /// its expression so semantic checking precedes any predecessor step.
+        end_inclusive: bool,
     },
     /// An arithmetic overflow domain on a primitive (`u32 in Wrapping`); decision
     /// 17. A behaviour tag, not a value-range predicate.
@@ -579,7 +582,11 @@ mod tests {
         let maximum = expressions.insert(ExpressionNode::Integer(
             numerics::literals::IntegerLiteral::from_value(10),
         ));
-        let constraint = types.append_constraint(TypeConstraintNode::Range { minimum, maximum });
+        let constraint = types.append_constraint(TypeConstraintNode::Range {
+            minimum,
+            maximum,
+            end_inclusive: true,
+        });
         let root = types.insert_constrained(base_type, HandleSpan::from_parts(constraint, 1));
 
         assert_eq!(types.type_reference_count(), 2);
@@ -588,12 +595,19 @@ mod tests {
         let TypeReferenceNode::Constrained { constraints, .. } = types.type_reference(root) else {
             panic!("root type reference should be constrained");
         };
-        let [TypeConstraintNode::Range { minimum, maximum }] = types.constraints(*constraints)
+        let [
+            TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            },
+        ] = types.constraints(*constraints)
         else {
             panic!("expected one range constraint");
         };
 
         assert!(minimum.is_valid());
         assert!(maximum.is_valid());
+        assert!(*end_inclusive);
     }
 }

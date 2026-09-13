@@ -672,7 +672,12 @@ fn entry_comparisons(
         } = program.type_reference_table.type_reference(reference)
         {
             for constraint in program.type_reference_table.constraints(*constraints) {
-                let TypeConstraintNode::Range { minimum, maximum } = constraint else {
+                let TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive,
+                } = constraint
+                else {
                     continue;
                 };
                 // Missing or ambiguous aliases cannot contribute an auxiliary
@@ -685,6 +690,12 @@ fn entry_comparisons(
                 };
                 admit(*minimum)?;
                 admit(*maximum)?;
+                let maximum = engine.normalize(*maximum)?;
+                let maximum = if *end_inclusive {
+                    maximum
+                } else {
+                    maximum.sub(&Polynomial::constant(BigInt::from_i64(1)))
+                };
                 comparisons.push((
                     BinaryOperator::GreaterOrEqual,
                     Polynomial::atom(identity.clone()),
@@ -693,7 +704,7 @@ fn entry_comparisons(
                 comparisons.push((
                     BinaryOperator::LessOrEqual,
                     Polynomial::atom(identity.clone()),
-                    engine.normalize(*maximum)?,
+                    maximum,
                 ));
             }
             reference = *base_type;

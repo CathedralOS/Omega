@@ -4,6 +4,7 @@ use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 
 mod const_arguments;
 mod const_values;
+mod empty_ranges;
 mod named_conformance;
 mod nested_calls;
 mod result_local_providers;

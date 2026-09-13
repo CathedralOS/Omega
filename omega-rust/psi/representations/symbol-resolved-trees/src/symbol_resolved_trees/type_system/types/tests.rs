@@ -59,6 +59,12 @@ fn type_reference_table_stores_nested_typed_references_as_handles() {
 
 #[test]
 fn type_reference_table_stores_typed_constraints_as_expression_handles() {
+    for end_inclusive in [false, true] {
+        check_range_tree_to_table(end_inclusive);
+    }
+}
+
+fn check_range_tree_to_table(end_inclusive: bool) {
     let mut source_constraints = Arena::<TypeConstraint>::new();
     let mut source_expressions = ExpressionTable::new();
     let mut source_arguments = Arena::<TypeReference>::new();
@@ -72,7 +78,20 @@ fn type_reference_table_stores_typed_constraints_as_expression_handles() {
     let maximum = source_expressions.insert(crate::expression::ExpressionNode::Integer(
         numerics::literals::IntegerLiteral::from_value(10),
     ));
-    let constraints = source_constraints.insert_many([TypeConstraint::Range { minimum, maximum }]);
+    let source_constraint = TypeConstraint::Range {
+        minimum,
+        maximum,
+        end_inclusive,
+    };
+    assert_eq!(
+        source_constraint.display_name(),
+        if end_inclusive {
+            "expression..=expression"
+        } else {
+            "expression..expression"
+        }
+    );
+    let constraints = source_constraints.insert_many([source_constraint]);
     let type_reference = TypeReference::Constrained(ConstrainedTypeReference {
         storage: ConstrainedTypeReferenceStorage {
             base_type,
@@ -96,10 +115,18 @@ fn type_reference_table_stores_typed_constraints_as_expression_handles() {
     let TypeReferenceNode::Constrained { constraints, .. } = types.type_reference(root) else {
         panic!("root type reference should be constrained");
     };
-    let [TypeConstraintNode::Range { minimum, maximum }] = types.constraints(*constraints) else {
+    let [
+        TypeConstraintNode::Range {
+            minimum,
+            maximum,
+            end_inclusive: copied_end_inclusive,
+        },
+    ] = types.constraints(*constraints)
+    else {
         panic!("expected one range constraint");
     };
 
     assert!(minimum.is_valid());
     assert!(maximum.is_valid());
+    assert_eq!(*copied_end_inclusive, end_inclusive);
 }

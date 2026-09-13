@@ -7,8 +7,8 @@
 //! never drift between the gate and the dischargers.
 //!
 //! Rung R1a admits exactly `self.<field>` plus an optional literal offset:
-//! `[0..=self.count]` -> (count, 0); the exclusive sugar `[0..self.count]`
-//! parses as `self.count - 1` -> (count, -1). The sibling-length class
+//! `[0..=self.count]` -> (count, 0); `[0..self.count]` retains its end-kind
+//! and normalizes to (count, -1) in bounded proof metadata. The sibling-length class
 //! (`[0..items.len]`, chapter 12's Buffer::get shape) admits `<name>.len`
 //! plus an offset, interpreted by policies as a SIBLING PARAMETER's slice
 //! length. Everything else stays behind the non-constant-bound fence.
@@ -56,6 +56,20 @@ pub fn symbolic_max_bound(
     }
 }
 
+/// Normalize an authored symbolic upper end into the bounded proof offset.
+/// Failure is not an unbounded range: callers must reject unsupported metadata.
+pub fn symbolic_range_maximum(
+    table: &ExpressionTable,
+    bound: ExpressionHandle,
+    end_inclusive: bool,
+) -> Option<SymbolicMaxBound> {
+    let mut result = symbolic_max_bound(table, bound)?;
+    if !end_inclusive {
+        result.offset = result.offset.checked_sub(1)?;
+    }
+    Some(result)
+}
+
 /// `self.<field>` (a Member whose receiver is the bare `self` name), or
 /// `None` for any other shape -- locals, params, and deeper chains are not
 /// in the R1a class (a field's range is store-enforced machine-wide, which
@@ -75,8 +89,8 @@ fn self_field_name(table: &ExpressionTable, expression: ExpressionHandle) -> Opt
 
 /// The recognized sibling-length maximum: `<sibling>.len + offset`, where
 /// `sibling` is a bare name the POLICIES must resolve to a same-state
-/// parameter of slice/array type (`[0..items.len]` -> (items, -1) after the
-/// parser's exclusive normalization).
+/// parameter of slice/array type (`[0..items.len]` -> (items, -1) after
+/// normalization of the retained boundary kind).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SiblingLenBound {
     pub sibling: Identifier,
@@ -112,6 +126,19 @@ pub fn sibling_len_bound(
         }
         _ => None,
     }
+}
+
+/// The same checked boundary normalization for a sibling's length.
+pub fn sibling_range_maximum(
+    table: &ExpressionTable,
+    bound: ExpressionHandle,
+    end_inclusive: bool,
+) -> Option<SiblingLenBound> {
+    let mut result = sibling_len_bound(table, bound)?;
+    if !end_inclusive {
+        result.offset = result.offset.checked_sub(1)?;
+    }
+    Some(result)
 }
 
 /// `<name>.len` where `<name>` is a bare single-segment name (NOT `self.x` --

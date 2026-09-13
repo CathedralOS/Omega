@@ -121,7 +121,9 @@ fn byte_input_rejects_changed_result_schema_before_consuming_input() {
                     panic!("canonical byte range");
                 };
                 let constraints = *constraints;
-                let TypeConstraintNode::Range { minimum, maximum } = &mut program
+                let TypeConstraintNode::Range {
+                    minimum, maximum, ..
+                } = &mut program
                     .typed
                     .type_reference_table
                     .constraints_mut(constraints)[0]

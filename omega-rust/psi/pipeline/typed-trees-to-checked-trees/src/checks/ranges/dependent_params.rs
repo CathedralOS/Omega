@@ -90,10 +90,15 @@ fn dependent_maximum_of_type_reference(
             constraints
                 .iter()
                 .find_map(|constraint| match constraint {
-                    TypeConstraintNode::Range { maximum, .. } => {
-                        let symbolic = typed_trees::dependent_ranges::symbolic_max_bound(
+                    TypeConstraintNode::Range {
+                        maximum,
+                        end_inclusive,
+                        ..
+                    } => {
+                        let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
                             &program.expression_table,
                             *maximum,
+                            *end_inclusive,
                         )?;
                         Some((symbolic.field, symbolic.offset))
                     }
@@ -133,12 +138,15 @@ fn sibling_len_of_type_reference(
             constraints
                 .iter()
                 .find_map(|constraint| match constraint {
-                    TypeConstraintNode::Range { maximum, .. } => {
-                        typed_trees::dependent_ranges::sibling_len_bound(
-                            &program.expression_table,
-                            *maximum,
-                        )
-                    }
+                    TypeConstraintNode::Range {
+                        maximum,
+                        end_inclusive,
+                        ..
+                    } => typed_trees::dependent_ranges::sibling_range_maximum(
+                        &program.expression_table,
+                        *maximum,
+                        *end_inclusive,
+                    ),
                     _ => None,
                 })
                 .or_else(|| sibling_len_of_type_reference(program, *base_type))

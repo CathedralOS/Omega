@@ -69,6 +69,56 @@ pub(crate) fn validate_scalar_source(
             )?;
         }
     }
+    validate_parameter_ranges(checked, state, retained.map(Some))
+}
+
+/// Scalar graphs retain authored clauses separately from their appended range
+/// predicates. Check those exact retained rows, not a different contract capsule.
+pub(crate) fn validate_graph_parameter_ranges(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    clauses: &[Option<ClosedScalarContractValue>],
+) -> Result<(), LoweringError> {
+    let source = checked
+        .machines()
+        .iter()
+        .find(|source| source.symbol == machine)
+        .ok_or(LoweringError::Unsupported(
+            "scalar range has no source machine",
+        ))?;
+    let state = checked
+        .machine_states(source)
+        .first()
+        .ok_or(LoweringError::Unsupported(
+            "scalar range has no source entry",
+        ))?;
+    let authored_count = checked
+        .machine_contracts(source)
+        .iter()
+        .filter(|contract| {
+            contract.kind == SignatureContractKind::Requires && contract.binding.is_none()
+        })
+        .count();
+    let ranges = clauses
+        .get(authored_count..)
+        .ok_or(LoweringError::Unsupported(
+            "scalar contract lost authored requirements",
+        ))?;
+    validate_parameter_ranges(
+        checked,
+        state,
+        ranges.iter().map(|clause| match clause {
+            Some(ClosedScalarContractValue::Predicate(predicate)) => Some(predicate),
+            _ => None,
+        }),
+    )
+}
+
+fn validate_parameter_ranges<'predicate>(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    mut retained: impl Iterator<Item = Option<&'predicate CheckedBooleanExpression>>,
+) -> Result<(), LoweringError> {
     let mut scalar_position = 0;
     for parameter in checked.state_parameters(state) {
         let primitive = checked.primitive_type_reference(parameter.type_reference);
@@ -83,7 +133,12 @@ pub(crate) fn validate_scalar_source(
                     constraints,
                 } => {
                     for constraint in checked.type_reference_table.constraints(*constraints) {
-                        let TypeConstraintNode::Range { minimum, maximum } = constraint else {
+                        let TypeConstraintNode::Range {
+                            minimum,
+                            maximum,
+                            end_inclusive,
+                        } = constraint
+                        else {
                             continue;
                         };
                         let primitive = primitive.ok_or(LoweringError::Unsupported(
@@ -94,19 +149,25 @@ pub(crate) fn validate_scalar_source(
                             || checked
                                 .arithmetic_domain_for_type_reference(parameter.type_reference)
                                 != numerics::arithmetic::ArithmeticDomain::Exact
-                            || validation::closed_integer_range_bound(&checked.typed, *minimum)
-                                .zip(validation::closed_integer_range_bound(
-                                    &checked.typed,
-                                    *maximum,
-                                ))
-                                .is_none_or(|(low, high)| low > high)
                         {
                             return unsupported(
                                 "scalar entry range differs from its exact source bounds",
                             );
                         }
+                        let (minimum_value, maximum_value) =
+                            validation::closed_integer_range_bound(&checked.typed, *minimum)
+                                .zip(validation::closed_integer_range_maximum(
+                                    &checked.typed,
+                                    *maximum,
+                                    *end_inclusive,
+                                ))
+                                .filter(|(low, high)| low <= high)
+                                .ok_or(LoweringError::Unsupported(
+                                    "scalar entry range has unavailable or empty source bounds",
+                                ))?;
                         integer_scalar_type(primitive)?;
-                        let Some(CheckedBooleanExpression::And { left, right }) = retained.next()
+                        let Some(CheckedBooleanExpression::And { left, right }) =
+                            retained.next().flatten()
                         else {
                             return unsupported("scalar entry range lost its two ordered bounds");
                         };
@@ -134,33 +195,29 @@ pub(crate) fn validate_scalar_source(
                         if low_subject.as_ref() != &subject || high_subject.as_ref() != &subject {
                             return unsupported("scalar entry range belongs to another parameter");
                         }
-                        // Bounds are closed literals in this runtime vocabulary.
-                        // Value correspondence is not parameter-read custody:
-                        // a name-shaped endpoint must not supply a runtime read.
-                        if !matches!(low.as_ref(), CheckedScalarExpression::IntegerLiteral { .. })
-                            || !matches!(
-                                high.as_ref(),
-                                CheckedScalarExpression::IntegerLiteral { .. }
-                            )
-                        {
-                            return unsupported(
-                                "scalar entry range endpoint is not a closed literal",
-                            );
+                        // Recompute the interval from the authored endpoints.
+                        // These literals represent normalized bounds, not raw
+                        // endpoint reads or executable predecessor expressions.
+                        for (retained, expected) in [
+                            (low.as_ref(), minimum_value),
+                            (high.as_ref(), maximum_value),
+                        ] {
+                            let CheckedScalarExpression::IntegerLiteral { literal } = retained
+                            else {
+                                return unsupported(
+                                    "scalar entry range endpoint is not a closed literal",
+                                );
+                            };
+                            let expected = validation::land_integer_value(&expected, primitive)
+                                .ok_or(LoweringError::Unsupported(
+                                    "scalar range bound does not fit its carrier",
+                                ))?;
+                            if literal != &expected || literal.landing() != expected.landing() {
+                                return unsupported(
+                                    "scalar entry range changes its normalized bound or carrier",
+                                );
+                            }
                         }
-                        validate_value(
-                            checked,
-                            state.symbol,
-                            *minimum,
-                            primitive,
-                            low.as_ref().clone(),
-                        )?;
-                        validate_value(
-                            checked,
-                            state.symbol,
-                            *maximum,
-                            primitive,
-                            high.as_ref().clone(),
-                        )?;
                     }
                     reference = *base_type;
                 }

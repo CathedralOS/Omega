@@ -364,7 +364,11 @@ fn float_type_reference_interval(
             .constraints(*constraints)
             .iter()
             .find_map(|constraint| match constraint {
-                TypeConstraintNode::Range { minimum, maximum } => {
+                // Source intervals may conservatively include a strict upper
+                // endpoint; target membership is checked separately.
+                TypeConstraintNode::Range {
+                    minimum, maximum, ..
+                } => {
                     let minimum = float_constant_value(program, *minimum)?;
                     let maximum = float_constant_value(program, *maximum)?;
                     (minimum.is_finite() && maximum.is_finite() && minimum <= maximum)

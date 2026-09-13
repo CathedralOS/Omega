@@ -88,7 +88,10 @@ fn pending_endpoints(typed: &TypedTrees) -> Vec<PendingEndpoint> {
         .constrained_type_reference_sites()
     {
         for constraint in typed.type_reference_table.constraints(constraints) {
-            let TypeConstraintNode::Range { minimum, maximum } = constraint else {
+            let TypeConstraintNode::Range {
+                minimum, maximum, ..
+            } = constraint
+            else {
                 continue;
             };
             for expression in [*minimum, *maximum] {

@@ -58,11 +58,19 @@ pub(super) fn mutable_scalar_representation_facts(
                             }
                         }
                         typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => {}
-                        typed_trees::types::TypeConstraintNode::Range { minimum, maximum } => {
+                        typed_trees::types::TypeConstraintNode::Range {
+                            minimum,
+                            maximum,
+                            end_inclusive,
+                        } => {
                             let minimum =
                                 crate::closed_integer_range_bound(program, *minimum)?.to_i64()?;
-                            let maximum =
-                                crate::closed_integer_range_bound(program, *maximum)?.to_i64()?;
+                            let maximum = crate::closed_integer_range_maximum(
+                                program,
+                                *maximum,
+                                *end_inclusive,
+                            )?
+                            .to_i64()?;
                             range = Some(match range {
                                 Some((existing_minimum, existing_maximum)) => {
                                     (existing_minimum.max(minimum), existing_maximum.min(maximum))

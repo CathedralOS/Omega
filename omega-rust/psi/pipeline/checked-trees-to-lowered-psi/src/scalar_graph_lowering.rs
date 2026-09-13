@@ -684,6 +684,11 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             PreparedScalarContract::Predicates(plan.clone())
         }
     };
+    crate::runtime_requirements::validate_graph_parameter_ranges(
+        checked,
+        machine,
+        plan.requires(),
+    )?;
     Ok(PreparedScalarMachine {
         source_machine: machine,
         scalar_qualifications: qualifications.catalog().clone(),

@@ -74,6 +74,68 @@ fn declared_parameter_ranges_are_actual_call_requirements() {
 }
 
 #[test]
+fn exclusive_carrier_endpoints_publish_normalized_entry_bounds() {
+    for (primitive, bits, endpoint, maximum) in [
+        ("u8", 8, "256", 255),
+        ("u64", 64, "18446744073709551616", u64::MAX),
+    ] {
+        for bounds in [format!("0..{endpoint}"), format!("0..={maximum}")] {
+            let source = format!(
+                "machine bounded(input: {primitive}[{bounds}]) -> {primitive} {{ input }}
+                 machine value(input: {primitive}) -> {primitive} {{ bounded(input) }}"
+            );
+            let artifact = encoded(&source);
+            for value in [0, 1, maximum] {
+                let input = TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, bits).unwrap(),
+                    value: IntegerValue::Unsigned(u128::from(value)),
+                };
+                assert_eq!(
+                    execute(&artifact, &[input]).unwrap(),
+                    TerminalExecutionResult::Scalar(input)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn entry_range_replay_rejects_changed_authored_end_kind() {
+    use checked_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    let source = "machine value(input: u8[0..128]) -> u8 { input }";
+    let mut checked = checked_arms(source, false);
+    let original = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
+        .expect("original exclusive predicate publishes");
+    assert_eq!(original.semantic_module.machines.len(), 1);
+    assert!(
+        !original.semantic_module.machines[0]
+            .contract
+            .requires
+            .is_empty()
+    );
+    let state = &checked.machine_states(&checked.machines()[0])[0];
+    let reference = checked.state_parameters(state)[0].type_reference;
+    let TypeReferenceNode::Constrained { constraints, .. } =
+        checked.type_reference_table.type_reference(reference)
+    else {
+        panic!("range constrained parameter");
+    };
+    let constraints = *constraints;
+    let [TypeConstraintNode::Range { end_inclusive, .. }] = checked
+        .typed
+        .type_reference_table
+        .constraints_mut(constraints)
+    else {
+        panic!("single range");
+    };
+    *end_inclusive = true;
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(&checked, "value").is_err(),
+        "retained <=127 cannot certify authored inclusive128"
+    );
+}
+
+#[test]
 fn result_and_formal_namespaces_keep_mixed_parameter_positions() {
     let source = source(
         "flag: bool, ignored: u16, input: u16",

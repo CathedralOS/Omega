@@ -16,6 +16,7 @@ language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 layout-plans = { path = "../../foundation/layout-plans" }
 numerics = { path = "../../foundation/numerics" }
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
 serde = { version = "1.0", features = ["derive"] }
