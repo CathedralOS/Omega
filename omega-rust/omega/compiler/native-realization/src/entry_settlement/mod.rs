@@ -34,7 +34,10 @@ pub fn validate_native_program_entry_settlement(
     if checked_entry.source_signature_identity() != program_entry.source.identity().bytes() {
         return Err(NativeProgramEntrySettlementError::SourceSignatureSubstitution);
     }
-    if checked_entry.source_machine_name() != program_entry.source.machine_name() {
+    // Settle the exact selected machine symbol, not a display name: a build
+    // product operand resolved lexically can legitimately share its qualified
+    // name spelling with a declaration in another package.
+    if checked_entry.source_machine_symbol() != program_entry.source.machine_symbol() {
         return Err(NativeProgramEntrySettlementError::SourceMachineSubstitution);
     }
     artifact.validate().map_err(|error| {
