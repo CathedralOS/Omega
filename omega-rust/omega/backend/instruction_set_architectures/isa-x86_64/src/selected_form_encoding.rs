@@ -522,6 +522,15 @@ fn family_and_operand_count(
         SelectedInstructionKind::BitwiseAndI64 => {
             (MachineAlternativeFamily::BitwiseAndI64, 3, 0..=0)
         }
+        SelectedInstructionKind::SaturatingSubtractU64 => {
+            (MachineAlternativeFamily::SaturatingSubtractU64, 3, 0..=0)
+        }
+        SelectedInstructionKind::SaturatingAddU64 => {
+            (MachineAlternativeFamily::SaturatingAddU64, 3, 0..=0)
+        }
+        SelectedInstructionKind::ExactDivideU64 { .. } => {
+            (MachineAlternativeFamily::ExactDivideU64, 4, 0..=0)
+        }
         SelectedInstructionKind::BitwiseXorI64 => {
             (MachineAlternativeFamily::BitwiseXorI64, 3, 0..=0)
         }
@@ -845,6 +854,43 @@ fn encode_unchecked(
         SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
             append_lea_register(&mut bytes, registers[0], registers[1], registers[2]);
         }
+        SelectedInstructionKind::SaturatingSubtractU64 => {
+            if registers[2] == registers[0] || registers[2] == registers[1] {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            append_register_binary(&mut bytes, 0x39, registers[1], registers[0]);
+            append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
+            bytes.extend([
+                rex(registers[2], 0, registers[1]),
+                0x0f,
+                0x42,
+                modrm(3, registers[2], registers[1]),
+            ]);
+            append_register_binary(&mut bytes, 0x29, registers[1], registers[2]);
+        }
+        SelectedInstructionKind::SaturatingAddU64 => {
+            if registers[2] == registers[0] || registers[2] == registers[1] {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            // min(left + right, MAX) = ~max((MAX - left) - right, 0).
+            append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
+            bytes.extend([rex(0, 0, registers[2]), 0xf7, modrm(3, 2, registers[2])]);
+            append_register_binary(&mut bytes, 0x39, registers[1], registers[2]);
+            bytes.extend([
+                rex(registers[2], 0, registers[1]),
+                0x0f,
+                0x42,
+                modrm(3, registers[2], registers[1]),
+            ]);
+            append_register_binary(&mut bytes, 0x29, registers[1], registers[2]);
+            bytes.extend([rex(0, 0, registers[2]), 0xf7, modrm(3, 2, registers[2])]);
+        }
+        SelectedInstructionKind::ExactDivideU64 { .. } => {
+            if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 6, registers[1])]);
+        }
         SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
             // Both operations commute, so either input may already own the
             // output register. A distinct output needs one non-destructive copy.
@@ -929,6 +975,16 @@ fn encode_unchecked(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedInstruction {
+    UnsignedDivide {
+        divisor: u8,
+    },
+    Complement {
+        destination: u8,
+    },
+    MoveOnBorrow {
+        source: u8,
+        destination: u8,
+    },
     BitwiseAnd {
         source: u8,
         destination: u8,
@@ -1023,6 +1079,18 @@ fn decode_all(bytes: &[u8]) -> Result<Vec<DecodedInstruction>, X86_64SelectedFor
 fn decode_one(
     bytes: &[u8],
 ) -> Result<(DecodedInstruction, usize), X86_64SelectedFormEncodingError> {
+    if let [rex, 0x0f, 0x42, modrm, ..] = bytes
+        && rex & !0x05 == 0x48
+        && modrm & 0xc0 == 0xc0
+    {
+        return Ok((
+            DecodedInstruction::MoveOnBorrow {
+                source: (modrm & 7) | ((rex & 1) << 3),
+                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+            },
+            4,
+        ));
+    }
     if let [rex, 0x0f, opcode, modrm, ..] = bytes
         && rex & !1 == 0x40
         && matches!(*opcode, 0x92 | 0x94 | 0x96 | 0x9c | 0x9e)
@@ -1194,6 +1262,8 @@ fn decode_one(
                 source: reg,
                 destination: rm,
             },
+            0xf7 if reg == 2 && rex_x == 0 => DecodedInstruction::Complement { destination: rm },
+            0xf7 if reg == 6 && rex_x == 0 => DecodedInstruction::UnsignedDivide { divisor: rm },
             0xf7 if (modrm >> 3) & 7 == 3 => DecodedInstruction::Negate { destination: rm },
             _ => return Err(X86_64SelectedFormEncodingError::MalformedEncoding),
         };
@@ -1375,6 +1445,68 @@ fn validate_decoded(
                     && ((*base == registers[0] && *index == registers[1])
                         || (*base == registers[1] && *index == registers[0])))
         }
+        SelectedInstructionKind::SaturatingSubtractU64 => {
+            registers[2] != registers[0]
+                && registers[2] != registers[1]
+                && decoded
+                    == [
+                        DecodedInstruction::Compare {
+                            left: registers[0],
+                            right: registers[1],
+                        },
+                        DecodedInstruction::Move {
+                            source: registers[0],
+                            destination: registers[2],
+                        },
+                        DecodedInstruction::MoveOnBorrow {
+                            source: registers[1],
+                            destination: registers[2],
+                        },
+                        DecodedInstruction::Subtract {
+                            source: registers[1],
+                            destination: registers[2],
+                        },
+                    ]
+        }
+        SelectedInstructionKind::SaturatingAddU64 => {
+            registers[2] != registers[0]
+                && registers[2] != registers[1]
+                && decoded
+                    == [
+                        DecodedInstruction::Move {
+                            source: registers[0],
+                            destination: registers[2],
+                        },
+                        DecodedInstruction::Complement {
+                            destination: registers[2],
+                        },
+                        DecodedInstruction::Compare {
+                            left: registers[2],
+                            right: registers[1],
+                        },
+                        DecodedInstruction::MoveOnBorrow {
+                            source: registers[1],
+                            destination: registers[2],
+                        },
+                        DecodedInstruction::Subtract {
+                            source: registers[1],
+                            destination: registers[2],
+                        },
+                        DecodedInstruction::Complement {
+                            destination: registers[2],
+                        },
+                    ]
+        }
+        SelectedInstructionKind::ExactDivideU64 { .. } => {
+            registers[0] == 0
+                && registers[2] == 0
+                && registers[3] == 2
+                && registers[1] != 2
+                && decoded
+                    == [DecodedInstruction::UnsignedDivide {
+                        divisor: registers[1],
+                    }]
+        }
         SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
             let operation = |source, destination| {
                 if kind == SelectedInstructionKind::BitwiseXorI64 {
@@ -1523,6 +1655,11 @@ fn footprint(
         | SelectedInstructionKind::ZeroExtendU32 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![operands[0]], vec![], true),
+        SelectedInstructionKind::ExactDivideU64 { .. } => (
+            vec![operands[0], operands[1], operands[3]],
+            vec![operands[2]],
+            true,
+        ),
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
         SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
@@ -1537,7 +1674,10 @@ fn footprint(
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
-        SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
+        SelectedInstructionKind::SaturatingSubtractU64
+        | SelectedInstructionKind::SaturatingAddU64
+        | SelectedInstructionKind::BitwiseAndI64
+        | SelectedInstructionKind::BitwiseXorI64 => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
         SelectedInstructionKind::ReturnScalar
@@ -1641,6 +1781,7 @@ fn footprint(
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
                 SelectedInstructionKind::CompareI64 => vec![0, 1],
+                SelectedInstructionKind::ExactDivideU64 { .. } => vec![0, 1, 3],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::ExactAddI64 { .. } => vec![0, 1],
                 SelectedInstructionKind::ExactSubtractI64 { .. } if alternative.variant == 0 => {
@@ -1648,7 +1789,9 @@ fn footprint(
                 }
                 SelectedInstructionKind::ExactSubtractI64 { .. }
                 | SelectedInstructionKind::BitwiseAndI64
-                | SelectedInstructionKind::BitwiseXorI64 => vec![0, 1],
+                | SelectedInstructionKind::BitwiseXorI64
+                | SelectedInstructionKind::SaturatingSubtractU64
+                | SelectedInstructionKind::SaturatingAddU64 => vec![0, 1],
                 _ => unreachable!("control forms handled separately"),
             },
             match kind {
@@ -1670,10 +1813,14 @@ fn footprint(
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
-                SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
+                SelectedInstructionKind::SaturatingSubtractU64
+                | SelectedInstructionKind::SaturatingAddU64
+                | SelectedInstructionKind::BitwiseAndI64
+                | SelectedInstructionKind::BitwiseXorI64 => {
                     vec![2]
                 }
                 SelectedInstructionKind::CompareI64Zero => vec![],
+                SelectedInstructionKind::ExactDivideU64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64 => vec![],
                 SelectedInstructionKind::CompareI64Immediate { .. } => vec![],
                 _ => unreachable!("control forms handled separately"),
@@ -1692,6 +1839,8 @@ fn footprint(
             SelectedInstructionKind::ExactSubtractI64 { .. }
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseXorI64
+                | SelectedInstructionKind::SaturatingSubtractU64
+                | SelectedInstructionKind::SaturatingAddU64
         ) {
             effects.implicit_unit_clobbers = units("rflags");
         }
@@ -1704,6 +1853,13 @@ fn footprint(
                 | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
         ) {
             effects.implicit_unit_uses = units("rflags");
+        }
+        if matches!(kind, SelectedInstructionKind::ExactDivideU64 { .. }) {
+            effects.implicit_unit_clobbers = units("rdx");
+            effects.implicit_unit_clobbers.extend(units("rflags"));
+            effects.implicit_unit_clobbers.sort_unstable();
+            effects.implicit_unit_clobbers.dedup();
+            effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
         }
         effects
     };
@@ -1731,6 +1887,176 @@ mod tests {
         SelectedInstructionKind::ExactAddI64 {
             obligation: ObligationId::new(1).unwrap(),
             accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        }
+    }
+
+    #[test]
+    fn saturating_subtract_binds_registers_condition_and_flag_effects() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let kind = SelectedInstructionKind::SaturatingSubtractU64;
+        let key = alternative(MachineAlternativeFamily::SaturatingSubtractU64, 0);
+        for left in ["rax", "rcx", "r8", "r15"] {
+            for right in ["rax", "rcx", "r8", "r15"] {
+                for destination in ["rax", "rcx", "r8", "r15"] {
+                    let operands = [left, right, destination]
+                        .map(|name| physical.model().view_named(name).unwrap().id);
+                    let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands);
+                    if destination == left || destination == right {
+                        assert!(
+                            encoded.is_err(),
+                            "early-clobber output cannot overlap either input"
+                        );
+                        continue;
+                    }
+                    let encoded = encoded.unwrap();
+                    assert_eq!(encoded.bytes().len(), 13);
+                    let decoded = validate_x86_64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        encoded.bytes(),
+                    )
+                    .unwrap();
+                    assert_eq!(decoded.footprint().encoded.external_operand_reads, [0, 1]);
+                    assert_eq!(decoded.footprint().encoded.external_operand_writes, [2]);
+                    assert!(
+                        !decoded
+                            .footprint()
+                            .encoded
+                            .implicit_unit_clobbers
+                            .is_empty()
+                    );
+                    for byte in 0..encoded.bytes().len() {
+                        let mut changed = encoded.bytes().to_vec();
+                        changed[byte] ^= 1;
+                        assert!(
+                            validate_x86_64_selected_form_encoding(
+                                &physical, kind, key, &operands, &changed
+                            )
+                            .is_err(),
+                            "changed byte {byte}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn saturating_add_binds_registers_condition_and_flag_effects() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let kind = SelectedInstructionKind::SaturatingAddU64;
+        let key = alternative(MachineAlternativeFamily::SaturatingAddU64, 0);
+        for left in ["rax", "rcx", "r8", "r15"] {
+            for right in ["rax", "rcx", "r8", "r15"] {
+                for destination in ["rax", "rcx", "r8", "r15"] {
+                    let operands = [left, right, destination]
+                        .map(|name| physical.model().view_named(name).unwrap().id);
+                    let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands);
+                    if destination == left || destination == right {
+                        assert!(
+                            encoded.is_err(),
+                            "early-clobber output cannot overlap either input"
+                        );
+                        continue;
+                    }
+                    let encoded = encoded.unwrap();
+                    assert_eq!(encoded.bytes().len(), 19);
+                    let decoded = validate_x86_64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        encoded.bytes(),
+                    )
+                    .unwrap();
+                    assert_eq!(decoded.footprint().encoded.external_operand_reads, [0, 1]);
+                    assert_eq!(decoded.footprint().encoded.external_operand_writes, [2]);
+                    assert!(
+                        !decoded
+                            .footprint()
+                            .encoded
+                            .implicit_unit_clobbers
+                            .is_empty()
+                    );
+                    for byte in 0..encoded.bytes().len() {
+                        let mut changed = encoded.bytes().to_vec();
+                        changed[byte] ^= 1;
+                        assert!(
+                            validate_x86_64_selected_form_encoding(
+                                &physical, kind, key, &operands, &changed
+                            )
+                            .is_err(),
+                            "changed byte {byte}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn saturation_high_register_bytes_match_independent_assembler() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let operands =
+            ["r8", "r9", "r10"].map(|name| physical.model().view_named(name).unwrap().id);
+        // Independently assembled with Apple clang; not derived from this encoder.
+        for (kind, family, bytes) in [
+            (
+                SelectedInstructionKind::SaturatingSubtractU64,
+                MachineAlternativeFamily::SaturatingSubtractU64,
+                vec![
+                    0x4d, 0x39, 0xc8, 0x4d, 0x89, 0xc2, 0x4d, 0x0f, 0x42, 0xd1, 0x4d, 0x29, 0xca,
+                ],
+            ),
+            (
+                SelectedInstructionKind::SaturatingAddU64,
+                MachineAlternativeFamily::SaturatingAddU64,
+                vec![
+                    0x4d, 0x89, 0xc2, 0x49, 0xf7, 0xd2, 0x4d, 0x39, 0xca, 0x4d, 0x0f, 0x42, 0xd1,
+                    0x4d, 0x29, 0xca, 0x49, 0xf7, 0xd2,
+                ],
+            ),
+        ] {
+            let key = alternative(family, 0);
+            let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
+            assert_eq!(encoded.bytes(), bytes);
+            validate_x86_64_selected_form_encoding(&physical, kind, key, &operands, &bytes)
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn exact_divide_binds_unsigned_opcode_and_registers() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let kind = SelectedInstructionKind::ExactDivideU64 {
+            obligation: ObligationId::new(1).unwrap(),
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        };
+        let key = alternative(MachineAlternativeFamily::ExactDivideU64, 0);
+
+        let names = ["rax", "r9", "rax", "rdx"];
+        let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
+        let expected = vec![0x49, 0xf7, 0xf1];
+
+        let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
+        assert_eq!(encoded.bytes(), expected);
+        for byte in 0..expected.len() {
+            let mut changed = expected.clone();
+            changed[byte] ^= 1;
+            assert!(
+                validate_x86_64_selected_form_encoding(&physical, kind, key, &operands, &changed)
+                    .is_err()
+            );
+        }
+        for operand in 0..operands.len() {
+            let mut changed = operands;
+            changed[operand] = physical.model().view_named("r8").unwrap().id;
+            assert!(
+                validate_x86_64_selected_form_encoding(&physical, kind, key, &changed, &expected)
+                    .is_err()
+            );
         }
     }
 

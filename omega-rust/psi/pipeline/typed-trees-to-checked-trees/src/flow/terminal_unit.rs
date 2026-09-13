@@ -518,8 +518,8 @@ pub(crate) fn build_checked_unit_effect_plans(
                 )
                 .chain(plan.states.iter().flat_map(|state| {
                     state
-                        .operations
-                        .iter()
+                        .operation_dependencies()
+                        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                         .filter_map(|operation| match operation {
                             CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                                 type_identity,

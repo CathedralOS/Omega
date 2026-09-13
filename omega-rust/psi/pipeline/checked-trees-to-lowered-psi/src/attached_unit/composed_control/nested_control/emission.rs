@@ -89,6 +89,7 @@ pub(super) fn emit(
             checked,
             plan.machine,
             &admitted.controls[index],
+            &admitted.controls[index].operations,
             &mut catalogs,
             &[],
             &[],

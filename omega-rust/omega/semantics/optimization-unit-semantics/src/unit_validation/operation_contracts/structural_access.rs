@@ -179,6 +179,7 @@ pub(crate) fn structural_arguments_match(
                     .any(|node| {
                         matches!(&node.operation,
                     O::CallStructural { result, .. } | O::EstablishRecord { result, .. }
+                        | O::EstablishScalarCase { result, .. }
                         if result.place == argument.place)
                     }));
         let actual_multiplicity =

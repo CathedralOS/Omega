@@ -5,6 +5,7 @@ mod mixed_references;
 mod record_borrows;
 mod record_reads;
 mod reentry;
+mod sum_borrows;
 mod widths;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{

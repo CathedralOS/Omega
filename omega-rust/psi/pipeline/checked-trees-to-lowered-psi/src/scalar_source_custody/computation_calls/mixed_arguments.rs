@@ -189,7 +189,7 @@ pub(crate) fn rejoin_computation_call_arguments(
     };
     let access_positions = if structural.iter().any(|argument| match argument {
         CheckedScalarComputationStructuralArgument::Array { .. } => true,
-        CheckedScalarComputationStructuralArgument::Case(_) => false,
+        CheckedScalarComputationStructuralArgument::Case(_) => true,
         CheckedScalarComputationStructuralArgument::Place(argument) => matches!(
             argument.access,
             checked_trees::CheckedStructuralAccess::SharedBorrow
@@ -198,6 +198,9 @@ pub(crate) fn rejoin_computation_call_arguments(
     }) {
         Some(access_occurrences::rejoin(
             checked,
+            machine,
+            state,
+            statement,
             borrow_call.ok_or(LoweringError::Unsupported(
                 "computed shared borrow has no call roster",
             ))?,

@@ -106,6 +106,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CopyI64 => 4,
         SelectedInstructionKind::BitwiseAndI64 => 51,
         SelectedInstructionKind::BitwiseXorI64 => 52,
+        SelectedInstructionKind::SaturatingSubtractU64 => 54,
+        SelectedInstructionKind::SaturatingAddU64 => 55,
+        SelectedInstructionKind::ExactDivideU64 { .. } => 56,
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -187,7 +190,11 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Immediate { immediate } => {
             encode_integer(bytes, immediate)
         }
-        SelectedInstructionKind::ExactAddI64 {
+        SelectedInstructionKind::ExactDivideU64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactAddI64 {
             obligation,
             accepted_fact,
         }
@@ -229,6 +236,8 @@ fn zero_extension_has_a_distinct_round_trip_tag() {
         (SelectedInstructionKind::ZeroExtendU8, 15),
         (SelectedInstructionKind::BitwiseAndI64, 51),
         (SelectedInstructionKind::BitwiseXorI64, 52),
+        (SelectedInstructionKind::SaturatingSubtractU64, 54),
+        (SelectedInstructionKind::SaturatingAddU64, 55),
         (SelectedInstructionKind::ZeroExtendU32, 20),
         (SelectedInstructionKind::ZeroExtendU16, 37),
         (SelectedInstructionKind::SignExtendI8, 38),
@@ -338,6 +347,14 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         4 => SelectedInstructionKind::CopyI64,
         51 => SelectedInstructionKind::BitwiseAndI64,
         52 => SelectedInstructionKind::BitwiseXorI64,
+        54 => SelectedInstructionKind::SaturatingSubtractU64,
+        55 => SelectedInstructionKind::SaturatingAddU64,
+        56 => SelectedInstructionKind::ExactDivideU64 {
+            obligation: decode_id(cursor, ObligationId::new)?,
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                cursor.array()?,
+            ),
+        },
         26 => SelectedInstructionKind::Float32ToBits,
         27 => SelectedInstructionKind::Float64ToBits,
         28 => SelectedInstructionKind::BitsToFloat32,

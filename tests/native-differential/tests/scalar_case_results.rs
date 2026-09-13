@@ -31,6 +31,15 @@ mod record_reads;
 #[path = "scalar_case_results/state_local_records.rs"]
 mod state_local_records;
 
+#[path = "scalar_case_results/guarded_returns.rs"]
+mod guarded_returns;
+
+#[path = "scalar_case_results/case_call_arguments.rs"]
+mod case_call_arguments;
+
+#[path = "scalar_case_results/u64_kernels.rs"]
+mod u64_kernels;
+
 #[cfg(any(
     all(
         target_os = "linux",
@@ -59,7 +68,7 @@ fn produce_source(entry: &str, source: &str) -> CanonicalTerminalArtifact {
         typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check scalar-case source");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
         .produce_artifact()
-        .expect("publish scalar-case Terminal");
+        .unwrap_or_else(|error| panic!("publish scalar-case Terminal: {error:#?}"));
     let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     terminal_verifier::verify_module(
         &terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
@@ -108,12 +117,21 @@ fn publish(
     image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
     assert_eq!(object.functions().len(), module.machines.len());
     let entry = object.entry_function().text_offset;
-    let mut stripped = object.clone();
-    stripped.clear_fragment_replay_for_test();
-    assert!(
-        image_emission::emit_executable_image(&stripped, 3).is_err(),
-        "aggregate result publication requires its retained physical replay"
-    );
+    // Scalar-only control need not use aggregate replay. Keep the negative
+    // control for every actual structural fixture, including borrowed getters
+    // and local construction without a structural function result.
+    if module.machines.iter().any(|machine| {
+        machine.result.structural().is_some()
+            || !machine.structural_parameters.is_empty()
+            || !machine.structural_places.is_empty()
+    }) {
+        let mut stripped = object.clone();
+        stripped.clear_fragment_replay_for_test();
+        assert!(
+            image_emission::emit_executable_image(&stripped, 3).is_err(),
+            "structural publication requires its retained physical replay"
+        );
+    }
     let image = image_emission::emit_executable_image(&object, 3).unwrap();
     image_emission::validate_executable_image(&object, &image).unwrap();
     let record = image_emission::build_installation_record(
@@ -135,14 +153,40 @@ fn publish(
     {
         admission::installation_cannot_change_call_or_result(&decoded, &image, result_machine.id);
     } else {
-        // Local construction has no function-result ABI. Keep the call/result
-        // corruption controls required for every actual returning fixture.
-        assert!(decoded.functions().iter().all(|function| {
-            function
+        // A complete scalar function ABI may also carry its normal result.
+        // Local construction alone cannot justify an aggregate result ABI.
+        for function in decoded.functions() {
+            let machine = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == function.machine)
+                .expect("installed function retains its source machine");
+            if let Some(result) = function
                 .parameter_abi
                 .as_ref()
-                .is_none_or(|abi| abi.call_plan.result.is_none())
-        }));
+                .and_then(|abi| abi.call_plan.result.as_ref())
+            {
+                let scalar = machine.result.scalar().expect("Unit has no ABI result");
+                let (class, bytes) = match scalar.scalar_type {
+                    semantic_vocabulary::ScalarType::Boolean => {
+                        (calling_conventions::ValueClass::Integer, 1)
+                    }
+                    semantic_vocabulary::ScalarType::Integer(integer) => (
+                        calling_conventions::ValueClass::Integer,
+                        integer.bits().div_ceil(8),
+                    ),
+                    semantic_vocabulary::ScalarType::IeeeFloat(format) => (
+                        calling_conventions::ValueClass::Float,
+                        match format {
+                            semantic_vocabulary::IeeeFloatFormat::Binary32 => 4,
+                            semantic_vocabulary::IeeeFloatFormat::Binary64 => 8,
+                        },
+                    ),
+                };
+                assert_eq!(result.shape.class, class);
+                assert_eq!(result.shape.byte_size, bytes);
+            }
+        }
     }
     assert_eq!(
         image_emission::derive_stack_demand(&object, module.entry).unwrap(),

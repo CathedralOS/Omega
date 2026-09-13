@@ -48,6 +48,10 @@ pub(super) fn validate_owned_arguments(
                     .flat_map(|block| &block.instructions)
                     .find(|row| row.operation == psi_operation)?;
                 let result = match &producer.kind {
+                    LegalizedScalarInstructionKind::EstablishScalarCase { result, .. } => {
+                        crate::selection::aggregate_result_input::fields(source, producer)?;
+                        result
+                    }
                     LegalizedScalarInstructionKind::EstablishRecord { result, .. } => {
                         crate::selection::record_input::fields(source, producer)?;
                         result

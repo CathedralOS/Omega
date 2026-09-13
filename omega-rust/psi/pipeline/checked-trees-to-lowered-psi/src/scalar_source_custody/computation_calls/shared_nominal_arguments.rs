@@ -3,7 +3,7 @@
 //! whole at their established home, including ordinary returned case values.
 //! The implicit receiver precedes explicit actuals but has no row in their
 //! observation roster. Validate it separately, including overlap with that roster.
-//! A projected receiver has two identities: the caller's storage root and the
+//! A projected operand has two identities: the caller's storage root and the
 //! authored endpoint captured by the call. Reconstruct both from the source;
 //! an equal endpoint type does not permit substituting a sibling or another root.
 

@@ -122,6 +122,50 @@ fn lowers_closed_guard_and_provider_attachment_as_one_composed_machine() {
 }
 
 #[test]
+fn provider_attachment_and_ordinary_state_locals_keep_independent_custody() {
+    for initializer in ["Region::new(input)", "Region { value: input }"] {
+        let source = r#"
+            boundary trait Output { machine write(value: u64) reaches Output; }
+            data Region { value: u64; }
+            machine Region::new(value: u64) -> Region { Region { value: value } }
+            machine Region::get(&self) -> u64 { self.value }
+            data Main { output: Output; }
+            machine Main::main(&mut self, input: u64) reaches Output {
+                let region: Region = INITIALIZER;
+                let observed: u64 = region.get();
+                transition observed == input { true -> passed() false -> failed() }
+                state passed(&mut self) { self.output.write(11); }
+                state failed(&mut self) { self.output.write(255); }
+            }
+        "#
+        .replace("INITIALIZER", initializer);
+        let checked = checked_source(&source);
+        let lowered = lower_machine(&checked, "Main::main")
+            .expect("ordinary local values do not become provider requests");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("independent provider/value verification");
+        let mut missing_provider = checked.clone();
+        let plan = missing_provider
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .find(|plan| plan.provider_attachment_requirements.len() == 1)
+            .unwrap();
+        plan.provider_attachment_requirements.clear();
+        assert!(
+            lower_machine(&missing_provider, "Main::main").is_err(),
+            "ordinary construction cannot replace the required provider field"
+        );
+    }
+}
+
+#[test]
 fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
     let source = r#"
         boundary trait Host { machine exit(code: i32); }

@@ -201,7 +201,7 @@ pub(super) fn retain_available(
         for operation in plan
             .states
             .iter()
-            .flat_map(|state| &state.operations)
+            .flat_map(|state| state.operation_dependencies())
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
         {
             // Composed bodies have a narrower operation vocabulary and no
@@ -238,8 +238,7 @@ pub(super) fn retain_available(
             }
         }
     }
-    let retained = closure.close();
-    let mut retained = retained.into_iter();
+    let mut retained = closure.close().into_iter();
     candidates.retain(|_| retained.next().unwrap_or(false));
     composed_machines.retain(|_| retained.next().unwrap_or(false));
 }

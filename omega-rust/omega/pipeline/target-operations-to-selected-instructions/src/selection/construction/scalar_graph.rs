@@ -381,6 +381,62 @@ pub(super) fn build_with_environment(
                         )?;
                         output
                     }
+                    LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                                    && integer.bits() == 64 && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+                        {
+                            return Err(invalid());
+                        }
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        builder.emit(
+                            SelectedInstructionKind::SaturatingSubtractU64,
+                            constraints.keys.saturating_subtract_u64,
+                            &[left_register, right_register, output],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::SaturatingAddU64 { left, right } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                                    && integer.bits() == 64 && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+                        {
+                            return Err(invalid());
+                        }
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        builder.emit(
+                            SelectedInstructionKind::SaturatingAddU64,
+                            constraints.keys.saturating_add_u64,
+                            &[left_register, right_register, output],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::ExactBinary {
                         operator,
                         left,
@@ -395,7 +451,26 @@ pub(super) fn build_with_environment(
                         if left_type != scalar_type || right_type != scalar_type {
                             return Err(invalid());
                         }
+                        if *operator == legalized_operations::LegalizedExactIntegerOperator::Divide
+                            && scalar_type
+                                != ScalarType::Integer(
+                                    semantic_vocabulary::IntegerType::new(
+                                        IntegerSign::Unsigned,
+                                        64,
+                                    )
+                                    .map_err(|_| invalid())?,
+                                )
+                        {
+                            return Err(invalid());
+                        }
                         let (kind, key) = match operator {
+                            legalized_operations::LegalizedExactIntegerOperator::Divide => (
+                                SelectedInstructionKind::ExactDivideU64 {
+                                    obligation: *obligation,
+                                    accepted_fact: *accepted_fact,
+                                },
+                                constraints.keys.divide_u64,
+                            ),
                             legalized_operations::LegalizedExactIntegerOperator::Add => (
                                 SelectedInstructionKind::ExactAddI64 {
                                     obligation: *obligation,
@@ -413,10 +488,16 @@ pub(super) fn build_with_environment(
                         };
                         let output =
                             builder.register(result.value, result.definition_site, scalar_type)?;
+                        let mut operands = vec![left_register, right_register, output];
+                        if *operator == legalized_operations::LegalizedExactIntegerOperator::Divide
+                            && environment.target().architecture == target::Architecture::X86_64
+                        {
+                            operands.push(division_scratch(&mut builder)?);
+                        }
                         builder.emit(
                             kind,
                             key,
-                            &[left_register, right_register, output],
+                            &operands,
                             SelectedInstructionProvenance {
                                 operations: vec![operation.operation],
                                 values: vec![*left, *right, result.value],
@@ -610,4 +691,42 @@ impl Builder<'_> {
         )?;
         Ok(output)
     }
+}
+
+// The x86 high half is an explicit zero-valued implementation register.
+fn division_scratch(
+    builder: &mut Builder<'_>,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+    let instruction = SelectedInstructionId(
+        builder
+            .instructions
+            .len()
+            .try_into()
+            .map_err(|_| invalid())?,
+    );
+    builder.registers.push(VirtualRegister {
+        id,
+        scalar_type: ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
+                .map_err(|_| invalid())?,
+        ),
+        class: builder.class,
+        origin: VirtualRegisterOrigin::InstructionScratch {
+            instruction,
+            operand: 0,
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
+    builder.emit(
+        SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(0),
+        },
+        builder.constraints.keys.materialize_i64,
+        &[id],
+        Default::default(),
+    )?;
+    Ok(id)
 }

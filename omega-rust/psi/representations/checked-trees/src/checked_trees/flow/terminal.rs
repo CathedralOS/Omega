@@ -889,7 +889,7 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     Guarded {
         arms: arena::HandleSpan<CheckedScalarGuardedExit>,
         fallback: Option<CheckedScalarBranchDestination>,
-        returns: Vec<CheckedStructuralCaseReturnPlan>,
+        return_values: Vec<CheckedUnitEffectOperationPlan>,
     },
     Jump {
         successor: CheckedStructuralControlSuccessorPlan,
@@ -910,6 +910,19 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         subject: CheckedUnitStructuralArgumentPlan,
         cases: Vec<CheckedClosedSumCaseSuccessorPlan>,
     },
+}
+
+impl CheckedComposedUnitControlStatePlan {
+    /// Complete operation dependencies, not runtime evaluation order.
+    pub fn operation_dependencies(&self) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
+        let selected = match &self.terminator {
+            CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
+                return_values.as_slice()
+            }
+            _ => &[],
+        };
+        self.operations.iter().chain(selected)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

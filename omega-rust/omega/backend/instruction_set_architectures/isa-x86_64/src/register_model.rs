@@ -321,6 +321,21 @@ pub const X86_64_ADD_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintKe
     family: RegisterConstraintFamily::Instruction,
     variant: 5,
 };
+/// Total unsigned subtraction with an early-clobber result and RFLAGS clobber.
+pub const X86_64_SATURATING_SUBTRACT_U64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 54,
+};
+/// Total unsigned addition clamps to the maximum u64 value.
+pub const X86_64_SATURATING_ADD_U64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 55,
+};
+/// Unsigned division consumes an explicit zero RDX input and clobbers the remainder.
+pub const X86_64_DIVIDE_U64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 56,
+};
 /// Exact `result = left - right` three-address pseudo. Its realization must be
 /// alias-safe for every allocator result: `XOR result, result` when both inputs
 /// share a view, `SUB` when the result is only the left input, `NEG; ADD` when
@@ -360,7 +375,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 60] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 63] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -466,6 +481,9 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 60] = [
     X86_64_ADD_I64,
     X86_64_ADD_I64_IMMEDIATE,
     X86_64_SUBTRACT_I64,
+    X86_64_SATURATING_SUBTRACT_U64,
+    X86_64_SATURATING_ADD_U64,
+    X86_64_DIVIDE_U64,
     X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_COMPARE_I64,
     X86_64_JUMP,
@@ -1080,6 +1098,52 @@ pub fn x86_64_register_constraint_catalog(
         },
     ];
 
+    let mut saturation_output = allocatable(2, RegisterOperandAccess::Def, GPR64);
+    saturation_output.early_clobber = true;
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_SATURATING_SUBTRACT_U64,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            saturation_output,
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_DIVIDE_U64,
+        operands: vec![
+            fixed(0, RegisterOperandAccess::Use, "rax"),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            fixed(2, RegisterOperandAccess::Def, "rax"),
+            fixed(3, RegisterOperandAccess::Use, "rdx"),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: ["rdx", "rflags"]
+            .into_iter()
+            .flat_map(|name| view(name).units.iter().copied())
+            .collect(),
+    });
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_SATURATING_ADD_U64,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            {
+                let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
+                output.early_clobber = true;
+                output
+            },
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
     let scalar_call = constraints
         .iter()
         .find(|row| row.key == X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64)

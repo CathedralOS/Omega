@@ -1,29 +1,28 @@
-//! Ordered control selects an ordinary case construction, never speculative
-//! construction of every alternative. The shared tail owns order and coverage.
+//! Ordered exits use the same source-coordinate coverage check as scalar returns.
+//! Their values are ordinary structural producers, evaluated only after selecting
+//! an exit. Dependency discovery visits every arm; execution never does so.
 
 use super::*;
+use checked_trees::CheckedScalarBranchDestination;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
-    ordinal: usize,
+    start: usize,
 ) -> Result<(), LoweringError> {
-    let CheckedComposedUnitControlTerminatorPlan::Guarded {
-        arms,
-        fallback,
-        returns,
-    } = &state.terminator
+    let (
+        checked_trees::CheckedControlResultPlan::Structural(signature),
+        CheckedComposedUnitControlTerminatorPlan::Guarded {
+            arms,
+            fallback,
+            return_values,
+        },
+    ) = (&plan.result, &state.terminator)
     else {
-        return unsupported("ordered structural tail absent");
+        return unsupported("ordered structural exits lost their result or control");
     };
-    if !matches!(
-        plan.result,
-        checked_trees::CheckedControlResultPlan::Structural(_)
-    ) {
-        return unsupported("ordered structural tail has no structural signature");
-    }
     let mut retained = checked
         .facts
         .flow
@@ -40,106 +39,150 @@ pub(super) fn validate(
             state.state,
             *arms,
             fallback.as_ref(),
-        )? != ordinal
+        )? != start
     {
-        return unsupported("ordered structural tail changed its source-owned roster");
+        return unsupported("guarded structural tail changed its source-owned roster");
     }
-    let arms = checked
+    let guards = checked
         .facts
         .flow
         .terminal_scalar_graphs
         .guarded_exits
         .span(*arms)
         .ok_or(LoweringError::Unsupported(
-            "ordered structural guards are stale",
+            "guarded structural guards are stale",
         ))?;
-    if returns.len() != arms.len() + usize::from(fallback.is_some()) {
-        return unsupported("ordered structural return roster drifted");
+    if return_values.len() != guards.len() + usize::from(fallback.is_some())
+        || signature.multiplicity == Multiplicity::Linear
+    {
+        return unsupported("guarded structural exit coverage or result custody drifted");
     }
-    for arm in arms {
-        let (binding, _) = checked
+    let mut bindings = Vec::new();
+    for operation in state
+        .operation_dependencies()
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+    {
+        let result = match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => result,
+            _ => continue,
+        };
+        if bindings.contains(&result.binding_ordinal) {
+            return unsupported("ordered structural exits duplicate a result binding");
+        }
+        bindings.push(result.binding_ordinal);
+    }
+    let statements = checked.statement_table.statements(source.statement_nodes);
+    for (destination, operation) in guards
+        .iter()
+        .map(|guard| &guard.destination)
+        .chain(fallback.iter())
+        .zip(return_values)
+    {
+        let (
+            CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation,
+            },
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                value,
+                discard_result_on_return: false,
+                ..
+            },
+        ) = (destination, operation)
+        else {
+            return unsupported("ordered structural destination is not its retained value return");
+        };
+        let expression = match statements.get(*statement_ordinal as usize) {
+            Some(checked_trees::statement::StatementNode::Expression(expression))
+                if !is_continuation =>
+            {
+                *expression
+            }
+            Some(checked_trees::statement::StatementNode::Transition(transition))
+                if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
+            {
+                let target = if *is_continuation {
+                    transition.continuation
+                } else {
+                    transition.target
+                };
+                let checked_trees::statement::TransitionTargetNode::Value(expression) =
+                    checked.statement_table.transition_target(target)
+                else {
+                    return unsupported("ordered return substituted a named destination");
+                };
+                *expression
+            }
+            _ => return unsupported("ordered return has no exact authored expression"),
+        };
+        let root = checked
             .facts
             .values
-            .scalar_expressions
-            .bound_expression_at(
-                state.state,
-                arm.guard_statement_ordinal,
-                CheckedScalarExpressionRole::Guard,
-            )
+            .structural_values
+            .root_for_expression(state.state, *statement_ordinal, expression)
             .ok_or(LoweringError::Unsupported(
-                "ordered structural guard has no source binding",
+                "ordered return lost its exact value root",
             ))?;
-        crate::scalar_source_custody::validate_pure(checked, binding, ScalarType::Boolean)?;
+        if result.statement_index != *statement_ordinal
+            || result.type_identity != signature.type_identity
+            || result.multiplicity != signature.multiplicity
+            || root.root != *value
+        {
+            return unsupported("ordered return exchanged its destination or value custody");
+        }
+        crate::attached_unit::structural_values::source_custody::validate(
+            checked,
+            plan.machine,
+            state.state,
+            operation,
+        )?;
     }
-    for (destination, result) in arms
-        .iter()
-        .map(|arm| &arm.destination)
-        .chain(fallback.iter())
-        .zip(returns)
-    {
-        let checked_trees::CheckedScalarBranchDestination::Return {
-            statement_ordinal,
-            is_continuation: false,
-        } = destination
-        else {
-            return unsupported("ordered structural destination is not a value completion");
-        };
-        super::returns::validate_case(checked, source, state, *statement_ordinal as usize, result)?;
-    }
+    edges::return_discards(checked, plan.machine, source, state)?;
     Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
+    plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
-    machine_result: &TerminalMachineResult,
-    bindings: &crate::scalar_bindings::ScalarBindings,
     catalogs: &mut catalogs::ComposedCatalogs,
+    parameters: &[StructuralParameterDeclaration],
+    claims: &[(PermissionClaimIdentity, ClaimId)],
     evaluation: &mut crate::attached_unit::argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
-    blocks: &mut Vec<Block>,
-) -> Result<(Terminator, usize), LoweringError> {
+) -> Result<Option<Terminator>, LoweringError> {
     let CheckedComposedUnitControlTerminatorPlan::Guarded {
         arms,
         fallback,
-        returns,
+        return_values,
     } = &state.terminator
     else {
-        return unsupported("ordered structural emission has no tail");
+        return Ok(None);
     };
-    let arms = checked
+    let guards = checked
         .facts
         .flow
         .terminal_scalar_graphs
         .guarded_exits
         .span(*arms)
         .ok_or(LoweringError::Unsupported(
-            "ordered structural guards are stale",
+            "guarded structural guards are stale",
         ))?;
-    let successor = |target, next_edge: &mut u64| -> Result<SuccessorEdge, LoweringError> {
-        Ok(SuccessorEdge {
-            edge: edge_id(allocate_dense(next_edge)?),
-            target,
-            arguments: Vec::new(),
-            structural_arguments: Vec::new(),
-            trivial_affine_discards: Vec::new(),
-        })
-    };
-    for (index, arm) in arms.iter().enumerate() {
-        // The next guard belongs only to the false successor. Reuse the current
-        // evaluator so short-circuit joins retain the completed source prefix.
+    for (position, guard) in guards.iter().enumerate() {
         let mut calls = catalogs.scalar_calls.emission_context();
         let condition = evaluation.guard_value(
             checked,
-            machine,
+            plan.machine,
             state.state,
-            arm.guard_statement_ordinal,
+            guard.guard_statement_ordinal,
             values,
             next_value,
             next_block,
@@ -148,85 +191,171 @@ pub(super) fn emit(
             &mut calls,
         )?;
         catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-        let guard_end = operations.len();
-        let selected_block = block_id(allocate_dense(next_block)?);
-        let selected = super::returns::emit_case(
-            checked,
-            state,
-            &returns[index],
-            machine_result,
-            bindings,
-            catalogs,
-            values,
-            next_value,
-            operations,
-        )?
-        .ok_or(LoweringError::Unsupported(
-            "ordered structural construction absent",
-        ))?;
-        blocks.push(Block {
-            id: selected_block,
-            parameters: Vec::new(),
-            structural_parameters: Vec::new(),
-            operations: operations[guard_end..].to_vec(),
-            terminator: Terminator::ReturnStructural {
-                edge: edge_id(allocate_dense(next_edge)?),
-                source: selected,
-                returned_claims: Vec::new(),
-                trivial_affine_discards: Vec::new(),
-            },
-        });
-        if index + 1 == arms.len() && fallback.is_none() {
-            // Exact coverage allows both final edges to select the same case,
-            // but does not erase evaluation of the final authored guard.
-            return Ok((
-                Terminator::Conditional {
-                    condition: condition.id,
-                    when_true: successor(selected_block, next_edge)?,
-                    when_false: successor(selected_block, next_edge)?,
-                },
-                guard_end,
-            ));
+        if condition.scalar_type != ScalarType::Boolean {
+            return unsupported("ordered return guard is not Boolean");
         }
-        let next = block_id(allocate_dense(next_block)?);
+        let selected = block_id(allocate_dense(next_block)?);
+        let exhausted = position + 1 == guards.len() && fallback.is_none();
+        // Coverage was independently replayed during admission. Even the final
+        // exhaustive guard is observed; either outcome then selects its value.
+        let remaining = if exhausted {
+            selected
+        } else {
+            block_id(allocate_dense(next_block)?)
+        };
+        let edge = |target, counter: &mut u64| -> Result<SuccessorEdge, LoweringError> {
+            Ok(SuccessorEdge {
+                edge: edge_id(allocate_dense(counter)?),
+                target,
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            })
+        };
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: std::mem::take(&mut evaluation.parameters),
             structural_parameters: std::mem::take(&mut evaluation.block_structural_parameters),
-            operations: operations[evaluation.operation_start..guard_end].to_vec(),
+            operations: operations[evaluation.operation_start..].to_vec(),
             terminator: Terminator::Conditional {
                 condition: condition.id,
-                when_true: successor(selected_block, next_edge)?,
-                when_false: successor(next, next_edge)?,
+                when_true: edge(selected, next_edge)?,
+                when_false: edge(remaining, next_edge)?,
             },
         });
-        evaluation.current = next;
+        let retained_bindings = operations.structural_values.len();
+        let mut selected_evaluation = evaluation.branch(selected, operations.len());
+        let mut selected_values = values.clone();
+        operations.byte_lengths.clear();
+        let terminator = emit_return(
+            checked,
+            plan,
+            state,
+            &return_values[position],
+            catalogs,
+            parameters,
+            claims,
+            &mut selected_evaluation,
+            &mut selected_values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+        )?;
+        if exhausted {
+            evaluation.blocks.append(&mut selected_evaluation.blocks);
+            std::mem::swap(&mut evaluation.blocks, &mut selected_evaluation.blocks);
+            *evaluation = selected_evaluation;
+            *values = selected_values;
+            return Ok(Some(terminator));
+        }
+        selected_evaluation.remap_transported_call_operands(operations);
+        selected_evaluation.blocks.push(Block {
+            id: selected_evaluation.current,
+            parameters: selected_evaluation.parameters,
+            structural_parameters: selected_evaluation.block_structural_parameters,
+            operations: operations[selected_evaluation.operation_start..].to_vec(),
+            terminator,
+        });
+        evaluation.blocks.extend(selected_evaluation.blocks);
+        evaluation.current = remaining;
         evaluation.operation_start = operations.len();
+        operations.structural_values.truncate(retained_bindings);
+        operations.byte_lengths.clear();
     }
-    let fallback = returns.last().ok_or(LoweringError::Unsupported(
-        "ordered structural fallback absent",
-    ))?;
-    let source = super::returns::emit_case(
+    let fallback =
+        return_values
+            .last()
+            .filter(|_| fallback.is_some())
+            .ok_or(LoweringError::Unsupported(
+                "ordered return lost its exhaustive final destination",
+            ))?;
+    emit_return(
+        checked, plan, state, fallback, catalogs, parameters, claims, evaluation, values,
+        next_value, next_block, next_edge, operations,
+    )
+    .map(Some)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_return(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    state: &CheckedComposedUnitControlStatePlan,
+    operation: &CheckedUnitEffectOperationPlan,
+    catalogs: &mut catalogs::ComposedCatalogs,
+    parameters: &[StructuralParameterDeclaration],
+    claims: &[(PermissionClaimIdentity, ClaimId)],
+    evaluation: &mut crate::attached_unit::argument_evaluation::Evaluation,
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<Terminator, LoweringError> {
+    super::super::emission::emit_call_operations(
         checked,
+        plan.machine,
         state,
-        fallback,
-        machine_result,
-        bindings,
+        std::slice::from_ref(operation),
         catalogs,
+        parameters,
+        claims,
+        evaluation,
         values,
         next_value,
+        next_block,
+        next_edge,
         operations,
-    )?
-    .ok_or(LoweringError::Unsupported(
-        "ordered structural fallback construction absent",
-    ))?;
-    Ok((
-        Terminator::ReturnStructural {
-            edge: edge_id(allocate_dense(next_edge)?),
-            source,
-            returned_claims: Vec::new(),
-            trivial_affine_discards: Vec::new(),
-        },
-        operations.len(),
-    ))
+    )?;
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } = operation else {
+        return unsupported("ordered return has no structural producer");
+    };
+    let source = operations
+        .structural_values
+        .iter()
+        .find(|(ordinal, _)| *ordinal == result.binding_ordinal)
+        .map(|(_, value)| evaluation.current_structural_place(value.place))
+        .ok_or(LoweringError::Unsupported(
+            "ordered return value was not established",
+        ))?;
+    let (_, source_state) = crate::scalar_source_custody::authored_state(checked, state.state)?;
+    // A selected result participates in the cleanup correspondence even though
+    // the return transfers it rather than discarding it.
+    let mut discards = vec![(source, false)];
+    for operation in state.operations.iter().rev() {
+        match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                discard_result_on_return,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::StructuralCall {
+                result,
+                discard_result_on_return,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                result,
+                discard_result_on_return,
+                ..
+            } => {
+                let place = case_emission::result(state, result.binding_ordinal, operations)?.place;
+                discards.push((place, *discard_result_on_return));
+            }
+            _ => {}
+        }
+    }
+    discards.extend(
+        edges::return_discards(checked, plan.machine, source_state, state)?
+            .into_iter()
+            .map(|position| (parameters[position].place, true)),
+    );
+    let discards = evaluation.selection_return_discards(discards)?;
+    Ok(Terminator::ReturnStructural {
+        edge: edge_id(allocate_dense(next_edge)?),
+        source,
+        returned_claims: Vec::new(),
+        trivial_affine_discards: discards,
+    })
 }

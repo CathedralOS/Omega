@@ -114,6 +114,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     bytes.push(match instruction.kind {
         SelectedInstructionKind::BitwiseAndI64 => 48,
         SelectedInstructionKind::BitwiseXorI64 => 49,
+        SelectedInstructionKind::SaturatingSubtractU64 => 51,
+        SelectedInstructionKind::SaturatingAddU64 => 52,
+        SelectedInstructionKind::ExactDivideU64 { .. } => 53,
         SelectedInstructionKind::LoadPacked { .. } => 46,
         SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::CallAggregate { .. } => 35,
@@ -213,7 +216,11 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
                 bytes.extend_from_slice(&value.to_le_bytes());
             }
         },
-        SelectedInstructionKind::ExactAddI64 {
+        SelectedInstructionKind::ExactDivideU64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactAddI64 {
             obligation,
             accepted_fact,
         } => {
@@ -263,6 +270,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseXorI64
+        | SelectedInstructionKind::SaturatingSubtractU64
+        | SelectedInstructionKind::SaturatingAddU64
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::Float32ToBits

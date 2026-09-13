@@ -160,7 +160,10 @@ pub(super) fn build(
         // sequence before its return edge. Its operand calls belong to that
         // sequence too; excluding the tail statement loses their exact flow
         // occurrences when outer_calls reconstructs the constructor roots.
-        let operation_end = if facts
+        let operation_end = if matches!(
+            statements.get(terminator_index),
+            Some(StatementNode::Expression(_))
+        ) && facts
             .values
             .structural_values
             .root_at(state.symbol, u32::try_from(terminator_index).ok()?)
@@ -175,12 +178,13 @@ pub(super) fn build(
         let after_calls = source_calls.partition_point(|call| call.statement_index < operation_end);
         // Computation roots retain handles into this arena. Borrow the original
         // occurrences so their exact identity survives nested-call validation.
-        let calls = control::outer_calls(
+        let calls = control::outer_calls_before(
             program,
             facts,
             machine.symbol,
             state,
             &source_calls[first_call..after_calls],
+            operation_end,
         )?;
         let sequence = control::statement_sequence::build(
             program,
@@ -252,6 +256,14 @@ pub(super) fn build(
                                     .source_structural_result_binding_ordinal()
                                     .is_some())
                                 && argument.access == CheckedStructuralAccess::MutableBorrow)
+                            // The statement sequencer already rejoins a local
+                            // receiver to its completed producer and exact loan.
+                            // State ownership, not parameter spelling, governs
+                            // keeping that same home until the selected exit.
+                            || (argument.source_structural_result_binding_ordinal().is_some()
+                                && matches!(argument.access,
+                                    CheckedStructuralAccess::SharedBorrow
+                                        | CheckedStructuralAccess::MutableBorrow))
                     }) => {}
                 CheckedUnitEffectOperationPlan::StructuralCall {
                     discard_result_on_return: false,
@@ -296,7 +308,17 @@ pub(super) fn build(
             terminator_index,
         ) {
             terminator
-        } else if let Some(terminator) = returns::guarded(program, facts, state, ordinal) {
+        } else if let Some(terminator) = returns::guarded(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            structural,
+            &state_entry_claims[state_index],
+            &operations,
+            terminator_index,
+        ) {
             terminator
         } else {
             match &statements[terminator_index..] {
@@ -391,6 +413,8 @@ pub(super) fn build(
                 edge.transfers.iter().filter(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)).count() == 1
             };
             let consumed = match &terminator {
+                CheckedComposedUnitControlTerminatorPlan::Guarded { .. } =>
+                    result.multiplicity == Multiplicity::Unrestricted,
                 CheckedComposedUnitControlTerminatorPlan::ReturnUnit =>
                     local_results::permits_disposal(program, state, result, &[], &disposable_locals),
                 CheckedComposedUnitControlTerminatorPlan::Jump { successor } => transferred(successor)

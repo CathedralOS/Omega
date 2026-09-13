@@ -151,6 +151,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CopyI64 => 2,
         SelectedInstructionKind::BitwiseAndI64 => 51,
         SelectedInstructionKind::BitwiseXorI64 => 52,
+        SelectedInstructionKind::SaturatingSubtractU64 => 54,
+        SelectedInstructionKind::SaturatingAddU64 => 55,
+        SelectedInstructionKind::ExactDivideU64 { .. } => 56,
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -247,7 +250,11 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::HostedReadByte { slot }
         | SelectedInstructionKind::HostedWriteByteI32 { slot } => slot.encode_identity(bytes),
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
-        SelectedInstructionKind::ExactAddI64 {
+        SelectedInstructionKind::ExactDivideU64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactAddI64 {
             obligation,
             accepted_fact,
         }
@@ -280,6 +287,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseXorI64
+        | SelectedInstructionKind::SaturatingSubtractU64
+        | SelectedInstructionKind::SaturatingAddU64
         | SelectedInstructionKind::Float32ToBits
         | SelectedInstructionKind::Float64ToBits
         | SelectedInstructionKind::BitsToFloat32

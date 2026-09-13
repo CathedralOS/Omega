@@ -49,6 +49,7 @@ mod preterminal_optimization;
 mod proof_recursion;
 mod quotient_correspondence;
 mod scalar_block_invariants;
+mod scalar_call_case_arguments;
 mod scalar_graph;
 mod service_reach_contracts;
 mod structural_byte_sequence_index_store;

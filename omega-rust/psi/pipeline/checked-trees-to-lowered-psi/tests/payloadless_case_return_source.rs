@@ -93,13 +93,30 @@ fn ordered_case_returns_reject_changed_construction_control_and_coverage() {
         let checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded {
             arms,
             fallback,
-            returns,
+            return_values: returns,
         } = &mut state.terminator
         else {
             unreachable!()
         };
         match mutation {
-            0 => returns[0].case_identity = returns[1].case_identity.clone(),
+            0 => {
+                let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    value: replacement,
+                    ..
+                } = &returns[1]
+                else {
+                    panic!("selected value")
+                };
+                let replacement = *replacement;
+                let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    value,
+                    ..
+                } = &mut returns[0]
+                else {
+                    panic!("selected value")
+                };
+                *value = replacement;
+            }
             1 => returns.swap(0, 1),
             2 => {
                 let rows = checked

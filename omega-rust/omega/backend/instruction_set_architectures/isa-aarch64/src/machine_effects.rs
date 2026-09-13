@@ -217,6 +217,9 @@ fn selected_keys(
         bits_to_float64: Some(crate::AARCH64_BITS_TO_FLOAT64),
         add_i64: AARCH64_ADD_I64,
         subtract_i64: AARCH64_SUBTRACT_I64,
+        saturating_subtract_u64: crate::register_model::AARCH64_SATURATING_SUBTRACT_U64,
+        saturating_add_u64: crate::register_model::AARCH64_SATURATING_ADD_U64,
+        divide_u64: crate::register_model::AARCH64_DIVIDE_U64,
         add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
@@ -355,9 +358,12 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::SignExtendI16
         | MachineSemanticKind::SignExtendI32
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
+        MachineSemanticKind::ExactDivideU64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseXorI64
+        | MachineSemanticKind::SaturatingSubtractU64
+        | MachineSemanticKind::SaturatingAddU64
         | MachineSemanticKind::ExactAddI64
         | MachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ExactAddI64Immediate
@@ -393,7 +399,15 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             MachineEncodedTrapBehavior::NeverV1,
             MachineEncodedControlEffect::FallThroughV1,
         ),
-        MachineSemanticKind::CompareI64Zero
+        MachineSemanticKind::ExactDivideU64 => (
+            vec![],
+            vec![],
+            MachineEncodedTrapBehavior::NeverV1,
+            MachineEncodedControlEffect::FallThroughV1,
+        ),
+        MachineSemanticKind::SaturatingSubtractU64
+        | MachineSemanticKind::SaturatingAddU64
+        | MachineSemanticKind::CompareI64Zero
         | MachineSemanticKind::CompareI64
         | MachineSemanticKind::CompareI64Immediate => (
             vec![],
@@ -536,6 +550,9 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::CallScalar | MachineSemanticKind::CallAggregate => {
             panic!("scalar calls use their dedicated declaration")
         }
+        MachineSemanticKind::SaturatingSubtractU64 => MachineSizeKnowledge::ExactBytes(8),
+        MachineSemanticKind::SaturatingAddU64 => MachineSizeKnowledge::ExactBytes(8),
+        MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(4),
         _ => MachineSizeKnowledge::ExactBytes(4),
     }
 }

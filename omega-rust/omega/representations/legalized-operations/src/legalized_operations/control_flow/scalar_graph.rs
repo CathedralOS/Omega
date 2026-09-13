@@ -100,7 +100,9 @@ impl LegalizedScalarInstruction {
                         .arguments
                         .iter()
                         .any(|argument| matches!(argument, LegalizedScalarArgument::Scalar {source, ..} if *source == value)),
-                    LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
+                    LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right }
+                    | LegalizedScalarInstructionKind::SaturatingAddU64 { left, right }
+                    | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                     | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
                     | LegalizedScalarInstructionKind::BitwiseXor { left, right }
                     | LegalizedScalarInstructionKind::Compare { left, right, .. }
@@ -237,6 +239,15 @@ pub enum LegalizedScalarInstructionKind {
     },
     Call(LegalizedScalarCall),
     BoundarySettlement(crate::LegalizedBoundarySettlement),
+    /// Total unsigned subtraction clamps underflow to zero.
+    SaturatingAddU64 {
+        left: ValueId,
+        right: ValueId,
+    },
+    SaturatingSubtractU64 {
+        left: ValueId,
+        right: ValueId,
+    },
     ExactBinary {
         operator: super::super::LegalizedExactIntegerOperator,
         left: ValueId,

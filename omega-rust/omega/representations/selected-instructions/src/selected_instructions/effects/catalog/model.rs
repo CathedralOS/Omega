@@ -47,6 +47,9 @@ pub enum MachineSemanticKind {
     ExactAddI64,
     ExactAddI64Immediate,
     ExactSubtractI64,
+    SaturatingSubtractU64,
+    SaturatingAddU64,
+    ExactDivideU64,
     ExactSubtractI64Immediate,
     ConditionalBranchNonZero,
     ReturnScalar,
@@ -80,7 +83,7 @@ pub enum MachineSemanticKind {
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 54] = [
+    pub const ALL: [Self; 57] = [
         Self::BitwiseAndI64,
         Self::BitwiseXorI64,
         Self::CallAggregate,
@@ -105,6 +108,9 @@ impl MachineSemanticKind {
         Self::ExactAddI64,
         Self::ExactAddI64Immediate,
         Self::ExactSubtractI64,
+        Self::SaturatingSubtractU64,
+        Self::SaturatingAddU64,
+        Self::ExactDivideU64,
         Self::ExactSubtractI64Immediate,
         Self::ConditionalBranchNonZero,
         Self::ReturnScalar,
@@ -164,6 +170,9 @@ pub enum MachineAlternativeFamily {
     ExactAddI64,
     ExactAddI64Immediate,
     ExactSubtractI64,
+    SaturatingSubtractU64,
+    SaturatingAddU64,
+    ExactDivideU64,
     ExactSubtractI64Immediate,
     ConditionalBranchNonZero,
     ReturnScalar,
@@ -228,6 +237,9 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ExactAddI64 => Self::ExactAddI64,
             MachineSemanticKind::ExactAddI64Immediate => Self::ExactAddI64Immediate,
             MachineSemanticKind::ExactSubtractI64 => Self::ExactSubtractI64,
+            MachineSemanticKind::SaturatingSubtractU64 => Self::SaturatingSubtractU64,
+            MachineSemanticKind::SaturatingAddU64 => Self::SaturatingAddU64,
+            MachineSemanticKind::ExactDivideU64 => Self::ExactDivideU64,
             MachineSemanticKind::ExactSubtractI64Immediate => Self::ExactSubtractI64Immediate,
             MachineSemanticKind::ConditionalBranchNonZero => Self::ConditionalBranchNonZero,
             MachineSemanticKind::ReturnScalar => Self::ReturnScalar,

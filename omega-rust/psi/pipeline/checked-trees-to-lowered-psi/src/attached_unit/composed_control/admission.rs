@@ -484,7 +484,10 @@ pub(super) fn retain_call_targets<'a>(
     let mut boundaries = Vec::new();
     let mut internal_targets = Vec::new();
     for state in call_states.iter().copied() {
-        for operation in &state.operations {
+        for operation in state
+            .operation_dependencies()
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        {
             match operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall { .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {

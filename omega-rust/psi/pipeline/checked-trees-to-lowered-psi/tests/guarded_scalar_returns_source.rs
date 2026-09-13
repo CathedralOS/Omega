@@ -668,3 +668,138 @@ fn branch_return_coordinates_cannot_select_a_siblings_valid_value() {
         }
     }
 }
+
+#[test]
+fn ordered_guard_roster_rejects_tampering_and_reconstructs_result_range() {
+    let source = "
+        data Alignment [copy] { case Byte; case Word; case DoubleWord; case QuadWord; }
+        machine Alignment::get_stride(&self) -> u64 [1..=8] {
+            transition self {
+                Alignment::Byte -> (1)
+                Alignment::Word -> (2)
+                Alignment::DoubleWord -> (4)
+                Alignment::QuadWord -> (8)
+            }
+        }";
+    let checked = checked_source(source, BranchForm::Separate);
+    let original = checked_trees_to_lowered_psi::lower_machine(&checked, "Alignment::get_stride")
+        .expect("original four guarded returns");
+    let guarantees = &original
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == original.semantic_module.entry)
+        .unwrap()
+        .contract
+        .ensures;
+    assert!(
+        !guarantees.is_empty(),
+        "authored result range reaches Terminal"
+    );
+    for mutation in [
+        "omit guard",
+        "reorder guards",
+        "substitute return",
+        "erase range",
+    ] {
+        let mut changed = checked.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.scalar_control.is_some())
+            .expect("ordinary scalar control");
+        let machine = plan.machine;
+        let checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } =
+            &mut plan.scalar_control.as_mut().unwrap().terminator
+        else {
+            panic!("guarded return control")
+        };
+        assert_eq!(arms.len(), 4);
+        assert!(fallback.is_none());
+        match mutation {
+            "omit guard" => {
+                let mut guards = changed
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .guarded_exits
+                    .span(*arms)
+                    .unwrap()
+                    .to_vec();
+                guards.pop();
+                let mut replacement = arena::HandleSpan::empty();
+                for guard in guards {
+                    changed
+                        .facts
+                        .flow
+                        .terminal_scalar_graphs
+                        .guarded_exits
+                        .append_to_span(&mut replacement, guard);
+                }
+                changed
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .guarded_tails
+                    .iter_mut()
+                    .find(|tail| tail.arms == *arms)
+                    .unwrap()
+                    .arms = replacement;
+                *arms = replacement;
+            }
+            "reorder guards" => changed
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .guarded_exits
+                .span_mut(*arms)
+                .unwrap()
+                .swap(1, 2),
+            "substitute return" => {
+                let guards = changed
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .guarded_exits
+                    .span_mut(*arms)
+                    .unwrap();
+                guards[1].destination = guards[0].destination.clone();
+            }
+            "erase range" => {
+                let contract = changed
+                    .facts
+                    .contract_plans
+                    .machines
+                    .iter_mut()
+                    .find(|contract| contract.machine == machine)
+                    .unwrap();
+                contract.closed_scalar_values =
+                    checked_trees::ClosedScalarValueContractPlan::default();
+                // Incoming lowering reconstructs result refinements from the
+                // authored return type, not this optional retained predicate
+                // roster. Clearing it must not erase the Terminal guarantee.
+                let reconstructed =
+                    checked_trees_to_lowered_psi::lower_machine(&changed, "Alignment::get_stride")
+                        .expect("result range is independently reconstructed");
+                let retained = &reconstructed
+                    .semantic_module
+                    .machines
+                    .iter()
+                    .find(|machine| machine.id == reconstructed.semantic_module.entry)
+                    .unwrap()
+                    .contract
+                    .ensures;
+                assert_eq!(retained, guarantees);
+                continue;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&changed, "Alignment::get_stride").is_err(),
+            "{mutation}"
+        );
+    }
+}

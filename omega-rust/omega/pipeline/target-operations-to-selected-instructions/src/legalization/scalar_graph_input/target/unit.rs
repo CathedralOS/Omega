@@ -241,7 +241,10 @@ pub(super) fn validate_operation(
             | AbstractOperation::IntegerLessOrEqual { .. }
             | AbstractOperation::BooleanNot { .. }
             | AbstractOperation::BooleanEqual { .. }
+            | AbstractOperation::SaturatingIntegerSubtract { .. }
+            | AbstractOperation::SaturatingIntegerAdd { .. }
             | AbstractOperation::ExactIntegerAdd { .. }
+            | AbstractOperation::ExactIntegerDivide { .. }
             | AbstractOperation::IntegerBitwiseAnd { .. }
             | AbstractOperation::IntegerBitwiseXor { .. }
             | AbstractOperation::IntegerExactCast { .. }

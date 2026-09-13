@@ -435,6 +435,68 @@ pub(in crate::selection) fn validate_with_environment(
                         )?;
                         output
                     }
+                    LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right } => {
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                                    && integer.bits() == 64 && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+                        {
+                            return Err(invalid());
+                        }
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        replay.check_instruction(
+                            SelectedInstructionKind::SaturatingSubtractU64,
+                            constraints.keys.saturating_subtract_u64,
+                            &[left_register, right_register, output],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::SaturatingAddU64 { left, right } => {
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                                    && integer.bits() == 64 && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+                        {
+                            return Err(invalid());
+                        }
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        replay.check_instruction(
+                            SelectedInstructionKind::SaturatingAddU64,
+                            constraints.keys.saturating_add_u64,
+                            &[left_register, right_register, output],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::ExactBinary {
                         operator,
                         left,
@@ -449,7 +511,26 @@ pub(in crate::selection) fn validate_with_environment(
                         if left_type != scalar_type || right_type != scalar_type {
                             return Err(invalid());
                         }
+                        if *operator == legalized_operations::LegalizedExactIntegerOperator::Divide
+                            && scalar_type
+                                != ScalarType::Integer(
+                                    semantic_vocabulary::IntegerType::new(
+                                        IntegerSign::Unsigned,
+                                        64,
+                                    )
+                                    .map_err(|_| invalid())?,
+                                )
+                        {
+                            return Err(invalid());
+                        }
                         let (kind, key) = match operator {
+                            legalized_operations::LegalizedExactIntegerOperator::Divide => (
+                                SelectedInstructionKind::ExactDivideU64 {
+                                    obligation: *obligation,
+                                    accepted_fact: *accepted_fact,
+                                },
+                                constraints.keys.divide_u64,
+                            ),
                             legalized_operations::LegalizedExactIntegerOperator::Add => (
                                 SelectedInstructionKind::ExactAddI64 {
                                     obligation: *obligation,
@@ -470,10 +551,16 @@ pub(in crate::selection) fn validate_with_environment(
                             result.definition_site,
                             scalar_type,
                         )?;
+                        let mut operands = vec![left_register, right_register, output];
+                        if *operator == legalized_operations::LegalizedExactIntegerOperator::Divide
+                            && environment.target().architecture == target::Architecture::X86_64
+                        {
+                            operands.push(division_scratch(&mut replay)?);
+                        }
                         replay.check_instruction(
                             kind,
                             key,
-                            &[left_register, right_register, output],
+                            &operands,
                             &SelectedInstructionProvenance {
                                 operations: vec![operation.operation],
                                 values: vec![*left, *right, result.value],
@@ -678,4 +765,49 @@ impl Replay<'_> {
         )?;
         Ok(output)
     }
+}
+
+// The x86 high half is an explicit zero-valued implementation register.
+fn division_scratch(
+    replay: &mut Replay<'_>,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let instruction = SelectedInstructionId(
+        replay
+            .instruction_cursor
+            .try_into()
+            .map_err(|_| replay.invalid())?,
+    );
+    let expected_type = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
+            .map_err(|_| replay.invalid())?,
+    );
+    let register = replay
+        .selected
+        .virtual_registers
+        .get(replay.register_cursor)
+        .ok_or_else(|| replay.invalid())?;
+    if register.id.0 as usize != replay.register_cursor
+        || register.origin
+            != (VirtualRegisterOrigin::InstructionScratch {
+                instruction,
+                operand: 0,
+            })
+        || register.scalar_type != expected_type
+        || register.class != replay.class
+        || register.definition_site.is_some()
+        || register.entry_fixed_view.is_some()
+    {
+        return Err(replay.invalid());
+    }
+    let id = register.id;
+    replay.register_cursor += 1;
+    replay.check_instruction(
+        SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(0),
+        },
+        replay.constraints.keys.materialize_i64,
+        &[id],
+        &Default::default(),
+    )?;
+    Ok(id)
 }

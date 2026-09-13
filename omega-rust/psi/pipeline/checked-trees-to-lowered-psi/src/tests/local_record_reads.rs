@@ -21,6 +21,180 @@ const SOURCE: &str = "
 ";
 
 #[test]
+fn projected_shared_actual_preserves_root_path_and_observation_custody() {
+    let checked = checked_source(
+        "
+        data Inner { left: u64; right: u64; }
+        data Outer { prefix: u64; inner: Inner; sibling: Inner; }
+        machine Inner::equals(&self, other: &Inner) -> bool {
+            self.left == other.left && self.right == other.right
+        }
+        machine Outer::equals(&self, other: &Outer) -> bool {
+            self.inner.equals(&other.inner)
+        }
+        machine Outer::self_equals(&self) -> bool {
+            self.inner.equals(&self.inner)
+        }
+    ",
+    );
+    let lowered = lower_machine(&checked, "Outer::equals")
+        .expect("receiver and explicit shared actual retain their original projected homes");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independent projected shared custody");
+    lower_machine(&checked, "Outer::self_equals")
+        .expect("explicit self-field captures agree with projected receiver captures");
+    let inner_equals = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Inner::equals")
+        .unwrap()
+        .symbol;
+    let arguments = checked
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .iter()
+        .find_map(|(_, node)| match node.kind {
+            CheckedScalarComputationKind::Call {
+                target_machine,
+                structural_arguments,
+                ..
+            } if target_machine == inner_equals => Some(structural_arguments),
+            _ => None,
+        })
+        .expect("retained projected invocation");
+    let original = checked
+        .facts
+        .values
+        .scalar_computations
+        .structural_arguments
+        .span(arguments)
+        .unwrap();
+    assert_eq!(original.len(), 2);
+    for (position, argument) in original.iter().enumerate() {
+        let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = argument
+        else {
+            panic!("projected borrow");
+        };
+        assert_eq!(
+            argument.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: position as u32,
+            }
+        );
+        assert_eq!(
+            argument.path,
+            [checked_trees::CheckedUnitStructuralPathSegment::Field(
+                "inner".into()
+            )]
+        );
+        assert_eq!(
+            argument.access,
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+        );
+    }
+    let caller = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Outer::equals")
+        .unwrap();
+    let state = &checked.machine_states(caller)[0];
+    let borrow_state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|borrow| {
+            borrow.machine_symbol == caller.symbol && borrow.state_symbol == state.symbol
+        })
+        .unwrap();
+    let [call] = checked.facts.borrow.calls.span(borrow_state.calls).unwrap() else {
+        panic!("one exact projected invocation");
+    };
+    let accesses = checked
+        .facts
+        .borrow
+        .argument_accesses
+        .span(call.accesses)
+        .unwrap();
+    assert_eq!(
+        accesses.len(),
+        1,
+        "receiver is separate from explicit observations"
+    );
+    assert_eq!(
+        accesses[0].root_symbol,
+        checked.state_parameters(state)[1].symbol
+    );
+    let observation_segments = accesses[0].segments;
+    assert_eq!(observation_segments.len(), 1);
+    let outer = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Outer")
+        .unwrap();
+    let sibling = checked
+        .data_members(outer)
+        .iter()
+        .find_map(|member| match member {
+            checked_trees::data::DataMember::Field(field) if field.name.as_str() == "sibling" => {
+                Some(field.symbol)
+            }
+            _ => None,
+        })
+        .unwrap();
+    for corruption in ["sibling", "root", "access", "coordinated sibling"] {
+        let mut changed = checked.clone();
+        let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
+            &mut changed
+                .facts
+                .values
+                .scalar_computations
+                .structural_arguments
+                .span_mut(arguments)
+                .unwrap()[1]
+        else {
+            panic!("explicit projected borrow");
+        };
+        match corruption {
+            "sibling" | "coordinated sibling" => {
+                argument.path[0] =
+                    checked_trees::CheckedUnitStructuralPathSegment::Field("sibling".into())
+            }
+            "root" => {
+                argument.source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: 0,
+                    }
+            }
+            "access" => argument.access = checked_trees::CheckedStructuralAccess::MutableBorrow,
+            _ => unreachable!(),
+        }
+        if corruption == "coordinated sibling" {
+            // Both retained rows now name the same real, equally typed sibling.
+            // The unchanged authored actual still names other.inner; agreement
+            // among edited rows cannot grant that different place's custody.
+            changed
+                .facts
+                .borrow
+                .access_segments
+                .span_mut(observation_segments)
+                .unwrap()[0] = facts::PlaceSegment::Field { symbol: sibling };
+        }
+        assert!(
+            lower_machine(&changed, "Outer::equals").is_err(),
+            "accepted changed {corruption}"
+        );
+    }
+}
+
+#[test]
 fn local_record_reads_publish_direct_and_transported_places() {
     let checked = checked_source(SOURCE);
     for name in ["observe", "joined"] {

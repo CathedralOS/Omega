@@ -3,23 +3,23 @@ use super::*;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape};
 
+mod borrowed_arguments;
 mod owned_arguments;
-mod record_arguments;
 
 pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationPlan) -> bool {
     // Forwarding an incoming owned argument observes its payload even without
     // a local constructor or aggregate result. It needs aggregate ABI replay,
     // not the unused-owned-input path that deliberately emits no transport.
     function.result.structural().is_some()
-        // Unrestricted owned array parameters still require their complete
-        // graph ABI when unused: an empty placement is not an absent parameter.
+        // Whole owned values retain the complete graph ABI even when unused.
+        // Their signature must not depend on which scalar operations run beside them.
         || function.structural_parameters.iter().any(|parameter| {
             parameter.access == terminal_psi::StructuralAccess::Owned
                 && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                && plan.structural_types.iter().any(|declaration| {
-                    declaration.id == parameter.structural_type
-                        && matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
-                })
+                && crate::structural_reference_input::owned_aggregate_shape(
+                    parameter.structural_type,
+                    &plan.structural_types,
+                ).is_some()
         })
         || function
             .blocks
@@ -459,10 +459,13 @@ pub(in crate::legalization) fn call_argument(
         .ok_or(invalid.clone())?;
     if plan.structural_types.iter().any(|declaration| {
         declaration.id == destination.structural_type
-            && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::Record { .. } | StructuralTypeShape::Sum { .. }
+            )
     }) && argument.access != terminal_psi::StructuralAccess::Owned
     {
-        return record_arguments::reconstruct(
+        return borrowed_arguments::reconstruct(
             argument,
             position,
             call_operation,

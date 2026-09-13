@@ -46,11 +46,12 @@ pub(super) fn validate_borrowed_argument(
         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
     );
     let local = crate::selection::primitive_local_input::local(source, semantic.place);
-    let record_home = crate::selection::record_input::home(source, semantic.place);
-    let record_block_home = crate::selection::record_input::block_home(source, semantic.place);
-    let record_root = record_home
+    let aggregate_home = crate::selection::aggregate_result_input::home(source, semantic.place);
+    let aggregate_block_home =
+        crate::selection::aggregate_result_input::block_home(source, semantic.place);
+    let aggregate_root = aggregate_home
         .map(|(_, result)| result.structural_type)
-        .or_else(|| record_block_home.map(|(_, declaration)| declaration.structural_type))
+        .or_else(|| aggregate_block_home.map(|(_, declaration)| declaration.structural_type))
         .or_else(|| {
             signature
                 .parameters
@@ -64,13 +65,14 @@ pub(super) fn validate_borrowed_argument(
                 })
                 .map(|parameter| parameter.semantic.structural_type)
         });
-    let record = record_root
+    let aggregate = aggregate_root
         .filter(|root| {
             signature.structural_types.iter().any(|declaration| {
                 declaration.id == *root
                     && matches!(
                         declaration.shape,
                         terminal_psi::StructuralTypeShape::Record { .. }
+                            | terminal_psi::StructuralTypeShape::Sum { .. }
                     )
             })
         })
@@ -102,7 +104,7 @@ pub(super) fn validate_borrowed_argument(
                 &signature.structural_types,
             )
         });
-    let shape = if let Some(shape) = record {
+    let shape = if let Some(shape) = aggregate {
         shape
     } else if let Some((offset, _)) = byte_view {
         if offset != target.source_byte_offset
@@ -177,7 +179,7 @@ pub(super) fn validate_borrowed_argument(
     // family remains outside this transport contract.
     if (source.attachment.is_some()
         && !exclusive
-        && record.is_none()
+        && aggregate.is_none()
         && source.call_plan.result.is_some())
         || !signature.entry_claims.is_empty()
         || (source.call_plan.result.is_some() && !signature.published_service_ceiling.is_empty())
@@ -194,14 +196,16 @@ pub(super) fn validate_borrowed_argument(
         || !call.crash_continuations.is_empty()
         || call.call_plan != expected
         || (!exclusive
-            && record.is_none()
+            && aggregate.is_none()
             && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
         || target.place != semantic.place
         || target.access != semantic.access
         || target.path != semantic.path
-        || (!exclusive && record.is_none() && target.root_structural_type != target.structural_type)
+        || (!exclusive
+            && aggregate.is_none()
+            && target.root_structural_type != target.structural_type)
         || target.shape != shape
-        || (!exclusive && record.is_none() && target.source_byte_offset != 0)
+        || (!exclusive && aggregate.is_none() && target.source_byte_offset != 0)
         || target.fixed_array_length != byte_view.map(|(_, length)| length)
         || target.element_stride != byte_view.map(|_| 1)
         || Some(&target.destination) != expected.parameters.get(argument_index)
@@ -210,8 +214,8 @@ pub(super) fn validate_borrowed_argument(
     }
     match &target.source {
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
-            let (producer, _) = record_home?;
-            if record.is_none() || *psi_operation != producer || producer == operation {
+            let (producer, _) = aggregate_home?;
+            if aggregate.is_none() || *psi_operation != producer || producer == operation {
                 return None;
             }
         }
@@ -235,9 +239,9 @@ pub(super) fn validate_borrowed_argument(
             }
         }
         target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
-            if record.is_some() =>
+            if aggregate.is_some() =>
         {
-            let (owner, declaration) = record_block_home?;
+            let (owner, declaration) = aggregate_block_home?;
             if semantic.access != StructuralAccess::SharedBorrow
                 || *block != owner
                 || *place != declaration.place

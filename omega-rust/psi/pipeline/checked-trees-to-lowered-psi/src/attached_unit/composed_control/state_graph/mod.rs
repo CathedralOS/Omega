@@ -34,8 +34,11 @@ The source-to-execution examples live at src/tests/byte_write_loop.rs in this
 crate: scalar_case_return_preserves_authored_multifield_identity_and_rejects_plan_drift
 covers reordered fields and corrupt plans, and
 scalar_case_return_multistate_borrowed_view_and_ordinary_call_observe_count
-combines returns, loops, and caller-visible mutation. Native nonempty case
-construction remains a separate unsupported boundary. Full source coverage is
+combines returns, loops, and caller-visible mutation. Ordered value exits use
+guarded.rs and the ordinary structural-value emitter; their native constructor,
+borrowed-getter, and selected-effect coverage lives in
+tests/native-differential/tests/scalar_case_results/guarded_returns.rs at the
+repository root. Full source coverage is
 specified in ../../compiler/terminal-production/README.md relative to this crate.
 */
 

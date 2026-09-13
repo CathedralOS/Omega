@@ -124,6 +124,9 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::CopyI64
                 | MachineAlternativeFamily::BitwiseAndI64
                 | MachineAlternativeFamily::BitwiseXorI64
+                | MachineAlternativeFamily::SaturatingSubtractU64
+                | MachineAlternativeFamily::SaturatingAddU64
+                | MachineAlternativeFamily::ExactDivideU64
                 | MachineAlternativeFamily::Float32ToBits
                 | MachineAlternativeFamily::Float64ToBits
                 | MachineAlternativeFamily::BitsToFloat32

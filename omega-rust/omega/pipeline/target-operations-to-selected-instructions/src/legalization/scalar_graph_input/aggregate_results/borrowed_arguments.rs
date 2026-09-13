@@ -1,4 +1,4 @@
-//! Rejoin record references to exact incoming, operation, or block-entry storage.
+//! Rejoin aggregate references to exact incoming, operation, or block-entry storage.
 use super::*;
 pub(super) fn reconstruct(
     argument: &terminal_psi::StructuralArgument,
@@ -60,6 +60,7 @@ pub(super) fn reconstruct(
                     .position(|node| {
                         matches!(&node.operation,
                 AbstractOperation::EstablishRecord { psi_operation, .. }
+                | AbstractOperation::EstablishScalarCase { psi_operation, .. }
                 | AbstractOperation::CallStructural { psi_operation, .. }
                 | AbstractOperation::CallStructuralScalar { psi_operation, .. }
                 | AbstractOperation::CallUnit { psi_operation, .. } if *psi_operation == operation)

@@ -458,6 +458,18 @@ pub(super) fn project(
                 crash_continuations: crash_continuations.clone(),
             })
         }
+        AbstractOperation::SaturatingIntegerSubtract { left, right, .. } => {
+            LegalizedScalarInstructionKind::SaturatingSubtractU64 {
+                left: *left,
+                right: *right,
+            }
+        }
+        AbstractOperation::SaturatingIntegerAdd { left, right, .. } => {
+            LegalizedScalarInstructionKind::SaturatingAddU64 {
+                left: *left,
+                right: *right,
+            }
+        }
         AbstractOperation::ExactIntegerAdd {
             psi_operation,
             obligation,
@@ -466,6 +478,13 @@ pub(super) fn project(
             ..
         }
         | AbstractOperation::ExactIntegerSubtract {
+            psi_operation,
+            obligation,
+            left,
+            right,
+            ..
+        }
+        | AbstractOperation::ExactIntegerDivide {
             psi_operation,
             obligation,
             left,
@@ -489,6 +508,8 @@ pub(super) fn project(
             LegalizedScalarInstructionKind::ExactBinary {
                 operator: if matches!(node.operation, AbstractOperation::ExactIntegerAdd { .. }) {
                     LegalizedExactIntegerOperator::Add
+                } else if matches!(node.operation, AbstractOperation::ExactIntegerDivide { .. }) {
+                    LegalizedExactIntegerOperator::Divide
                 } else {
                     LegalizedExactIntegerOperator::Subtract
                 },

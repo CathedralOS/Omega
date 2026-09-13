@@ -6,6 +6,285 @@ use checked_trees::{
 };
 
 #[test]
+fn provider_attachment_retains_ordinary_state_local_construction() {
+    let checked = checked(
+        r#"
+        boundary trait Output { machine write(value: u64) reaches Output; }
+        data Region { value: u64; }
+        machine Region::new(value: u64) -> Region { Region { value: value } }
+        machine Region::get(&self) -> u64 { self.value }
+        data Main { output: Output; }
+        machine Main::main(&mut self, input: u64) reaches Output {
+            let region: Region = Region::new(input);
+            let observed: u64 = region.get();
+            transition observed == input { true -> passed() false -> failed() }
+            state passed(&mut self) { self.output.write(11); }
+            state failed(&mut self) { self.output.write(255); }
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "Main::main"))
+        .expect("ordinary state locals do not become provider requirements");
+    assert_eq!(plan.states.len(), 3);
+    assert_eq!(plan.provider_attachment_requirements.len(), 1);
+    let output = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Output")
+        .unwrap();
+    let requirement = &checked.trait_machine_signatures(output)[0];
+    assert_eq!(
+        plan.provider_attachment_requirements[0].boundary,
+        requirement.symbol
+    );
+}
+
+#[test]
+fn provider_control_retains_copy_case_constructor_call_closure() {
+    let checked = checked(
+        r#"
+        boundary trait Output { machine write(value: u64) reaches Output; }
+        data MemoryAlignment [copy] {
+            case Alignment1;
+            case Alignment2;
+            case Alignment4;
+            case Alignment8;
+        }
+        machine MemoryAlignment::default() -> MemoryAlignment {
+            MemoryAlignment::Alignment4
+        }
+        machine MemoryAlignment::from(size: i32) -> MemoryAlignment {
+            transition size {
+                1 -> (MemoryAlignment::Alignment1)
+                2 -> (MemoryAlignment::Alignment2)
+                4 -> (MemoryAlignment::Alignment4)
+                8 -> (MemoryAlignment::Alignment8)
+                _ -> (MemoryAlignment::Alignment1)
+            }
+        }
+        machine MemoryAlignment::get_size_in_bytes(&self) -> u64 [1..=8] {
+            transition self {
+                MemoryAlignment::Alignment1 -> (1)
+                MemoryAlignment::Alignment2 -> (2)
+                MemoryAlignment::Alignment4 -> (4)
+                MemoryAlignment::Alignment8 -> (8)
+            }
+        }
+        data Main { output: Output; }
+        machine Main::main(&mut self) reaches Output {
+            let default_alignment: MemoryAlignment = MemoryAlignment::default();
+            let fallback_alignment: MemoryAlignment = MemoryAlignment::from(3);
+            let default_size: u64 = default_alignment.get_size_in_bytes();
+            let fallback_size: u64 = fallback_alignment.get_size_in_bytes();
+            transition default_size == 4 && fallback_size == 1 {
+                true -> passed()
+                false -> failed()
+            }
+            state passed(&mut self) { self.output.write(11); }
+            state failed(&mut self) { self.output.write(255); }
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let constructor = plans
+        .composed_for_machine(machine_named(&checked, "MemoryAlignment::from"))
+        .expect("ordered copy-case returns retain a complete constructor plan");
+    let CheckedComposedUnitControlTerminatorPlan::Guarded {
+        arms,
+        fallback,
+        return_values,
+    } = &constructor.states[0].terminator
+    else {
+        panic!("constructor retains ordinary structural values at ordered source destinations");
+    };
+    assert_eq!(arms.len() + usize::from(fallback.is_some()), 5);
+    assert_eq!(return_values.len(), 5);
+    let plan = plans
+        .composed_for_machine(machine_named(&checked, "Main::main"))
+        .expect("provider control retains its complete copy-case constructor closure");
+    assert_eq!(plan.states.len(), 3);
+    let constructors = plan.states[0]
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } => {
+                Some(*target_machine)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        constructors,
+        [
+            machine_named(&checked, "MemoryAlignment::default"),
+            machine_named(&checked, "MemoryAlignment::from"),
+        ],
+        "both exact producers remain in authored order"
+    );
+    let output = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Output")
+        .expect("provider trait");
+    assert_eq!(plan.provider_attachment_requirements.len(), 1);
+    assert_eq!(
+        plan.provider_attachment_requirements[0].boundary,
+        checked.trait_machine_signatures(output)[0].symbol,
+        "only the selected leaf's boundary operation requests the provider"
+    );
+}
+
+#[test]
+fn ordered_structural_returns_keep_payload_effects_at_selected_destinations() {
+    let checked = checked(
+        r#"
+        data Choice [copy] {
+            case First(before: u64, after: u64);
+            case Second(before: u64, after: u64);
+            case Last(before: u64, after: u64);
+        }
+        machine replace(value: &mut u64, next: u64) -> u64 {
+            let before: u64 = value;
+            value = next;
+            before
+        }
+        machine choose(selector: i32, value: &mut u64) -> Choice {
+            transition {
+                selector < 2 -> (Choice::First {
+                    after: replace(&mut value, 11), before: replace(&mut value, 12)
+                })
+                selector < 4 -> (Choice::Second {
+                    after: replace(&mut value, 21), before: replace(&mut value, 22)
+                })
+                _ -> (Choice::Last {
+                    after: replace(&mut value, 31), before: replace(&mut value, 32)
+                })
+            }
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "choose"))
+        .expect("ordered return payload computations compose with borrowed mutation");
+    let state = &plan.states[0];
+    assert!(
+        state.operations.is_empty(),
+        "selected payload calls cannot become prefix effects"
+    );
+    let CheckedComposedUnitControlTerminatorPlan::Guarded {
+        arms,
+        fallback,
+        return_values,
+    } = &state.terminator
+    else {
+        panic!("ordered source control");
+    };
+    assert_eq!(return_values.len(), 3);
+    assert_eq!(state.operation_dependencies().count(), 3);
+    let source = checked
+        .machine_states(
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == plan.machine)
+                .unwrap(),
+        )
+        .iter()
+        .find(|source| source.symbol == state.state)
+        .unwrap();
+    let statements = checked.statement_table.statements(source.statement_nodes);
+    let computations = &checked.facts.values.scalar_computations;
+    let guards = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_exits
+        .span(*arms)
+        .unwrap();
+    for (destination, operation) in guards
+        .iter()
+        .map(|guard| &guard.destination)
+        .chain(fallback.iter())
+        .zip(return_values)
+    {
+        let checked_trees::CheckedScalarBranchDestination::Return {
+            statement_ordinal,
+            is_continuation,
+        } = destination
+        else {
+            panic!("value destination");
+        };
+        let typed_trees::statement::StatementNode::Transition(transition) =
+            &statements[*statement_ordinal as usize]
+        else {
+            panic!("authored return transition");
+        };
+        let target = if *is_continuation {
+            transition.continuation
+        } else {
+            transition.target
+        };
+        let typed_trees::statement::TransitionTargetNode::Value(expression) =
+            checked.statement_table.transition_target(target)
+        else {
+            panic!("authored constructor expression");
+        };
+        let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            result,
+            value,
+            discard_result_on_return: false,
+            ..
+        } = operation
+        else {
+            panic!("selected ordinary value establishment");
+        };
+        assert_eq!(result.statement_index, *statement_ordinal);
+        let root = checked
+            .facts
+            .values
+            .structural_values
+            .root_for_expression(state.state, *statement_ordinal, *expression)
+            .unwrap();
+        assert_eq!(root.root, *value);
+        let checked_trees::CheckedStructuralValueKind::Case(construction) = &checked
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get(*value)
+            .kind
+        else {
+            panic!("real case constructor");
+        };
+        let fields = computations.case_fields.span(construction.fields).unwrap();
+        assert_eq!(fields.len(), 2);
+        for (field_ordinal, field) in fields.iter().enumerate() {
+            let root = computations
+                .root_at(
+                    state.state,
+                    *statement_ordinal,
+                    CheckedScalarExpressionRole::StructuralValueField {
+                        expression: *expression,
+                        field_ordinal: u32::try_from(field_ordinal).unwrap(),
+                    },
+                )
+                .unwrap();
+            assert_eq!(
+                root.root, field.value,
+                "payload operands retain authored order and exact source scopes"
+            );
+        }
+    }
+}
+
+#[test]
 fn linear_result_arguments_continue_the_producing_call_claim() {
     let checked = checked(
         r#"

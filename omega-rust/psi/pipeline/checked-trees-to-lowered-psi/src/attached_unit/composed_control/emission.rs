@@ -336,6 +336,7 @@ pub(crate) fn emit_call_leaf(
         checked,
         machine,
         state,
+        &state.operations,
         catalogs,
         parameters,
         claim_bindings,
@@ -395,6 +396,7 @@ pub(super) fn emit_call_operations(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    planned_operations: &[CheckedUnitEffectOperationPlan],
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
@@ -405,7 +407,7 @@ pub(super) fn emit_call_operations(
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
-    for operation in &state.operations {
+    for operation in planned_operations {
         if matches!(
             operation,
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }

@@ -589,6 +589,15 @@ fn family_and_operand_count(
         SelectedInstructionKind::ExactAddI64 { .. } => (MachineAlternativeFamily::ExactAddI64, 3),
         SelectedInstructionKind::BitwiseAndI64 => (MachineAlternativeFamily::BitwiseAndI64, 3),
         SelectedInstructionKind::BitwiseXorI64 => (MachineAlternativeFamily::BitwiseXorI64, 3),
+        SelectedInstructionKind::SaturatingSubtractU64 => {
+            (MachineAlternativeFamily::SaturatingSubtractU64, 3)
+        }
+        SelectedInstructionKind::SaturatingAddU64 => {
+            (MachineAlternativeFamily::SaturatingAddU64, 3)
+        }
+        SelectedInstructionKind::ExactDivideU64 { .. } => {
+            (MachineAlternativeFamily::ExactDivideU64, 3)
+        }
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3)
         }
@@ -801,6 +810,32 @@ fn encode_unchecked(
                     | u32::from(registers[2]),
             );
         }
+        SelectedInstructionKind::SaturatingSubtractU64 => {
+            words.push(
+                0xeb00_0000
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2]),
+            );
+            words.push(0x9a9f_2000 | (u32::from(registers[2]) << 5) | u32::from(registers[2]));
+        }
+        SelectedInstructionKind::SaturatingAddU64 => {
+            words.push(
+                0xab00_0000
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2]),
+            );
+            words.push(0xda9f_3000 | (u32::from(registers[2]) << 5) | u32::from(registers[2]));
+        }
+        SelectedInstructionKind::ExactDivideU64 { .. } => {
+            words.push(
+                0x9ac0_0800
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2]),
+            );
+        }
         SelectedInstructionKind::BitwiseXorI64 => {
             words.push(
                 0xca00_0000
@@ -944,6 +979,29 @@ fn encode_movn_materialization_recipe(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedWord {
+    UnsignedDivide {
+        dividend: u8,
+        divisor: u8,
+        destination: u8,
+    },
+    AddWithFlags {
+        left: u8,
+        right: u8,
+        destination: u8,
+    },
+    SelectMaximumOnCarry {
+        source: u8,
+        destination: u8,
+    },
+    SubtractWithFlags {
+        left: u8,
+        right: u8,
+        destination: u8,
+    },
+    SelectZeroOnBorrow {
+        source: u8,
+        destination: u8,
+    },
     BitwiseXor {
         left: u8,
         right: u8,
@@ -1048,6 +1106,39 @@ fn decode_words(bytes: &[u8]) -> Result<Vec<DecodedWord>, Aarch64SelectedFormEnc
 }
 
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
+    if word & 0xffe0_fc00 == 0x9ac0_0800 {
+        return Ok(DecodedWord::UnsignedDivide {
+            dividend: ((word >> 5) & 31) as u8,
+            divisor: ((word >> 16) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0xab00_0000 && word & 31 != 31 {
+        return Ok(DecodedWord::AddWithFlags {
+            left: ((word >> 5) & 31) as u8,
+            right: ((word >> 16) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffff_fc00 == 0xda9f_3000 {
+        return Ok(DecodedWord::SelectMaximumOnCarry {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0xeb00_0000 && word & 31 != 31 {
+        return Ok(DecodedWord::SubtractWithFlags {
+            left: ((word >> 5) & 31) as u8,
+            right: ((word >> 16) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffff_fc00 == 0x9a9f_2000 {
+        return Ok(DecodedWord::SelectZeroOnBorrow {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
     if word & 0xffff_0fe0 == 0x9a9f_07e0 {
         let condition = (((word >> 12) & 15) ^ 1) as u8;
         if matches!(condition, 0 | 3 | 9 | 11 | 13) {
@@ -1312,6 +1403,42 @@ fn validate_decoded(
                     destination: registers[2],
                 }]
         }
+        SelectedInstructionKind::SaturatingSubtractU64 => {
+            decoded
+                == [
+                    DecodedWord::SubtractWithFlags {
+                        left: registers[0],
+                        right: registers[1],
+                        destination: registers[2],
+                    },
+                    DecodedWord::SelectZeroOnBorrow {
+                        source: registers[2],
+                        destination: registers[2],
+                    },
+                ]
+        }
+        SelectedInstructionKind::SaturatingAddU64 => {
+            decoded
+                == [
+                    DecodedWord::AddWithFlags {
+                        left: registers[0],
+                        right: registers[1],
+                        destination: registers[2],
+                    },
+                    DecodedWord::SelectMaximumOnCarry {
+                        source: registers[2],
+                        destination: registers[2],
+                    },
+                ]
+        }
+        SelectedInstructionKind::ExactDivideU64 { .. } => {
+            decoded
+                == [DecodedWord::UnsignedDivide {
+                    dividend: registers[0],
+                    divisor: registers[1],
+                    destination: registers[2],
+                }]
+        }
         SelectedInstructionKind::BitwiseXorI64 => {
             decoded
                 == [DecodedWord::BitwiseXor {
@@ -1491,7 +1618,14 @@ fn footprint(
         | SelectedInstructionKind::ZeroExtendU32 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![operands[0]], vec![], true),
+        SelectedInstructionKind::ExactDivideU64 { .. } => {
+            (vec![operands[0], operands[1]], vec![operands[2]], false)
+        }
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
+        SelectedInstructionKind::SaturatingSubtractU64
+        | SelectedInstructionKind::SaturatingAddU64 => {
+            (vec![operands[0], operands[1]], vec![operands[2]], true)
+        }
         SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseXorI64
@@ -1594,10 +1728,13 @@ fn footprint(
                 | SelectedInstructionKind::CompareI64Immediate { .. }
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
-                SelectedInstructionKind::CompareI64 => vec![0, 1],
+                SelectedInstructionKind::CompareI64
+                | SelectedInstructionKind::ExactDivideU64 { .. } => vec![0, 1],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseXorI64
+                | SelectedInstructionKind::SaturatingSubtractU64
+                | SelectedInstructionKind::SaturatingAddU64
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![0, 1],
                 _ => unreachable!("control forms handled separately"),
@@ -1621,10 +1758,13 @@ fn footprint(
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseXorI64
+                | SelectedInstructionKind::SaturatingSubtractU64
+                | SelectedInstructionKind::SaturatingAddU64
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64Zero => vec![],
                 SelectedInstructionKind::CompareI64Immediate { .. } => vec![],
+                SelectedInstructionKind::ExactDivideU64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64 => vec![],
                 _ => unreachable!("control forms handled separately"),
             },
@@ -1662,6 +1802,152 @@ mod tests {
 
     fn alternative(family: MachineAlternativeFamily) -> MachineAlternativeKey {
         MachineAlternativeKey { family, variant: 0 }
+    }
+
+    #[test]
+    fn saturating_subtract_binds_registers_condition_and_flag_effects() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let kind = SelectedInstructionKind::SaturatingSubtractU64;
+        let key = alternative(MachineAlternativeFamily::SaturatingSubtractU64);
+        for left in ["x0", "x1", "x9", "x29"] {
+            for right in ["x0", "x1", "x9", "x29"] {
+                for destination in ["x0", "x1", "x9", "x29"] {
+                    let operands = [left, right, destination]
+                        .map(|name| physical.model().view_named(name).unwrap().id);
+                    let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands);
+
+                    let encoded = encoded.unwrap();
+                    assert_eq!(encoded.bytes().len(), 8);
+                    let decoded = validate_aarch64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        encoded.bytes(),
+                    )
+                    .unwrap();
+                    assert_eq!(decoded.footprint().encoded.external_operand_reads, [0, 1]);
+                    assert_eq!(decoded.footprint().encoded.external_operand_writes, [2]);
+                    assert!(!decoded.footprint().encoded.implicit_unit_defs.is_empty());
+                    for byte in 0..encoded.bytes().len() {
+                        let mut changed = encoded.bytes().to_vec();
+                        changed[byte] ^= 1;
+                        assert!(
+                            validate_aarch64_selected_form_encoding(
+                                &physical, kind, key, &operands, &changed
+                            )
+                            .is_err(),
+                            "changed byte {byte}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn saturating_add_binds_registers_condition_and_flag_effects() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let kind = SelectedInstructionKind::SaturatingAddU64;
+        let key = alternative(MachineAlternativeFamily::SaturatingAddU64);
+        for left in ["x0", "x1", "x9", "x29"] {
+            for right in ["x0", "x1", "x9", "x29"] {
+                for destination in ["x0", "x1", "x9", "x29"] {
+                    let operands = [left, right, destination]
+                        .map(|name| physical.model().view_named(name).unwrap().id);
+                    let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands);
+
+                    let encoded = encoded.unwrap();
+                    assert_eq!(encoded.bytes().len(), 8);
+                    let decoded = validate_aarch64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        encoded.bytes(),
+                    )
+                    .unwrap();
+                    assert_eq!(decoded.footprint().encoded.external_operand_reads, [0, 1]);
+                    assert_eq!(decoded.footprint().encoded.external_operand_writes, [2]);
+                    assert!(!decoded.footprint().encoded.implicit_unit_defs.is_empty());
+                    for byte in 0..encoded.bytes().len() {
+                        let mut changed = encoded.bytes().to_vec();
+                        changed[byte] ^= 1;
+                        assert!(
+                            validate_aarch64_selected_form_encoding(
+                                &physical, kind, key, &operands, &changed
+                            )
+                            .is_err(),
+                            "changed byte {byte}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn saturation_high_register_bytes_match_independent_assembler() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let operands =
+            ["x9", "x10", "x11"].map(|name| physical.model().view_named(name).unwrap().id);
+        // Independently assembled with Apple clang; not derived from this encoder.
+        for (kind, family, bytes) in [
+            (
+                SelectedInstructionKind::SaturatingSubtractU64,
+                MachineAlternativeFamily::SaturatingSubtractU64,
+                [0xeb0a012bu32, 0x9a9f216b]
+                    .into_iter()
+                    .flat_map(u32::to_le_bytes)
+                    .collect::<Vec<_>>(),
+            ),
+            (
+                SelectedInstructionKind::SaturatingAddU64,
+                MachineAlternativeFamily::SaturatingAddU64,
+                [0xab0a012bu32, 0xda9f316b]
+                    .into_iter()
+                    .flat_map(u32::to_le_bytes)
+                    .collect::<Vec<_>>(),
+            ),
+        ] {
+            let key = alternative(family);
+            let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
+            assert_eq!(encoded.bytes(), bytes);
+            validate_aarch64_selected_form_encoding(&physical, kind, key, &operands, &bytes)
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn exact_divide_binds_unsigned_opcode_and_registers() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let kind = SelectedInstructionKind::ExactDivideU64 {
+            obligation: ObligationId::new(1).unwrap(),
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        };
+        let key = alternative(MachineAlternativeFamily::ExactDivideU64);
+        let names = ["x9", "x10", "x11"];
+        let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
+        let expected = 0x9aca092bu32.to_le_bytes().to_vec();
+
+        let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
+        assert_eq!(encoded.bytes(), expected);
+        for byte in 0..expected.len() {
+            let mut changed = expected.clone();
+            changed[byte] ^= 1;
+            assert!(
+                validate_aarch64_selected_form_encoding(&physical, kind, key, &operands, &changed)
+                    .is_err()
+            );
+        }
+        for operand in 0..operands.len() {
+            let mut changed = operands;
+            changed[operand] = physical.model().view_named("x8").unwrap().id;
+            assert!(
+                validate_aarch64_selected_form_encoding(&physical, kind, key, &changed, &expected)
+                    .is_err()
+            );
+        }
     }
 
     #[test]

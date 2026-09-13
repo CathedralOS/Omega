@@ -220,6 +220,9 @@ fn selected_keys(
         bits_to_float64: Some(crate::X86_64_BITS_TO_FLOAT64),
         add_i64: X86_64_ADD_I64,
         subtract_i64: X86_64_SUBTRACT_I64,
+        saturating_subtract_u64: crate::register_model::X86_64_SATURATING_SUBTRACT_U64,
+        saturating_add_u64: crate::register_model::X86_64_SATURATING_ADD_U64,
+        divide_u64: crate::register_model::X86_64_DIVIDE_U64,
         add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: X86_64_COMPARE_I64_ZERO,
@@ -240,8 +243,16 @@ fn declaration(
     keys: &SelectedConstraintKeys,
 ) -> MachineEffectDeclaration {
     let alternatives = match semantic {
+        MachineSemanticKind::ExactDivideU64 => vec![alternative(
+            semantic,
+            0,
+            MachineAlternativeApplicability::Always,
+            size(semantic),
+        )],
         MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseXorI64
+        | MachineSemanticKind::SaturatingSubtractU64
+        | MachineSemanticKind::SaturatingAddU64
         | MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::ExactAddI64 => {
             vec![alternative(
@@ -388,8 +399,11 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::SignExtendI16
         | MachineSemanticKind::SignExtendI32
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
+        MachineSemanticKind::ExactDivideU64 => (vec![0, 1, 3], vec![2]),
         MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseXorI64
+        | MachineSemanticKind::SaturatingSubtractU64
+        | MachineSemanticKind::SaturatingAddU64
         | MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::ExactAddI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ExactAddI64Immediate
@@ -452,8 +466,25 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedTrapBehavior::NeverV1,
                 MachineEncodedControlEffect::FallThroughV1,
             ),
+            MachineSemanticKind::ExactDivideU64 => (
+                vec![],
+                vec![],
+                {
+                    let mut clobbers = units("rdx");
+                    clobbers.extend(units("rflags"));
+                    clobbers.sort_unstable();
+                    clobbers.dedup();
+                    clobbers
+                },
+                MachineEncodedMemoryEffect::NoneV1,
+                MachineEncodedStackEffect::UnchangedV1,
+                MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                MachineEncodedControlEffect::FallThroughV1,
+            ),
             MachineSemanticKind::BitwiseAndI64
             | MachineSemanticKind::BitwiseXorI64
+            | MachineSemanticKind::SaturatingSubtractU64
+            | MachineSemanticKind::SaturatingAddU64
             | MachineSemanticKind::ExactSubtractI64 => (
                 vec![],
                 vec![],
@@ -567,6 +598,9 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             MachineSizeKnowledge::ExactBytes(3)
         }
         MachineSemanticKind::MaterializeI64 => MachineSizeKnowledge::ExactBytes(10),
+        MachineSemanticKind::SaturatingSubtractU64 => MachineSizeKnowledge::ExactBytes(13),
+        MachineSemanticKind::SaturatingAddU64 => MachineSizeKnowledge::ExactBytes(19),
+        MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::BitwiseAndI64 | MachineSemanticKind::BitwiseXorI64 => {
             MachineSizeKnowledge::EncoderResolved {
                 minimum_bytes: 3,

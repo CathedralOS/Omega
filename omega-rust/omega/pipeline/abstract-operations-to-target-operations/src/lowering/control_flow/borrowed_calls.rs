@@ -100,8 +100,8 @@ pub(super) fn lower(
         .zip(&callee_function.structural_parameters)
         .zip(&signature.parameters)
         .map(|((argument, declaration), destination)| {
-            if super::records::is_reference(declaration, types) {
-                return super::records::argument(
+            if super::aggregate_borrows::is_reference(declaration, types) {
+                return super::aggregate_borrows::argument(
                     argument,
                     declaration,
                     destination,

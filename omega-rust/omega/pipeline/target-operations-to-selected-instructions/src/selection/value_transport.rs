@@ -54,7 +54,9 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                         .iter()
                         .filter_map(|argument| argument.scalar_source()),
                 ),
-                Instruction::ExactBinary { left, right, .. }
+                Instruction::SaturatingSubtractU64 { left, right }
+                | Instruction::SaturatingAddU64 { left, right }
+                | Instruction::ExactBinary { left, right, .. }
                 | Instruction::BitwiseAnd { left, right }
                 | Instruction::BitwiseXor { left, right }
                 | Instruction::IeeeFloatCompare { left, right, .. }

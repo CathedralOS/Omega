@@ -51,6 +51,7 @@ pub(crate) struct Evaluation {
 /// Replace candidate roots only at their normal death edge. Both rosters are
 /// in reverse establishment order; physical source declarations stay intact.
 /// An ordinary move has no residual candidates and only rebinds survivors.
+#[derive(Clone)]
 pub(crate) struct SelectionCleanup {
     pub(crate) selected: PlaceId,
     pub(crate) sources: Vec<PlaceId>,
@@ -69,6 +70,33 @@ pub(crate) struct StructuralValueOwner {
 }
 
 impl Evaluation {
+    /// Start a mutually exclusive branch with the current source namespace.
+    /// Completed blocks and their operations remain with the parent; only the
+    /// incoming frontier is shared. Each branch can then move or rebind owners
+    /// without changing the sibling's compile-time view of that frontier.
+    pub(crate) fn branch(&self, block: BlockId, operation_start: usize) -> Self {
+        Self {
+            structural_value_owners: self.structural_value_owners.clone(),
+            selection_cleanups: self.selection_cleanups.clone(),
+            structural_locals: self.structural_locals.clone(),
+            local_cases: self.local_cases.clone(),
+            arrays: self.arrays.clone(),
+            cases: self.cases.clone(),
+            record_fields: self.record_fields.clone(),
+            primitive_storage: self.primitive_storage.clone(),
+            scalar_bindings: self.scalar_bindings.clone(),
+            structural_parameters: self.structural_parameters.clone(),
+            structural_fields: self.structural_fields.clone(),
+            structural_cases: self.structural_cases.clone(),
+            entry: self.entry,
+            current: block,
+            parameters: Vec::new(),
+            block_structural_parameters: Vec::new(),
+            operation_start,
+            blocks: Vec::new(),
+        }
+    }
+
     /// Publish one completed structural result into the state's existing value
     /// and local namespaces. Calls and constructors share the original home;
     /// registration neither copies payload fields nor changes cleanup custody.

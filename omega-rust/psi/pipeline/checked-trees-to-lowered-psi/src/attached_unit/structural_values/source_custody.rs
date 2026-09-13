@@ -35,6 +35,11 @@ pub(crate) fn validate(
         return unsupported("structural construction operation absent");
     };
     let (owner, source) = crate::scalar_source_custody::authored_state(checked, state)?;
+    let plans = &checked.facts.values.structural_values;
+    if !plans.nodes.is_valid(*value) {
+        return unsupported("structural construction has a stale value root");
+    }
+    let retained_expression = plans.nodes.get(*value).expression;
     let (expression, reference) = match checked
         .statement_table
         .statements(source.statement_nodes)
@@ -44,9 +49,32 @@ pub(crate) fn validate(
             (local.initial_value, local.type_reference)
         }
         Some(StatementNode::Expression(expression)) => (*expression, source.return_type),
+        Some(StatementNode::Transition(transition))
+            if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
+        {
+            let mut selected = [transition.target, transition.continuation]
+                .into_iter()
+                .filter(|target| target.is_valid())
+                .filter_map(
+                    |target| match checked.statement_table.transition_target(target) {
+                        checked_trees::statement::TransitionTargetNode::Value(expression)
+                            if *expression == retained_expression =>
+                        {
+                            Some(*expression)
+                        }
+                        _ => None,
+                    },
+                );
+            let expression = selected.next().ok_or(LoweringError::Unsupported(
+                "structural return exchanged its authored destination",
+            ))?;
+            if selected.next().is_some() {
+                return unsupported("structural return has ambiguous source destinations");
+            }
+            (expression, source.return_type)
+        }
         _ => return unsupported("structural construction lost its authored destination"),
     };
-    let plans = &checked.facts.values.structural_values;
     // Absence and ambiguity are different: a duplicate key must not turn a
     // selected owner into a fresh construction with fabricated provenance.
     if checked
@@ -64,7 +92,7 @@ pub(crate) fn validate(
         return unsupported("structural value has ambiguous selected ownership receipts");
     }
     let root = plans
-        .root_at(state, result.statement_index)
+        .root_for_expression(state, result.statement_index, expression)
         .ok_or(LoweringError::Unsupported(
             "structural construction has no unique source root",
         ))?;
@@ -567,9 +595,57 @@ pub(crate) fn validate(
                         | CheckedScalarExpressionRole::StructuralValueField { .. }
                 )
                 && !operand_roles.contains(&root.role)
+                && !matches!(
+                    checked
+                        .statement_table
+                        .statements(source.statement_nodes)
+                        .get(result.statement_index as usize),
+                    Some(StatementNode::Transition(_))
+                )
         })
     {
         return unsupported("structural construction acquired an unauthored scalar root");
+    }
+    // A combined transition has two disjoint value scopes at one statement.
+    // Reconstruct every retained operand against those authored scopes instead
+    // of treating the sibling's roots as operands of this selected value.
+    if matches!(
+        checked
+            .statement_table
+            .statements(source.statement_nodes)
+            .get(result.statement_index as usize),
+        Some(StatementNode::Transition(_))
+    ) {
+        for (_, root) in checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .filter(|(_, root)| {
+                root.state == state
+                    && root.statement_ordinal == result.statement_index
+                    && matches!(
+                        root.role,
+                        CheckedScalarExpressionRole::StructuralValueSubject { .. }
+                            | CheckedScalarExpressionRole::StructuralValuePattern { .. }
+                            | CheckedScalarExpressionRole::StructuralValueField { .. }
+                            | CheckedScalarExpressionRole::RecordField { .. }
+                    )
+            })
+        {
+            let (expression, _) =
+                operand_source(checked, state, result.statement_index, root.role)?;
+            validate_operand(
+                checked,
+                machine,
+                state,
+                result.statement_index,
+                root.role,
+                root.root,
+                expression,
+            )?;
+        }
     }
     Ok(())
 }
@@ -621,16 +697,31 @@ pub(crate) fn operand_source(
     role: CheckedScalarExpressionRole,
 ) -> Result<(ExpressionHandle, PrimitiveType), LoweringError> {
     let (machine, source) = crate::scalar_source_custody::authored_state(checked, state)?;
-    let expression = match checked
+    let mut pending = match checked
         .statement_table
         .statements(source.statement_nodes)
         .get(statement as usize)
     {
-        Some(StatementNode::LocalData(local)) => local.initial_value,
-        Some(StatementNode::Expression(expression)) => *expression,
+        Some(StatementNode::LocalData(local)) => vec![local.initial_value],
+        Some(StatementNode::Expression(expression)) => vec![*expression],
+        Some(StatementNode::Transition(transition))
+            if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
+        {
+            [transition.target, transition.continuation]
+                .into_iter()
+                .filter(|target| target.is_valid())
+                .filter_map(
+                    |target| match checked.statement_table.transition_target(target) {
+                        checked_trees::statement::TransitionTargetNode::Value(expression) => {
+                            Some(*expression)
+                        }
+                        _ => None,
+                    },
+                )
+                .collect()
+        }
         _ => return unsupported("structural operand has no authored value scope"),
     };
-    let mut pending = vec![expression];
     let mut visited = Vec::new();
     while let Some(expression) = pending.pop() {
         if visited.contains(&expression) {

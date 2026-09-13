@@ -25,7 +25,7 @@ pub(in crate::attached_unit::composed_control) fn lower(
     )?;
     for operation in states
         .iter()
-        .flat_map(|state| &state.operations)
+        .flat_map(|state| state.operation_dependencies())
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
         let reach = match operation {
@@ -36,7 +36,9 @@ pub(in crate::attached_unit::composed_control) fn lower(
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
+            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => continue,
             _ => return unsupported("composed root retained a non-call operation"),
         };
         collect_service_summary(&checked.facts.service_reaches.rows, reach, &mut services)?;
@@ -53,6 +55,20 @@ pub(in crate::attached_unit::composed_control) fn lower(
             .iter()
             .flat_map(|state| &state.structural_parameters)
             .map(|parameter| parameter.type_identity.clone()),
+    );
+    type_roots.extend(
+        states
+            .iter()
+            .flat_map(|state| state.operation_dependencies())
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
+                    Some(result.type_identity.clone())
+                }
+                _ => None,
+            }),
     );
     let unit_roots = targets
         .iter()
