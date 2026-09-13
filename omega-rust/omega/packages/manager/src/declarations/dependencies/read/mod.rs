@@ -12,7 +12,8 @@ pub use aliases::DependencyAliasError;
 pub use error::DependencyProjectionError;
 pub use extraction::{extract_build_dependency_projection, extract_dependency_projection};
 pub use model::{
-    BuildDependencyProjection, DependencySourceRequest, PackageSelection, ProjectedDependencies,
+    BuildDependencyProjection, DependencyProjections, DependencyPurpose, DependencySourceRequest,
+    PackageSelection, ProjectedDependencies,
 };
 
 pub(crate) use extraction::extract_from_source;

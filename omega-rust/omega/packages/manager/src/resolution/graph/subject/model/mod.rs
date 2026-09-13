@@ -19,7 +19,7 @@ pub use request::{
 use super::super::ResolvedSourceIdentity;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
-use crate::declarations::dependencies::read::ProjectedDependencies;
+use crate::declarations::dependencies::read::DependencyProjections;
 use crate::resolution::source::PackageSourceNavigation;
 use target::TargetProfile;
 
@@ -27,7 +27,13 @@ use target::TargetProfile;
 mod tests;
 
 pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
-pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 6;
+/// Version of the binary subject encoding.
+///
+/// v7 records each dependency edge's authorized purpose (product or build)
+/// and splits each package's authored requests by purpose. v6 subjects have
+/// only product-purpose requests and edges; they are not accepted as v7
+/// records and must be re-projected through the versioned lock migration.
+pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 7;
 pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 
@@ -43,7 +49,7 @@ pub struct CanonicalSourceClosureSubject {
     pub(super) root: CanonicalRootSourceSelection,
     pub(super) packages: Vec<ResolvedSourceIdentity>,
     pub(super) package_navigations: Vec<PackageSourceNavigation>,
-    pub(super) package_dependency_projections: Vec<ProjectedDependencies>,
+    pub(super) package_dependency_projections: Vec<DependencyProjections>,
     pub(super) dependency_requests: Vec<CanonicalDependencySourceSelection>,
     pub(super) canonical_bytes: Vec<u8>,
     pub(super) fingerprint: CanonicalSourceClosureSubjectFingerprint,
@@ -86,7 +92,7 @@ impl CanonicalSourceClosureSubject {
     pub fn package_dependency_projection(
         &self,
         package: &PackageKey,
-    ) -> Option<&ProjectedDependencies> {
+    ) -> Option<&DependencyProjections> {
         self.packages
             .binary_search_by(|source| source.key().cmp(package))
             .ok()

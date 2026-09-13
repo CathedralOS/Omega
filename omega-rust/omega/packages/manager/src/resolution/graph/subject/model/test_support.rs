@@ -5,7 +5,9 @@ use super::{
     CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectLimits,
 };
-use crate::declarations::dependencies::read::{DependencySourceRequest, ProjectedDependencies};
+use crate::declarations::dependencies::read::{
+    DependencyProjections, DependencyPurpose, DependencySourceRequest, ProjectedDependencies,
+};
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
 use target::TargetProfile;
@@ -53,27 +55,39 @@ impl CanonicalSourceClosureSubject {
 fn unconditional_projections(
     packages: &[ResolvedSourceIdentity],
     dependency_requests: &[CanonicalDependencySourceSelection],
-) -> Result<Vec<ProjectedDependencies>, CanonicalSourceClosureSubjectError> {
+) -> Result<Vec<DependencyProjections>, CanonicalSourceClosureSubjectError> {
     packages
         .iter()
         .map(|package| {
-            let rows = dependency_requests
-                .iter()
-                .filter(|selection| &selection.requester == package.key())
-                .collect::<Vec<_>>();
-            for (expected, row) in rows.iter().enumerate() {
-                if row.dependency_index != expected {
-                    return Err(CanonicalSourceClosureSubjectError::new(if expected == 0 {
-                        "dependency request ordinals do not begin at zero"
-                    } else {
-                        "dependency request ordinals are not contiguous"
-                    }));
+            let mut scopes = [
+                Vec::<DependencySourceRequest>::new(),
+                Vec::<DependencySourceRequest>::new(),
+            ];
+            for purpose in DependencyPurpose::ALL {
+                let rows = dependency_requests
+                    .iter()
+                    .filter(|selection| {
+                        &selection.requester == package.key() && selection.purpose == purpose
+                    })
+                    .collect::<Vec<_>>();
+                for (expected, row) in rows.iter().enumerate() {
+                    if row.dependency_index != expected {
+                        return Err(CanonicalSourceClosureSubjectError::new(if expected == 0 {
+                            "dependency request ordinals do not begin at zero"
+                        } else {
+                            "dependency request ordinals are not contiguous"
+                        }));
+                    }
                 }
-            }
-            Ok(ProjectedDependencies::from(
-                rows.into_iter()
+                scopes[usize::from(purpose as u8)] = rows
+                    .into_iter()
                     .map(|selection| projected_request(&selection.request))
-                    .collect::<Vec<_>>(),
+                    .collect();
+            }
+            let [product, build] = scopes;
+            Ok(DependencyProjections::new(
+                ProjectedDependencies::from(product),
+                ProjectedDependencies::from(build),
             ))
         })
         .collect()

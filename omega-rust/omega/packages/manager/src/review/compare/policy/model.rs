@@ -1,5 +1,6 @@
 use super::PackagePolicySourceReplacement;
 use crate::declarations::PackageKey;
+use crate::declarations::dependencies::DependencyPurpose;
 use crate::lock::PackageAcceptanceRow;
 use crate::resolution::graph::CanonicalSourceClosureSubjectFingerprint;
 use crate::review::compare::model::ReviewOnlyRootRoleChange;
@@ -82,6 +83,7 @@ impl PackagePolicyDependencyPath {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyDependencyPathStep {
     pub(super) requester: PackageKeyIdentity,
+    pub(super) purpose: DependencyPurpose,
     pub(super) dependency_index: usize,
     pub(super) alias: String,
     pub(super) target: PackageKeyIdentity,
@@ -89,6 +91,9 @@ pub struct PackagePolicyDependencyPathStep {
 impl PackagePolicyDependencyPathStep {
     pub const fn requester(&self) -> PackageKeyIdentity {
         self.requester
+    }
+    pub const fn purpose(&self) -> DependencyPurpose {
+        self.purpose
     }
     pub const fn dependency_index(&self) -> usize {
         self.dependency_index

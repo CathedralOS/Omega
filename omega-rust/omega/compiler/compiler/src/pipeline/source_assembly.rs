@@ -489,6 +489,10 @@ pub machine Build::depend(&mut self, source: Source) {
 }
 pub machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
 }
+pub machine Build::build_depend(&mut self, source: Source) {
+}
+pub machine Build::build_depend_as(&mut self, alias: &[u8], source: Source) {
+}
 pub machine Build::package(&mut self, name: &[u8]) {
 }
 pub machine Build::application(&mut self, name: &[u8]) {

@@ -187,10 +187,11 @@ fn graph(output: &mut Output, label: &str, source: &CanonicalSourceClosureSubjec
     for edge in source.dependency_requests() {
         writeln!(
             output,
-            "edge {:?} {} -- {:?} [dependency {}] --> {:?} {}",
+            "edge {:?} {} -- {:?} [{} dependency {}] --> {:?} {}",
             edge.requester().name().as_str(),
             Hex(&edge.requester().identity().digest()),
             edge.alias().as_str(),
+            edge.purpose().name(),
             edge.dependency_index(),
             edge.selected().key().name().as_str(),
             Hex(&edge.selected().key().identity().digest()),

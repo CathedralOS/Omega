@@ -1,6 +1,8 @@
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
-use crate::declarations::dependencies::read::{DependencySourceRequest, ProjectedDependencies};
+use crate::declarations::dependencies::read::{
+    DependencyProjections, DependencyPurpose, DependencySourceRequest,
+};
 use crate::resolution::source::PackageSourceCustody;
 use crate::resolution::source::PackageSourceMaterialization;
 use crate::resolution::source::PackageSourceNavigation;
@@ -25,7 +27,7 @@ pub struct ResolvedPackageSource<S> {
     navigation: PackageSourceNavigation,
     selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
-    projected_dependencies: ProjectedDependencies,
+    dependency_projections: DependencyProjections,
     source: S,
 }
 
@@ -43,7 +45,7 @@ impl<S> ResolvedPackageSource<S> {
         source: S,
     ) -> Self
     where
-        D: Into<ProjectedDependencies>,
+        D: Into<DependencyProjections>,
     {
         Self {
             key,
@@ -54,7 +56,7 @@ impl<S> ResolvedPackageSource<S> {
             navigation,
             selection_evidence,
             source_limits,
-            projected_dependencies: projected_dependencies.into(),
+            dependency_projections: projected_dependencies.into(),
             source,
         }
     }
@@ -87,12 +89,23 @@ impl<S> ResolvedPackageSource<S> {
         &self.selection_evidence
     }
 
-    pub fn dependency_requests(&self) -> &[DependencySourceRequest] {
-        self.projected_dependencies.authored_dependencies()
+    /// Authored requests for one purpose scope, in requester-local order.
+    pub fn dependency_requests(&self, purpose: DependencyPurpose) -> &[DependencySourceRequest] {
+        self.dependency_projections.requests(purpose)
     }
 
-    pub const fn projected_dependencies(&self) -> &ProjectedDependencies {
-        &self.projected_dependencies
+    /// Authored product-purpose requests, in requester-local order.
+    pub fn product_dependency_requests(&self) -> &[DependencySourceRequest] {
+        self.dependency_requests(DependencyPurpose::Product)
+    }
+
+    /// Authored build-purpose requests, in requester-local order.
+    pub fn build_dependency_requests(&self) -> &[DependencySourceRequest] {
+        self.dependency_requests(DependencyPurpose::Build)
+    }
+
+    pub const fn dependency_projections(&self) -> &DependencyProjections {
+        &self.dependency_projections
     }
 
     pub fn source_limits(&self) -> LocalSourceLimits {
@@ -119,7 +132,7 @@ impl<S> ResolvedPackageSource<S> {
             self.navigation,
             self.selection_evidence,
             self.source_limits,
-            self.projected_dependencies,
+            self.dependency_projections,
         )
     }
 

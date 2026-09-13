@@ -6,7 +6,7 @@ use super::{
     CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectLimits,
     SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, SOURCE_CLOSURE_SUBJECT_MAGIC,
 };
-use crate::declarations::dependencies::read::ProjectedDependencies;
+use crate::declarations::dependencies::read::DependencyProjections;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
 use crate::resolution::source::PackageSourceNavigation;
 use target::TargetProfile;
@@ -77,7 +77,7 @@ impl CanonicalSourceClosureSubject {
                 closure
                     .custody(package.key())
                     .expect("validated closure retains every package custody")
-                    .projected_dependencies()
+                    .dependency_projections()
                     .clone()
             })
             .collect::<Vec<_>>();
@@ -86,6 +86,7 @@ impl CanonicalSourceClosureSubject {
             .dependencies()
             .map(|selection| CanonicalDependencySourceSelection {
                 requester: selection.requester().clone(),
+                purpose: selection.purpose(),
                 dependency_index: selection.dependency_index(),
                 request: CanonicalDependencySourceRequest::from(selection.request()),
                 alias: selection.alias().clone(),
@@ -95,6 +96,7 @@ impl CanonicalSourceClosureSubject {
         dependency_requests.sort_by(|left, right| {
             left.requester
                 .cmp(&right.requester)
+                .then(left.purpose.cmp(&right.purpose))
                 .then(left.dependency_index.cmp(&right.dependency_index))
         });
         Self::finish_with_projections(
@@ -182,7 +184,7 @@ impl CanonicalSourceClosureSubject {
         root: CanonicalRootSourceSelection,
         packages: Vec<ResolvedSourceIdentity>,
         package_navigations: Vec<PackageSourceNavigation>,
-        package_dependency_projections: Vec<ProjectedDependencies>,
+        package_dependency_projections: Vec<DependencyProjections>,
         dependency_requests: Vec<CanonicalDependencySourceSelection>,
         limits: CanonicalSourceClosureSubjectLimits,
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
@@ -203,7 +205,7 @@ impl CanonicalSourceClosureSubject {
         root: CanonicalRootSourceSelection,
         packages: Vec<ResolvedSourceIdentity>,
         package_navigations: Vec<PackageSourceNavigation>,
-        package_dependency_projections: Vec<ProjectedDependencies>,
+        package_dependency_projections: Vec<DependencyProjections>,
         dependency_requests: Vec<CanonicalDependencySourceSelection>,
         limits: CanonicalSourceClosureSubjectLimits,
         budget: &mut Budget,

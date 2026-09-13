@@ -1,6 +1,9 @@
-use super::{DEPEND_AS_MACHINE_NAME, DEPEND_MACHINE_NAME};
+use super::{
+    BUILD_DEPEND_AS_MACHINE_NAME, BUILD_DEPEND_MACHINE_NAME, DEPEND_AS_MACHINE_NAME,
+    DEPEND_MACHINE_NAME,
+};
 use crate::declarations::dependencies::read::error::DependencyProjectionError;
-use crate::declarations::dependencies::read::model::DependencySourceRequest;
+use crate::declarations::dependencies::read::model::{DependencyPurpose, DependencySourceRequest};
 use crate::declarations::dependencies::read::source_literal::{
     project_alias_literal, project_source_literal,
 };
@@ -10,7 +13,8 @@ use syntax_trees::item::{StateHandle, StateParameterHandle};
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
 pub(super) struct ProjectedDirectDependencies {
-    pub requests: Vec<DependencySourceRequest>,
+    /// Authored-order rows tagged with the scope their call authorizes.
+    pub requests: Vec<(DependencyPurpose, DependencySourceRequest)>,
     pub accepted_statements: Vec<StatementHandle>,
     pub accepted_sources: Vec<ExpressionHandle>,
     pub accepted_aliases: Vec<ExpressionHandle>,
@@ -37,12 +41,11 @@ pub(super) fn project_direct_dependencies(
         let StatementNode::Call(call) = syntax_trees.statements.statement(*statement_handle) else {
             continue;
         };
-        if !matches!(
-            call.target.as_str(),
-            DEPEND_MACHINE_NAME | DEPEND_AS_MACHINE_NAME
-        ) {
-            continue;
-        }
+        let purpose = match call.target.as_str() {
+            DEPEND_MACHINE_NAME | DEPEND_AS_MACHINE_NAME => DependencyPurpose::Product,
+            BUILD_DEPEND_MACHINE_NAME | BUILD_DEPEND_AS_MACHINE_NAME => DependencyPurpose::Build,
+            _ => continue,
+        };
         if call.receiver_starts_at_self {
             return Err(DependencyProjectionError::WrongDependencyReceiver);
         }
@@ -64,13 +67,13 @@ pub(super) fn project_direct_dependencies(
         }
         let arguments = syntax_trees.statements.expression_handles(call.arguments);
         let (explicit_alias, source_handle) = match call.target.as_str() {
-            DEPEND_MACHINE_NAME => {
+            DEPEND_MACHINE_NAME | BUILD_DEPEND_MACHINE_NAME => {
                 let [source_handle] = arguments else {
                     return Err(DependencyProjectionError::WrongDependencyArguments);
                 };
                 (None, *source_handle)
             }
-            DEPEND_AS_MACHINE_NAME => {
+            DEPEND_AS_MACHINE_NAME | BUILD_DEPEND_AS_MACHINE_NAME => {
                 let [alias_handle, source_handle] = arguments else {
                     return Err(DependencyProjectionError::WrongDependencyArguments);
                 };
@@ -80,11 +83,10 @@ pub(super) fn project_direct_dependencies(
             }
             _ => unreachable!("dependency operation filtered above"),
         };
-        projected.requests.push(project_source_literal(
-            syntax_trees,
-            source_handle,
-            explicit_alias,
-        )?);
+        projected.requests.push((
+            purpose,
+            project_source_literal(syntax_trees, source_handle, explicit_alias)?,
+        ));
         projected.accepted_statements.push(*statement_handle);
         projected.accepted_sources.push(source_handle);
     }

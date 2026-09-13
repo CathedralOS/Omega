@@ -1,6 +1,8 @@
 use super::super::super::ResolvedSourceIdentity;
 use crate::declarations::BuildDeclarationKind;
-use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
+use crate::declarations::dependencies::read::{
+    DependencyPurpose, DependencySourceRequest, PackageSelection,
+};
 use crate::declarations::{AliasName, PackageKey};
 use package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 
@@ -103,6 +105,7 @@ impl From<&DependencySourceRequest> for CanonicalDependencySourceRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalDependencySourceSelection {
     pub(in super::super) requester: PackageKey,
+    pub(in super::super) purpose: DependencyPurpose,
     pub(in super::super) dependency_index: usize,
     pub(in super::super) request: CanonicalDependencySourceRequest,
     pub(in super::super) alias: AliasName,
@@ -114,6 +117,13 @@ impl CanonicalDependencySourceSelection {
         &self.requester
     }
 
+    /// Which authorized context this edge belongs to.
+    pub const fn purpose(&self) -> DependencyPurpose {
+        self.purpose
+    }
+
+    /// Zero-based position in the requester's authored rows for this edge's
+    /// purpose scope.
     pub const fn dependency_index(&self) -> usize {
         self.dependency_index
     }

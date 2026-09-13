@@ -1,11 +1,19 @@
-//! Canonical source-closure text, version 1; independent of binary version 6.
+//! Canonical source-closure text, version 2; independent of binary version 7.
 //!
-//! Fixed-order LF-terminated records start with `omega-source-closure 1`, then
+//! Fixed-order LF-terminated records start with `omega-source-closure 2`, then
 //! `target`, `root` (role/request/selected source), `packages N` (each source,
-//! navigation, and `authored N` requests), `edges N` (requester key, ordinal,
-//! request, resolved alias, selected source), and `end`. Keys expose name and
-//! lineage; resolutions expose commit/tree/content. No field is an encoded
-//! binary subject or admission result. Navigation remains separate from identity.
+//! navigation, `authored N` product requests, and `authored-build M` build
+//! requests), `edges N` (requester key, purpose, ordinal, request, resolved
+//! alias, selected source), and `end`. Keys expose name and lineage;
+//! resolutions expose commit/tree/content. No field is an encoded binary
+//! subject or admission result. Navigation remains separate from identity.
+//!
+//! Legacy `omega-source-closure 1` records remain readable as the versioned
+//! lock migration: they carry no `authored-build` sections or `purpose` rows
+//! and decode as product-only projections and edges. A recovered version-1
+//! subject canonically re-encodes as version 2 text (and version-7 binary),
+//! so retained locks are upgraded on their next write without broadening the
+//! legacy product semantics they recorded.
 //!
 //! String fields are quoted byte strings: printable ASCII is literal except
 //! `\"` and `\\`; other bytes use lowercase `\xhh`. This preserves raw caller

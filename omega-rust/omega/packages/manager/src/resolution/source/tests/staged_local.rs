@@ -54,8 +54,8 @@ fn staged_binding_uses_proposed_declaration_and_original_lineage() {
         assert_eq!(proposed.key(), ordinary.key());
         assert_eq!(proposed.role(), BuildDeclarationKind::Application);
         assert_eq!(ordinary.role(), BuildDeclarationKind::Package);
-        assert_eq!(proposed.dependency_requests().len(), 1);
-        assert!(ordinary.dependency_requests().is_empty());
+        assert_eq!(proposed.product_dependency_requests().len(), 1);
+        assert!(ordinary.product_dependency_requests().is_empty());
         assert_ne!(proposed.resolution(), ordinary.resolution());
         assert_eq!(proposed.snapshot_root(), stage.snapshot_root());
         assert_eq!(

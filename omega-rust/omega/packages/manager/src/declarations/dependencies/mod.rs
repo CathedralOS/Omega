@@ -13,6 +13,6 @@ pub use edit::{
 };
 pub use read::{
     BuildDependencyProjection, DependencyAliasError, DependencyProjectionError,
-    DependencySourceRequest, PackageSelection, ProjectedDependencies,
-    extract_build_dependency_projection, extract_dependency_projection,
+    DependencyProjections, DependencyPurpose, DependencySourceRequest, PackageSelection,
+    ProjectedDependencies, extract_build_dependency_projection, extract_dependency_projection,
 };

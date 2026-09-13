@@ -454,6 +454,12 @@ machine build(builder: &mut Build) {
         "arithmetic_kernels",
         Source::Path { location: "../colliding" }
     );
+    builder.build_depend(Source::Path { location: "../build-tool" });
+    builder.build_depend_as("host_std", Source::Git {
+        repository: "https://example.invalid/std.git",
+        revision: "0123456789abcdef",
+        selection: PackageSelection::Root
+    });
 }
 "#,
     );

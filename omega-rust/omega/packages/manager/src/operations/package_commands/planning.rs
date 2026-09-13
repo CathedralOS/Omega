@@ -68,6 +68,7 @@ pub(super) fn plan(
                 let mut replaced = false;
                 for edge in subject.dependency_requests().iter().filter(|edge| {
                     edge.requester() == subject.root().selected().key()
+                        && edge.purpose().is_product()
                         && edge.selected().key().source_lineage() == selected.source_lineage()
                 }) {
                     let CanonicalDependencySourceRequest::Git {
@@ -197,7 +198,9 @@ fn select_packages(
     let mut selected = Vec::new();
     for name in names {
         let alias = subject.dependency_requests().iter().find(|edge| {
-            edge.requester() == subject.root().selected().key() && edge.alias().as_str() == name
+            edge.requester() == subject.root().selected().key()
+                && edge.purpose().is_product()
+                && edge.alias().as_str() == name
         });
         let package = if let Some(edge) = alias {
             edge.selected().key()

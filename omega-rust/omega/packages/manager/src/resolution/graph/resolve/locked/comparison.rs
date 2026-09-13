@@ -1,7 +1,7 @@
 //! Pure joins performed before any dependent acquisition.
 
 use super::{ResolveLockedPackageClosureError as Error, RootPolicy};
-use crate::declarations::dependencies::read::DependencySourceRequest;
+use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
 use crate::resolution::graph::{
     CanonicalDependencySourceRequest as RecordedRequest, CanonicalDependencySourceSelection,
     CanonicalRootSourceRequest, CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
@@ -118,7 +118,7 @@ fn checked_custody(
         ));
     }
     if subject.package_dependency_projection(expected.key())
-        != Some(actual.projected_dependencies())
+        != Some(actual.dependency_projections())
     {
         return Err(Error::mismatch(
             expected.key(),
@@ -131,6 +131,7 @@ fn checked_custody(
 pub(super) fn edge<'a>(
     subject: &'a CanonicalSourceClosureSubject,
     requester: &PackageSourceCustody,
+    purpose: DependencyPurpose,
     ordinal: usize,
     request: &DependencySourceRequest,
     policy: RootPolicy,
@@ -150,6 +151,7 @@ pub(super) fn edge<'a>(
         .binary_search_by(|edge| {
             edge.requester()
                 .cmp(requester.key())
+                .then(edge.purpose().cmp(&purpose))
                 .then(edge.dependency_index().cmp(&ordinal))
         })
         .map_err(|_| {

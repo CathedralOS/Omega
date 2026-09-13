@@ -1,7 +1,8 @@
 use super::error::DependencyProjectionError;
 use super::projection::{
-    DEPEND_AS_MACHINE_NAME, DEPEND_AS_WHEN_MACHINE_NAME, DEPEND_MACHINE_NAME,
-    DEPEND_WHEN_MACHINE_NAME,
+    BUILD_DEPEND_AS_MACHINE_NAME, BUILD_DEPEND_AS_WHEN_MACHINE_NAME, BUILD_DEPEND_MACHINE_NAME,
+    BUILD_DEPEND_WHEN_MACHINE_NAME, DEPEND_AS_MACHINE_NAME, DEPEND_AS_WHEN_MACHINE_NAME,
+    DEPEND_MACHINE_NAME, DEPEND_WHEN_MACHINE_NAME,
 };
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
 use syntax_trees::SyntaxTrees;
@@ -38,8 +39,12 @@ pub(super) fn reject_authored_toolchain_vocabulary(
                         machine_leaf_name(machine.name.as_str()),
                         DEPEND_MACHINE_NAME
                             | DEPEND_AS_MACHINE_NAME
+                            | BUILD_DEPEND_MACHINE_NAME
+                            | BUILD_DEPEND_AS_MACHINE_NAME
                             | DEPEND_WHEN_MACHINE_NAME
                             | DEPEND_AS_WHEN_MACHINE_NAME
+                            | BUILD_DEPEND_WHEN_MACHINE_NAME
+                            | BUILD_DEPEND_AS_WHEN_MACHINE_NAME
                     ) =>
             {
                 return Err(DependencyProjectionError::AuthoredToolchainVocabulary {
@@ -87,8 +92,12 @@ pub(super) fn reject_unprojected_dependency_syntax(
                     call.target.as_str(),
                     DEPEND_MACHINE_NAME
                         | DEPEND_AS_MACHINE_NAME
+                        | BUILD_DEPEND_MACHINE_NAME
+                        | BUILD_DEPEND_AS_MACHINE_NAME
                         | DEPEND_WHEN_MACHINE_NAME
                         | DEPEND_AS_WHEN_MACHINE_NAME
+                        | BUILD_DEPEND_WHEN_MACHINE_NAME
+                        | BUILD_DEPEND_AS_WHEN_MACHINE_NAME
                 ) && !accepted_statements.contains(statement_handle)
                 {
                     return Err(DependencyProjectionError::UnsupportedDependencyShape);
@@ -111,16 +120,22 @@ pub(super) fn reject_unprojected_dependency_syntax(
                     call.target.as_str(),
                     DEPEND_MACHINE_NAME
                         | DEPEND_AS_MACHINE_NAME
+                        | BUILD_DEPEND_MACHINE_NAME
+                        | BUILD_DEPEND_AS_MACHINE_NAME
                         | DEPEND_WHEN_MACHINE_NAME
                         | DEPEND_AS_WHEN_MACHINE_NAME
+                        | BUILD_DEPEND_WHEN_MACHINE_NAME
+                        | BUILD_DEPEND_AS_WHEN_MACHINE_NAME
                 ) =>
             {
                 match (
                     call.target.as_str(),
                     syntax_trees.expressions.expression_handles(call.arguments),
                 ) {
-                    (DEPEND_MACHINE_NAME, [source]) if accepted_sources.contains(source) => {}
+                    (DEPEND_MACHINE_NAME, [source]) | (BUILD_DEPEND_MACHINE_NAME, [source])
+                        if accepted_sources.contains(source) => {}
                     (DEPEND_AS_MACHINE_NAME, [alias, source])
+                    | (BUILD_DEPEND_AS_MACHINE_NAME, [alias, source])
                         if accepted_aliases.contains(alias)
                             && accepted_sources.contains(source) => {}
                     _ => return Err(DependencyProjectionError::UnsupportedDependencyShape),

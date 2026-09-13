@@ -1,6 +1,7 @@
 //! Validated package-closure model over immutable source identities.
 
 use crate::declarations::BuildDeclarationKind;
+use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey};
 use package_source::{IdentityError, ImmutableSourceResolution};
 use std::collections::{BTreeMap, BTreeSet};
@@ -44,16 +45,39 @@ impl ResolvedSourceIdentity {
     }
 }
 
-/// One requester-local import alias and its exact package target.
+/// One requester-local dependency edge: its authorized context, authored
+/// ordinal within that context, import alias, and exact package target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedDependency {
+    purpose: DependencyPurpose,
+    dependency_index: usize,
     alias: AliasName,
     target: PackageKey,
 }
 
 impl ResolvedDependency {
-    pub fn new(alias: AliasName, target: PackageKey) -> Self {
-        Self { alias, target }
+    pub fn new(
+        purpose: DependencyPurpose,
+        dependency_index: usize,
+        alias: AliasName,
+        target: PackageKey,
+    ) -> Self {
+        Self {
+            purpose,
+            dependency_index,
+            alias,
+            target,
+        }
+    }
+
+    pub const fn purpose(&self) -> DependencyPurpose {
+        self.purpose
+    }
+
+    /// Zero-based position in the requester's authored rows for this edge's
+    /// purpose scope.
+    pub const fn dependency_index(&self) -> usize {
+        self.dependency_index
     }
 
     pub fn alias(&self) -> &AliasName {
@@ -131,9 +155,10 @@ impl ResolvedPackageClosure {
 
             let mut aliases = BTreeSet::new();
             for dependency in package.dependencies() {
-                if !aliases.insert(dependency.alias().clone()) {
+                if !aliases.insert((dependency.purpose(), dependency.alias().clone())) {
                     errors.push(PackageClosureValidationError::DuplicateAlias {
                         requester: key.clone(),
+                        purpose: dependency.purpose(),
                         alias: dependency.alias().clone(),
                     });
                 }
@@ -153,6 +178,7 @@ impl ResolvedPackageClosure {
                 if !package_indices.contains_key(dependency.target()) {
                     errors.push(PackageClosureValidationError::MissingDependencyTarget {
                         requester: package.source.key().clone(),
+                        purpose: dependency.purpose(),
                         alias: dependency.alias().clone(),
                         target: dependency.target().clone(),
                     });
@@ -228,10 +254,12 @@ pub enum PackageClosureValidationError {
     },
     DuplicateAlias {
         requester: PackageKey,
+        purpose: DependencyPurpose,
         alias: AliasName,
     },
     MissingDependencyTarget {
         requester: PackageKey,
+        purpose: DependencyPurpose,
         alias: AliasName,
         target: PackageKey,
     },

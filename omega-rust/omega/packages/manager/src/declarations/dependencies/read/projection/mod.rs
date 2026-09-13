@@ -1,5 +1,7 @@
 use super::error::DependencyProjectionError;
-use super::model::BuildDependencyProjection;
+use super::model::{
+    BuildDependencyProjection, DependencyProjections, DependencyPurpose, ProjectedDependencies,
+};
 use super::policy::{reject_authored_toolchain_vocabulary, reject_unprojected_dependency_syntax};
 use crate::declarations::roles::convert_shared_declaration;
 use build_declarations as shared;
@@ -14,8 +16,12 @@ use declaration::map_build_declaration_error;
 
 pub(super) const DEPEND_MACHINE_NAME: &str = "depend";
 pub(super) const DEPEND_AS_MACHINE_NAME: &str = "depend_as";
+pub(super) const BUILD_DEPEND_MACHINE_NAME: &str = "build_depend";
+pub(super) const BUILD_DEPEND_AS_MACHINE_NAME: &str = "build_depend_as";
 pub(super) const DEPEND_WHEN_MACHINE_NAME: &str = "depend_when";
 pub(super) const DEPEND_AS_WHEN_MACHINE_NAME: &str = "depend_as_when";
+pub(super) const BUILD_DEPEND_WHEN_MACHINE_NAME: &str = "build_depend_when";
+pub(super) const BUILD_DEPEND_AS_WHEN_MACHINE_NAME: &str = "build_depend_as_when";
 
 pub(super) fn extract_build_projection_from_source(
     source: &str,
@@ -65,8 +71,19 @@ fn extract_build_projection_from_syntax_trees(
     )?;
     let role_projection = shared::project_build_declaration_in_entry(syntax_trees, build_entry)
         .map_err(map_build_declaration_error)?;
+    let mut product_requests = Vec::new();
+    let mut build_requests = Vec::new();
+    for (purpose, request) in dependencies.requests {
+        match purpose {
+            DependencyPurpose::Product => product_requests.push(request),
+            DependencyPurpose::Build => build_requests.push(request),
+        }
+    }
     Ok(BuildDependencyProjection::new(
         convert_shared_declaration(role_projection.into_declaration()),
-        dependencies.requests.into(),
+        DependencyProjections::new(
+            ProjectedDependencies::from(product_requests),
+            ProjectedDependencies::from(build_requests),
+        ),
     ))
 }

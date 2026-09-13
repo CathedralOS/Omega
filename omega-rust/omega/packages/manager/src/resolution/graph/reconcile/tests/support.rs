@@ -1,4 +1,6 @@
-use crate::declarations::dependencies::read::DependencySourceRequest;
+use crate::declarations::dependencies::read::{
+    DependencyProjections, DependencySourceRequest, ProjectedDependencies,
+};
 use crate::declarations::{AliasName, PackageKey, PackageName};
 use crate::resolution::source::PackageSourceCustody;
 use package_source::{
@@ -73,6 +75,27 @@ pub(super) fn custody_with_role(
     role: crate::declarations::BuildDeclarationKind,
     dependency_requests: Vec<DependencySourceRequest>,
 ) -> PackageSourceCustody {
+    custody_with_scopes(
+        name,
+        repository,
+        marker,
+        snapshot_root,
+        role,
+        dependency_requests,
+        Vec::new(),
+    )
+}
+
+/// Custody retaining separate authored product and build dependency rows.
+pub(super) fn custody_with_scopes(
+    name: &str,
+    repository: &str,
+    marker: u8,
+    snapshot_root: &str,
+    role: crate::declarations::BuildDeclarationKind,
+    product_requests: Vec<DependencySourceRequest>,
+    build_requests: Vec<DependencySourceRequest>,
+) -> PackageSourceCustody {
     let resolution = resolution(marker);
     let materialization = crate::resolution::source::PackageSourceMaterialization::synthetic(
         resolution.content().clone(),
@@ -86,7 +109,10 @@ pub(super) fn custody_with_role(
         crate::resolution::source::PackageSourceNavigation::Root,
         crate::resolution::source::PackageSourceSelectionEvidence::Root,
         LocalSourceLimits::default(),
-        dependency_requests,
+        DependencyProjections::new(
+            ProjectedDependencies::from(product_requests),
+            ProjectedDependencies::from(build_requests),
+        ),
     )
 }
 

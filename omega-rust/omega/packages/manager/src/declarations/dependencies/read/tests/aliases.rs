@@ -1,4 +1,5 @@
 use super::PackageFixture;
+use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::dependencies::read::{
     DependencyAliasError, ProjectedDependencies, extract_build_dependency_projection,
 };
@@ -10,6 +11,7 @@ fn projection(source: &str) -> ProjectedDependencies {
         .expect("project flat dependencies")
         .into_parts()
         .1
+        .into_product()
 }
 
 fn package_names(names: &[&str]) -> Vec<PackageName> {
@@ -79,6 +81,38 @@ fn rejects_default_alias_collisions_after_package_selection() {
             ref alias,
         }) if alias.as_str() == "same_name"
     ));
+}
+
+#[test]
+fn rejects_a_duplicate_alias_inside_the_build_scope() {
+    let fixture = PackageFixture::with_source(
+        r#"
+        machine build(builder: &mut Build) {
+            builder.package("build-alias-conflict");
+            builder.build_depend_as("tool", Source::Path { location: "../first" });
+            builder.build_depend_as("tool", Source::Path { location: "../second" });
+        }
+        "#,
+    );
+    let projections = extract_build_dependency_projection(&fixture.root)
+        .expect("project build dependencies")
+        .into_parts()
+        .1;
+
+    projections
+        .validate_aliases(DependencyPurpose::Product, &[])
+        .expect("the empty product scope has no conflict");
+    assert_eq!(
+        projections.validate_aliases(
+            DependencyPurpose::Build,
+            &package_names(&["first-tool", "second-tool"])
+        ),
+        Err(DependencyAliasError::DuplicateAlias {
+            alias: AliasName::parse("tool").unwrap(),
+            first_occurrence: 0,
+            conflicting_occurrence: 1,
+        })
+    );
 }
 
 #[test]

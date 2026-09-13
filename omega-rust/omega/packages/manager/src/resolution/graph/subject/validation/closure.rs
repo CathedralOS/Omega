@@ -8,7 +8,7 @@ use super::super::{
 use super::dependency::{validate_dependency_request, validate_dependency_selection_kind};
 use super::root::validate_root_request;
 use super::source::{validate_package_navigation, validate_source_identity};
-use crate::declarations::dependencies::read::ProjectedDependencies;
+use crate::declarations::dependencies::read::{DependencyProjections, DependencyPurpose};
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
 
@@ -16,7 +16,7 @@ pub(in super::super) fn validate_subject(
     root: &CanonicalRootSourceSelection,
     packages: &[ResolvedSourceIdentity],
     navigations: &[PackageSourceNavigation],
-    projections: &[ProjectedDependencies],
+    projections: &[DependencyProjections],
     edges: &[CanonicalDependencySourceSelection],
     limits: Limits,
 ) -> Result<(), Error> {
@@ -35,7 +35,7 @@ pub(in super::super) fn validate_subject_with_budget(
     root: &CanonicalRootSourceSelection,
     packages: &[ResolvedSourceIdentity],
     navigations: &[PackageSourceNavigation],
-    projections: &[ProjectedDependencies],
+    projections: &[DependencyProjections],
     edges: &[CanonicalDependencySourceSelection],
     limits: Limits,
     budget: &mut Budget,
@@ -60,13 +60,15 @@ pub(in super::super) fn validate_subject_with_budget(
     let mut authored = 0usize;
     for projection in projections {
         authored = authored
-            .checked_add(projection.authored_dependencies().len())
+            .checked_add(projection.authored_request_count())
             .filter(|count| *count <= limits.maximum_dependency_requests)
             .ok_or_else(|| {
                 Error::new("source-closure dependency projections exceed their request-count limit")
             })?;
-        for request in projection.authored_dependencies() {
-            validate_dependency_request(Request::from(request), limits.maximum_request_bytes)?;
+        for purpose in DependencyPurpose::ALL {
+            for request in projection.requests(purpose) {
+                validate_dependency_request(Request::from(request), limits.maximum_request_bytes)?;
+            }
         }
     }
     if authored != edges.len() {
@@ -96,11 +98,17 @@ pub(in super::super) fn validate_subject_with_budget(
     for edge in edges {
         validate_source_identity(&edge.selected, limits.maximum_identity_bytes)?;
         validate_dependency_request(Request::from(&edge.request), limits.maximum_request_bytes)?;
+        // Host build inputs are selected only by the root build context.
+        if edge.purpose == DependencyPurpose::Build && edge.requester != *root.selected.key() {
+            return Err(Error::new(
+                "build dependency edge is not authorized by the root build context",
+            ));
+        }
         let requester = packages
             .binary_search_by(|source| source.key().cmp(&edge.requester))
             .map_err(|_| Error::new("dependency request names an unknown requester"))?;
         let projected = projections[requester]
-            .authored_dependencies()
+            .requests(edge.purpose)
             .get(edge.dependency_index)
             .ok_or_else(|| {
                 Error::new("active dependency selection names an unknown authored occurrence")
@@ -134,7 +142,9 @@ pub(in super::super) fn validate_subject_with_budget(
         }
         if previous.is_some_and(|previous| {
             previous.requester > edge.requester
+                || (previous.requester == edge.requester && previous.purpose > edge.purpose)
                 || (previous.requester == edge.requester
+                    && previous.purpose == edge.purpose
                     && previous.dependency_index >= edge.dependency_index)
         }) {
             return Err(Error::new(
@@ -153,23 +163,39 @@ pub(in super::super) fn validate_subject_with_budget(
     let mut aliases = budget.reserve::<&str>(edges.len())?;
     for (source, projection) in packages.iter().zip(projections) {
         let selected = selected_edges(edges, source);
-        if selected.len() != projection.authored_dependencies().len()
-            || selected
-                .iter()
-                .enumerate()
-                .any(|(index, edge)| edge.dependency_index != index)
+        // A non-root package's authored build rows cannot produce edges:
+        // host build inputs are selected only by the root build context.
+        if source.key() != root.selected.key()
+            && !projection.requests(DependencyPurpose::Build).is_empty()
         {
             return Err(Error::new(
-                "dependency selections do not match the authored dependency list",
+                "non-root package retains unauthorized build dependency rows",
             ));
         }
-        aliases.clear();
-        aliases.extend(selected.iter().map(|edge| edge.alias.as_str()));
-        aliases.sort_unstable();
-        if aliases.windows(2).any(|pair| pair[0] == pair[1]) {
-            return Err(Error::new(
-                "dependency aliases are not unique within their requester",
-            ));
+        for purpose in DependencyPurpose::ALL {
+            let authored_requests = projection.requests(purpose);
+            let mut expected_index = 0usize;
+            aliases.clear();
+            for edge in selected.iter().filter(|edge| edge.purpose == purpose) {
+                if edge.dependency_index != expected_index {
+                    return Err(Error::new(
+                        "dependency selections do not match the authored dependency list",
+                    ));
+                }
+                expected_index += 1;
+                aliases.push(edge.alias.as_str());
+            }
+            if expected_index != authored_requests.len() {
+                return Err(Error::new(
+                    "dependency selections do not match the authored dependency list",
+                ));
+            }
+            aliases.sort_unstable();
+            if aliases.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(Error::new(
+                    "dependency aliases are not unique within their requester and purpose",
+                ));
+            }
         }
     }
     super::walk::validate(packages, edges, root_index, budget)

@@ -59,8 +59,13 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
         writeln!(output, "\nsource-replacement")?;
         match replacement.site() {
             PackagePolicyReplacementSite::Root => writeln!(output, "binding root")?,
-            PackagePolicyReplacementSite::Dependency { requester, alias } => {
+            PackagePolicyReplacementSite::Dependency {
+                requester,
+                purpose,
+                alias,
+            } => {
                 package_key(output, "requester", requester)?;
+                writeln!(output, "purpose {}", purpose.name())?;
                 writeln!(output, "binding {:?}", alias.as_str())?;
             }
         }

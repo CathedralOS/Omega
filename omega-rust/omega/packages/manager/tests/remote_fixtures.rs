@@ -249,7 +249,7 @@ fn verify_remote_pins(pins: Vec<RemotePin>, target: target::TargetProfile) {
         });
         assert_eq!(declared.key().name().as_str(), pin.package);
         assert_eq!(
-            declared.dependency_requests(),
+            declared.product_dependency_requests(),
             extract_dependency_projection(&expected_root)
                 .expect("local fixture dependency projection should close"),
             "{} dependency projection drift",

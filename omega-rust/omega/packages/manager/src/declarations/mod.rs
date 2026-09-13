@@ -16,8 +16,9 @@ pub use dependencies::edit::{
 pub use dependencies::{
     BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
     BuildDependencyManualReason, BuildDependencyProjection, BuildFileReplacement,
-    DependencyAliasError, DependencyProjectionError, DependencySourceRequest, PackageSelection,
-    ProjectedDependencies, canonical_dependency_statement, extract_build_dependency_projection,
+    DependencyAliasError, DependencyProjectionError, DependencyProjections, DependencyPurpose,
+    DependencySourceRequest, PackageSelection, ProjectedDependencies,
+    canonical_dependency_statement, extract_build_dependency_projection,
     extract_dependency_projection, plan_dependency_addition, plan_dependency_replacement,
 };
 pub use roles::{

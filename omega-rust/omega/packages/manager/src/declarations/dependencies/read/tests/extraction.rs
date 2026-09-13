@@ -1,10 +1,11 @@
 use super::PackageFixture;
-use crate::declarations::AliasName;
+use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::dependencies::read::{
     DependencyProjectionError, DependencySourceRequest, PackageSelection,
     extract_build_dependency_projection,
 };
 use crate::declarations::roles::{BuildDeclaration, BuildDeclarationError};
+use crate::declarations::{AliasName, PackageName};
 use std::fs;
 
 #[test]
@@ -28,7 +29,7 @@ fn projects_path_and_git_requests_in_authored_order() {
             if application.name.as_str() == "dependency-projection-probe"
     ));
     assert_eq!(
-        projection.dependencies(),
+        projection.product_dependencies(),
         vec![
             DependencySourceRequest::Path {
                 explicit_alias: None,
@@ -42,6 +43,71 @@ fn projects_path_and_git_requests_in_authored_order() {
             },
         ]
     );
+}
+
+#[test]
+fn projects_product_and_build_requests_in_scoped_authored_order() {
+    let fixture = PackageFixture::with_source(
+        r#"
+        machine build(builder: &mut Build) {
+            builder.package("dual-scope");
+            builder.depend(Source::Path { location: "../product-a" });
+            builder.build_depend(Source::Path { location: "../host-a" });
+            builder.depend_as("product_b", Source::Path { location: "../product-b" });
+            builder.build_depend_as("host_b", Source::Path { location: "../host-b" });
+        }
+        "#,
+    );
+    let projection = extract_build_dependency_projection(&fixture.root).unwrap();
+    assert_eq!(
+        projection.product_dependencies(),
+        vec![
+            DependencySourceRequest::Path {
+                explicit_alias: None,
+                location: "../product-a".to_owned(),
+            },
+            DependencySourceRequest::Path {
+                explicit_alias: Some(AliasName::parse("product_b").unwrap()),
+                location: "../product-b".to_owned(),
+            },
+        ]
+    );
+    assert_eq!(
+        projection.build_dependencies(),
+        vec![
+            DependencySourceRequest::Path {
+                explicit_alias: None,
+                location: "../host-a".to_owned(),
+            },
+            DependencySourceRequest::Path {
+                explicit_alias: Some(AliasName::parse("host_b").unwrap()),
+                location: "../host-b".to_owned(),
+            },
+        ]
+    );
+}
+
+#[test]
+fn product_and_build_scopes_keep_independent_alias_spaces() {
+    let fixture = PackageFixture::with_source(
+        r#"
+        machine build(builder: &mut Build) {
+            builder.package("shared-alias");
+            builder.depend_as("shared", Source::Path { location: "../product" });
+            builder.build_depend_as("shared", Source::Path { location: "../host" });
+        }
+        "#,
+    );
+    let projection = extract_build_dependency_projection(&fixture.root).unwrap();
+    let projections = projection.dependency_projections();
+    let product_names = vec![PackageName::parse("product-lib").unwrap()];
+    let build_names = vec![PackageName::parse("host-lib").unwrap()];
+    projections
+        .validate_aliases(DependencyPurpose::Product, &product_names)
+        .expect("product scope validates alone");
+    projections
+        .validate_aliases(DependencyPurpose::Build, &build_names)
+        .expect("build scope validates alone");
 }
 
 #[test]
