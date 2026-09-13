@@ -86,62 +86,6 @@ fn encode_barrier(bytes: &mut Vec<u8>, barrier: MachineBarrier) {
     });
 }
 
-#[cfg(test)]
-mod outgoing_slot_tests {
-    use super::*;
-    use crate::{FrameStorageSlotId, OutgoingArgumentSlotId, OutgoingArgumentSlotRole};
-    use semantic_vocabulary::OperationId;
-
-    #[test]
-    fn outgoing_frame_roles_preserve_argument_bytes_and_use_a_distinct_copy_tag() {
-        let argument = OutgoingArgumentSlotId {
-            operation: OperationId::new(43).unwrap(),
-            argument_index: 7,
-            role: OutgoingArgumentSlotRole::Argument,
-        };
-        let copy = OutgoingArgumentSlotId {
-            role: OutgoingArgumentSlotRole::ValueCopy,
-            ..argument
-        };
-        for (tag, argument_kind, copy_kind) in [
-            (
-                17,
-                SelectedInstructionKind::Store64 {
-                    slot: FrameStorageSlotId::Outgoing(argument),
-                    byte_offset: 8,
-                },
-                SelectedInstructionKind::Store64 {
-                    slot: FrameStorageSlotId::Outgoing(copy),
-                    byte_offset: 8,
-                },
-            ),
-            (
-                18,
-                SelectedInstructionKind::FrameAddress {
-                    slot: FrameStorageSlotId::Outgoing(argument),
-                    byte_offset: 8,
-                },
-                SelectedInstructionKind::FrameAddress {
-                    slot: FrameStorageSlotId::Outgoing(copy),
-                    byte_offset: 8,
-                },
-            ),
-        ] {
-            let mut legacy = vec![tag, 0];
-            legacy.extend_from_slice(&43_u64.to_le_bytes());
-            legacy.extend_from_slice(&7_u32.to_le_bytes());
-            legacy.extend_from_slice(&8_u32.to_le_bytes());
-            let mut encoded = Vec::new();
-            encode_kind(&mut encoded, argument_kind);
-            assert_eq!(encoded, legacy);
-            encoded.clear();
-            encode_kind(&mut encoded, copy_kind);
-            legacy[1] = 3;
-            assert_eq!(encoded, legacy);
-        }
-    }
-}
-
 fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     bytes.push(match kind {
         SelectedInstructionKind::Store { .. } => 24,
@@ -331,6 +275,62 @@ fn encode_integer(bytes: &mut Vec<u8>, value: semantic_vocabulary::IntegerValue)
         semantic_vocabulary::IntegerValue::Unsigned(value) => {
             bytes.push(1);
             bytes.extend_from_slice(&value.to_le_bytes());
+        }
+    }
+}
+
+#[cfg(test)]
+mod outgoing_slot_tests {
+    use super::*;
+    use crate::{FrameStorageSlotId, OutgoingArgumentSlotId, OutgoingArgumentSlotRole};
+    use semantic_vocabulary::OperationId;
+
+    #[test]
+    fn outgoing_frame_roles_preserve_argument_bytes_and_use_a_distinct_copy_tag() {
+        let argument = OutgoingArgumentSlotId {
+            operation: OperationId::new(43).unwrap(),
+            argument_index: 7,
+            role: OutgoingArgumentSlotRole::Argument,
+        };
+        let copy = OutgoingArgumentSlotId {
+            role: OutgoingArgumentSlotRole::ValueCopy,
+            ..argument
+        };
+        for (tag, argument_kind, copy_kind) in [
+            (
+                17,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Outgoing(argument),
+                    byte_offset: 8,
+                },
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Outgoing(copy),
+                    byte_offset: 8,
+                },
+            ),
+            (
+                18,
+                SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Outgoing(argument),
+                    byte_offset: 8,
+                },
+                SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Outgoing(copy),
+                    byte_offset: 8,
+                },
+            ),
+        ] {
+            let mut legacy = vec![tag, 0];
+            legacy.extend_from_slice(&43_u64.to_le_bytes());
+            legacy.extend_from_slice(&7_u32.to_le_bytes());
+            legacy.extend_from_slice(&8_u32.to_le_bytes());
+            let mut encoded = Vec::new();
+            encode_kind(&mut encoded, argument_kind);
+            assert_eq!(encoded, legacy);
+            encoded.clear();
+            encode_kind(&mut encoded, copy_kind);
+            legacy[1] = 3;
+            assert_eq!(encoded, legacy);
         }
     }
 }
