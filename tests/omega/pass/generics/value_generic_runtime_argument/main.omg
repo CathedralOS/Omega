@@ -1,0 +1,22 @@
+// A runtime-capable value binder `Count: u32` admits an ordinary runtime
+// subject: the specialization realizes `Count` as a trailing ordinary
+// parameter and each rewritten call site appends its exact subject as an
+// argument. Statically known arguments keep the const substitution path, so
+// both tuples of one template coexist. A generic caller also forwards its own
+// runtime-bound binder as an ordinary argument.
+
+machine prefix_count<Count: u32>(base: u32) -> u32 {
+    Count
+}
+
+machine forward<K: u32>(base: u32) -> u32 {
+    let inner: u32 = prefix_count<K>(base);
+    inner
+}
+
+machine Main::main(&mut self) {
+    let n: u32 = 3;
+    let direct: u32 = prefix_count<n>(7);
+    let forwarded: u32 = forward<n>(7);
+    let closed: u32 = prefix_count<4>(7);
+}

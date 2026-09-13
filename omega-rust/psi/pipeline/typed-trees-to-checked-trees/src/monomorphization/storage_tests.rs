@@ -61,6 +61,7 @@ fn recursive_instances_keep_each_tuples_own_state_and_template_commitment() {
                 unresolved_const_parameters: false,
                 type_bindings: vec![Some(program.state_parameters(state)[0].type_reference)],
                 const_bindings: Vec::new(),
+                runtime_value_bindings: Vec::new(),
                 machine_bindings: Vec::new(),
                 evidence_bindings: Vec::new(),
                 conflicted: false,

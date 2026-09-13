@@ -1,0 +1,12 @@
+// A proof-static `const` binder never admits a runtime subject. Runtime
+// realization exists only for runtime-capable `Value` binders, so this call
+// must keep rejecting instead of gaining an ordinary parameter.
+
+machine prefix_count<const Count: u32>(base: u32) -> u32 {
+    Count
+}
+
+machine Main::main(&mut self) {
+    let n: u32 = 3;
+    let total: u32 = prefix_count<n>(7);
+}

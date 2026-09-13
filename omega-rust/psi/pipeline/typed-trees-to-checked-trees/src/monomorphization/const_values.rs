@@ -5,7 +5,7 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionNode;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod structured;
@@ -14,12 +14,48 @@ pub(super) fn substitute(
     program: &mut TypedTrees,
     candidate: &Candidate,
     expression_start: Option<usize>,
+    runtime_expression_roots: &[ExpressionHandle],
 ) -> Result<(), Diagnostic> {
-    for ((binder, name, declared_type), binding) in candidate
+    for (index, ((binder, name, declared_type), binding)) in candidate
         .const_parameters
         .iter()
         .zip(&candidate.const_bindings)
+        .enumerate()
     {
+        // A runtime-bound `Value` binder is realized as an ordinary parameter:
+        // executable uses were remapped to it during cloning, so any occurrence
+        // still reachable from the clone sits in a static context the runtime
+        // subject cannot fill. Template-owned expressions keep their authored
+        // binder spelling, so the scan follows clone expression roots rather
+        // than an arena index bound.
+        if candidate.runtime_value_bindings[index].is_some() {
+            let stray = runtime_expression_roots.iter().any(|root| {
+                let mut tree = Vec::new();
+                super::collect_expression_tree(program, *root, &mut tree);
+                tree.into_iter().any(|handle| {
+                    matches!(
+                        program.expression_table.expression(handle),
+                        ExpressionNode::Name(path)
+                            if binder.is_valid()
+                                && path.symbol == *binder
+                                && path.head_symbol == *binder
+                                && program
+                                    .expression_table
+                                    .name_path_members(path.members)
+                                    .len()
+                                    == 1
+                    )
+                })
+            });
+            if stray {
+                return Err(Diagnostic::error(format!(
+                    "value parameter `{name}` of machine `{}` is bound to a runtime argument and \
+                     cannot appear in a static type, contract, or const context",
+                    candidate.template_name,
+                )));
+            }
+            continue;
+        }
         let occurrences = program
             .expression_table
             .iter_expressions()

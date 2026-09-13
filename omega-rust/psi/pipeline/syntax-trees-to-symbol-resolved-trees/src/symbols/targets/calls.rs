@@ -379,6 +379,36 @@ pub(in crate::symbols) fn assign_static_argument_symbols(
     }
 }
 
+/// Stamp one single-segment static argument naming a value-scope subject: a
+/// state parameter or a `let` local of the enclosing state. Runtime-capable
+/// `Value` binders accept such subjects as ordinary runtime arguments, so the
+/// name resolves like an executable `Name` instead of remaining an unresolved
+/// declaration selection. This runs only after the declaration resolver above
+/// has failed: a same-named declaration keeps its static identity.
+pub(in crate::symbols) fn assign_runtime_subject_argument_symbol(
+    symbols: &SymbolTable,
+    state_symbol: SymbolHandle,
+    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+) {
+    if argument.symbol.is_valid()
+        || argument.application.is_some()
+        || argument.evidence_projection.is_some()
+        || argument.const_literal.is_some()
+        || !state_symbol.is_valid()
+    {
+        return;
+    }
+    let [name] = argument.path.as_ref() else {
+        return;
+    };
+    argument.symbol = child_symbol_by_kinds(
+        symbols,
+        state_symbol,
+        &[SymbolKind::Parameter, SymbolKind::Local],
+        name.as_str(),
+    );
+}
+
 /// Resolve one `Build::select_provider` path as an exact declaration identity.
 /// The marker's static arguments are exact declaration paths, not executable
 /// machine selections. The first may denote one boundary trait, one explicit

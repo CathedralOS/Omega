@@ -1,0 +1,318 @@
+use super::*;
+use typed_trees::machine::Machine;
+use typed_trees::typed_trees::MachineSpecialization;
+
+fn typed(source: &str) -> TypedTrees {
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokens");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolution");
+    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typing")
+}
+
+fn instance<'a>(program: &'a TypedTrees, receipt: &MachineSpecialization) -> &'a Machine {
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == receipt.instance)
+        .expect("specialization instance")
+}
+
+fn call_expressions(program: &TypedTrees, machine: &Machine) -> Vec<ExpressionHandle> {
+    let mut roots = Vec::new();
+    for state in program.machine_states(machine) {
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            collect_statement_expression_trees(program, statement, &mut roots);
+        }
+    }
+    roots
+        .into_iter()
+        .filter(|handle| {
+            matches!(
+                program.expression_table.expression(*handle),
+                ExpressionNode::Call(_)
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn runtime_value_argument_realizes_an_ordinary_parameter() {
+    let mut program = typed(
+        "machine prefix_count<Count: u32>(base: u32) -> u32 { Count }
+         machine main(base: u32) -> u32 { let n: u32 = 3; prefix_count<n>(base) }",
+    );
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+        .expect("runtime subject specializes");
+    let [receipt] = program.machine_specializations.as_slice() else {
+        panic!("one runtime-carrier specialization");
+    };
+    let instance = instance(&program, receipt);
+    let state = &program.machine_states(instance)[0];
+    let parameters = program.state_parameters(state);
+    // `base` plus the realized `Count` subject: the clone is an ordinary
+    // two-parameter machine with no residual generic binders.
+    assert_eq!(parameters.len(), 2);
+    assert!(program.machine_type_parameters(instance).is_empty());
+    // The rewritten call passes `base` and appends `n` as ordinary arguments.
+    let caller = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "main")
+        .expect("caller");
+    let calls = call_expressions(&program, caller);
+    let [call] = calls.as_slice() else {
+        panic!("one rewritten call");
+    };
+    let ExpressionNode::Call(call) = program.expression_table.expression(*call) else {
+        unreachable!();
+    };
+    assert_eq!(call.target_symbol, state.symbol);
+    assert!(call.machine_arguments.is_empty());
+    assert_eq!(
+        program
+            .expression_table
+            .expression_handles(call.arguments)
+            .len(),
+        2
+    );
+}
+
+#[test]
+fn runtime_value_forwarding_appends_the_realized_parameter() {
+    let mut program = typed(
+        "machine prefix_count<Count: u32>(base: u32) -> u32 { Count }
+         machine forward<K: u32>(base: u32) -> u32 { prefix_count<K>(base) }
+         machine main(base: u32) -> u32 { let n: u32 = 3; forward<n>(base) }",
+    );
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+        .expect("forwarded runtime subject specializes");
+    assert_eq!(program.machine_specializations.len(), 2);
+    let forward = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .expect("forward template");
+    let forward_receipt = program
+        .machine_specializations
+        .iter()
+        .find(|receipt| receipt.template == forward.symbol)
+        .expect("forward instance");
+    let forward_instance = instance(&program, forward_receipt);
+    let forward_state = &program.machine_states(forward_instance)[0];
+    // `base` plus the realized `K`: the nested call forwards the realized
+    // parameter's own symbol as the callee's ordinary runtime argument.
+    assert_eq!(program.state_parameters(forward_state).len(), 2);
+    let nested_calls = call_expressions(&program, forward_instance);
+    let [nested] = nested_calls.as_slice() else {
+        panic!("one nested call in the forward instance");
+    };
+    let ExpressionNode::Call(nested) = program.expression_table.expression(*nested) else {
+        unreachable!();
+    };
+    assert!(nested.machine_arguments.is_empty());
+    let nested_arguments = program
+        .expression_table
+        .expression_handles(nested.arguments);
+    assert_eq!(nested_arguments.len(), 2);
+    let ExpressionNode::Name(subject) = program.expression_table.expression(nested_arguments[1])
+    else {
+        panic!("the forwarded argument stays an ordinary subject");
+    };
+    let realized = program.state_parameters(forward_state)[1].symbol;
+    assert_eq!(subject.symbol, realized);
+    // The nested target is the prefix_count instance's entry state.
+    let prefix = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "prefix_count")
+        .expect("prefix template");
+    let prefix_instance = instance(
+        &program,
+        program
+            .machine_specializations
+            .iter()
+            .find(|receipt| receipt.template == prefix.symbol)
+            .expect("prefix instance"),
+    );
+    assert_eq!(
+        nested.target_symbol,
+        program.machine_states(prefix_instance)[0].symbol
+    );
+}
+
+#[test]
+fn static_and_runtime_value_applications_share_one_template() {
+    let mut program = typed(
+        "machine prefix_count<Count: u32>(base: u32) -> u32 { Count }
+         machine main(base: u32) -> u32 {
+             let n: u32 = 3;
+             let closed: u32 = prefix_count<4>(base);
+             prefix_count<n>(base)
+         }",
+    );
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+        .expect("static and runtime tuples specialize");
+    // The static literal and the runtime carrier are distinct tuples: the
+    // literal specializes by value, the runtime subject by its declared
+    // carrier, so each keeps its own instance.
+    assert_eq!(program.machine_specializations.len(), 2);
+    let parameter_counts = |receipt: &MachineSpecialization| {
+        let instance = instance(&program, receipt);
+        program
+            .state_parameters(&program.machine_states(instance)[0])
+            .len()
+    };
+    let static_receipt = program
+        .machine_specializations
+        .iter()
+        .find(|receipt| parameter_counts(receipt) == 1)
+        .expect("the literal tuple keeps the authored signature");
+    let runtime_receipt = program
+        .machine_specializations
+        .iter()
+        .find(|receipt| parameter_counts(receipt) == 2)
+        .expect("the carrier tuple gains the realized parameter");
+    assert_ne!(static_receipt.instance, runtime_receipt.instance);
+    // `main`'s literal call targets the static instance; its runtime-subject
+    // call targets the carrier instance with `n` appended as an argument.
+    let caller = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "main")
+        .expect("caller");
+    let calls = call_expressions(&program, caller);
+    assert_eq!(calls.len(), 2);
+    let targets: Vec<_> = calls
+        .iter()
+        .map(|handle| {
+            let ExpressionNode::Call(call) = program.expression_table.expression(*handle) else {
+                unreachable!();
+            };
+            (
+                call.target_symbol,
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .len(),
+            )
+        })
+        .collect();
+    let static_entry = program
+        .machine_states(instance(&program, static_receipt))
+        .first()
+        .expect("static entry")
+        .symbol;
+    let runtime_entry = program
+        .machine_states(instance(&program, runtime_receipt))
+        .first()
+        .expect("runtime entry")
+        .symbol;
+    assert!(targets.contains(&(static_entry, 1)));
+    assert!(targets.contains(&(runtime_entry, 2)));
+}
+
+#[test]
+fn const_binder_still_rejects_a_runtime_subject() {
+    let program = typed(
+        "machine prefix_count<const Count: u32>(base: u32) -> u32 { Count }
+         machine main(base: u32) -> u32 { let n: u32 = 3; prefix_count<n>(base) }",
+    );
+    let error = crate::lower_typed_trees(program)
+        .expect_err("a const binder cannot close over a runtime subject");
+    assert!(error.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot derive a complete type/const/machine/conformance specialization")
+    }));
+}
+
+#[test]
+fn runtime_value_in_a_static_range_position_rejects() {
+    let mut program = typed(
+        "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
+         machine main() -> u64 {
+             let n: u64 = 7;
+             ranged<n>()
+         }",
+    );
+    let error =
+        monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+            .expect_err("a runtime subject cannot close a static bound");
+    assert!(error.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot determine a static type or layout")
+    }));
+}
+
+#[test]
+fn runtime_value_in_a_static_length_position_rejects() {
+    let mut program = typed(
+        "machine sized<Count: u32>(witness: [u8; Count]) -> u32 { Count }
+         machine main(witness: [u8; 4]) -> u32 {
+             let n: u32 = 4;
+             sized<n>(witness)
+         }",
+    );
+    // The explicit runtime subject conflicts with the `4` length inferred from
+    // `witness`: the call cannot close `Count` statically, so specialization
+    // rejects it before any layout is realized.
+    let error =
+        monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+            .expect_err("a runtime subject cannot close a static layout");
+    assert!(!error.is_empty());
+}
+
+#[test]
+fn mixed_static_and_runtime_value_slots_keep_telescope_order() {
+    let mut program = typed(
+        "machine pick<Skip: u32, Keep: u32>(base: u32) -> u32 { Keep + Skip }
+         machine main(base: u32) -> u32 {
+             let n: u32 = 5;
+             pick<2, n>(base)
+         }",
+    );
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+        .expect("a mixed static/runtime tuple specializes");
+    let [receipt] = program.machine_specializations.as_slice() else {
+        panic!("one specialization for the mixed tuple");
+    };
+    let instance = instance(&program, receipt);
+    let state = &program.machine_states(instance)[0];
+    // `base` plus exactly the realized `Keep` parameter: the static `Skip`
+    // slot substitutes in place and adds no parameter.
+    assert_eq!(program.state_parameters(state).len(), 2);
+    let caller = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "main")
+        .expect("caller");
+    let calls = call_expressions(&program, caller);
+    let [call] = calls.as_slice() else {
+        panic!("one rewritten call");
+    };
+    let ExpressionNode::Call(call) = program.expression_table.expression(*call) else {
+        unreachable!();
+    };
+    assert!(call.machine_arguments.is_empty());
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    // The appended runtime subject lands after the ordinary arguments in
+    // telescope order, and it is the caller's own `n` subject.
+    assert_eq!(arguments.len(), 2);
+    let ExpressionNode::Name(subject) = program.expression_table.expression(arguments[1]) else {
+        panic!("the runtime subject stays an ordinary argument");
+    };
+    let local = program
+        .statement_table
+        .statements(program.machine_states(caller)[0].statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.name.as_str() == "n" => Some(local.symbol),
+            _ => None,
+        })
+        .expect("caller local n");
+    assert_eq!(subject.symbol, local);
+}

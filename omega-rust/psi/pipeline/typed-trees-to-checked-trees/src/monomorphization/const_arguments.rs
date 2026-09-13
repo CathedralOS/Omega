@@ -118,6 +118,79 @@ pub(super) fn forwarded_type(
         .unwrap_or_default()
 }
 
+/// The shape of one ordinary runtime subject admissible into a `Value`
+/// binder: a single-segment name carrying no static payload. A spelled name
+/// that resolved to no static declaration still qualifies; the caller's value
+/// scope decides whether it denotes a subject (`resolve_runtime_subject`).
+pub(super) fn is_runtime_value_subject(
+    program: &TypedTrees,
+    argument: &StaticMachineArgument,
+) -> bool {
+    argument.application.is_none()
+        && argument.evidence_projection.is_none()
+        && argument.const_literal.is_none()
+        && argument.path.len() == 1
+        && (!argument.symbol.is_valid()
+            || matches!(
+                program.symbols.get(argument.symbol).kind,
+                SymbolKind::Local | SymbolKind::Parameter
+            ))
+}
+
+/// Resolve the exact value-scope subject one runtime `Value` argument
+/// denotes: the caller's own parameter or the nearest `let` of the same name
+/// declared before the call. Only a single-segment spelling without static
+/// payload can resolve, and only an ordinary `Local`/`Parameter` symbol
+/// counts — a runtime subject is never a type, machine, or evidence name.
+pub(super) fn resolve_runtime_subject(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    scope_limit: usize,
+    argument: &StaticMachineArgument,
+) -> Option<symbols::SymbolHandle> {
+    if argument.application.is_some()
+        || argument.evidence_projection.is_some()
+        || argument.const_literal.is_some()
+    {
+        return None;
+    }
+    if argument.symbol.is_valid() {
+        let kind = program.symbols.get(argument.symbol).kind;
+        // A resolved parameter is exact: a realized generic binder forwarded
+        // into a specialization names that parameter, never a same-named
+        // local. A resolved local re-derives its nearest binding by scope
+        // below, since the symbol alone cannot order shadowed `let`s.
+        if kind == SymbolKind::Parameter {
+            return Some(argument.symbol);
+        }
+        if kind != SymbolKind::Local {
+            return None;
+        }
+    }
+    let [name] = argument.path.as_ref() else {
+        return None;
+    };
+    let mut resolved = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == name.as_str())
+        .map(|parameter| parameter.symbol);
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(scope_limit)
+    {
+        let StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        if local.name.as_str() == name.as_str() {
+            resolved = Some(local.symbol);
+        }
+    }
+    resolved
+}
+
 fn validate_arguments(
     program: &TypedTrees,
     candidate: &Candidate,
@@ -150,19 +223,22 @@ fn validate_arguments(
                 )));
             }
             // A `Value` binder admits static arguments through the ordinary
-            // const specialization path only. A spelled name that resolved to
-            // no static declaration denotes a runtime value; dynamic
-            // realization is deferred until the runtime-value path exists.
+            // const specialization path and ordinary runtime subjects through
+            // the dynamic realization path. Anything else spelled here is
+            // neither.
             if candidate.value_const_parameters.contains(&const_index)
                 && argument.application.is_none()
                 && argument.evidence_projection.is_none()
                 && !type_shaped
             {
                 let parameter_name = &candidate.const_parameters[const_index].1;
+                if is_runtime_value_subject(program, argument) {
+                    const_index += 1;
+                    continue;
+                }
                 return Err(Diagnostic::error(format!(
-                    "value parameter `{parameter_name}` of machine `{}` received runtime \
-                     argument `{}`; dynamic realization of value generic arguments is not \
-                     yet supported, so the argument must be a static const value",
+                    "value parameter `{parameter_name}` of machine `{}` received `{}`, which \
+                     is neither a static const value nor an ordinary runtime value subject",
                     candidate.template_name,
                     argument.display_name()
                 )));
@@ -216,11 +292,17 @@ pub(super) fn validate_bindings(
     candidate: &Candidate,
 ) -> Result<(), Diagnostic> {
     let machine = &program.machines()[candidate.machine_index];
-    for ((symbol, _, _), binding) in candidate
+    for (index, ((symbol, _, _), binding)) in candidate
         .const_parameters
         .iter()
         .zip(&candidate.const_bindings)
+        .enumerate()
     {
+        // A runtime-bound `Value` slot carries its declared carrier, not a
+        // closed static value; its subject is checked as an ordinary argument.
+        if candidate.runtime_value_bindings[index].is_some() {
+            continue;
+        }
         let Some(binding) = binding else { continue };
         let Some(parameter) = program
             .machine_type_parameters(machine)

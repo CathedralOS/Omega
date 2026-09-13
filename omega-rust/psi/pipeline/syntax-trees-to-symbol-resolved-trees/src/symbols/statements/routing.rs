@@ -8,7 +8,8 @@ use crate::symbols::scope::MachineScope;
 use crate::symbols::scoped_paths::resolve_state_scoped_members;
 use crate::symbols::targets::{
     assign_provider_selection_argument_symbol, assign_representation_selection_argument_symbol,
-    assign_static_argument_symbols, assign_transition_target_symbols, resolve_call_target_symbol,
+    assign_runtime_subject_argument_symbol, assign_static_argument_symbols,
+    assign_transition_target_symbols, resolve_call_target_symbol,
 };
 use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints;
 
@@ -118,6 +119,7 @@ pub(super) fn assign_statement_symbols(
                     assign_representation_selection_argument_symbol(symbols, argument, index == 0);
                 } else {
                     assign_static_argument_symbols(symbols, machine.symbol, argument, false);
+                    assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
                 }
             }
         }
