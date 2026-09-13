@@ -1,0 +1,129 @@
+// Package-level bump allocator over one qualified `Extent`
+// (wiki/spec/resources/allocation.md). The compiler owns no allocator
+// semantics here: it only checks that the package conserves the `Granted`
+// custody it was handed, through `Granted::content`, `old`, and `separate`.
+//
+// Shape decisions a next reader needs:
+//
+// - `Granted` cannot be minted from geometry, and a checked callable may
+//   retain content-bearing custody only from a consumed owned input. The
+//   split therefore consumes the whole tail; a `&mut` carve was rejected
+//   because its result custody would come from a borrowed parameter.
+//   Partitioning is a boundary requirement: the package authors the exact
+//   `separate` law, and the selected provider is what establishes the two
+//   qualified sub-ranges. No ordinary machine here constructs `Extent`
+//   geometry.
+// - Recomposition takes one `Split` record rather than two `Extent`
+//   parameters: a boundary returning `Granted` custody from two consumed
+//   qualified inputs is rejected as ambiguous, and the checker's exact
+//   correspondence recognizes only a one-parameter identity, not `separate`.
+// - Field-level `in Granted` facts are read from parameters and from
+//   conservation equations, so each field is bound to an exactly typed local
+//   before it is used. A record returned by an ordinary machine does not carry
+//   its fields' qualification to the caller, which is why `exercise` is
+//   spelled directly over the boundary instead of chaining `allocate` and
+//   `reset`; that chaining is the next acceptance for this canary.
+// - Returning an allocation does not rewind the tail. A returned region stays
+//   a separate qualified value until reset, which consumes every returned
+//   region together with the tail and recomposes the original range. Because
+//   `Extent` is linear, a still-live allocation cannot be dropped to reach
+//   reset; a partial reset has no spelling.
+use omega::language::core::extent;
+use omega::language::core::content;
+
+// Exact partition of one qualified range into two adjacent qualified ranges.
+data Split {
+    taken: Extent in Granted;
+    rest: Extent in Granted;
+}
+
+boundary trait ExtentPartition {
+    machine split(whole: Extent in Granted, length: u64) -> Split
+    ensures
+        Granted::content(old(&whole))
+        == separate(
+            Granted::content(&result.taken),
+            Granted::content(&result.rest),
+        );
+
+    machine merge(parts: Split) -> Extent
+    ensures
+        result in Granted,
+        separate(
+            Granted::content(old(&parts.taken)),
+            Granted::content(old(&parts.rest)),
+        )
+        == Granted::content(&result);
+}
+
+// Bump policy: the allocation is the low end of the tail; the rest is the new
+// tail. Nothing about the allocation's later cleanup moves the tail.
+data Bump {
+    tail: Extent in Granted;
+}
+
+data Issued {
+    strategy: Bump;
+    allocation: Extent in Granted;
+}
+
+machine allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Issued
+reaches ExtentPartition
+{
+    let tail: Extent in Granted = strategy.tail;
+    let parts: Split = partition.split(tail, length);
+    let taken: Extent in Granted = parts.taken;
+    let rest: Extent in Granted = parts.rest;
+    Issued {
+        strategy: Bump { tail: rest },
+        allocation: taken,
+    }
+}
+
+// Reset after full return. `lower` was issued before `upper`, so the original
+// range is `lower ++ upper ++ tail`. Both returned regions are consumed.
+machine reset(
+    partition: &ExtentPartition,
+    strategy: Bump,
+    lower: Extent in Granted,
+    upper: Extent in Granted
+) -> Bump
+reaches ExtentPartition
+{
+    let tail: Extent in Granted = strategy.tail;
+    let upper_and_tail: Extent in Granted = partition.merge(Split {
+        taken: upper,
+        rest: tail,
+    });
+    let whole: Extent in Granted = partition.merge(Split {
+        taken: lower,
+        rest: upper_and_tail,
+    });
+    Bump { tail: whole }
+}
+
+// Two coexisting allocations, cleanup of each, then reset to the whole range,
+// spelled directly over the partition boundary.
+machine exercise(partition: &ExtentPartition, whole: Extent in Granted) -> Extent
+reaches ExtentPartition
+{
+    let first: Split = partition.split(whole, 16);
+    let first_allocation: Extent in Granted = first.taken;
+    let after_first: Extent in Granted = first.rest;
+    let second: Split = partition.split(after_first, 32);
+    let second_allocation: Extent in Granted = second.taken;
+    let tail: Extent in Granted = second.rest;
+    let upper_and_tail: Extent in Granted = partition.merge(Split {
+        taken: second_allocation,
+        rest: tail,
+    });
+    let restored: Extent in Granted = partition.merge(Split {
+        taken: first_allocation,
+        rest: upper_and_tail,
+    });
+    restored as Extent
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}
