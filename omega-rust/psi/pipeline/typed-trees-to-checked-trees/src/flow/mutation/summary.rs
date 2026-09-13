@@ -19,6 +19,7 @@ pub(crate) struct StateMutationSummaryCache {
 #[cfg(test)]
 thread_local! {
     static SUMMARY_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static SUMMARY_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[cfg(test)]
@@ -28,7 +29,7 @@ impl StateMutationSummaryCache {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct StateMutationSummary {
     state_symbol: SymbolHandle,
     complete: bool,
@@ -65,38 +66,6 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
     }
 
     Some(instantiated)
-}
-
-fn core_method_mutates_receiver(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-) -> bool {
-    let Some(machine) = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|candidate| candidate.symbol == state.symbol)
-    }) else {
-        return false;
-    };
-
-    let method_name = machine
-        .name
-        .as_str()
-        .rsplit_once("::")
-        .map(|(_, method)| method)
-        .unwrap_or_else(|| state.name.as_str());
-    if !matches!(method_name, "as_mut_slice" | "index_mut" | "pop" | "push") {
-        return false;
-    }
-
-    let is_vec_attached_machine = machine
-        .attached_data
-        .as_ref()
-        .is_some_and(|attached_data| attached_data.as_str() == "Vec");
-    let is_vec_method_machine = machine.name.as_str().starts_with("Vec::");
-
-    is_vec_attached_machine || is_vec_method_machine
 }
 
 fn state_mutation_summary_places<'cache>(
@@ -140,52 +109,83 @@ fn build_state_mutation_summaries(
         };
         let direct_writes = collect_state_mutation_summary_places(program, state);
         let direct_complete = direct_writes.is_some();
-        let mut writes = direct_writes.unwrap_or_default();
-        let core_receiver_write = core_method_mutates_receiver(program, state);
-        if core_receiver_write
-            && let Some(receiver) = state_receiver_summary_place(program, state)
-            && !writes.contains(&receiver)
-        {
-            writes.push(receiver);
-        }
+        let writes = direct_writes.unwrap_or_default();
         states.push(StateMutationSummary {
             state_symbol: state.symbol,
-            complete: core_receiver_write
-                || (direct_complete
-                    && state_has_concrete_body_signature(program, state)
-                    && inferred_completeness
-                        .iter()
-                        .find_map(|(symbol, complete)| {
-                            (*symbol == state.symbol).then_some(*complete)
-                        })
-                        .unwrap_or(false)),
+            complete: direct_complete
+                && state_has_concrete_body_signature(program, state)
+                && inferred_completeness
+                    .iter()
+                    .find_map(|(symbol, complete)| (*symbol == state.symbol).then_some(*complete))
+                    .unwrap_or(false),
             writes,
         });
     }
 
-    loop {
-        let snapshot = states.clone();
-        let mut changed = false;
-        for caller_index in 0..snapshot.len() {
-            if !snapshot[caller_index].complete {
+    propagate_state_mutation_summaries(program, borrow, &mut states);
+    states
+}
+
+fn propagate_state_mutation_summaries(
+    program: &typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    states: &mut [StateMutationSummary],
+) {
+    // These are invocation-local dense summary positions, not durable symbol
+    // identities. Resolve each dependency once while retaining authored call order.
+    let calls: Vec<_> = states
+        .iter()
+        .map(|state| {
+            borrow_state_for_symbol(borrow, state.state_symbol)
+                .map(|borrow_state| borrow.calls.span_or_empty(borrow_state.calls))
+                .unwrap_or_default()
+                .iter()
+                .map(|call| (call, summary_index_from(states, call.target_symbol)))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    let owners: Vec<_> = states
+        .iter()
+        .map(|summary| {
+            find_state(program, summary.state_symbol)
+                .map(|state| (state, machine_symbol_for_state(program, state)))
+        })
+        .collect();
+    let mut callers = vec![Vec::new(); states.len()];
+    for (caller_index, dependencies) in calls.iter().enumerate() {
+        for (_, target_index) in dependencies {
+            if let Some(target_index) = target_index
+                && !callers[*target_index].contains(&caller_index)
+            {
+                callers[*target_index].push(caller_index);
+            }
+        }
+    }
+    let mut dirty: Vec<_> = (0..states.len()).collect();
+    let mut next_dirty = Vec::new();
+    let mut scheduled = vec![false; states.len()];
+    let mut updates = Vec::new();
+    while !dirty.is_empty() {
+        // Publish after the round: later callers must not observe this round's
+        // additions early, which would change first-discovery write ordering.
+        for caller_index in dirty.drain(..) {
+            if !states[caller_index].complete {
                 continue;
             }
-            let caller_symbol = snapshot[caller_index].state_symbol;
-            let Some(caller_state) = find_state(program, caller_symbol) else {
-                continue;
-            };
-            let caller_machine = machine_symbol_for_state(program, caller_state);
-            let Some(borrow_state) = borrow_state_for_symbol(borrow, caller_symbol) else {
+            #[cfg(test)]
+            SUMMARY_VISITS.set(SUMMARY_VISITS.get() + 1);
+            let caller_symbol = states[caller_index].state_symbol;
+            let Some((caller_state, caller_machine)) = owners[caller_index] else {
                 continue;
             };
             let mut additions = Vec::new();
             let mut complete = true;
-            for call in borrow.calls.span_or_empty(borrow_state.calls) {
-                let Some(target_index) = summary_index_from(&snapshot, call.target_symbol) else {
+            for (call, target_index) in &calls[caller_index] {
+                let Some(target_index) = target_index else {
                     complete = false;
                     break;
                 };
-                let target = &snapshot[target_index];
+                let target = &states[*target_index];
                 if !target.complete {
                     complete = false;
                     break;
@@ -204,7 +204,7 @@ fn build_state_mutation_summaries(
                     };
                     for instantiated in instantiated_places {
                         if state_summary_exposes_place(program, caller_state, &instantiated)
-                            && !snapshot[caller_index].writes.contains(&instantiated)
+                            && !states[caller_index].writes.contains(&instantiated)
                             && !additions.contains(&instantiated)
                         {
                             additions.push(instantiated);
@@ -215,20 +215,30 @@ fn build_state_mutation_summaries(
                     break;
                 }
             }
-            if !complete {
-                states[caller_index].complete = false;
-                states[caller_index].writes.clear();
-                changed = true;
-            } else if !additions.is_empty() {
-                states[caller_index].writes.extend(additions);
-                changed = true;
+            if !complete || !additions.is_empty() {
+                updates.push((caller_index, complete, additions));
             }
         }
-        if !changed {
-            break;
+        for (caller_index, complete, additions) in updates.drain(..) {
+            states[caller_index].complete = complete;
+            if complete {
+                states[caller_index].writes.extend(additions);
+            } else {
+                states[caller_index].writes.clear();
+            }
+            for &dependent in &callers[caller_index] {
+                if !scheduled[dependent] {
+                    scheduled[dependent] = true;
+                    next_dirty.push(dependent);
+                }
+            }
         }
+        next_dirty.sort_unstable();
+        for &caller_index in &next_dirty {
+            scheduled[caller_index] = false;
+        }
+        std::mem::swap(&mut dirty, &mut next_dirty);
     }
-    states
 }
 
 fn borrow_state_for_symbol(
@@ -288,18 +298,6 @@ fn state_has_concrete_body_signature(
                     .iter()
                     .all(|parameter| parameter.type_reference.is_valid())
         })
-}
-
-fn state_receiver_summary_place(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-) -> Option<CanonicalPlace> {
-    let receiver = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.is_self)?;
-    canonical_place_from_symbol(receiver.symbol)
-        .or_else(|| canonical_place_from_symbol(machine_symbol_for_state(program, state)))
 }
 
 // Owned primitive formals contain no references: writes change callee storage,
@@ -516,6 +514,286 @@ fn storage_place_has_declared_identity(place: &CanonicalPlace) -> bool {
 #[cfg(test)]
 mod cache_tests {
     use super::*;
+
+    fn typed(source: &str) -> typed_trees::TypedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    }
+
+    #[test]
+    fn vec_method_spelling_cannot_complete_a_signature_only_body() {
+        for method in ["push", "pop", "as_mut_slice", "index_mut"] {
+            let mut program = typed(&format!(
+                "data Vec {{ value: u64; }} machine Vec::{method}(&mut self) {{ self.value = 1; }}"
+            ));
+            program.machines_mut()[0].body_is_present = false;
+            let borrows = crate::build_borrow_facts(&program);
+            let state = &program.machine_states(&program.machines()[0])[0];
+            assert!(
+                state_mutation_summary_places(
+                    &program,
+                    &borrows,
+                    &StateMutationSummaryCache::default(),
+                    state
+                )
+                .is_none(),
+                "{method} is an ordinary declaration, not completeness authority"
+            );
+        }
+    }
+
+    #[test]
+    fn vec_named_concrete_method_retains_only_its_actual_write() {
+        let program =
+            typed("data Vec { value: u64; } machine Vec::push(&mut self) { self.value = 1; }");
+        let borrows = crate::build_borrow_facts(&program);
+        let state = &program.machine_states(&program.machines()[0])[0];
+        let cache = StateMutationSummaryCache::default();
+        let places = state_mutation_summary_places(&program, &borrows, &cache, state).unwrap();
+        assert_eq!(places.len(), 1);
+        assert_eq!(
+            places,
+            collect_state_mutation_summary_places(&program, state).unwrap()
+        );
+        assert!(
+            !places[0].segments.is_empty(),
+            "no name-based whole-receiver injection"
+        );
+    }
+
+    #[test]
+    fn retained_core_vector_surface_keeps_mutable_receiver_invalidation() {
+        let source = format!(
+            "{}\nmachine probe(items: &mut Vec<u8>) {{ items.push(1); }}",
+            include_str!("../../../../../../../source/library/core/vec.omg")
+        );
+        for origin in [source::SourceOrigin::Toolchain, source::SourceOrigin::User] {
+            let root = std::path::PathBuf::from("fixture/core");
+            let mut sources = source::SourceMap::default();
+            let source_id = sources
+                .add_with_metadata(root.join("vec.omg"), source.clone(), root, None, origin)
+                .source_id;
+            let tokens = source_files_to_tokens::Lexer::new(&source)
+                .tokenize()
+                .unwrap();
+            let syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+            let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
+                &syntax,
+                std::sync::Arc::new(sources),
+            )
+            .unwrap();
+            let program =
+                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                    .unwrap();
+            let borrow = crate::build_borrow_facts(&program);
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "probe")
+                .unwrap();
+            let state = &program.machine_states(machine)[0];
+            let borrow_state = borrow_state_for_symbol(&borrow, state.symbol).unwrap();
+            let call = &borrow.calls.span_or_empty(borrow_state.calls)[0];
+            let target =
+                find_state(&program, call.target_symbol).expect("resolved Vec::push machine");
+            let target_machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == machine_symbol_for_state(&program, target))
+                .unwrap();
+            assert_eq!(target_machine.name.as_str(), "Vec::push");
+            assert!(
+                program
+                    .statement_table
+                    .statements(target.statement_nodes)
+                    .is_empty()
+            );
+            let resolver = validation::CallFrameResolver::new(&program).unwrap();
+            let frame = &resolver.inferred_machine_state_write_frames(target_machine)[0];
+            let cache = StateMutationSummaryCache::default();
+            let summary = state_mutation_summary_places(&program, &borrow, &cache, target);
+            let places = super::super::call_mutated_places(
+                &program,
+                machine.symbol,
+                state.symbol,
+                &borrow,
+                call,
+                &cache,
+                Some(&resolver),
+            )
+            .expect("ordinary receiver fallback retains a conservative storage place");
+            if origin == source::SourceOrigin::Toolchain {
+                assert!(
+                    !frame.is_complete(),
+                    "the core surface is not a runtime body"
+                );
+                assert!(summary.is_none());
+                assert_eq!(
+                    places,
+                    vec![
+                        canonical_place_from_symbol(program.state_parameters(state)[0].symbol)
+                            .unwrap()
+                    ]
+                );
+            } else {
+                assert!(frame.is_complete(), "ordinary no-op code uses its body");
+                assert_eq!(summary, Some([].as_slice()));
+                assert!(places.is_empty());
+            }
+        }
+    }
+
+    // The previous synchronous algorithm is kept only as a test oracle. Its
+    // complete snapshot and all-owner replay deliberately do not share scheduling.
+    fn full_sweep_reference(
+        program: &typed_trees::TypedTrees,
+        borrow: &BorrowFacts,
+        states: &mut [StateMutationSummary],
+    ) {
+        loop {
+            let snapshot = states.to_vec();
+            let mut changed = false;
+            for caller_index in 0..snapshot.len() {
+                if !snapshot[caller_index].complete {
+                    continue;
+                }
+                let caller_symbol = snapshot[caller_index].state_symbol;
+                let caller_state = find_state(program, caller_symbol).unwrap();
+                let caller_machine = machine_symbol_for_state(program, caller_state);
+                let borrow_state = borrow_state_for_symbol(borrow, caller_symbol).unwrap();
+                let mut additions = Vec::new();
+                let mut complete = true;
+                for call in borrow.calls.span_or_empty(borrow_state.calls) {
+                    let Some(target_index) = summary_index_from(&snapshot, call.target_symbol)
+                    else {
+                        complete = false;
+                        break;
+                    };
+                    let target = &snapshot[target_index];
+                    if !target.complete {
+                        complete = false;
+                        break;
+                    }
+                    for write in &target.writes {
+                        let Some(places) = instantiate_call_relative_places(
+                            program,
+                            caller_machine,
+                            caller_symbol,
+                            call,
+                            write,
+                            WritePlaceNamespace::Storage,
+                        ) else {
+                            complete = false;
+                            break;
+                        };
+                        for place in places {
+                            if state_summary_exposes_place(program, caller_state, &place)
+                                && !snapshot[caller_index].writes.contains(&place)
+                                && !additions.contains(&place)
+                            {
+                                additions.push(place);
+                            }
+                        }
+                    }
+                    if !complete {
+                        break;
+                    }
+                }
+                if !complete {
+                    states[caller_index].complete = false;
+                    states[caller_index].writes.clear();
+                    changed = true;
+                } else if !additions.is_empty() {
+                    states[caller_index].writes.extend(additions);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+    }
+
+    fn direct_summaries(program: &typed_trees::TypedTrees) -> Vec<StateMutationSummary> {
+        program
+            .machines()
+            .iter()
+            .flat_map(|machine| program.machine_states(machine))
+            .map(|state| StateMutationSummary {
+                state_symbol: state.symbol,
+                complete: true,
+                writes: collect_state_mutation_summary_places(program, state).unwrap(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn dirty_rounds_preserve_discovery_order_without_replaying_unrelated_owners() {
+        let program = typed(
+            r#"
+            machine outer(first: &mut u64, second: &mut u64) { middle(first); leaf(second); }
+            machine middle(value: &mut u64) { leaf(value); }
+            machine leaf(value: &mut u64) { value = 1; }
+            machine unrelated(value: &mut u64) { value = 2; }
+        "#,
+        );
+        let borrows = crate::build_borrow_facts(&program);
+        let mut actual = direct_summaries(&program);
+        let mut expected = actual.clone();
+        full_sweep_reference(&program, &borrows, &mut expected);
+        SUMMARY_VISITS.set(0);
+        propagate_state_mutation_summaries(&program, &borrows, &mut actual);
+        assert_eq!(actual, expected);
+        assert_eq!(
+            SUMMARY_VISITS.get(),
+            5,
+            "four initial owners, then only outer"
+        );
+        let outer = &program.machine_states(&program.machines()[0])[0];
+        let parameters = program.state_parameters(outer);
+        assert_eq!(
+            actual[0].writes,
+            vec![
+                canonical_place_from_symbol(parameters[1].symbol).unwrap(),
+                canonical_place_from_symbol(parameters[0].symbol).unwrap(),
+            ],
+            "the shorter path discovers second before the longer path discovers first"
+        );
+    }
+
+    #[test]
+    fn dirty_rounds_match_full_sweeps_for_cycles_and_late_opaque_dependencies() {
+        let program = typed(
+            r#"
+            machine first(value: &mut u64) { second(value); }
+            machine second(value: &mut u64) { first(value); leaf(value); }
+            machine leaf(value: &mut u64) { value = 1; }
+        "#,
+        );
+        let borrows = crate::build_borrow_facts(&program);
+        for opaque_leaf in [false, true] {
+            let mut actual = direct_summaries(&program);
+            actual[2].complete = !opaque_leaf;
+            let mut expected = actual.clone();
+            full_sweep_reference(&program, &borrows, &mut expected);
+            propagate_state_mutation_summaries(&program, &borrows, &mut actual);
+            assert_eq!(actual, expected);
+            assert_eq!(actual[0].complete, !opaque_leaf);
+            assert_eq!(actual[1].complete, !opaque_leaf);
+            if opaque_leaf {
+                assert!(actual[0].writes.is_empty());
+                assert!(actual[1].writes.is_empty());
+            } else {
+                assert_eq!(actual[0].writes.len(), 1);
+                assert_eq!(actual[1].writes.len(), 1);
+            }
+        }
+    }
 
     #[test]
     fn shared_cache_publishes_one_complete_table_on_first_demand() {

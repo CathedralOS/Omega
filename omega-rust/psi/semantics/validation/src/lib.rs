@@ -2,6 +2,8 @@ mod arithmetic_domains;
 mod bound_expression_meaning;
 mod call_cycles;
 mod callable_overloads;
+mod standard_declarations;
+pub use standard_declarations::standard_calling_traits;
 mod calls;
 pub use calls::{
     named_conformance_target_requirement, result_initializer_call_is_supported,
