@@ -2,11 +2,15 @@
 //!
 //! Resolve the authored forest once without substituting pending values. Its
 //! exact source-owned dependencies determine evaluation order, including unused
-//! declarations and references in unselected branches. Each pending scalar leaf
-//! is probed independently, and the array identity is the canonical literal
-//! array rebuilt from those leaves. A whole-array probe is not used because the
-//! probe machinery lands one scalar destination and array values have no
-//! execution route yet (see the board item).
+//! declarations and references in unselected branches. Then use the same typed
+//! scalar probes as index expressions, one per pending scalar leaf; an array
+//! declaration's identity is the canonical literal array rebuilt from its
+//! evaluated leaves. A whole-array probe is not used because a probe lands one
+//! scalar destination and array values have no execution route yet. A probe may
+//! stub other pending declarations to type the surrounding forest, but no
+//! selected dependency may use such a stub: every returned origin must rejoin a
+//! completed value and the original selection. Only evaluated literals and
+//! declaration-owned receipts leave this module.
 //!
 //! The graph is prepared once; independent declarations share a typed probe batch.
 //! Deep dependency chains still require one frontend pass per dependency layer.
