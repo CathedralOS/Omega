@@ -1201,7 +1201,11 @@ pub fn structural_effect_leaf_observation_in(
         }
         (
             StructuralEffectAction::ReadIntegerField,
-            OperationKind::IntegerStructuralField { source, field },
+            OperationKind::IntegerStructuralField {
+                source,
+                path,
+                field,
+            },
         ) => {
             let result = operation
                 .result
@@ -1219,9 +1223,12 @@ pub fn structural_effect_leaf_observation_in(
                 ScalarTerm::value(result.id, result.scalar_type),
                 ScalarTerm::integer_field_path(
                     *source,
-                    vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                        *field,
-                    )],
+                    path.iter()
+                        .copied()
+                        .chain(std::iter::once(
+                            semantic_vocabulary::CanonicalStructuralPathSegment::Field(*field),
+                        ))
+                        .collect(),
                     integer,
                 ),
             ))
@@ -1234,7 +1241,11 @@ pub fn structural_effect_leaf_observation_in(
         },
         (
             StructuralEffectAction::ReadBooleanField,
-            OperationKind::BooleanStructuralField { source, field },
+            OperationKind::BooleanStructuralField {
+                source,
+                path,
+                field,
+            },
         ) => {
             let result = operation
                 .result
@@ -1242,7 +1253,15 @@ pub fn structural_effect_leaf_observation_in(
                 .expect("validated Boolean structural-field result");
             StructuralEffectObservation::BooleanFieldEquation(Proposition::Equal(
                 ScalarTerm::value(result.id, result.scalar_type),
-                ScalarTerm::boolean_field(*source, *field),
+                ScalarTerm::boolean_field_path(
+                    *source,
+                    path.iter()
+                        .copied()
+                        .chain(std::iter::once(
+                            semantic_vocabulary::CanonicalStructuralPathSegment::Field(*field),
+                        ))
+                        .collect(),
+                ),
             ))
         }
         (
@@ -1314,7 +1333,11 @@ mod tests {
                         scalar_type,
                         qualifications: Default::default(),
                     }),
-                    kind: OperationKind::IntegerStructuralField { source, field },
+                    kind: OperationKind::IntegerStructuralField {
+                        source,
+                        path: Vec::new(),
+                        field,
+                    },
                 };
                 let observation = structural_effect_leaf_observation(&operation)
                     .unwrap()
@@ -1339,6 +1362,64 @@ mod tests {
                     qualifications: Default::default(),
                 });
                 assert!(structural_effect_leaf_observation(&operation).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn scalar_field_equations_retain_every_carrier_id_and_the_final_field() {
+        use semantic_vocabulary::CanonicalStructuralPathSegment::Field;
+        let source = PlaceId::new(2).unwrap();
+        let field = StructuralFieldId::new(3).unwrap();
+        let result = ValueId::new(4).unwrap();
+        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        for boolean in [false, true] {
+            for parent in [5, 6] {
+                let path = vec![Field(StructuralFieldId::new(parent).unwrap()), Field(field)];
+                let scalar_type = if boolean {
+                    ScalarType::Boolean
+                } else {
+                    ScalarType::Integer(integer)
+                };
+                let operation = Operation {
+                    static_reach_binding: None,
+                    id: OperationId::new(1).unwrap(),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: result,
+                        scalar_type,
+                        qualifications: Default::default(),
+                    }),
+                    kind: if boolean {
+                        OperationKind::BooleanStructuralField {
+                            source,
+                            path: path.clone(),
+                            field,
+                        }
+                    } else {
+                        OperationKind::IntegerStructuralField {
+                            source,
+                            path: path.clone(),
+                            field,
+                        }
+                    },
+                };
+                let mut full_path = path;
+                full_path.push(Field(field));
+                let observed = if boolean {
+                    ScalarTerm::boolean_field_path(source, full_path)
+                } else {
+                    ScalarTerm::integer_field_path(source, full_path, integer)
+                };
+                assert_eq!(
+                    structural_effect_leaf_observation(&operation)
+                        .unwrap()
+                        .unwrap()
+                        .local_equation(),
+                    Some(&Proposition::Equal(
+                        ScalarTerm::value(result, scalar_type),
+                        observed
+                    ))
+                );
             }
         }
     }
@@ -1669,6 +1750,7 @@ mod tests {
             ]),
         );
         let boolean = structural_effect_semantic_row(&OperationKind::BooleanStructuralField {
+            path: Vec::new(),
             source: PlaceId::new(1).unwrap(),
             field: StructuralFieldId::new(1).unwrap(),
         })
@@ -1901,6 +1983,7 @@ mod tests {
                 scalar_type: ScalarType::Boolean,
             }),
             kind: OperationKind::BooleanStructuralField {
+                path: Vec::new(),
                 source: PlaceId::new(1).unwrap(),
                 field: StructuralFieldId::new(1).unwrap(),
             },
@@ -1924,7 +2007,11 @@ mod tests {
                 id: result,
                 scalar_type: ScalarType::Boolean,
             }),
-            kind: OperationKind::BooleanStructuralField { source, field },
+            kind: OperationKind::BooleanStructuralField {
+                source,
+                path: Vec::new(),
+                field,
+            },
         };
         assert_eq!(
             structural_effect_leaf_observation(&boolean).unwrap(),
@@ -1976,6 +2063,7 @@ mod tests {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::BooleanStructuralField {
+                path: Vec::new(),
                 source: PlaceId::new(1).unwrap(),
                 field: StructuralFieldId::new(1).unwrap(),
             },
@@ -2004,6 +2092,7 @@ mod tests {
                         scalar_type: ScalarType::Boolean,
                     }),
                     kind: OperationKind::BooleanStructuralField {
+                        path: Vec::new(),
                         source: PlaceId::new(1).unwrap(),
                         field: StructuralFieldId::new(1).unwrap(),
                     },

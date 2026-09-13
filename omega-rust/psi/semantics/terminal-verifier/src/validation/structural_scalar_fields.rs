@@ -82,14 +82,24 @@ pub(crate) fn integer_structural_field_read_range(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
 ) -> Option<semantic_vocabulary::BoundedIntegerType> {
-    let OperationKind::IntegerStructuralField { source, field } = operation.kind else {
+    let OperationKind::IntegerStructuralField {
+        source,
+        ref path,
+        field,
+    } = operation.kind
+    else {
         return None;
     };
     let signature = super::structural_result_contracts::source_signature(machine, source)?;
+    let carrier = terminal_semantics::record_field_carrier(
+        module.structural_types.iter(),
+        signature.structural_type,
+        path,
+    )?;
     let declaration = module
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == signature.structural_type)?;
+        .find(|declaration| declaration.id == carrier.structural_type)?;
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return None;
     };
@@ -146,6 +156,7 @@ pub(super) fn validate_integer_structural_field(
     machine: &TerminalMachine,
     operation: OperationId,
     source: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     field: StructuralFieldId,
     result_type: ScalarType,
 ) -> Result<(), ModuleError> {
@@ -155,8 +166,14 @@ pub(super) fn validate_integer_structural_field(
         field,
     };
     if let Some(result) = super::record::completed_source(module, machine, source) {
+        let carrier = terminal_semantics::record_field_carrier(
+            module.structural_types.iter(),
+            result.structural_type,
+            path,
+        )
+        .ok_or_else(invalid)?;
         if matches!(result_type, ScalarType::Integer(_))
-            && direct_relevant_scalar_field(module, result.structural_type, field, true)
+            && direct_relevant_scalar_field(module, carrier.structural_type, field, true)
                 == Some(result_type)
         {
             return Ok(());
@@ -177,7 +194,13 @@ pub(super) fn validate_integer_structural_field(
             operation,
         ));
     };
-    if direct_relevant_scalar_field(module, parameter.structural_type, field, true)
+    let carrier = terminal_semantics::record_field_carrier(
+        module.structural_types.iter(),
+        parameter.structural_type,
+        path,
+    )
+    .ok_or_else(invalid)?;
+    if direct_relevant_scalar_field(module, carrier.structural_type, field, true)
         != Some(result_type)
     {
         return Err(invalid());
@@ -190,6 +213,7 @@ pub(super) fn validate_boolean_structural_field(
     machine: &TerminalMachine,
     operation: OperationId,
     source: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     field: StructuralFieldId,
 ) -> Result<(), ModuleError> {
     let invalid = || ModuleError::InvalidBooleanStructuralField {
@@ -198,7 +222,13 @@ pub(super) fn validate_boolean_structural_field(
         field,
     };
     if let Some(result) = super::record::completed_source(module, machine, source) {
-        return if direct_relevant_scalar_field(module, result.structural_type, field, true)
+        let carrier = terminal_semantics::record_field_carrier(
+            module.structural_types.iter(),
+            result.structural_type,
+            path,
+        )
+        .ok_or_else(invalid)?;
+        return if direct_relevant_scalar_field(module, carrier.structural_type, field, true)
             == Some(ScalarType::Boolean)
         {
             Ok(())
@@ -210,12 +240,18 @@ pub(super) fn validate_boolean_structural_field(
     if parameter.access == StructuralAccess::WriteOnlyBorrow {
         return Err(ModuleError::StructuralObservationRequiresReadableAccess { operation, source });
     }
+    let carrier = terminal_semantics::record_field_carrier(
+        module.structural_types.iter(),
+        parameter.structural_type,
+        path,
+    )
+    .ok_or_else(invalid)?;
     if !matches!(
         parameter.multiplicity,
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
     ) || !has_readable_structural_access(parameter.access)
         || !has_empty_structural_custody(machine, source)
-        || direct_relevant_scalar_field(module, parameter.structural_type, field, true)
+        || direct_relevant_scalar_field(module, carrier.structural_type, field, true)
             != Some(ScalarType::Boolean)
     {
         return Err(invalid());

@@ -1104,10 +1104,11 @@ fn validate_boolean_structural_field(
     machine: &TerminalMachine,
     operation: OperationId,
     source: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     field: StructuralFieldId,
 ) -> Result<(), ModuleError> {
     structural_scalar_fields::validate_boolean_structural_field(
-        module, machine, operation, source, field,
+        module, machine, operation, source, path, field,
     )
 }
 

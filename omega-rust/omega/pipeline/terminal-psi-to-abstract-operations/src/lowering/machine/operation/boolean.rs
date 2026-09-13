@@ -10,7 +10,18 @@ pub(super) fn lower(operation: &Operation) -> Result<AbstractOperation, Lowering
             result: operation.result.expect_scalar().id,
             value,
         },
-        OperationKind::BooleanStructuralField { source, field } => {
+        OperationKind::BooleanStructuralField {
+            source,
+            path,
+            field,
+        } => {
+            // Keep the same explicit native boundary as integer observations;
+            // a nested field identity is not a direct field of the root.
+            if !path.is_empty() {
+                return Err(LoweringError::UnsupportedNestedStructuralFieldRead(
+                    operation.id,
+                ));
+            }
             AbstractOperation::BooleanStructuralField {
                 psi_operation: operation.id,
                 result: operation.result.expect_scalar().id,

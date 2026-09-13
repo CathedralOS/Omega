@@ -79,6 +79,7 @@ fn owned_execution(
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(integer_read),
             kind: OperationKind::IntegerStructuralField {
+                path: Vec::new(),
                 source: PlaceId::new(3).unwrap(),
                 field: StructuralFieldId::new(1).unwrap(),
             },
@@ -92,6 +93,7 @@ fn owned_execution(
                 scalar_type: ScalarType::Boolean,
             }),
             kind: OperationKind::BooleanStructuralField {
+                path: Vec::new(),
                 source: PlaceId::new(4).unwrap(),
                 field: StructuralFieldId::new(2).unwrap(),
             },

@@ -4,7 +4,7 @@
 //! terminal control-flow envelope. Shared structural paths, call arguments,
 //! contracts, and declaration primitives remain sibling- or parent-owned.
 
-use semantic_vocabulary::IeeeFloatComparisonOperation;
+use semantic_vocabulary::{CanonicalStructuralPathSegment, IeeeFloatComparisonOperation};
 use terminal_psi::{
     Block, ClaimTransfer, CompletionReceipt, CrashCause, NominalAffineCleanup, Operation,
     OperationKind, OperationResult, OutcomeSpecificCallEvidence,
@@ -17,6 +17,7 @@ use super::contract_wire::{
     decode_crash_predicate, decode_crash_routes, decode_successor_edge, encode_crash_predicate,
     encode_crash_routes, encode_successor_edge,
 };
+
 use super::machine_wire::{
     decode_declaration, decode_declarations, encode_declaration, encode_declarations,
 };
@@ -34,6 +35,34 @@ use super::{
     decode_structural_arguments, decode_structural_path, encode_affine_cleanup_action,
     encode_obligation_ids, encode_optional_id, encode_structural_arguments, encode_structural_path,
 };
+
+fn encode_scalar_field_path(
+    writer: &mut Writer,
+    path: &[CanonicalStructuralPathSegment],
+) -> Result<(), CodecError> {
+    writer.len("scalar field carrier path", path.len())?;
+    for segment in path {
+        let CanonicalStructuralPathSegment::Field(field) = segment else {
+            return Err(CodecError::MalformedStructuralFoundation(
+                "scalar field carrier path is not a record path",
+            ));
+        };
+        writer.u8(1);
+        writer.id(*field);
+    }
+    Ok(())
+}
+
+fn decode_scalar_field_path(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<CanonicalStructuralPathSegment>, CodecError> {
+    decode_counted(reader, |reader| match reader.u8()? {
+        1 => Ok(CanonicalStructuralPathSegment::Field(
+            reader.id("StructuralFieldId")?,
+        )),
+        tag => Err(CodecError::InvalidTag("scalar field carrier path", tag)),
+    })
+}
 
 pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
     writer.id(block.id);
@@ -548,14 +577,24 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 writer.id(right);
                 writer.id(addend);
             }
-            OperationKind::BooleanStructuralField { source, field } => {
+            OperationKind::BooleanStructuralField {
+                source,
+                ref path,
+                field,
+            } => {
                 writer.u8(38);
                 writer.id(source);
+                encode_scalar_field_path(writer, path)?;
                 writer.id(field);
             }
-            OperationKind::IntegerStructuralField { source, field } => {
+            OperationKind::IntegerStructuralField {
+                source,
+                ref path,
+                field,
+            } => {
                 writer.u8(47);
                 writer.id(source);
+                encode_scalar_field_path(writer, path)?;
                 writer.id(field);
             }
             OperationKind::BooleanNot { operand } => {
@@ -1091,10 +1130,12 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             },
             38 => OperationKind::BooleanStructuralField {
                 source: reader.id("PlaceId")?,
+                path: decode_scalar_field_path(reader)?,
                 field: reader.id("StructuralFieldId")?,
             },
             47 => OperationKind::IntegerStructuralField {
                 source: reader.id("PlaceId")?,
+                path: decode_scalar_field_path(reader)?,
                 field: reader.id("StructuralFieldId")?,
             },
             3 => OperationKind::WrappingIntegerAdd {
@@ -1560,9 +1601,9 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
 #[cfg(test)]
 mod tests {
     use semantic_vocabulary::{
-        BlockId, ClaimId, EdgeId, EvidenceTermId, IntegerSign, IntegerType, MachineId,
-        ObligationId, OperationId, PlaceId, PropositionId, ScalarType, StructuralCaseId,
-        StructuralFieldId, StructuralTypeId, ValueId,
+        BlockId, CanonicalStructuralPathSegment, ClaimId, EdgeId, EvidenceTermId, IntegerSign,
+        IntegerType, MachineId, ObligationId, OperationId, PlaceId, PropositionId, ScalarType,
+        StructuralCaseId, StructuralFieldId, StructuralTypeId, ValueId,
     };
     use terminal_psi::{
         Block, EvidenceInterfaceIdentity, Operation, OperationKind, OperationResult,
@@ -1572,7 +1613,7 @@ mod tests {
         Terminator, ValueDeclaration,
     };
 
-    use super::{decode_block, encode_block};
+    use super::{decode_block, decode_scalar_field_path, encode_block, encode_scalar_field_path};
     use crate::{
         CodecError,
         wire::{Reader, Writer},
@@ -1622,6 +1663,27 @@ mod tests {
         .concat();
         assert_eq!(bytes, expected);
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
+    }
+
+    #[test]
+    fn scalar_field_carrier_wire_rejects_missing_steps_and_unsupported_tags() {
+        let path = vec![CanonicalStructuralPathSegment::Field(
+            id::<StructuralFieldId>(7),
+        )];
+        let mut writer = Writer::default();
+        encode_scalar_field_path(&mut writer, &path).unwrap();
+        let bytes = writer.finish();
+        assert_eq!(decode_scalar_field_path(&mut Reader::new(&bytes)), Ok(path));
+        for length in 0..bytes.len() {
+            assert!(decode_scalar_field_path(&mut Reader::new(&bytes[..length])).is_err());
+        }
+        for tag in [0, 2, 3, 255] {
+            let mut invalid = bytes.clone();
+            invalid[4] = tag;
+            assert!(
+                matches!(decode_scalar_field_path(&mut Reader::new(&invalid)), Err(CodecError::InvalidTag("scalar field carrier path", actual)) if actual == tag)
+            );
+        }
     }
 
     #[test]
@@ -1808,6 +1870,7 @@ mod tests {
                     scalar_type: integer,
                 }),
                 kind: OperationKind::IntegerStructuralField {
+                    path: Vec::new(),
                     source: id::<PlaceId>(10),
                     field: id::<StructuralFieldId>(11),
                 },
@@ -1830,7 +1893,7 @@ mod tests {
             &id::<PlaceId>(10).get().to_le_bytes()
         );
         assert_eq!(
-            &bytes[kind + 9..kind + 17],
+            &bytes[kind + 13..kind + 21],
             &id::<StructuralFieldId>(11).get().to_le_bytes(),
         );
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(read));

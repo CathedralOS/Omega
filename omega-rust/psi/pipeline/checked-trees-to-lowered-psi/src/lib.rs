@@ -243,6 +243,7 @@ enum LoweredDirectExpression {
     },
     StructuralField {
         source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
         scalar_type: ScalarType,
     },
@@ -367,6 +368,7 @@ enum LoweredBooleanReturnExpression {
     },
     StructuralField {
         source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
     },
     Not {

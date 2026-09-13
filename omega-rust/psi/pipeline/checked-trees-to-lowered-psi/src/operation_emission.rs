@@ -289,7 +289,11 @@ pub(super) fn emit_boolean_expression(
                 operations,
             )
         }
-        LoweredBooleanReturnExpression::StructuralField { source, field } => {
+        LoweredBooleanReturnExpression::StructuralField {
+            source,
+            path,
+            field,
+        } => {
             let id = value_id(*next_value_identity);
             *next_value_identity = next_value_identity
                 .checked_add(1)
@@ -305,6 +309,7 @@ pub(super) fn emit_boolean_expression(
                 }),
                 kind: OperationKind::BooleanStructuralField {
                     source: *source,
+                    path: path.clone(),
                     field: *field,
                 },
             });
@@ -821,11 +826,13 @@ pub(super) fn emit_direct_expression(
         ),
         LoweredDirectExpression::StructuralField {
             source,
+            path,
             field,
             scalar_type,
         } => emit_scalar_leaf(
             OperationKind::IntegerStructuralField {
                 source: *source,
+                path: path.clone(),
                 field: *field,
             },
             *scalar_type,

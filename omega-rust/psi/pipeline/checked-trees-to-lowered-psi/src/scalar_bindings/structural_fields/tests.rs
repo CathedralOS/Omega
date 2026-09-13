@@ -62,8 +62,8 @@ fn repeated_field_reads_emit_distinct_current_observations() {
     assert_eq!(operations.len(), 2);
     for operation in operations.iter() {
         assert!(matches!(operation.kind,
-            OperationKind::IntegerStructuralField { source, field }
-                if source == PlaceId::new(11).unwrap() && field == StructuralFieldId::new(7).unwrap()));
+            OperationKind::IntegerStructuralField { source, field, ref path }
+                if path.is_empty() && source == PlaceId::new(11).unwrap() && field == StructuralFieldId::new(7).unwrap()));
     }
 }
 

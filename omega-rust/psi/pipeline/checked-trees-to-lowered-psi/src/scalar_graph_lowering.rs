@@ -1093,6 +1093,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
             )?;
             Ok(LoweredDirectExpression::StructuralField {
                 source,
+                path: Vec::new(),
                 field,
                 scalar_type,
             })
@@ -1361,7 +1362,11 @@ fn lower_checked_boolean_expression_with_parameters(
                     path,
                     ScalarType::Boolean,
                 )?;
-                return Ok(LoweredBooleanReturnExpression::StructuralField { source, field });
+                return Ok(LoweredBooleanReturnExpression::StructuralField {
+                    source,
+                    path: Vec::new(),
+                    field,
+                });
             }
             let path = path
                 .iter()

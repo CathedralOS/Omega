@@ -96,6 +96,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
         scalar(
             identity,
             OperationKind::IntegerStructuralField {
+                path: Vec::new(),
                 source: place_id(source),
                 field: structural_field_id(field),
             },

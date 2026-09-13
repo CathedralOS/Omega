@@ -51,6 +51,7 @@ fn owned_field(multiplicity: StructuralMultiplicity) -> TerminalModule {
             scalar_type,
         }),
         kind: OperationKind::IntegerStructuralField {
+            path: Vec::new(),
             source: place,
             field: structural_field_id(1),
         },
@@ -108,6 +109,7 @@ fn owned_integer_field_admission_retains_type_relevance_access_and_claim_checks(
             "field" => {
                 module.machines[0].blocks[0].operations[0].kind =
                     OperationKind::IntegerStructuralField {
+                        path: Vec::new(),
                         source: place_id(901),
                         field: structural_field_id(99),
                     }
@@ -115,6 +117,7 @@ fn owned_integer_field_admission_retains_type_relevance_access_and_claim_checks(
             "source" => {
                 module.machines[0].blocks[0].operations[0].kind =
                     OperationKind::IntegerStructuralField {
+                        path: Vec::new(),
                         source: place_id(999),
                         field: structural_field_id(1),
                     }
@@ -138,5 +141,62 @@ fn owned_integer_field_admission_retains_type_relevance_access_and_claim_checks(
             _ => unreachable!(),
         }
         assert!(encode_module(&module).is_err(), "{mutation}");
+    }
+}
+
+#[test]
+fn nested_scalar_field_paths_round_trip_and_change_canonical_identity() {
+    use semantic_vocabulary::CanonicalStructuralPathSegment;
+    let mut module = owned_field(StructuralMultiplicity::Unrestricted);
+    let child = module.machines[0].structural_parameters[0].structural_type;
+    let root = structural_type_id(902);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: root,
+        identity: "Nested".into(),
+        shape: StructuralTypeShape::Record {
+            fields: (1..=2)
+                .map(|field| StructuralFieldDeclaration {
+                    id: structural_field_id(field),
+                    identity: format!("child{field}"),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(child),
+                })
+                .collect(),
+        },
+    });
+    module.machines[0].structural_parameters[0].structural_type = root;
+    let mut encodings = Vec::new();
+    for parent in [1, 2] {
+        let OperationKind::IntegerStructuralField { path, .. } =
+            &mut module.machines[0].blocks[0].operations[0].kind
+        else {
+            unreachable!();
+        };
+        *path = vec![CanonicalStructuralPathSegment::Field(structural_field_id(
+            parent,
+        ))];
+        let bytes = encode_module(&module).unwrap();
+        assert_eq!(decode_module(&bytes).unwrap(), module);
+        encodings.push(bytes);
+    }
+    assert_ne!(
+        encodings[0], encodings[1],
+        "same-typed siblings retain distinct canonical identities"
+    );
+    for replacement in [
+        Vec::new(),
+        vec![CanonicalStructuralPathSegment::Field(structural_field_id(
+            99,
+        ))],
+        vec![CanonicalStructuralPathSegment::Field(structural_field_id(1)); 2],
+        vec![CanonicalStructuralPathSegment::FixedIndex(0)],
+    ] {
+        let OperationKind::IntegerStructuralField { path, .. } =
+            &mut module.machines[0].blocks[0].operations[0].kind
+        else {
+            unreachable!();
+        };
+        *path = replacement;
+        assert!(encode_module(&module).is_err());
     }
 }

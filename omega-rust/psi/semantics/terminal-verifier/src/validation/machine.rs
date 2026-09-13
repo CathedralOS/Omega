@@ -568,7 +568,11 @@ pub(super) fn validate_machine(
                         module, machine, operation, source, case,
                     )?;
                 }
-                OperationKind::BooleanStructuralField { source, field } => {
+                OperationKind::BooleanStructuralField {
+                    source,
+                    ref path,
+                    field,
+                } => {
                     if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::BooleanStructuralFieldRequiresBooleanResult(
                             operation.id,
@@ -579,15 +583,21 @@ pub(super) fn validate_machine(
                         machine,
                         operation.id,
                         source,
+                        path,
                         field,
                     )?;
                 }
-                OperationKind::IntegerStructuralField { source, field } => {
+                OperationKind::IntegerStructuralField {
+                    source,
+                    ref path,
+                    field,
+                } => {
                     super::structural_scalar_fields::validate_integer_structural_field(
                         module,
                         machine,
                         operation.id,
                         source,
+                        path,
                         field,
                         operation.result.expect_scalar().scalar_type,
                     )?;

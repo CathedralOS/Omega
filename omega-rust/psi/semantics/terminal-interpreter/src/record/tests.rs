@@ -168,6 +168,7 @@ fn getter() -> TerminalMachine {
         id: OperationId::new(12).unwrap(),
         result: OperationResult::Scalar(scalar(13)),
         kind: OperationKind::IntegerStructuralField {
+            path: Vec::new(),
             source: PlaceId::new(11).unwrap(),
             field: StructuralFieldId::new(1).unwrap(),
         },
@@ -412,6 +413,7 @@ fn owned_record_argument_mutation_does_not_change_the_callers_referent() {
         id: OperationId::new(4).unwrap(),
         result: OperationResult::Scalar(scalar(4)),
         kind: OperationKind::IntegerStructuralField {
+            path: Vec::new(),
             source: PlaceId::new(1).unwrap(),
             field: StructuralFieldId::new(1).unwrap(),
         },

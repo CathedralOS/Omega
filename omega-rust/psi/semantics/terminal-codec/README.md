@@ -31,6 +31,12 @@ endpoints. Invalid carrier/endpoints, reversed bounds, and erased bounded fields
 reject. Their declaration bytes participate in semantic identity; an identical
 physical layout does not make different numeric restrictions interchangeable.
 
+Integer and Boolean structural field reads encode the source root, the counted
+canonical carrier path, and the final declaration-local field ID. Empty paths
+are direct reads; each nonempty step is a relevant record field ID. Case and
+fixed-index steps reject in this operation family. Every step participates in
+semantic bytes and proof equations; decoding never supplies a missing path.
+
 Scalar case construction encodes the selected case and its complete field roster
 in declaration order. Each field binds an already evaluated scalar value and,
 for a bounded integer field, its declaration-derived range obligation. The case,

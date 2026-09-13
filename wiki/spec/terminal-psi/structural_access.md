@@ -187,6 +187,22 @@ complete parameter declaration, path, field, access, qualifications/claims,
 scalar type, and dominating definition. Integer and Boolean field observations
 remain distinct operations and require readable access.
 
+`IntegerStructuralField` and `BooleanStructuralField` retain the whole source
+place, an ordered canonical carrier path, and the final declaration-local field
+ID. The carrier path excludes the final field; an empty path is a direct read.
+Each admitted carrier step selects a relevant structural field of a record by
+its exact parent-local ID. Case and fixed-index steps are not admitted by these
+operations. Unknown, erased, truncated, and non-record carriers reject; consumers
+must not infer a path from names or layout offsets.
+
+Reading a nested field observes the original backing below that root, not a
+copied child or a new borrow. Independent validation retains the root's readable
+access, type, multiplicity, qualification/claim custody and live whole affine
+ownership. The scalar equation retains every carrier ID and the final field ID.
+A bounded integer leaf supplies its declaration-derived range on the fresh read
+SSA value, not on a mutable field alias; construction, entry and store checks
+remain independently responsible for the declared invariant.
+
 Consumers reconstruct projections from retained field/index identities and
 types, rather than trusting an accumulated byte offset. Runtime scalar inputs
 retain value identity; integer, Boolean, and IEEE literals retain their exact

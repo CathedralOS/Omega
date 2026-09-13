@@ -3930,6 +3930,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
                     scalar_type: integer,
                 }),
                 kind: OperationKind::IntegerStructuralField {
+                    path: Vec::new(),
                     source: callee_place,
                     field: structural_field_id(1),
                 },

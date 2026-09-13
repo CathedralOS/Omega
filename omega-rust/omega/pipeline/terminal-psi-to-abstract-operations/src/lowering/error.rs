@@ -54,6 +54,9 @@ pub enum LoweringError {
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// shared parameter root, integer field, and typed scalar result.
     InvalidIntegerStructuralField(semantic_vocabulary::OperationId),
+    /// Abstract scalar reads retain only a direct field; nested observations
+    /// require path custody through native layout and independent replay.
+    UnsupportedNestedStructuralFieldRead(semantic_vocabulary::OperationId),
     /// The dynamic-call representation has no combined scalar-and-descriptor
     /// argument carrier yet. Ordinary Unit calls retain scalar arguments.
     UnsupportedUnitCallScalarAndDynamicArguments(semantic_vocabulary::OperationId),

@@ -124,7 +124,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 95;
+const FORMAT_MARKER: u16 = 96;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1386,8 +1386,16 @@ fn validate_operation_foundation(
                 return malformed("structural scalar field store value type does not match field");
             }
         }
-        OperationKind::IntegerStructuralField { source, field }
-        | OperationKind::BooleanStructuralField { source, field } => {
+        OperationKind::IntegerStructuralField {
+            source,
+            path,
+            field,
+        }
+        | OperationKind::BooleanStructuralField {
+            source,
+            path,
+            field,
+        } => {
             let Some(result) = operation.result.scalar_ref() else {
                 return malformed("scalar structural field has no scalar result");
             };
@@ -1421,12 +1429,15 @@ fn validate_operation_foundation(
                 .filter_map(|producer| producer.result.structural())
                 .find(|local| local.place == *source)
             {
-                let matching = module.structural_types.iter().find(|declaration|
-                    declaration.id == local.structural_type).is_some_and(|declaration|
+                let carrier = terminal_semantics::record_field_carrier(
+                    module.structural_types.iter(),
+                    local.structural_type,
+                    path,
+                );
+                let matching = carrier.and_then(|carrier| module.structural_types.iter().find(|declaration|
+                    declaration.id == carrier.structural_type)).is_some_and(|declaration|
                         matches!(&declaration.shape, StructuralTypeShape::Record { fields }
-                            if fields.iter().all(|field| !field.relevance.is_erased()
-                                && matches!(field.field_type, StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) | StructuralFieldType::BoundedInteger(_)))
-                                && fields.iter().any(|candidate| candidate.id == *field
+                            if fields.iter().any(|candidate| candidate.id == *field && !candidate.relevance.is_erased()
                                     && candidate.field_type.scalar_type() == Some(result.scalar_type))));
                 if !matching
                     || local.multiplicity == StructuralMultiplicity::Linear
@@ -1466,10 +1477,18 @@ fn validate_operation_foundation(
             else {
                 return malformed("scalar structural field source is not a parameter");
             };
-            let matching = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == parameter.structural_type)
+            let carrier = terminal_semantics::record_field_carrier(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                path,
+            );
+            let matching = carrier
+                .and_then(|carrier| {
+                    module
+                        .structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == carrier.structural_type)
+                })
                 .and_then(|declaration| match &declaration.shape {
                     StructuralTypeShape::Record { fields } => fields.iter().find(|candidate| {
                         candidate.id == *field

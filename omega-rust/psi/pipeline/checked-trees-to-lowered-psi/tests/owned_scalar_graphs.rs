@@ -217,7 +217,7 @@ fn limits_root_and_forwarding_caller_publish_integer_field_and_local_mutation() 
                     .iter()
                     .flat_map(|block| &block.operations)
                     .filter_map(move |operation| {
-                        if let OperationKind::IntegerStructuralField { source, field } =
+                        if let OperationKind::IntegerStructuralField { source, field, .. } =
                             operation.kind
                         {
                             Some((machine, source, field))

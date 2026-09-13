@@ -21,6 +21,7 @@ fn boolean_read(operation: u64, source: u64, field: u64) -> Operation {
             scalar_type: ScalarType::Boolean,
         }),
         kind: OperationKind::BooleanStructuralField {
+            path: Vec::new(),
             source: id(source),
             field: id(field),
         },
@@ -120,6 +121,7 @@ fn receiver_module(cyclic: bool) -> TerminalModule {
                 scalar_type: integer_type(),
             }),
             kind: OperationKind::IntegerStructuralField {
+                path: Vec::new(),
                 source: id(1),
                 field: id(field),
             },

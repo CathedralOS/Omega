@@ -380,14 +380,17 @@ pub(super) fn shared_boolean_runtime_parameters(
                 *position,
             )]))
         }
-        LoweredBooleanReturnExpression::StructuralField { source, field } => {
-            Some(BTreeSet::from([
-                SharedBooleanRuntimeInput::StructuralField {
-                    source: *source,
-                    field: *field,
-                },
-            ]))
-        }
+        LoweredBooleanReturnExpression::StructuralField {
+            source,
+            path,
+            field,
+        } => Some(BTreeSet::from([
+            SharedBooleanRuntimeInput::StructuralField {
+                source: *source,
+                path: path.clone(),
+                field: *field,
+            },
+        ])),
         LoweredBooleanReturnExpression::Not { operand } => {
             shared_boolean_runtime_parameters(operand)
         }
@@ -620,12 +623,13 @@ fn native_fixed_integer_type(integer_type: IntegerType) -> bool {
     !integer_type.is_address() && matches!(integer_type.bits(), 8 | 16 | 32 | 64)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum SharedBooleanRuntimeInput {
     BooleanScalar(usize),
     IntegerScalar(usize),
     StructuralField {
         source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
     },
 }

@@ -38,7 +38,9 @@ fn local_record_reads_publish_direct_and_transported_places() {
             .iter()
             .flat_map(|block| &block.operations)
             .filter_map(|operation| match operation.kind {
-                OperationKind::IntegerStructuralField { source, field } => Some((source, field)),
+                OperationKind::IntegerStructuralField { source, field, .. } => {
+                    Some((source, field))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -53,6 +55,60 @@ fn local_record_reads_publish_direct_and_transported_places() {
             &proof_admission::AdmissionProfile::default(),
         )
         .unwrap();
+    }
+}
+
+#[test]
+fn nested_record_reads_reject_same_typed_path_substitution() {
+    let checked = checked_source(
+        "data Child [copy] { value: u64; }
+         data Record [copy] { left: Child; right: Child; }
+         machine observe() -> u64 {
+             let record: Record = Record { left: Child { value: 17 }, right: Child { value: 256 } };
+             record.left.value
+         }",
+    );
+    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
+        .produce_artifact()
+        .expect("nested record path publishes");
+    let handle = checked
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .iter()
+        .find_map(|(handle, node)| {
+            matches!(
+                node.kind,
+                CheckedScalarComputationKind::StructuralField { .. }
+            )
+            .then_some(handle)
+        })
+        .unwrap();
+    for replacement in [vec!["right"], Vec::new(), vec!["left", "left"]] {
+        let mut changed = checked.clone();
+        let CheckedScalarComputationKind::StructuralField { subject, .. } = &mut changed
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get_mut(handle)
+            .kind
+        else {
+            panic!("nested read")
+        };
+        subject.path = replacement
+            .into_iter()
+            .map(|identity| {
+                checked_trees::CheckedUnitStructuralPathSegment::Field(identity.to_owned())
+            })
+            .collect();
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "observe")
+                .produce_artifact()
+                .is_err(),
+            "a valid sibling with the same leaf type is not the authored observation"
+        );
     }
 }
 

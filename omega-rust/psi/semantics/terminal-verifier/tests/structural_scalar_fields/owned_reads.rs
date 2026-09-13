@@ -32,11 +32,13 @@ fn owned_reader(multiplicity: StructuralMultiplicity, scalar_type: ScalarType) -
     operation.result.scalar_mut().unwrap().scalar_type = scalar_type;
     operation.kind = if scalar_type == ScalarType::Boolean {
         OperationKind::BooleanStructuralField {
+            path: Vec::new(),
             source: parameter.place,
             field: fields[0].id,
         }
     } else {
         OperationKind::IntegerStructuralField {
+            path: Vec::new(),
             source: parameter.place,
             field: fields[0].id,
         }

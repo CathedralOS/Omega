@@ -345,9 +345,17 @@ fn boolean_reads_require_entry_inputs_but_integer_reads_defer_until_execution() 
                     },
                 }),
                 kind: if boolean {
-                    OperationKind::BooleanStructuralField { source, field }
+                    OperationKind::BooleanStructuralField {
+                        source,
+                        path: Vec::new(),
+                        field,
+                    }
                 } else {
-                    OperationKind::IntegerStructuralField { source, field }
+                    OperationKind::IntegerStructuralField {
+                        source,
+                        path: Vec::new(),
+                        field,
+                    }
                 },
             });
         let bindings = bind_structural_arguments(&machine.structural_parameters, &roots).unwrap();
