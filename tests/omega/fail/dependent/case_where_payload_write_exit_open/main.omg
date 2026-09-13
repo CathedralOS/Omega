@@ -1,0 +1,17 @@
+// CASE-CONSTRAINTS stale facts across a state boundary: a payload store
+// leaving the active case's `where` fact FALSE opens an invariant window on
+// `self.interval`, and the open window transports into the successor state
+// -- the broken `Range` constraint may not escape the machine's terminal
+// exit.
+data Interval {
+    case Empty;
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+data Main { interval: Interval; }
+machine Main::main(&mut self) {
+    self.interval = Interval::Range { lo: 1, hi: 5 };
+    self.interval.hi = 0;
+    transition { _ -> finish() }
+
+    state finish(&mut self) { }
+}

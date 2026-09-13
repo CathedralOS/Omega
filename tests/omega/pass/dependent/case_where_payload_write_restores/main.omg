@@ -1,0 +1,15 @@
+// CASE-CONSTRAINTS payload writes: a payload store that FALSES the active
+// case's `where` fact opens an invariant window (ch11) instead of refusing;
+// a later store that re-proves `lo <= hi` CLOSES it, so the read and the
+// state exit are legal consumption points again.
+data Interval {
+    case Empty;
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+data Main { interval: Interval; }
+machine Main::main(&mut self) {
+    self.interval = Interval::Range { lo: 1, hi: 5 };
+    self.interval.hi = 0;
+    self.interval.hi = 3;
+    let x: u64 = self.interval.hi;
+}

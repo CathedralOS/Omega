@@ -103,10 +103,12 @@ fn valuation_publication_ignores_place_and_field_permutations() {
     let first = (
         "self.first".to_owned(),
         vec![("left".to_owned(), Some(1)), ("right".to_owned(), Some(2))],
+        Some(symbols::SymbolHandle::from_arena_index(7)),
     );
     let second = (
         "self.second".to_owned(),
         vec![("left".to_owned(), None), ("right".to_owned(), Some(4))],
+        None,
     );
     let expected = vec![first, second];
     for reverse_places in [false, true] {
@@ -116,7 +118,7 @@ fn valuation_publication_ignores_place_and_field_permutations() {
                 valuations.reverse();
             }
             if reverse_fields {
-                for (_, fields) in &mut valuations {
+                for (_, fields, _) in &mut valuations {
                     fields.reverse();
                 }
             }
@@ -138,6 +140,7 @@ fn canonical_meet_retains_only_shared_known_literals() {
             ("missing".to_owned(), Some(4)),
             ("unknown".to_owned(), None),
         ],
+        None,
     )];
     let right = vec![(
         "self".to_owned(),
@@ -146,13 +149,39 @@ fn canonical_meet_retains_only_shared_known_literals() {
             ("conflict".to_owned(), Some(5)),
             ("same".to_owned(), Some(2)),
         ],
+        None,
     )];
     for (left, right) in [(&left, &right), (&right, &left)] {
         let mut meet = meet_valuations(left, right);
         canonicalize_valuations(&mut meet);
         assert_eq!(
             meet,
-            vec![("self".to_owned(), vec![("same".to_owned(), Some(2))])]
+            vec![("self".to_owned(), vec![("same".to_owned(), Some(2))], None)]
         );
+    }
+}
+
+#[test]
+fn canonical_meet_retains_the_active_case_only_when_both_agree() {
+    // CASE-CONSTRAINTS (ch12): a constrained case's `where` facts are only
+    // knowable when every predecessor agrees which case is active; a
+    // disagreeing or unknown side must drop the case to `None`.
+    let case_a = symbols::SymbolHandle::from_arena_index(3);
+    let case_b = symbols::SymbolHandle::from_arena_index(4);
+    for (left_case, right_case, expected) in [
+        (Some(case_a), Some(case_a), Some(case_a)),
+        (Some(case_a), Some(case_b), None),
+        (Some(case_a), None, None),
+        (None, Some(case_a), None),
+        (None, None, None),
+    ] {
+        let left = vec![("self".to_owned(), Vec::new(), left_case)];
+        let right = vec![("self".to_owned(), Vec::new(), right_case)];
+        for (left, right) in [(&left, &right), (&right, &left)] {
+            assert_eq!(
+                meet_valuations(left, right),
+                vec![("self".to_owned(), Vec::new(), expected)]
+            );
+        }
     }
 }
