@@ -16,6 +16,7 @@ mod field_type_values;
 mod machine_header_extension;
 mod measure_resolution;
 mod module_constants;
+mod module_trait_defaults;
 mod operator_contracts;
 mod qualified_case_values;
 mod selected_operand_hoisting;

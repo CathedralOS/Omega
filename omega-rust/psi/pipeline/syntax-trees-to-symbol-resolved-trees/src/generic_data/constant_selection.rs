@@ -55,6 +55,12 @@ impl<'base> ConstantSelection<'base> {
                     definition.name.source_span(),
                     None,
                 )),
+                Item::Trait(definition) => declarations.push((
+                    SymbolKind::Trait,
+                    definition.name.as_str().to_owned(),
+                    definition.name.source_span(),
+                    None,
+                )),
                 Item::Module(module) => namespaces
                     .modules
                     .push(syntax.items.identifier_path_members(module.path).to_vec()),
@@ -110,7 +116,7 @@ impl<'base> ConstantSelection<'base> {
             }
             builder.finish()
         };
-        // Machine, trait and other nondata import targets are absent from this
+        // Machine and other nondata import targets are absent from this
         // partial header table. Complete resolution validates those imports.
         namespaces.register(&mut symbols)?;
         Ok(Self { symbols, retained })
@@ -241,6 +247,36 @@ impl<'base> ConstantSelection<'base> {
             name.source_span(),
         )?;
         self.symbols.builtin_type_atom(selected)
+    }
+
+    /// Select one trait header in the authored occurrence's source context.
+    /// The lookup distinguishes unique, absent, and ambiguous selection so the
+    /// caller can reject ambiguity rather than guessing a same-leaf template.
+    pub(crate) fn trait_lookup(&self, name: &Identifier) -> symbols::SymbolLookup {
+        self.symbols
+            .lookup_top_level_by_name_and_kinds_from_source_matching(
+                name.as_str(),
+                &[SymbolKind::Trait],
+                name.source_span(),
+                |_| true,
+            )
+    }
+
+    /// Select one data header in the authored occurrence's source context.
+    /// Absent and ambiguous selections both return `None`; the declaring
+    /// stage that owns the subject emits the exact diagnostic.
+    pub(crate) fn data_symbol(&self, name: &Identifier) -> Option<symbols::SymbolHandle> {
+        self.symbols.find_top_level_by_name_and_kinds_from_source(
+            name.as_str(),
+            &[SymbolKind::Data],
+            name.source_span(),
+        )
+    }
+
+    /// The selected declaration's logical namespace path, for generated
+    /// references that must re-resolve in another source's import scope.
+    pub(crate) fn declaration_path(&self, symbol: symbols::SymbolHandle) -> String {
+        self.symbols.display_path(symbol, "::")
     }
 
     /// Bare Names retain value-prefix precedence before specialization changes

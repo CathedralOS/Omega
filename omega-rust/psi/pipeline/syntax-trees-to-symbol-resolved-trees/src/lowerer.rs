@@ -324,7 +324,10 @@ pub fn lower_syntax_extension_with_authored_selection_frontier(
     let retained_service_reaches = base.service_reaches.clone();
     let retained_service_reach_rows = base.service_reach_rows.clone();
     let mut syntax_trees = extension_syntax.clone();
-    crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)?;
+    crate::trait_defaults::synthesize_trait_defaults_after_module_validation(
+        &mut syntax_trees,
+        &constant_selection,
+    )?;
     let mut lowerer = Lowerer::new(Some(sources), additional_source_scoped_top_level_bindings);
     lowerer.constant_selection = Some(constant_selection);
     lowerer.seed_resolved_base(base);
@@ -451,7 +454,10 @@ fn lower_syntax_trees_with_const_selection(
         const_resolution_mode,
     )?;
     let mut syntax_trees = syntax_trees.clone();
-    crate::trait_defaults::synthesize_trait_defaults_after_module_validation(&mut syntax_trees)?;
+    crate::trait_defaults::synthesize_trait_defaults_after_module_validation(
+        &mut syntax_trees,
+        &constant_selection,
+    )?;
     let mut lowerer = Lowerer::new(sources, source_scoped_top_level_bindings);
     lowerer.constant_selection = Some(constant_selection);
     lowerer.const_resolution_mode = const_resolution_mode;
