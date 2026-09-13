@@ -1642,8 +1642,25 @@ mod tests {
             "let result: i32 = CheckedMath::offset_zero(70) + 0i32;",
         );
         let mut fixture = fixture_from_source(&source);
+        let main = fixture
+            .checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Unit fixture machine");
+        let main_symbol = main.symbol;
+        let main_state = fixture.checked.typed.machine_states(main)[0].symbol;
         let (selected, _) = select_operator_use(&mut fixture, |origin| {
-            matches!(origin, CheckedValueOrigin::NestedExpression { .. })
+            matches!(
+                origin,
+                CheckedValueOrigin::StateStatement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index: 0,
+                    role: CheckedValueStatementRole::LocalInitializer,
+                } if machine_symbol == main_symbol && state_symbol == main_state
+            )
         });
         let mut settled = Arc::new(fixture.checked);
 

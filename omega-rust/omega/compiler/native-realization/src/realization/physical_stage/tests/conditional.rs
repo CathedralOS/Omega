@@ -290,7 +290,10 @@ fn source_common_return_conditionals_use_the_shared_native_pipeline() {
                     &selection,
                 );
                 let function = &emitted.fragments().functions[0];
-                assert_eq!(function.blocks.len(), 4);
+                // The graph emits two arm blocks plus one explicit
+                // edge-transfer continuation block per arm before the shared
+                // return; the five semantic edges are unchanged.
+                assert_eq!(function.blocks.len(), 6);
                 assert_eq!(function.provenance.edges.len(), 5);
                 assert_eq!(
                     function
@@ -312,7 +315,7 @@ fn source_common_return_conditionals_use_the_shared_native_pipeline() {
                             machine_code::FunctionFragmentControlProvenance::Jump { .. }
                         ))
                         .count(),
-                    2
+                    4
                 );
                 let terminal = emitted.fragments_mut().functions[0]
                     .blocks

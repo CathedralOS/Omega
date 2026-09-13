@@ -128,13 +128,9 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             psi_operation,
             result,
             scalar_type,
-            requirement_obligations,
             crash_continuations,
             ..
-        } if scalar_shape(*scalar_type).is_some()
-            && requirement_obligations.is_empty()
-            && crash_continuations.is_empty() =>
-        {
+        } if scalar_shape(*scalar_type).is_some() && crash_continuations.is_empty() => {
             Some((*psi_operation, *result))
         }
         AbstractOperation::IntegerBitwiseAnd {
