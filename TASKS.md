@@ -1445,6 +1445,16 @@ Owners include
   code/component leases. Capacity bounds live registrations, not emitted
   thunks. Acceptance covers rejection, retry, replacement, cleanup, and an
   actual Windows callback after the generic path closes.
+  The generic chain is pinned at 4f817ed0a6:
+  `component-publication`
+  `tests::package_registration_owns_exact_component_era_lease_through_replacement`
+  (`mbx nextest run -p component-publication --lib`, macOS x86-64) covers
+  private-entry attribution binding, cross-occurrence rejection, provider
+  rejection/retry, capacity-occurrence collision, foreign and exact
+  component-era lease lowering, unregister retry, quiescence, lease release,
+  and a replacement registration reusing the returned slot/capacity.
+  Remaining acceptance: an actual Windows callback once the generic path is
+  driven from `build.omg` on that host.
 
 - **FOREIGN-RETAINED-ARGUMENT-BACKING.** Generalize retained outbound arguments
   beyond callbacks with explicit call-scoped, lifetime-borrowed, moved, and
