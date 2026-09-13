@@ -1457,10 +1457,10 @@ Owners include
   reads also need canonical carrier paths and bounded leaf types retained through
   abstract operations, layout, instruction selection and independent replay;
   `terminal-psi-to-abstract-operations` explicitly rejects nested paths today.
-  Resume evidence at `626ebe0d3f`: `cargo nextest run -p compiler -p
+  Resume evidence at `a637c1c86c`: `cargo nextest run -p compiler -p
   checked-trees-to-lowered-psi --test canary_suite --test owned_scalar_graphs
   -E 'test(declared_range_inference) | binary(owned_scalar_graphs)'
-  --no-fail-fast` exercises the reviewed fixture, local copy/move composition,
+  --no-fail-fast` exercises the reviewed fixture, local copy/move/store composition,
   and this native boundary on macOS AArch64; it does not establish native execution.
 
   Acceptance: TinyBytes' `Length == u64[0..=Capacity]` binds omitted Capacity from

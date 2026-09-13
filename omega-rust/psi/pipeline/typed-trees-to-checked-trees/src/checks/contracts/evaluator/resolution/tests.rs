@@ -31,6 +31,19 @@ fn aggregate_field_write_cannot_replay_a_nonmutable_bindings_initializer() {
 }
 
 #[test]
+fn unchanged_aggregate_local_still_supplies_its_field() {
+    checked(
+        "data Value { value: u64; }
+         machine need(value: u64) -> u64 requires value == 256 { value }
+         machine enter() -> u64 {
+             let record: Value = Value { value: 256 };
+             need(record.value)
+         }",
+    )
+    .unwrap_or_else(|diagnostics| panic!("unchanged aggregate field: {diagnostics:#?}"));
+}
+
+#[test]
 fn immutable_scalar_initializer_still_supplies_its_value() {
     checked(
         "machine need(value: u64) -> u64 requires value == 256 { value }
