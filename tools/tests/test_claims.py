@@ -224,6 +224,27 @@ class ClaimsTests(unittest.TestCase):
                 for ticket in tickets:
                     self.run_claims(self.a, "release", "--ticket", ticket)
 
+    def test_audit_reports_uncovered_and_violating_paths(self):
+        self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x")
+        self.claim(self.b, "BETA-ITEM", "B", "--path", "src/y")
+        for relative in ("src/x/mine.txt", "src/y/theirs.txt", "src/z/free.txt"):
+            path = self.a / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("changed\n", encoding="utf-8")
+        report = self.run_claims(self.a, "audit", "--worktree", str(self.a),
+                                 "--owner", "A", expected=2)
+        self.assertEqual(report["uncovered"],
+                         ["src/y/theirs.txt", "src/z/free.txt"])
+        self.assertEqual(report["violations"],
+                         [{"path": "src/y/theirs.txt", "item": "BETA-ITEM",
+                           "claimed_by": "B",
+                           "ticket": report["violations"][0]["ticket"],
+                           "expires_utc": report["violations"][0]["expires_utc"]}])
+        clean = self.run_claims(self.a, "audit", "--worktree", str(self.b),
+                                "--owner", "B")
+        self.assertEqual((clean["changed"], clean["uncovered"],
+                          clean["violations"]), ([], [], []))
+
     def test_available_lists_unclaimed_board_items(self):
         self.claim(self.a, item="ALPHA-ITEM", owner="A")
         available = self.run_claims(self.b, "available", "--board", "TASKS.md")

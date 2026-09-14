@@ -125,6 +125,12 @@ Cancel cannot remove an active reservation. Early recovery requires a reason and
 cannot remove a newer owner. Expiry needs no abandonment investigation. Owner
 labels identify peers; they are not authentication boundaries between writers.
 
+An expired head orphans nothing: the verified commit still exists. To finish
+its publication, wait for the queue to clear, then re-enqueue the full
+candidate SHA, claim the head, check out that exact commit so HEAD matches
+`--candidate`, and publish. Any owner may do this for a candidate whose
+session died — the claim is on the queue, not on the commit.
+
 Queue records retain `head_promoted_utc` and `head_expires_utc`, exactly 180 seconds
 apart; an empty queue has neither. Only changing the head creates new timestamps.
 Keep host clocks synchronized. Clients check expiry before publication and again

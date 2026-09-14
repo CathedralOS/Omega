@@ -1,0 +1,62 @@
+{
+  "wave": "win",
+  "max_acu_limit": 4,
+  "devin_mode": "fusion",
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": [
+    "omega-swarm",
+    "win-drain"
+  ],
+  "owner_label_prefix": "Jarod / win",
+  "exclusions": [
+    "CODEC-LINEAGE-CLOSURE",
+    "BUILD-SNAPSHOT-OUTPUTS",
+    "DEPENDENT-SERVICE-REACH-FIXTURES",
+    "GENERAL-CYCLIC-EXECUTION",
+    "SAMPLE-CORPUS",
+    "CLI-INSTALLED-CALL-TRANSPORT",
+    "CLI-CALL-ORIGIN-CONSUMERS",
+    "ARTIFACT-REPORT-DISCOVERY",
+    "BORROW-PROOF-CONVERGENCE",
+    "MODULE-NAMESPACE-RESOLUTION",
+    "TERMINATION-RANKING-CHECKS",
+    "EXCEPTION-ROOTS-AND-TIMER",
+    "GENERATED-DIFFERENTIALS",
+    "ADDRESS-TRANSLATION-CANARY",
+    "MATCH-SELECTIVE-LOWERING",
+    "MACOS-APPLICATION-PUBLICATION",
+    "PSI-PRE-TERMINAL-OPTIMIZATION",
+    "SPILL-REALIZATION",
+    "STATE-LOCAL-VALUE-FRONTIER",
+    "TARGET-MATRICES",
+    "FRAME-LAYOUT"
+  ],
+  "sessions": [
+    {
+      "name": "w1-float",
+      "board": "TASKS.md",
+      "item": "FLOAT-PROVIDERS",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/contracts",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/authored_selections",
+        "omega-rust/omega/compiler/compiler/tests/canary_suite/providers_float_and_console",
+        "tests/omega/pass/float"
+      ],
+      "suggested_first_slice": "Continuation: this worktree carries two WIP checkpoint commits (d3dc65ac0a, b18fea37be) of in-flight FloatMeaning reflexive-equality entailment work plus an untracked _lab/ scratch dir. Inspect `git log origin/main..HEAD` and `git status` first; finish the in-flight slice from that state rather than restarting. The dirty files also touched flow/terminal_unit and calls/write_frames outside the original owning paths: re-claim with a corrected path set that covers what you actually edit before landing."
+    },
+    {
+      "name": "w2-operator-supply",
+      "board": "TASKS.md",
+      "item": "OPERATOR-MACHINE-SUPPLY",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/operator.rs",
+        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/machine",
+        "tests/omega/pass/expressions/declared_operator_match_result"
+      ],
+      "suggested_first_slice": "Continuation: this worktree already landed 85cce06907 (dynamic-parameter call custody slice) and now carries WIP checkpoint b9b94ddb7c with 9 files of in-flight operator/machine work spanning parser, syntax-trees, symbol-resolved and typed-trees machine definitions. Inspect `git log origin/main..HEAD` and `git status` first; finish the in-flight slice. The touched paths exceed the original owning set: re-claim with a corrected path set covering what you actually edit before landing."
+    }
+  ]
+}

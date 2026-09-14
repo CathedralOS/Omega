@@ -92,6 +92,12 @@ python tools/swarm/worktree_status.py
 registries degrade to `unavailable` in the record rather than failing the
 run; `--offline` skips them deliberately.
 
+A live claim is not a live worker. Leases outlive dead agents — a claim
+stays `live` until its expiry even when the process holding it is gone, and
+long leases give no renewal heartbeat. Verify liveness through the agent
+handle itself or through worktree activity (a `git status` fingerprint that
+keeps changing); treat claim presence alone as "assigned", not "running".
+
 ## Local waves
 
 A local wave runs the same protocol from one machine without Devin sessions:
@@ -156,7 +162,9 @@ coordinator-side:
    claim and lists claims whose owner has no worktree.
 2. For each dead agent, release its ticket with
    `python3 tools/claims.py release --ticket <ticket>` from the status row.
-   Expired claims reap themselves on the next registry action; only
+   Confirm the agent is actually dead first (agent handle gone, worktree
+   quiet) — a live claim on a quiet worktree can still be a long-running
+   build. Expired claims reap themselves on the next registry action; only
    live-leased orphans need the explicit release.
 3. Preserve dirty worktrees before removing them:
    `git -C <wt> add -A && git -C <wt> commit -m "wip(...): interrupted"` keeps

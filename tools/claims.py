@@ -268,6 +268,55 @@ class Claims:
             result["overlaps"] = found
         return {"code": 0, "proceed": True, "record": result}
 
+    def audit(self, options):
+        """Read-only coverage check: a worktree's changed paths vs live claims.
+
+        Changed means uncommitted work plus commits ahead of --base. A path is
+        a violation when it lands inside a different owner's live claim; paths
+        covered by no claim at all are reported uncovered. Claims record intent
+        at claim time — this is the check that edits stayed inside the fence.
+        """
+        live = live_claims(self.snapshot()["record"])
+        worktree = Path(options.worktree).resolve()
+        changed = set()
+        status = coordination.git(self.repository, "-C", str(worktree),
+                                  "status", "--porcelain").stdout
+        for line in status.splitlines():
+            if line.startswith("??"):
+                continue
+            path = line[3:].split(" -> ", 1)[-1].strip().strip('"')
+            if path:
+                changed.add(path)
+        others = coordination.git(self.repository, "-C", str(worktree),
+                                  "ls-files", "--others",
+                                  "--exclude-standard").stdout
+        changed.update(line for line in others.splitlines() if line)
+        diff = coordination.git(self.repository, "-C", str(worktree), "diff",
+                                "--name-only", f"{options.base}...HEAD",
+                                allow_failure=True).stdout
+        changed.update(line for line in diff.splitlines() if line)
+        own = [path for claim in live if claim["owner"] == options.owner
+               for path in claim["paths"]]
+        uncovered, violations = [], []
+        for path in sorted(changed):
+            if any(paths_overlap(path, owned) for owned in own):
+                continue
+            uncovered.append(path)
+            hit = next((claim for claim in live
+                        if claim["owner"] != options.owner and any(
+                            paths_overlap(path, other)
+                            for other in claim["paths"])), None)
+            if hit is not None:
+                violations.append({"path": path, "item": hit["item"],
+                                   "claimed_by": hit["owner"],
+                                   "ticket": hit["ticket"],
+                                   "expires_utc": hit["expires_utc"]})
+        emit({"state": "audited", "worktree": str(worktree),
+              "owner": options.owner, "base": options.base,
+              "changed": sorted(changed), "uncovered": uncovered,
+              "violations": violations})
+        return 2 if violations else 0
+
     def observe(self, options, snapshot):
         record = snapshot["record"]
         live, expired = live_claims(record), expired_claims(record)
@@ -314,6 +363,10 @@ def main(argv=None):
     recover.add_argument("--reason", required=True)
     available = subparsers.add_parser("available")
     available.add_argument("--board", required=True, choices=BOARDS)
+    audit = subparsers.add_parser("audit")
+    audit.add_argument("--worktree", required=True)
+    audit.add_argument("--owner", required=True)
+    audit.add_argument("--base", default="origin/main")
     try:
         options = parser.parse_args(argv)
         if options.command in ("claim", "renew"):
@@ -334,6 +387,8 @@ def main(argv=None):
                                   "(no **<item>.** marker).")
         if options.command == "recover" and not options.reason.strip():
             raise ClaimsError("Recovery requires --reason after checking with the owner.")
+        if options.command == "audit":
+            return Claims(options.repository, options.remote).audit(options)
         return Claims(options.repository, options.remote).coordinate(options)
     except (ClaimsError, OSError) as error:
         print(f"claims: {error}", file=sys.stderr)
