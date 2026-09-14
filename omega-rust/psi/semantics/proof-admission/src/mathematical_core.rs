@@ -29,14 +29,30 @@
 //! commutative, idempotent; `succ` distributes; a constant floor covered
 //! by a variable offset absorbs), which is decidable and complete for this
 //! algebra — no unification or level solving, and distinct parameters
-//! never convert. Named universe-polymorphic declarations with level
-//! instantiation are the named next step; this slice supplies the level
-//! syntax and scope rules they check under. Conversion is typed: strict
+//! never convert. Conversion is typed: strict
 //! irrelevance collapses two sides only when the shared type's sort is
 //! `Strict`, never on the terms' own shapes. Terms use de Bruijn
 //! indices, so substitution is capture-avoiding by construction and the tests
 //! witness the required shift. A step ceiling bounds normalization so resource
 //! refusal is a typed error, never a false judgment.
+//!
+//! Named declarations complete the scope discipline: a [`Signature`] is
+//! the ordered, append-only declaration list `Σ` the judgment
+//! `Σ; Δ; Γ ⊢ t : T` is checked under, and a [`Declaration`] is a closed
+//! statement under its own level arity plus either a body (a definition)
+//! or none (an assumption — the only axioms the calculus admits). Terms
+//! reference declarations by position through `Term::Constant`, supplying
+//! exactly the declaration's level arity of in-scope level arguments;
+//! the constant's type is the statement instantiated at them.
+//! `check_signature` checks each declaration under the signature of the
+//! ones before it, so self- and forward references never resolve and
+//! recursion is impossible — which is also what makes a definition
+//! constant's δ-unfolding a terminating budgeted step. Assumption
+//! constants stay neutral and convert only at the same declaration under
+//! semantically equal instantiations. [`assumption_closure`] and
+//! [`judgment_assumption_closure`] record the exact set of assumptions a
+//! declaration graph or judgment transitively commits to — over stored
+//! statements *and* bodies, never by watching what conversion unfolded.
 //!
 //! [`certificate`] is the first bridge from an untrusted producer to this
 //! checker: a `MathematicalCertificate` is one complete judgment `Γ ⊢ t : T`
@@ -88,9 +104,7 @@
 //! stuck eliminations compare componentwise at the left elimination's
 //! inferred types, and there is no identity eta or K/UIP: two distinct
 //! proofs of the same identity never collapse, and `refl` never converts
-//! to a neutral proof. Universe-polymorphic declarations — named constants
-//! instantiated at level arguments — remain a separate step on top of the
-//! landed level-parameter scope.
+//! to a neutral proof.
 //!
 //! `W` is the profile's primitive well-founded tree: `W A B : Type
 //! max(u, v)` for `A : Type u` and `B : A → Type v`, where a node pairs
@@ -110,20 +124,28 @@
 //! k b))` as a budgeted step. Stuck inductions compare componentwise
 //! at the left tree's inferred `W` type; the profile adds no W eta
 //! law, so a `sup` never converts to a neutral tree.
-//! Certificates carry `W`/`sup`/`indW` through the canonical wire
-//! (term tags 17-19) and re-verify after decode.
+//! Certificates carry `W`/`sup`/`indW` and the declaration signature
+//! with its `Constant` references (term tags 17-20, the signature
+//! section between the term table and the judgment roots) through the
+//! canonical wire and re-verify after decode.
 
 mod certificate;
 mod conversion;
+mod signature;
 mod substitution;
 mod term;
 #[cfg(test)]
 mod tests;
 mod typing;
 
-pub use certificate::{MathematicalCertificate, verify_mathematical_certificate};
+pub use certificate::{
+    MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
+};
 pub use conversion::Budget;
 pub use conversion::{DEFAULT_CONVERSION_STEPS, convertible, weak_head_normalize};
-pub use substitution::{shift, substitute};
+pub use signature::{
+    Declaration, Signature, assumption_closure, check_signature, judgment_assumption_closure,
+};
+pub use substitution::{instantiate_levels, shift, substitute};
 pub use term::{Level, Sort, Term, TermArena, TermHandle};
 pub use typing::{Context, CoreError, check_type, infer_sort, infer_type};

@@ -16,7 +16,10 @@
 //! `verify_obligation`: a certificate only ever establishes "this judgment
 //! holds", never "this is the obligation you wanted discharged".
 
+use std::collections::BTreeSet;
+
 use super::conversion::Budget;
+use super::signature::{Declaration, Signature, check_signature, judgment_assumption_closure};
 use super::term::{TermArena, TermHandle};
 use super::typing::{Context, CoreError, check_type, infer_sort};
 
@@ -29,8 +32,18 @@ use super::typing::{Context, CoreError, check_type, infer_sort};
 /// `i < level_arity`. `context` holds binder types ordered outermost-first
 /// — the order [`Context::extend`] consumes — so `context.last()` is the
 /// innermost binding that de Bruijn index 0 names.
+///
+/// `signature` is the ambient declaration environment the judgment's
+/// `Constant` references resolve against — every declaration the
+/// evidence or its claims name must appear here, because the signature
+/// is producer evidence too: [`verify_mathematical_certificate`]
+/// re-decides it through [`check_signature`] before the judgment runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MathematicalCertificate {
+    /// The declarations the judgment is checked under, in signature
+    /// order: each is checked under the ones before it, so a certificate
+    /// cannot smuggle a recursive or forward-referencing declaration.
+    pub signature: Vec<Declaration>,
     /// The number of universe parameters the judgment is polymorphic over.
     /// `0` is a closed judgment; the kernel checks the judgment for all
     /// instantiations of the parameters, never for a guessed one.
@@ -44,20 +57,24 @@ pub struct MathematicalCertificate {
     pub expected: TermHandle,
 }
 
-/// Re-decide a certificate's claimed judgment `Γ ⊢ t : T`.
+/// Re-decide a certificate's claimed judgment `Σ; Δ; Γ ⊢ t : T`.
 ///
-/// Every context binding must itself be a type under the bindings before it
-/// (`infer_sort` under the prefix), which is the formation half of a valid
-/// context that `Context::extend` deliberately does not repeat at each call.
-/// Then `term` is checked against `expected` under the rebuilt context.
-/// Resource exhaustion surfaces as `CoreError::StepCeiling`, never as a
-/// false judgment.
+/// The signature is checked first: every declaration must hold under the
+/// declarations before it, which is what rules out recursive and
+/// forward-referencing declarations before any constant resolves. Then
+/// every context binding must itself be a type under the bindings before
+/// it (`infer_sort` under the prefix), which is the formation half of a
+/// valid context that `Context::extend` deliberately does not repeat at
+/// each call. Then `term` is checked against `expected` under the rebuilt
+/// context. Resource exhaustion surfaces as `CoreError::StepCeiling`,
+/// never as a false judgment.
 pub fn verify_mathematical_certificate(
     arena: &mut TermArena,
     certificate: &MathematicalCertificate,
     budget: &mut Budget,
 ) -> Result<(), CoreError> {
-    let mut context = Context::with_level_arity(certificate.level_arity);
+    let signature = check_signature(arena, &certificate.signature, budget)?;
+    let mut context = Context::with_level_arity(certificate.level_arity).with_signature(signature);
     for &binding in &certificate.context {
         infer_sort(arena, &context, binding, budget)?;
         context = context.extend(binding);
@@ -69,6 +86,30 @@ pub fn verify_mathematical_certificate(
         certificate.expected,
         budget,
     )
+}
+
+/// The exact assumption closure of a verified certificate's judgment:
+/// every `Constant` the context bindings, the evidence term and the
+/// claimed type name, followed transitively through declaration
+/// statements *and* bodies — computed over the stored signature, never
+/// by watching which constants conversion happened to unfold.
+///
+/// This is the receiver's policy input: verification decides that the
+/// judgment holds; the closure decides which named assumptions that
+/// judgment actually commits to. See `foundation.md`'s
+/// assumptions-and-calculus-identity section.
+pub fn certificate_assumption_closure(
+    arena: &TermArena,
+    certificate: &MathematicalCertificate,
+) -> BTreeSet<u32> {
+    let signature = Signature::from_declarations(certificate.signature.clone());
+    let roots: Vec<TermHandle> = certificate
+        .context
+        .iter()
+        .copied()
+        .chain([certificate.term, certificate.expected])
+        .collect();
+    judgment_assumption_closure(arena, &signature, &roots)
 }
 
 #[cfg(test)]
@@ -118,6 +159,7 @@ mod tests {
         let mut arena = TermArena::new();
         let (identity, expected) = polymorphic_identity(&mut arena);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: Vec::new(),
             term: identity,
@@ -132,6 +174,7 @@ mod tests {
         let type_zero = type_sort(&mut arena, 0);
         let bound = variable(&mut arena, 0);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: vec![type_zero],
             term: bound,
@@ -145,6 +188,7 @@ mod tests {
         let type_zero = type_sort(&mut arena, 0);
         let bound = variable(&mut arena, 0);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: Vec::new(),
             term: bound,
@@ -167,6 +211,7 @@ mod tests {
         let bound = variable(&mut arena, 0);
         let shifted = variable(&mut arena, 1);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: vec![type_zero, bound],
             term: bound,
@@ -181,6 +226,7 @@ mod tests {
         let bound = variable(&mut arena, 0);
         let not_a_type = lambda(&mut arena, type_zero, bound);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: vec![not_a_type],
             term: bound,
@@ -204,6 +250,7 @@ mod tests {
         let wrong_inner = pi(&mut arena, bound, type_zero);
         let wrong_expected = pi(&mut arena, type_zero, wrong_inner);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: Vec::new(),
             term: identity,
@@ -218,6 +265,7 @@ mod tests {
         // variable is unbound in the empty context.
         let free_variable = variable(&mut arena, 0);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: Vec::new(),
             term: free_variable,
@@ -276,6 +324,7 @@ mod tests {
             argument: scrutinee,
         });
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: vec![type_zero, type_zero, a_binding, b_binding, two_binding],
             term,
@@ -292,6 +341,7 @@ mod tests {
             argument: zero,
         });
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: vec![type_zero, type_zero, a_binding, b_binding, two_binding],
             term,
@@ -412,6 +462,7 @@ mod tests {
             })
         };
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: vec![
                 type_zero,
@@ -438,6 +489,7 @@ mod tests {
             })
         };
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: vec![
                 type_zero,
@@ -581,6 +633,7 @@ mod tests {
             })
         };
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: vec![
                 type_zero, b_binding, a_binding, k_binding, p_binding, s_binding, t_binding,
@@ -602,6 +655,7 @@ mod tests {
             })
         };
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: vec![
                 type_zero, b_binding, a_binding, k_binding, p_binding, s_binding, t_binding,
@@ -625,6 +679,7 @@ mod tests {
         let bound = variable(&mut arena, 0);
         let shifted = variable(&mut arena, 1);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: vec![strict_zero, bound],
             term: bound,
@@ -639,6 +694,7 @@ mod tests {
         let bound = variable(&mut arena, 0);
         let identity_body = lambda(&mut arena, type_zero, bound);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: Vec::new(),
             term: bound,
@@ -665,6 +721,7 @@ mod tests {
         let codomain = pi(&mut arena, codomain_domain, codomain_body);
         let expected = pi(&mut arena, type_u, codomain);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 1,
             context: Vec::new(),
             term: identity,
@@ -675,6 +732,7 @@ mod tests {
         // The same bytes under a closed judgment are a malformed
         // universe: `u` names nothing without the arity to bind it.
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: Vec::new(),
             term: identity,
@@ -692,6 +750,7 @@ mod tests {
         let type_v = arena.insert(Term::Sort(Sort::Type(Level::Parameter(1))));
         let bound = variable(&mut arena, 0);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 1,
             context: vec![type_v],
             term: bound,
@@ -700,6 +759,137 @@ mod tests {
         assert_eq!(
             verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
             Err(CoreError::UnboundLevelParameter { index: 1, arity: 1 })
+        );
+    }
+
+    /// `polyId : Π(A : Type u). Π(x : A). A := λA. λx. x`, one level
+    /// parameter — shared by the signature tests below.
+    fn polymorphic_identity_declaration(arena: &mut TermArena) -> Declaration {
+        let type_u = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+        let bound_a = variable(arena, 0);
+        let inner_a = variable(arena, 1);
+        let inner_pi = pi(arena, bound_a, inner_a);
+        let ty = pi(arena, type_u, inner_pi);
+        let type_u = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+        let bound_a = variable(arena, 0);
+        let inner_x = variable(arena, 0);
+        let inner = lambda(arena, bound_a, inner_x);
+        let body = lambda(arena, type_u, inner);
+        Declaration::definition(1, ty, body)
+    }
+
+    fn instantiated_identity_type(arena: &mut TermArena, u: Level) -> TermHandle {
+        let type_u = arena.insert(Term::Sort(Sort::Type(u)));
+        let bound_a = variable(arena, 0);
+        let inner_a = variable(arena, 1);
+        let inner_pi = pi(arena, bound_a, inner_a);
+        pi(arena, type_u, inner_pi)
+    }
+
+    #[test]
+    fn a_signed_certificate_verifies_its_declaration_closure() {
+        let mut arena = TermArena::new();
+        let declaration = polymorphic_identity_declaration(&mut arena);
+        let evidence = arena.insert(Term::Constant {
+            declaration: 0,
+            levels: vec![Level::Constant(0)],
+        });
+        let expected = instantiated_identity_type(&mut arena, Level::Constant(0));
+        let certificate = MathematicalCertificate {
+            signature: vec![declaration],
+            level_arity: 0,
+            context: Vec::new(),
+            term: evidence,
+            expected,
+        };
+        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+    }
+
+    #[test]
+    fn a_forged_declaration_index_never_verifies() {
+        let mut arena = TermArena::new();
+        let declaration = polymorphic_identity_declaration(&mut arena);
+        // The signature has exactly one declaration; index 1 points past it.
+        let forged = arena.insert(Term::Constant {
+            declaration: 1,
+            levels: vec![Level::Constant(0)],
+        });
+        let expected = instantiated_identity_type(&mut arena, Level::Constant(0));
+        let certificate = MathematicalCertificate {
+            signature: vec![declaration],
+            level_arity: 0,
+            context: Vec::new(),
+            term: forged,
+            expected,
+        };
+        assert_eq!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::UnknownDeclaration {
+                declaration: 1,
+                signature_len: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn an_unchecked_signature_entry_never_verifies() {
+        let mut arena = TermArena::new();
+        // The second declaration claims `Type 0` but supplies `Type 0` as
+        // its body — a universe is not a `Type 0` inhabitant, so the
+        // signature itself is rejected before the judgment runs.
+        let type_zero = type_sort(&mut arena, 0);
+        let two = arena.insert(Term::Two);
+        let sound = Declaration::definition(0, type_zero, two);
+        let two = arena.insert(Term::Two);
+        let type_zero = type_sort(&mut arena, 0);
+        let unsound = Declaration::definition(0, two, type_zero);
+        let evidence = arena.insert(Term::Constant {
+            declaration: 1,
+            levels: Vec::new(),
+        });
+        let two = arena.insert(Term::Two);
+        let certificate = MathematicalCertificate {
+            signature: vec![sound, unsound],
+            level_arity: 0,
+            context: Vec::new(),
+            term: evidence,
+            expected: two,
+        };
+        assert!(matches!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::TypeMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn the_certificate_records_its_exact_assumption_closure() {
+        let mut arena = TermArena::new();
+        // `axiom : Type 0` and `uses : Type 0 := axiom`; the evidence names
+        // only `uses`, but the closure reports `axiom` through its body.
+        let type_zero = type_sort(&mut arena, 0);
+        let axiom = Declaration::assumption(0, type_zero);
+        let axiom_constant = arena.insert(Term::Constant {
+            declaration: 0,
+            levels: Vec::new(),
+        });
+        let type_zero = type_sort(&mut arena, 0);
+        let uses = Declaration::definition(0, type_zero, axiom_constant);
+        let evidence = arena.insert(Term::Constant {
+            declaration: 1,
+            levels: Vec::new(),
+        });
+        let type_zero = type_sort(&mut arena, 0);
+        let certificate = MathematicalCertificate {
+            signature: vec![axiom, uses],
+            level_arity: 0,
+            context: Vec::new(),
+            term: evidence,
+            expected: type_zero,
+        };
+        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+        assert_eq!(
+            certificate_assumption_closure(&arena, &certificate),
+            [0].into_iter().collect()
         );
     }
 }

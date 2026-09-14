@@ -5,8 +5,8 @@
 //! type, or the bytes rejects or changes the checked outcome.
 
 use proof_admission::{
-    Budget, CoreError, DEFAULT_CONVERSION_STEPS, Level, MathematicalCertificate, Sort, Term,
-    TermArena, TermHandle, verify_mathematical_certificate,
+    Budget, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, Level, MathematicalCertificate, Sort,
+    Term, TermArena, TermHandle, verify_mathematical_certificate,
 };
 use terminal_codec::{
     CodecError, decode_mathematical_certificate, encode_mathematical_certificate,
@@ -54,6 +54,7 @@ fn an_untrusted_certificate_verifies_end_to_end() {
     let mut arena = TermArena::new();
     let (identity, expected) = polymorphic_identity(&mut arena);
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: Vec::new(),
         term: identity,
@@ -76,6 +77,7 @@ fn changing_the_claimed_type_rejects() {
     let wrong_inner = pi(&mut arena, bound, type_zero);
     let wrong_expected = pi(&mut arena, type_zero, wrong_inner);
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: Vec::new(),
         term: identity,
@@ -97,6 +99,7 @@ fn dropping_a_context_binding_rejects() {
     let bound = variable(&mut arena, 0);
     let shifted = variable(&mut arena, 1);
     let complete = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: vec![type_zero, bound],
         term: bound,
@@ -111,6 +114,7 @@ fn dropping_a_context_binding_rejects() {
     let bound = variable(&mut arena, 0);
     let shifted = variable(&mut arena, 1);
     let missing_binding = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: vec![type_zero],
         term: bound,
@@ -131,6 +135,7 @@ fn substituting_the_evidence_term_rejects() {
     // A bare variable is not the polymorphic identity: it is unbound here.
     let bound = variable(&mut arena, 0);
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: Vec::new(),
         term: bound,
@@ -174,6 +179,7 @@ fn a_two_elimination_certificate_verifies_end_to_end() {
         argument: scrutinee,
     });
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: vec![type_zero, a_binding, two_binding],
         term,
@@ -204,6 +210,7 @@ fn a_two_elimination_certificate_verifies_end_to_end() {
     });
     let a_type = variable(&mut arena, 2);
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: vec![type_zero, a_binding, two_binding],
         term,
@@ -216,6 +223,7 @@ fn a_two_elimination_certificate_verifies_end_to_end() {
     // The same elimination claimed at `Two` is a different, false
     // judgment.
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: vec![type_zero, a_binding, two_binding],
         term,
@@ -330,6 +338,7 @@ fn an_identity_elimination_certificate_verifies_end_to_end() {
         })
     };
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: vec![
             type_zero,
@@ -356,6 +365,7 @@ fn an_identity_elimination_certificate_verifies_end_to_end() {
     // A certificate claiming `P x` — the transported-away subject — is a
     // different, false judgment and must not verify after decode.
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: vec![
             type_zero,
@@ -508,6 +518,7 @@ fn a_w_induction_certificate_verifies_end_to_end() {
         })
     };
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: vec![
             type_zero, b_binding, a_binding, k_binding, p_binding, s_binding, t_binding,
@@ -529,6 +540,7 @@ fn a_w_induction_certificate_verifies_end_to_end() {
     // Claiming `P t` — the neutral tree, not the constructor the
     // induction ran on — is a different, false judgment.
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: vec![
             type_zero, b_binding, a_binding, k_binding, p_binding, s_binding, t_binding,
@@ -556,6 +568,7 @@ fn byte_level_forgery_cannot_alias_a_certificate() {
     let mut arena = TermArena::new();
     let (identity, expected) = polymorphic_identity(&mut arena);
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 0,
         context: Vec::new(),
         term: identity,
@@ -610,6 +623,7 @@ fn a_universe_polymorphic_certificate_round_trips_and_re_verifies() {
     let codomain = pi(&mut arena, codomain_domain, codomain_body);
     let expected = pi(&mut arena, type_u, codomain);
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 1,
         context: Vec::new(),
         term: identity,
@@ -646,6 +660,7 @@ fn compound_level_syntax_survives_the_wire_and_the_kernel() {
     let bound = variable(&mut arena, 0);
     let shifted = variable(&mut arena, 1);
     let certificate = MathematicalCertificate {
+        signature: Vec::new(),
         level_arity: 2,
         context: vec![binding_type, bound],
         term: bound,
@@ -664,4 +679,218 @@ fn compound_level_syntax_survives_the_wire_and_the_kernel() {
         verify(&mut decoded),
         Err(CoreError::UnboundLevelParameter { index: 1, arity: 1 })
     );
+}
+
+// ── Declarations on the wire ───────────────────────────────────────────
+
+/// `polyId : Π(A : Type u). Π(x : A). A := λA. λx. x` at level arity 1.
+fn polymorphic_identity_declaration(arena: &mut TermArena) -> Declaration {
+    let type_u = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+    let bound_a = variable(arena, 0);
+    let inner_a = variable(arena, 1);
+    let inner_pi = pi(arena, bound_a, inner_a);
+    let ty = pi(arena, type_u, inner_pi);
+    let type_u = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+    let bound_a = variable(arena, 0);
+    let inner_x = variable(arena, 0);
+    let inner = lambda(arena, bound_a, inner_x);
+    let body = lambda(arena, type_u, inner);
+    Declaration::definition(1, ty, body)
+}
+
+/// `Π(A : Type u). Π(x : A). A` instantiated at a level expression.
+fn instantiated_identity_type(arena: &mut TermArena, u: Level) -> TermHandle {
+    let type_u = arena.insert(Term::Sort(Sort::Type(u)));
+    let bound_a = variable(arena, 0);
+    let inner_a = variable(arena, 1);
+    let inner_pi = pi(arena, bound_a, inner_a);
+    pi(arena, type_u, inner_pi)
+}
+
+#[test]
+fn a_declaration_certificate_verifies_end_to_end() {
+    let mut arena = TermArena::new();
+    let declaration = polymorphic_identity_declaration(&mut arena);
+    // `polyId([max(u, 1)])` under judgment arity 1 — the constant's level
+    // argument is an expression, not just a parameter or constant.
+    let level = Level::Parameter(0).maximum(Level::Constant(1));
+    let evidence = arena.insert(Term::Constant {
+        declaration: 0,
+        levels: vec![level.clone()],
+    });
+    let expected = instantiated_identity_type(&mut arena, level);
+    let certificate = MathematicalCertificate {
+        signature: vec![declaration],
+        level_arity: 1,
+        context: Vec::new(),
+        term: evidence,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    // The signature survives the wire exactly: the constant still resolves
+    // and the decoded bytes re-encode identically (canonicality already
+    // decided that on decode).
+    assert_eq!(decoded.certificate.signature.len(), 1);
+    verify(&mut decoded).expect("the instantiated declaration must re-check");
+    assert_eq!(
+        encode_mathematical_certificate(&decoded.arena, &decoded.certificate).expect("re-encode"),
+        bytes
+    );
+}
+
+#[test]
+fn a_forged_constant_index_never_verifies() {
+    let mut arena = TermArena::new();
+    let declaration = polymorphic_identity_declaration(&mut arena);
+    // The signature carries one declaration; `Constant 1` names nothing.
+    let forged = arena.insert(Term::Constant {
+        declaration: 1,
+        levels: vec![Level::Constant(0)],
+    });
+    let expected = instantiated_identity_type(&mut arena, Level::Constant(0));
+    let certificate = MathematicalCertificate {
+        signature: vec![declaration],
+        level_arity: 0,
+        context: Vec::new(),
+        term: forged,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    assert_eq!(
+        verify(&mut decoded),
+        Err(CoreError::UnknownDeclaration {
+            declaration: 1,
+            signature_len: 1,
+        })
+    );
+}
+
+#[test]
+fn a_wrong_level_argument_count_never_verifies() {
+    let mut arena = TermArena::new();
+    let declaration = polymorphic_identity_declaration(&mut arena);
+    // `polyId` takes one level; supplying none is a malformed constant.
+    let evidence = arena.insert(Term::Constant {
+        declaration: 0,
+        levels: Vec::new(),
+    });
+    let expected = instantiated_identity_type(&mut arena, Level::Constant(0));
+    let certificate = MathematicalCertificate {
+        signature: vec![declaration],
+        level_arity: 0,
+        context: Vec::new(),
+        term: evidence,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    assert_eq!(
+        verify(&mut decoded),
+        Err(CoreError::DeclarationArityMismatch {
+            declaration: 0,
+            expected: 1,
+            supplied: 0,
+        })
+    );
+}
+
+#[test]
+fn an_assumption_chain_verifies_and_stays_unfolded() {
+    let mut arena = TermArena::new();
+    // `axiom : Type 0` (assumption), `uses : Type 0 := axiom`
+    // (definition). The evidence names `uses` alone; the judgment
+    // commits to `axiom` through the signature.
+    let type_zero = type_sort(&mut arena, 0);
+    let axiom = Declaration::assumption(0, type_zero);
+    let axiom_constant = arena.insert(Term::Constant {
+        declaration: 0,
+        levels: Vec::new(),
+    });
+    let type_zero = type_sort(&mut arena, 0);
+    let uses = Declaration::definition(0, type_zero, axiom_constant);
+    let evidence = arena.insert(Term::Constant {
+        declaration: 1,
+        levels: Vec::new(),
+    });
+    let type_zero = type_sort(&mut arena, 0);
+    let certificate = MathematicalCertificate {
+        signature: vec![axiom, uses],
+        level_arity: 0,
+        context: Vec::new(),
+        term: evidence,
+        expected: type_zero,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    assert_eq!(decoded.certificate.signature.len(), 2);
+    verify(&mut decoded).expect("the assumption chain must re-check");
+    assert_eq!(
+        proof_admission::certificate_assumption_closure(&decoded.arena, &decoded.certificate),
+        [0].into_iter().collect()
+    );
+}
+
+#[test]
+fn a_signature_with_a_self_reference_never_verifies() {
+    let mut arena = TermArena::new();
+    // `loop : Π(_ : Type 0). loop` — the statement names its own
+    // position. The bytes encode fine; verification rejects it because
+    // the signature only holds the checked prefix.
+    let type_zero = type_sort(&mut arena, 0);
+    let self_index = arena.insert(Term::Constant {
+        declaration: 0,
+        levels: Vec::new(),
+    });
+    let statement = pi(&mut arena, type_zero, self_index);
+    let self_referential = Declaration::assumption(0, statement);
+    let evidence = arena.insert(Term::Constant {
+        declaration: 0,
+        levels: Vec::new(),
+    });
+    let expected = pi(&mut arena, type_zero, self_index);
+    let certificate = MathematicalCertificate {
+        signature: vec![self_referential],
+        level_arity: 0,
+        context: Vec::new(),
+        term: evidence,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    assert_eq!(
+        verify(&mut decoded),
+        Err(CoreError::UnknownDeclaration {
+            declaration: 0,
+            signature_len: 0,
+        })
+    );
+}
+
+#[test]
+fn a_truncated_signature_section_never_decodes() {
+    let mut arena = TermArena::new();
+    let declaration = polymorphic_identity_declaration(&mut arena);
+    let evidence = arena.insert(Term::Constant {
+        declaration: 0,
+        levels: vec![Level::Constant(0)],
+    });
+    let expected = instantiated_identity_type(&mut arena, Level::Constant(0));
+    let certificate = MathematicalCertificate {
+        signature: vec![declaration],
+        level_arity: 0,
+        context: Vec::new(),
+        term: evidence,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    // Dropping the declaration's trailing bytes truncates the signature
+    // section mid-record.
+    for cut in [bytes.len() - 13, bytes.len() - 9, bytes.len() - 5] {
+        assert!(
+            decode_mathematical_certificate(&bytes[..cut]).is_err(),
+            "a truncated signature record must not decode"
+        );
+    }
 }

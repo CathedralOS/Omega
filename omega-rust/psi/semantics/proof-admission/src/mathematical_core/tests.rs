@@ -259,7 +259,8 @@ fn substitution_shifts_free_variables_under_binders() {
     let outer = lambda(&mut arena, outer_domain, inner);
     let argument = variable(&mut arena, 0);
     let redex = apply(&mut arena, outer, argument);
-    let normalized = weak_head_normalize(&mut arena, redex, &mut budget).unwrap();
+    let normalized =
+        weak_head_normalize(&mut arena, &Signature::new(), redex, &mut budget).unwrap();
 
     // The correct answer: domain A (index 1), body the shifted a (index 1).
     let expected_domain = variable(&mut arena, 1);
@@ -408,7 +409,7 @@ fn conversion_refuses_at_the_step_ceiling() {
     let omega = apply(&mut arena, delta, delta);
 
     let mut budget = Budget::new(8);
-    let error = weak_head_normalize(&mut arena, omega, &mut budget).unwrap_err();
+    let error = weak_head_normalize(&mut arena, &Signature::new(), omega, &mut budget).unwrap_err();
     assert_eq!(error, CoreError::StepCeiling);
     assert_eq!(budget.remaining(), 0);
 }
@@ -523,7 +524,8 @@ fn dependent_pairs_introduce_and_project() {
     let inferred = infer_type(&mut arena, &context, projected_first, &mut budget).unwrap();
     let a_in_full = variable(&mut arena, 3);
     assert!(arena.structurally_equal(inferred, a_in_full));
-    let normalized = weak_head_normalize(&mut arena, projected_first, &mut budget).unwrap();
+    let normalized =
+        weak_head_normalize(&mut arena, &Signature::new(), projected_first, &mut budget).unwrap();
     let a_term = variable(&mut arena, 1);
     assert!(arena.structurally_equal(normalized, a_term));
 
@@ -545,7 +547,8 @@ fn dependent_pairs_introduce_and_project() {
         )
         .unwrap()
     );
-    let normalized = weak_head_normalize(&mut arena, projected_second, &mut budget).unwrap();
+    let normalized =
+        weak_head_normalize(&mut arena, &Signature::new(), projected_second, &mut budget).unwrap();
     let proof_term = variable(&mut arena, 0);
     assert!(arena.structurally_equal(normalized, proof_term));
 
@@ -580,7 +583,8 @@ fn projections_reduce_through_function_redexes() {
     let a_term = variable(&mut arena, 0);
     let redex_pair = apply(&mut arena, duplicator, a_term);
     let projected = fst(&mut arena, redex_pair);
-    let normalized = weak_head_normalize(&mut arena, projected, &mut budget).unwrap();
+    let normalized =
+        weak_head_normalize(&mut arena, &Signature::new(), projected, &mut budget).unwrap();
     let expected = variable(&mut arena, 0);
     assert!(arena.structurally_equal(normalized, expected));
 }
@@ -1124,24 +1128,28 @@ fn case_two_computes_on_each_constructor_and_stays_stuck_on_neutrals() {
     // consumes one step and lands on the supplied branch.
     let zero = two_zero(&mut arena);
     let on_zero = case_two(&mut arena, family, function_witness, one_witness, zero);
-    let normalized = weak_head_normalize(&mut arena, on_zero, &mut budget).unwrap();
+    let normalized =
+        weak_head_normalize(&mut arena, &Signature::new(), on_zero, &mut budget).unwrap();
     assert_eq!(normalized, function_witness);
     let one = two_one(&mut arena);
     let on_one = case_two(&mut arena, family, function_witness, one_witness, one);
-    let normalized = weak_head_normalize(&mut arena, on_one, &mut budget).unwrap();
+    let normalized =
+        weak_head_normalize(&mut arena, &Signature::new(), on_one, &mut budget).unwrap();
     assert_eq!(normalized, one_witness);
 
     // The computed result's type follows the same reduction: the type of
     // `caseTwo C d0 d1 zero` is `C zero`, which normalizes to
     // `Π(_:Two).Two`, and `C one` normalizes to `Two`.
     let result_type = infer_type(&mut arena, &context, on_zero, &mut budget).unwrap();
-    let normalized_type = weak_head_normalize(&mut arena, result_type, &mut budget).unwrap();
+    let normalized_type =
+        weak_head_normalize(&mut arena, &Signature::new(), result_type, &mut budget).unwrap();
     let function_domain = two(&mut arena);
     let function_codomain = two(&mut arena);
     let expected_type = pi(&mut arena, function_domain, function_codomain);
     assert!(arena.structurally_equal(normalized_type, expected_type));
     let result_type = infer_type(&mut arena, &context, on_one, &mut budget).unwrap();
-    let normalized_type = weak_head_normalize(&mut arena, result_type, &mut budget).unwrap();
+    let normalized_type =
+        weak_head_normalize(&mut arena, &Signature::new(), result_type, &mut budget).unwrap();
     let expected_type = two(&mut arena);
     assert!(arena.structurally_equal(normalized_type, expected_type));
 
@@ -1149,7 +1157,8 @@ fn case_two_computes_on_each_constructor_and_stays_stuck_on_neutrals() {
     // returns the same node rather than guessing a branch.
     let t = variable(&mut arena, 1);
     let stuck = case_two(&mut arena, family, function_witness, one_witness, t);
-    let normalized = weak_head_normalize(&mut arena, stuck, &mut budget).unwrap();
+    let normalized =
+        weak_head_normalize(&mut arena, &Signature::new(), stuck, &mut budget).unwrap();
     assert_eq!(normalized, stuck);
 
     // Stuck eliminations convert componentwise: identical motive,
@@ -1180,7 +1189,8 @@ fn case_two_computes_on_each_constructor_and_stays_stuck_on_neutrals() {
     // Constructor computation is a budgeted step: an exhausted budget
     // refuses instead of reporting a judgment.
     let mut empty_budget = Budget::new(0);
-    let error = weak_head_normalize(&mut arena, on_zero, &mut empty_budget).unwrap_err();
+    let error =
+        weak_head_normalize(&mut arena, &Signature::new(), on_zero, &mut empty_budget).unwrap_err();
     assert_eq!(error, CoreError::StepCeiling);
 }
 
@@ -1586,13 +1596,20 @@ fn identity_elimination_computes_on_refl_and_respects_the_ceiling() {
     let expected = id(&mut arena, ty, x, x);
     check_type(&mut arena, &context, elimination, expected, &mut budget).unwrap();
 
-    let normalized = weak_head_normalize(&mut arena, elimination, &mut budget).unwrap();
+    let normalized =
+        weak_head_normalize(&mut arena, &Signature::new(), elimination, &mut budget).unwrap();
     assert_eq!(normalized, base);
 
     // Constructor computation is a budgeted step: an empty budget
     // refuses instead of reporting a judgment.
     let mut empty_budget = Budget::new(0);
-    let error = weak_head_normalize(&mut arena, elimination, &mut empty_budget).unwrap_err();
+    let error = weak_head_normalize(
+        &mut arena,
+        &Signature::new(),
+        elimination,
+        &mut empty_budget,
+    )
+    .unwrap_err();
     assert_eq!(error, CoreError::StepCeiling);
 
     // The computation makes the elimination convertible to a
@@ -2385,7 +2402,8 @@ fn w_induction_computes_on_sup_with_a_neutral_child_function() {
     // k b))`: the induction hypothesis is rebuilt from the `sup`'s
     // checked `B` annotation even though `W A B` itself is neutral.
     let before = budget.remaining();
-    let normalized = weak_head_normalize(&mut arena, induction, &mut budget).unwrap();
+    let normalized =
+        weak_head_normalize(&mut arena, &Signature::new(), induction, &mut budget).unwrap();
     assert_eq!(before - budget.remaining(), 1);
     let ih_domain = {
         let b = variable(&mut arena, 6);
@@ -2421,7 +2439,8 @@ fn w_induction_computes_on_sup_with_a_neutral_child_function() {
     // Constructor computation is a budgeted step: an exhausted budget
     // refuses instead of reporting a judgment.
     let mut empty_budget = Budget::new(0);
-    let error = weak_head_normalize(&mut arena, induction, &mut empty_budget).unwrap_err();
+    let error = weak_head_normalize(&mut arena, &Signature::new(), induction, &mut empty_budget)
+        .unwrap_err();
     assert_eq!(error, CoreError::StepCeiling);
 
     // A neutral tree keeps the elimination stuck — `indW(P, s, t)` is
@@ -2430,7 +2449,8 @@ fn w_induction_computes_on_sup_with_a_neutral_child_function() {
     let p = variable(&mut arena, 3);
     let s = variable(&mut arena, 2);
     let stuck = ind_w(&mut arena, p, s, t);
-    let normalized = weak_head_normalize(&mut arena, stuck, &mut budget).unwrap();
+    let normalized =
+        weak_head_normalize(&mut arena, &Signature::new(), stuck, &mut budget).unwrap();
     assert_eq!(normalized, stuck);
 }
 
@@ -2800,4 +2820,374 @@ fn level_parameters_ignore_term_binders() {
     assert_eq!(shift(&mut arena, type_u, 0, 4), type_u);
     let argument = variable(&mut arena, 0);
     assert_eq!(substitute(&mut arena, type_u, argument), type_u);
+}
+
+// ── Declarations, constants, and the assumption closure ────────────────
+
+fn constant(arena: &mut TermArena, declaration: u32, levels: Vec<Level>) -> TermHandle {
+    arena.insert(Term::Constant {
+        declaration,
+        levels,
+    })
+}
+
+/// `polyId : Π(A : Type u). Π(x : A). A := λ(A : Type u). λ(x : A). x` —
+/// the canonical universe-polymorphic definition, one level parameter.
+fn polymorphic_identity_declaration(arena: &mut TermArena) -> Declaration {
+    let type_u = sort_level(arena, Level::Parameter(0));
+    let bound_a = variable(arena, 0);
+    let inner_a = variable(arena, 1);
+    let inner_pi = pi(arena, bound_a, inner_a);
+    let ty = pi(arena, type_u, inner_pi);
+    let type_u = sort_level(arena, Level::Parameter(0));
+    let bound_a = variable(arena, 0);
+    let inner_x = variable(arena, 0);
+    let inner = lambda(arena, bound_a, inner_x);
+    let body = lambda(arena, type_u, inner);
+    Declaration::definition(1, ty, body)
+}
+
+/// The `polyId` statement instantiated at `u`: `Π(A : Type u). Π(x : A). A`.
+fn instantiated_identity_type(arena: &mut TermArena, u: Level) -> TermHandle {
+    let type_u = sort_level(arena, u);
+    let bound_a = variable(arena, 0);
+    let inner_a = variable(arena, 1);
+    let inner_pi = pi(arena, bound_a, inner_a);
+    pi(arena, type_u, inner_pi)
+}
+
+#[test]
+fn a_universe_polymorphic_declaration_instantiates_at_a_constant() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let declaration = polymorphic_identity_declaration(&mut arena);
+    let signature = check_signature(&mut arena, &[declaration], &mut budget).unwrap();
+    let context = Context::empty().with_signature(signature);
+
+    // `polyId([3]) : Π(A : Type 3). Π(x : A). A` — the closed judgment
+    // supplies one closed level argument and receives the instantiated
+    // statement.
+    let applied = constant(&mut arena, 0, vec![Level::Constant(3)]);
+    let expected = instantiated_identity_type(&mut arena, Level::Constant(3));
+    let inferred = infer_type(&mut arena, &context, applied, &mut budget).unwrap();
+    assert!(arena.structurally_equal(inferred, expected));
+    check_type(&mut arena, &context, applied, expected, &mut budget).unwrap();
+
+    // Instantiation preserves the dependent spine: the codomain still
+    // names its `A` binder, so `polyId([0])` applied to a `Type 0`
+    // argument and an inhabitant yields the argument's own type.
+    let type_zero = type_sort(&mut arena, 0);
+    let two = arena.insert(Term::Two);
+    let two_zero = arena.insert(Term::TwoZero);
+    let at_zero = constant(&mut arena, 0, vec![Level::Constant(0)]);
+    let applied = apply(&mut arena, at_zero, two);
+    let specialized = apply(&mut arena, applied, two_zero);
+    let inferred = infer_type(&mut arena, &context, specialized, &mut budget).unwrap();
+    assert!(arena.structurally_equal(inferred, two));
+    let _ = type_zero;
+}
+
+#[test]
+fn a_second_declaration_references_only_the_checked_prefix() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // `d0 : Type 0 := Two`; `d1 : Type 0 := d0` — the second declaration
+    // resolves through the first because it is checked under the prefix.
+    let type_zero = type_sort(&mut arena, 0);
+    let two = arena.insert(Term::Two);
+    let first = Declaration::definition(0, type_zero, two);
+    let type_zero = type_sort(&mut arena, 0);
+    let second = Declaration::definition(0, type_zero, constant(&mut arena, 0, Vec::new()));
+    let signature = check_signature(&mut arena, &[first, second], &mut budget).unwrap();
+    assert_eq!(signature.len(), 2);
+
+    // Both definitions unfold: `d1` δ-steps to `d0`, which δ-steps to
+    // `Two` — the index discipline is what keeps unfolding well-founded.
+    let context = Context::empty().with_signature(signature);
+    let last = constant(&mut arena, 1, Vec::new());
+    let normalized =
+        weak_head_normalize(&mut arena, context.signature(), last, &mut budget).unwrap();
+    let two = arena.insert(Term::Two);
+    assert!(arena.structurally_equal(normalized, two));
+}
+
+#[test]
+fn check_signature_rejects_self_and_forward_references() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // A declaration's statement mentioning its own position is a
+    // self-reference: under the empty prefix nothing resolves.
+    let type_zero = type_sort(&mut arena, 0);
+    let self_index = constant(&mut arena, 0, Vec::new());
+    let self_reference = Declaration::assumption(0, pi(&mut arena, type_zero, self_index));
+    let error = check_signature(&mut arena, &[self_reference], &mut budget).unwrap_err();
+    assert_eq!(
+        error,
+        CoreError::UnknownDeclaration {
+            declaration: 0,
+            signature_len: 0,
+        }
+    );
+
+    // A forward reference fails identically: the first declaration names
+    // the second, but only the empty prefix is ambient when it checks.
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let type_zero = type_sort(&mut arena, 0);
+    let forward_index = constant(&mut arena, 1, Vec::new());
+    let forward = Declaration::assumption(0, pi(&mut arena, type_zero, forward_index));
+    let type_zero = type_sort(&mut arena, 0);
+    let later = Declaration::assumption(0, type_zero);
+    let error = check_signature(&mut arena, &[forward, later], &mut budget).unwrap_err();
+    assert_eq!(
+        error,
+        CoreError::UnknownDeclaration {
+            declaration: 1,
+            signature_len: 0,
+        }
+    );
+}
+
+#[test]
+fn constant_instantiation_controls_are_checked() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let declaration = polymorphic_identity_declaration(&mut arena);
+    let signature = check_signature(&mut arena, &[declaration], &mut budget).unwrap();
+
+    // An index past the signature never resolves.
+    let missing = constant(&mut arena, 7, vec![Level::Constant(0)]);
+    let context = Context::empty().with_signature(signature.clone());
+    let error = infer_type(&mut arena, &context, missing, &mut budget).unwrap_err();
+    assert_eq!(
+        error,
+        CoreError::UnknownDeclaration {
+            declaration: 7,
+            signature_len: 1,
+        }
+    );
+
+    // The instantiation must supply exactly the declaration's arity.
+    let under = constant(&mut arena, 0, Vec::new());
+    let error = infer_type(&mut arena, &context, under, &mut budget).unwrap_err();
+    assert_eq!(
+        error,
+        CoreError::DeclarationArityMismatch {
+            declaration: 0,
+            expected: 1,
+            supplied: 0,
+        }
+    );
+    let over = constant(&mut arena, 0, vec![Level::Constant(0), Level::Constant(0)]);
+    let error = infer_type(&mut arena, &context, over, &mut budget).unwrap_err();
+    assert_eq!(
+        error,
+        CoreError::DeclarationArityMismatch {
+            declaration: 0,
+            expected: 1,
+            supplied: 2,
+        }
+    );
+
+    // Every supplied level must be in the judgment's own scope: a closed
+    // judgment cannot pass `Parameter(0)`.
+    let escaped = constant(&mut arena, 0, vec![Level::Parameter(0)]);
+    let error = infer_type(&mut arena, &context, escaped, &mut budget).unwrap_err();
+    assert_eq!(
+        error,
+        CoreError::UnboundLevelParameter { index: 0, arity: 0 }
+    );
+
+    // Under arity 1 the same argument is in scope and instantiates.
+    let mut budget = default_budget();
+    let context = Context::with_level_arity(1).with_signature(signature);
+    let escaped = constant(&mut arena, 0, vec![Level::Parameter(0)]);
+    let inferred = infer_type(&mut arena, &context, escaped, &mut budget).unwrap();
+    let expected = instantiated_identity_type(&mut arena, Level::Parameter(0));
+    assert!(arena.structurally_equal(inferred, expected));
+}
+
+#[test]
+fn a_declaration_whose_statement_is_not_a_type_rejects() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    // `zero : Two` is an inhabitant, not a type — `infer_sort` refuses it.
+    let two_zero = arena.insert(Term::TwoZero);
+    let malformed = Declaration::assumption(0, two_zero);
+    let error = check_signature(&mut arena, &[malformed], &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::NotASort { .. }));
+}
+
+#[test]
+fn a_declaration_body_must_inhabit_its_statement() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    // `d : Two := Type 0` — the body is a universe, not a boolean.
+    let two = arena.insert(Term::Two);
+    let type_zero = type_sort(&mut arena, 0);
+    let malformed = Declaration::definition(0, two, type_zero);
+    let error = check_signature(&mut arena, &[malformed], &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+}
+
+#[test]
+fn a_declaration_statement_must_keep_its_own_level_scope() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    // Arity 0 but the statement mentions `Parameter(0)` — the declaration
+    // claims a level it never quantified over.
+    let type_u = sort_level(&mut arena, Level::Parameter(0));
+    let malformed = Declaration::assumption(0, type_u);
+    let error = check_signature(&mut arena, &[malformed], &mut budget).unwrap_err();
+    assert_eq!(
+        error,
+        CoreError::UnboundLevelParameter { index: 0, arity: 0 }
+    );
+}
+
+#[test]
+fn a_definition_constant_unfolds_and_an_assumption_stays_neutral() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let type_u = sort_level(&mut arena, Level::Parameter(0));
+    let axiom = Declaration::assumption(1, type_u);
+    let identity = polymorphic_identity_declaration(&mut arena);
+    let signature = check_signature(&mut arena, &[axiom, identity], &mut budget).unwrap();
+    let context = Context::with_level_arity(1).with_signature(signature);
+
+    // The definition δ-unfolds to its instantiated body in one step.
+    let defined = constant(&mut arena, 1, vec![Level::Parameter(0)]);
+    let normalized =
+        weak_head_normalize(&mut arena, context.signature(), defined, &mut budget).unwrap();
+    let expected_body = {
+        let type_u = sort_level(&mut arena, Level::Parameter(0));
+        let bound_a = variable(&mut arena, 0);
+        let inner_x = variable(&mut arena, 0);
+        let inner = lambda(&mut arena, bound_a, inner_x);
+        lambda(&mut arena, type_u, inner)
+    };
+    assert!(arena.structurally_equal(normalized, expected_body));
+
+    // An unfolding is a budgeted step: an exhausted budget refuses it
+    // rather than pretending the terms never convert.
+    let mut empty_budget = Budget::new(0);
+    let error = weak_head_normalize(&mut arena, context.signature(), defined, &mut empty_budget)
+        .unwrap_err();
+    assert_eq!(error, CoreError::StepCeiling);
+
+    // The assumption has no body: it is a neutral atom and stays stuck.
+    let neutral = constant(&mut arena, 0, vec![Level::Parameter(0)]);
+    let mut budget = default_budget();
+    let normalized =
+        weak_head_normalize(&mut arena, context.signature(), neutral, &mut budget).unwrap();
+    assert_eq!(normalized, neutral);
+}
+
+#[test]
+fn stuck_constants_convert_at_semantically_equal_instantiations() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    // `M : Type u` at arity 2 — the parameters it never uses still count
+    // toward the instantiation length.
+    let type_u = sort_level(&mut arena, Level::Parameter(0));
+    let axiom = Declaration::assumption(2, type_u);
+    let signature = check_signature(&mut arena, &[axiom], &mut budget).unwrap();
+    let context = Context::with_level_arity(2).with_signature(signature);
+    let u = Level::Parameter(0);
+    let v = Level::Parameter(1);
+
+    // `M(max(u, v))` and `M(max(v, u))` are the same assumption at
+    // semantically equal instantiations — conversion decides it without
+    // unfolding anything.
+    let left = constant(&mut arena, 0, vec![u.clone().maximum(v.clone())]);
+    let right = constant(&mut arena, 0, vec![v.clone().maximum(u.clone())]);
+    let shared = sort_level(&mut arena, u.clone().maximum(v.clone()));
+    assert!(
+        convertible(&mut arena, &context, left, right, shared, &mut budget).unwrap(),
+        "the same assumption at equal levels must convert"
+    );
+
+    // Different instantiations are different assumptions.
+    let other = constant(&mut arena, 0, vec![u.clone()]);
+    assert!(
+        !convertible(&mut arena, &context, left, other, shared, &mut budget).unwrap(),
+        "distinct level instantiations must not convert"
+    );
+
+    // And a different declaration is a different assumption entirely.
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let type_u = sort_level(&mut arena, Level::Parameter(0));
+    let first = Declaration::assumption(1, type_u);
+    let type_u = sort_level(&mut arena, Level::Parameter(0));
+    let second = Declaration::assumption(1, type_u);
+    let signature = check_signature(&mut arena, &[first, second], &mut budget).unwrap();
+    let context = Context::with_level_arity(1).with_signature(signature);
+    let left = constant(&mut arena, 0, vec![Level::Parameter(0)]);
+    let right = constant(&mut arena, 1, vec![Level::Parameter(0)]);
+    let shared = sort_level(&mut arena, Level::Parameter(0));
+    assert!(!convertible(&mut arena, &context, left, right, shared, &mut budget).unwrap());
+}
+
+#[test]
+fn assumption_closure_reaches_through_statements_and_bodies() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    // `axiom : Type 0`; `uses : Type 0 := axiom`; `spare : Type 0` — a
+    // judgment mentioning only `uses` still commits to `axiom`, while
+    // the unused `spare` never enters the closure.
+    let type_zero = type_sort(&mut arena, 0);
+    let axiom = Declaration::assumption(0, type_zero);
+    let type_zero = type_sort(&mut arena, 0);
+    let axiom_constant = constant(&mut arena, 0, Vec::new());
+    let uses = Declaration::definition(0, type_zero, axiom_constant);
+    let type_zero = type_sort(&mut arena, 0);
+    let spare = Declaration::assumption(0, type_zero);
+    let signature = check_signature(&mut arena, &[axiom, uses, spare], &mut budget).unwrap();
+
+    let closure = assumption_closure(&arena, &signature, &[1]);
+    assert_eq!(closure, [0].into_iter().collect());
+
+    // The same reachability from a judgment's terms: an evidence term
+    // naming only `uses` reports `axiom` — and a statement-level
+    // dependency counts even when conversion never unfolded it.
+    let evidence = constant(&mut arena, 1, Vec::new());
+    let closure = judgment_assumption_closure(&arena, &signature, &[evidence]);
+    assert_eq!(closure, [0].into_iter().collect());
+
+    // Declaring a dependency on an assumption itself records it.
+    let direct = constant(&mut arena, 0, Vec::new());
+    let closure = judgment_assumption_closure(&arena, &signature, &[direct]);
+    assert_eq!(closure, [0].into_iter().collect());
+
+    // Nothing depends on `spare`: no root reaches index 2.
+    let closure = assumption_closure(&arena, &signature, &[0, 1]);
+    assert_eq!(closure, [0].into_iter().collect());
+}
+
+#[test]
+fn assumption_statements_carry_the_closure_too() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    // `axiom : Type 0`; `thm : axiom := zero`? — `axiom` is a type, so a
+    // definition `thm : Type 0 → axiom`? Keep it simple: `wrap`'s
+    // *statement* is a Π over `axiom` and its body never mentions it —
+    // the closure still records the axiom because statements count.
+    let type_zero = type_sort(&mut arena, 0);
+    let axiom = Declaration::assumption(0, type_zero);
+    // `wrap : Π(_ : axiom). Type 0` as an assumption whose statement
+    // mentions the axiom. Under the signature, `axiom` is `Constant 0`.
+    let axiom_ty = constant(&mut arena, 0, Vec::new());
+    let type_zero = type_sort(&mut arena, 0);
+    let wrap_ty = pi(&mut arena, axiom_ty, type_zero);
+    let wrap = Declaration::assumption(0, wrap_ty);
+    let signature = check_signature(&mut arena, &[axiom, wrap], &mut budget).unwrap();
+
+    // The judgment's evidence is `wrap` alone; its statement's reference
+    // to `axiom` is an assumption dependency of the whole judgment.
+    let evidence = constant(&mut arena, 1, Vec::new());
+    let closure = judgment_assumption_closure(&arena, &signature, &[evidence]);
+    assert_eq!(closure, [0, 1].into_iter().collect());
 }
