@@ -567,12 +567,13 @@ mod tests {
                     _ => None,
                 })
                 .collect::<Vec<_>>();
-            let preparation = crate::lower_syntax_trees_for_const_initializer_selection(
-                &syntax,
-                Some(sources.clone()),
-                Vec::new(),
-            )
-            .expect("preparation");
+            let preparation =
+                crate::prepare_const_initializer_selection(crate::ResolutionRequest {
+                    syntax: &syntax,
+                    sources: Some(sources.clone()),
+                    top_level_bindings: Vec::new(),
+                })
+                .expect("preparation");
             let dependencies = preparation
                 .initializer_dependencies(&syntax, &definitions[1].1)
                 .expect("helper dependencies");
@@ -623,8 +624,12 @@ mod tests {
                 });
                 syntax.items.replace_item(*item, Item::Const(definition));
             }
-            crate::lower_syntax_trees_with_sources(&syntax, sources.clone())
-                .expect("complete resolution must visit authoritative helper statements");
+            crate::resolve(crate::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(sources.clone()),
+                top_level_bindings: Vec::new(),
+            })
+            .expect("complete resolution must visit authoritative helper statements");
             let mut changed = syntax.clone();
             let Item::Const(mut declaration) = changed.root_item(definitions[1].0).clone() else {
                 panic!("SIZE")
@@ -639,7 +644,12 @@ mod tests {
                 .items
                 .replace_item(definitions[1].0, Item::Const(declaration));
             assert!(
-                crate::lower_syntax_trees_with_sources(&changed, sources).is_err(),
+                crate::resolve(crate::ResolutionRequest {
+                    syntax: &changed,
+                    sources: Some(sources),
+                    top_level_bindings: Vec::new()
+                })
+                .is_err(),
                 "omitted helper dependency must not validate"
             );
         }
@@ -707,8 +717,8 @@ mod tests {
     #[test]
     fn initializer_receipt_retains_dependency_and_operator_on_materialized_root() {
         let (syntax, _) = normalized();
-        let resolved =
-            crate::lower_syntax_trees(&syntax).expect("resolve retained initializer receipt");
+        let resolved = crate::resolve(crate::ResolutionRequest::new(&syntax))
+            .expect("resolve retained initializer receipt");
         let count = resolved
             .const_declarations
             .iter()
@@ -757,7 +767,7 @@ mod tests {
             }
             syntax.items.replace_item(item, Item::Const(definition));
             assert!(
-                crate::lower_syntax_trees(&syntax).is_err(),
+                crate::resolve(crate::ResolutionRequest::new(&syntax)).is_err(),
                 "mutation {mutation}"
             );
         }
@@ -767,7 +777,8 @@ mod tests {
     fn retained_initializer_custody_rejects_unchecked_operators_and_cycles() {
         for mutation in 0..3 {
             let (syntax, _) = normalized();
-            let mut program = crate::lower_syntax_trees(&syntax).expect("retained base");
+            let mut program =
+                crate::resolve(crate::ResolutionRequest::new(&syntax)).expect("retained base");
             let owner = program
                 .const_declarations
                 .iter()
@@ -824,7 +835,8 @@ mod tests {
         };
         let receipt = definition.normalization.clone().expect("receipt");
         let operator = receipt.builtin_operators[0];
-        let mut program = crate::lower_syntax_trees(&syntax).expect("retained base");
+        let mut program =
+            crate::resolve(crate::ResolutionRequest::new(&syntax)).expect("retained base");
         let declaration = program
             .const_declarations
             .iter()
@@ -1007,17 +1019,26 @@ mod tests {
         let mut combined = base_syntax.clone();
         combined.extend_from(&extension_syntax);
         let sources = Arc::new(sources);
-        let one_shot = crate::lower_syntax_trees_with_sources(&combined, sources.clone())
-            .expect("one-shot normalized declarations");
-        let base = crate::lower_syntax_trees_with_sources(&base_syntax, sources.clone())
-            .expect("normalized retained base");
+        let one_shot = crate::resolve(crate::ResolutionRequest {
+            syntax: &combined,
+            sources: Some(sources.clone()),
+            top_level_bindings: Vec::new(),
+        })
+        .expect("one-shot normalized declarations");
+        let base = crate::resolve(crate::ResolutionRequest {
+            syntax: &base_syntax,
+            sources: Some(sources.clone()),
+            top_level_bindings: Vec::new(),
+        })
+        .expect("normalized retained base");
         let retained_selections = base.authored_declaration_selections().as_slice().to_vec();
-        let seeded = crate::lower_syntax_extension_against_resolved_base(
+        let seeded = crate::resolve_extension(crate::ExtensionRequest {
             base,
-            &extension_syntax,
+            syntax: &extension_syntax,
             sources,
-            Vec::new(),
-        )
+            top_level_bindings: Vec::new(),
+        })
+        .map(|seeded| seeded.into_unrebased_trees())
         .expect("seeded initializer retains transitive dependencies and operators");
         assert_eq!(
             &seeded.authored_declaration_selections().as_slice()[..retained_selections.len()],

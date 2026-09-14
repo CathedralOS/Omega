@@ -1,14 +1,14 @@
 use checked_interpreter::interpret_entry;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn execute(source: &str) -> checked_interpreter::InterpretOutcome {
     let tokens = Lexer::new(source).tokenize().expect("array tokens");
     let syntax = parse_syntax_trees(&tokens).expect("array syntax");
-    let resolved = lower_syntax_trees(&syntax).expect("array symbols");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("array symbols");
     let typed = lower_symbol_resolved_trees(&resolved).expect("array types");
     let checked =
         lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));

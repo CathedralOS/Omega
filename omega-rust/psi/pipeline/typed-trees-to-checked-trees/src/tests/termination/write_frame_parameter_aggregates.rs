@@ -23,7 +23,7 @@ fn parameter_aggregate_program(
     );
     let syntax =
         parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
@@ -488,7 +488,7 @@ fn parameter_aggregate_helper_move_invalidates_literal_caller_storage() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let program = lower_symbol_resolved_trees(&resolved).expect("type");
     match validation::validate_program(&program) {
         Err(diagnostics)
@@ -537,7 +537,7 @@ fn parameter_aggregate_unknown_shapes_and_empty_arrays_cannot_supply_leaves() {
         );
         let syntax =
             parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let program = lower_symbol_resolved_trees(&resolved).expect("type");
         let machine = program
             .machines()
@@ -582,7 +582,7 @@ fn parameter_aggregate_move_survives_named_state_cycle() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let program = lower_symbol_resolved_trees(&resolved).expect("type");
     let machine = program
         .machines()

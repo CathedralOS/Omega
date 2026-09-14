@@ -281,8 +281,10 @@ mod tests {
             .tokenize()
             .expect("tokens");
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved =
-            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolution");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolution");
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("typing")
     }

@@ -3,7 +3,7 @@ use super::ids::{boundary_id, machine_id, operation_id, structural_type_id};
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{
     build_terminal_obligation_ledger, current_terminal_trust_graph, encode_module,
     encode_proof_section, encode_terminal_obligation_ledger, semantic_fingerprint,
@@ -505,7 +505,7 @@ machine enter(buffer: &mut Buffer) reaches Sink { Sink::take(&mut buffer.bytes);
 fn check_selected_overload_identity(source: &str, provider_machine: &str, wrong_overload: &str) {
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = lower_typed_trees(typed).unwrap();
     let machine = checked
@@ -591,7 +591,7 @@ fn check_selected_overload_identity(source: &str, provider_machine: &str, wrong_
 
     let tokens = Lexer::new(wrong_overload).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let wrong = typed
         .machines()

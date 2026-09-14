@@ -1,4 +1,4 @@
-use super::lower_syntax_trees;
+use super::{ResolutionRequest, resolve};
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use source::{SourceId, SourceSpan, Span};
 use source_files_to_tokens::Lexer;
@@ -83,7 +83,7 @@ fn named_domain_indices_retain_exact_root_module_and_import_selections() {
             origins.push(origin.clone());
         }
         assert_eq!(origins.len(), 5);
-        let program = lower_syntax_trees(&syntax).expect("final domain custody join");
+        let program = resolve(ResolutionRequest::new(&syntax)).expect("final domain custody join");
         for origin in origins {
             let selected = program
                 .const_declarations
@@ -212,7 +212,7 @@ fn normalized_constant_argument_retains_actual_owner_exposure() {
     for public in [false, true] {
         let syntax = normalized(public);
         let origin = origin(&syntax);
-        let program = lower_syntax_trees(&syntax).expect("resolve constant origin");
+        let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve constant origin");
         let selected = program
             .const_declarations
             .iter()
@@ -305,8 +305,8 @@ fn synthetic_instance_exclusion_does_not_hide_independent_same_value_field_origi
     owner.generic_instance = Some(first_application);
     owner.is_public = true;
     syntax.items.replace_item(root, Item::Data(owner));
-    let program =
-        lower_syntax_trees(&syntax).expect("resolve synthetic owner with independent field origin");
+    let program = resolve(ResolutionRequest::new(&syntax))
+        .expect("resolve synthetic owner with independent field origin");
     let selected = program
         .const_declarations
         .iter()
@@ -332,7 +332,8 @@ fn normalized_constant_argument_rejects_missing_and_drifted_declaration_custody(
     let syntax = normalized(false);
     let original = origin(&syntax);
     for corruption in ["missing", "initializer", "encoding", "duplicate"] {
-        let mut program = lower_syntax_trees(&syntax).expect("resolve original custody");
+        let mut program =
+            resolve(ResolutionRequest::new(&syntax)).expect("resolve original custody");
         let mut origin = original.clone();
         match corruption {
             "missing" => origin.declaration = SourceSpan::new(SourceId(9), Span::new(10, 14)),
@@ -384,7 +385,7 @@ fn rewritten_constant_payload_cannot_drift_from_its_origin() {
         );
     }
     assert!(
-        lower_syntax_trees(&syntax).is_err(),
+        resolve(ResolutionRequest::new(&syntax)).is_err(),
         "rewritten 3 cannot retain the declaration's exact 2 encoding"
     );
 }
@@ -392,7 +393,7 @@ fn rewritten_constant_payload_cannot_drift_from_its_origin() {
 #[test]
 fn dead_constant_argument_origins_do_not_become_authored_selections() {
     let mut syntax = normalized(false);
-    let original = lower_syntax_trees(&syntax).expect("resolve live constant index");
+    let original = resolve(ResolutionRequest::new(&syntax)).expect("resolve live constant index");
     let dead = syntax
         .type_references
         .insert_named(Identifier::generated("3"));
@@ -403,8 +404,8 @@ fn dead_constant_argument_origins_do_not_become_authored_selections() {
         [ConstArgumentOrigin::default()],
         [],
     );
-    let program =
-        lower_syntax_trees(&syntax).expect("unreachable type arena nodes are not lowered");
+    let program = resolve(ResolutionRequest::new(&syntax))
+        .expect("unreachable type arena nodes are not lowered");
     assert_eq!(
         program.authored_declaration_selections(),
         original.authored_declaration_selections()
@@ -471,7 +472,8 @@ fn normalized_result_is_independent_of_each_selected_declaration_value() {
         .is_err()
     );
 
-    let mut program = lower_syntax_trees(&syntax).expect("resolve selected declaration");
+    let mut program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve selected declaration");
     let pending = table
         .const_argument_origins(normalization.selections)
         .iter()
@@ -627,7 +629,7 @@ fn nominal_constant_receiving_slot_rejects_carrier_and_parent_substitution() {
                 })
         })
         .expect("retained nominal occurrence");
-    let program = lower_syntax_trees(&syntax).expect("resolve nominal receiving slot");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve nominal receiving slot");
     let (parameter_handle, application) = program
         .tables
         .declarations

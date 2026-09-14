@@ -8,9 +8,12 @@ fn sourced_checked_fixture() -> (CheckedTrees, Vec<ProviderPlan>) {
         .expect("tokenize sourced dispatch fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse sourced dispatch fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-        &syntax,
-        Arc::new(sources),
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        },
     )
     .expect("resolve sourced dispatch fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)

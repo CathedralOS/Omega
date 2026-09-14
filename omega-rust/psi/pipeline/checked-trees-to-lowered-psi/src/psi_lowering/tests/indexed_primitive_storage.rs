@@ -37,7 +37,7 @@ fn indexed_primitive_source_rejects_out_of_bounds_and_shared_writes() {
     ] {
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let syntax = parse_syntax_trees(&tokens).unwrap();
-        let resolved = lower_syntax_trees(&syntax).unwrap();
+        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
         let typed = lower_symbol_resolved_trees(&resolved).unwrap();
         assert!(
             lower_typed_trees(typed).is_err(),

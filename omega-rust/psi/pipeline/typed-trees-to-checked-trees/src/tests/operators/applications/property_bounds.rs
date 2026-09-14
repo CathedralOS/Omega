@@ -97,7 +97,7 @@ fn closed_type_not_satisfying_property_bound_is_rejected_by_validation() {
     .tokenize()
     .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = validation::validate_program(&typed)
         .expect_err("LinearValue must not satisfy the operator's [copy] bound");
@@ -126,7 +126,7 @@ fn explicit_bounded_type_argument_must_equal_operand_inference() {
     .tokenize()
     .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = validation::validate_program(&typed)
         .expect_err("the explicit bounded type must agree with operand inference");

@@ -51,7 +51,7 @@ fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
             }
             let tokens = Lexer::new(&source).tokenize().unwrap();
             let syntax = parse_syntax_trees(&tokens).unwrap();
-            let resolved = lower_syntax_trees(&syntax).unwrap();
+            let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
             let typed = lower_symbol_resolved_trees(&resolved).unwrap();
             let checked = lower_typed_trees(typed).unwrap();
             let terminal =

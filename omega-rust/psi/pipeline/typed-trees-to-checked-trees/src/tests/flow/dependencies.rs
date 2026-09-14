@@ -18,7 +18,7 @@ fn constrained_type_composes_predicate_bodies_without_flow_minting_role_only_dom
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let packet = typed
         .data_definitions()
@@ -75,7 +75,7 @@ fn domain_conjunction_write_checks_every_predicate_facet() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("a UTF-8 but non-ASCII literal must fail the second predicate facet");
@@ -111,7 +111,7 @@ fn semantic_domain_ids_mint_and_propagate() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
 
     let ids: Vec<_> = typed
@@ -154,7 +154,7 @@ fn materializes_domain_dependency_facts() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let borrow = build_borrow_facts(&typed);

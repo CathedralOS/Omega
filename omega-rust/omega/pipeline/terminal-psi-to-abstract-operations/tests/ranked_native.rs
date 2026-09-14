@@ -2,7 +2,7 @@
 mod legacy_fixture;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_psi_to_abstract_operations::{
     ArtifactLoweringError, lower_artifact, lower_artifact_for_native_realization,
 };
@@ -27,7 +27,7 @@ const COUNTDOWN_SOURCE: &str = r#"
 fn artifact(source: &str) -> (Vec<u8>, Vec<u8>, terminal_psi::TerminalModule) {
     let tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
     let syntax = parse_syntax_trees(&tokens).expect("parse fixture");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve fixture");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type fixture");
     let checked = lower_typed_trees(typed).expect("check fixture");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::countdown")

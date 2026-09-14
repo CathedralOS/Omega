@@ -22,7 +22,7 @@ fn indexed_selection_fixture(
         .tokenize()
         .expect("tokenize indexed selection");
     let syntax = parse_syntax_trees(&tokens).expect("parse indexed selection");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve indexed selection");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve indexed selection");
     let program = lower_symbol_resolved_trees(&resolved).expect("type indexed selection");
     let mut roots = arena::Arena::default();
     for machine in program.machines() {
@@ -284,7 +284,7 @@ fn checked_software_may_satisfy_a_contracted_ordinary_operator() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed)
         .expect("a checked provider may ask less than its ordinary operator requirement");
@@ -315,7 +315,7 @@ fn signature_requires_selects_domain_operator_without_flow_lookup() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let combine = typed
         .machines()
@@ -755,7 +755,7 @@ fn complete_operand_matching_shares_generic_bindings_across_positions() {
 fn checked_program_from_source(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("checked lowering")
 }
@@ -981,7 +981,7 @@ fn trait_operator_use_rejects_multiple_selected_conformance_binders() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("two selected binders are ambiguous");
     let message = diagnostics
@@ -1016,7 +1016,7 @@ fn visible_conformance_does_not_supply_an_unbound_trait_operator() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("visible conformance is not authority");
 
@@ -1036,7 +1036,7 @@ fn trait_operator_bindings_are_unique_per_normalized_operand_telescope() {
     "#;
     let tokens = Lexer::new(duplicate).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("duplicate trait token must reject");
     assert!(diagnostics.iter().any(|diagnostic| {

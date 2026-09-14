@@ -14,9 +14,12 @@ fn typed(text: &str, relative: &str, origin: SourceOrigin) -> TypedTrees {
     let tokens = Lexer::new(text).tokenize().expect("tokenize");
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-        &syntax,
-        Arc::new(sources),
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        },
     )
     .expect("resolve");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")

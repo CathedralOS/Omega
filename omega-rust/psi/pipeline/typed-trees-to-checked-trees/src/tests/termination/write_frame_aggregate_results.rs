@@ -33,7 +33,7 @@ fn aggregate_result_program(body: &str, extra: &str, scalar: &str) -> typed_tree
     );
     let syntax =
         parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
@@ -298,7 +298,7 @@ fn aggregate_helper_result_producer_writes_do_not_become_later_call_writes() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let program = lower_symbol_resolved_trees(&resolved).expect("type");
     let machine = program
         .machines()
@@ -453,7 +453,7 @@ fn aggregate_helper_results_keep_independent_input_lifetimes_and_origins() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let program = lower_symbol_resolved_trees(&resolved).expect("type");
     let machine = program
         .machines()

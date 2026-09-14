@@ -4,7 +4,7 @@ use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
 use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 use typed_trees::expression::ExpressionNode;
 
@@ -48,8 +48,12 @@ fn typed_array_projection_cannot_execute_authored_indexing_as_builtin() {
         let mut syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse projection");
         let tokens = Lexer::new(settings).tokenize().expect("tokenize settings");
         parse_syntax_trees_into_with_id(&mut syntax, settings_id, &tokens).expect("parse settings");
-        let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-            .expect("resolve projection");
+        let resolved = resolve(ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        })
+        .expect("resolve projection");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type projection");
         assert!(
             typed

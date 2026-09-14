@@ -1266,8 +1266,10 @@ mod tests {
             .expect("tokenize evaluated-via replay fixture");
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
             .expect("parse evaluated-via replay fixture");
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-            .expect("resolve evaluated-via replay fixture");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve evaluated-via replay fixture");
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type evaluated-via replay fixture")
     }

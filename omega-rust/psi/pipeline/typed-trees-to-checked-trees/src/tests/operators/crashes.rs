@@ -5,7 +5,8 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
         .tokenize()
         .expect("tokenize operator crash fixture");
     let syntax = parse_syntax_trees(&tokens).expect("parse operator crash fixture");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve operator crash fixture");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve operator crash fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type operator crash fixture");
     lower_typed_trees(typed)
 }

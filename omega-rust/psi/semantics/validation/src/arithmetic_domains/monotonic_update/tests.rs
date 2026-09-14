@@ -21,9 +21,12 @@ fn bounds(
         .add("monotonic_counter.omg".into(), source.clone())
         .source_id;
     let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-        &syntax,
-        std::sync::Arc::new(sources),
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        },
     )
     .unwrap();
     let program =

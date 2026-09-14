@@ -1,6 +1,6 @@
 use super::{
-    Lexer, lower_syntax_extension_against_resolved_base, lower_syntax_trees,
-    lower_syntax_trees_with_sources, parse_syntax_trees, parse_syntax_trees_with_id,
+    ExtensionRequest, Lexer, ResolutionRequest, parse_syntax_trees, parse_syntax_trees_with_id,
+    resolve_extension,
 };
 use source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use std::path::PathBuf;
@@ -13,7 +13,7 @@ use symbols::{SymbolHandle, SymbolKind};
 fn resolve(source: &str) -> SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize measure");
     let syntax = parse_syntax_trees(&tokens).expect("parse measure");
-    lower_syntax_trees(&syntax).expect("resolve measure")
+    crate::resolve(ResolutionRequest::new(&syntax)).expect("resolve measure")
 }
 
 fn assert_parameter_forward(program: &SymbolResolvedTrees, measure: &MeasureDefinition) {
@@ -154,7 +154,12 @@ fn seeded_measure_extension_preserves_existing_declarations_and_binders() {
         .source_id;
     let base_syntax =
         parse_syntax_trees_with_id(base_id, &Lexer::new(base_source).tokenize().unwrap()).unwrap();
-    let base = lower_syntax_trees_with_sources(&base_syntax, Arc::new(sources.clone())).unwrap();
+    let base = crate::resolve(ResolutionRequest {
+        syntax: &base_syntax,
+        sources: Some(Arc::new(sources.clone())),
+        top_level_bindings: Vec::new(),
+    })
+    .unwrap();
     let retained = base.measures.iter().next().unwrap().clone();
     let retained_body = base
         .tables
@@ -176,12 +181,13 @@ fn seeded_measure_extension_preserves_existing_declarations_and_binders() {
         &Lexer::new(extension_source).tokenize().unwrap(),
     )
     .unwrap();
-    let program = lower_syntax_extension_against_resolved_base(
+    let program = resolve_extension(ExtensionRequest {
         base,
-        &extension_syntax,
-        Arc::new(sources),
-        Vec::new(),
-    )
+        syntax: &extension_syntax,
+        sources: Arc::new(sources),
+        top_level_bindings: Vec::new(),
+    })
+    .map(|seeded| seeded.into_unrebased_trees())
     .expect("extend existing measure symbols");
     let measures = program.measures.iter().collect::<Vec<_>>();
     assert_eq!(measures.len(), 2);

@@ -6,7 +6,10 @@ fn typed(source: &str) -> TypedTrees {
         .unwrap();
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
@@ -268,9 +271,12 @@ fn folded_arguments_still_require_their_original_selection_authority() {
         let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
         let syntax =
             tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-            &syntax,
-            Arc::new(sources),
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
         )
         .unwrap();
         let program =
@@ -412,8 +418,10 @@ fn generic_record_arguments_fold_endpoint_calls_before_synthesis() {
         })
         .unwrap_or_else(|errors| panic!("{argument}: pre-resolution: {errors:?}"));
         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-            .unwrap_or_else(|errors| panic!("{argument}: resolution: {errors:?}"));
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap_or_else(|errors| panic!("{argument}: resolution: {errors:?}"));
         let mut program =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .unwrap_or_else(|error| panic!("{argument}: typed lowering: {error:?}"));
@@ -468,7 +476,9 @@ fn checked_pipeline(source: &str) -> Result<(), Vec<Diagnostic>> {
         source_context: None,
     })?;
     let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)?;
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )?;
     let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|error| vec![error])?;
     pre_check.evaluate(&mut program)?;

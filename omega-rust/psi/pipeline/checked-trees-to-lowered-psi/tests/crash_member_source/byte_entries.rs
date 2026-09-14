@@ -14,7 +14,7 @@ fn byte_content_entry_routes_reject_unknown_actuals_and_unrelated_guards() {
     ] {
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let diagnostics = lower_typed_trees(typed).expect_err("entry route does not cover the call");
         assert!(diagnostics.iter().any(|diagnostic| {

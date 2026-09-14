@@ -9,7 +9,7 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
         .tokenize()
         .expect("tokenize value dispatch");
     let syntax = parse_syntax_trees(&tokens).expect("parse value dispatch");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve value dispatch");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve value dispatch");
     let typed = lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])?;
     lower_typed_trees(typed)
 }

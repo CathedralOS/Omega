@@ -82,7 +82,7 @@ fn check_source(source: &str) -> checked_trees::CheckedTrees {
         .tokenize()
         .expect("tokenize progress mutation");
     let syntax = parse_syntax_trees(&tokens).expect("parse progress mutation");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve progress mutation");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve progress mutation");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type progress mutation");
     lower_typed_trees(typed)
         .unwrap_or_else(|diagnostics| panic!("check progress mutation: {diagnostics:#?}"))
@@ -93,7 +93,8 @@ fn assert_unproved_tail_requirement(source: &str) {
         .tokenize()
         .expect("tokenize unproved tail requirement");
     let syntax = parse_syntax_trees(&tokens).expect("parse unproved tail requirement");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve unproved tail requirement");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve unproved tail requirement");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type unproved tail requirement");
     let diagnostics = match lower_typed_trees(typed) {
         Ok(_) => panic!("an exact progress origin cannot substitute for a proven call requirement"),

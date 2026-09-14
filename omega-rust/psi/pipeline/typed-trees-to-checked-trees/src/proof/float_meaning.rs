@@ -798,9 +798,7 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{
-        lower_syntax_trees, lower_syntax_trees_with_sources,
-    };
+    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::{
         parse_syntax_trees, parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
     };
@@ -873,8 +871,12 @@ mod tests {
         let user_tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
         parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens)
             .expect("parse fixture");
-        let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-            .expect("resolve source-aware projection fixture");
+        let resolved = resolve(ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        })
+        .expect("resolve source-aware projection fixture");
         lower_symbol_resolved_trees(&resolved).expect("type projection fixture")
     }
 
@@ -884,7 +886,7 @@ mod tests {
             .tokenize()
             .expect("tokenize lookalike");
         let syntax = parse_syntax_trees(&tokens).expect("parse lookalike");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve lookalike");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve lookalike");
         lower_symbol_resolved_trees(&resolved).expect("type lookalike")
     }
 

@@ -334,8 +334,10 @@ fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnos
         .tokenize()
         .expect("dispatch tokens");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("dispatch syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("dispatch resolution");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("dispatch resolution");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("dispatch typing");
     typed_trees_to_checked_trees::lower_typed_trees(typed)
@@ -574,8 +576,10 @@ fn float_match_results_reject_mixed_formats_before_lowering() {
             .tokenize()
             .expect("tokens");
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved =
-            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolution");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolution");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("typing");
         let errors = typed_trees_to_checked_trees::lower_typed_trees(typed)

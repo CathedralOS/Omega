@@ -21,12 +21,17 @@ fn fixture_with_sources(retain_sources: bool) -> TypedTrees {
     let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
         .expect("parse counters");
     let resolved = if retain_sources {
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-            &syntax,
-            std::sync::Arc::new(sources),
+        syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
         )
     } else {
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+        syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
     }
     .expect("resolve counters");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)

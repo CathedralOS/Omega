@@ -661,7 +661,7 @@ machine Main::clear(&mut self) { self.divisor = 0; }
     let reread = source.replace("100 / saved", "100 / self.divisor");
     let tokens = super::Lexer::new(&reread).tokenize().unwrap();
     let syntax = super::parse_syntax_trees(&tokens).unwrap();
-    let resolved = super::lower_syntax_trees(&syntax).unwrap();
+    let resolved = super::resolve(super::ResolutionRequest::new(&syntax)).unwrap();
     let typed = super::lower_symbol_resolved_trees(&resolved).unwrap();
     let Err(diagnostics) = super::lower_typed_trees(typed) else {
         panic!("a new read cannot inherit the saved value's bound");

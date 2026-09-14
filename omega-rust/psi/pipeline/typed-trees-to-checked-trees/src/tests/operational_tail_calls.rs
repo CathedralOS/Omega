@@ -3,7 +3,7 @@ use super::*;
 fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize tail call");
     let syntax = parse_syntax_trees(&tokens).expect("parse tail call");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve tail call");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve tail call");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type tail call");
     lower_typed_trees(typed).expect("check tail call")
 }
@@ -163,7 +163,7 @@ fn named_static_binder_tail_checks_signature_arguments() {
             .tokenize()
             .expect("tokenize binder arguments");
         let syntax = parse_syntax_trees(&tokens).expect("parse binder arguments");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve binder arguments");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve binder arguments");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type binder arguments");
         let result = lower_typed_trees(typed);
         if argument == "0" {
@@ -203,7 +203,7 @@ fn named_tail_call_does_not_invent_suspension_acknowledgement() {
             .tokenize()
             .expect("tokenize suspending tail");
         let syntax = parse_syntax_trees(&tokens).expect("parse suspending tail");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve suspending tail");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve suspending tail");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type suspending tail");
         let diagnostics = lower_typed_trees(typed)
             .expect_err("an unmarked named transfer cannot acknowledge a suspending call");

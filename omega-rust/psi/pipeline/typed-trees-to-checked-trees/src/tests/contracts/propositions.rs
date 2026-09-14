@@ -1152,7 +1152,7 @@ fn proof_output_rejects_value_on_unit_and_duplicate_or_discarded_runtime_value()
     let unit = format!("boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{unit}");
     let tokens = Lexer::new(&unit).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let diagnostics = lower_symbol_resolved_trees(&resolved)
         .expect_err("a proof-only proof-only call has no value type");
     assert!(

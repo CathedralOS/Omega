@@ -208,7 +208,8 @@ fn transparent_returned_place_composes_direct_array_literal_index_frames() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 

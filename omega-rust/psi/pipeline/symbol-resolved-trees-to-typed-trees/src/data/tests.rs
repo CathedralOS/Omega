@@ -12,7 +12,10 @@ fn resolved(source: &str) -> resolved::SymbolResolvedTrees {
         .tokenize()
         .expect("tokens");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolution")
+    syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolution")
 }
 
 fn assert_telescope(

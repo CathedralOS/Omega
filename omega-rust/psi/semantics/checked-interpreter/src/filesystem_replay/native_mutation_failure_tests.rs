@@ -18,7 +18,7 @@ use source::{SourceMap, SourceOrigin};
 use source_files_to_tokens::Lexer;
 use std::{path::PathBuf, sync::Arc};
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -198,8 +198,12 @@ pub(super) fn checked_fixture() -> checked_trees::CheckedTrees {
         .expect("tokenize native mutation fixture");
     parse_syntax_trees_into_with_id(&mut syntax, fixture_source_id, &fixture_tokens)
         .expect("parse native mutation fixture");
-    let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("resolve native mutation fixture");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve native mutation fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type native mutation fixture");
     lower_typed_trees(typed).expect("check native mutation fixture")
 }

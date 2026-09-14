@@ -23,7 +23,8 @@ fn rejects_terminating_recursive_machine_without_decreases() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
 
@@ -51,7 +52,8 @@ fn accepts_slice_range_surface_during_checked_lowering() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("checked lowering should accept ranges");
@@ -80,7 +82,8 @@ fn accepts_terminating_countdown_machine_with_decreases() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("termination check should succeed");
@@ -105,7 +108,8 @@ fn direct_unsigned_countdown_exports_exact_ranked_scc_evidence() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let machine = typed
         .machines()
@@ -142,7 +146,7 @@ fn direct_unsigned_countdown_exports_exact_ranked_scc_evidence() {
         .tokenize()
         .expect("stalled source should tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("stalled source should parse");
-    let resolved = lower_syntax_trees(&syntax).expect("stalled source should resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("stalled source should resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("stalled source should type");
     let machine = typed
         .machines()
@@ -179,7 +183,8 @@ fn accepts_terminating_distance_machine_with_decreases() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("termination distance proof should succeed");
@@ -216,7 +221,8 @@ fn accepts_terminating_slice_distance_machine_with_decreases() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("termination slice distance proof should succeed");
@@ -245,7 +251,8 @@ fn rejects_terminating_countdown_machine_with_stalled_decrease() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
 
@@ -287,7 +294,8 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
 
@@ -329,7 +337,8 @@ fn rejects_terminating_slice_length_order_without_supported_progress_shape() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
 
@@ -371,7 +380,8 @@ fn accepts_terminating_slice_length_order_with_shrinking_subslice() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("termination slice length proof should succeed");
@@ -410,7 +420,8 @@ fn accepts_terminating_mutually_recursive_states_with_decreases() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("mutual recursion decrease proof should succeed");
@@ -449,7 +460,8 @@ fn rejects_terminating_mutually_recursive_states_without_decrease() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
 
@@ -483,7 +495,8 @@ fn infers_default_nat_descending_for_plain_usize_decreases() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("default nat-descending inference should succeed");
@@ -520,7 +533,8 @@ fn infers_default_slice_length_for_plain_slice_decreases() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("default slice-length inference should succeed");
@@ -550,7 +564,8 @@ fn infers_default_bounded_distance_for_plain_two_subject_tuple() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("default bounded-distance inference should succeed");
@@ -580,7 +595,8 @@ fn accepts_explicit_named_bounded_distance_view() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("explicit named bounded-distance view should prove");
@@ -610,7 +626,8 @@ fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("inverted distance should fail");
 
@@ -656,7 +673,8 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let machine = typed
         .machines()
@@ -716,7 +734,8 @@ fn rejects_named_bounded_distance_view_over_single_subject() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics =
         lower_typed_trees(typed).expect_err("the view ranks a (lower, upper) pair only");
@@ -754,7 +773,8 @@ fn rejects_ambiguous_default_order_requiring_explicit_form() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("ambiguous default order should fail");
 
@@ -802,7 +822,8 @@ fn infers_default_nat_descending_for_plain_u32_decreases() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("default nat-descending inference should cover u32");
@@ -839,7 +860,8 @@ fn plain_decreases_never_selects_a_declared_measure_even_when_unique() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics =
         lower_typed_trees(typed).expect_err("a unique declared measure must not be inferred");
@@ -911,7 +933,8 @@ fn termination_plan_splits_guarantee_from_witness_with_elaborated_defaults() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let plan_of = |name: &str| {
@@ -1012,7 +1035,8 @@ fn termination_plan_records_authored_views_verbatim() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let witness_of = |name: &str| {
@@ -1062,7 +1086,8 @@ fn recorded_view_divergence_is_loud() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let machine = typed
@@ -1125,7 +1150,8 @@ fn accepts_increasing_cursor_via_bounded_argumented_view() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let witness = typed
@@ -1172,7 +1198,8 @@ fn rejects_unbounded_increasing_view_with_directed_message() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics =
         lower_typed_trees(typed).expect_err("the unbounded increasing view must be rejected");
@@ -1231,7 +1258,8 @@ fn rejects_view_argument_arity_misuse_with_directed_messages() {
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         let diagnostics = lower_typed_trees(typed).expect_err("arity misuse must be rejected");
         assert!(
@@ -1273,7 +1301,8 @@ fn rank_range_on_increasing_to_is_consumed_and_recorded() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let witness = typed
@@ -1320,7 +1349,8 @@ fn termination_checker_uses_normalized_witness_without_parallel_spans() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let machine = typed
@@ -1389,7 +1419,8 @@ fn rank_range_unverifiable_shapes_are_rejected_with_directed_messages() {
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         let diagnostics =
             lower_typed_trees(typed).expect_err("an unverifiable range must be rejected");
@@ -1438,7 +1469,8 @@ fn checked_termination_plans_record_summaries_and_resolved_views() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let machine = |name: &str| {
@@ -1533,7 +1565,8 @@ fn checked_proof_scc_retains_every_exact_structural_subterm_call_site() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let machine_symbol = |name: &str| {
         typed
@@ -1662,7 +1695,8 @@ fn checked_singleton_proof_scc_retains_its_exact_self_edge() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let descend = typed
         .machines()
@@ -1707,7 +1741,8 @@ fn inferred_completion_never_publishes_a_promise() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let symbol_of = |name: &str| {
         typed
@@ -1775,7 +1810,8 @@ fn trait_requirement_guarantee_propagates_to_resolved_signatures() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
 
     let worker = resolved
         .traits
@@ -1824,7 +1860,8 @@ fn implementation_inherits_requirement_guarantee() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let run = typed
@@ -1874,7 +1911,8 @@ fn public_termination_omission_is_distinct_from_private_derivation() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let plan_of = |name: &str| {
@@ -1936,7 +1974,8 @@ fn cyclic_inheritor_without_witness_fails_and_witness_discharges() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics =
         lower_typed_trees(typed).expect_err("a cyclic inheritor without a witness must fail");
@@ -1958,7 +1997,8 @@ fn cyclic_inheritor_without_witness_fails_and_witness_discharges() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     lower_typed_trees(typed).expect("the witness discharges the inherited claim");
 }

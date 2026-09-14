@@ -4,7 +4,7 @@ use checked_trees::CheckedUnitEffectOperationPlan;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralValue,
@@ -158,7 +158,7 @@ fn typed_from_source(source: &str) -> typed_trees::TypedTrees {
         .tokenize()
         .expect("tokenize receiver store");
     let syntax = parse_syntax_trees(&tokens).expect("parse receiver store");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve receiver store");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve receiver store");
     lower_symbol_resolved_trees(&resolved).expect("type receiver store")
 }
 

@@ -24,8 +24,12 @@ fn retained_extension_preserves_machine_children_and_appends_selected_inherited_
         .source_id;
     let base_syntax =
         parse_syntax_trees_with_id(base_id, &Lexer::new(base_source).tokenize().unwrap()).unwrap();
-    let base = lower_syntax_trees_with_sources(&base_syntax, Arc::new(sources.clone()))
-        .expect("retained ordinary attached machine");
+    let base = resolve(ResolutionRequest {
+        syntax: &base_syntax,
+        sources: Some(Arc::new(sources.clone())),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("retained ordinary attached machine");
     let retained_machine = base.machines.iter().next().unwrap().symbol;
     let retained_children = base
         .symbols
@@ -53,9 +57,14 @@ fn retained_extension_preserves_machine_children_and_appends_selected_inherited_
         Some(&base),
     )
     .expect("normalize current extension template and its closed application");
-    let program =
-        lower_syntax_extension_against_resolved_base(base, &extension, sources, Vec::new())
-            .expect("extend retained machine headers");
+    let program = resolve_extension(ExtensionRequest {
+        base,
+        syntax: &extension,
+        sources,
+        top_level_bindings: Vec::new(),
+    })
+    .map(|seeded| seeded.into_unrebased_trees())
+    .expect("extend retained machine headers");
     assert_eq!(
         program
             .symbols

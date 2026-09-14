@@ -17,8 +17,10 @@ fn typed_binary() -> (TypedTrees, ExpressionHandle) {
         .tokenize()
         .expect("tokenize builtin probe");
     let syntax = parse_syntax_trees(&tokens).expect("parse builtin probe");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve builtin probe");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve builtin probe");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type builtin probe");
     let expression = typed
@@ -77,8 +79,10 @@ fn boolean_index_probe_retains_exact_literal_value_and_rejects_missing_nodes() {
         let text = format!("machine run() -> bool {{ {value} }}");
         let tokens = Lexer::new(&text).tokenize().expect("Boolean probe tokens");
         let syntax = parse_syntax_trees(&tokens).expect("Boolean probe syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-            .expect("Boolean probe resolution");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("Boolean probe resolution");
         let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("Boolean probe typing");
         let machine = program.machines().iter().next().expect("Boolean machine");
@@ -163,9 +167,14 @@ fn call_free_index_custody_accepts_only_its_selected_constants_inherited_calls()
         tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("syntax");
     let syntax = crate::const_initializers::evaluate(syntax, Some(sources.clone()), &[], None)
         .expect("machine constants normalize");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&syntax, sources)
-            .expect("normalized declarations resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(sources),
+            top_level_bindings: Vec::new(),
+        },
+    )
+    .expect("normalized declarations resolve");
     let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("normalized declarations type");
     let machine = program
@@ -374,8 +383,10 @@ fn short_circuit_anonymous_landing_warns_once_whether_executed_or_skipped() {
         let text = format!("machine run() -> bool {{ {left} || (7u8 == (7 / 2 * 2)) }}");
         let tokens = Lexer::new(&text).tokenize().expect("probe tokens");
         let syntax = parse_syntax_trees(&tokens).expect("probe syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-            .expect("probe resolution");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("probe resolution");
         let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("probe typing");
         let machine = program.machines().iter().next().expect("probe machine");
@@ -402,8 +413,10 @@ fn anonymous_rational_comparisons_do_not_create_integer_landing_warnings() {
         let text = format!("machine run() -> bool {{ {left} || (7 / 2 == 3.5) }}");
         let tokens = Lexer::new(&text).tokenize().expect("probe tokens");
         let syntax = parse_syntax_trees(&tokens).expect("probe syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-            .expect("probe resolution");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("probe resolution");
         let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("probe typing");
         let machine = program.machines().iter().next().expect("probe machine");

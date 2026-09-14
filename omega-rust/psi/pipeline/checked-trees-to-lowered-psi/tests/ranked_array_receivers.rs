@@ -6,7 +6,7 @@ use semantic_vocabulary::{
 };
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_psi::{
     ProofBundle, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralPlaceDeclaration, StructuralTypeShape, TerminalModule, TerminalNaturalRankComparison,
@@ -33,7 +33,7 @@ fn canonical_countdown(field_type: &str) -> (TerminalModule, ProofBundle) {
     let source = SOURCE.replace("[u64; 3]", field_type);
     let tokens = Lexer::new(&source).tokenize().expect("tokenize countdown");
     let syntax = parse_syntax_trees(&tokens).expect("parse countdown");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve countdown");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve countdown");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type countdown");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("ranked primitive-array receiver checks");

@@ -12,7 +12,7 @@ use crate::{
 };
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 /// Body-level escape analysis: returning a view of a machine-body local that
@@ -34,7 +34,7 @@ fn rejects_view_return_of_body_local() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -524,7 +524,7 @@ fn accepts_recursive_data_with_a_later_borrowing_payload() {
 pub(super) fn check_program(source: &str) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -611,7 +611,7 @@ fn accepts_mutable_local_named_place_arguments() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -726,7 +726,7 @@ fn accepts_disjoint_member_borrow_arguments() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -910,7 +910,7 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -980,7 +980,7 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1084,7 +1084,7 @@ fn rejects_local_borrow_creation_while_prior_alias_is_active() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1209,7 +1209,7 @@ fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1257,7 +1257,7 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1330,7 +1330,7 @@ fn rejects_mutating_call_through_owner_while_view_is_active() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1396,7 +1396,7 @@ fn rejects_vec_push_while_slice_view_is_active() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1467,7 +1467,7 @@ fn accepts_mutating_call_through_owner_on_disjoint_field() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1530,7 +1530,7 @@ fn accepts_known_pure_mutable_receiver_call_while_view_is_active() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1582,7 +1582,7 @@ fn accepts_mutable_slice_alias_index_from_fixed_array_field() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1643,7 +1643,7 @@ fn accepts_recursive_slice_parameter_index_proof_from_guard() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1693,7 +1693,7 @@ fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1757,7 +1757,7 @@ fn rejects_linked_input_mutation_while_free_machine_view_is_active() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1836,7 +1836,7 @@ fn accepts_unlinked_ref_input_mutation_while_free_machine_view_is_active() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -1901,7 +1901,7 @@ fn rejects_ambiguous_view_return_with_multiple_ref_inputs() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -2003,7 +2003,7 @@ fn accepts_view_return_disambiguated_by_explicit_lifetime() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);

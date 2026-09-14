@@ -3,7 +3,7 @@ use super::*;
 fn check(source: &str, accepted: bool, rejection: &str) {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     match lower_typed_trees(typed) {
         Ok(_) => assert!(accepted, "unproved lower bound accepted: {source}"),

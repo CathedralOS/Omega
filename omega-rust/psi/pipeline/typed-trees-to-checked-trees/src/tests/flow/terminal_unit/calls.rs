@@ -2273,7 +2273,7 @@ fn write_only_common_field_subloans_retain_independent_roots() {
     let overlapping = source.replace("&write right.leaf", "&write left.leaf");
     let tokens = Lexer::new(&overlapping).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     assert!(
         lower_typed_trees(typed).is_err(),

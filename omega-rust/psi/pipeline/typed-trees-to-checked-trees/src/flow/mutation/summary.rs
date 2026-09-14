@@ -520,7 +520,10 @@ mod cache_tests {
             .tokenize()
             .unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
     }
 
@@ -582,9 +585,12 @@ mod cache_tests {
                 .unwrap();
             let syntax =
                 tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-            let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-                &syntax,
-                std::sync::Arc::new(sources),
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                    syntax: &syntax,
+                    sources: Some(std::sync::Arc::new(sources)),
+                    top_level_bindings: Vec::new(),
+                },
             )
             .unwrap();
             let program =
@@ -802,7 +808,10 @@ mod cache_tests {
             .tokenize()
             .unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
         let program =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         let borrows = crate::build_borrow_facts(&program);

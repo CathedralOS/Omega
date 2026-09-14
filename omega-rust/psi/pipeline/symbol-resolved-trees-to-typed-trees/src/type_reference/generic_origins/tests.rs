@@ -18,7 +18,10 @@ fn resolve(text: &str) -> resolved::SymbolResolvedTrees {
     let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
     let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax).unwrap();
-    syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap()
+    syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap()
 }
 
 fn replay_with_roster_lookup(

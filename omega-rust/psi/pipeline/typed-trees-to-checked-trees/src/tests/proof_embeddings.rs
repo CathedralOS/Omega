@@ -7,7 +7,7 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
 fn typed(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("lex fixture");
     let syntax = parse_syntax_trees(&tokens).expect("parse fixture");
-    let resolved = lower_syntax_trees(&syntax)?;
+    let resolved = resolve(ResolutionRequest::new(&syntax))?;
     lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
 }
 

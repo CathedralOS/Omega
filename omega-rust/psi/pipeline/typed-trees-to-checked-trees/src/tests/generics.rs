@@ -1,6 +1,6 @@
 use super::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
 use checked_trees::{ContractProofFactKind, ContractProofFactOwner};
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 
 mod const_arguments;
 mod const_values;
@@ -41,7 +41,7 @@ fn specialized_machine<'program>(
 fn typed_source(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
 }
 
@@ -165,7 +165,7 @@ fn exact_requirement_lifetime_application_requires_complete_in_scope_arguments()
     "#;
     let tokens = Lexer::new(foreign).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let error = lower_symbol_resolved_trees(&resolved)
         .expect_err("foreign lifetime argument must reject during typed lowering");
     assert!(error.message.contains("outside its lifetime telescope"));
@@ -186,7 +186,7 @@ fn concrete_subjectless_conformance_checks_as_carrierless_evidence() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     lower_typed_trees(typed).expect("subjectless evidence rows should validate");
 }
@@ -211,7 +211,8 @@ fn machine_parameter_contract_survives_resolved_and_typed_trees() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
 
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let typed_machine = typed
@@ -249,7 +250,7 @@ fn nested_structural_machine_parameter_emits_exact_checked_evidence() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
 
     let outer = typed
@@ -319,7 +320,7 @@ fn nested_nominal_machine_parameter_uses_trait_evidence_without_binder_expansion
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
 
     let outer = typed
@@ -396,7 +397,8 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let register = typed
         .machines()
@@ -527,7 +529,8 @@ fn public_installation_wrapper_keeps_upper_bound_separate_from_concrete_reach() 
             .tokenize()
             .expect("tokenize public installation wrapper");
         let syntax = parse_syntax_trees(&tokens).expect("parse public installation wrapper");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve public installation wrapper");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("resolve public installation wrapper");
         let typed =
             lower_symbol_resolved_trees(&resolved).expect("type public installation wrapper");
         let checked = lower_typed_trees(typed).expect("check public installation wrapper");
@@ -629,7 +632,7 @@ fn bounded_installation_reach_retains_exact_unresolved_requirement_through_check
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let requirement = typed
         .traits()
@@ -744,7 +747,7 @@ fn top_level_bounded_reach_is_unresolved_not_concrete() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     assert!(
         resolved
             .machines
@@ -810,7 +813,7 @@ fn bounded_installation_reach_rejects_provider_outside_upper_bound() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("provider reach outside an installation bound must reject");
@@ -848,7 +851,7 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let handler = typed
         .traits()
@@ -977,7 +980,7 @@ fn checked_resource_envelopes_cover_entries_in_declaration_order() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let machine = typed
         .machines()
@@ -1050,7 +1053,8 @@ fn nominal_machine_use_identity_survives_forwarded_specialization_rounds() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let chosen_symbol = typed
         .machines()
@@ -1124,7 +1128,8 @@ fn nominal_machine_uses_keep_distinct_authored_call_sites() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let checked = lower_typed_trees(typed).expect("both nominal uses should specialize");
@@ -1159,7 +1164,8 @@ fn structural_machine_selection_publishes_no_nominal_use_row() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let checked = lower_typed_trees(typed).expect("the structural use should specialize");
@@ -1192,7 +1198,8 @@ fn nominal_machine_parameter_rejects_structural_coincidence() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("structural coincidence must reject");
     let rendered = diagnostics
@@ -1234,7 +1241,8 @@ fn nominal_machine_parameter_rejects_a_different_authored_requirement() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("wrong satisfaction row must reject");
     let rendered = diagnostics
@@ -1272,7 +1280,8 @@ fn call_site_machine_argument_resolves_to_static_entry_symbol() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let call = typed
@@ -1318,7 +1327,8 @@ fn generic_body_call_resolves_to_machine_parameter_contract() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let machine = typed
@@ -1376,7 +1386,8 @@ fn generic_body_call_is_accepted_modularly_by_checked_lowering() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     lower_typed_trees(typed).expect("generic body should check from F's authored contract");
 }
@@ -1424,7 +1435,8 @@ fn higher_order_machine_schema_specializes_nested_selection_to_fixed_point() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("higher-order schema should specialize");
 
@@ -1532,7 +1544,8 @@ fn generic_body_must_discharge_machine_parameter_preconditions() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("an unconstrained generic body must not assume F's precondition");
@@ -1562,7 +1575,8 @@ fn generic_body_can_discharge_machine_parameter_precondition_from_own_contract()
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     lower_typed_trees(typed)
         .expect("the generic body's own requires fact should discharge F's precondition");
@@ -1586,7 +1600,8 @@ fn generic_body_can_discharge_machine_parameter_precondition_from_call_value() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     lower_typed_trees(typed).expect("the call argument should discharge F's precondition");
 }
@@ -1613,7 +1628,8 @@ fn generic_body_inherits_machine_parameter_service_ceiling() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let apply = typed
         .machines()
@@ -1660,7 +1676,8 @@ fn static_machine_selection_respects_guarded_crash_ceiling() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     lower_typed_trees(typed).expect("an identical crash route should refine the machine slot");
@@ -1690,7 +1707,8 @@ fn generic_body_can_consume_machine_parameter_ensures() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     lower_typed_trees(typed)
         .expect("Establish's authored ensures should discharge Consume's requires");
@@ -1723,7 +1741,8 @@ fn static_machine_argument_specializes_body_calls_to_direct_symbols() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let power_symbol = typed
         .machines()
@@ -1801,7 +1820,8 @@ fn free_static_machine_specialization_preserves_authored_target_name() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let chosen_symbol = typed
         .machines()
@@ -1836,7 +1856,8 @@ fn static_machine_specialization_identity_is_reproducible() {
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         lower_typed_trees(typed)
             .expect("specialization should check")
@@ -1877,7 +1898,8 @@ fn specialization_commitment_replays_and_rejects_compact_equal_substitution() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("specialization should check");
     let specialization = &checked.machine_specializations[0];
@@ -1985,7 +2007,8 @@ fn value_machine_type_parameter_is_inferred_through_a_borrowed_place() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed)
         .expect("the borrowed place should select and materialize T := Light");
@@ -2025,7 +2048,8 @@ fn public_visibility_survives_value_type_specialization() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("public specialization should check");
     let specialization = checked
@@ -2078,7 +2102,8 @@ fn distinct_static_machine_specializations_clone_the_template() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let typed_apply = typed
         .machines()
@@ -2171,7 +2196,8 @@ fn attached_machine_specialization_clones_inherited_field_symbols() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed)
         .expect("each attached specialization should retain its inherited field coordinates");
@@ -2237,7 +2263,8 @@ fn forwarded_generic_calls_specialize_after_their_caller() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed)
         .expect("specializing the generic caller should expose its forwarded concrete type");
@@ -2279,7 +2306,8 @@ fn concrete_specialization_must_satisfy_nominal_conformance_bound() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("the Bad specialization has no authored nominal conformance");
@@ -2317,7 +2345,8 @@ fn bounded_generic_call_specializes_to_concrete_attached_state() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("the nominal bound should specialize");
 
@@ -2389,7 +2418,8 @@ fn named_conformance_bound_rejects_a_different_concrete_carrier() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics =
         lower_typed_trees(typed).expect_err("the selected conformance belongs only to Good");
@@ -2421,7 +2451,8 @@ fn named_conformance_bound_rejects_a_name_owned_by_another_carrier() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("the package-scoped conformance name still retains its carrier");
@@ -2463,7 +2494,8 @@ fn explicit_conformance_binder_selects_and_substitutes_one_closed_map() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let selected = typed
         .conformances()
@@ -2564,7 +2596,8 @@ fn explicit_conformance_binders_keep_distinct_closed_maps_as_distinct_instances(
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed)
         .expect("each exact conformance argument should produce one specialization");
@@ -2609,7 +2642,7 @@ fn nested_generic_conformance_application_closes_its_own_telescope() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let selected = typed
         .conformances()
@@ -2664,7 +2697,7 @@ fn selected_generic_conformance_bound_closes_and_specializes_its_application() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let selected = typed
         .conformances()
@@ -2724,7 +2757,7 @@ fn selected_bound_application_substitutes_forwarded_type_const_and_machine_argum
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let rank = typed
         .machines()
@@ -2786,7 +2819,7 @@ fn unused_private_selected_conformance_bound_rejects_missing_application_argumen
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("private bound must close");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -2813,7 +2846,7 @@ fn unused_private_trait_selected_conformance_bound_is_also_closed() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("private trait bound must close");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -2841,7 +2874,7 @@ fn unused_private_selected_conformance_bound_rejects_wrong_argument_category() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("wrong type category must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -2871,7 +2904,7 @@ fn private_selected_conformance_bound_closes_lifetime_const_and_machine_lanes() 
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("all selected private bound lanes close");
 }
@@ -2898,7 +2931,7 @@ fn explicit_generic_conformance_lifetime_closes_its_trait_identity() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("explicit conformance lifetime");
     let application = checked
@@ -2933,7 +2966,7 @@ fn generic_conformance_lifetime_elides_from_one_ordinary_borrow_constraint() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("uniquely elided conformance lifetime");
     let application = checked
@@ -2968,7 +3001,7 @@ fn explicit_generic_conformance_lifetime_must_match_the_ordinary_borrow_constrai
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("mismatched explicit lifetime");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -3009,7 +3042,7 @@ fn generic_conformance_lifetime_elision_rejects_conflicting_borrow_constraints()
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("ambiguous elision must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -3041,7 +3074,7 @@ fn generic_conformance_lifetime_elision_rejects_zero_borrow_candidates() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("zero-candidate elision must reject");
     assert!(
@@ -3077,7 +3110,7 @@ fn bare_generic_conformance_name_does_not_infer_its_owned_arguments() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("bare generic name must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -3115,7 +3148,7 @@ fn members_of_one_generic_conformance_family_have_distinct_identity() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("two closed family applications");
     let applications = checked
@@ -3161,7 +3194,7 @@ fn nested_generic_conformance_application_specializes_its_selected_row() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("instantiated selected row");
     let application = checked
@@ -3218,7 +3251,7 @@ fn distinct_generic_conformance_applications_specialize_distinct_selected_rows()
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("two instantiated selected rows");
     let mut row_instances = checked
@@ -3278,7 +3311,7 @@ fn closed_conformance_application_commitment_binds_exact_requirement_signature()
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let checked = lower_typed_trees(typed).expect("closed conformance application");
         let application = checked
@@ -3322,7 +3355,7 @@ fn generic_conformance_const_argument_specializes_its_selected_row() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("const-instantiated selected row");
     let row = checked
@@ -3372,7 +3405,7 @@ fn generic_conformance_static_machine_argument_specializes_its_selected_row() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let rank = typed
         .machines()
@@ -3434,7 +3467,7 @@ fn outer_generic_specialization_substitutes_nested_conformance_application() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("forwarded closed application");
     let application = checked
@@ -3501,7 +3534,7 @@ fn outer_generic_specialization_substitutes_all_nested_conformance_lanes() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let rank = typed
         .machines()
@@ -3561,7 +3594,7 @@ fn generic_carrier_conformance_application_specializes_its_selected_row() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("generic-carrier selected row");
     let application = checked
@@ -3616,7 +3649,8 @@ fn explicit_conformance_binder_rejects_a_map_for_the_wrong_subject() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("an exact evidence argument must belong to the instantiated subject");
@@ -3660,7 +3694,8 @@ fn explicit_conformance_binder_dispatches_an_inherited_requirement_row() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("inherited binder lookup should resolve");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("inherited binder lookup should resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let selected_row = typed
         .conformances()
@@ -3726,7 +3761,8 @@ fn explicit_conformance_binder_rewrites_a_procedure_requirement_call() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let selected_row = typed
         .conformances()
@@ -3808,7 +3844,7 @@ fn static_named_witness_requirement_call_keeps_public_lanes_and_private_dispatch
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked =
         lower_typed_trees(typed).expect("one exact static requirement witness call should check");
@@ -4297,7 +4333,7 @@ fn static_named_witness_requirement_call_accepts_one_exact_trait_default() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let default_row = typed
         .conformances()
@@ -4409,7 +4445,7 @@ fn static_named_witness_trait_defaults_remain_conformance_scoped() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked =
         lower_typed_trees(typed).expect("two exact conformance-scoped defaults should check");
@@ -4476,7 +4512,7 @@ fn static_named_witness_inline_override_wins_over_trait_default() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let override_row = typed
         .conformances()
@@ -4511,7 +4547,7 @@ fn static_named_witness_trait_default_must_assign_its_public_output() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("a trait default cannot omit its public witness assignment");
@@ -4559,7 +4595,7 @@ fn static_named_witness_requirement_call_hides_satisfier_strengthening_selector(
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("a static requirement call must hide private satisfier strengthening");
@@ -4634,7 +4670,7 @@ fn static_named_witness_requirement_call_preserves_uncapped_plural_public_lanes(
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked =
         lower_typed_trees(typed).expect("an ordered plural static named-witness call should check");
@@ -4732,7 +4768,7 @@ fn static_named_witness_requirement_call_accepts_zero_inputs_and_plural_outputs(
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed)
         .expect("a zero-input plural-output static named-witness call should check");
@@ -4801,7 +4837,7 @@ fn static_named_witness_plural_inputs_reject_omission_or_reordering() {
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         let diagnostics = lower_typed_trees(typed).expect_err("plural lane drift must reject");
         assert!(
@@ -4854,7 +4890,7 @@ fn static_named_witness_plural_public_contract_rejects_unnamed_rows() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics =
         lower_typed_trees(typed).expect_err("an unnamed public requirement row must remain fenced");
@@ -4903,7 +4939,8 @@ fn explicit_conformance_evidence_forwards_through_a_generic_caller() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let selected = typed
         .conformances()
@@ -4969,7 +5006,8 @@ fn accepted_template_instances_share_one_commitment_and_pin_argument_contracts()
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("accepted generic instances should check");
     let instances: Vec<_> = checked
@@ -5024,7 +5062,8 @@ fn specialization_identity_changes_with_selected_machine_contract() {
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         lower_typed_trees(typed)
             .expect("specialization should check")
@@ -5053,7 +5092,8 @@ fn specialization_identity_ignores_selected_machine_body_edits() {
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         lower_typed_trees(typed)
             .expect("specialization should check")
@@ -5087,7 +5127,8 @@ fn generic_template_identity_is_positional_across_parameter_renames() {
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         let admitted = typed
             .machines()
@@ -5125,7 +5166,8 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         let admitted = typed
             .machines()
@@ -5197,7 +5239,8 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         let admitted = typed
             .machines()
@@ -5245,7 +5288,8 @@ fn generic_template_identity_pins_conformance_bounds_positionally() {
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         let admitted = typed
             .machines()
@@ -5308,7 +5352,8 @@ fn generic_template_identity_pins_selected_open_index_operation_authority() {
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         validation::normalize_open_index_expressions(&mut typed)
             .expect("exact proved index algebra should normalize");
@@ -5340,7 +5385,8 @@ fn generic_template_identity_pins_independent_operational_interfaces() {
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens)
             .unwrap_or_else(|error| panic!("parse should succeed for `{source}`: {error:?}"));
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         let admitted = typed
             .machines()
@@ -5445,7 +5491,8 @@ fn generic_template_identity_distinguishes_structural_and_nominal_machine_contra
             .tokenize()
             .expect("tokenize should succeed");
         let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
         let admitted = typed
             .machines()
@@ -5502,7 +5549,8 @@ fn consuming_seq_map_specializes_recursive_machine_parameter_calls() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("consuming Seq map should specialize");
 
@@ -5549,7 +5597,8 @@ fn unused_recursive_generic_value_template_is_not_emitted_or_fenced() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("unused generic template should remain legal");
     let map = checked
@@ -5578,7 +5627,8 @@ fn const_generic_template_is_not_consumed_by_machine_specialization() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("const-generic template should validate");
     let retag = checked
@@ -5615,7 +5665,8 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     crate::specialize_static_machine_calls(&mut typed)
         .expect("const result indices should specialize before validation");
@@ -5778,7 +5829,8 @@ fn contract_only_static_selections_do_not_consume_generic_machine_schema() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("contract schemas should remain generic");
 
@@ -5855,7 +5907,8 @@ fn consuming_seq_filter_borrows_each_value_before_preserving_or_dropping_it() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     lower_typed_trees(typed).expect("consuming Seq filter should specialize");
 }

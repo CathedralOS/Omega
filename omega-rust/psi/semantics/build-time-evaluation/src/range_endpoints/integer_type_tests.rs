@@ -7,7 +7,10 @@ fn typed(text: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
@@ -191,9 +194,12 @@ fn retained_constant_bound_selection_is_admitted_before_the_body() {
             .unwrap();
         let syntax =
             tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-            &syntax,
-            Arc::new(sources),
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
         )
         .unwrap();
         let mut program =

@@ -703,8 +703,10 @@ mod tests {
     fn typed_from_source(source: &str) -> TypedTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved =
-            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve");
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
     }
 

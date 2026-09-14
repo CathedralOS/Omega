@@ -9,7 +9,7 @@ use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
 use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -106,8 +106,12 @@ reaches FilesystemHost
         .tokenize()
         .expect("tokenize replay fixture");
     parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens).expect("parse replay fixture");
-    let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("resolve replay fixture");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve replay fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type replay fixture");
     lower_typed_trees(typed).expect("check replay fixture")
 }

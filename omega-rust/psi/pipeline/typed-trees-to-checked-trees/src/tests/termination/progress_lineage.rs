@@ -10,7 +10,7 @@ fn typed(source: &str) -> typed_trees::TypedTrees {
         .tokenize()
         .expect("tokenize lineage fixture");
     let syntax = parse_syntax_trees(&tokens).expect("parse lineage fixture");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve lineage fixture");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve lineage fixture");
     lower_symbol_resolved_trees(&resolved).expect("type lineage fixture")
 }
 

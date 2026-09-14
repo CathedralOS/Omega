@@ -16,7 +16,7 @@ fn typed_fixture(extra: &str) -> typed_trees::TypedTrees {
 fn typed_source(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     lower_symbol_resolved_trees(&resolved).unwrap()
 }
 

@@ -3,7 +3,7 @@ use checked_trees::CheckedTrees;
 use facts::ScalarValue;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
@@ -18,7 +18,7 @@ fn checked(source: &str) -> CheckedTrees {
         .tokenize()
         .expect("tokenize call fixture");
     let syntax = parse_syntax_trees(&tokens).expect("parse call fixture");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve call fixture");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve call fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type call fixture");
     crate::lower_typed_trees(typed).expect("check authentic call fixture")
 }

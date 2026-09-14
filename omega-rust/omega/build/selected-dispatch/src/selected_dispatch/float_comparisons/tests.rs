@@ -22,8 +22,10 @@ fn fixture() -> (CheckedTrees, ProviderPlan) {
         .expect("tokenize floating Match fixture");
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse floating Match fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve floating Match fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve floating Match fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type floating Match fixture");
     let plans = provider_planning::derive_satisfies_plans(&typed, None);

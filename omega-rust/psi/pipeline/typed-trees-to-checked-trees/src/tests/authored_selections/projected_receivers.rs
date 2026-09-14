@@ -47,7 +47,7 @@ fn typed_source(source: &str) -> TypedTrees {
         .tokenize()
         .expect("tokenize projected call");
     let syntax = parse_syntax_trees(&tokens).expect("parse projected call");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve projected call");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve projected call");
     lower_symbol_resolved_trees(&resolved).expect("type projected call")
 }
 

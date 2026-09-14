@@ -5,8 +5,10 @@ fn program(source: &str) -> TypedTrees {
         .tokenize()
         .expect("tokens");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("symbols");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("symbols");
     let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("types");
     // Isolate execution from synthesis: preserve resolved membership operands,
@@ -161,8 +163,10 @@ fn case_membership_executes_checked_nested_structural_equality_synthesis() {
             .tokenize()
             .expect("tokens");
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved =
-            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("symbols");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("symbols");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("types");
         assert!(typed.expression_table.expression_entries().any(|(_, node)| {

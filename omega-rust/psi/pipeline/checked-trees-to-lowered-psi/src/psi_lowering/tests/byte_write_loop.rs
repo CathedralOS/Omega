@@ -226,7 +226,7 @@ fn scalar_case_return_bounded_literal_requires_constructor_evidence() {
             if fields.len() == 1 && fields[0].range_obligation.is_some())));
     let invalid = source.replace("value: 7", "value: 8");
     let syntax = parse_syntax_trees(&Lexer::new(&invalid).tokenize().unwrap()).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     if let Ok(checked) = lower_typed_trees(typed) {
         assert!(
@@ -444,7 +444,7 @@ fn byte_input_exact_narrowing_rejects_a_state_annotation_without_field_bounds() 
     let source = READ_ONE.replace("case Byte(value: i32 [0..=255]);", "case Byte(value: i32);");
     let tokens = Lexer::new(&source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let diagnostics = lower_typed_trees(typed)
         .expect_err("state annotation cannot establish missing payload bounds");

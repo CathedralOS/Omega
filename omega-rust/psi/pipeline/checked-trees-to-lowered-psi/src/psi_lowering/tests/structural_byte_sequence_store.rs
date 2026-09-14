@@ -416,7 +416,7 @@ fn bounded_byte_replacements_require_capacity_and_exact_domain_predicate() {
         );
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let syntax = parse_syntax_trees(&tokens).unwrap();
-        let resolved = lower_syntax_trees(&syntax).unwrap();
+        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
         let typed = lower_symbol_resolved_trees(&resolved).unwrap();
         assert!(
             lower_typed_trees(typed).is_err(),

@@ -21,7 +21,7 @@ use source_files_to_tokens::Lexer;
 use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use symbols::SymbolHandle;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn mutable_borrow(target: Expression) -> Expression {

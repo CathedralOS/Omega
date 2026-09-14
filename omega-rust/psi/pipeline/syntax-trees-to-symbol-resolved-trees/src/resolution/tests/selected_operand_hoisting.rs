@@ -1,11 +1,11 @@
-use super::{Lexer, lower_syntax_trees, parse_syntax_trees};
+use super::{Lexer, ResolutionRequest, parse_syntax_trees, resolve};
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbol_resolved_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 fn resolved(source: &str) -> SymbolResolvedTrees {
     let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();
-    lower_syntax_trees(&syntax).unwrap()
+    resolve(ResolutionRequest::new(&syntax)).unwrap()
 }
 
 #[test]
@@ -421,7 +421,7 @@ fn selected_arm_call_casts_do_not_create_enclosing_bindings() {
         }
     "#;
     let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();
-    let program = lower_syntax_trees(&syntax).unwrap();
+    let program = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let machine = program
         .machines
         .iter()
@@ -454,7 +454,7 @@ fn selective_rhs_call_casts_stay_inside_the_authored_initializer() {
         "#
         );
         let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
-        let program = lower_syntax_trees(&syntax).unwrap();
+        let program = resolve(ResolutionRequest::new(&syntax)).unwrap();
         let machine = program
             .machines
             .iter()

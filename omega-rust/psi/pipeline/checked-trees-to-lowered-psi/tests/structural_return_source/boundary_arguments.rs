@@ -10,7 +10,7 @@ mod anonymous_fields;
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).unwrap_or_else(|error| panic!("{source}: {error:?}"));
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
 }

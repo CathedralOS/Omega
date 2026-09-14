@@ -20,7 +20,7 @@ fn direct_frames_close_over_current_aliases_without_redirecting_prior_aliases() 
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
     let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
     let machine = typed
@@ -106,7 +106,7 @@ fn direct_alias_stores_invalidate_arithmetic_facts_in_both_spellings() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
         match validation::validate_program(&typed) {
             Err(diagnostics)
@@ -142,7 +142,7 @@ fn local_receiver_calls_invalidate_arithmetic_facts_on_caller_storage() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
         let diagnostics = validation::validate_program(&typed)
             .expect_err("stale zero cannot prove overflow safety");
@@ -196,7 +196,7 @@ fn local_receiver_references_retain_caller_writes_and_returned_places() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
         let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
         let machine = typed
@@ -241,7 +241,7 @@ fn computed_attached_arguments_exclude_the_receiver_parameter() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
     let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
     for name in ["Main::statement", "Main::expression"] {
@@ -289,7 +289,7 @@ fn computed_argument_siblings_keep_indexed_borrow_origins() {
         let source = template.replace("$INDEX", index).replace("$VALUE", value);
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
         let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
         let machine = typed
@@ -512,7 +512,7 @@ fn computed_call_arguments_preserve_every_write_and_reject_hostile_siblings() {
     }
     let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     // The negative cases deliberately include malformed value contexts. Frame
     // inference must not claim completeness before validation rejects them.
     let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");

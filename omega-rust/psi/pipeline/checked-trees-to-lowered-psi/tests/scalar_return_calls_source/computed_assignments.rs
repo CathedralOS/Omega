@@ -315,7 +315,7 @@ fn assignment_destination_carrier_does_not_prove_unbounded_call_result_narrowing
     "#;
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     match lower_typed_trees(typed) {
         Err(diagnostics) => assert!(!diagnostics.is_empty()),

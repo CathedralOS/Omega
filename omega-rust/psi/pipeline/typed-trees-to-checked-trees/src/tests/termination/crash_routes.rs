@@ -34,7 +34,7 @@ fn direct_crash_fallthrough_projects_immutable_entry_snapshots() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let checked = lower_typed_trees(typed)
             .unwrap_or_else(|diagnostics| panic!("guard {guard}: {diagnostics:?}"));
@@ -72,7 +72,7 @@ fn direct_crash_fallthrough_does_not_project_unproven_boolean_operands() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let diagnostics = lower_typed_trees(typed).expect_err("route is not implied");
         assert!(
@@ -102,7 +102,7 @@ fn direct_crash_fallthrough_does_not_confuse_state_and_entry_parameters() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("distinct entry and state snapshots");
     assert!(
@@ -174,7 +174,8 @@ fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
     let fingerprint = |name: &str| {
@@ -258,7 +259,8 @@ fn empty_record_equality_retains_existing_boolean_constant_carriers() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
     let scalar = |name: &str| {
@@ -309,7 +311,8 @@ fn erased_record_equality_is_not_mistaken_for_empty_record_equality() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("erased semantic fields must not be treated as an empty record");
@@ -345,7 +348,8 @@ fn address_field_equality_stays_outside_structural_crash_predicates() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
     for name in ["whole_equal", "field_equal"] {
@@ -408,7 +412,8 @@ fn ieee_float_fields_retain_atomic_structural_equality() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
     let scalar = |name: &str| {
@@ -496,7 +501,8 @@ fn byte_sequence_fields_retain_atomic_content_equality() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
 
@@ -565,7 +571,8 @@ fn payloadless_sum_equality_retains_closed_case_roster() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
     let expression = |name: &str| {
@@ -666,7 +673,8 @@ fn nested_payload_bearing_sum_equality_retains_record_case_payload_paths() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
     let contract = checked
@@ -773,7 +781,8 @@ fn payload_sum_equality_expands_acyclic_nested_records_with_exact_paths() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
 
@@ -891,7 +900,8 @@ fn payload_sum_equality_expands_acyclic_nested_sums_with_exact_paths() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
 
@@ -1069,7 +1079,8 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees_for_crash_fact_inspection(typed)
         .expect("raw crash-fact inspection should succeed before production admission");
@@ -1284,7 +1295,8 @@ fn crash_guard_entailment_normalizes_boolean_literal_relations() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed)
         .expect("Boolean literal relations should imply their normalized operand polarity");
@@ -1589,7 +1601,8 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees_for_crash_fact_inspection(typed)
         .expect("raw comparison coverage facts should form before production admission");
@@ -1740,7 +1753,8 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
     let plan = |name: &str| {
@@ -1890,7 +1904,8 @@ fn published_caller_must_cover_every_surviving_call_crash_route() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("the caller's Trap ceiling cannot cover a surviving Abort route");
@@ -1917,7 +1932,8 @@ fn private_explicit_crash_ceiling_must_cover_every_direct_site() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("a private published ceiling cannot retain an uncovered direct site");
@@ -1943,7 +1959,8 @@ fn private_explicit_crash_ceiling_must_cover_every_direct_site() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed)
         .expect("covered private ceilings and omitted private ceilings should remain valid");
@@ -1990,7 +2007,8 @@ fn checked_crash_calls_select_acyclic_private_body_summaries() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
     let plan = |name: &str| {
@@ -2053,7 +2071,8 @@ fn private_crash_summaries_compose_guarded_routes_across_nonleaf_calls() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed)
         .expect("a published caller should cover a guard retained through private wrappers");
@@ -2128,7 +2147,8 @@ fn checked_crash_calls_select_machine_requirement_capsules() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let checked = lower_typed_trees(typed).expect("requirement crash capsule should lower");
     let apply = checked

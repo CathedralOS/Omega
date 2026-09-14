@@ -5,7 +5,7 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use target_operations::{TargetOperationPlan, TargetStructuralArgument, TargetUnitOperation};
 use terminal_codec::{encode_module, encode_proof_section};
@@ -16,7 +16,7 @@ use typed_trees_to_checked_trees::lower_typed_trees;
 fn source_plan(source: &str) -> abstract_operations::AbstractOperationPlan {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
     let terminal =

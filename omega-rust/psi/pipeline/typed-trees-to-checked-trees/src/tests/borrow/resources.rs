@@ -17,7 +17,7 @@ fn lower(source: &str) -> checked_trees::CheckedTrees {
         .tokenize()
         .expect("tokenize borrow resources");
     let syntax = parse_syntax_trees(&tokens).expect("parse borrow resources");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve borrow resources");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve borrow resources");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type borrow resources");
     lower_typed_trees(typed).expect("check borrow resources")
 }
@@ -27,7 +27,7 @@ fn try_lower(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostic
         .tokenize()
         .expect("tokenize borrow resources");
     let syntax = parse_syntax_trees(&tokens).expect("parse borrow resources");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve borrow resources");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve borrow resources");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type borrow resources");
     lower_typed_trees(typed)
 }
@@ -461,7 +461,8 @@ fn projected_self_write_only_local_retains_direct_root_resource() {
         .tokenize()
         .expect("tokenize fenced write-only local");
     let syntax = parse_syntax_trees(&tokens).expect("parse fenced write-only local");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve fenced write-only local");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve fenced write-only local");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type fenced write-only local");
     let checked = lower_typed_trees(typed).expect("exact self field capture is non-observing");
     assert!(

@@ -37,7 +37,8 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
         .tokenize()
         .expect("tokenize operator route fixture");
     let syntax = parse_syntax_trees(&tokens).expect("parse operator route fixture");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve operator route fixture");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve operator route fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type operator route fixture");
     lower_typed_trees(typed)
 }

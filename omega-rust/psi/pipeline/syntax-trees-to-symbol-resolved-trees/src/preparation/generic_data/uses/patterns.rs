@@ -286,7 +286,8 @@ mod tests {
         let syntax =
             parse_syntax_trees_with_id(source_id, &tokens).expect("parse generic membership");
         let syntax = crate::normalize_generic_data(syntax).expect("select closed carrier");
-        let resolved = crate::lower_syntax_trees(&syntax).expect("resolve closed membership");
+        let resolved = crate::resolve(crate::ResolutionRequest::new(&syntax))
+            .expect("resolve closed membership");
         let start = source
             .rfind("Maybe::Some")
             .expect("authored membership path");

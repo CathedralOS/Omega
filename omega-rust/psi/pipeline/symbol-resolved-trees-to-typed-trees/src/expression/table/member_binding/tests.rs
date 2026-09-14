@@ -3,7 +3,7 @@ use crate::lower_symbol_resolved_trees;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees as resolved;
 use symbols::SymbolHandle;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::ResolutionRequest;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 const PROJECTED_MEASURES: &str = "
@@ -16,7 +16,8 @@ const PROJECTED_MEASURES: &str = "
 fn resolve(source: &str) -> resolved::SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("measure tokens");
     let syntax = parse_syntax_trees(&tokens).expect("measure syntax");
-    lower_syntax_trees(&syntax).expect("measure resolution")
+    syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest::new(&syntax))
+        .expect("measure resolution")
 }
 
 fn projected_member(
@@ -205,7 +206,8 @@ fn module_constructor_projection_keeps_its_declaring_field_owner() {
         &tokens,
     )
     .unwrap();
-    let resolved = lower_syntax_trees(&syntax).expect("module projection resolution");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest::new(&syntax))
+        .expect("module projection resolution");
     let typed = lower_symbol_resolved_trees(&resolved).expect("module projection typing");
     let member = typed
         .expression_table

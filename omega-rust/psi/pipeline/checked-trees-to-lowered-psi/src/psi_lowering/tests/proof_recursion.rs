@@ -410,7 +410,12 @@ fn checked_managed_source(source: &str) -> CheckedTrees {
         .source_id;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
-    let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources)).expect("resolve");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check")
 }

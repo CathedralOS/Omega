@@ -123,7 +123,7 @@ fn aggregate_actual_reference_leaves_transport_complete_write_sets() {
     }
     let syntax =
         parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
@@ -200,7 +200,7 @@ fn aggregate_literal_reference_argument_reaches_checked_trees() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("literal-carried reference reaches the checked callee");
 }
@@ -264,7 +264,7 @@ fn mutable_argument_bindings_do_not_grant_reference_access() {
             format!("data View {{ body: &mut u64; }} data Main {{ value: u64; }} {machines}");
         let syntax =
             parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         match (lower_typed_trees(typed), expected_error) {
             (Ok(_), None) => {}

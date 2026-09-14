@@ -9,7 +9,8 @@
 
 use super::{checked_source, sole_certificate};
 use crate::tests::{
-    Lexer, SymbolHandle, lower_symbol_resolved_trees, lower_syntax_trees, parse_syntax_trees,
+    Lexer, ResolutionRequest, SymbolHandle, lower_symbol_resolved_trees, parse_syntax_trees,
+    resolve,
 };
 
 /// `cut <= last` makes `[0, cut)` and `[last, 4)` provably disjoint for two
@@ -132,7 +133,7 @@ fn typed_source(source: &str) -> typed_trees::TypedTrees {
         .tokenize()
         .expect("tokenize premise fixture");
     let syntax = parse_syntax_trees(&tokens).expect("parse premise fixture");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve premise fixture");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve premise fixture");
     lower_symbol_resolved_trees(&resolved).expect("type premise fixture")
 }
 

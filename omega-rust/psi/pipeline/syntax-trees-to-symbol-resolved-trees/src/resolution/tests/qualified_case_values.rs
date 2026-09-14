@@ -1,4 +1,4 @@
-use super::{Arc, Lexer, PathBuf, SourceMap, lower_syntax_trees_with_sources};
+use super::{Arc, Lexer, PathBuf, ResolutionRequest, SourceMap};
 use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionNode};
 use symbols::SymbolKind;
 use syntax_trees::SyntaxTrees;
@@ -20,7 +20,11 @@ fn resolve(texts: &[&str]) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagn
         parse_syntax_trees_into_with_id(&mut syntax, source, &tokens)
             .expect("parse case selection");
     }
-    lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+    crate::resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
 }
 
 #[test]

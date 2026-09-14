@@ -109,7 +109,7 @@ fn unguarded_cyclic_byte_operations_reject_at_source_checking() {
     let source = loop_source().replace("transition bytes.len > 0 {", "transition true {");
     let tokens = Lexer::new(&source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let errors =
         typed_trees_to_checked_trees::lower_typed_trees(typed).expect_err("bounds remain required");
@@ -344,7 +344,7 @@ fn unguarded_tail_cannot_gain_a_bounds_proof_from_edge_selection() {
     let source = SOURCE.replace("bytes.len > 0", "bytes.len >= 0");
     let tokens = Lexer::new(&source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect_err("selected edges still need actual tail bounds");

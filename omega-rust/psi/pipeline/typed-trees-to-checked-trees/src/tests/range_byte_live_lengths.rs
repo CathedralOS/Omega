@@ -5,7 +5,7 @@ fn check(source: &str, accepted: bool) {
         .tokenize()
         .expect("tokenize byte extent fixture");
     let syntax = parse_syntax_trees(&tokens).expect("parse byte extent fixture");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve byte extent fixture");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve byte extent fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type byte extent fixture");
     match lower_typed_trees(typed) {
         Ok(_) => assert!(

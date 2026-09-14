@@ -9,7 +9,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceMap, SourceOrigin};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::TargetProfile;
 use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 
@@ -178,8 +178,12 @@ fn try_quotient_program(sources: &[([u8; 32], &str, String)]) -> Result<TypedTre
         let tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
         parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens).expect("parse fixture");
     }
-    let resolved =
-        lower_syntax_trees_with_sources(&syntax, Arc::new(source_map)).map_err(|_| ())?;
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(source_map)),
+        top_level_bindings: Vec::new(),
+    })
+    .map_err(|_| ())?;
     let mut program = lower_symbol_resolved_trees(&resolved).map_err(|_| ())?;
     for machine in program.machines_mut() {
         if machine.name.as_str().contains("representative")

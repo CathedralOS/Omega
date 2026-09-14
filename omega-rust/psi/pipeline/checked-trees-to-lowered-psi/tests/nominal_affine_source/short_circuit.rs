@@ -70,8 +70,8 @@ fn mixed_nominal_scalar_return_source_distributes_reused_short_circuit_value() {
         .expect("tokenize reused nominal short-circuit scalar return");
     let syntax =
         parse_syntax_trees(&tokens).expect("parse reused nominal short-circuit scalar return");
-    let resolved =
-        lower_syntax_trees(&syntax).expect("resolve reused nominal short-circuit scalar return");
+    let resolved = resolve(ResolutionRequest::new(&syntax))
+        .expect("resolve reused nominal short-circuit scalar return");
     let typed = lower_symbol_resolved_trees(&resolved)
         .expect("type reused nominal short-circuit scalar return");
     let checked =
@@ -183,8 +183,8 @@ fn mixed_contextual_scalar_return_proves_cleanup_on_every_short_circuit_leaf() {
         .expect("tokenize mixed contextual short-circuit scalar return");
     let syntax =
         parse_syntax_trees(&tokens).expect("parse mixed contextual short-circuit scalar return");
-    let resolved =
-        lower_syntax_trees(&syntax).expect("resolve mixed contextual short-circuit scalar return");
+    let resolved = resolve(ResolutionRequest::new(&syntax))
+        .expect("resolve mixed contextual short-circuit scalar return");
     let typed = lower_symbol_resolved_trees(&resolved)
         .expect("type mixed contextual short-circuit scalar return");
     let checked =
@@ -351,7 +351,8 @@ fn contextual_scalar_cleanup_and_exact_result_use_disjoint_obligation_identities
         .tokenize()
         .expect("tokenize contextual exact scalar cleanup");
     let syntax = parse_syntax_trees(&tokens).expect("parse contextual exact scalar cleanup");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve contextual exact scalar cleanup");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve contextual exact scalar cleanup");
     let typed = lower_symbol_resolved_trees(&resolved)
         .expect("type contextual exact scalar cleanup source");
     let checked = lower_typed_trees(typed).expect("check contextual exact scalar cleanup source");

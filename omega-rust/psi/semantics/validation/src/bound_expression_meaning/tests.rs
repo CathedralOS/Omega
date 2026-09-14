@@ -2,7 +2,7 @@ use super::has_exact_case_membership_meaning;
 use super::has_exact_parameter_case_membership_meaning;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -20,7 +20,7 @@ fn membership_program() -> (TypedTrees, ExpressionHandle, ExpressionHandle) {
     .tokenize()
     .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let program = lower_symbol_resolved_trees(&resolved).expect("type");
     let mut comparisons =
         program
@@ -55,7 +55,7 @@ fn result_membership_requires_its_exact_postcondition_owner() {
     .tokenize()
     .unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let program = lower_symbol_resolved_trees(&resolved).unwrap();
     for machine in program.machines() {
         let contract = &program.machine_contracts(machine)[0];
@@ -457,7 +457,7 @@ fn attached_self_membership_requires_its_owner_and_receiver() {
     .tokenize()
     .unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let program = lower_symbol_resolved_trees(&resolved).unwrap();
     let (expression, comparison) = program
         .expression_table

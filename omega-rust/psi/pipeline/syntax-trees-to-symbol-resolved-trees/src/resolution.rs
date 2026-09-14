@@ -1,14 +1,17 @@
 //! Start here: the resolution route.
 //!
-//! Every public entry below prepares one syntax forest and hands it to
-//! [`resolve`], which runs the phases in order: `module_normalization`
-//! validates, `trait_defaults` synthesizes default machines, `lowering`
-//! translates each root item into the carrier while the `Lowerer` collects
-//! pending selections, and [`finish`] assigns symbols and settles those
-//! selections through `symbols`, `constant`, and `selection`. The extension
-//! entries run the same route against a retained base and return a carrier
-//! the typed continuation rebases; see `continuations`. `lowerer` is the
-//! working state this route drives.
+//! [`resolve`] takes one [`ResolutionRequest`] and runs the phases in order:
+//! `module_normalization` validates, `trait_defaults` synthesizes default
+//! machines, `lowering` translates each root item into the carrier while the
+//! `Lowerer` collects pending selections, and [`finish`] assigns symbols and
+//! settles those selections through `symbols`, `constant`, and `selection`.
+//! The other operations run the same route for a different product:
+//! [`resolve_const_argument_selection`] selects const arguments without
+//! synthesis or evaluation, [`prepare_const_initializer_selection`] stops at
+//! preparation evidence that grants no typing authority, and
+//! [`resolve_extension`] resolves a later stratum against a retained base and
+//! returns the carrier the typed continuation rebases; see `continuations`.
+//! `lowerer` is the working state this route drives.
 
 mod continuations;
 pub(crate) mod lowerer;
@@ -24,77 +27,59 @@ use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use syntax_trees::SyntaxTrees;
 
-pub fn lower_syntax_trees(
-    syntax_trees: &SyntaxTrees,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    resolve(
-        syntax_trees,
-        None,
-        Vec::new(),
-        ConstResolutionMode::Complete,
-    )
-    .map(|prepared| prepared.trees)
+/// One syntax forest and the custody it resolves under.
+pub struct ResolutionRequest<'a> {
+    pub syntax: &'a SyntaxTrees,
+    /// Source custody for visibility and stratum checks. A source-free forest
+    /// has none, and those checks stay permissive for it.
+    pub sources: Option<Arc<SourceMap>>,
+    pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 }
 
-pub fn lower_syntax_trees_with_sources(
-    syntax_trees: &SyntaxTrees,
-    sources: Arc<SourceMap>,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    resolve(
-        syntax_trees,
-        Some(sources),
-        Vec::new(),
-        ConstResolutionMode::Complete,
-    )
-    .map(|prepared| prepared.trees)
+impl<'a> ResolutionRequest<'a> {
+    /// A source-free forest with no scoped top-level bindings.
+    pub fn new(syntax: &'a SyntaxTrees) -> Self {
+        Self {
+            syntax,
+            sources: None,
+            top_level_bindings: Vec::new(),
+        }
+    }
 }
 
-pub fn lower_syntax_trees_with_sources_and_top_level_bindings(
-    syntax_trees: &SyntaxTrees,
-    sources: Arc<SourceMap>,
-    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    resolve(
-        syntax_trees,
-        Some(sources),
-        bindings,
-        ConstResolutionMode::Complete,
-    )
-    .map(|prepared| prepared.trees)
+/// A later-stratum forest appended to an exact retained base.
+pub struct ExtensionRequest<'a> {
+    pub base: SymbolResolvedTrees,
+    pub syntax: &'a SyntaxTrees,
+    /// Must retain the base's exact source frontier.
+    pub sources: Arc<SourceMap>,
+    pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+}
+
+/// Resolve every name in the forest to its exact declaration.
+pub fn resolve(request: ResolutionRequest<'_>) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    resolve_with_constants(request, ConstResolutionMode::Complete).map(|prepared| prepared.trees)
 }
 
 /// Resolve raw index expressions in their authored owners through normal
 /// lexical selection. This performs no generic instance synthesis or evaluation;
 /// callers must still admit every selected leaf and checked operator meaning.
-pub fn lower_syntax_trees_for_const_argument_selection(
-    syntax: &SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+pub fn resolve_const_argument_selection(
+    request: ResolutionRequest<'_>,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    resolve(
-        syntax,
-        sources,
-        bindings,
-        ConstResolutionMode::ArgumentSelection,
-    )
-    .map(|prepared| prepared.trees)
+    resolve_with_constants(request, ConstResolutionMode::ArgumentSelection)
+        .map(|prepared| prepared.trees)
 }
 
 /// Resolve declaration dependencies without inventing provisional values.
 /// Computed fixed-integer/Boolean initializers remain authored expression roots
 /// with no canonical encoding. Every operator occurrence remains an obligation
 /// for ordinary typed selection, not an assertion of builtin execution meaning.
-pub fn lower_syntax_trees_for_const_initializer_selection(
-    syntax: &SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+pub fn prepare_const_initializer_selection(
+    request: ResolutionRequest<'_>,
 ) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
-    let preparation = resolve(
-        syntax,
-        sources,
-        bindings,
-        ConstResolutionMode::InitializerSelection,
-    )?;
+    let syntax = request.syntax;
+    let preparation = resolve_with_constants(request, ConstResolutionMode::InitializerSelection)?;
     for definition in syntax.root_items().filter_map(|item| match item {
         syntax_trees::item::Item::Const(definition)
             if crate::constant::requires_const_initializer_evaluation(syntax, definition) =>
@@ -124,37 +109,23 @@ pub fn lower_syntax_trees_for_const_initializer_selection(
     Ok(preparation)
 }
 
-/// Append one already-parsed later-stratum syntax forest to an exact retained
-/// symbol-resolved base. Existing arenas and symbol tables are consumed and
-/// extended in place; no source bytes are read and neither forest is parsed
-/// again.
-pub fn lower_syntax_extension_against_resolved_base(
-    base: SymbolResolvedTrees,
-    extension_syntax: &SyntaxTrees,
-    sources: Arc<SourceMap>,
-    additional_source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    lower_syntax_extension_with_authored_selection_frontier(
-        base,
-        extension_syntax,
-        sources,
-        additional_source_scoped_top_level_bindings,
-    )
-    .map(SeededSymbolResolvedTrees::into_unrebased_trees)
-}
-
-/// Resolve one syntax extension while retaining the exact append frontier of
-/// every authored-selection occurrence store.
+/// Resolve one syntax extension against its retained base while keeping the
+/// exact append frontier of every authored-selection occurrence store.
 ///
-/// The returned carrier is readable, but its trees can enter a later seeded
-/// phase only by transactionally rebasing the extension suffix against that
-/// phase's exact retained authored-selection ledger.
-pub fn lower_syntax_extension_with_authored_selection_frontier(
-    base: SymbolResolvedTrees,
-    extension_syntax: &SyntaxTrees,
-    sources: Arc<SourceMap>,
-    additional_source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+/// Existing arenas and symbol tables are consumed and extended in place; no
+/// source bytes are read and neither forest is parsed again. The returned
+/// carrier is readable, but its trees can enter a later seeded phase only by
+/// transactionally rebasing the extension suffix against that phase's exact
+/// retained authored-selection ledger.
+pub fn resolve_extension(
+    request: ExtensionRequest<'_>,
 ) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
+    let ExtensionRequest {
+        base,
+        syntax: extension_syntax,
+        sources,
+        top_level_bindings: additional_source_scoped_top_level_bindings,
+    } = request;
     let constant_selection =
         crate::preparation::generic_data::constant_selection::ConstantSelection::new(
             extension_syntax,
@@ -217,12 +188,15 @@ pub fn lower_syntax_extension_with_authored_selection_frontier(
 
 /// Resolve one forest: rewrite syntax before any symbol exists, translate
 /// every root item into the carrier, then settle everything left pending.
-fn resolve(
-    syntax_trees: &SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+fn resolve_with_constants(
+    request: ResolutionRequest<'_>,
     const_resolution_mode: ConstResolutionMode,
 ) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
+    let ResolutionRequest {
+        syntax: syntax_trees,
+        sources,
+        top_level_bindings: source_scoped_top_level_bindings,
+    } = request;
     let constant_selection =
         crate::preparation::generic_data::constant_selection::ConstantSelection::new(
             syntax_trees,

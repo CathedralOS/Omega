@@ -10,7 +10,7 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{BoundaryMachineId, StructuralPlaceKind};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use target_operations::{HostedExitProcessI32Realization, LinuxWriteLineRealization};
 use terminal_codec::{decode_module, encode_proof_section};
@@ -106,7 +106,7 @@ fn project_source(source: &str) -> (Vec<u8>, Vec<u8>) {
 fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
     let tokens = Lexer::new(source).tokenize().expect("tokenize O1 source");
     let syntax = parse_syntax_trees(&tokens).expect("parse O1 source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve O1 source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve O1 source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type O1 source");
     let checked = lower_typed_trees(typed).expect("check O1 source");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)

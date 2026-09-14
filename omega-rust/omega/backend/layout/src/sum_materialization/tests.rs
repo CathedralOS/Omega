@@ -11,7 +11,7 @@ use checked_trees::{CheckFacts, CheckedTrees};
 use layout_plans::{ByteOrder, normalized_conventional_sum_layout_report_fingerprint};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
@@ -20,7 +20,7 @@ mod recursive;
 fn checked(source: &str) -> CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     CheckedTrees::with_roots(typed, CheckFacts::default())
 }

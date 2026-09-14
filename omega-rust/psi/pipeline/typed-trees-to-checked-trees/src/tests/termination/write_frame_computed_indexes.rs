@@ -203,7 +203,7 @@ fn computed_indexes_preserve_origins_and_all_eager_writes() {
     }
     let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     // Includes malformed index roots to pin the conservative pre-validation
     // frame result. Numeric eligibility and bounds belong to separate checks.
     let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");

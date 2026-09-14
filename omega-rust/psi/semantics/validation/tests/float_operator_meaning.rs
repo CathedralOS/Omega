@@ -9,8 +9,10 @@ fn typed(source: &str) -> TypedTrees {
         .expect("tokenize operator source");
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse operator source");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve operator source");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve operator source");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type operator source")
 }

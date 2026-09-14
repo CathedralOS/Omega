@@ -3,7 +3,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::DataMember;
 use symbol_resolved_trees::domain::ProofFact;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
@@ -28,7 +28,7 @@ fn data_where_fields_and_static_parameters_receive_exact_local_symbols() {
     .tokenize()
     .expect("tokenize data invariant");
     let syntax = parse_syntax_trees(&tokens).expect("parse data invariant");
-    let program = lower_syntax_trees(&syntax).expect("resolve data invariant");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve data invariant");
 
     let definition = program
         .data_definitions
@@ -90,7 +90,7 @@ fn unresolved_template_facts_stay_gated_until_concrete_instantiation() {
         let source = format!("data Buffer<const N: u64> where {fact}, {{ count: u64; }}");
         let tokens = Lexer::new(&source).tokenize().expect("tokenize template");
         let syntax = parse_syntax_trees(&tokens).expect("parse template");
-        let program = lower_syntax_trees(&syntax).expect("retain open template facts");
+        let program = resolve(ResolutionRequest::new(&syntax)).expect("retain open template facts");
         let definition = program.data_definitions.iter().next().expect("template");
         assert!(
             definition.zero_gated,

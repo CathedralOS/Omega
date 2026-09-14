@@ -23,9 +23,12 @@ fn resolved_fixture() -> SymbolResolvedTrees {
         .expect("parse generic method with exact source occurrence ownership");
     let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
         .expect("synthesize generic method");
-    syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-        &syntax,
-        std::sync::Arc::new(sources),
+    syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        },
     )
     .expect("resolve exact derivation")
 }

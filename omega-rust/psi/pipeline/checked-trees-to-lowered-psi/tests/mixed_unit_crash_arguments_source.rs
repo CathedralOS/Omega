@@ -2,7 +2,7 @@
 
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
@@ -13,7 +13,7 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     typed_trees_to_checked_trees::lower_typed_trees(typed)
         .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
@@ -450,7 +450,7 @@ fn mixed_structural_scalar_crash_divisors_still_require_totality() {
         );
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let syntax = parse_syntax_trees(&tokens).unwrap();
-        let resolved = lower_syntax_trees(&syntax).unwrap();
+        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
         let typed = lower_symbol_resolved_trees(&resolved).unwrap();
         let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
             .expect_err("a mixed signature does not make an unproven divisor total");
