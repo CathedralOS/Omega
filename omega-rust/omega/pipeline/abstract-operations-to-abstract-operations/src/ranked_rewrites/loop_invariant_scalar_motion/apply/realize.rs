@@ -1,0 +1,174 @@
+//! Optimizer module role: application leaf. Canonical leaf movement and derived-coordinate refresh.
+
+use std::collections::BTreeMap;
+
+use super::super::*;
+
+/// Remove every planned leaf node at its exact source location and insert the
+/// run ahead of the component preheader's entry terminator, before any
+/// already-relocated countdown-certificate constants.
+pub(crate) fn realize(
+    unit: &PsiOptimizationUnit,
+    component: &optimization_unit::OptimizerCycleComponent,
+    leaves: &[LoopInvariantScalarLeaf],
+    certificate_tail: usize,
+) -> Result<PsiOptimizationUnit, LoopInvariantScalarMotionError> {
+    let mut output = unit.clone();
+    let machine = component.id.machine;
+    let function = output
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == machine)
+        .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
+    // Remove in descending node order inside each block so earlier removals do
+    // not shift later coordinates, then reassemble the run in leaf order.
+    let mut requests = leaves
+        .iter()
+        .map(|leaf| (leaf.location, leaf.psi_operation))
+        .collect::<Vec<_>>();
+    requests.sort_by_key(|(location, _)| (location.block, std::cmp::Reverse(location.node)));
+    let mut removed = BTreeMap::new();
+    for (location, operation) in requests {
+        if location.machine != machine {
+            return Err(LoopInvariantScalarMotionError::MissingNode {
+                machine: location.machine,
+                block: location.block,
+                node: location.node,
+            });
+        }
+        let block = function
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == location.block)
+            .ok_or(LoopInvariantScalarMotionError::MissingNode {
+                machine,
+                block: location.block,
+                node: location.node,
+            })?;
+        let index = usize::try_from(location.node)
+            .map_err(|_| LoopInvariantScalarMotionError::CoordinateOverflow)?;
+        let node = block
+            .nodes
+            .get(index)
+            .filter(|node| node.provenance.first() == Some(&PsiProvenance::Operation(operation)));
+        if node.is_none() {
+            return Err(LoopInvariantScalarMotionError::MissingNode {
+                machine,
+                block: location.block,
+                node: location.node,
+            });
+        }
+        if removed
+            .insert(operation, block.nodes.remove(index))
+            .is_some()
+        {
+            return Err(LoopInvariantScalarMotionError::CandidateMismatch);
+        }
+    }
+    let nodes = leaves
+        .iter()
+        .map(|leaf| {
+            removed
+                .remove(&leaf.psi_operation)
+                .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let Some(&entry) = component.entries.first() else {
+        return Err(LoopInvariantScalarMotionError::CandidateMismatch);
+    };
+    let preheader = function
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == entry.source)
+        .ok_or(LoopInvariantScalarMotionError::MissingNode {
+            machine,
+            block: entry.source,
+            node: 0,
+        })?;
+    let insertion = preheader
+        .nodes
+        .len()
+        .checked_sub(1)
+        .and_then(|jump| jump.checked_sub(certificate_tail))
+        .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
+    for (offset, node) in nodes.into_iter().enumerate() {
+        preheader.nodes.insert(insertion + offset, node);
+    }
+    refresh_coordinates_effects_and_facts(function)?;
+    output.identity = recompute_psi_optimization_unit_identity(&output);
+    Ok(output)
+}
+
+pub(crate) fn operation_location(
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+) -> Option<NodeLocation> {
+    let mut matches = unit.functions.iter().flat_map(|function| {
+        function.blocks.iter().flat_map(move |block| {
+            block
+                .nodes
+                .iter()
+                .enumerate()
+                .filter_map(move |(node, value)| {
+                    (value.provenance.first() == Some(&PsiProvenance::Operation(operation)))
+                        .then_some(NodeLocation {
+                            machine: function.machine,
+                            block: block.id,
+                            node: u32::try_from(node).ok()?,
+                        })
+                })
+        })
+    });
+    let location = matches.next()?;
+    matches.next().is_none().then_some(location)
+}
+
+fn refresh_coordinates_effects_and_facts(
+    function: &mut PsiOptimizationFunction,
+) -> Result<(), LoopInvariantScalarMotionError> {
+    let mut effect = 0u64;
+    for block in &mut function.blocks {
+        for (node_index, node) in block.nodes.iter_mut().enumerate() {
+            let node_index = u32::try_from(node_index)
+                .map_err(|_| LoopInvariantScalarMotionError::CoordinateOverflow)?;
+            for definition in &mut node.definitions {
+                definition.site = ValueDefinitionSite::Node {
+                    block: block.id,
+                    node: node_index,
+                };
+            }
+            for value_use in &mut node.uses {
+                value_use.block = block.id;
+                value_use.node = node_index;
+            }
+            node.effect = EffectLink {
+                input: effect,
+                output: effect
+                    .checked_add(1)
+                    .ok_or(LoopInvariantScalarMotionError::CoordinateOverflow)?,
+            };
+            effect = node.effect.output;
+        }
+    }
+    let operation_order = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .enumerate()
+        .filter_map(|(position, node)| match node.provenance.first() {
+            Some(PsiProvenance::Operation(operation)) => Some((*operation, position)),
+            _ => None,
+        })
+        .collect::<BTreeMap<_, _>>();
+    function.facts.sort_by_key(|fact| {
+        let support = match fact {
+            optimization_unit::OptimizationFact::OperationObligationReference {
+                support, ..
+            }
+            | optimization_unit::OptimizationFact::BooleanConstant { support, .. }
+            | optimization_unit::OptimizationFact::IntegerConstant { support, .. } => support,
+        };
+        operation_order.get(support).copied()
+    });
+    Ok(())
+}

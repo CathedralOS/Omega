@@ -33,12 +33,7 @@ pub(super) fn validate_exact_ranked_cycles(
     let snapshot = replay::rederive_exact_components(input.context().module(), unit)?;
     let rankings =
         countdown_ranking::rederive_exact_certificates(input.context().module(), unit, &snapshot)?;
-    freeze::validate_frozen_component_blocks(
-        input,
-        unit,
-        &snapshot.components,
-        &rankings.certificates,
-    )?;
+    freeze::validate_frozen_component_blocks(input, unit, &snapshot.components)?;
     let machines = snapshot
         .components
         .iter()

@@ -33,7 +33,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/topology.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/replay.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze/normalized_component.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze/relocated_scalar_leaves.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/countdown_ranking/mod.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/countdown_ranking/terminal.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/countdown_ranking/current.rs",
@@ -81,6 +81,17 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation/validate.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation/apply.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation/apply/realize.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "optimizer loop-invariant scalar motion boundary",
+        paths: &[
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/mod.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/model.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/propose.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/validate.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/apply.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/apply/realize.rs",
         ],
     },
     SemanticLadder {

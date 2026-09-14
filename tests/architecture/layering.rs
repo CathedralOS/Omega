@@ -5397,6 +5397,75 @@ fn countdown_invariant_constant_relocation_is_exact_independent_and_atomic() {
 }
 
 #[test]
+fn loop_invariant_scalar_motion_is_exact_independent_and_atomic() {
+    let root = workspace_root();
+    let rewrite_root = root.join(
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion",
+    );
+    let validation = std::fs::read_to_string(rewrite_root.join("validate.rs"))
+        .expect("read loop-invariant scalar motion validator");
+    for forbidden in [
+        "validate_psi_rewrite_candidate",
+        "countdown_ranking",
+        "normalized_component",
+        "AnalysisManager",
+    ] {
+        assert!(
+            !validation.contains(forbidden),
+            "scalar motion validation must not consume `{forbidden}`",
+        );
+    }
+    // The validator replays the proposal's deterministic component plan and
+    // then forces the reconstructed unit through `from_transformed`, where the
+    // freeze fence independently re-admits every moved node against
+    // `admissible_scalar_leaf_relocation` and the unique-entry preheader.
+    for required in [
+        "propose::component_plan",
+        "apply::realize",
+        "candidate_identity",
+        "VerifiedPsiOptimizationSession::from_transformed",
+        "apply::reconstruct_custody",
+        "ProvenanceDisposition::RealizedAt",
+        "output_node.provenance != node.provenance",
+        "relocation.leaf.provenance.clone()",
+        "relocation.leaf.fuel.clone()",
+    ] {
+        assert!(
+            validation.contains(required),
+            "scalar motion validation must independently retain `{required}`",
+        );
+    }
+
+    let mut application = std::fs::read_to_string(rewrite_root.join("apply.rs"))
+        .expect("read loop-invariant scalar motion application");
+    application.push_str(
+        &std::fs::read_to_string(rewrite_root.join("apply/realize.rs"))
+            .expect("read loop-invariant scalar motion realization"),
+    );
+    for required in [
+        "VerifiedPsiOptimizationSession::from_transformed",
+        "reconstruct_custody(&next)",
+        "PsiTransformationRecord",
+        "PsiTransformationLedger::new",
+        "recompute_psi_optimization_unit_identity",
+    ] {
+        assert!(
+            application.contains(required),
+            "scalar motion application must retain atomic boundary `{required}`",
+        );
+    }
+
+    let entrance = std::fs::read_to_string(rewrite_root.join("mod.rs"))
+        .expect("read loop-invariant scalar motion entrance");
+    for forbidden in ["PsiRewritePatch", "PsiOptimizationRule", "AnalysisManager"] {
+        assert!(
+            !entrance.contains(forbidden),
+            "scalar motion entrance must remain exact; found `{forbidden}`",
+        );
+    }
+}
+
+#[test]
 fn countdown_ranking_constant_resolution_is_internal_and_independent() {
     let root = workspace_root();
     let ranking_root = root.join(
@@ -5455,12 +5524,12 @@ fn countdown_ranking_constant_resolution_is_internal_and_independent() {
 }
 
 #[test]
-fn countdown_ranked_freeze_normalization_is_independent_and_preserves_source_custody() {
+fn ranked_freeze_normalization_is_independent_and_preserves_source_custody() {
     let root = workspace_root();
     let freeze_root = root.join(
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze",
     );
-    let normalization = std::fs::read_to_string(freeze_root.join("normalized_component.rs"))
+    let normalization = std::fs::read_to_string(freeze_root.join("relocated_scalar_leaves.rs"))
         .expect("read ranked-component normalization leaf");
     for forbidden in [
         "countdown_invariant_constant_placement",
@@ -5477,9 +5546,11 @@ fn countdown_ranked_freeze_normalization_is_independent_and_preserves_source_cus
     }
     for required in [
         "component.entries.as_slice()",
-        "O::Jump",
-        "unique_operation",
-        "validate_exact_blocks",
+        "component.members.contains",
+        "admissible_scalar_leaf_relocation",
+        "occurrences(",
+        "same_relocated_node",
+        "retained_nodes",
         "same_position_normalized_node",
         "expected.provenance == current.provenance",
         "expected.fuel == current.fuel",

@@ -19,6 +19,24 @@ pub use context::{
     validate_transformed_psi_cycle_components, validate_transformed_psi_optimization_unit,
     validate_verified_psi_cycle_components, validate_verified_psi_optimization_unit,
 };
+
+/// Scalar-constant leaf nodes are the operation class currently admitted for
+/// loop-invariant motion out of a cyclic component. They read no values,
+/// carry no control flow or ownership events, and keep their own operation
+/// identity as the first provenance row, so an independent validator can track
+/// the exact source node across the relocation.
+pub(crate) fn admissible_scalar_leaf_relocation(node: &OptimizationNode) -> bool {
+    let psi_operation = match &node.operation {
+        O::IntegerConstant { psi_operation, .. }
+        | O::IeeeFloatConstant { psi_operation, .. }
+        | O::BooleanConstant { psi_operation, .. } => *psi_operation,
+        _ => return false,
+    };
+    node.provenance.first() == Some(&PsiProvenance::Operation(psi_operation))
+        && node.uses.is_empty()
+        && node.successors.is_empty()
+        && node.ownership.is_empty()
+}
 pub use prephysical_manifest::{
     PrePhysicalOptimizationManifestError, ValidatedPrePhysicalOptimizationManifest,
     project_pre_physical_optimization_manifest, validate_pre_physical_optimization_manifest,
