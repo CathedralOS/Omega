@@ -281,7 +281,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |
   | `cli_mvp` ordinary CLI and hosted matrix | Finish real project package review with explicit owner acceptance, then run the documented CLI command. The macOS ARM64 compiler-library test already publishes and executes the unchanged source with exact two-line output, EOF and Enter, and exit 0. Establish the same customer behavior on the remaining hosted targets; cross-lowering alone is not runtime evidence. |
-  | `print_squares` closure | `58dd5c0482` retains the checked transitive Unit plan and shared byte-field presentation; scalar block invariants now admit `IntegerField`/`BooleanField` storage observations rooted at invocation-lived places, and producer `field_bounds` transports cyclic field-read bounds into proved candidates. The probe still stops at `OperationProofUnavailable` for guarded-exit field obligations (a bound that holds only while the loop guard runs needs a lockstep implication plus an integer-contradiction primitive) and indexed bounds/increment overflow. **GENERAL-CYCLIC-EXECUTION** owns cyclic completion; **NOMINAL-FIELD-FLOW** owns declared field facts. |
+  | `print_squares` closure | Checked transitive Unit plans, byte-field presentation and storage-observation invariant scope are available. The probe still stops at `OperationProofUnavailable` for guarded-exit field obligations requiring a stronger counter/divisor invariant, and indexed bounds/increment overflow. Integer contradictions and saved field facts already have checked routes; do not invent another contradiction primitive or rebuild snapshot handling. **GENERAL-CYCLIC-EXECUTION** owns cyclic completion; **NOMINAL-FIELD-FLOW** owns declared field facts. |
   | Fixed-range Console input/output | Compose the selected source provider and real byte leaves with original receiver storage, exact returned cases/prefix, once-only effects, and cleanup. Use the ordinary graph and provider replay, not the deleted Unit/boundary planner. Windows byte I/O still needs imported-call/fixup/frame custody; Linux runtime evidence requires matching hosts. |
   | Receiver and aggregate operations | Finish shared/indexed projections, owned/local roots, scalar-result receiver calls, nested sum results and whole replacements, including mixed foreign-result assignments. Extend the shared statement sequencer; **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, and **CML4** own the corresponding joins. |
   | Text and field proofs | Replace sample-local `Utf8`/compiler-name `valid_utf8` recognition with the [library encoding contract](wiki/spec/language/domains.md#byte-containers-and-encoding-domains). Keep raw bytes and qualify only validated prefixes; no byte-to-character re-encoding, hidden length writeback, or capacity-as-live-length proof. |
@@ -1095,12 +1095,21 @@ Owners include
   source publishing, reload-verifying and interpreting successfully.
   Existing order transitivity, exact equality bridges and closed literal
   predicate denotation already discharge incompatible integer guards;
-  no new contradiction rule is needed. Resume at `integer_selection/logical`
-  and the field-bound invariant producer. At `7b435fd972`, macOS arm64,
+  no new contradiction rule is needed. Saved scalar correlations also survive
+  writes and mutating calls through `terminal-verifier/src/verification/field_snapshots.rs`:
+  live exact field-to-SSA equalities capture affected facts before invalidation,
+  without retaining stale field observations or multiplying fact variants.
+  Resume at the field-bound invariant producer and its checked update proofs,
+  not snapshot reconstruction. At `8ace0796d0`, macOS arm64,
   `RUST_MIN_STACK=67108864 cargo nextest run -p checked-trees-to-lowered-psi --lib --no-fail-fast -E 'test(nonzero_divisor_certificate) | test(cyclic_byte_literal_calls)'`
   passes: `incompatible_integer_guards_keep_the_dead_operation_checked`
   retains division in the published artifact, reload-verifies and interprets
   the unreachable case, and rejects its reachable zero-divisor twin.
+  `saved_field_value_keeps_its_proof_after_overwriting_the_field` publishes,
+  reload-verifies and interprets division by the saved value after direct
+  mutation or a mutable helper call. Moving the read after mutation keeps
+  structural validation valid but rejects the old proof. These are dependency
+  checks; the unchanged decimal loop and native customer remain open.
   Indexed byte-field writes still need composed-Unit closure coverage.
 
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
