@@ -47,6 +47,8 @@ mod indexed_structural_store;
 #[path = "unit/scalar_qualifications.rs"]
 mod scalar_qualifications;
 
+#[path = "unit/primitive_arrays.rs"]
+mod primitive_arrays;
 #[path = "unit/primitive_locals.rs"]
 mod primitive_locals;
 

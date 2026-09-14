@@ -56,14 +56,34 @@ pub(crate) fn structural_arguments_match(
         else {
             return false;
         };
+        // A static subloan preserves its root's custody. Field/index order is
+        // checked by type resolution below, not by a source-shape roster.
+        let static_borrowed_path = !argument.path.is_empty()
+            && matches!(
+                (source.access, argument.access),
+                (
+                    terminal_psi::StructuralAccess::MutableBorrow,
+                    terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                ) | (
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                    terminal_psi::StructuralAccess::SharedBorrow
+                ) | (
+                    terminal_psi::StructuralAccess::WriteOnlyBorrow,
+                    terminal_psi::StructuralAccess::WriteOnlyBorrow
+                )
+            )
+            && argument.path.iter().all(|segment| match segment {
+                terminal_psi::StructuralPathSegment::Field(identity) => !identity.is_empty(),
+                terminal_psi::StructuralPathSegment::FixedIndex(_) => true,
+                terminal_psi::StructuralPathSegment::Referent => false,
+            });
         let path_shape_matches = match projection {
             StructuralProjectionPolicy::Unit => {
                 argument.path.is_empty()
+                    || static_borrowed_path
                     || is_nonempty_field_path(&argument.path)
-                    // Write-only subloans may interleave fields and literal
-                    // indexes. Exact resolution and materiality below govern
-                    // their shape, not a fixed path-depth roster.
-                    || argument.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
                     || matches!(
                         argument.path.as_slice(),
                         [terminal_psi::StructuralPathSegment::FixedIndex(_)]
@@ -143,13 +163,14 @@ pub(crate) fn structural_arguments_match(
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && indexed_write_only_path_is_material();
-        let unrestricted_mutable_field = is_nonempty_field_path(&argument.path)
+        let unrestricted_mutable_subloan = static_borrowed_path
             && argument.access == terminal_psi::StructuralAccess::MutableBorrow
             && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
             && source.access == terminal_psi::StructuralAccess::MutableBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
-        let unrestricted_shared_field = is_nonempty_field_path(&argument.path)
+        let unrestricted_shared_subloan = (is_nonempty_field_path(&argument.path)
+            || static_borrowed_path)
             && argument.access == terminal_psi::StructuralAccess::SharedBorrow
             && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
@@ -192,8 +213,8 @@ pub(crate) fn structural_arguments_match(
             } else if argument.path.is_empty() {
                 source.multiplicity
             } else if unrestricted_write_only_subloan
-                || unrestricted_mutable_field
-                || unrestricted_shared_field
+                || unrestricted_mutable_subloan
+                || unrestricted_shared_subloan
             {
                 terminal_psi::StructuralMultiplicity::Unrestricted
             } else if parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
@@ -220,7 +241,7 @@ pub(crate) fn structural_arguments_match(
             || (projection == StructuralProjectionPolicy::Unit
                 && !argument.path.is_empty()
                 && (!source.qualifications.is_empty()
-                    || ((unrestricted_write_only_subloan || unrestricted_mutable_field)
+                    || ((unrestricted_write_only_subloan || unrestricted_mutable_subloan)
                         && !parameter.qualifications.is_empty())))
         {
             return false;

@@ -203,15 +203,28 @@ pub(super) fn validate(
             else {
                 continue;
             };
-            if semantic
-                .path
-                .iter()
-                .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+            // Static subloans carry a pointer to the reconstructed leaf, not
+            // an array-view descriptor. Indexed paths need the same carrier
+            // and offset replay as fields; owned indexed copies retain their
+            // separate array transport metadata.
+            let static_borrow = root.access != terminal_psi::StructuralAccess::Owned
+                && semantic.access != terminal_psi::StructuralAccess::Owned
+                && semantic.path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                    )
+                });
+            if static_borrow
+                || semantic
+                    .path
+                    .iter()
+                    .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
             {
                 if actual.root_structural_type != root.structural_type {
                     return Err(psi_operation);
                 }
-                let Ok((projected_type, byte_offset)) = structural_shapes::project_fields(
+                let Ok((projected_type, byte_offset)) = structural_shapes::project_static_path(
                     root.structural_type,
                     &semantic.path,
                     declarations,

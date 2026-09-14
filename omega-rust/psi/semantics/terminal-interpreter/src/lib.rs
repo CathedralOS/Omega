@@ -1551,6 +1551,16 @@ impl TerminalExecution {
             .zip(&callee.structural_parameters)
             .any(|(argument, parameter)| {
                 !argument.path.is_empty()
+                    // Preparing the argument already resolved its exact path,
+                    // type, access and alias custody. A structural return does
+                    // not change where a static borrowed input is backed.
+                    && !(argument.access != StructuralAccess::Owned
+                        && parameter.access == argument.access
+                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                        && argument.path.iter().all(|segment| matches!(segment,
+                            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)))
+                        && prepared_arguments.values.get(&parameter.place).is_some_and(|value|
+                            value.structural_type == parameter.structural_type))
                     && !(argument.path.last() == Some(&StructuralPathSegment::Referent)
                         && argument.access != StructuralAccess::Owned
                         && parameter.access == argument.access

@@ -40,7 +40,7 @@ pub(super) fn parameter_shape(referent: ValueShape, access: StructuralAccess) ->
     }
 }
 
-pub(super) fn project_fields(
+pub(super) fn project_static_path(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
@@ -56,6 +56,31 @@ pub(super) fn project_fields(
     let mut active = BTreeSet::new();
     let mut byte_offset = 0_u32;
     for segment in path {
+        if let StructuralPathSegment::FixedIndex(index) = segment {
+            let declaration = indexed
+                .get(&structural_type)
+                .ok_or(InvalidStructuralShape)?;
+            let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+                return Err(InvalidStructuralShape);
+            };
+            if *index >= length {
+                return Err(InvalidStructuralShape);
+            }
+            let element_shape = shape(element, &indexed, &mut cache, &mut active)?;
+            let stride = align(
+                u32::from(element_shape.byte_size),
+                u32::from(element_shape.alignment),
+            )?;
+            let element_offset = u64::from(stride)
+                .checked_mul(*index)
+                .and_then(|offset| u32::try_from(offset).ok())
+                .ok_or(InvalidStructuralShape)?;
+            byte_offset = byte_offset
+                .checked_add(element_offset)
+                .ok_or(InvalidStructuralShape)?;
+            structural_type = element;
+            continue;
+        }
         let StructuralPathSegment::Field(identity) = segment else {
             return Err(InvalidStructuralShape);
         };

@@ -263,7 +263,7 @@ pub(super) fn structural_result_matches_return(
     }
 }
 
-pub(super) fn exact_write_only_projection(
+pub(super) fn exact_borrowed_projection(
     argument: &machine_code::InternalUnitCallArgumentRecord,
     source: &machine_code::UnitParameterHomeRecord,
     destination: &machine_code::UnitParameterRecord,
@@ -279,9 +279,15 @@ pub(super) fn exact_write_only_projection(
     {
         return false;
     }
-    if argument.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
-        || !matches!(source.access, terminal_psi::StructuralAccess::MutableBorrow | terminal_psi::StructuralAccess::WriteOnlyBorrow)
-        || destination.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+    // Reconstruct the original root and selected leaf without granting a
+    // stronger loan or mistaking a primitive pointer for a byte descriptor.
+    if argument.access != destination.access
+        || !matches!(
+            (source.access, argument.access),
+            (terminal_psi::StructuralAccess::MutableBorrow, terminal_psi::StructuralAccess::SharedBorrow | terminal_psi::StructuralAccess::MutableBorrow | terminal_psi::StructuralAccess::WriteOnlyBorrow)
+                | (terminal_psi::StructuralAccess::SharedBorrow, terminal_psi::StructuralAccess::SharedBorrow)
+                | (terminal_psi::StructuralAccess::WriteOnlyBorrow, terminal_psi::StructuralAccess::WriteOnlyBorrow)
+        )
         || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || destination.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || argument.fixed_array_length.is_some()
@@ -574,7 +580,7 @@ pub(super) fn validate_internal_unit_call_custody(
         },
     )
     .map_err(|_| invalid())?;
-    let exact_write_only_argument =
+    let exact_borrowed_argument =
         |index: usize, argument: &machine_code::InternalUnitCallArgumentRecord| {
             parameter_homes
                 .iter()
@@ -582,7 +588,7 @@ pub(super) fn validate_internal_unit_call_custody(
                 .zip(callee_unit_parameters.get(index))
                 .zip(affine_cleanup)
                 .is_some_and(|((source, destination), cleanup)| {
-                    exact_write_only_projection(
+                    exact_borrowed_projection(
                         argument,
                         source,
                         destination,
@@ -613,7 +619,7 @@ pub(super) fn validate_internal_unit_call_custody(
                 .zip(&abi.call_plan.parameters[abi.parameters.len()..])
                 .enumerate()
                 .any(|(index, ((argument, parameter), placement))| {
-                    !exact_write_only_argument(index, argument)
+                    !exact_borrowed_argument(index, argument)
                         && (argument.root_structural_type != parameter.structural_type
                             || argument.structural_type != parameter.structural_type
                             || argument.access != parameter.access
@@ -1003,7 +1009,7 @@ pub(super) fn validate_internal_unit_call_custody(
                                 || argument.fixed_array_length.is_some()
                                 || argument.element_stride.is_some()
                         }
-                        _ if exact_write_only_argument(argument_index, argument) => false,
+                        _ if exact_borrowed_argument(argument_index, argument) => false,
                         _ if result_source => false,
                         _ if argument.access == terminal_psi::StructuralAccess::Owned
                             && parameter_homes.iter().any(|home| {
@@ -1100,7 +1106,7 @@ pub(super) fn validate_internal_unit_call_custody(
             let Some(argument) = custody.arguments.get(*index) else {
                 return true;
             };
-            if exact_write_only_argument(*index, argument) {
+            if exact_borrowed_argument(*index, argument) {
                 return false;
             }
             argument.path.is_empty()

@@ -4,7 +4,7 @@ use super::*;
 use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
 
 /// Initialized contents of a true fixed u8 array reachable from an entry input.
-/// The path is relative to the dense structural argument. Exactly the declared
+/// The static field/index path is relative to the dense structural argument. Exactly the declared
 /// positive number of bytes is required; missing contents are never initialized.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalStructuralByteArrayValue {
@@ -38,19 +38,22 @@ fn array_path_type(
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in path {
-        let StructuralPathSegment::Field(identity) = segment else {
-            return None;
+        structural_type = match (segment, &types.get(&structural_type)?.shape) {
+            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+                let field = fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                next
+            }
+            (
+                StructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => *element,
+            _ => return None,
         };
-        let StructuralTypeShape::Record { fields } = &types.get(&structural_type)?.shape else {
-            return None;
-        };
-        let field = fields
-            .iter()
-            .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-        let StructuralFieldType::Structural(next) = field.field_type else {
-            return None;
-        };
-        structural_type = next;
     }
     Some(structural_type)
 }
@@ -90,13 +93,6 @@ impl TerminalExecution {
             .ok_or_else(invalid)?;
         let mut storage = BTreeMap::new();
         for argument in arguments {
-            if argument
-                .path
-                .iter()
-                .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-            {
-                return Err(invalid());
-            }
             let parameter = machine
                 .structural_parameters
                 .get(argument.argument_index as usize)
@@ -212,13 +208,6 @@ impl TerminalExecution {
         let Some(length) = byte_array_length(&self.structural_types, array_type) else {
             return Ok(None);
         };
-        if argument
-            .path
-            .iter()
-            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-        {
-            return Err(invalid());
-        }
         let source = self
             .machines
             .get(&self.current_machine)

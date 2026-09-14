@@ -334,6 +334,7 @@ pub(super) fn validate_unit_operation_static(
                         }) && argument.access == StructuralAccess::WriteOnlyBorrow))
                         && !is_unrestricted_write_only_subloan(module, machine, expected, argument)
                         && !is_unrestricted_shared_subloan(machine, expected, argument)
+                        && !is_unrestricted_mutable_subloan(machine, expected, argument)
                         && !(argument.access == StructuralAccess::Owned
                             && expected.multiplicity == StructuralMultiplicity::Affine
                             && partial_affine_root_type(machine, argument.place).is_some_and(
@@ -1876,6 +1877,8 @@ fn is_admitted_unit_call_argument_path(
         || is_nonempty_field_path(&argument.path)
         || is_literal_indexed_field_path(&argument.path)
         || is_direct_literal_index_path(&argument.path)
+        || (matches!(argument.access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
+            && is_static_borrow_path(&argument.path))
         // Structural paths already retain only fields and literal indexes;
         // write-only subloans may interleave them. Resolution checks each hop.
         || argument.access == StructuralAccess::WriteOnlyBorrow
@@ -1883,6 +1886,19 @@ fn is_admitted_unit_call_argument_path(
             && partial_affine_root_type(caller, argument.place).is_some_and(|structural_type| {
                 is_partial_affine_path(module, structural_type, &argument.path)
             }))
+}
+
+// Borrowing a statically located element does not transfer its owner. Shape
+// recognition must not manufacture linear custody for a deeper array path;
+// the receiving check separately resolves every field and fixed-index bound.
+// First-class reference paths retain their own authority rules.
+fn is_static_borrow_path(path: &[StructuralPathSegment]) -> bool {
+    !path.is_empty()
+        && path.iter().all(|segment| match segment {
+            StructuralPathSegment::Field(identity) => !identity.is_empty(),
+            StructuralPathSegment::FixedIndex(_) => true,
+            StructuralPathSegment::Referent => false,
+        })
 }
 
 fn is_material_write_only_type(module: &TerminalModule, structural_type: StructuralTypeId) -> bool {
@@ -1982,7 +1998,11 @@ pub(super) fn is_unrestricted_shared_subloan(
     else {
         return false;
     };
-    terminal_psi::is_bounded_structural_scalar_store_path(&argument.path)
+    (terminal_psi::is_bounded_structural_scalar_store_path(&argument.path)
+        || (matches!(
+            actual.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) && is_static_borrow_path(&argument.path)))
         && argument.access == StructuralAccess::SharedBorrow
         && expected.access == StructuralAccess::SharedBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
@@ -2001,7 +2021,7 @@ pub(super) fn is_unrestricted_mutable_subloan(
     else {
         return false;
     };
-    is_nonempty_field_path(&argument.path)
+    is_static_borrow_path(&argument.path)
         && argument.access == StructuralAccess::MutableBorrow
         && expected.access == StructuralAccess::MutableBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted

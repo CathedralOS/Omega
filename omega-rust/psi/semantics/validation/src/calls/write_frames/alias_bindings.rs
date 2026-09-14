@@ -10,10 +10,73 @@ use super::local_aliases::expression_may_rebind_mutable_alias;
 use super::place_paths::FramePlaceOrigin;
 use super::type_capabilities::{type_may_carry_write, type_reference_is_reference};
 use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::TableAssignment;
+use typed_trees::types::TypeReferenceNode;
+
+#[cfg(test)]
+mod tests;
+
+/// A primitive parameter assignment observes the RHS referent as a value;
+/// it cannot replace the destination's reference carrier. Explicit reference
+/// construction and reference-valued calls retain their separate opacity rules.
+fn assignment_copies_primitive_referent(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    assignment: &TableAssignment,
+) -> bool {
+    let ExpressionNode::Name(target) = program.expression_table.expression(assignment.target)
+    else {
+        return false;
+    };
+    if target.symbol != target.head_symbol
+        || program
+            .expression_table
+            .name_path_members(target.members)
+            .len()
+            != 1
+        || !matches!(
+            program.expression_table.expression(assignment.value),
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+        )
+    {
+        return false;
+    }
+    let Some(parameter) = program.state_parameters(state).iter().find(|parameter| {
+        parameter.symbol == target.symbol && !parameter.is_self && !parameter.is_const
+    }) else {
+        return false;
+    };
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return false;
+    };
+    if !matches!(
+        access,
+        language_semantics::ReferenceAccess::Mutable
+            | language_semantics::ReferenceAccess::WriteOnly
+    ) {
+        return false;
+    }
+    let Some(primitive) = program.primitive_type_reference(*referee) else {
+        return false;
+    };
+    let Some(source) =
+        crate::places::declared_place_type_raw(program, machine, Some(state), assignment.value)
+    else {
+        return false;
+    };
+    matches!(program.type_reference_table.type_reference(source),
+        TypeReferenceNode::Reference { access, referee, .. }
+            if access.is_readable() && program.primitive_type_reference(*referee) == Some(primitive))
+}
 
 /// Whole-reference transport across a named edge requires the original input
 /// binding, not merely a source expression with the same parameter symbol.
@@ -43,6 +106,7 @@ pub fn state_reference_parameter_binding_is_stable(
             }
             if let typed_trees::statement::StatementNode::Assignment(assignment) = statement
                 && is_binding(assignment.target)
+                && !assignment_copies_primitive_referent(program, machine, state, assignment)
                 && expression_may_rebind_mutable_alias(program, machine, state, assignment.value)
             {
                 return false;
@@ -90,6 +154,9 @@ pub(super) fn assignment_replaces_untracked_reference(
     assignment: &TableAssignment,
     aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
+    if assignment_copies_primitive_referent(program, machine, state, assignment) {
+        return false;
+    }
     if super::coarse_place_path(program, assignment.target)
         .is_some_and(|target| aliases.iter().any(|(alias, _)| *alias == target))
     {

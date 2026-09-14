@@ -3119,7 +3119,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         } else {
             function.scalar_structural_parameter_homes.as_slice()
         };
-        let exact_write_only_argument =
+        let exact_borrowed_argument =
             |index: usize, argument: &machine_code::InternalUnitCallArgumentRecord| {
                 parameter_homes
                     .iter()
@@ -3127,7 +3127,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     .zip(callee_unit_parameters.get(index))
                     .zip(affine_cleanup)
                     .is_some_and(|((source, destination), cleanup)| {
-                        crate::unit_call_custody::exact_write_only_projection(
+                        crate::unit_call_custody::exact_borrowed_projection(
                             argument,
                             source,
                             destination,
@@ -3417,7 +3417,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     .zip(&abi.call_plan.parameters[abi.parameters.len()..])
                     .enumerate()
                     .all(|(index, ((argument, parameter), placement))| {
-                        exact_write_only_argument(index, argument)
+                        exact_borrowed_argument(index, argument)
                             || (argument.root_structural_type == parameter.structural_type
                                 && argument.structural_type == parameter.structural_type
                                 && argument.access == parameter.access
@@ -3746,7 +3746,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     || argument.fixed_array_length.is_some()
                                     || argument.element_stride.is_some()
                             }
-                            _ if exact_write_only_argument(argument_index, argument) => false,
+                            _ if exact_borrowed_argument(argument_index, argument) => false,
                             _ if result_source => false,
                             _ if argument.access == terminal_psi::StructuralAccess::Owned
                                 && parameter_homes.iter().any(|home| {
@@ -3839,7 +3839,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 let Some(argument) = custody.arguments.get(*index) else {
                     return true;
                 };
-                if exact_write_only_argument(*index, argument) {
+                if exact_borrowed_argument(*index, argument) {
                     return false;
                 }
                 argument.path.is_empty()
