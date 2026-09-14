@@ -1,0 +1,66 @@
+// TLB custody is a linear debt: the shootdown token minted by `unmap`
+// cannot be dropped at scope exit, so a teardown that forgets it rejects
+// (wiki/spec/resources/extents.md "Mapping and reclamation").
+use omega::language::core::assembly;
+use omega::language::core::extent;
+
+boundary data Mapping [linear];
+
+domain Mapping::Pending
+established by TranslationAuthority::map;
+
+domain Mapping::Installed
+established by TranslationAuthority::activate;
+
+boundary data Shootdown [linear];
+
+domain Shootdown::Owed;
+
+data Unmapped {
+    destination: Extent in Granted;
+    source: Extent in Granted;
+    shootdown: Shootdown in Owed;
+}
+
+boundary trait TranslationAuthority {
+    machine map(source: Extent in Granted, destination: Extent in Granted)
+        -> Mapping
+    requires
+        source.length == destination.length
+    ensures
+        result in Mapping::Pending;
+
+    machine activate(pending: Mapping in Pending) -> Mapping
+    ensures
+        result in Mapping::Installed;
+
+    machine unmap(active: Mapping in Installed) -> Unmapped;
+}
+
+boundary requirement Shootdown::discharge(self)
+reaches MachineControl
+requires
+    self in Shootdown::Owed;
+
+machine teardown_without_discharge(
+    authority: &TranslationAuthority,
+    source: Extent in Granted,
+    destination: Extent in Granted
+) -> Extent
+requires
+    source.length == destination.length
+reaches TranslationAuthority + MachineControl
+{
+    let pending: Mapping in Pending = authority.map(source, destination);
+    let installed: Mapping in Installed = authority.activate(pending);
+    let unmapped: Unmapped = authority.unmap(installed);
+    let shootdown: Shootdown in Owed = unmapped.shootdown;
+    let released_destination: Extent in Granted = unmapped.destination;
+    released_destination as Extent
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
