@@ -37,6 +37,8 @@ mod native_error_state_failures;
 mod native_mutation_failure_tests;
 mod native_mutation_failures;
 #[cfg(test)]
+mod native_query_chain_tests;
+#[cfg(test)]
 mod output_only_tests;
 mod output_ownership;
 #[cfg(test)]
@@ -380,6 +382,26 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                 ),
             );
             cursor += 1;
+            continue;
+        }
+        if shapes[cursor].operation == 28 {
+            let open = &shapes[cursor];
+            cursor += 1;
+            let operations_start = cursor;
+            while matches!(shapes[cursor].operation, 31 | 35) {
+                cursor += 1;
+            }
+            let close = &shapes[cursor];
+            cursor += 1;
+            events.push(
+                checked_interpreter::FilesystemSourceInputReplayEventRecord::NativeHandleQueryChain(
+                    rehydrate_native_query_chain_shape(
+                        open,
+                        &shapes[operations_start..cursor - 1],
+                        close,
+                    )?,
+                ),
+            );
             continue;
         }
         let open = &shapes[cursor];
@@ -1127,6 +1149,104 @@ fn rehydrate_read_shape(
     })
 }
 
+fn rehydrate_native_query_chain_shape(
+    open: &AttemptShape<'_>,
+    operations: &[AttemptShape<'_>],
+    close: &AttemptShape<'_>,
+) -> Result<
+    checked_interpreter::FilesystemSourceNativeHandleQueryChainReplayRecord,
+    BuildFilesystemReplayRecordError,
+> {
+    let ShapeResult::Handle(logical_handle_identity) = open.result else {
+        unreachable!("validated native-handle query open returns a handle")
+    };
+    let [source_path] = open.rooted_paths.as_slice() else {
+        unreachable!("validated native-handle query open has one rooted path")
+    };
+    let ShapeResult::Scalar(close_result) = close.result else {
+        unreachable!("validated native-handle query close returns a scalar")
+    };
+    let mut records = Vec::new();
+    records.try_reserve_exact(operations.len()).map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem replay native-handle query allocation failed",
+        )
+    })?;
+    for operation in operations {
+        records.push(rehydrate_native_query_operation_shape(operation)?);
+    }
+    checked_interpreter::FilesystemSourceNativeHandleQueryChainReplayRecord::new(
+        crate::BUILD_SOURCE_ROOT_IDENTITY,
+        clone_bytes(source_path.bytes)?,
+        logical_handle_identity,
+        open.post_error,
+        records,
+        close_result,
+        close.post_error,
+    )
+    .map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem replay native-handle query chain could not be rehydrated",
+        )
+    })
+}
+
+fn rehydrate_native_query_operation_shape(
+    operation: &AttemptShape<'_>,
+) -> Result<
+    checked_interpreter::FilesystemNativeHandleQueryOperationReplayRecord,
+    BuildFilesystemReplayRecordError,
+> {
+    use checked_interpreter::FilesystemNativeHandleQueryOperationReplayRecord as Operation;
+    match operation.operation {
+        31 => {
+            let ShapeResult::Scalar(result) = operation.result else {
+                unreachable!("validated native-handle final-path query returns a scalar")
+            };
+            let [
+                (2, ShapeScalar::U64(capacity)),
+                (3, ShapeScalar::U32(flags)),
+            ] = operation.scalars.as_slice()
+            else {
+                unreachable!("validated native-handle final-path query retains exact scalars")
+            };
+            let [returned] = operation.returned_paths.as_slice() else {
+                unreachable!("validated native-handle final-path query has one returned path")
+            };
+            let [(1, resolution)] = operation.mutable_byte_resolutions.as_slice() else {
+                unreachable!("validated native-handle final-path query has one mutable resolution")
+            };
+            let [carrier] = operation.mutable_bytes.as_slice() else {
+                unreachable!("validated native-handle final-path query has one mutable carrier")
+            };
+            checked_interpreter::FilesystemNativeHandleFinalPathQueryReplayRecord::new(
+                *capacity,
+                *flags,
+                result,
+                operation.post_error,
+                clone_bytes(resolution)?,
+                clone_bytes(carrier.pre)?,
+                clone_bytes(carrier.post)?,
+                clone_bytes(returned.bytes)?,
+            )
+            .map(Operation::FinalPathName)
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay native-handle final-path query could not be rehydrated",
+                )
+            })
+        }
+        35 => Ok(Operation::LastError(
+            checked_interpreter::FilesystemNativeHandleErrorObservationReplayRecord::new(
+                operation.post_error,
+            ),
+        )),
+        _ => Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay native-handle query operation is unsupported",
+        )),
+    }
+}
+
 struct DecodedReplay<'a> {
     canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
     included_sources: Vec<ShapeIncludedSource<'a>>,
@@ -1841,6 +1961,35 @@ fn validate_first_rung(
         }
         if matches!(shapes[cursor].operation, 38 | 40) {
             validate_path_metadata_shape(&shapes[cursor])?;
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
+        if shapes[cursor].operation == 28 {
+            let identity = validate_native_query_open_shape(&shapes[cursor])?;
+            if identities.contains(&identity) {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "filesystem replay source-input chains reuse a handle identity",
+                ));
+            }
+            identities.push(identity);
+            cursor += 1;
+            let mut saw_final_path_query = false;
+            while cursor < shapes.len() && matches!(shapes[cursor].operation, 31 | 35) {
+                if shapes[cursor].operation == 31 {
+                    validate_native_final_path_query_shape(&shapes[cursor], identity)?;
+                    saw_final_path_query = true;
+                } else {
+                    validate_native_error_observation_shape(&shapes[cursor])?;
+                }
+                cursor += 1;
+            }
+            if !saw_final_path_query || cursor == shapes.len() {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "filesystem replay Source native-handle query chain is incomplete",
+                ));
+            }
+            validate_native_handle_close_shape(&shapes[cursor], identity)?;
             cursor += 1;
             event_count += 1;
             continue;
@@ -3233,6 +3382,189 @@ fn validate_descriptor_metadata_shape(
     Ok(())
 }
 
+/// Identity acquired by one constrained Source `open_path_handle` (tag 28)
+/// under the bounded query-only contract. The scalar row commits to access
+/// zero, full read/write/delete sharing, null security attributes,
+/// `OPEN_EXISTING`, and `FILE_FLAG_BACKUP_SEMANTICS` without
+/// `FILE_FLAG_DELETE_ON_CLOSE`; the single handle input is the null template.
+fn validate_native_query_open_shape(
+    open: &AttemptShape<'_>,
+) -> Result<u64, BuildFilesystemReplayRecordError> {
+    if open.operation != 28
+        || open.provider != 2
+        || open.scalars.as_slice()
+            != [
+                (1, ShapeScalar::U32(0)),
+                (2, ShapeScalar::U32(0x7)),
+                (3, ShapeScalar::I64(0)),
+                (4, ShapeScalar::U32(3)),
+                (5, ShapeScalar::U32(0x0200_0000)),
+            ]
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay record is not a bounded native-handle query chain",
+        ));
+    }
+    let Some(output) = open.output else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay native-handle open has no handle output",
+        ));
+    };
+    let identity = output.identity;
+    let [open_rooted] = open.rooted_paths.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay native-handle open has no unique rooted source path",
+        ));
+    };
+    let [open_authorized] = open.authorized_paths.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay native-handle open has no unique authorized source path",
+        ));
+    };
+    if output.kind != 1
+        || output.source != 0
+        || output.source_identity.is_some()
+        || open.result != ShapeResult::Handle(identity)
+        || open_rooted.ordinal != 0
+        || open_rooted.root != 0
+        || !checked_interpreter::filesystem_root_relative_path_is_canonical(
+            open_rooted.bytes,
+            false,
+        )
+        || open_authorized.ordinal != 0
+        || open_authorized.access != 0
+        || open_authorized.root != 0
+        || open_authorized.bytes != open_rooted.bytes
+        || open.inputs.as_slice()
+            != [ShapeLogicalInput {
+                ordinal: 6,
+                kind: 1,
+                resolution: ShapeLogicalInputResolution::Null,
+            }]
+        || !only_native_query_open_lanes(open)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay record has inconsistent native-handle acquisition",
+        ));
+    }
+    Ok(identity)
+}
+
+/// One `final_path_name_by_handle` (tag 31) observation on `identity` inside
+/// a bounded query-release chain. The buffer custody arithmetic mirrors the
+/// checked-interpreter record contract: the resolved snapshot precedes the
+/// call, the post state carries the returned path plus its NUL terminator
+/// over an unchanged tail, and the scalar result is the returned path
+/// length.
+fn validate_native_final_path_query_shape(
+    query: &AttemptShape<'_>,
+    identity: u64,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    let ShapeResult::Scalar(result) = query.result else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay native-handle final-path query has a non-scalar result",
+        ));
+    };
+    let [
+        (2, ShapeScalar::U64(capacity)),
+        (3, ShapeScalar::U32(_flags)),
+    ] = query.scalars.as_slice()
+    else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay native-handle final-path query has no exact capacity and flags",
+        ));
+    };
+    let [returned] = query.returned_paths.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay native-handle final-path query has no unique returned path",
+        ));
+    };
+    let [(resolution_ordinal, resolution)] = query.mutable_byte_resolutions.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay native-handle final-path query has no unique mutable resolution",
+        ));
+    };
+    let [carrier] = query.mutable_bytes.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay native-handle final-path query has no unique mutable carrier",
+        ));
+    };
+    let path_length = returned.bytes.len();
+    let capacity_fits = usize::try_from(*capacity)
+        .is_ok_and(|capacity| capacity <= carrier.post.len() && path_length < capacity);
+    if query.operation != 31
+        || query.provider != 2
+        || path_length == 0
+        || i64::try_from(path_length) != Ok(result)
+        || !capacity_fits
+        || returned.ordinal != 1
+        || returned.kind != 2
+        || returned.completeness != 0
+        || *resolution_ordinal != 1
+        || carrier.ordinal != 1
+        || *resolution != carrier.pre
+        || carrier.pre.len() != carrier.post.len()
+        || carrier.post[..path_length] != returned.bytes[..]
+        || carrier.post[path_length] != 0
+        || carrier.post[path_length + 1..] != carrier.pre[path_length + 1..]
+        || query.inputs.as_slice()
+            != [ShapeLogicalInput {
+                ordinal: 0,
+                kind: 1,
+                resolution: ShapeLogicalInputResolution::Resolved(identity),
+            }]
+        || !only_native_final_path_query_lanes(query)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay native-handle final-path query is internally inconsistent",
+        ));
+    }
+    Ok(())
+}
+
+/// One handle-free `get_last_error` (tag 35) error-slot read inside a
+/// bounded query-release chain. The read observes the slot without clearing
+/// it, so the scalar result equals the recorded post-error.
+fn validate_native_error_observation_shape(
+    operation: &AttemptShape<'_>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if operation.operation != 35
+        || operation.provider != 2
+        || operation.result != ShapeResult::Scalar(i64::from(operation.post_error))
+        || !only_native_error_observation_lanes(operation)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay native-handle error observation is internally inconsistent",
+        ));
+    }
+    Ok(())
+}
+
+/// The successful `close_handle` (tag 29) that retires `identity` at the end
+/// of a bounded query-release chain.
+fn validate_native_handle_close_shape(
+    close: &AttemptShape<'_>,
+    identity: u64,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if close.operation != 29
+        || close.provider != 2
+        || close.inputs.as_slice()
+            != [ShapeLogicalInput {
+                ordinal: 0,
+                kind: 1,
+                resolution: ShapeLogicalInputResolution::Resolved(identity),
+            }]
+        || !matches!(close.result, ShapeResult::Scalar(result) if result != 0)
+        || close.retired.as_slice() != [identity]
+        || !only_close_lanes(close)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay record has inconsistent native-handle retirement",
+        ));
+    }
+    Ok(())
+}
+
 fn common_empty_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operands.is_empty()
         && attempt.path_like_operands.is_empty()
@@ -3278,6 +3610,41 @@ fn only_open_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.mutable_byte_resolutions.is_empty()
         && attempt.mutable_bytes.is_empty()
         && attempt.inputs.is_empty()
+        && attempt.retired.is_empty()
+}
+
+fn only_native_query_open_lanes(attempt: &AttemptShape<'_>) -> bool {
+    common_empty_lanes(attempt)
+        && attempt.observed_regions.is_empty()
+        && attempt.mutable_byte_resolutions.is_empty()
+        && attempt.mutable_bytes.is_empty()
+        && attempt.retired.is_empty()
+}
+
+fn only_native_final_path_query_lanes(attempt: &AttemptShape<'_>) -> bool {
+    attempt.byte_operands.is_empty()
+        && attempt.path_like_operands.is_empty()
+        && attempt.rooted_paths.is_empty()
+        && attempt.observed_regions.is_empty()
+        && attempt.metadata.is_empty()
+        && attempt.mutable_i64_resolutions.is_empty()
+        && attempt.mutable_i64s.is_empty()
+        && attempt.authorized_paths.is_empty()
+        && attempt.output.is_none()
+        && attempt.retired.is_empty()
+        && attempt.refusal_count == 0
+}
+
+fn only_native_error_observation_lanes(attempt: &AttemptShape<'_>) -> bool {
+    common_empty_lanes(attempt)
+        && attempt.scalars.is_empty()
+        && attempt.rooted_paths.is_empty()
+        && attempt.observed_regions.is_empty()
+        && attempt.mutable_byte_resolutions.is_empty()
+        && attempt.mutable_bytes.is_empty()
+        && attempt.authorized_paths.is_empty()
+        && attempt.inputs.is_empty()
+        && attempt.output.is_none()
         && attempt.retired.is_empty()
 }
 
@@ -4125,6 +4492,158 @@ mod first_rung_validation_tests {
         let mut shapes = exact_descriptor_metadata_shapes();
         shapes.remove(2);
         assert!(validate_first_rung(&shapes).is_err());
+    }
+
+    static NATIVE_QUERY_FINAL_PATH: &[u8] = b"C:\\pkg\\main.omg";
+    static NATIVE_QUERY_CARRIER: [u8; 16] = [0; 16];
+    static NATIVE_QUERY_POST: &[u8] = b"C:\\pkg\\main.omg\0";
+
+    fn native_query_chain_shapes() -> Vec<AttemptShape<'static>> {
+        let mut open = empty_shape(28, ShapeResult::Handle(7));
+        open.scalars = vec![
+            (1, ShapeScalar::U32(0)),
+            (2, ShapeScalar::U32(0x7)),
+            (3, ShapeScalar::I64(0)),
+            (4, ShapeScalar::U32(3)),
+            (5, ShapeScalar::U32(0x0200_0000)),
+        ];
+        open.rooted_paths = vec![ShapeRootedPath {
+            ordinal: 0,
+            root: 0,
+            bytes: b"pkg/main.omg",
+        }];
+        open.authorized_paths = vec![ShapeAuthorizedPath {
+            ordinal: 0,
+            access: 0,
+            root: 0,
+            bytes: b"pkg/main.omg",
+        }];
+        open.inputs = vec![ShapeLogicalInput {
+            ordinal: 6,
+            kind: 1,
+            resolution: ShapeLogicalInputResolution::Null,
+        }];
+        open.output = Some(ShapeLogicalOutput {
+            kind: 1,
+            identity: 7,
+            source: 0,
+            source_identity: None,
+        });
+
+        let mut query = empty_shape(31, ShapeResult::Scalar(15));
+        query.scalars = vec![(2, ShapeScalar::U64(16)), (3, ShapeScalar::U32(0))];
+        query.returned_paths = vec![ShapeReturnedPath {
+            ordinal: 1,
+            kind: 2,
+            completeness: 0,
+            bytes: NATIVE_QUERY_FINAL_PATH,
+        }];
+        query.mutable_byte_resolutions = vec![(1, &NATIVE_QUERY_CARRIER)];
+        query.mutable_bytes = vec![ShapeMutableBytes {
+            ordinal: 1,
+            pre: &NATIVE_QUERY_CARRIER,
+            post: NATIVE_QUERY_POST,
+        }];
+        query.inputs = vec![ShapeLogicalInput {
+            ordinal: 0,
+            kind: 1,
+            resolution: ShapeLogicalInputResolution::Resolved(7),
+        }];
+
+        let mut close = empty_shape(29, ShapeResult::Scalar(1));
+        close.inputs = query.inputs.clone();
+        close.retired = vec![7];
+
+        vec![open, query, close]
+    }
+
+    #[test]
+    fn native_query_chain_validates_exact_acquisition_queries_and_release() {
+        let shapes = native_query_chain_shapes();
+        assert!(validate_first_rung(&shapes).is_ok());
+
+        // A native-handle failure suffix composes after the closed chain.
+        let mut with_failure = native_query_chain_shapes();
+        let mut failure = empty_shape(29, ShapeResult::Scalar(0));
+        failure.post_error = 6;
+        failure.inputs = vec![ShapeLogicalInput {
+            ordinal: 0,
+            kind: 1,
+            resolution: ShapeLogicalInputResolution::Unknown,
+        }];
+        with_failure.push(failure);
+        assert!(validate_first_rung(&with_failure).is_ok());
+
+        // The constrained acquisition contract admits no Output root, no
+        // write authorization, and no deferred-deletion flag.
+        let mut wrong_root = shapes.clone();
+        wrong_root[0].rooted_paths[0].root = 1;
+        assert!(validate_first_rung(&wrong_root).is_err());
+
+        let mut wrong_access = shapes.clone();
+        wrong_access[0].authorized_paths[0].access = 1;
+        assert!(validate_first_rung(&wrong_access).is_err());
+
+        let mut delete_on_close = shapes.clone();
+        delete_on_close[0].scalars[4] = (5, ShapeScalar::U32(0x0600_0000));
+        assert!(validate_first_rung(&delete_on_close).is_err());
+
+        let mut descriptor_output = shapes.clone();
+        descriptor_output[0].output.as_mut().unwrap().kind = 0;
+        assert!(validate_first_rung(&descriptor_output).is_err());
+
+        let mut borrowed_template = shapes.clone();
+        borrowed_template[0].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(9);
+        assert!(validate_first_rung(&borrowed_template).is_err());
+
+        // A chain needs at least one final-path observation on the identity.
+        let mut error_only = vec![
+            shapes[0].clone(),
+            empty_shape(35, ShapeResult::Scalar(0)),
+            shapes[2].clone(),
+        ];
+        assert!(validate_first_rung(&error_only).is_err());
+        error_only[1].post_error = 5;
+        error_only[1].result = ShapeResult::Scalar(5);
+        assert!(validate_first_rung(&error_only).is_err());
+
+        let mut substituted = shapes.clone();
+        substituted[1].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(9);
+        assert!(validate_first_rung(&substituted).is_err());
+
+        let mut wrong_kind = shapes.clone();
+        wrong_kind[1].inputs[0].kind = 0;
+        assert!(validate_first_rung(&wrong_kind).is_err());
+
+        let mut wrong_result = shapes.clone();
+        wrong_result[1].result = ShapeResult::Scalar(16);
+        assert!(validate_first_rung(&wrong_result).is_err());
+
+        static TAMPERED_POST: &[u8] = b"C:\\pkg\\main.omg\x01";
+        let mut tampered_post = shapes.clone();
+        tampered_post[1].mutable_bytes[0].post = TAMPERED_POST;
+        assert!(validate_first_rung(&tampered_post).is_err());
+
+        let mut failed_close = shapes.clone();
+        failed_close[2].result = ShapeResult::Scalar(0);
+        failed_close[2].post_error = 6;
+        assert!(validate_first_rung(&failed_close).is_err());
+
+        let mut unretired = shapes.clone();
+        unretired[2].retired.clear();
+        assert!(validate_first_rung(&unretired).is_err());
+
+        let mut missing_close = shapes.clone();
+        missing_close.pop();
+        assert!(validate_first_rung(&missing_close).is_err());
+
+        let mut late_use = shapes.clone();
+        late_use.push(empty_shape(35, ShapeResult::Scalar(0)));
+        assert!(validate_first_rung(&late_use).is_err());
+
+        let mut reused_identity = native_query_chain_shapes();
+        reused_identity.extend(native_query_chain_shapes());
+        assert!(validate_first_rung(&reused_identity).is_err());
     }
 
     #[test]
