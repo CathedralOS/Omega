@@ -1,6 +1,6 @@
-//! The ordered prefix completes before its authored scalar dispatch. Both arms
-//! use the existing selective evaluator and rejoin with one result; structural
-//! places keep their dominating producers instead of being rebuilt in each arm.
+//! The ordered prefix completes before its authored scalar return or dispatch.
+//! Returns use the existing selective evaluator and rejoin with one result;
+//! structural places keep their dominating producers across guarded arms.
 
 use super::*;
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
@@ -100,6 +100,18 @@ impl Evaluation {
             }
         };
         let terminator = match &control.terminator {
+            CheckedScalarStateTerminator::Return { statement_ordinal } => {
+                let target = arm(&CheckedScalarBranchDestination::Return {
+                    statement_ordinal: *statement_ordinal,
+                    is_continuation: false,
+                })?;
+                LoweredScalarBranchTerminator::Jump {
+                    trivial_affine_discards: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    target,
+                    arguments: crate::psi_lowering::scalar_computations::parameters(&source_types),
+                }
+            }
             CheckedScalarStateTerminator::Conditional {
                 guard_statement_ordinal,
                 when_true,
@@ -187,7 +199,7 @@ impl Evaluation {
                     arguments: crate::psi_lowering::scalar_computations::parameters(&source_types),
                 }
             }
-            _ => return unsupported("ordered scalar completion requires a guarded return"),
+            _ => return unsupported("ordered scalar completion requires a returning tail"),
         };
         let entry = expansion.push(LoweredScalarBranchState {
             structural_parameters: Vec::new(),

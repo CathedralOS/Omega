@@ -842,16 +842,30 @@ pub(super) fn attached_data_identity(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> Option<String> {
-    let name = machine.attached_data.as_ref()?;
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name == *name)?;
+    let data = program.data_definitions().iter().find(|data| {
+        machine.attached_data_symbol.is_valid() && data.symbol == machine.attached_data_symbol
+    })?;
     if !program.data_type_parameters(data).is_empty() {
         return None;
     }
+    Some(closed_data_identity(program, data, &[]))
+}
+
+fn closed_data_identity(
+    program: &TypedTrees,
+    data: &typed_trees::data::DataDefinition,
+    binders: &[(SymbolHandle, String)],
+) -> String {
+    // A synthesized owner's spelling is diagnostic metadata. Its attachment
+    // and every ordinary field/reference use must retain the same original
+    // generic application identity, including the exact argument tuple.
+    if let Some(application) = data.generic_instance {
+        return program
+            .normalized_type_identity_with_binders(application, binders)
+            .into_string();
+    }
     let path = program.symbols.display_path(data.symbol, "::");
-    Some(format!("named({})", normalized_atom("name", &path)))
+    format!("named({})", normalized_atom("name", &path))
 }
 
 /// Check source access independently of structural shape collection. Generic
@@ -982,8 +996,7 @@ impl<'program> ShapeCollector<'program> {
             // explicit checked identity fact rather than guessed binding.
             return None;
         }
-        let path = self.program.symbols.display_path(data.symbol, "::");
-        let identity = format!("named({})", normalized_atom("name", &path));
+        let identity = closed_data_identity(self.program, data, binders);
         self.add_data_shape(identity, data.clone(), binders, Vec::new())
     }
 

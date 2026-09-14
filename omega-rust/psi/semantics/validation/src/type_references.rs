@@ -16,7 +16,7 @@ pub use open_index_expressions::normalize_open_index_expressions;
 mod integer_ranges;
 pub use integer_ranges::{
     closed_integer_range_bound, closed_integer_range_maximum, closed_scalar_result_range,
-    declared_integer_range,
+    declared_integer_range, is_arithmetic_policy_only_integer,
 };
 pub(crate) use open_index_expressions::validate_indexed_qualification_arguments;
 

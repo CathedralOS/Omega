@@ -37,6 +37,9 @@ pub(super) fn validate(
     )?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let prefix = match &control.terminator {
+        CheckedScalarStateTerminator::Return { statement_ordinal } => {
+            unconditional(checked, machine, control, *statement_ordinal)?
+        }
         CheckedScalarStateTerminator::Guarded { arms, fallback } => {
             crate::psi_lowering::scalar_source_custody::guarded_exits::validate(
                 checked,
@@ -46,7 +49,7 @@ pub(super) fn validate(
             )?
         }
         CheckedScalarStateTerminator::Conditional { .. } => conditional(checked, machine, control)?,
-        _ => return unsupported("ordered scalar completion requires a returning guard tail"),
+        _ => return unsupported("ordered scalar completion requires a returning tail"),
     };
     if !matches!(machine.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete {
         statement_index, ..
@@ -72,6 +75,53 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+fn unconditional(
+    checked: &CheckedTrees,
+    machine: &CheckedUnitEffectMachinePlan,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
+    statement_ordinal: u32,
+) -> Result<usize, LoweringError> {
+    let (_, state) =
+        crate::psi_lowering::scalar_source_custody::authored_state(checked, machine.state)?;
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let prefix = statement_ordinal as usize;
+    let tail = statements.get(prefix..).ok_or(LoweringError::Unsupported(
+        "ordered scalar return has an absent source statement",
+    ))?;
+    // Locating a Return value alone does not establish unconditional control:
+    // guarded transitions also carry Return-role expressions. Reconstruct the
+    // complete final statement before permitting its value to execute directly.
+    let complete_return = match tail {
+        [StatementNode::Expression(_)] => true,
+        [StatementNode::Transition(transition)] => {
+            transition.exit == TransitionExit::Ordinary
+                && transition.guard == TransitionGuardNode::Always
+                && !transition.continuation.is_valid()
+                && checked
+                    .statement_table
+                    .transition_target_is_valid(transition.target)
+                && matches!(
+                    checked.statement_table.transition_target(transition.target),
+                    checked_trees::statement::TransitionTargetNode::Value(_)
+                )
+        }
+        _ => false,
+    };
+    if !complete_return {
+        return unsupported("ordered scalar return differs from its unconditional authored tail");
+    }
+    let located = crate::psi_lowering::scalar_source_custody::locate(
+        checked,
+        machine.state,
+        statement_ordinal,
+        CheckedScalarExpressionRole::Return,
+    )?;
+    if located.primitive_type != control.primitive_type {
+        return unsupported("ordered scalar return changed its source carrier");
+    }
+    Ok(prefix)
 }
 
 fn conditional(

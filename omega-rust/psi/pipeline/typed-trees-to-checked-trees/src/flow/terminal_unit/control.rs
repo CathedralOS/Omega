@@ -1143,7 +1143,8 @@ pub(super) fn build_checked_machine_with(
                     .type_reference_table
                     .type_reference(state.return_type),
                 TypeReferenceNode::Constrained { .. }
-            ) && validation::closed_scalar_result_range(program, state.return_type).is_none()))
+            ) && !validation::is_arithmetic_policy_only_integer(program, state.return_type)
+                && validation::closed_scalar_result_range(program, state.return_type).is_none()))
     {
         return None;
     }

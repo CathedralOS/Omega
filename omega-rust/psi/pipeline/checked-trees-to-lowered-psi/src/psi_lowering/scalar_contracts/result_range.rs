@@ -16,7 +16,8 @@ pub(crate) fn with_result_range(
             .type_reference_table
             .type_reference(source.return_type),
         TypeReferenceNode::Constrained { .. }
-    ) {
+    ) || validation::is_arithmetic_policy_only_integer(&checked.typed, source.return_type)
+    {
         return Ok(plan.clone());
     }
     // This query describes the exact authored interval only. The guarantee

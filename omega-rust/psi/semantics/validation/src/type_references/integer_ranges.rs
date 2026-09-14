@@ -11,6 +11,55 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+/// An arithmetic-policy-only integer result changes future operation meaning,
+/// not the set of representable payloads. It owes no extra range predicate.
+/// Other qualifications must retain their own result obligations.
+pub fn is_arithmetic_policy_only_integer(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let table = &program.type_reference_table;
+    if !table.contains_type_reference(reference) {
+        return false;
+    }
+    let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = table.type_reference(reference)
+    else {
+        return false;
+    };
+    if !table.contains_type_reference(*base_type)
+        || !matches!(
+            table.constraint_span(*constraints),
+            Some([TypeConstraintNode::ArithmeticDomain(_)])
+        )
+    {
+        return false;
+    }
+    let TypeReferenceNode::Named { symbol, name } = table.type_reference(*base_type) else {
+        return false;
+    };
+    use symbols::BuiltinTypeAtom;
+    program
+        .symbols
+        .builtin_type_atom(*symbol)
+        .is_some_and(|atom| {
+            name.as_str() == atom.symbol_name()
+                && matches!(
+                    atom,
+                    BuiltinTypeAtom::U8
+                        | BuiltinTypeAtom::U16
+                        | BuiltinTypeAtom::U32
+                        | BuiltinTypeAtom::U64
+                        | BuiltinTypeAtom::I8
+                        | BuiltinTypeAtom::I16
+                        | BuiltinTypeAtom::I32
+                        | BuiltinTypeAtom::I64
+                )
+        })
+}
+
 /// Describe a closed scalar output refinement without granting its proposition.
 /// Consumers must publish the corresponding result guarantee and prove every
 /// returning path. Other qualifications cannot disappear behind a range query.
@@ -130,4 +179,76 @@ pub fn closed_integer_range_maximum(
     end_inclusive: bool,
 ) -> Option<BigInt> {
     program.closed_integer_range_endpoint(expression, end_inclusive)
+}
+
+#[cfg(test)]
+mod policy_tests {
+    use super::*;
+
+    fn field(spelling: &str) -> (TypedTrees, TypeReferenceHandle) {
+        let source = format!("data Carrier {{ value: {spelling}; }}");
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let [typed_trees::data::DataMember::Field(field)] =
+            typed.data_members(&typed.data_definitions()[0])
+        else {
+            panic!("one field");
+        };
+        let reference = field.type_reference;
+        (typed, reference)
+    }
+
+    #[test]
+    fn arithmetic_policy_only_results_do_not_erase_value_refinements() {
+        for (spelling, expected) in [
+            ("u64 in Wrapping", true),
+            ("i32 in Saturating", true),
+            ("u8 in Trapping", true),
+            ("u64", false),
+            ("u64[0..=15]", false),
+            ("u64[0..=15] in Wrapping", false),
+            ("[u64 in Wrapping; 2]", false),
+            ("&u64 in Wrapping", false),
+        ] {
+            let (typed, reference) = field(spelling);
+            assert_eq!(
+                is_arithmetic_policy_only_integer(&typed, reference),
+                expected,
+                "{spelling}"
+            );
+        }
+    }
+
+    #[test]
+    fn arithmetic_policy_result_requires_live_exact_builtin_carrier() {
+        let (mut typed, reference) = field("u64 in Wrapping");
+        assert!(!is_arithmetic_policy_only_integer(
+            &typed,
+            TypeReferenceHandle::invalid()
+        ));
+        let TypeReferenceNode::Constrained { base_type, .. } =
+            *typed.type_reference_table.type_reference(reference)
+        else {
+            panic!("policy shell");
+        };
+        let TypeReferenceNode::Named { name, .. } =
+            typed.type_reference_table.type_reference(base_type).clone()
+        else {
+            panic!("integer carrier");
+        };
+        let carrier_symbol = typed.data_definitions()[0].symbol;
+        typed.type_reference_table.substitute_node(
+            base_type,
+            TypeReferenceNode::Named {
+                name,
+                symbol: carrier_symbol,
+            },
+        );
+        assert!(!is_arithmetic_policy_only_integer(&typed, reference));
+    }
 }

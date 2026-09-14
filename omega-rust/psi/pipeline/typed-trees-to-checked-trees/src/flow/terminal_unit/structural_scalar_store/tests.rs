@@ -4,6 +4,7 @@ use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan}
 
 mod arithmetic_policies;
 mod borrowed_records;
+mod closed_generic_records;
 mod computations;
 
 #[test]
