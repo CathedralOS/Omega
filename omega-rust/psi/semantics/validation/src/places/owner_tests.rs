@@ -13,8 +13,10 @@ fn fixture() -> TypedTrees {
         .tokenize()
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
-        .expect("normalize the two closed carrier applications");
+    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
+    )
+    .expect("normalize the two closed carrier applications");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
     )

@@ -1454,9 +1454,16 @@ mod tests {
         let mut combined = template;
         combined.extend_from(&wrapper);
         assert_eq!(
-            syntax_trees_to_symbol_resolved_trees::normalize_generic_data_with_sources_and_top_level_bindings(combined, sources, Vec::new())
-                .expect("combined normalization demonstrates the forbidden cross-unit synthesis")
-                .root_item_count(),
+            syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
+                syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest {
+                    syntax: combined,
+                    sources: Some(sources),
+                    top_level_bindings: Vec::new(),
+                    retained_base: None
+                }
+            )
+            .expect("combined normalization demonstrates the forbidden cross-unit synthesis")
+            .root_item_count(),
             3
         );
     }

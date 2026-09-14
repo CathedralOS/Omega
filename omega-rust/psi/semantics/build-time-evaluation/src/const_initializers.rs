@@ -65,20 +65,21 @@ pub(super) fn evaluate(
     bindings: &[SourceScopedTopLevelBinding],
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    use syntax_trees_to_symbol_resolved_trees::requires_const_initializer_evaluation;
+    use syntax_trees_to_symbol_resolved_trees::pre_resolution::requires_const_initializer_evaluation;
     if !syntax.root_items().any(|item| {
         matches!(item, Item::Const(definition)
         if requires_const_initializer_evaluation(&syntax, definition))
     }) {
         return Ok(syntax);
     }
-    let preparation = syntax_trees_to_symbol_resolved_trees::prepare_const_initializer_selection(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: sources.clone(),
-            top_level_bindings: bindings.to_vec(),
-        },
-    )?;
+    let preparation =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::prepare_const_initializer_selection(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: sources.clone(),
+                top_level_bindings: bindings.to_vec(),
+            },
+        )?;
     let resolved = preparation.trees();
     let mut declarations = Vec::new();
     for item in syntax.root_item_handles() {
@@ -208,10 +209,10 @@ pub(super) fn evaluate(
         // Private layout stand-ins, exactly as in the index-expression probe.
         // Actual arguments are normalized only after all declaration values exist.
         let arguments =
-            syntax_trees_to_symbol_resolved_trees::closed_data_const_argument_expressions(&probe)
+            syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(&probe)
                 .into_iter()
                 .chain(
-                    syntax_trees_to_symbol_resolved_trees::closed_machine_const_arguments(&probe),
+                    syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(&probe),
                 )
                 .collect::<Vec<_>>();
         for (argument, destination, _) in arguments {

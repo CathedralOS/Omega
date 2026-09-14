@@ -1809,6 +1809,57 @@ fn first_psi_source_slice_stays_fail_closed() {
 }
 
 #[test]
+fn pre_resolution_seam_is_not_driven_by_later_pipeline_stages() {
+    let root = workspace_root();
+    for stages in ["omega-rust/psi/pipeline", "omega-rust/omega/pipeline"] {
+        for entry in std::fs::read_dir(root.join(stages)).expect("read pipeline stages") {
+            let stage = entry.expect("read pipeline stage").path();
+            if !stage.is_dir()
+                || stage.file_name().and_then(|name| name.to_str())
+                    == Some("syntax-trees-to-symbol-resolved-trees")
+            {
+                continue;
+            }
+            let mut pending = vec![stage.join("src")];
+            while let Some(directory) = pending.pop() {
+                let Ok(entries) = std::fs::read_dir(&directory) else {
+                    continue;
+                };
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let name = path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or_default();
+                    if path.is_dir() {
+                        if name != "tests" {
+                            pending.push(path);
+                        }
+                        continue;
+                    }
+                    if path.extension().and_then(|extension| extension.to_str()) != Some("rs")
+                        || name == "tests.rs"
+                        || name.ends_with("_tests.rs")
+                    {
+                        continue;
+                    }
+                    let source = std::fs::read_to_string(&path).unwrap_or_else(|error| {
+                        panic!("failed to read {}: {error}", path.display())
+                    });
+                    // Inline test modules may still build fixtures through the seam.
+                    let production = source.split("#[cfg(test)]").next().unwrap_or_default();
+                    assert!(
+                        !production.contains("::pre_resolution::"),
+                        "{} drives the pre-resolution seam; a pipeline stage consumes the output of the stage before it",
+                        path.display()
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn direct_add_proof_search_exposes_its_semantic_owners() {
     let root = workspace_root();
     let direct_add = root.join(

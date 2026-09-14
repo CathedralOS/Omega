@@ -285,7 +285,10 @@ mod tests {
             .expect("tokenize generic membership");
         let syntax =
             parse_syntax_trees_with_id(source_id, &tokens).expect("parse generic membership");
-        let syntax = crate::normalize_generic_data(syntax).expect("select closed carrier");
+        let syntax = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        )
+        .expect("select closed carrier");
         let resolved = crate::resolve(crate::ResolutionRequest::new(&syntax))
             .expect("resolve closed membership");
         let start = source

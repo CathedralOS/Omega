@@ -519,7 +519,7 @@ fn represented_nested_machine_domain_arguments_never_capture_global_constant_hea
                     },
                 );
             }
-            let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
+            let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax))
                 .expect("normalization defers machine-owned domain arguments without selecting global headers");
             let domains = syntax.type_references.domain_constraints();
             assert!(!domains.is_empty(), "retained machine domain arguments");

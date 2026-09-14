@@ -29,7 +29,10 @@ impl ConstInitializerSelection {
         syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
         expression: syntax_trees::expression::ExpressionHandle,
-    ) -> Result<crate::ConstInitializerDependencies, Vec<Diagnostic>> {
+    ) -> Result<
+        crate::constant::initializer_dependencies::ConstInitializerDependencies,
+        Vec<Diagnostic>,
+    > {
         if !self
             .pending_leaves(syntax, definition)?
             .iter()
@@ -71,7 +74,10 @@ impl ConstInitializerSelection {
         &self,
         _syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
-    ) -> Result<crate::ConstInitializerDependencies, Vec<Diagnostic>> {
+    ) -> Result<
+        crate::constant::initializer_dependencies::ConstInitializerDependencies,
+        Vec<Diagnostic>,
+    > {
         let declaration = self
             .trees
             .const_declarations

@@ -4,7 +4,9 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn normalize(source: &str) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    normalize_generic_data(parse_syntax_trees(&tokens).expect("parse"))
+    normalize_generic_data(GenericDataRequest::new(
+        parse_syntax_trees(&tokens).expect("parse"),
+    ))
 }
 
 #[test]

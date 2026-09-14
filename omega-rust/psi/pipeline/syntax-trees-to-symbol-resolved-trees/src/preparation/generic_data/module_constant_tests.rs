@@ -24,8 +24,12 @@ fn module_constants_cannot_overwrite_or_fall_back_to_root_generic_indices() {
     for module_first in [false, true] {
         let root = "const SIZE: u64 = 1; data Buffer<const N: u64> { value: u64; }";
         let module = "module combat; const SIZE: u64 = 2; data Use { value: Buffer<SIZE>; }";
-        let syntax = normalize_generic_data(parse_sources(root, module, module_first))
-            .expect("bare module constant selects its exact value");
+        let syntax = normalize_generic_data(GenericDataRequest::new(parse_sources(
+            root,
+            module,
+            module_first,
+        )))
+        .expect("bare module constant selects its exact value");
         assert!(syntax.root_items().any(|item| matches!(item,
             Item::Data(definition) if definition.name.as_str() == "Buffer<2>"
         )));
@@ -93,8 +97,8 @@ fn generic_binders_keep_exact_template_arguments_while_concrete_constants_fold()
             };
             let original_span = name.source_span();
 
-            let syntax =
-                normalize_generic_data(syntax).expect("generic templates defer binder selection");
+            let syntax = normalize_generic_data(GenericDataRequest::new(syntax))
+                .expect("generic templates defer binder selection");
 
             assert_eq!(
                 syntax.type_references.type_reference(field_type),
@@ -351,7 +355,7 @@ fn direct_structural_normalization_replays_live_expression_and_selected_paramete
     let source = "data Value [copy] { value: u64; }
         data Pick<const V: Value> { value: u64; }
         machine keep(first: Pick<(Value { value: 1 })>, second: Pick<(Value { value: 2 })>) -> u64 { 0 }";
-    let syntax = normalize_generic_data(parse_sources(source, "", false))
+    let syntax = normalize_generic_data(GenericDataRequest::new(parse_sources(source, "", false)))
         .expect("direct structural values normalize");
     crate::resolution::resolve(crate::resolution::ResolutionRequest::new(&syntax))
         .expect("actual direct arguments lower");

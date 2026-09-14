@@ -6,7 +6,10 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::{DataDefinition, DataMember, DataVariant};
 use symbol_resolved_trees::domain::ProofFact;
 use symbol_resolved_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, normalize_generic_data};
+use syntax_trees_to_symbol_resolved_trees::ResolutionRequest;
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
+    GenericDataRequest, normalize_generic_data,
+};
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 /// A case `where` fact over only the case's own payload names rides each
@@ -196,7 +199,8 @@ fn generic_case_where_naming_a_type_parameter_still_refuses() {
         .expect("tokenize parameter-mentioning case fact");
     let syntax = parse_syntax_trees_with_id(source_id, &tokens)
         .expect("parse parameter-mentioning case fact");
-    let syntax = normalize_generic_data(syntax).expect("synthesize Value<i32>");
+    let syntax =
+        normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize Value<i32>");
     let errors = syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest {
         syntax: &syntax,
         sources: Some(Arc::new(sources)),
@@ -218,7 +222,8 @@ fn resolve(source: &str) -> SymbolResolvedTrees {
         .source_id;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
-    let syntax = normalize_generic_data(syntax).expect("synthesize instances");
+    let syntax =
+        normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances");
     syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest {
         syntax: &syntax,
         sources: Some(Arc::new(sources)),

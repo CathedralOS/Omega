@@ -45,8 +45,12 @@ fn named_domain_indices_retain_exact_root_module_and_import_selections() {
         if reverse {
             sources.reverse();
         }
-        let syntax = crate::normalize_generic_data(domain_index_sources(&sources))
-            .expect("normalize named domain indices");
+        let syntax = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(domain_index_sources(
+                &sources,
+            )),
+        )
+        .expect("normalize named domain indices");
         let mut origins = Vec::new();
         for constraint in syntax.type_references.domain_constraints() {
             let [argument] = syntax
@@ -112,12 +116,12 @@ fn named_domain_indices_retain_exact_root_module_and_import_selections() {
 
 #[test]
 fn domain_index_selection_cannot_fall_back_from_ambiguous_imports() {
-    let syntax = crate::normalize_generic_data(domain_index_sources(&[
+    let syntax = crate::preparation::generic_data::normalize_generic_data(crate::preparation::generic_data::GenericDataRequest::new(domain_index_sources(&[
         (SourceId(1), "domain<T, const N: u64> T::Indexed<N>;"),
         (SourceId(2), "module combat; pub const SIZE: u64 = 2;"),
         (SourceId(3), "module rooms; pub const SIZE: u64 = 3;"),
         (SourceId(4), "module consumer; use combat::SIZE; use rooms::SIZE; data Use { value: u64 in Indexed<SIZE>; }"),
-    ])).expect("defer ambiguous selection");
+    ]))).expect("defer ambiguous selection");
     let constraints = syntax.type_references.domain_constraints();
     let argument = syntax
         .type_references
@@ -135,10 +139,10 @@ fn domain_index_selection_cannot_fall_back_from_ambiguous_imports() {
 
 #[test]
 fn named_domain_indices_preserve_open_and_machine_bindings() {
-    let syntax = crate::normalize_generic_data(domain_index_sources(&[
+    let syntax = crate::preparation::generic_data::normalize_generic_data(crate::preparation::generic_data::GenericDataRequest::new(domain_index_sources(&[
         (SourceId(1), "use combat::SIZE; domain<T, const N: u64> T::Indexed<N>; data Open<const SIZE: u64> { value: u64 in Indexed<SIZE>; } machine run(SIZE: u64) -> u64 { let value: u64 in Indexed<SIZE>; transition { _ -> 0u64 } }"),
         (SourceId(2), "module combat; pub const SIZE: u64 = 2;"),
-    ])).expect("retain lexical indices");
+    ]))).expect("retain lexical indices");
     for constraint in syntax.type_references.domain_constraints() {
         let argument = syntax
             .type_references
@@ -157,13 +161,15 @@ fn named_domain_indices_preserve_open_and_machine_bindings() {
 
 #[test]
 fn named_domain_index_keeps_its_declared_integer_carrier() {
-    let diagnostics = crate::normalize_generic_data(domain_index_sources(&[
-        (SourceId(1), "domain<T, const N: u64> T::Indexed<N>;"),
-        (
-            SourceId(2),
-            "module combat; const SIZE: u8 = 2; data Use { value: u64 in Indexed<SIZE>; }",
-        ),
-    ]))
+    let diagnostics = crate::preparation::generic_data::normalize_generic_data(
+        crate::preparation::generic_data::GenericDataRequest::new(domain_index_sources(&[
+            (SourceId(1), "domain<T, const N: u64> T::Indexed<N>;"),
+            (
+                SourceId(2),
+                "module combat; const SIZE: u8 = 2; data Use { value: u64 in Indexed<SIZE>; }",
+            ),
+        ])),
+    )
     .expect_err("u8 constant cannot silently become u64 index");
     assert!(format!("{diagnostics:?}").contains("declares type `u8`"));
 }
@@ -184,7 +190,10 @@ fn normalized(public: bool) -> SyntaxTrees {
         parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
             .expect("parse constant index custody");
     }
-    crate::normalize_generic_data(syntax).expect("normalize exact module constant index")
+    crate::preparation::generic_data::normalize_generic_data(
+        crate::preparation::generic_data::GenericDataRequest::new(syntax),
+    )
+    .expect("normalize exact module constant index")
 }
 
 fn origin(syntax: &SyntaxTrees) -> ConstArgumentOrigin {
@@ -255,8 +264,10 @@ fn synthetic_instance_exclusion_does_not_hide_independent_same_value_field_origi
         parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
             .expect("parse independent constant occurrences");
     }
-    let mut syntax =
-        crate::normalize_generic_data(syntax).expect("normalize independent occurrences");
+    let mut syntax = crate::preparation::generic_data::normalize_generic_data(
+        crate::preparation::generic_data::GenericDataRequest::new(syntax),
+    )
+    .expect("normalize independent occurrences");
     let root = syntax.root_item_handles().iter().copied().find(|handle| matches!(syntax.root_item(*handle), Item::Data(data) if data.name.as_str() == "Use")).expect("source owner");
     let Item::Data(mut owner) = syntax.root_item(root).clone() else {
         panic!("data owner");
@@ -428,7 +439,10 @@ fn normalized_result_is_independent_of_each_selected_declaration_value() {
         parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
             .expect("parse repeated selection");
     }
-    let syntax = crate::normalize_generic_data(syntax).expect("normalize repeated selection");
+    let syntax = crate::preparation::generic_data::normalize_generic_data(
+        crate::preparation::generic_data::GenericDataRequest::new(syntax),
+    )
+    .expect("normalize repeated selection");
     let mut origins = Vec::new();
     for (handle, _) in syntax.type_references.named_nodes_from(0) {
         if let Some(normalization) = syntax.type_references.const_argument_normalization(handle) {
@@ -588,20 +602,22 @@ fn normalized_builtin_operators_keep_occurrence_exposure_and_exact_exclusions() 
 #[test]
 fn nominal_constant_receiving_slot_rejects_carrier_and_parent_substitution() {
     use symbol_resolved_trees::types::TypeReference;
-    let syntax = crate::normalize_generic_data(domain_index_sources(&[
-        (
-            SourceId(0),
-            "use settings; data Value { value: u64; }
+    let syntax = crate::preparation::generic_data::normalize_generic_data(
+        crate::preparation::generic_data::GenericDataRequest::new(domain_index_sources(&[
+            (
+                SourceId(0),
+                "use settings; data Value { value: u64; }
           data Pick<const V: settings::Value> { marker: u8; }
           data OtherPick<const V: Value> { marker: u8; }
           machine keep(value: Pick<settings::VALUE>) -> Pick<settings::VALUE> { value }",
-        ),
-        (
-            SourceId(1),
-            "module settings; pub data Value { value: u64; }
+            ),
+            (
+                SourceId(1),
+                "module settings; pub data Value { value: u64; }
           pub const VALUE: Value = Value { value: 1 };",
-        ),
-    ]))
+            ),
+        ])),
+    )
     .expect("normalize nominal arguments");
     let original = syntax
         .type_references

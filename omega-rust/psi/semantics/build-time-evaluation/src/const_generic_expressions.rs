@@ -41,9 +41,11 @@ pub(super) fn evaluate(
     authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let mut arguments =
-        syntax_trees_to_symbol_resolved_trees::closed_data_const_argument_expressions(&syntax);
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(&syntax);
     let machine_arguments =
-        syntax_trees_to_symbol_resolved_trees::closed_machine_const_arguments(&syntax);
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
+            &syntax,
+        );
     let mut lexical_arguments = Vec::new();
     let mut aggregate_arguments = Vec::new();
     for (argument, destination, public) in machine_arguments {
@@ -86,7 +88,7 @@ pub(super) fn evaluate(
         // Aggregate substitution still uses the existing canonical-value route.
         // Resolve its authored path first so that route cannot capture a static
         // declaration through a runtime parameter or prior local binding.
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve_const_argument_selection(
+        let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
                 syntax: &syntax,
                 sources: sources.clone(),
@@ -136,7 +138,7 @@ pub(super) fn evaluate(
     {
         // Resolve the original machine owners before placeholder synthesis.
         // Their runtime bodies are neither typed as probes nor executed here.
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve_const_argument_selection(
+        let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
                 syntax: &syntax,
                 sources: sources.clone(),

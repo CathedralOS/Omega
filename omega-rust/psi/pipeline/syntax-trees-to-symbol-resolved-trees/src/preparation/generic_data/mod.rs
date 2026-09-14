@@ -235,13 +235,74 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
 /// generic data definition, synthesize one concrete instance record per
 /// distinct spelling (the parameter substituted for the argument), and rewrite
 /// the field spellings to the instances' plain names.
+/// One forest and the custody its generic data applications close under.
+pub struct GenericDataRequest<'a> {
+    pub syntax: SyntaxTrees,
+    /// The loader's exact source/import custody. A source-free forest has
+    /// none; its instances then synthesize without header selection.
+    pub sources: Option<std::sync::Arc<source::SourceMap>>,
+    pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    /// A generated unit's immutable predecessor, whose retained nominal
+    /// arguments the unit may name without owning their syntax. Templates
+    /// still come only from this unit. Requires `sources`.
+    pub retained_base: Option<&'a symbol_resolved_trees::SymbolResolvedTrees>,
+}
+
+impl GenericDataRequest<'_> {
+    /// A source-free forest with no scoped top-level bindings.
+    pub fn new(syntax: SyntaxTrees) -> Self {
+        Self {
+            syntax,
+            sources: None,
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        }
+    }
+}
+
 /// Run Psi's target-neutral pre-resolution generic-data normalization and
 /// return the only syntax tree downstream stages may consume.
 ///
 /// Taking ownership prevents orchestration code from retaining an unnormalized
-/// sibling or reaching into the elaborator as an in-place syntax mutator.
-pub fn normalize_generic_data(syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    let (syntax, warnings) = normalize_generic_data_with_warnings(syntax)?;
+/// sibling or reaching into the elaborator as an in-place syntax mutator. With
+/// source custody, temporary header symbols stay private and each erased
+/// constant argument retains its selected declaration coordinates for the
+/// complete resolver's checked join.
+pub fn normalize_generic_data(
+    request: GenericDataRequest<'_>,
+) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let GenericDataRequest {
+        mut syntax,
+        sources,
+        top_level_bindings,
+        retained_base,
+    } = request;
+    let Some(sources) = sources else {
+        if retained_base.is_some() || !top_level_bindings.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "generic data normalization against a retained base or scoped bindings requires source custody",
+            )]);
+        }
+        let (syntax, warnings) = normalize_generic_data_with_warnings(syntax)?;
+        for warning in warnings {
+            eprintln!("{warning}");
+        }
+        return Ok(syntax);
+    };
+    let selection = constant_selection::ConstantSelection::with_retained_base(
+        &syntax,
+        Some(sources),
+        top_level_bindings,
+        retained_base,
+    )?;
+    crate::preparation::module_normalization::validate_with_selection(&syntax, &selection)?;
+    let mut warnings = Vec::new();
+    synthesis::desugar_generic_data_instances_with_selection(
+        &mut syntax,
+        &mut warnings,
+        Some(&selection),
+    )?;
+    deduplicate_generic_warnings(&mut warnings);
     for warning in warnings {
         eprintln!("{warning}");
     }
@@ -314,46 +375,6 @@ pub(crate) fn validate_direct_const_arguments(
         }
     }
     Ok(())
-}
-
-/// Normalize with the loader's exact source/import custody. Temporary header
-/// symbols stay private; each erased constant argument retains its selected
-/// declaration coordinates for the complete resolver's checked join.
-pub fn normalize_generic_data_with_sources_and_top_level_bindings(
-    syntax: SyntaxTrees,
-    sources: std::sync::Arc<source::SourceMap>,
-    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    normalize_generic_data_with_retained_base(syntax, sources, bindings, None)
-}
-
-/// Generated units may name retained nominal arguments without owning their
-/// syntax. Their immutable predecessor participates in the same header resolver;
-/// templates still come only from this unit, preserving the extension frontier.
-pub fn normalize_generic_data_with_retained_base(
-    mut syntax: SyntaxTrees,
-    sources: std::sync::Arc<source::SourceMap>,
-    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    retained: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
-) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    let selection = constant_selection::ConstantSelection::with_retained_base(
-        &syntax,
-        Some(sources),
-        bindings,
-        retained,
-    )?;
-    crate::preparation::module_normalization::validate_with_selection(&syntax, &selection)?;
-    let mut warnings = Vec::new();
-    synthesis::desugar_generic_data_instances_with_selection(
-        &mut syntax,
-        &mut warnings,
-        Some(&selection),
-    )?;
-    deduplicate_generic_warnings(&mut warnings);
-    for warning in warnings {
-        eprintln!("{warning}");
-    }
-    Ok(syntax)
 }
 
 fn normalize_generic_data_with_warnings(
