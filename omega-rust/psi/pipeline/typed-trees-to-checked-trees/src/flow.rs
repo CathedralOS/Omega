@@ -26,7 +26,7 @@ mod value_origins;
 pub(crate) use reference_places::{
     local_reference_storage_at_call, local_reference_storage_before_statement,
 };
-pub(crate) use value_origins::value_origin_at_call;
+pub(crate) use value_origins::{value_origin_at_call, value_origin_at_call_resolving};
 mod state;
 mod state_values;
 mod statements;
