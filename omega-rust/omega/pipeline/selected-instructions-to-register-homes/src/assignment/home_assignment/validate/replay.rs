@@ -165,10 +165,11 @@ pub(crate) fn replay_function(
 
 /// Independently replay the producer's candidate preference: views that would
 /// empty a still-unassigned constrained neighbor's viable set are considered
-/// only after every view that keeps all of them feasible, an assigned copy
-/// partner's home wins first among them, then the view satisfying the most
-/// still-unassigned partners that remain unconstrained with this domain, then
-/// the plain first candidate.
+/// only after every view that keeps all of them feasible; among them the view
+/// satisfying the most copy edges whose partner is already assigned wins
+/// first, then the view the most still-unassigned partners that remain
+/// unconstrained with this domain can still take, then the plain first
+/// candidate.
 fn preferred_view(
     function: usize,
     domain_index: usize,
@@ -201,44 +202,38 @@ fn preferred_view(
     } else {
         &keeping
     };
-    Ok(pool
-        .iter()
-        .copied()
-        .find(|view| {
-            affinities.iter().any(|affinity| {
-                affinity_partner(domain, *affinity)
-                    .is_some_and(|partner| assigned.get(&partner) == Some(view))
-            })
-        })
-        .or_else(|| {
-            let mut leading = None::<(usize, RegisterViewId)>;
-            for &view in pool {
-                let votes = affinities
-                    .iter()
-                    .filter(|affinity| {
-                        affinity_partner(domain, **affinity).is_some_and(|partner| {
-                            domain_of.get(&partner).is_some_and(|&partner_domain| {
-                                partner_domain != domain_index
-                                    && unassigned.contains(&partner_domain)
-                                    && !conflicts::constrained(
-                                        domain,
-                                        &domains[partner_domain],
-                                        ranges,
-                                    )
-                                    && domains[partner_domain]
-                                        .candidates
-                                        .binary_search(&view)
-                                        .is_ok()
-                            })
-                        })
-                    })
-                    .count();
-                if votes > 0 && leading.is_none_or(|(most, _)| votes > most) {
-                    leading = Some((votes, view));
-                }
+    let mut leading = None::<(usize, usize, RegisterViewId)>;
+    for &view in pool {
+        let mut guaranteed = 0usize;
+        let mut votes = 0usize;
+        for affinity in affinities {
+            let Some(partner) = affinity_partner(domain, *affinity) else {
+                continue;
+            };
+            if assigned.get(&partner) == Some(&view) {
+                guaranteed += 1;
+            } else if domain_of.get(&partner).is_some_and(|&partner_domain| {
+                partner_domain != domain_index
+                    && unassigned.contains(&partner_domain)
+                    && !conflicts::constrained(domain, &domains[partner_domain], ranges)
+                    && domains[partner_domain]
+                        .candidates
+                        .binary_search(&view)
+                        .is_ok()
+            }) {
+                votes += 1;
             }
-            leading.map(|(_, view)| view)
-        })
+        }
+        if (guaranteed, votes) > (0, 0)
+            && leading.is_none_or(|(best_guaranteed, best_votes, _)| {
+                (guaranteed, votes) > (best_guaranteed, best_votes)
+            })
+        {
+            leading = Some((guaranteed, votes, view));
+        }
+    }
+    Ok(leading
+        .map(|(_, _, view)| view)
         .or_else(|| pool.first().copied()))
 }
 

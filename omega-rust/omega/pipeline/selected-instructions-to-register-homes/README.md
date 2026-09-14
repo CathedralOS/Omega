@@ -56,7 +56,8 @@ formed by intersecting legal views. Interference uses storage/write conflicts;
 early-clobber conflicts are directional. The deterministic producer selects the
 most constrained viable domain, then constrained degree, earliest live point,
 and canonical value order, and chooses the lowest compatible view — preferring
-an already-assigned copy partner's view among those legal candidates. Replay
+the view that satisfies the most already-assigned copy partners, then the most
+still-viable unassigned partners, among those legal candidates. Replay
 reconstructs domains, conflicts, and placement separately. Exhaustion is typed
 pressure, not permission to manufacture a home or silently change policy.
 
