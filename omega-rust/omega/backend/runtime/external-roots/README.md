@@ -44,4 +44,12 @@ table holds them. Publication is a separate edge: the consumer-established
 table value must name exactly the admitted set, and the checked-instruction
 provider answers with a receipt for the exact issued carrier. Refusal returns
 the established value for retry; publication and receipt identities cannot be
-replayed.
+replayed. The checked edge itself is the sole receipt-minting boundary: on
+x86-64 it replays the exercised consumer authority's bound identity, its
+installed-realization scope, and both required scope legs (processor table
+control plus table publication), then replays the declared 10-byte
+pseudo-descriptor operand — accounted read site in the table's address space,
+non-aliasing, and `{base, limit}` naming the exact established destination —
+before minting. The answer records the operand read, the contract's fixed
+`r10` scratch clobber, and the descriptor-table register state a published
+answer installs; a declined attempt installs nothing.
