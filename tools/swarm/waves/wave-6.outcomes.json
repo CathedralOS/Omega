@@ -1,0 +1,97 @@
+{
+  "wave": "w6",
+  "report_generated_utc": "2026-09-14",
+  "launch": "builtin",
+  "note": "Launched via devin_session_create (no DEVIN_API_KEY on the coordinator's cloud box): per-session max_acu_limit/bypass_approval not applied; status/report were collected through session tooling instead of the launcher API. Sessions ran fusion except frame-layout, which ran with no devin_mode (inherited org default, SWE-2 Max per the user's setting).",
+  "rollup": {
+    "landed": 5,
+    "blocked": 2,
+    "total_sessions": 7
+  },
+  "sessions": [
+    {
+      "name": "symbolic-materialization",
+      "item": "SYMBOLIC-MATERIALIZATION",
+      "board": "TASKS.md",
+      "session_id": "6e855ddd6c9b40fbaae556416e1746ab",
+      "devin_mode": "fusion",
+      "result": "landed",
+      "item_closed": false,
+      "commits": ["3600673053", "16307b912efc6df736acda9a07613270afad7762"],
+      "acus_consumed": null,
+      "notes": "Landed the Linux x86-64 native canary leg (four symbolic writers executed natively). Linux aarch64 leg still host-gated; item stays open."
+    },
+    {
+      "name": "opaque-boundary-abi",
+      "item": "OPAQUE-BY-VALUE-BOUNDARY-ABI",
+      "board": "TASKS.md",
+      "session_id": "d38f7264e430415abcc9a7524e65f87b",
+      "devin_mode": "fusion",
+      "result": "landed",
+      "item_closed": false,
+      "commits": ["eadba54ccf084ffba76fe24681c7384d7d0cd4d3", "f7af72e300a0f1e803e8999ae274ead90e044b27"],
+      "acus_consumed": null,
+      "notes": "Two-package opaque by-value agreement canary through the real package-manager review path."
+    },
+    {
+      "name": "borrow-proof-convergence",
+      "item": "BORROW-PROOF-CONVERGENCE",
+      "board": "TASKS.md",
+      "session_id": "5f8044a2aaed42e29296762f90b05fad",
+      "devin_mode": "fusion",
+      "result": "blocked",
+      "item_closed": false,
+      "commits": [],
+      "acus_consumed": null,
+      "notes": "Next slice lives in typed-trees-to-checked-trees/src/checks/ranges/facts/dependencies/, claimed by macw4-value-generics-2 (RUNTIME-VALUE-GENERICS, lease to 2026-09-15T03:20Z). Re-offer after that claim clears."
+    },
+    {
+      "name": "foreign-retained-args",
+      "item": "FOREIGN-RETAINED-ARGUMENT-BACKING",
+      "board": "TASKS.md",
+      "session_id": "3b81063bb312442aac25202dcc3672f5",
+      "devin_mode": "fusion",
+      "result": "landed",
+      "item_closed": false,
+      "commits": ["0c4f1d36aa7ab35ac2f4f9e61ed3036bebd52221"],
+      "acus_consumed": null,
+      "notes": "ProgramLocalExtentRegistry admits RetainedForeignArgument with explicit dispositions; wiring into the call path remains."
+    },
+    {
+      "name": "exact-selection-families",
+      "item": "EXACT-SELECTION-FAMILIES",
+      "board": "TASKS_OPTIMIZER.md",
+      "session_id": "1b70dcc0fe154dc5b83ab26ef8e471e4",
+      "devin_mode": "fusion",
+      "result": "blocked",
+      "item_closed": false,
+      "commits": [],
+      "acus_consumed": null,
+      "notes": "Needs Optimization tag in optimization-core/src/selection.rs and compiler/src/pipeline/optimization/build_vocabulary/fragments.rs; pipeline dir claimed by macw4-snapshot-outputs (BUILD-SNAPSHOT-OUTPUTS, lease to 2026-09-15T08:17Z). Real family seam is selected-instructions-to-selected-instructions/src/rewrites/selected_lowering, not the coordinator-assigned selection/optimized paths — revise owning_paths next wave."
+    },
+    {
+      "name": "allocation-refinement",
+      "item": "ALLOCATION-REFINEMENT",
+      "board": "TASKS_OPTIMIZER.md",
+      "session_id": "bb43bf0f6c32459899edd864e4081e6c",
+      "devin_mode": "fusion",
+      "result": "landed",
+      "item_closed": false,
+      "commits": ["c27dbd9c4d", "e90fc5aa79fe9f1d8e84a3d76df4f53401392816"],
+      "acus_consumed": null,
+      "notes": "Register homes no longer steal a constrained neighbor's guaranteed coalesce; validate_function rejects the stolen assignment."
+    },
+    {
+      "name": "frame-layout",
+      "item": "FRAME-LAYOUT",
+      "board": "TASKS_OPTIMIZER.md",
+      "session_id": "2627288b3c5e4b9091bd22bd700a20f8",
+      "devin_mode": "default",
+      "result": "landed",
+      "item_closed": false,
+      "commits": ["b5061e477987fc25260d085f32a3ce40ad0c3cf8"],
+      "acus_consumed": null,
+      "notes": "AAPCS64 commits probed frames per granule and wide FrameAddress encoding; witness publishes callables on all four targets."
+    }
+  ]
+}
