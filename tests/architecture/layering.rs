@@ -1943,7 +1943,8 @@ fn preterminal_stages_consume_representation_data_without_producer_dependencies(
 #[test]
 fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let root = workspace_root();
-    let producer_path = root.join("omega-rust/psi/compiler/terminal-production/src/production.rs");
+    let producer_path =
+        root.join("omega-rust/psi/compiler/terminal-production/src/terminal_production.rs");
     let producer = std::fs::read_to_string(&producer_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", producer_path.display()));
     assert!(
