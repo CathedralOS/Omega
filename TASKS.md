@@ -1596,8 +1596,22 @@ Owners include
   replaying exact selector positions. Evidence only — admission still gates
   on `non_interfering`, witnessed by
   `proven_containment_never_licenses_a_second_mutable_loan` under
-  `tests/borrow/certificates/value_snapshots.rs`. Next slice: explicit
-  compatibility theorems over already-existing places and occurrences.
+  `tests/borrow/certificates/value_snapshots.rs`. Third slice landed at
+  b12f32b87b on macOS: compatibility theorems now carry explicit stated
+  ordering premises. `BorrowCompatibilityPremise` pins the exact
+  `ContractProofFact` identity, relation, and normalized operands consulted
+  at the formation scope (machine-entry and state `requires`; inherited
+  rows excluded), and a `Premised` derivation replays that ledger
+  positionally against current contracts — missing, reordered, or changed
+  tokens fail replay distinctly from selector-snapshot drift. The shift
+  algebra admits `L <= R`, `L < R`, and equality over immutable normalized
+  bounds with constant offsets; mutable, computed, or foreign subjects stay
+  unproven. Evidence only — resource joins, loan identity, access polarity,
+  restoration, and multiplicity stay independently enforced, witnessed by
+  the tampering cases under
+  `tests/borrow/certificates/stated_premises.rs`. Next slice:
+  range-premise read dependencies for selected calls, indexing operators,
+  and atomic reads with established footprints.
 
 - **CALLBACK-PARAMETER-REQUIREMENT.** Checked admission of the nominal
   `where machine Selected satisfies Trait::requirement` binder is pinned by
