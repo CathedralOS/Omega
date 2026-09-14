@@ -1,3 +1,11 @@
+//! Symbol table construction and identity assignment.
+//!
+//! `assign_symbols` builds the table from every declaration, then assigns
+//! symbols to top-level references, type references, propositions, measures,
+//! contracts, domain facts, and statements. The seeded variant extends a
+//! retained base table with a later stratum in place. Static module calls
+//! normalize here once module namespaces exist.
+
 use std::sync::Arc;
 
 use source::SourceMap;

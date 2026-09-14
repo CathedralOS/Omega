@@ -1,3 +1,11 @@
+//! Operator homes: a top-level operator moves into its exact domain's
+//! operator family before symbols are assigned.
+//!
+//! Selection follows module name law. A domain declared in the operator's own
+//! module outranks same-spelled foreign declarations, qualified paths select
+//! exactly, and relative spellings reach a foreign domain only through an
+//! exposing import.
+
 use std::collections::HashMap;
 
 use arena::{Arena, HandleSpan, OrderedRootArena};
@@ -6,7 +14,7 @@ use source::SourceId;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::domain::DomainDefinition;
 
-use crate::signature_free_requirements::same_semantic_name;
+use crate::selection::signature_free_requirements::same_semantic_name;
 use crate::symbols::NamespaceDeclarations;
 
 /// Logical module/import custody available before the final symbol table is

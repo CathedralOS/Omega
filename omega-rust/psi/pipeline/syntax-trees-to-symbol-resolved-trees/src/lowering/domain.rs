@@ -1,8 +1,11 @@
-use crate::expression::lower_expression_into_table;
+//! Domain definitions: index arguments, aliases, member operators, and the
+//! proof facts a domain body declares.
+
 use crate::lowerer::Lowerer;
-use crate::name::lower_name;
-use crate::operator::lower_operator_definition;
-use crate::type_reference::lower_type_reference_handle;
+use crate::lowering::expression::lower_expression_into_table;
+use crate::lowering::name::lower_name;
+use crate::lowering::operator::lower_operator_definition;
+use crate::lowering::type_reference::lower_type_reference_handle;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::domain::{
     DomainAliasConstituent, DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact,
@@ -15,8 +18,11 @@ pub(crate) fn lower_domain_definition(
     syntax_trees: &SyntaxTrees,
     domain: &syntax::item::DomainDefinition,
 ) -> Result<DomainDefinition, Diagnostic> {
-    let type_parameters =
-        crate::data::lower_type_parameters(lowerer, syntax_trees, domain.type_parameters)?;
+    let type_parameters = crate::lowering::data::lower_type_parameters(
+        lowerer,
+        syntax_trees,
+        domain.type_parameters,
+    )?;
     let mut index_arguments = arena::HandleSpan::empty();
     for argument in syntax_trees
         .type_references

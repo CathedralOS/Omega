@@ -161,7 +161,7 @@ pub(crate) fn retain(
     }
     let original =
         lowerer.with_authored_expression_exposure(Exposure::PrivateImplementation, |lowerer| {
-            crate::expression::lower_expression_into_table(
+            crate::lowering::expression::lower_expression_into_table(
                 lowerer,
                 syntax,
                 receipt.authored_expression,

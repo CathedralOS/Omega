@@ -342,7 +342,7 @@ fn update_data_membership_zero_gates(program: &mut SymbolResolvedTrees) {
                     symbol_resolved_trees::domain::ProofFact::Membership(_) => None,
                 })
                 .any(|expression| {
-                    crate::data::zero_fold(&program.tables.bodies.expressions, expression)
+                    crate::lowering::data::zero_fold(&program.tables.bodies.expressions, expression)
                         .is_none_or(|value| value == 0)
                 });
             (

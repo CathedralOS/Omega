@@ -1,5 +1,12 @@
+//! Data definitions: members, type parameters, and generic-instance custody.
+//!
+//! `lower_type_parameters` is shared by every parameterized declaration.
+//! Generic instances retain the derived const-argument origins of their
+//! application while their members lower. Case facts on generic data pass a
+//! narrow support gate before they are retained.
+
 use crate::lowerer::Lowerer;
-use crate::type_reference::{lower_child_type_references, lower_type_reference_handle};
+use crate::lowering::type_reference::{lower_child_type_references, lower_type_reference_handle};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
@@ -127,7 +134,7 @@ fn lower_data_definition_with_argument_origins(
                     .items
                     .identifier_path_members(quotient.relation)
                     .iter()
-                    .map(crate::name::lower_name)
+                    .map(crate::lowering::name::lower_name)
                     .collect(),
                 relation_symbol: SymbolHandle::invalid(),
                 equivalence: quotient
@@ -140,17 +147,19 @@ fn lower_data_definition_with_argument_origins(
                                     .items
                                     .identifier_path_members(selection.relation)
                                     .iter()
-                                    .map(crate::name::lower_name)
+                                    .map(crate::lowering::name::lower_name)
                                     .collect(),
                                 relation_symbol: SymbolHandle::invalid(),
-                                trait_name: crate::name::lower_name(&selection.trait_name),
+                                trait_name: crate::lowering::name::lower_name(
+                                    &selection.trait_name,
+                                ),
                                 trait_symbol: SymbolHandle::invalid(),
                                 trait_arguments: lower_child_type_references(
                                     lowerer,
                                     syntax_trees,
                                     selection.trait_arguments,
                                 )?,
-                                conformance_name: crate::name::lower_name(
+                                conformance_name: crate::lowering::name::lower_name(
                                     &selection.conformance_name,
                                 ),
                                 conformance_symbol: SymbolHandle::invalid(),
@@ -168,8 +177,11 @@ fn lower_data_definition_with_argument_origins(
     // A GATED type (zero violates the domain) refuses until rung 2b lands
     // construction-mandatory fields; a fact the folder cannot evaluate at
     // zero refuses as unsupported (v1 fence). Never a silent drop.
-    let where_facts =
-        crate::domain::lower_proof_facts(lowerer, syntax_trees, data_definition.where_facts)?;
+    let where_facts = crate::lowering::domain::lower_proof_facts(
+        lowerer,
+        syntax_trees,
+        data_definition.where_facts,
+    )?;
     let mut zero_gated = false;
     for fact in lowerer.symbol_resolved_trees.proof_facts(where_facts) {
         match fact {
@@ -210,14 +222,14 @@ fn lower_data_definition_with_argument_origins(
 
     Ok(DataDefinition {
         symbol: SymbolHandle::invalid(),
-        name: crate::name::lower_name(&data_definition.name),
+        name: crate::lowering::name::lower_name(&data_definition.name),
         is_public: data_definition.is_public,
         storage: DataDefinitionStorage {
             supply_mode: data_definition.supply_mode,
             lifetime_parameters: data_definition
                 .lifetime_parameters
                 .iter()
-                .map(crate::name::lower_name)
+                .map(crate::lowering::name::lower_name)
                 .collect(),
             type_parameters,
             generic_instance: data_definition
@@ -319,7 +331,7 @@ pub(crate) fn lower_type_parameters(
                         None,
                     ),
                     syntax::item::MachineParameterContract::Structural(contract) => {
-                        let lowered_contract = crate::state::lower_state_signature_parts(
+                        let lowered_contract = crate::lowering::state::lower_state_signature_parts(
                             lowerer,
                             syntax_trees,
                             &contract.name,
@@ -361,7 +373,7 @@ pub(crate) fn lower_type_parameters(
                                     .items
                                     .identifier_path_members(*requirement)
                                     .iter()
-                                    .map(crate::name::lower_name)
+                                    .map(crate::lowering::name::lower_name)
                                     .collect(),
                             },
                         },
@@ -379,8 +391,8 @@ pub(crate) fn lower_type_parameters(
                 (
                     TypeParameterKind::Proposition {
                         contract: symbol_resolved_trees::data::PropositionParameterSignature {
-                            name: crate::name::lower_name(&contract.name),
-                            parameters: crate::state::lower_state_parameters(
+                            name: crate::lowering::name::lower_name(&contract.name),
+                            parameters: crate::lowering::state::lower_state_parameters(
                                 lowerer,
                                 syntax_trees,
                                 contract.parameters,
@@ -394,7 +406,7 @@ pub(crate) fn lower_type_parameters(
         lowered.push((
             TypeParameter {
                 symbol: SymbolHandle::invalid(),
-                name: crate::name::lower_name(&parameter.name),
+                name: crate::lowering::name::lower_name(&parameter.name),
                 kind,
                 bounds: DataProperties {
                     carry: parameter.bounds.carry,
@@ -479,7 +491,7 @@ fn lower_data_member(
         syntax::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
             identity: field.identity,
             symbol: SymbolHandle::invalid(),
-            name: crate::name::lower_name(&field.name),
+            name: crate::lowering::name::lower_name(&field.name),
             relevance: field.relevance,
             type_reference: lower_type_reference_handle(
                 lowerer,
@@ -493,7 +505,7 @@ fn lower_data_member(
                 let lowered = DataField {
                     identity: field.identity,
                     symbol: SymbolHandle::invalid(),
-                    name: crate::name::lower_name(&field.name),
+                    name: crate::lowering::name::lower_name(&field.name),
                     relevance: field.relevance,
                     type_reference: lower_type_reference_handle(
                         lowerer,
@@ -522,12 +534,15 @@ fn lower_data_member(
                     "case constraints on generic data may not mention generic parameters yet",
                 ));
             }
-            let where_facts =
-                crate::domain::lower_proof_facts(lowerer, syntax_trees, variant.where_facts)?;
+            let where_facts = crate::lowering::domain::lower_proof_facts(
+                lowerer,
+                syntax_trees,
+                variant.where_facts,
+            )?;
             Ok(DataMember::Variant(DataVariant {
                 identity: variant.identity,
                 symbol: SymbolHandle::invalid(),
-                name: crate::name::lower_name(&variant.name),
+                name: crate::lowering::name::lower_name(&variant.name),
                 payload,
                 where_facts,
                 retired_payload_identities: variant.retired_payload_identities.clone(),

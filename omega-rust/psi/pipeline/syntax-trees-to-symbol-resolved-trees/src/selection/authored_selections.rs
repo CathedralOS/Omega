@@ -1,3 +1,11 @@
+//! The authored-selection ledger: one exact declaration occurrence per
+//! authored source token.
+//!
+//! Compiler rewrites may copy an authored expression before selection; every
+//! retained copy binds to the occurrence minted for its source token.
+//! Expression, conformance-reference, and constant-initializer selections
+//! finalize here once their declarations have symbols.
+
 use crate::lowerer::{PendingAuthoredExpression, PendingAuthoredProofMembership};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{

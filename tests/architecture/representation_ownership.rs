@@ -281,7 +281,7 @@ fn generic_data_normalization_is_private_work_inside_name_resolution() {
             "working state is not a public program representation"
         );
     }
-    let declarations = std::fs::read_to_string(owner.join("item.rs")).unwrap();
+    let declarations = std::fs::read_to_string(owner.join("lowering/item.rs")).unwrap();
     assert!(
         declarations
             .contains("crate::generic_data::canonicalize_selected_declared_const_definition")

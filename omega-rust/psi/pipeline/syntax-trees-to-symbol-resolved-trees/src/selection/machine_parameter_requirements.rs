@@ -1,4 +1,11 @@
-use crate::signature_free_requirements::{
+//! Nominal machine-parameter requirements and trait requirement-identity
+//! arguments.
+//!
+//! Both resolve once top-level symbols and direct trait requirements exist,
+//! staged before mutation so one bad binder cannot leave a partially
+//! normalized program behind.
+
+use crate::selection::signature_free_requirements::{
     SignatureFreeRequirementResolutionError, resolve_signature_free_requirement,
 };
 use diagnostics::Diagnostic;
@@ -167,7 +174,7 @@ fn resolve_rendered_requirement(
         .traits
         .iter()
         .filter(|definition| {
-            crate::signature_free_requirements::same_semantic_name(
+            crate::selection::signature_free_requirements::same_semantic_name(
                 definition.name.as_str(),
                 &trait_name,
             ) && program

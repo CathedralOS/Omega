@@ -1,7 +1,9 @@
-use crate::expression::lower_expression_into_table;
+//! Measure definitions and their optional parameter.
+
 use crate::lowerer::Lowerer;
-use crate::state::lower_state_parameter;
-use crate::type_reference::lower_type_reference_handle;
+use crate::lowering::expression::lower_expression_into_table;
+use crate::lowering::state::lower_state_parameter;
+use crate::lowering::type_reference::lower_type_reference_handle;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::measure::MeasureDefinition;
@@ -66,7 +68,7 @@ fn lower_measure_name(
             .tables
             .declarations
             .operator_path_members
-            .append_to_span(&mut span, crate::name::lower_name(member));
+            .append_to_span(&mut span, crate::lowering::name::lower_name(member));
     }
 
     span

@@ -1,3 +1,9 @@
+//! Domain establishment routes: which requirement introduces a domain.
+//!
+//! This is the sole projection point for route sources. Checked consumers
+//! read these identities instead of reconstructing owner authority from
+//! attachment names or contract placement.
+
 use diagnostics::Diagnostic;
 use language_semantics::DomainEstablishmentRoute;
 use language_semantics::declaration_selection::{
@@ -13,7 +19,7 @@ use symbol_resolved_trees::signature::{SignatureContract, SignatureContractKind}
 use symbol_resolved_trees::types::TypeReference;
 use symbols::SymbolHandle;
 
-use crate::signature_free_requirements::{
+use crate::selection::signature_free_requirements::{
     SignatureFreeRequirementResolutionError, resolve_signature_free_requirement,
 };
 

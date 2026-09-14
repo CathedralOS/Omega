@@ -1,5 +1,11 @@
+//! Expressions into the shared expression table.
+//!
+//! Authored state-body expressions are retained for declaration-selection
+//! admission; compiler-generated inserts are not. Static call receivers are
+//! recorded as pending module calls for `symbols` to normalize.
+
 use crate::lowerer::Lowerer;
-use crate::name::lower_name;
+use crate::lowering::name::lower_name;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::expression::{
@@ -184,7 +190,7 @@ fn lower_nonbinary_expression_node_into_table(
         }
         syntax::expression::ExpressionNode::Cast(cast) => {
             let value = lower_expression_into_table(lowerer, syntax_trees, cast.value)?;
-            let target_type = crate::type_reference::lower_type_reference_handle(
+            let target_type = crate::lowering::type_reference::lower_type_reference_handle(
                 lowerer,
                 syntax_trees,
                 cast.target_type,
@@ -211,11 +217,12 @@ fn lower_nonbinary_expression_node_into_table(
                 expression_table(lowerer)
                     .push_name_path_member(&mut semantic_domain, lower_name(member));
             }
-            let semantic_domain_arguments = crate::type_reference::lower_child_type_references(
-                lowerer,
-                syntax_trees,
-                cast.semantic_domain_arguments,
-            )?;
+            let semantic_domain_arguments =
+                crate::lowering::type_reference::lower_child_type_references(
+                    lowerer,
+                    syntax_trees,
+                    cast.semantic_domain_arguments,
+                )?;
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::Cast(TableCastExpression {
                     value,
@@ -524,7 +531,7 @@ fn lower_nonbinary_expression_node_into_table(
             )
         }
         syntax::expression::ExpressionNode::ZeroValue(type_reference) => {
-            let type_reference = crate::type_reference::lower_type_reference_handle(
+            let type_reference = crate::lowering::type_reference::lower_type_reference_handle(
                 lowerer,
                 syntax_trees,
                 *type_reference,

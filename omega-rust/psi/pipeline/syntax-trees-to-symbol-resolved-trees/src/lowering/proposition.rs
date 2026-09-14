@@ -1,6 +1,9 @@
+//! Proposition definitions: binders, parameters, and primitive, witness, or
+//! transparent bodies.
+
 use crate::lowerer::Lowerer;
-use crate::state::lower_state_parameters;
-use crate::type_reference::lower_type_reference_handle;
+use crate::lowering::state::lower_state_parameters;
+use crate::lowering::type_reference::lower_type_reference_handle;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::data::DataProperties;
@@ -25,7 +28,7 @@ pub(crate) fn lower_proposition_definition(
         },
         syntax::item::PropositionBody::Transparent { proposition } => {
             PropositionBody::Transparent {
-                proposition: crate::expression::lower_expression_into_table(
+                proposition: crate::lowering::expression::lower_expression_into_table(
                     lowerer,
                     syntax_trees,
                     proposition,
@@ -36,7 +39,7 @@ pub(crate) fn lower_proposition_definition(
 
     Ok(PropositionDefinition {
         symbol: SymbolHandle::invalid(),
-        name: crate::name::lower_name(&proposition.name),
+        name: crate::lowering::name::lower_name(&proposition.name),
         is_public: proposition.is_public,
         binders,
         parameters,
@@ -79,7 +82,7 @@ fn lower_proposition_binders(
         };
         lowered.push(PropositionBinder {
             symbol: SymbolHandle::invalid(),
-            name: crate::name::lower_name(&binder.name),
+            name: crate::lowering::name::lower_name(&binder.name),
             kind,
             bounds: DataProperties {
                 carry: binder.bounds.carry,
