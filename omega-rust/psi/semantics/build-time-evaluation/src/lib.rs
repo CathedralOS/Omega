@@ -15,6 +15,7 @@ mod placed_views;
 mod plan_laid;
 mod range_arguments;
 mod range_endpoints;
+mod reflection;
 mod wire_plans;
 
 use std::sync::Arc;
@@ -147,6 +148,11 @@ pub use plan_laid::{
     desugar_plan_laid_value_types,
 };
 pub use range_endpoints::evaluate_const_range_endpoints_with_authority;
+pub use reflection::{
+    CaseDescription, DeclarationDescription, FieldDescription, NominalReferenceDescription,
+    SchemaNode, SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, SemanticSchemaGraph,
+    TypeParameterDescription, construct_semantic_schema_graph, replay_semantic_schema_graph,
+};
 pub use selected_operators::validate_selected_operators;
 pub use wire_plans::{compute_wire_plans, compute_wire_plans_with_authority};
 
