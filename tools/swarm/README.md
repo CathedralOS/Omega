@@ -134,36 +134,21 @@ per-host block generated from `platform` (Intel macOS gets the
 
 ### Coordinator runbook
 
-Lessons below are from the macw1–macw3 waves (three rate-limit wipeouts and
-three recoveries across ~40 slots); the local template bakes the agent-side
-ones in — the rest are the coordinator's.
+The agent-side lessons from macw1–macw3 are baked into
+`prompt_template_local.md` — keep it authoritative rather than re-teaching
+them per prompt: conflict-to-pivot on claim conflicts, no `TASKS*.md` in
+claimed paths, never `git stash` in a wave worktree, validate before claiming
+the landing queue, `mbx gc` on disk exhaustion. What remains genuinely
+coordinator-side:
 
 - Every session on every machine — local subagents, cloud waves, other hosts —
   draws from one org message budget. A 20-at-once burst died within minutes;
   sustained waves at 8 stayed up while the budget was quiet and died when it
   was not. Launch a batch, let claims register, then backfill each freed slot
   instead of launching the whole wave at once.
-- Give each agent the conflict-to-pivot rule (the local template carries it):
-  on a claim conflict it narrows its path set and reclaims; if its item is
-  claimed, it takes an unclaimed item outside the wave's list rather than
-  stopping. That rule turned five would-be-blocked slots into landings; the
-  cloud template's "stop and report blocked" suits a coordinator that
-  reassigns, not a parent that can backfill.
-- Keep `TASKS*.md` out of claimed path lists (the local template forbids it):
-  board files are hot singletons: a session claiming one blocks every other
-  session's board update for the lease duration. Resume evidence belongs in
-  the session's report or a separate `board:` commit when the file is free.
-- Agents must never `git stash` inside a wave worktree (the local template
-  forbids it): `refs/stash` is repository-global, so one worktree's stash pop
-  can consume another's stash. Baseline comparisons belong in a scratch
-  worktree or a WIP commit.
-- Agents finish validation before claiming the landing queue (the local
-  template orders it). The head lease is fixed at 180 seconds starting at
-  promotion; a post-enqueue rebase that rebuilds dependencies burns it. Claim
-  the queue only when the rebase will be a no-op; otherwise validate, rebase,
-  re-validate, then claim.
-- `mbx gc` is the first answer to "No space left on device" during parallel
-  worktree builds (the local template says so).
+- The `local-swarm` skill carries the coordinator procedure end to end —
+  partition, launch, monitor, recover, drain — and defers here for the
+  evidence behind each rule.
 
 ### Recovering an interrupted wave
 
@@ -192,7 +177,9 @@ edit a launched wave to reassign its running sessions.
 
 Pick items that are:
 
-- runnable on Linux x86-64 (no Windows/macOS/QEMU acceptance required),
+- runnable on the assigned host — Linux x86-64 for cloud sessions; a local
+  session takes this machine's host, including its gaps (Intel macOS has no
+  host profile; see `wiki/drafts/known_baseline_failures.md`),
 - non-overlapping: the launcher rejects parent/child `owning_paths` overlaps
   inside a manifest and conflicts with live claims; still review shared
   dependencies, since path checks cannot catch every semantic coupling,
