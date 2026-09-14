@@ -258,12 +258,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   not weaker receiver/argument overlap checking. The read-only checksum receiver
   and its live shared payload view must remain compatible.
 
-  `dutch_flag` now reaches the same missing transitive `Main::main` plan with
+  `dutch_flag` still reaches the missing transitive `Main::main` plan with
   `OMEGA_SAMPLE_RUNTIME_FILTER=dutch_flag` and the native command above (macOS
-  ARM64, `7a7bd6c3c1` plus the explicit `Color [copy]` declaration). Preserve
+  ARM64, `67add79c88`). Preserve
   its enum-array swaps and exit-70 oracle; `dutch_flag_sample_reaches_checked_trees`
-  isolates source acceptance. Continue through ordinary indexed sum storage and
-  cyclic plan production, not implicit copyability for affine enums.
+  isolates source acceptance. Static record/fixed-array paths now retain exact
+  case observations through source checking, Terminal and native replay;
+  `scalar_case_results::projected_membership` executes nested and owned-record
+  reads on macOS ARM64. Continue through runtime-indexed sum reads, whole-value
+  enum replacements/swaps and cyclic plan production, not another static-path
+  adapter or implicit copyability for affine enums. The owning routes are
+  `checked-trees-to-lowered-psi` structural storage and **GENERAL-CYCLIC-EXECUTION**;
+  acceptance remains the unchanged sample's native exit 70.
 
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |
