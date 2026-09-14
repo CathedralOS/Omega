@@ -4,11 +4,17 @@
 //!
 //! Rewrites operate on the selected CFG and reconstruct the analyses they
 //! invalidate. Register assignment consumes the resulting current program.
+//!
+//! Start at [`optimize_selected_instructions`] in `selected_optimization.rs`:
+//! liveness and live ranges from [`analyses`], then either the identity route
+//! or the selected-lowering [`rewrites`] under allocation legality, published
+//! as one [`SelectedInstructionOptimizationOutput`] from
+//! `optimization_output.rs`.
 
 mod analyses;
-mod execution;
-mod output;
+mod optimization_output;
 mod rewrites;
+mod selected_optimization;
 
 use register_homes::{
     AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
@@ -35,13 +41,15 @@ use register_homes::{
 };
 
 pub use analyses::*;
-pub use execution::{optimize_analyzed_selected_instructions, optimize_selected_instructions};
-pub use output::{
+pub use optimization_output::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
     SelectedInstructionOptimizationOutput,
 };
 use register_model::*;
 pub use rewrites::*;
+pub use selected_optimization::{
+    optimize_analyzed_selected_instructions, optimize_selected_instructions,
+};
 
 #[cfg(feature = "test-support")]
 pub mod test_support;
