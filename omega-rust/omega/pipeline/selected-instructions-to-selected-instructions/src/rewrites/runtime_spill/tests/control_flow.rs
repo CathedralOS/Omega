@@ -827,16 +827,103 @@ fn cyclic_functions_admit_dominating_instruction_results() {
     }
 }
 
+/// A loop-carried parameter: the destination's terminator gains a back edge
+/// through a dedicated edge-transfer block that rebinds the parameter from a
+/// loop-body value (or, when `passthrough`, from the parameter itself). The
+/// destination still dominates every use and every arrival stores its bound
+/// argument before the destination executes.
+fn cyclic_parameter_fixture(target: NativeTarget, passthrough: bool) -> ValidatedRuntimeSpill {
+    let mut source = super::parameters::parameter_fixture(target);
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.selected_keys();
+    let copy = environment.constraint(keys.copy_i64).unwrap();
+    let jump = environment.constraint(keys.jump).unwrap();
+    let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+    let scalar_type = function.virtual_registers[1].scalar_type;
+    let class = function.virtual_registers[1].class;
+    let terminal = function.blocks[2].terminator.clone();
+    // Register 7 is the back-edge arrival's bound argument: one CopyI64 in the
+    // edge-transfer block produces it, exactly like the entry-side arrivals.
+    function.virtual_registers.push(VirtualRegister {
+        id: VirtualRegisterId(7),
+        scalar_type,
+        class,
+        origin: VirtualRegisterOrigin::InstructionResult {
+            instruction: SelectedInstructionId(501),
+            source_value: ValueId::new(2).unwrap(),
+        },
+        definition_site: function.virtual_registers[5].definition_site,
+        entry_fixed_view: None,
+    });
+    let mut back = successor(2);
+    back.bindings.push(SelectedValueBinding {
+        semantic: abstract_operations::ValueBinding {
+            parameter: ValueId::new(2).unwrap(),
+            argument: ValueId::new(2).unwrap(),
+            scalar_type,
+        },
+        transport: SelectedValueTransport::Registers {
+            argument: VirtualRegisterId(7),
+            parameter: VirtualRegisterId(1),
+        },
+    });
+    function.blocks[2].terminator = SelectedTerminator::ConditionalBranch {
+        instruction: admission::instruction(
+            SelectedInstructionId(2000),
+            SelectedInstructionKind::Jump,
+            jump,
+            &[],
+        ),
+        when_nonzero: successor(5),
+        when_zero: successor(4),
+    };
+    function.blocks.push(SelectedBlock {
+        id: SelectedBlockId(4),
+        origin: SelectedBlockOrigin::EdgeTransfer {
+            edge: EdgeId::new(2).unwrap(),
+            target: BlockId::new(3).unwrap(),
+        },
+        instructions: vec![admission::instruction(
+            SelectedInstructionId(501),
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[
+                VirtualRegisterId(if passthrough { 1 } else { 5 }),
+                VirtualRegisterId(7),
+            ],
+        )],
+        terminator: SelectedTerminator::Jump {
+            instruction: admission::instruction(
+                SelectedInstructionId(500),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            successor: back,
+        },
+    });
+    function.blocks.push(SelectedBlock {
+        id: SelectedBlockId(5),
+        origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+        instructions: Vec::new(),
+        terminator: terminal,
+    });
+    let identity = selected_instruction_plan_identity(source.transformed());
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    source
+}
+
 #[test]
-fn cyclic_functions_keep_block_parameter_victims_frozen() {
+fn cycles_disconnected_from_parameter_arrivals_do_not_freeze_spills() {
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     let mut source = super::parameters::parameter_fixture(NativeTarget::linux_x64());
     let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
     let instruction = super::super::control(&function.blocks[0].terminator)
         .0
         .clone();
-    // A self-looping block keeps the parameter's destination dominating its
-    // uses while making the function cyclic.
+    // An unreachable self-loop makes the function cyclic without touching the
+    // parameter's arrivals or uses; edge-initialized storage stays admitted.
     function.blocks.push(SelectedBlock {
         id: SelectedBlockId(4),
         origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
@@ -846,11 +933,238 @@ fn cyclic_functions_keep_block_parameter_victims_frozen() {
             successor: successor(4),
         },
     });
-    assert_eq!(
+    let identity = selected_instruction_plan_identity(source.transformed());
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    let result =
         spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
-            .unwrap_err(),
-        RuntimeSpillError::UnsupportedControlFlow
+            .unwrap();
+    assert!(
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            result.transformed().clone()
+        )
+        .is_ok()
     );
+}
+
+#[test]
+fn loop_carried_parameters_store_on_every_back_edge_arrival() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = cyclic_parameter_fixture(target, false);
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        let transformed = &result.transformed().functions[0];
+        // Every arrival at the destination — both entry edges and the back
+        // edge — stores its bound argument right after its edge copy.
+        for (block_index, argument) in [(1usize, 2u32), (3, 3), (4, 7)] {
+            let block = &transformed.blocks[block_index];
+            assert!(matches!(
+                block.instructions[1].kind,
+                SelectedInstructionKind::Store64 { .. }
+            ));
+            assert_eq!(
+                block.instructions[1].operands[0].virtual_register,
+                VirtualRegisterId(argument)
+            );
+        }
+        let destination = &transformed.blocks[2];
+        assert_eq!(
+            destination.instructions.len(),
+            source.transformed().functions[0].blocks[2]
+                .instructions
+                .len()
+                + 4
+        );
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone()
+            )
+            .is_ok()
+        );
+        for mutation in 0..4 {
+            let mut proposed = result.transformed().clone();
+            let function = &mut proposed.functions[0];
+            match mutation {
+                // Dropping the back-edge store leaves the slot stale on
+                // re-entry: replay requires every arrival's store.
+                0 => {
+                    function.blocks[4].instructions.remove(1);
+                }
+                1 => function.blocks[4].instructions.swap(0, 1),
+                2 => {
+                    let SelectedTerminator::Jump { successor, .. } =
+                        &mut function.blocks[4].terminator
+                    else {
+                        unreachable!()
+                    };
+                    let SelectedValueTransport::Registers { argument, .. } =
+                        &mut successor.bindings[0].transport
+                    else {
+                        unreachable!()
+                    };
+                    *argument = VirtualRegisterId(1);
+                }
+                3 => {
+                    function.blocks[4].terminator = SelectedTerminator::Jump {
+                        instruction: admission::instruction(
+                            SelectedInstructionId(500),
+                            SelectedInstructionKind::Jump,
+                            environment
+                                .constraint(environment.selected_keys().jump)
+                                .unwrap(),
+                            &[],
+                        ),
+                        successor: successor(5),
+                    };
+                }
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                validate_runtime_spill(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    proposed
+                )
+                .unwrap_err(),
+                RuntimeSpillError::ReplayMismatch,
+                "{target:?} mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn passthrough_back_edges_reload_before_restoring_the_parameter() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = cyclic_parameter_fixture(target, true);
+    let result =
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap();
+    let transformed = &result.transformed().functions[0];
+    // The back-edge copy reads the parameter: its reload precedes the copy and
+    // the store follows it, so the slot first serves the old binding then
+    // records the rebound one.
+    let back_edge = &transformed.blocks[4];
+    assert_eq!(back_edge.instructions.len(), 4);
+    assert!(matches!(
+        back_edge.instructions[0].kind,
+        SelectedInstructionKind::FrameAddress { .. }
+    ));
+    assert!(matches!(
+        back_edge.instructions[1].kind,
+        SelectedInstructionKind::Load64 { .. }
+    ));
+    assert!(matches!(
+        back_edge.instructions[2].kind,
+        SelectedInstructionKind::CopyI64
+    ));
+    assert!(matches!(
+        back_edge.instructions[3].kind,
+        SelectedInstructionKind::Store64 { .. }
+    ));
+    assert_eq!(
+        back_edge.instructions[2].operands[0].virtual_register,
+        back_edge.instructions[1].operands[1].virtual_register
+    );
+    assert!(
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            result.transformed().clone()
+        )
+        .is_ok()
+    );
+}
+
+#[test]
+fn cyclic_parameter_arrivals_still_require_dedicated_edge_stores() {
+    let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
+    for mutation in 0..3 {
+        let mut source = cyclic_parameter_fixture(NativeTarget::linux_x64(), false);
+        let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+        match mutation {
+            // The rebound parameter may not ride the destination's own
+            // conditional edge: without the dedicated transfer block no
+            // instruction slot exists that executes only on that arrival.
+            0 => {
+                let binding = SelectedValueBinding {
+                    semantic: abstract_operations::ValueBinding {
+                        parameter: ValueId::new(2).unwrap(),
+                        argument: ValueId::new(2).unwrap(),
+                        scalar_type: function.virtual_registers[1].scalar_type,
+                    },
+                    transport: SelectedValueTransport::Registers {
+                        argument: VirtualRegisterId(7),
+                        parameter: VirtualRegisterId(1),
+                    },
+                };
+                let mut self_edge = successor(2);
+                self_edge.bindings.push(binding);
+                let instruction = super::super::control(&function.blocks[2].terminator)
+                    .0
+                    .clone();
+                function.blocks[2].terminator = SelectedTerminator::ConditionalBranch {
+                    instruction,
+                    when_nonzero: successor(5),
+                    when_zero: self_edge,
+                };
+            }
+            // An argument not materialized by the edge's own copy stays
+            // rejected: the store could not name an edge-exact value.
+            1 => {
+                let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[4].terminator
+                else {
+                    unreachable!()
+                };
+                successor.bindings[0].transport = SelectedValueTransport::Registers {
+                    argument: VirtualRegisterId(5),
+                    parameter: VirtualRegisterId(1),
+                };
+            }
+            // Dropping the back-edge binding leaves the parameter
+            // uninitialized on that arrival.
+            2 => {
+                let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[4].terminator
+                else {
+                    unreachable!()
+                };
+                successor.bindings.clear();
+            }
+            _ => unreachable!(),
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        assert!(
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .is_err(),
+            "mutation {mutation}"
+        );
+    }
 }
 
 #[test]
