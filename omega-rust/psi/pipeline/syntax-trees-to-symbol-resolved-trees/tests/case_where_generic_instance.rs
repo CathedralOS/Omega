@@ -110,13 +110,80 @@ fn generic_instance_case_where_const_binder_substitutes_its_argument() {
     assert_eq!(literal.text(), "8");
 }
 
-/// A case `where` fact that names a TYPE parameter still refuses: there is no
-/// fact-position substitution for `T` on `Value<i32>::Integer`.
+/// A `type` binder in a `T == name` conjunct is decided at synthesis against
+/// the closed argument identity: `Value<i32>` proves `T == i32`, so the
+/// discharged fact does not ride the instance, while `Value<bool>` refutes it
+/// and the instance's `Integer` case carries the literal `0` witness that
+/// reads FALSE for construction, zero gating, and coverage.
+#[test]
+fn generic_instance_case_where_type_equality_decides_per_instance() {
+    let program = resolve(
+        r#"
+        data Value<T> {
+            case Integer(value: T) where T == i32;
+            case Boolean(value: T) where T == bool;
+        }
+        data Main { yes: Value<i32>; no: Value<bool>; }
+        "#,
+    );
+
+    let yes = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Value<i32>")
+        .expect("synthesized Value<i32>");
+    let yes_integer = find_variant(&program, yes, "Integer");
+    assert!(
+        program.proof_facts(yes_integer.where_facts).is_empty(),
+        "proved `T == i32` discharges off `Value<i32>::Integer`"
+    );
+    let yes_boolean = find_variant(&program, yes, "Boolean");
+    let [ProofFact::Expression(expression)] = program.proof_facts(yes_boolean.where_facts) else {
+        panic!("refuted `T == bool` on `Value<i32>` leaves the `0` witness")
+    };
+    let ExpressionNode::Integer(literal) =
+        program.tables.bodies.expressions.expression(*expression)
+    else {
+        panic!("refuted case fact is the literal `0` witness")
+    };
+    assert_eq!(literal.text(), "0");
+    // `Value<i32>`'s zero tag is `Integer`, whose fact discharged: the zeroed
+    // representation can still be born established.
+    assert!(!yes.zero_gated);
+
+    let no = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Value<bool>")
+        .expect("synthesized Value<bool>");
+    let no_integer = find_variant(&program, no, "Integer");
+    let [ProofFact::Expression(expression)] = program.proof_facts(no_integer.where_facts) else {
+        panic!("refuted `T == i32` leaves the literal `0` witness")
+    };
+    let ExpressionNode::Integer(literal) =
+        program.tables.bodies.expressions.expression(*expression)
+    else {
+        panic!("refuted case fact is the literal `0` witness")
+    };
+    assert_eq!(literal.text(), "0");
+    let no_boolean = find_variant(&program, no, "Boolean");
+    assert!(
+        program.proof_facts(no_boolean.where_facts).is_empty(),
+        "proved `T == bool` discharges off `Value<bool>::Boolean`"
+    );
+    // `Value<bool>`'s zero tag is `Integer`, which can never hold here: the
+    // zeroed representation cannot be born established.
+    assert!(no.zero_gated);
+}
+
+/// A case `where` fact that names a TYPE parameter still refuses outside a
+/// decided `T == name` conjunct: `T <= i32` has no fact-position substitution
+/// for `T` on `Value<i32>::Integer`.
 #[test]
 fn generic_case_where_naming_a_type_parameter_still_refuses() {
     let source = r#"
         data Value<T> {
-            case Integer(value: T) where T == i32;
+            case Integer(value: T) where T <= i32;
         }
         data Main { value: Value<i32>; }
     "#;

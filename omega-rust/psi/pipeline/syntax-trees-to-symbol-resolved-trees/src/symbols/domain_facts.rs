@@ -345,22 +345,78 @@ fn update_data_membership_zero_gates(program: &mut SymbolResolvedTrees) {
                     crate::lowering::data::zero_fold(&program.tables.bodies.expressions, expression)
                         .is_none_or(|value| value == 0)
                 });
+            // CASE-CONSTRAINTS first-case zero gating: the zero tag is the
+            // FIRST variant. When one of its `where` facts is a literal false
+            // witness (a `T == i32` refuted by this instance's argument, or an
+            // authored `where false`), the case can never hold, so the zero
+            // value violates the case constraint and the data cannot be born
+            // established. A fact merely false AT ZERO keeps its ordinary
+            // construction-side proof instead of this gate.
+            let first_variant_gates_zero = program
+                .tables
+                .declarations
+                .data_members
+                .span_or_empty(definition.members)
+                .iter()
+                .filter_map(|member| match member {
+                    symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant),
+                    symbol_resolved_trees::data::DataMember::Field(_) => None,
+                })
+                .next()
+                .is_some_and(|variant| {
+                    program
+                        .tables
+                        .declarations
+                        .proof_facts
+                        .span_or_empty(variant.where_facts)
+                        .iter()
+                        .any(|fact| match fact {
+                            symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                                fact_expression_is_constant_false(program, *expression)
+                            }
+                            symbol_resolved_trees::domain::ProofFact::Membership(_) => false,
+                        })
+                });
             (
                 saw_membership,
                 memberships_admit_zero,
                 expressions_gate_zero,
+                first_variant_gates_zero,
             )
         })
         .collect::<Vec<_>>();
 
     let mut membership_results = membership_results.into_iter();
     program.data_definitions.for_each_mut(|definition| {
-        let (saw_membership, memberships_admit_zero, expressions_gate_zero) = membership_results
+        let (
+            saw_membership,
+            memberships_admit_zero,
+            expressions_gate_zero,
+            first_variant_gates_zero,
+        ) = membership_results
             .next()
             .expect("one zero result per data definition");
-        definition.zero_gated =
-            expressions_gate_zero || (saw_membership && !memberships_admit_zero);
+        definition.zero_gated = expressions_gate_zero
+            || first_variant_gates_zero
+            || (saw_membership && !memberships_admit_zero);
     });
+}
+
+/// A proof-fact expression that is a literal FALSE constant: the `0` witness
+/// synthesis leaves on an instance case whose `T == name` refuted, or an
+/// authored `where false` / `where 0`. Anything requiring evaluation is not
+/// counted -- an unprovable fact is not a contradiction.
+fn fact_expression_is_constant_false(
+    program: &SymbolResolvedTrees,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
+) -> bool {
+    match program.tables.bodies.expressions.expression(expression) {
+        symbol_resolved_trees::expression::ExpressionNode::Integer(literal) => {
+            literal.text().parse::<i128>() == Ok(0)
+        }
+        symbol_resolved_trees::expression::ExpressionNode::Boolean(value) => !*value,
+        _ => false,
+    }
 }
 
 fn resolved_domain_byte_predicate(
@@ -603,10 +659,29 @@ fn assign_proof_expression_symbols(
                 );
             }
         }
+        symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+            // Fact-position names the local pass could not bind are not
+            // fields or parameters: a case constraint's `T == i32` mentions
+            // a TYPE. Resolve single-segment leftovers against top-level type
+            // symbols so seeded-instance replay compares exact identities
+            // rather than spellings.
+            if !path.head_symbol.is_valid()
+                && !path.symbol.is_valid()
+                && let [member] = expression_table.name_path_members(path.members)
+            {
+                let symbol = super::lookup::top_level_type_symbol_for_source(symbols, member);
+                if symbol.is_valid()
+                    && let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
+                        expression_table.expression_mut(expression)
+                {
+                    path.head_symbol = symbol;
+                    path.symbol = symbol;
+                }
+            }
+        }
         symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
         | symbol_resolved_trees::expression::ExpressionNode::Float(_)
         | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
-        | symbol_resolved_trees::expression::ExpressionNode::Name(_)
         | symbol_resolved_trees::expression::ExpressionNode::String(_)
         | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
     }

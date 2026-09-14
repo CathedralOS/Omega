@@ -528,10 +528,13 @@ fn lower_data_member(
             // (generic_data/substitution.rs). The copy is faithful for facts
             // over payload fields, literals, and top-level bindings, and a
             // `const` binder mention is rewritten to its literal argument in
-            // expression position. A binder with no fact-position
-            // substitution (type, value, machine, proposition) or a `const`
-            // binder inside a membership value/domain path still refuses
-            // rather than drop the fact or dangle a name on the instance.
+            // expression position. A `type` binder survives only inside a
+            // decidable `T == name` / `T != name` conjunct, which synthesis
+            // decides against the closed argument identity; any other binder
+            // with no fact-position substitution (value, machine,
+            // proposition) or a `const` binder inside a membership
+            // value/domain path still refuses rather than drop the fact or
+            // dangle a name on the instance.
             if generic_case_facts_unsupported(syntax_trees, variant.where_facts, case_fact_gate) {
                 return Err(Diagnostic::error(
                     "case constraints on generic data may not mention generic parameters yet",
@@ -563,8 +566,13 @@ fn lower_data_member(
 #[derive(Default)]
 struct GenericCaseFactGate {
     /// Binder names with no fact-position substitution. A mention anywhere in
-    /// a case fact refuses the case.
+    /// a case fact refuses the case -- except a `type` binder standing in a
+    /// decided type-equality conjunct (see `case_fact_type_equality`).
     unsubstituted: HashSet<String>,
+    /// `type` binder names: a subset of `unsubstituted` that may appear on one
+    /// side of a top-level `==`/`!=` conjunct, where synthesis decides the
+    /// equation against the closed argument identity.
+    types: HashSet<String>,
     /// `const` binder names: rewritten to their literal argument inside
     /// expression position only, so a mention in a membership value or domain
     /// path, or in a nested type reference's name position, still refuses.
@@ -582,6 +590,10 @@ impl GenericCaseFactGate {
             match parameter.kind {
                 syntax::item::TypeParameterKind::Const { .. } => {
                     gate.consts.insert(name);
+                }
+                syntax::item::TypeParameterKind::Type => {
+                    gate.types.insert(name.clone());
+                    gate.unsubstituted.insert(name);
                 }
                 _ => {
                     gate.unsubstituted.insert(name);
@@ -620,7 +632,16 @@ fn generic_case_facts_unsupported(
         .iter()
         .any(|fact| match fact {
             syntax::item::ProofFact::Expression(expression) => {
-                case_fact_expression_mentions(syntax_trees, *expression, gate, true)
+                // Each top-level `and` conjunct stands alone: a decided
+                // type-parameter equality (`T == i32`) is carried by its
+                // instance as a decided literal witness, so it admits a `type`
+                // binder where a value-position mention would dangle.
+                let mut conjuncts = Vec::new();
+                flatten_case_fact_conjuncts(syntax_trees, *expression, &mut conjuncts);
+                conjuncts.iter().any(|conjunct| {
+                    !case_fact_type_equality(syntax_trees, *conjunct, gate)
+                        && case_fact_expression_mentions(syntax_trees, *conjunct, gate, true)
+                })
             }
             // The membership value must stay a place/name the
             // construction-side domain check can own, and the domain path is
@@ -634,6 +655,68 @@ fn generic_case_facts_unsupported(
                         .any(|member| gate.mentions(member.as_str()))
             }
         })
+}
+
+/// Split a case-fact expression into its top-level `and` conjuncts.
+fn flatten_case_fact_conjuncts(
+    syntax_trees: &SyntaxTrees,
+    expression: syntax::expression::ExpressionHandle,
+    conjuncts: &mut Vec<syntax::expression::ExpressionHandle>,
+) {
+    use syntax::expression::ExpressionNode;
+    if let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(expression)
+        && binary.operator == syntax::expression::BinaryOperator::And
+    {
+        flatten_case_fact_conjuncts(syntax_trees, binary.left, conjuncts);
+        flatten_case_fact_conjuncts(syntax_trees, binary.right, conjuncts);
+        return;
+    }
+    conjuncts.push(expression);
+}
+
+/// Whether a case-fact conjunct is a decidable type-parameter equality:
+/// `T == name`, `name == T`, or the `!=` form, where `T` is a `type` binder
+/// and the other side is a single-segment name that mentions no binder at
+/// all. Generic-instance synthesis decides the equation against the closed
+/// argument identity (`generic_data/substitution.rs`), so the parameter name
+/// never reaches an instance. A binder on BOTH sides (`T == U`), a nested or
+/// negated equality, or a non-name opposite side cannot be decided honestly
+/// and stays refused.
+fn case_fact_type_equality(
+    syntax_trees: &SyntaxTrees,
+    expression: syntax::expression::ExpressionHandle,
+    gate: &GenericCaseFactGate,
+) -> bool {
+    use syntax::expression::ExpressionNode;
+    let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(expression) else {
+        return false;
+    };
+    if !matches!(
+        binary.operator,
+        syntax::expression::BinaryOperator::Equal | syntax::expression::BinaryOperator::NotEqual
+    ) {
+        return false;
+    }
+    let binder_side = |side| -> Option<bool> {
+        let ExpressionNode::Name(path) = syntax_trees.expressions.expression(side) else {
+            return None;
+        };
+        let members = syntax_trees.expressions.identifier_path_members(*path);
+        let [member] = members else {
+            return None;
+        };
+        if gate.types.contains(member.as_str()) {
+            Some(true)
+        } else if !gate.mentions(member.as_str()) {
+            Some(false)
+        } else {
+            None
+        }
+    };
+    matches!(
+        (binder_side(binary.left), binder_side(binary.right)),
+        (Some(true), Some(false)) | (Some(false), Some(true))
+    )
 }
 
 fn case_fact_expression_mentions(

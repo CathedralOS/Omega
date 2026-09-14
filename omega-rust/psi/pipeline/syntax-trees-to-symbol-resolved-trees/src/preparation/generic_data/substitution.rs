@@ -12,10 +12,13 @@ pub(in crate::preparation::generic_data) fn substitute_member(
     snapshot: &SyntaxTrees,
     member: DataMember,
     substitution: &HashMap<String, TypeReferenceHandle>,
+    type_identities: &HashMap<String, ClosedArgumentIdentity>,
+    selection: Option<&constant_selection::ConstantSelection>,
+    instance_name: &str,
     const_values: &HashMap<String, i128>,
     warnings: &mut Vec<Diagnostic>,
-) -> DataMember {
-    match member {
+) -> Result<DataMember, Diagnostic> {
+    let member = match member {
         DataMember::Field(field) => DataMember::Field(substitute_data_field(
             syntax,
             field,
@@ -53,21 +56,54 @@ pub(in crate::preparation::generic_data) fn substitute_member(
             // the caller's rewrite over freshly copied expressions. Source
             // spans ride along, so a construction-side refusal still names the
             // authored clause.
-            variant.where_facts = copy_case_where_facts(syntax, snapshot, variant.where_facts);
+            //
+            // A `type` binder is the exception: the gate admits it only as one
+            // side of a top-level `==`/`!=` conjunct, which this copy decides
+            // against the closed argument identity. A decided-true conjunct
+            // discharges out of the carried fact; a decided-false one leaves
+            // the literal `0` witness behind so the case reads as impossible
+            // for construction, zero gating, and coverage on this instance.
+            variant.where_facts = copy_case_where_facts(
+                syntax,
+                snapshot,
+                variant.where_facts,
+                type_identities,
+                selection,
+                instance_name,
+            )?;
             DataMember::Variant(variant)
         }
         DataMember::Retired(identity) => DataMember::Retired(identity),
-    }
+    };
+    Ok(member)
 }
 
-/// Deep-copy one case `where` fact span out of the template snapshot. The
-/// handles index the template's fact arena, which `snapshot` preserves exactly;
-/// each copy appends to the live tree, so the rebuilt span stays contiguous.
+/// What one top-level `and` conjunct of a copied case fact became under this
+/// instance's arguments.
+enum ConjunctDecision {
+    /// Not a type-parameter equality: the conjunct copies verbatim.
+    Ordinary,
+    /// A decided-true `T == name` / `T != name`: discharged at instantiation,
+    /// the conjunct drops out of the carried fact.
+    Established,
+    /// A decided-false type equality: the whole fact collapses to the literal
+    /// `0` witness -- this case can never be established for the instance.
+    Refuted,
+}
+
+/// Deep-copy one case `where` fact span out of the template snapshot, deciding
+/// admitted type-parameter equalities against this instance's closed argument
+/// identities. The handles index the template's fact arena, which `snapshot`
+/// preserves exactly; each kept copy appends to the live tree, so the rebuilt
+/// span stays contiguous.
 fn copy_case_where_facts(
     syntax: &mut SyntaxTrees,
     snapshot: &SyntaxTrees,
     facts: HandleSpan<ProofFact>,
-) -> HandleSpan<ProofFact> {
+    type_identities: &HashMap<String, ClosedArgumentIdentity>,
+    selection: Option<&constant_selection::ConstantSelection>,
+    instance_name: &str,
+) -> Result<HandleSpan<ProofFact>, Diagnostic> {
     let mut copied = HandleSpan::empty();
     for offset in 0..facts.count() {
         let source = Handle::from_parts(
@@ -78,9 +114,209 @@ fn copy_case_where_facts(
                 .expect("case where-fact source handle overflow"),
             facts.start().generation(),
         );
-        copied.push_contiguous(syntax.copy_proof_fact_from(snapshot, source));
+        let ProofFact::Expression(template_root) = snapshot.items.proof_fact(source) else {
+            copied.push_contiguous(syntax.copy_proof_fact_from(snapshot, source));
+            continue;
+        };
+        let mut conjuncts = Vec::new();
+        flatten_case_fact_conjuncts(snapshot, *template_root, &mut conjuncts);
+        let mut decisions = Vec::with_capacity(conjuncts.len());
+        for conjunct in &conjuncts {
+            decisions.push(decide_type_equality_conjunct(
+                snapshot,
+                *conjunct,
+                type_identities,
+                selection,
+                instance_name,
+            )?);
+        }
+        if decisions
+            .iter()
+            .all(|decision| matches!(decision, ConjunctDecision::Ordinary))
+        {
+            copied.push_contiguous(syntax.copy_proof_fact_from(snapshot, source));
+            continue;
+        }
+        if decisions
+            .iter()
+            .any(|decision| matches!(decision, ConjunctDecision::Refuted))
+        {
+            let handle = syntax.copy_proof_fact_from(snapshot, source);
+            let copied_root = match syntax.items.proof_fact(handle) {
+                ProofFact::Expression(expression) => *expression,
+                _ => unreachable!("an expression fact copies as an expression fact"),
+            };
+            // The decided-false witness: `0` folds FALSE for construction,
+            // zero gating, and coverage, and replays against the template's
+            // equality on the seeded-instance check.
+            syntax.expressions.replace_expression(
+                copied_root,
+                ExpressionNode::Integer(
+                    IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")
+                        .expect("literal `0` is a valid integer literal"),
+                ),
+            );
+            copied.push_contiguous(handle);
+            continue;
+        }
+        if conjuncts.len() == decisions.len()
+            && decisions
+                .iter()
+                .all(|decision| matches!(decision, ConjunctDecision::Established))
+        {
+            // Every conjunct was a type equality this instance proved: the
+            // instantiation obligation is discharged, so the fact does not
+            // ride the instance.
+            continue;
+        }
+        // A mixed fact: rewrite the copied conjunction over only the conjuncts
+        // that did not discharge. The copy preserves the template's tree, so
+        // flattening it yields conjuncts in the same order the decisions were
+        // taken.
+        let handle = syntax.copy_proof_fact_from(snapshot, source);
+        let copied_root = match syntax.items.proof_fact(handle) {
+            ProofFact::Expression(expression) => *expression,
+            _ => unreachable!("an expression fact copies as an expression fact"),
+        };
+        let mut copied_conjuncts = Vec::new();
+        flatten_case_fact_conjuncts(syntax, copied_root, &mut copied_conjuncts);
+        let kept: Vec<ExpressionHandle> = copied_conjuncts
+            .iter()
+            .copied()
+            .zip(decisions.iter())
+            .filter_map(|(conjunct, decision)| {
+                matches!(decision, ConjunctDecision::Ordinary).then_some(conjunct)
+            })
+            .collect();
+        let rebuilt = rebuild_conjunction(syntax, &kept);
+        let rebuilt_node = syntax.expressions.expression(rebuilt).clone();
+        syntax
+            .expressions
+            .replace_expression(copied_root, rebuilt_node);
+        copied.push_contiguous(handle);
     }
-    copied
+    Ok(copied)
+}
+
+fn flatten_case_fact_conjuncts(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    conjuncts: &mut Vec<ExpressionHandle>,
+) {
+    if let ExpressionNode::Binary(binary) = syntax.expressions.expression(expression)
+        && binary.operator == BinaryOperator::And
+    {
+        flatten_case_fact_conjuncts(syntax, binary.left, conjuncts);
+        flatten_case_fact_conjuncts(syntax, binary.right, conjuncts);
+        return;
+    }
+    conjuncts.push(expression);
+}
+
+/// Rebuild an `and` chain over the kept conjuncts, reusing their nodes.
+/// Callers guarantee `kept` is nonempty and smaller than the original
+/// conjunction.
+fn rebuild_conjunction(syntax: &mut SyntaxTrees, kept: &[ExpressionHandle]) -> ExpressionHandle {
+    let mut rebuilt = kept[0];
+    for conjunct in &kept[1..] {
+        rebuilt = syntax.expressions.insert(ExpressionNode::Binary(
+            syntax_trees::expression::TableBinaryExpression {
+                left: rebuilt,
+                operator: BinaryOperator::And,
+                right: *conjunct,
+            },
+        ));
+    }
+    rebuilt
+}
+
+/// Decide one copied conjunct as a type-parameter equality. The lowering gate
+/// (`lowering/data.rs::case_fact_type_equality`) admits exactly this shape: one
+/// side is a single-segment `type` binder, the other a single-segment
+/// binder-free name. Both sides' identities are closed by construction -- the
+/// instance's arguments already passed the closed-shape gate -- so an
+/// unresolvable opposite name is an authored-fact error, never a silent drop.
+fn decide_type_equality_conjunct(
+    syntax: &SyntaxTrees,
+    conjunct: ExpressionHandle,
+    type_identities: &HashMap<String, ClosedArgumentIdentity>,
+    selection: Option<&constant_selection::ConstantSelection>,
+    instance_name: &str,
+) -> Result<ConjunctDecision, Diagnostic> {
+    let ExpressionNode::Binary(binary) = syntax.expressions.expression(conjunct) else {
+        return Ok(ConjunctDecision::Ordinary);
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        return Ok(ConjunctDecision::Ordinary);
+    }
+    let single_name = |side| -> Option<&Identifier> {
+        let ExpressionNode::Name(path) = syntax.expressions.expression(side) else {
+            return None;
+        };
+        let [member] = syntax.expressions.identifier_path_members(*path) else {
+            return None;
+        };
+        Some(member)
+    };
+    let Some((parameter, other)) = (match (single_name(binary.left), single_name(binary.right)) {
+        (Some(left), Some(right)) if type_identities.contains_key(left.as_str()) => {
+            Some((left, right))
+        }
+        (Some(left), Some(right)) if type_identities.contains_key(right.as_str()) => {
+            Some((right, left))
+        }
+        _ => None,
+    }) else {
+        return Ok(ConjunctDecision::Ordinary);
+    };
+    let parameter_identity = type_identities
+        .get(parameter.as_str())
+        .expect("the gate admits only listed type binders");
+    let Some(other_identity) = closed_name_identity(syntax, selection, other) else {
+        return Err(Diagnostic::error(format!(
+            "case constraint on generic instance `{instance_name}` cannot decide `{}`: `{}` does not name a closed type",
+            parameter.as_str(),
+            other.as_str(),
+        )));
+    };
+    let equal = *parameter_identity == other_identity;
+    let holds = match binary.operator {
+        BinaryOperator::Equal => equal,
+        BinaryOperator::NotEqual => !equal,
+        _ => unreachable!("the equality check above admits only == or !="),
+    };
+    Ok(if holds {
+        ConjunctDecision::Established
+    } else {
+        ConjunctDecision::Refuted
+    })
+}
+
+/// The closed identity of a fact-position type name: builtins by their atom,
+/// declared data by item, and module-retained declarations by symbol. Mirrors
+/// the `TypeReferenceNode::Named` arm of `closed_argument_identity` without
+/// materializing a reference node.
+fn closed_name_identity(
+    syntax: &SyntaxTrees,
+    selection: Option<&constant_selection::ConstantSelection>,
+    name: &Identifier,
+) -> Option<ClosedArgumentIdentity> {
+    if let Some(atom) = symbols::BuiltinTypeAtom::ALL
+        .into_iter()
+        .find(|atom| atom.symbol_name() == name.as_str())
+    {
+        return Some(ClosedArgumentIdentity::Builtin(atom));
+    }
+    if let Some(declaration) = selected_data_item(syntax, selection, name) {
+        Some(ClosedArgumentIdentity::Nominal(declaration))
+    } else {
+        Some(ClosedArgumentIdentity::RetainedNominal(
+            selection?.retained_identity(name, symbols::SymbolKind::Data)?,
+        ))
+    }
 }
 
 pub(in crate::preparation::generic_data) fn substitute_data_field(

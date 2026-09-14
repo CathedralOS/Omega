@@ -216,7 +216,7 @@ fn validate_instance(
         || !template.where_facts.is_empty()
         || !instance.where_facts.is_empty()
         || template.zero_gated
-        || instance.zero_gated
+        || !instance_zero_gate_is_exact(source, instance)
         || !exact_top_level_data_symbol(source, template)
         || !exact_top_level_data_symbol(source, instance)
         || template.is_public != instance.is_public
@@ -274,6 +274,46 @@ fn validate_instance(
                 )
             },
         )
+}
+
+/// The instance's `zero_gated` flag must be exactly what its replayed facts
+/// imply. Both sides carry no data-level `where` facts (required above), so
+/// the only contribution is first-case zero gating: a `T == name` refuted by
+/// this instance's argument collapses the first variant's fact to the literal
+/// `0` witness, and a data whose zero tag can never hold cannot be born
+/// established. Recomputing the flag here keeps a producer from either
+/// dropping the gate on a refuted instance or gating an ungated one.
+fn instance_zero_gate_is_exact(
+    source: &SymbolResolvedTrees,
+    instance: &symbol_resolved_trees::data::DataDefinition,
+) -> bool {
+    let first_variant_impossible = source
+        .data_members(instance.members)
+        .iter()
+        .find_map(|member| match member {
+            symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant),
+            symbol_resolved_trees::data::DataMember::Field(_) => None,
+        })
+        .is_some_and(|variant| {
+            source
+                .proof_facts(variant.where_facts)
+                .iter()
+                .any(|fact| match fact {
+                    symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                        match source.tables.bodies.expressions.expression(*expression) {
+                            symbol_resolved_trees::expression::ExpressionNode::Integer(literal) => {
+                                literal.text().parse::<i128>() == Ok(0)
+                            }
+                            symbol_resolved_trees::expression::ExpressionNode::Boolean(value) => {
+                                !*value
+                            }
+                            _ => false,
+                        }
+                    }
+                    symbol_resolved_trees::domain::ProofFact::Membership(_) => false,
+                })
+        });
+    instance.zero_gated == first_variant_impossible
 }
 
 fn instance_argument_name(
