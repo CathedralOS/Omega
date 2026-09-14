@@ -110,6 +110,14 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
                 operation,
             }
         })?;
+        super::structural_argument_sources::validate(source_function, target_function).map_err(
+            |operation| {
+                AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+                    machine: source_function.machine,
+                    operation,
+                }
+            },
+        )?;
         function_roster.push(AbstractToTargetFunctionRosterReceipt::new(
             source_function.machine,
             source_function.attachment,
