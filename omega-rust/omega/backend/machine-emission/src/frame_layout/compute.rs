@@ -1,5 +1,5 @@
 use selected_instructions::MachineAlternativeFamily;
-use target::Architecture;
+use target::{Architecture, ObjectFormat};
 
 use crate::frame_layout::{
     FrameAbiPreservationConvention, StagedOptimizedPostAllocationMachinePlan,
@@ -8,7 +8,7 @@ use crate::frame_layout::{
 };
 
 use super::{
-    CalleeSaveFrameSlot, FunctionTargetFrameLayout, ReturnAddressFrameCustody,
+    CalleeSaveFrameSlot, FunctionTargetFrameLayout, ReturnAddressFrameCustody, StackProbePlan,
     TargetFrameLayoutError, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
 };
 
@@ -272,6 +272,8 @@ fn function_layout(
             _ => return Err(TargetFrameLayoutError::UnsupportedTarget),
         };
 
+    let stack_probe = probe_plan(environment.target(), frame_size_bytes)?;
+
     Ok(FunctionTargetFrameLayout {
         machine,
         contains_call,
@@ -283,6 +285,41 @@ fn function_layout(
         local_storage_slots,
         callee_save_slots,
         return_address,
+        stack_probe,
+    })
+}
+
+/// The stack-commit granule the target guarantees, in bytes. Lazily backed
+/// stacks grow one guard-page granule per touch, so a frame is committed one
+/// granule at a time and can never skip past an uncommitted page. Every
+/// x86-64 host commits in 4 KiB granules; Darwin AArch64 pages are 16 KiB.
+/// Probing at a finer granule than the target's remains correct, so the
+/// AAPCS64 immediate bound that rejects every frame above 4095 bytes does not
+/// make the Linux AArch64 granule a silent encoding assumption.
+fn stack_probe_interval(target: target::NativeTarget) -> u64 {
+    match (target.architecture, target.object_format) {
+        (Architecture::Aarch64, ObjectFormat::MachO) => 16_384,
+        _ => 4_096,
+    }
+}
+
+/// One touch per committed granule, including the partial tail chunk: the
+/// last move can still cross a granule boundary when the pointer is not
+/// granule-aligned. Frames inside one granule need no probe.
+fn probe_plan(
+    target: target::NativeTarget,
+    frame_size_bytes: u64,
+) -> Result<StackProbePlan, TargetFrameLayoutError> {
+    let interval_bytes = stack_probe_interval(target);
+    let touches = if frame_size_bytes > interval_bytes {
+        u32::try_from(frame_size_bytes.div_ceil(interval_bytes))
+            .map_err(|_| TargetFrameLayoutError::GeometryOverflow)?
+    } else {
+        0
+    };
+    Ok(StackProbePlan {
+        interval_bytes,
+        touches,
     })
 }
 

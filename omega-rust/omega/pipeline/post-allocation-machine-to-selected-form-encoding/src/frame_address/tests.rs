@@ -47,6 +47,10 @@ fn fixture() -> (
             return_address: machine_code::ReturnAddressFrameCustody::CallerActivationStack {
                 post_prologue_offset_bytes: 16, size_bytes: 8,
             },
+            stack_probe: machine_code::StackProbePlan {
+                interval_bytes: 4_096,
+                touches: 0,
+            },
         }],
     };
     let instruction = PostAllocationMachineInstruction {

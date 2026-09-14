@@ -55,6 +55,10 @@ pub(super) fn validate_bytes(
                 isa_x86_64::encode_system_v_amd64_frame_protocol(
                     environment.physical(),
                     function.frame_size_bytes,
+                    isa_x86_64::X86_64StackProbe {
+                        interval_bytes: function.stack_probe.interval_bytes,
+                        touches: function.stack_probe.touches,
+                    },
                     &slots,
                 )
                 .map_err(Error::X86)?
