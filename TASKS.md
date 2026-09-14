@@ -1263,9 +1263,33 @@ Owners include
   stuck eliminations on neutral scrutinees, componentwise conversion of
   stuck eliminations, strict/non-universe/wrong-domain motive and
   non-`Two` scrutinee rejection, and that pointwise agreement on both
-  constructors grants no function equality. Next: relevant identity and
-  W formation/induction, then level variables and universe-polymorphic
-  declarations, before connecting to source or a theorem certificate.
+  constructors grants no function equality.
+
+  Landed: relevant identity — `Id A x y : Type u` formation at the
+  carrier's relevant `Type` level (a strict carrier rejects:
+  proof-relevant distinction does not exist over a proposition),
+  `refl A x : Id A x x` with a checked `ty` annotation so a
+  dependent-pair endpoint still checks componentwise, and dependent
+  elimination `J(C, d, y, p) : C y p` for `C : Π(y : A). Π(_ : Id A x
+  y). Type w` and `d : C x (refl A x)`, where `p`'s inferred identity
+  supplies the fixed carrier and left endpoint and the supplied `y`
+  must convert to `p`'s recorded endpoint. `J` computes to `d` on
+  `refl` as a budgeted step; neutral proofs stay stuck and compare
+  componentwise at the left elimination's inferred types. There is no
+  identity eta, K or UIP: `refl` never converts to a neutral proof and
+  distinct proofs of the same identity stay distinct. Certificates
+  carry `Id`/`refl`/`J` through the canonical wire (term tags 14-16)
+  and re-verify after decode. Tests witness formation at the carrier
+  level (including `Id` over `Type 0` landing at `Type 1`),
+  strict-carrier and non-type-carrier rejection, wrong-endpoint
+  rejection, a `Σ`-carrier `refl` over a dependent pair, elimination
+  proving symmetry (`Id A x y` giving `Id A y x`), reflexive
+  computation and its step-ceiling refusal, componentwise conversion
+  of stuck eliminations, every malformed-motive and relocated-endpoint
+  rejection, the no-UIP controls, and a transport certificate
+  re-deciding `J` after wire decode. Next: W formation and induction,
+  then level variables and universe-polymorphic declarations, before
+  connecting to source or a theorem certificate.
 
   Implement the pinned reference core and selected
   [W-based profile](wiki/spec/proofs/inductive_profile.md): relevant identity,

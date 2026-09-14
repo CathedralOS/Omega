@@ -2,11 +2,13 @@
 //! PROOF-KERNEL-CORE board item requires, with its independent checker for the
 //! dependent-function and dependent-pair fragment of the predicative sMLTT
 //! reference core (Gilbert, Cockx, Sozeau and Tabareau, *Definitional
-//! Proof-Irrelevance without K*, sections 3.1-3.6) plus the first primitive
+//! Proof-Irrelevance without K*, sections 3.1-3.6) plus two primitives
 //! of the selected [W-based inductive
 //! profile](../../../../wiki/spec/proofs/inductive_profile.md): the
 //! two-element type `Two` with `zero`/`one` introduction and dependent
-//! `caseTwo` elimination computing on each constructor. The checker never
+//! `caseTwo` elimination computing on each constructor, and the relevant
+//! identity type `Id A x y` with `refl` introduction and dependent `J`
+//! elimination computing only on reflexivity. The checker never
 //! searches: producers elaborate terms, this kernel re-decides formation,
 //! typing and permitted conversion, and producer success flags are never
 //! trusted as evidence.
@@ -57,8 +59,24 @@
 //! stuck and conversion compares stuck eliminations componentwise. The
 //! profile adds no `Two` eta law: pointwise agreement of `f` on both
 //! constructors never makes `x ↦ caseTwo(C, f zero, f one, x)` convert
-//! to `f`. Level variables and universe-polymorphic declarations remain
-//! separate steps.
+//! to `f`.
+//!
+//! `Id` is the profile's proof-relevant identity: `Id A x y : Type u`
+//! for `A : Type u` and `x, y : A`, `refl A x : Id A x x`, and dependent
+//! elimination `J(C, d, y, p) : C y p` for `C : Π(y : A). Π(_ : Id A x
+//! y). Type w` and `d : C x (refl A x)`, computing to `d` when `p` is
+//! `refl`. The fixed endpoint `x` comes from `p`'s inferred identity
+//! type; the supplied `y` must convert to `p`'s recorded endpoint, so an
+//! elimination cannot relocate its target. `refl`'s type annotation is
+//! checked, not trusted — it is what lets a dependent-pair endpoint
+//! check componentwise where bare inference could not — and the `ty`
+//! position still must be a relevant `Type`, so `Id` over a strict
+//! proposition rejects. The eliminator is relevant-only like `caseTwo`'s,
+//! stuck eliminations compare componentwise at the left elimination's
+//! inferred types, and there is no identity eta or K/UIP: two distinct
+//! proofs of the same identity never collapse, and `refl` never converts
+//! to a neutral proof. Level variables and universe-polymorphic
+//! declarations remain separate steps.
 
 mod certificate;
 mod conversion;

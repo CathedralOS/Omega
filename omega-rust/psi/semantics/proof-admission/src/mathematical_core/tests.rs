@@ -70,6 +70,29 @@ fn case_two(
     })
 }
 
+fn id(arena: &mut TermArena, ty: TermHandle, left: TermHandle, right: TermHandle) -> TermHandle {
+    arena.insert(Term::Id { ty, left, right })
+}
+
+fn refl(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
+    arena.insert(Term::Refl { ty, value })
+}
+
+fn id_elim(
+    arena: &mut TermArena,
+    motive: TermHandle,
+    base: TermHandle,
+    endpoint: TermHandle,
+    proof: TermHandle,
+) -> TermHandle {
+    arena.insert(Term::IdElim {
+        motive,
+        base,
+        endpoint,
+        proof,
+    })
+}
+
 fn default_budget() -> Budget {
     Budget::new(DEFAULT_CONVERSION_STEPS)
 }
@@ -1269,6 +1292,625 @@ fn pointwise_two_agreement_grants_no_function_equality() {
             f,
             shared_type,
             &mut budget
+        )
+        .unwrap()
+    );
+}
+
+#[test]
+fn identity_forms_at_the_carrier_level_and_refl_introduces() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context A : Type 0, a : A, b : A. In depth 3, A is index 2, a is
+    // index 1 and b is index 0.
+    let type_zero = type_sort(&mut arena, 0);
+    let a_binding = variable(&mut arena, 0);
+    let b_binding = variable(&mut arena, 1);
+    let context = Context::empty()
+        .extend(type_zero)
+        .extend(a_binding)
+        .extend(b_binding);
+
+    // Formation: `Id A a b : Type 0` — the identity type lives at the
+    // carrier's level, and the carrier must be a relevant type.
+    let carrier = variable(&mut arena, 2);
+    let a = variable(&mut arena, 1);
+    let b = variable(&mut arena, 0);
+    let identity = id(&mut arena, carrier, a, b);
+    let inferred = infer_type(&mut arena, &context, identity, &mut budget).unwrap();
+    let expected = type_sort(&mut arena, 0);
+    assert!(arena.structurally_equal(inferred, expected));
+
+    // `Id (Type 0) A B : Type 1` — the carrier `Type 0` itself lives at
+    // `Type 1`, and the identity type follows it.
+    let type_zero = type_sort(&mut arena, 0);
+    let other_binding = type_sort(&mut arena, 0);
+    let type_context = Context::empty().extend(type_zero).extend(other_binding);
+    let type_carrier = type_sort(&mut arena, 0);
+    let a_type = variable(&mut arena, 1);
+    let b_type = variable(&mut arena, 0);
+    let over_types = id(&mut arena, type_carrier, a_type, b_type);
+    let inferred = infer_type(&mut arena, &type_context, over_types, &mut budget).unwrap();
+    let expected = type_sort(&mut arena, 1);
+    assert!(arena.structurally_equal(inferred, expected));
+
+    // Introduction: `refl A a : Id A a a`, and it checks there.
+    let carrier = variable(&mut arena, 2);
+    let a = variable(&mut arena, 1);
+    let reflexive = refl(&mut arena, carrier, a);
+    let inferred = infer_type(&mut arena, &context, reflexive, &mut budget).unwrap();
+    let carrier = variable(&mut arena, 2);
+    let a = variable(&mut arena, 1);
+    let expected = id(&mut arena, carrier, a, a);
+    assert!(arena.structurally_equal(inferred, expected));
+    check_type(&mut arena, &context, reflexive, expected, &mut budget).unwrap();
+
+    // But `refl A a` is not a proof of `Id A a b`: the endpoints must
+    // convert to the reflexive value.
+    let carrier = variable(&mut arena, 2);
+    let a = variable(&mut arena, 1);
+    let b = variable(&mut arena, 0);
+    let off_endpoint = id(&mut arena, carrier, a, b);
+    let carrier = variable(&mut arena, 2);
+    let a = variable(&mut arena, 1);
+    let reflexive = refl(&mut arena, carrier, a);
+    let error = check_type(&mut arena, &context, reflexive, off_endpoint, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+
+    // A strict carrier rejects: `Id P p p` over a proposition has no
+    // proof-relevant distinction to carry. Context P : Strict 0, p : P.
+    let strict_zero = strict_sort(&mut arena, 0);
+    let p_binding = variable(&mut arena, 0);
+    let strict_context = Context::empty().extend(strict_zero).extend(p_binding);
+    let strict_carrier = variable(&mut arena, 1);
+    let p = variable(&mut arena, 0);
+    let strict_identity = id(&mut arena, strict_carrier, p, p);
+    let error = infer_type(&mut arena, &strict_context, strict_identity, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::StrictIdentityDomain { .. }));
+    let strict_carrier = variable(&mut arena, 1);
+    let p = variable(&mut arena, 0);
+    let strict_refl = refl(&mut arena, strict_carrier, p);
+    let error = infer_type(&mut arena, &strict_context, strict_refl, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::StrictIdentityDomain { .. }));
+
+    // A carrier that is not a type at all rejects at formation.
+    let a = variable(&mut arena, 1);
+    let b = variable(&mut arena, 0);
+    let not_a_type = id(&mut arena, a, b, b);
+    let error = infer_type(&mut arena, &context, not_a_type, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::NotASort { .. }));
+
+    // An endpoint at the wrong type rejects: `p : P` is not an `A`.
+    // Context P : Strict 0, A : Type 0, a : A, p : P. In depth 4, A is
+    // index 2, a is index 1 and p is index 0.
+    let strict_zero = strict_sort(&mut arena, 0);
+    let type_zero = type_sort(&mut arena, 0);
+    let a_binding = variable(&mut arena, 1);
+    let p_binding = variable(&mut arena, 2);
+    let context = Context::empty()
+        .extend(strict_zero)
+        .extend(type_zero)
+        .extend(a_binding)
+        .extend(p_binding);
+    let carrier = variable(&mut arena, 2);
+    let a = variable(&mut arena, 1);
+    let p = variable(&mut arena, 0);
+    let bad_endpoint = id(&mut arena, carrier, a, p);
+    let error = infer_type(&mut arena, &context, bad_endpoint, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+}
+
+#[test]
+fn refl_carries_a_dependent_pair_endpoint() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context A : Type 0, P : Π(x : A). Strict 0, a : A, pr : P a. In
+    // depth 4, A is index 3, P is index 2, a is index 1 and pr is index 0.
+    let type_zero = type_sort(&mut arena, 0);
+    let strict_zero = strict_sort(&mut arena, 0);
+    let a_domain = variable(&mut arena, 0);
+    let predicate_type = pi(&mut arena, a_domain, strict_zero);
+    let a_binding = variable(&mut arena, 1);
+    let p_prefix = variable(&mut arena, 1);
+    let a_prefix = variable(&mut arena, 0);
+    let proof_binding = apply(&mut arena, p_prefix, a_prefix);
+    let context = Context::empty()
+        .extend(type_zero)
+        .extend(predicate_type)
+        .extend(a_binding)
+        .extend(proof_binding);
+
+    // `refl (Σ(x : A). P x) (a, pr)` — the annotated carrier lets the
+    // dependent pair check componentwise where inferring the pair could
+    // only produce a non-dependent `Σ`.
+    let sigma_domain = variable(&mut arena, 3);
+    let p_under = variable(&mut arena, 3);
+    let bound = variable(&mut arena, 0);
+    let codomain = apply(&mut arena, p_under, bound);
+    let carrier = sigma(&mut arena, sigma_domain, codomain);
+    let a = variable(&mut arena, 1);
+    let proof = variable(&mut arena, 0);
+    let endpoint = pair(&mut arena, a, proof);
+    let reflexive = refl(&mut arena, carrier, endpoint);
+    let inferred = infer_type(&mut arena, &context, reflexive, &mut budget).unwrap();
+
+    let sigma_domain = variable(&mut arena, 3);
+    let p_under = variable(&mut arena, 3);
+    let bound = variable(&mut arena, 0);
+    let codomain = apply(&mut arena, p_under, bound);
+    let carrier = sigma(&mut arena, sigma_domain, codomain);
+    let a = variable(&mut arena, 1);
+    let proof = variable(&mut arena, 0);
+    let endpoint = pair(&mut arena, a, proof);
+    let expected = id(&mut arena, carrier, endpoint, endpoint);
+    assert!(arena.structurally_equal(inferred, expected));
+}
+
+/// `C := λ(y : A). λ(_ : Id A x y). Id A y x` — the symmetry motive,
+/// written at `depth` context entries where `a` is the carrier's index,
+/// `x` the fixed endpoint's, and the bound `y` names index 0 under the
+/// motive's own binder.
+fn symmetry_motive(arena: &mut TermArena, a: u32, x: u32) -> TermHandle {
+    let domain = variable(arena, a);
+    let inner = {
+        // Under the `y` binder the carrier is at `a + 1` and the fixed
+        // endpoint at `x + 1`.
+        let ty = variable(arena, a + 1);
+        let fixed = variable(arena, x + 1);
+        let bound = variable(arena, 0);
+        let proof_domain = id(arena, ty, fixed, bound);
+        // Under both binders: `Id A y x` — carrier `a + 2`, bound `y`
+        // index 1, fixed `x + 2`.
+        let ty = variable(arena, a + 2);
+        let bound_y = variable(arena, 1);
+        let fixed = variable(arena, x + 2);
+        let body = id(arena, ty, bound_y, fixed);
+        lambda(arena, proof_domain, body)
+    };
+    lambda(arena, domain, inner)
+}
+
+#[test]
+fn identity_elimination_proves_symmetry() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context A : Type 0, x : A, y : A, p : Id A x y. In depth 4, A is
+    // index 3, x is index 2, y is index 1 and p is index 0.
+    let type_zero = type_sort(&mut arena, 0);
+    let x_binding = variable(&mut arena, 0);
+    let y_binding = variable(&mut arena, 1);
+    let proof_binding = {
+        let ty = variable(&mut arena, 2);
+        let x = variable(&mut arena, 1);
+        let y = variable(&mut arena, 0);
+        id(&mut arena, ty, x, y)
+    };
+    let context = Context::empty()
+        .extend(type_zero)
+        .extend(x_binding)
+        .extend(y_binding)
+        .extend(proof_binding);
+
+    // `J(C, refl A x, y, p) : C y p`, and `C y p` computes to
+    // `Id A y x` — elimination transports the endpoints.
+    let motive = symmetry_motive(&mut arena, 3, 2);
+    let base = {
+        let ty = variable(&mut arena, 3);
+        let x = variable(&mut arena, 2);
+        refl(&mut arena, ty, x)
+    };
+    let endpoint = variable(&mut arena, 1);
+    let proof = variable(&mut arena, 0);
+    let elimination = id_elim(&mut arena, motive, base, endpoint, proof);
+
+    let ty = variable(&mut arena, 3);
+    let y = variable(&mut arena, 1);
+    let x = variable(&mut arena, 2);
+    let flipped = id(&mut arena, ty, y, x);
+    check_type(&mut arena, &context, elimination, flipped, &mut budget).unwrap();
+
+    // The claimed type `Id A x y` is the *unflipped* judgment: the same
+    // term cannot prove it.
+    let ty = variable(&mut arena, 3);
+    let x = variable(&mut arena, 2);
+    let y = variable(&mut arena, 1);
+    let unflipped = id(&mut arena, ty, x, y);
+    let error = check_type(&mut arena, &context, elimination, unflipped, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+}
+
+#[test]
+fn identity_elimination_computes_on_refl_and_respects_the_ceiling() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context A : Type 0, x : A. In depth 2, A is index 1 and x is
+    // index 0.
+    let type_zero = type_sort(&mut arena, 0);
+    let x_binding = variable(&mut arena, 0);
+    let context = Context::empty().extend(type_zero).extend(x_binding);
+
+    // `J(C, refl A x, x, refl A x)` with the symmetry motive computes to
+    // `refl A x` in one budgeted step: symmetry of a reflexive identity
+    // is reflexive.
+    let motive = symmetry_motive(&mut arena, 1, 0);
+    let base = {
+        let ty = variable(&mut arena, 1);
+        let x = variable(&mut arena, 0);
+        refl(&mut arena, ty, x)
+    };
+    let endpoint = variable(&mut arena, 0);
+    let proof = {
+        let ty = variable(&mut arena, 1);
+        let x = variable(&mut arena, 0);
+        refl(&mut arena, ty, x)
+    };
+    let elimination = id_elim(&mut arena, motive, base, endpoint, proof);
+
+    // The elimination is well-typed — `C x (refl A x) ≡ Id A x x` — and
+    // its inferred type reduces to `Id A x x`.
+    let ty = variable(&mut arena, 1);
+    let x = variable(&mut arena, 0);
+    let expected = id(&mut arena, ty, x, x);
+    check_type(&mut arena, &context, elimination, expected, &mut budget).unwrap();
+
+    let normalized = weak_head_normalize(&mut arena, elimination, &mut budget).unwrap();
+    assert_eq!(normalized, base);
+
+    // Constructor computation is a budgeted step: an empty budget
+    // refuses instead of reporting a judgment.
+    let mut empty_budget = Budget::new(0);
+    let error = weak_head_normalize(&mut arena, elimination, &mut empty_budget).unwrap_err();
+    assert_eq!(error, CoreError::StepCeiling);
+
+    // The computation makes the elimination convertible to a
+    // differently-stored copy of its base at the same type.
+    let result_type = {
+        let motive = symmetry_motive(&mut arena, 1, 0);
+        let at_fixed_argument = variable(&mut arena, 0);
+        let at_fixed = apply(&mut arena, motive, at_fixed_argument);
+        let ty = variable(&mut arena, 1);
+        let x = variable(&mut arena, 0);
+        let refl_proof = refl(&mut arena, ty, x);
+        apply(&mut arena, at_fixed, refl_proof)
+    };
+    let same_refl = {
+        let ty = variable(&mut arena, 1);
+        let x = variable(&mut arena, 0);
+        refl(&mut arena, ty, x)
+    };
+    assert!(
+        convertible(
+            &mut arena,
+            &context,
+            elimination,
+            same_refl,
+            result_type,
+            &mut budget,
+        )
+        .unwrap()
+    );
+}
+
+#[test]
+fn stuck_identity_eliminations_compare_componentwise() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context A : Type 0, x : A, y : A, p : Id A x y, q : Id A x y.
+    // In depth 5, A is index 4, x is index 3, y is index 2, p is index 1
+    // and q is index 0.
+    let type_zero = type_sort(&mut arena, 0);
+    let x_binding = variable(&mut arena, 0);
+    let y_binding = variable(&mut arena, 1);
+    let p_binding = {
+        let ty = variable(&mut arena, 2);
+        let x = variable(&mut arena, 1);
+        let y = variable(&mut arena, 0);
+        id(&mut arena, ty, x, y)
+    };
+    let q_binding = {
+        let ty = variable(&mut arena, 3);
+        let x = variable(&mut arena, 2);
+        let y = variable(&mut arena, 1);
+        id(&mut arena, ty, x, y)
+    };
+    let context = Context::empty()
+        .extend(type_zero)
+        .extend(x_binding)
+        .extend(y_binding)
+        .extend(p_binding)
+        .extend(q_binding);
+
+    // A constant motive `λ(y : A). λ(_ : Id A x y). Type 0` keeps both
+    // sides at `Type 0`, so the shared type is honest.
+    let motive = {
+        let domain = variable(&mut arena, 4);
+        let inner_domain = {
+            let ty = variable(&mut arena, 5);
+            let x = variable(&mut arena, 4);
+            let bound = variable(&mut arena, 0);
+            id(&mut arena, ty, x, bound)
+        };
+        let body = type_sort(&mut arena, 0);
+        let inner = lambda(&mut arena, inner_domain, body);
+        lambda(&mut arena, domain, inner)
+    };
+    let two_base = two(&mut arena);
+    let function_base = {
+        let domain = two(&mut arena);
+        let codomain = two(&mut arena);
+        pi(&mut arena, domain, codomain)
+    };
+
+    // `J(C, d, y, p)` vs itself converts; the same elimination over the
+    // other proof does not — identity proofs are relevant data.
+    let endpoint = variable(&mut arena, 2);
+    let p = variable(&mut arena, 1);
+    let left = id_elim(&mut arena, motive, two_base, endpoint, p);
+    let endpoint = variable(&mut arena, 2);
+    let p = variable(&mut arena, 1);
+    let left_again = id_elim(&mut arena, motive, two_base, endpoint, p);
+    let endpoint = variable(&mut arena, 2);
+    let q = variable(&mut arena, 0);
+    let other_proof = id_elim(&mut arena, motive, two_base, endpoint, q);
+    let endpoint = variable(&mut arena, 2);
+    let p = variable(&mut arena, 1);
+    let other_base = id_elim(&mut arena, motive, function_base, endpoint, p);
+    let shared_type = type_sort(&mut arena, 0);
+
+    assert!(
+        convertible(
+            &mut arena,
+            &context,
+            left,
+            left_again,
+            shared_type,
+            &mut budget,
+        )
+        .unwrap()
+    );
+    assert!(
+        !convertible(
+            &mut arena,
+            &context,
+            left,
+            other_proof,
+            shared_type,
+            &mut budget,
+        )
+        .unwrap()
+    );
+    assert!(
+        !convertible(
+            &mut arena,
+            &context,
+            left,
+            other_base,
+            shared_type,
+            &mut budget,
+        )
+        .unwrap()
+    );
+}
+
+#[test]
+fn identity_elimination_rejects_malformed_motives_and_endpoints() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context P : Strict 0, A : Type 0, x : A, y : A, p : Id A x y.
+    // In depth 5, P is index 4, A is index 3, x is index 2, y is index 1
+    // and p is index 0.
+    let strict_zero = strict_sort(&mut arena, 0);
+    let type_zero = type_sort(&mut arena, 0);
+    let x_binding = variable(&mut arena, 0);
+    let y_binding = variable(&mut arena, 1);
+    let p_binding = {
+        let ty = variable(&mut arena, 2);
+        let x = variable(&mut arena, 1);
+        let y = variable(&mut arena, 0);
+        id(&mut arena, ty, x, y)
+    };
+    let context = Context::empty()
+        .extend(strict_zero)
+        .extend(type_zero)
+        .extend(x_binding)
+        .extend(y_binding)
+        .extend(p_binding);
+    let y = variable(&mut arena, 1);
+    let p = variable(&mut arena, 0);
+
+    // A strict motive codomain `λ(y:A). λ(_:Id A x y). P` lands in
+    // `Strict 0`: the eliminator targets relevant `Type`, and boxing
+    // owns strict targets. Under both binders P is index 6.
+    let strict_motive = {
+        let domain = variable(&mut arena, 3);
+        let inner_domain = {
+            let ty = variable(&mut arena, 4);
+            let x = variable(&mut arena, 3);
+            let bound = variable(&mut arena, 0);
+            id(&mut arena, ty, x, bound)
+        };
+        let body = variable(&mut arena, 6);
+        let inner = lambda(&mut arena, inner_domain, body);
+        lambda(&mut arena, domain, inner)
+    };
+    let base = {
+        let ty = variable(&mut arena, 3);
+        let x = variable(&mut arena, 2);
+        refl(&mut arena, ty, x)
+    };
+    let elimination = id_elim(&mut arena, strict_motive, base, y, p);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(
+        error,
+        CoreError::StrictIdentityMotiveCodomain { .. }
+    ));
+
+    // A motive into a non-universe `λ(y:A). λ(_:Id A x y). y` leaves
+    // `C y p` without a type to check against. Under both binders the
+    // bound `y` is index 1.
+    let term_motive = {
+        let domain = variable(&mut arena, 3);
+        let inner_domain = {
+            let ty = variable(&mut arena, 4);
+            let x = variable(&mut arena, 3);
+            let bound = variable(&mut arena, 0);
+            id(&mut arena, ty, x, bound)
+        };
+        let body = variable(&mut arena, 1);
+        let inner = lambda(&mut arena, inner_domain, body);
+        lambda(&mut arena, domain, inner)
+    };
+    let elimination = id_elim(&mut arena, term_motive, base, y, p);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(
+        error,
+        CoreError::IdentityMotiveCodomainNotAUniverse { .. }
+    ));
+
+    // A one-argument motive `λ(y:A). Type 0` never reaches the proof:
+    // its codomain is not a `Π`.
+    let short_motive = {
+        let domain = variable(&mut arena, 3);
+        let body = type_sort(&mut arena, 0);
+        lambda(&mut arena, domain, body)
+    };
+    let elimination = id_elim(&mut arena, short_motive, base, y, p);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(
+        error,
+        CoreError::IdentityMotiveCodomainNotAFunction { .. }
+    ));
+
+    // A motive that is not a function at all cannot name a family.
+    let not_a_function = two_zero(&mut arena);
+    let elimination = id_elim(&mut arena, not_a_function, base, y, p);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::NotAFunction { .. }));
+
+    // A motive over a different domain `λ(y:Two). λ(_:Id A x y). Type 0`
+    // is not an `A`-family.
+    let wrong_domain_motive = {
+        let domain = two(&mut arena);
+        let inner_domain = {
+            let ty = variable(&mut arena, 4);
+            let x = variable(&mut arena, 3);
+            let bound = variable(&mut arena, 0);
+            id(&mut arena, ty, x, bound)
+        };
+        let body = type_sort(&mut arena, 0);
+        let inner = lambda(&mut arena, inner_domain, body);
+        lambda(&mut arena, domain, inner)
+    };
+    let elimination = id_elim(&mut arena, wrong_domain_motive, base, y, p);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+
+    // A motive whose second domain is the carrier `A` rather than
+    // `Id A x y` does not eliminate an identity.
+    let wrong_inner_motive = {
+        let domain = variable(&mut arena, 3);
+        let inner_domain = variable(&mut arena, 4);
+        let body = type_sort(&mut arena, 0);
+        let inner = lambda(&mut arena, inner_domain, body);
+        lambda(&mut arena, domain, inner)
+    };
+    let elimination = id_elim(&mut arena, wrong_inner_motive, base, y, p);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+
+    // The supplied endpoint must be the proof's recorded endpoint:
+    // `J(C, d, x, p)` for `p : Id A x y` relocates the target and
+    // rejects.
+    let motive = symmetry_motive(&mut arena, 3, 2);
+    let x = variable(&mut arena, 2);
+    let elimination = id_elim(&mut arena, motive, base, x, p);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+
+    // The scrutinee must be an identity proof: `x : A` is not one.
+    let motive = symmetry_motive(&mut arena, 3, 2);
+    let x = variable(&mut arena, 2);
+    let elimination = id_elim(&mut arena, motive, base, y, x);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::NotAnIdentity { .. }));
+}
+
+#[test]
+fn identity_proofs_stay_relevant_without_uip() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context A : Type 0, x : A, p : Id A x x, q : Id A x x. In depth
+    // 4, A is index 3, x is index 2, p is index 1 and q is index 0.
+    let type_zero = type_sort(&mut arena, 0);
+    let x_binding = variable(&mut arena, 0);
+    let p_binding = {
+        let ty = variable(&mut arena, 1);
+        let x = variable(&mut arena, 0);
+        id(&mut arena, ty, x, x)
+    };
+    let q_binding = {
+        let ty = variable(&mut arena, 2);
+        let x = variable(&mut arena, 1);
+        id(&mut arena, ty, x, x)
+    };
+    let context = Context::empty()
+        .extend(type_zero)
+        .extend(x_binding)
+        .extend(p_binding)
+        .extend(q_binding);
+    let ty = variable(&mut arena, 3);
+    let x = variable(&mut arena, 2);
+    let shared_type = id(&mut arena, ty, x, x);
+
+    // `refl A x` checks at `Id A x x` — the positive control.
+    let ty = variable(&mut arena, 3);
+    let x = variable(&mut arena, 2);
+    let reflexive = refl(&mut arena, ty, x);
+    check_type(&mut arena, &context, reflexive, shared_type, &mut budget).unwrap();
+
+    // But a `refl` never converts to a neutral proof of the same
+    // identity, and two neutral proofs of the same identity stay
+    // distinct: there is no K/UIP collapse on the relevant layer.
+    let p = variable(&mut arena, 1);
+    let q = variable(&mut arena, 0);
+    assert!(!convertible(&mut arena, &context, reflexive, p, shared_type, &mut budget).unwrap());
+    assert!(!convertible(&mut arena, &context, p, reflexive, shared_type, &mut budget).unwrap());
+    assert!(!convertible(&mut arena, &context, p, q, shared_type, &mut budget).unwrap());
+
+    // Different subjects do not collapse either: in context
+    // A : Type 0, x : A, y : A (depth 3), `Id A x y` and `Id A y x` are
+    // distinct types.
+    let type_zero = type_sort(&mut arena, 0);
+    let x_binding = variable(&mut arena, 0);
+    let y_binding = variable(&mut arena, 1);
+    let context = Context::empty()
+        .extend(type_zero)
+        .extend(x_binding)
+        .extend(y_binding);
+    let ty = variable(&mut arena, 2);
+    let x = variable(&mut arena, 1);
+    let y = variable(&mut arena, 0);
+    let forward = id(&mut arena, ty, x, y);
+    let ty = variable(&mut arena, 2);
+    let y = variable(&mut arena, 0);
+    let x = variable(&mut arena, 1);
+    let backward = id(&mut arena, ty, y, x);
+    let shared_sort = type_sort(&mut arena, 0);
+    assert!(
+        !convertible(
+            &mut arena,
+            &context,
+            forward,
+            backward,
+            shared_sort,
+            &mut budget,
         )
         .unwrap()
     );

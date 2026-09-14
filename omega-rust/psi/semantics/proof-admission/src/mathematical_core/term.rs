@@ -1,6 +1,6 @@
 //! Term model for the common mathematical core: closed universe levels,
-//! relevant and strict sorts, arena-held de Bruijn terms, and the selected
-//! inductive profile's two-element type.
+//! relevant and strict sorts, arena-held de Bruijn terms, the selected
+//! inductive profile's two-element type, and its relevant identity type.
 
 use arena::Arena;
 
@@ -96,6 +96,32 @@ pub enum Term {
         zero_branch: TermHandle,
         one_branch: TermHandle,
         scrutinee: TermHandle,
+    },
+    /// The profile's relevant identity type `Id A x y : Type u` for
+    /// `A : Type u` and `x, y : A` — proof-relevant and intensional, so
+    /// no K/UIP or identity-proof irrelevance applies.
+    Id {
+        ty: TermHandle,
+        left: TermHandle,
+        right: TermHandle,
+    },
+    /// `refl A x : Id A x x`. The type is an annotation like `Lambda`'s
+    /// domain: checking the value against it directly is what lets a
+    /// dependent-pair endpoint type-check without searching.
+    Refl {
+        ty: TermHandle,
+        value: TermHandle,
+    },
+    /// Dependent identity elimination `J(motive, base, endpoint, proof)`:
+    /// for `proof : Id A x endpoint` and `motive : Π(y : A). Π(_ : Id A
+    /// x y). Type w` with `base : motive x (refl A x)`, the elimination
+    /// has type `motive endpoint proof` and computes to `base` on
+    /// `refl`. No child lives under a binder.
+    IdElim {
+        motive: TermHandle,
+        base: TermHandle,
+        endpoint: TermHandle,
+        proof: TermHandle,
     },
 }
 
@@ -215,6 +241,54 @@ impl TermArena {
                     && self.structurally_equal(left_zero_branch, right_zero_branch)
                     && self.structurally_equal(left_one_branch, right_one_branch)
                     && self.structurally_equal(left_scrutinee, right_scrutinee)
+            }
+            (
+                Term::Id {
+                    ty: left_ty,
+                    left: left_left,
+                    right: left_right,
+                },
+                Term::Id {
+                    ty: right_ty,
+                    left: right_left,
+                    right: right_right,
+                },
+            ) => {
+                self.structurally_equal(left_ty, right_ty)
+                    && self.structurally_equal(left_left, right_left)
+                    && self.structurally_equal(left_right, right_right)
+            }
+            (
+                Term::Refl {
+                    ty: left_ty,
+                    value: left_value,
+                },
+                Term::Refl {
+                    ty: right_ty,
+                    value: right_value,
+                },
+            ) => {
+                self.structurally_equal(left_ty, right_ty)
+                    && self.structurally_equal(left_value, right_value)
+            }
+            (
+                Term::IdElim {
+                    motive: left_motive,
+                    base: left_base,
+                    endpoint: left_endpoint,
+                    proof: left_proof,
+                },
+                Term::IdElim {
+                    motive: right_motive,
+                    base: right_base,
+                    endpoint: right_endpoint,
+                    proof: right_proof,
+                },
+            ) => {
+                self.structurally_equal(left_motive, right_motive)
+                    && self.structurally_equal(left_base, right_base)
+                    && self.structurally_equal(left_endpoint, right_endpoint)
+                    && self.structurally_equal(left_proof, right_proof)
             }
             _ => false,
         }

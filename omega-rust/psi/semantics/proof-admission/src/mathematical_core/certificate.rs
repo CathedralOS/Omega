@@ -288,6 +288,157 @@ mod tests {
     }
 
     #[test]
+    fn a_certificate_carries_identity_elimination() {
+        let mut arena = TermArena::new();
+        // Γ = A : Type 0, x : A, P : Π(y:A). Type 0, y : A,
+        // p : Id A x y, h : P x proves `J(C, λ(h:Px).h, y, p) h : P y`
+        // for the transport motive `C := λ(y:A). λ(_:Id A x y).
+        // Π(_:P x). P y`: the kernel re-decides the dependent
+        // elimination and the outer application together. In depth 6:
+        // A is index 5, x is 4, P is 3, y is 2, p is 1, h is 0.
+        let type_zero = type_sort(&mut arena, 0);
+        let x_binding = variable(&mut arena, 0);
+        let predicate_binding = {
+            let domain = variable(&mut arena, 1);
+            pi(&mut arena, domain, type_zero)
+        };
+        let y_binding = variable(&mut arena, 2);
+        let proof_binding = {
+            let ty = variable(&mut arena, 3);
+            let x = variable(&mut arena, 2);
+            let y = variable(&mut arena, 0);
+            arena.insert(Term::Id {
+                ty,
+                left: x,
+                right: y,
+            })
+        };
+        let hypothesis_binding = {
+            let predicate = variable(&mut arena, 2);
+            let x = variable(&mut arena, 3);
+            arena.insert(Term::Apply {
+                function: predicate,
+                argument: x,
+            })
+        };
+        // The motive under the full context: its second domain is
+        // `Id A x y` under the endpoint binder (A index 6, x index 5,
+        // bound y index 0), and its body `Π(_:P x). P y` under both
+        // binders (P index 5, x index 6; the bound y is index 2 under
+        // the inner Π binder).
+        let motive = {
+            let domain = variable(&mut arena, 5);
+            let inner_domain = {
+                let ty = variable(&mut arena, 6);
+                let x = variable(&mut arena, 5);
+                let bound = variable(&mut arena, 0);
+                arena.insert(Term::Id {
+                    ty,
+                    left: x,
+                    right: bound,
+                })
+            };
+            let body = {
+                let domain = {
+                    let predicate = variable(&mut arena, 5);
+                    let x = variable(&mut arena, 6);
+                    arena.insert(Term::Apply {
+                        function: predicate,
+                        argument: x,
+                    })
+                };
+                let codomain = {
+                    let predicate = variable(&mut arena, 6);
+                    let bound_y = variable(&mut arena, 2);
+                    arena.insert(Term::Apply {
+                        function: predicate,
+                        argument: bound_y,
+                    })
+                };
+                pi(&mut arena, domain, codomain)
+            };
+            let inner = lambda(&mut arena, inner_domain, body);
+            lambda(&mut arena, domain, inner)
+        };
+        // The base `λ(h : P x). h` checks at `C x (refl A x) ≡
+        // Π(_ : P x). P x`.
+        let base = {
+            let domain = {
+                let predicate = variable(&mut arena, 3);
+                let x = variable(&mut arena, 4);
+                arena.insert(Term::Apply {
+                    function: predicate,
+                    argument: x,
+                })
+            };
+            let bound = variable(&mut arena, 0);
+            lambda(&mut arena, domain, bound)
+        };
+        let endpoint = variable(&mut arena, 2);
+        let proof = variable(&mut arena, 1);
+        let elimination = arena.insert(Term::IdElim {
+            motive,
+            base,
+            endpoint,
+            proof,
+        });
+        let hypothesis = variable(&mut arena, 0);
+        let term = arena.insert(Term::Apply {
+            function: elimination,
+            argument: hypothesis,
+        });
+        let expected = {
+            let predicate = variable(&mut arena, 3);
+            let y = variable(&mut arena, 2);
+            arena.insert(Term::Apply {
+                function: predicate,
+                argument: y,
+            })
+        };
+        let certificate = MathematicalCertificate {
+            context: vec![
+                type_zero,
+                x_binding,
+                predicate_binding,
+                y_binding,
+                proof_binding,
+                hypothesis_binding,
+            ],
+            term,
+            expected,
+        };
+        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+
+        // Claiming `P x` instead of `P y` is a different, false
+        // judgment: transport moved the subject, and the kernel
+        // re-decides that.
+        let wrong_expected = {
+            let predicate = variable(&mut arena, 3);
+            let x = variable(&mut arena, 4);
+            arena.insert(Term::Apply {
+                function: predicate,
+                argument: x,
+            })
+        };
+        let certificate = MathematicalCertificate {
+            context: vec![
+                type_zero,
+                x_binding,
+                predicate_binding,
+                y_binding,
+                proof_binding,
+                hypothesis_binding,
+            ],
+            term,
+            expected: wrong_expected,
+        };
+        assert!(matches!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::TypeMismatch { .. })
+        ));
+    }
+
+    #[test]
     fn strict_sorts_flow_through_the_certificate() {
         let mut arena = TermArena::new();
         // Γ = P : Strict 0, x : P. In the full context x's type is

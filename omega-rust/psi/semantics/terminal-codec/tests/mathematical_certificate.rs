@@ -222,6 +222,158 @@ fn a_two_elimination_certificate_verifies_end_to_end() {
 }
 
 #[test]
+fn an_identity_elimination_certificate_verifies_end_to_end() {
+    let mut arena = TermArena::new();
+    // Γ = A : Type 0, x : A, P : Π(y:A). Type 0, y : A,
+    // p : Id A x y, h : P x proves `J(C, λ(h:Px).h, y, p) h : P y` —
+    // the certificate carries the identity eliminator as data across
+    // the wire and the kernel re-decides it after decode. In depth 6:
+    // A is index 5, x is 4, P is 3, y is 2, p is 1, h is 0.
+    let type_zero = type_sort(&mut arena, 0);
+    let x_binding = variable(&mut arena, 0);
+    let predicate_binding = {
+        let domain = variable(&mut arena, 1);
+        pi(&mut arena, domain, type_zero)
+    };
+    let y_binding = variable(&mut arena, 2);
+    let proof_binding = {
+        let ty = variable(&mut arena, 3);
+        let x = variable(&mut arena, 2);
+        let y = variable(&mut arena, 0);
+        arena.insert(Term::Id {
+            ty,
+            left: x,
+            right: y,
+        })
+    };
+    let hypothesis_binding = {
+        let predicate = variable(&mut arena, 2);
+        let x = variable(&mut arena, 3);
+        arena.insert(Term::Apply {
+            function: predicate,
+            argument: x,
+        })
+    };
+    let motive = {
+        let domain = variable(&mut arena, 5);
+        let inner_domain = {
+            let ty = variable(&mut arena, 6);
+            let x = variable(&mut arena, 5);
+            let bound = variable(&mut arena, 0);
+            arena.insert(Term::Id {
+                ty,
+                left: x,
+                right: bound,
+            })
+        };
+        let body = {
+            let domain = {
+                let predicate = variable(&mut arena, 5);
+                let x = variable(&mut arena, 6);
+                arena.insert(Term::Apply {
+                    function: predicate,
+                    argument: x,
+                })
+            };
+            let codomain = {
+                let predicate = variable(&mut arena, 6);
+                let bound_y = variable(&mut arena, 2);
+                arena.insert(Term::Apply {
+                    function: predicate,
+                    argument: bound_y,
+                })
+            };
+            pi(&mut arena, domain, codomain)
+        };
+        let inner = lambda(&mut arena, inner_domain, body);
+        lambda(&mut arena, domain, inner)
+    };
+    let base = {
+        let domain = {
+            let predicate = variable(&mut arena, 3);
+            let x = variable(&mut arena, 4);
+            arena.insert(Term::Apply {
+                function: predicate,
+                argument: x,
+            })
+        };
+        let bound = variable(&mut arena, 0);
+        lambda(&mut arena, domain, bound)
+    };
+    let endpoint = variable(&mut arena, 2);
+    let proof = variable(&mut arena, 1);
+    let elimination = arena.insert(Term::IdElim {
+        motive,
+        base,
+        endpoint,
+        proof,
+    });
+    let hypothesis = variable(&mut arena, 0);
+    let term = arena.insert(Term::Apply {
+        function: elimination,
+        argument: hypothesis,
+    });
+    let expected = {
+        let predicate = variable(&mut arena, 3);
+        let y = variable(&mut arena, 2);
+        arena.insert(Term::Apply {
+            function: predicate,
+            argument: y,
+        })
+    };
+    let certificate = MathematicalCertificate {
+        context: vec![
+            type_zero,
+            x_binding,
+            predicate_binding,
+            y_binding,
+            proof_binding,
+            hypothesis_binding,
+        ],
+        term,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    verify(&mut decoded).expect("identity elimination must re-verify after decode");
+
+    // Re-encoding the decoded judgment reproduces the same canonical
+    // bytes — the identity nodes participate in deduplication and
+    // canonical ordering like every other constructor.
+    let repacked =
+        encode_mathematical_certificate(&decoded.arena, &decoded.certificate).expect("re-encode");
+    assert_eq!(repacked, bytes);
+
+    // A certificate claiming `P x` — the transported-away subject — is a
+    // different, false judgment and must not verify after decode.
+    let certificate = MathematicalCertificate {
+        context: vec![
+            type_zero,
+            x_binding,
+            predicate_binding,
+            y_binding,
+            proof_binding,
+            hypothesis_binding,
+        ],
+        term,
+        expected: {
+            let predicate = variable(&mut arena, 3);
+            let x = variable(&mut arena, 4);
+            arena.insert(Term::Apply {
+                function: predicate,
+                argument: x,
+            })
+        },
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    assert!(matches!(
+        verify(&mut decoded),
+        Err(CoreError::TypeMismatch { .. })
+    ));
+}
+
+#[test]
 fn byte_level_forgery_cannot_alias_a_certificate() {
     let mut arena = TermArena::new();
     let (identity, expected) = polymorphic_identity(&mut arena);

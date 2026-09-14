@@ -112,6 +112,54 @@ pub fn shift(arena: &mut TermArena, term: TermHandle, cutoff: u32, amount: u32) 
                 scrutinee: shifted_scrutinee,
             })
         }
+        Term::Id { ty, left, right } => {
+            let shifted_ty = shift(arena, ty, cutoff, amount);
+            let shifted_left = shift(arena, left, cutoff, amount);
+            let shifted_right = shift(arena, right, cutoff, amount);
+            if shifted_ty == ty && shifted_left == left && shifted_right == right {
+                return term;
+            }
+            arena.insert(Term::Id {
+                ty: shifted_ty,
+                left: shifted_left,
+                right: shifted_right,
+            })
+        }
+        Term::Refl { ty, value } => {
+            let shifted_ty = shift(arena, ty, cutoff, amount);
+            let shifted_value = shift(arena, value, cutoff, amount);
+            if shifted_ty == ty && shifted_value == value {
+                return term;
+            }
+            arena.insert(Term::Refl {
+                ty: shifted_ty,
+                value: shifted_value,
+            })
+        }
+        Term::IdElim {
+            motive,
+            base,
+            endpoint,
+            proof,
+        } => {
+            let shifted_motive = shift(arena, motive, cutoff, amount);
+            let shifted_base = shift(arena, base, cutoff, amount);
+            let shifted_endpoint = shift(arena, endpoint, cutoff, amount);
+            let shifted_proof = shift(arena, proof, cutoff, amount);
+            if shifted_motive == motive
+                && shifted_base == base
+                && shifted_endpoint == endpoint
+                && shifted_proof == proof
+            {
+                return term;
+            }
+            arena.insert(Term::IdElim {
+                motive: shifted_motive,
+                base: shifted_base,
+                endpoint: shifted_endpoint,
+                proof: shifted_proof,
+            })
+        }
         Term::Sort(_) | Term::Two | Term::TwoZero | Term::TwoOne | Term::Dummy => term,
     }
 }
@@ -229,6 +277,54 @@ fn substitute_at(
                 zero_branch: new_zero_branch,
                 one_branch: new_one_branch,
                 scrutinee: new_scrutinee,
+            })
+        }
+        Term::Id { ty, left, right } => {
+            let new_ty = substitute_at(arena, ty, argument, depth);
+            let new_left = substitute_at(arena, left, argument, depth);
+            let new_right = substitute_at(arena, right, argument, depth);
+            if new_ty == ty && new_left == left && new_right == right {
+                return term;
+            }
+            arena.insert(Term::Id {
+                ty: new_ty,
+                left: new_left,
+                right: new_right,
+            })
+        }
+        Term::Refl { ty, value } => {
+            let new_ty = substitute_at(arena, ty, argument, depth);
+            let new_value = substitute_at(arena, value, argument, depth);
+            if new_ty == ty && new_value == value {
+                return term;
+            }
+            arena.insert(Term::Refl {
+                ty: new_ty,
+                value: new_value,
+            })
+        }
+        Term::IdElim {
+            motive,
+            base,
+            endpoint,
+            proof,
+        } => {
+            let new_motive = substitute_at(arena, motive, argument, depth);
+            let new_base = substitute_at(arena, base, argument, depth);
+            let new_endpoint = substitute_at(arena, endpoint, argument, depth);
+            let new_proof = substitute_at(arena, proof, argument, depth);
+            if new_motive == motive
+                && new_base == base
+                && new_endpoint == endpoint
+                && new_proof == proof
+            {
+                return term;
+            }
+            arena.insert(Term::IdElim {
+                motive: new_motive,
+                base: new_base,
+                endpoint: new_endpoint,
+                proof: new_proof,
             })
         }
         Term::Sort(_) | Term::Two | Term::TwoZero | Term::TwoOne | Term::Dummy => term,

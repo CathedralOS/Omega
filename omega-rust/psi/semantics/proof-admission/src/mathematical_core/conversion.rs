@@ -1,5 +1,5 @@
-//! Typed conversion for the Π/Σ fragment and the `Two` primitive: β,
-//! pair-projection and constructor-scrutinee `caseTwo` weak-head
+//! Typed conversion for the Π/Σ fragment and the `Two`/`Id` primitives:
+//! β, pair-projection and constructor-scrutinee `caseTwo`/`J` weak-head
 //! normalization under a step ceiling, pair eta at a `Sigma` shared type,
 //! typed function eta at a `Pi` shared type, and definitional proof
 //! irrelevance gated on the *shared type's* sort — never on the shape of
@@ -137,6 +137,37 @@ pub fn weak_head_normalize(
                             zero_branch,
                             one_branch,
                             scrutinee: head,
+                        }));
+                    }
+                }
+            }
+            Term::IdElim {
+                motive,
+                base,
+                endpoint,
+                proof,
+            } => {
+                // `J(C, d, y, refl A x) → d`: a reflexivity proof selects
+                // the base case. Typing already equated the supplied
+                // endpoint with the proof's recorded endpoint and the
+                // `refl` value, so the match needs no endpoint re-check;
+                // a neutral proof keeps the elimination stuck. There is
+                // no identity eta — a stuck `J` is its own normal form.
+                let head = weak_head_normalize(arena, proof, budget)?;
+                match arena.get(head) {
+                    Term::Refl { .. } => {
+                        budget.consume()?;
+                        current = base;
+                    }
+                    _ => {
+                        if head == proof {
+                            return Ok(current);
+                        }
+                        return Ok(arena.insert(Term::IdElim {
+                            motive,
+                            base,
+                            endpoint,
+                            proof: head,
                         }));
                     }
                 }
@@ -404,6 +435,106 @@ pub fn convertible(
                 one_branch_type,
                 budget,
             )
+        }
+        (
+            Term::Id {
+                ty: left_ty,
+                left: left_left,
+                right: left_right,
+            },
+            Term::Id {
+                ty: right_ty,
+                left: right_left,
+                right: right_right,
+            },
+        ) => {
+            // Two identity types compare componentwise: the carriers as
+            // types at the left carrier's sort, then each endpoint at
+            // the left carrier.
+            let ty_sort = infer_sort(arena, context, left_ty, budget)?;
+            let shared_ty = arena.insert(Term::Sort(ty_sort));
+            if !convertible(arena, context, left_ty, right_ty, shared_ty, budget)? {
+                return Ok(false);
+            }
+            if !convertible(arena, context, left_left, right_left, left_ty, budget)? {
+                return Ok(false);
+            }
+            convertible(arena, context, left_right, right_right, left_ty, budget)
+        }
+        (
+            Term::Refl {
+                value: left_value, ..
+            },
+            Term::Refl {
+                value: right_value, ..
+            },
+        ) => {
+            // Two reflexivity proofs at a shared identity type: the `ty`
+            // annotations each convert to the shared carrier, so only
+            // the values decide — compared at the shared type's carrier.
+            let type_head = weak_head_normalize(arena, shared_type, budget)?;
+            match arena.get(type_head) {
+                Term::Id { ty, .. } => {
+                    convertible(arena, context, left_value, right_value, ty, budget)
+                }
+                _ => Ok(false),
+            }
+        }
+        (
+            Term::IdElim {
+                motive: left_motive,
+                base: left_base,
+                endpoint: left_endpoint,
+                proof: left_proof,
+            },
+            Term::IdElim {
+                motive: right_motive,
+                base: right_base,
+                endpoint: right_endpoint,
+                proof: right_proof,
+            },
+        ) => {
+            // Two stuck eliminations compare componentwise: the motives
+            // at the left motive's inferred `Π(y : A). Π(_ : Id A x y).
+            // Type w`, the endpoints at the identity carrier `A`, the
+            // proofs at the left proof's inferred identity type, and the
+            // bases at `C x (refl A x)` for the fixed endpoint `x`. A
+            // `refl` scrutinee never reaches here — weak-head
+            // normalization already selected the base — so only stuck
+            // proofs meet this rule.
+            let motive_type = infer_type(arena, context, left_motive, budget)?;
+            if !convertible(
+                arena,
+                context,
+                left_motive,
+                right_motive,
+                motive_type,
+                budget,
+            )? {
+                return Ok(false);
+            }
+            let proof_type = infer_type(arena, context, left_proof, budget)?;
+            let proof_head = weak_head_normalize(arena, proof_type, budget)?;
+            let (ty, fixed) = match arena.get(proof_head) {
+                Term::Id { ty, left, .. } => (ty, left),
+                _ => return Ok(false),
+            };
+            if !convertible(arena, context, left_endpoint, right_endpoint, ty, budget)? {
+                return Ok(false);
+            }
+            if !convertible(arena, context, left_proof, right_proof, proof_head, budget)? {
+                return Ok(false);
+            }
+            let refl = arena.insert(Term::Refl { ty, value: fixed });
+            let at_fixed = arena.insert(Term::Apply {
+                function: left_motive,
+                argument: fixed,
+            });
+            let base_type = arena.insert(Term::Apply {
+                function: at_fixed,
+                argument: refl,
+            });
+            convertible(arena, context, left_base, right_base, base_type, budget)
         }
         (Term::Pair { first, second }, _) => {
             // Pair eta: a literal pair converts to a non-pair only when the
