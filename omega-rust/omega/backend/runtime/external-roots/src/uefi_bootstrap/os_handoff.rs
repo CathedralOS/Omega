@@ -15,7 +15,7 @@ use crate::{
     UefiPhysicalInvocationId,
 };
 
-use super::claim_ledger_authority;
+use super::{UefiMemoryMapAcquisition, claim_ledger_authority};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum UefiOsHandoffPhase {
@@ -115,35 +115,61 @@ impl UefiOsHandoffLedger {
         self.handoff
     }
 
-    /// Consume the current arrival and bind a fresh snapshot/key pair returned
-    /// by the target provider. A rejection preserves the complete arrival.
+    pub const fn firmware_session(&self) -> UefiFirmwareSessionId {
+        self.session
+    }
+
+    pub const fn physical_invocation(&self) -> UefiPhysicalInvocationId {
+        self.invocation
+    }
+
+    /// Consume the current arrival and bind the acquisition evidence executed
+    /// by the `get_memory_map` provider edge. The snapshot/key pair, its
+    /// descriptor geometry, and the firmware-session and physical-invocation
+    /// lineage all arrive sealed inside `UefiMemoryMapAcquisition`; a
+    /// rejection preserves the complete arrival and the unspent acquisition.
     pub fn acquire_memory_map(
         &mut self,
         arrival: UefiOsHandoffMapRequired,
-        snapshot: UefiMemoryMapSnapshotId,
-        key: UefiMemoryMapKeyId,
+        acquisition: UefiMemoryMapAcquisition,
     ) -> Result<UefiOsHandoffMapAcquired, Box<UefiOsHandoffMapAcquisitionError>> {
+        let reject = |arrival, acquisition, message: &'static str| {
+            Err(Box::new(UefiOsHandoffMapAcquisitionError {
+                arrival,
+                acquisition,
+                diagnostic: ExternalRootDiagnostic(message.into()),
+            }))
+        };
         if !self.matches_arrival(&arrival) {
-            return Err(Box::new(UefiOsHandoffMapAcquisitionError {
+            return reject(
                 arrival,
-                diagnostic: ExternalRootDiagnostic(
-                    "UEFI OS-handoff map arrival is foreign, stale, or has lost custody".into(),
-                ),
-            }));
+                acquisition,
+                "UEFI OS-handoff map arrival is foreign, stale, or has lost custody",
+            );
         }
-        if self.retired_maps.contains(&(snapshot, key)) {
-            return Err(Box::new(UefiOsHandoffMapAcquisitionError {
+        if acquisition.physical_invocation() != self.invocation
+            || acquisition.firmware_session() != self.session
+        {
+            return reject(
                 arrival,
-                diagnostic: ExternalRootDiagnostic(
-                    "UEFI OS-handoff cannot reacquire a retired snapshot/key pair".into(),
-                ),
-            }));
+                acquisition,
+                "UEFI OS-handoff map acquisition belongs to a different physical invocation or firmware session",
+            );
+        }
+        if self
+            .retired_maps
+            .contains(&(acquisition.snapshot(), acquisition.map_key()))
+        {
+            return reject(
+                arrival,
+                acquisition,
+                "UEFI OS-handoff cannot reacquire a retired snapshot/key pair",
+            );
         }
         self.phase = UefiOsHandoffPhase::ExitAttempt;
         Ok(UefiOsHandoffMapAcquired {
             arrival,
-            snapshot,
-            key,
+            acquisition,
         })
     }
 
@@ -182,13 +208,16 @@ impl UefiOsHandoffLedger {
                     session: self.session,
                     invocation: self.invocation,
                     allocations: self.allocations,
-                    final_map: acquired.snapshot,
+                    final_map: acquired.acquisition.snapshot(),
                     surviving_stack: self.surviving_stack,
                     receipt,
                 }))
             }
             UefiExitBootServicesProviderResultKind::StaleMapKey => {
-                self.retired_maps.insert((acquired.snapshot, acquired.key));
+                self.retired_maps.insert((
+                    acquired.acquisition.snapshot(),
+                    acquired.acquisition.map_key(),
+                ));
                 self.generation = next_generation;
                 if self.remaining == 1 {
                     self.remaining = 0;
@@ -278,12 +307,11 @@ impl UefiOsHandoffMapRequired {
     }
 }
 
-/// Exact snapshot and key paired with all live attempt custody.
+/// Executed acquisition evidence paired with all live attempt custody.
 #[must_use = "acquired UEFI map must be attempted or returned intact"]
 pub struct UefiOsHandoffMapAcquired {
     arrival: UefiOsHandoffMapRequired,
-    snapshot: UefiMemoryMapSnapshotId,
-    key: UefiMemoryMapKeyId,
+    acquisition: UefiMemoryMapAcquisition,
 }
 
 impl std::fmt::Debug for UefiOsHandoffMapAcquired {
@@ -292,19 +320,36 @@ impl std::fmt::Debug for UefiOsHandoffMapAcquired {
             .debug_struct("UefiOsHandoffMapAcquired")
             .field("handoff", &self.arrival.handoff)
             .field("remaining", &self.arrival.remaining)
-            .field("snapshot", &self.snapshot)
-            .field("key", &self.key)
+            .field("snapshot", &self.acquisition.snapshot())
+            .field("key", &self.acquisition.map_key())
             .finish_non_exhaustive()
     }
 }
 
 impl UefiOsHandoffMapAcquired {
     pub const fn snapshot(&self) -> UefiMemoryMapSnapshotId {
-        self.snapshot
+        self.acquisition.snapshot()
     }
 
+    /// The exact physical key the most recent `GetMemoryMap` wrote; the
+    /// `ExitBootServices` binding carries it as the `RDX` operand identity.
     pub const fn map_key(&self) -> UefiMemoryMapKeyId {
-        self.key
+        self.acquisition.map_key()
+    }
+
+    /// Occupied map bytes, descriptor stride, and descriptor version observed
+    /// by the acquiring execution; the OS-entry plan consumes the same
+    /// geometry when it walks the transferred map.
+    pub const fn map_bytes(&self) -> usize {
+        self.acquisition.map_bytes()
+    }
+
+    pub const fn descriptor_size(&self) -> usize {
+        self.acquisition.descriptor_size()
+    }
+
+    pub const fn descriptor_version(&self) -> u32 {
+        self.acquisition.descriptor_version()
     }
 
     /// Report identity of the handoff attempt this map belongs to. The
@@ -446,9 +491,11 @@ impl UefiOsHandoffComplete {
     }
 }
 
-/// Recoverable map-acquisition rejection.
+/// Recoverable map-acquisition rejection. Both the arrival and the unspent
+/// acquisition evidence return intact.
 pub struct UefiOsHandoffMapAcquisitionError {
     arrival: UefiOsHandoffMapRequired,
+    acquisition: UefiMemoryMapAcquisition,
     diagnostic: ExternalRootDiagnostic,
 }
 
@@ -466,8 +513,14 @@ impl UefiOsHandoffMapAcquisitionError {
         &self.diagnostic
     }
 
-    pub fn into_parts(self) -> (UefiOsHandoffMapRequired, ExternalRootDiagnostic) {
-        (self.arrival, self.diagnostic)
+    pub fn into_parts(
+        self,
+    ) -> (
+        UefiOsHandoffMapRequired,
+        UefiMemoryMapAcquisition,
+        ExternalRootDiagnostic,
+    ) {
+        (self.arrival, self.acquisition, self.diagnostic)
     }
 }
 
@@ -551,18 +604,25 @@ mod tests {
         .unwrap()
     }
 
+    fn acquisition(ledger: &UefiOsHandoffLedger, base: u64) -> UefiMemoryMapAcquisition {
+        UefiMemoryMapAcquisition::for_test(
+            ledger.firmware_session(),
+            ledger.physical_invocation(),
+            id(base, UefiMemoryMapSnapshotId::from_normalized_identity),
+            id(base + 1, UefiMemoryMapKeyId::from_normalized_identity),
+            96,
+            48,
+            1,
+        )
+    }
+
     fn acquire(
         ledger: &mut UefiOsHandoffLedger,
         arrival: UefiOsHandoffMapRequired,
         base: u64,
     ) -> UefiOsHandoffMapAcquired {
-        ledger
-            .acquire_memory_map(
-                arrival,
-                id(base, UefiMemoryMapSnapshotId::from_normalized_identity),
-                id(base + 1, UefiMemoryMapKeyId::from_normalized_identity),
-            )
-            .unwrap()
+        let acquisition = acquisition(ledger, base);
+        ledger.acquire_memory_map(arrival, acquisition).unwrap()
     }
 
     #[test]
@@ -635,14 +695,10 @@ mod tests {
         };
         retry.remaining = 2;
         let error = ledger
-            .acquire_memory_map(
-                retry,
-                id(82, UefiMemoryMapSnapshotId::from_normalized_identity),
-                id(83, UefiMemoryMapKeyId::from_normalized_identity),
-            )
+            .acquire_memory_map(retry, acquisition(&ledger, 82))
             .unwrap_err();
         assert!(error.diagnostic().0.contains("stale"));
-        let (mut retry, _) = error.into_parts();
+        let (mut retry, _acquisition, _) = error.into_parts();
         retry.remaining = 1;
         let _acquired = acquire(&mut ledger, retry, 82);
     }
@@ -656,13 +712,9 @@ mod tests {
             UefiOsHandoffAllocationRosterId::from_normalized_identity,
         );
         let error = owner
-            .acquire_memory_map(
-                arrival,
-                id(100, UefiMemoryMapSnapshotId::from_normalized_identity),
-                id(101, UefiMemoryMapKeyId::from_normalized_identity),
-            )
+            .acquire_memory_map(arrival, acquisition(&owner, 100))
             .unwrap_err();
-        let (mut arrival, _) = error.into_parts();
+        let (mut arrival, _acquisition, _) = error.into_parts();
         arrival.allocations = exact_allocations;
         let _acquired = acquire(&mut owner, arrival, 100);
 
@@ -673,8 +725,7 @@ mod tests {
                     authority: owner.authority,
                     ..foreign_arrival
                 },
-                id(102, UefiMemoryMapSnapshotId::from_normalized_identity),
-                id(103, UefiMemoryMapKeyId::from_normalized_identity),
+                acquisition(&foreign, 102),
             )
             .unwrap_err();
         assert!(error.diagnostic().0.contains("foreign"));
@@ -709,11 +760,7 @@ mod tests {
             generation: ledger.generation,
         };
         let error = ledger
-            .acquire_memory_map(
-                forged,
-                id(123, UefiMemoryMapSnapshotId::from_normalized_identity),
-                id(124, UefiMemoryMapKeyId::from_normalized_identity),
-            )
+            .acquire_memory_map(forged, acquisition(&ledger, 123))
             .unwrap_err();
         assert!(error.diagnostic().0.contains("stale"));
     }
@@ -730,11 +777,7 @@ mod tests {
             panic!("stale key must retry")
         };
         let error = ledger
-            .acquire_memory_map(
-                retry,
-                id(140, UefiMemoryMapSnapshotId::from_normalized_identity),
-                id(141, UefiMemoryMapKeyId::from_normalized_identity),
-            )
+            .acquire_memory_map(retry, acquisition(&ledger, 140))
             .unwrap_err();
         assert!(error.diagnostic().0.contains("retired"));
     }
