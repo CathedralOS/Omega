@@ -428,3 +428,108 @@ fn mixed_static_and_runtime_value_slots_keep_telescope_order() {
         .expect("caller local n");
     assert_eq!(subject.symbol, local);
 }
+
+#[test]
+fn specialized_value_machine_writes_its_own_attached_data() {
+    // The specialized clone is a generated root, not an authored child of the
+    // program root. Validation must still resolve the clone's own machine
+    // symbol so `self.x` is owned data the `&mut self` state may write.
+    crate::lower_typed_trees(typed(
+        "data Main { x: u32; }
+         machine Main::put<Count: u32>(&mut self, v: u32) { self.x = v; }
+         machine Main::main(&mut self) { let n: u32 = 3; self.put<n>(10); }",
+    ))
+    .expect("a specialized clone keeps ownership of its attached data");
+}
+
+#[test]
+fn runtime_value_indexes_an_attached_array_field_under_requires() {
+    // `self.values[Count]` on a `Value` binder: the carrier `u32` proves the
+    // lower bound and `requires Count <= 7` proves the length, on reads and
+    // writes alike, after the source variable is reassigned to a new subject,
+    // and for a second distinct subject sharing the one specialized body.
+    crate::lower_typed_trees(typed(
+        "data Main { values: [u32; 8]; }
+         machine Main::at<Count: u32>(&self) -> u32
+         requires
+             Count <= 7;
+         { self.values[Count] }
+         machine Main::put<Count: u32>(&mut self, v: u32)
+         requires
+             Count <= 7;
+         { self.values[Count] = v; }
+         machine Main::main(&mut self) {
+             let mut n: u32 = 3;
+             self.put<n>(10);
+             n = 5;
+             self.put<n>(20);
+             let a: u32 = self.at<n>();
+             let m: u32 = 4;
+             let b: u32 = self.at<m>();
+             let s: u32 = self.at<6>();
+         }",
+    ))
+    .expect("an established bound indexes attached array fields");
+}
+
+#[test]
+fn runtime_value_index_without_a_bound_still_rejects() {
+    // The carrier `u32` proves non-negativity but nothing proves `Count < 8`,
+    // so the indexed read must still be refused.
+    let error = crate::lower_typed_trees(typed(
+        "data Main { values: [u32; 8]; }
+         machine Main::at<Count: u32>(&self) -> u32 { self.values[Count] }
+         machine Main::main(&mut self) { let n: u32 = 3; let a: u32 = self.at<n>(); }",
+    ))
+    .expect_err("an unproven index bound must still reject");
+    assert!(
+        error
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove index")),
+        "{error:#?}"
+    );
+}
+
+#[test]
+fn generic_to_generic_requires_instantiates_against_the_forwarded_subject() {
+    // `bounded<Count>` requires `Count <= 10`; `forward<K>` calls `bounded<K>`,
+    // so the instantiated obligation is `K <= 10` on `forward`'s own binder.
+    // `forward`'s requires contract establishes that fact for every caller.
+    crate::lower_typed_trees(typed(
+        "machine bounded<Count: u32>(base: u32) -> u32
+         requires
+             Count <= 10;
+         { Count }
+         machine forward<K: u32>(base: u32) -> u32
+         requires
+             K <= 10;
+         { bounded<K>(base) }
+         machine main() -> u32 { let n: u32 = 3; forward<n>(7) }",
+    ))
+    .expect("the callee's requires discharges against the forwarded subject");
+}
+
+#[test]
+fn generic_to_generic_requires_still_owes_the_unestablished_fact() {
+    // Without `forward`'s own `requires K <= 10`, the instantiated obligation
+    // names the forwarded `K` subject — not the callee's `Count` binder and
+    // not a literal — and nothing establishes it.
+    let error = crate::lower_typed_trees(typed(
+        "machine bounded<Count: u32>(base: u32) -> u32
+         requires
+             Count <= 10;
+         { Count }
+         machine forward<K: u32>(base: u32) -> u32 { bounded<K>(base) }
+         machine main() -> u32 { let n: u32 = 3; forward<n>(7) }",
+    ))
+    .expect_err("an unestablished forwarded subject must still owe the requirement");
+    assert!(
+        error.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot prove requires contract")
+                && diagnostic.message.contains("K <= 10")
+        }),
+        "{error:#?}"
+    );
+}
