@@ -3,13 +3,16 @@ use super::*;
 #[test]
 fn guarded_bounded_integer_field_increment_publishes_checked_terminal() {
     let checked = checked_source(
-        "data Counter [copy] { value: i32 [0..=16]; }
+        "data Counter [copy] { value: i32 [0..=16]; signed: i8 [-5..=5]; }
          machine Counter::advance(&mut self) {
-             transition self.value < 16 {
+             transition self.value < 16 && self.signed > -5 {
                  true -> increment()
                  false -> done()
              }
-             state increment(&mut self) { self.value = self.value + 1; }
+             state increment(&mut self) {
+                 self.value = self.value + 1;
+                 self.signed = self.signed - 1;
+             }
              state done(&mut self) {}
          }",
     );
@@ -20,19 +23,50 @@ fn guarded_bounded_integer_field_increment_publishes_checked_terminal() {
                 "guarded replacement proves arithmetic and the destination range independently",
             );
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    assert!(
+    assert_eq!(
         module
             .machines
             .iter()
             .flat_map(|machine| &machine.blocks)
             .flat_map(|block| &block.operations)
-            .any(|operation| matches!(
+            .filter(|operation| matches!(
                 operation.kind,
                 OperationKind::StructuralScalarFieldStore {
                     range_obligation: Some(_),
                     ..
                 }
             ))
+            .count(),
+        2,
+        "both disjoint writes retain independent destination-range obligations"
+    );
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    let mut redirected = module.clone();
+    let guard = redirected
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == module.entry)
+        .unwrap()
+        .blocks
+        .iter_mut()
+        .find_map(|block| match &mut block.terminator {
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => Some((when_true, when_false)),
+            _ => None,
+        })
+        .expect("the guarded stores retain conditional control");
+    std::mem::swap(guard.0, guard.1);
+    assert!(
+        terminal_verifier::verify_module(
+            &redirected,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "redirecting the guard cannot reuse proofs for the original selected path"
     );
 }
 

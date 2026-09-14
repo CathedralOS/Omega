@@ -11,8 +11,18 @@ pub(in crate::selection) fn prepare(
     let source_count = function.blocks.len();
     let mut next_instruction = instruction_count(function);
     let mut bridges = Vec::new();
+    let mut unbridged_fallthroughs = Vec::new();
     for source in &mut function.blocks {
-        for successor in successors_mut(&mut source.terminator) {
+        let conditional = matches!(
+            source.terminator,
+            SelectedTerminator::ConditionalBranch { .. }
+                | SelectedTerminator::ConditionalBranchU64LessThan { .. }
+                | SelectedTerminator::ConditionalBranchI64LessThan { .. }
+        );
+        for (position, successor) in successors_mut(&mut source.terminator)
+            .into_iter()
+            .enumerate()
+        {
             if successor.structural_case.is_some() {
                 if let Some(bridge) = structural_case::prepare(
                     function_index,
@@ -45,7 +55,16 @@ pub(in crate::selection) fn prepare(
                     binding.transport == selected_instructions::SelectedStructuralTransport::Unused
                 })
             {
-                continue;
+                if !conditional || position != 1 {
+                    continue;
+                }
+                // Two conditional instructions cannot both physically precede
+                // one fallthrough block. Reuse the ordinary edge bridge for the
+                // later claimant; existing transport bridges already isolate it.
+                if !unbridged_fallthroughs.contains(&successor.block) {
+                    unbridged_fallthroughs.push(successor.block);
+                    continue;
+                }
             }
             let bridge_id = SelectedBlockId(
                 u32::try_from(source_count + bridges.len()).map_err(|_| invalid(function_index))?,

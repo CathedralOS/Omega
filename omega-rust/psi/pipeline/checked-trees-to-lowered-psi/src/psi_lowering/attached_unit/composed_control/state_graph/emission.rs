@@ -269,25 +269,37 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn emit(
             .ok_or(LoweringError::Unsupported(
                 "graph body lost its scalar namespace",
             ))?;
+        let mut branch_guard = None;
         let condition =
             if let CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
                 &state.terminator
             {
-                let mut calls = catalogs.scalar_calls.emission_context();
-                let condition = evaluation.guard_value(
+                branch_guard = evaluation.branch_guard(
                     checked,
                     plan.machine,
                     state.state,
                     when_true.statement_ordinal,
-                    &mut values,
-                    &mut next_value,
-                    &mut next_block,
-                    &mut next_edge,
-                    &mut operations,
-                    &mut calls,
+                    &values,
                 )?;
-                catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-                Some(condition.id)
+                if branch_guard.is_some() {
+                    None
+                } else {
+                    let mut calls = catalogs.scalar_calls.emission_context();
+                    let condition = evaluation.guard_value(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        when_true.statement_ordinal,
+                        &mut values,
+                        &mut next_value,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                        &mut calls,
+                    )?;
+                    catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                    Some(condition.id)
+                }
             } else {
                 None
             };
@@ -370,7 +382,7 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn emit(
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph target disappeared during emission",
                 ))?;
-            let stage = case_edge || condition.is_some()
+            let stage = case_edge || (condition.is_some() || branch_guard.is_some())
                     && ((current_rank.is_some() && ranking::has_rank(plan, &plan.states[target])) || edge.transfers.iter().any(|transfer| matches!(
                         transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
                     )) || edge.scalar_arguments.iter().any(|argument| {
@@ -693,13 +705,109 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn emit(
                 when_true,
                 when_false,
                 ..
-            } => Terminator::Conditional {
-                condition: condition.ok_or(LoweringError::Unsupported(
-                    "Unit graph conditional lost its guard",
-                ))?,
-                when_true: successor(when_true, &[], false)?,
-                when_false: successor(when_false, &[], false)?,
-            },
+            } => {
+                let when_true = successor(when_true, &[], false)?;
+                let when_false = successor(when_false, &[], false)?;
+                if let Some(expression) = &branch_guard {
+                    // Successor staging runs only after selection. Its length
+                    // observations cannot be reused while evaluating the guard.
+                    operations.byte_lengths = inherited_lengths.clone();
+                    // The shared decision emitter carries scalar arguments only.
+                    // These outcome blocks retain the original successor edges,
+                    // including structural transfers, cleanup and ranking identity.
+                    let true_block = block_id(allocate_dense(&mut next_block)?);
+                    let false_block = block_id(allocate_dense(&mut next_block)?);
+                    for (id, successor) in [(true_block, when_true), (false_block, when_false)] {
+                        if let Some(rank) = current_rank {
+                            block_ranks.insert(id, rank);
+                        }
+                        edge_blocks.push(Block {
+                            id,
+                            parameters: Vec::new(),
+                            structural_parameters: Vec::new(),
+                            operations: Vec::new(),
+                            terminator: Terminator::Jump {
+                                edge: successor.edge,
+                                target: successor.target,
+                                arguments: successor.arguments,
+                                structural_arguments: successor.structural_arguments,
+                                trivial_affine_discards: successor.trivial_affine_discards,
+                                residual_affine_discards: Vec::new(),
+                            },
+                        });
+                    }
+                    let decision =
+                        crate::psi_lowering::boolean_control::lower_boolean_control_decision(
+                            expression,
+                            LoweredBooleanDecision::Value(
+                                LoweredBooleanReturnExpression::Constant { value: true },
+                            ),
+                            LoweredBooleanDecision::Value(
+                                LoweredBooleanReturnExpression::Constant { value: false },
+                            ),
+                        );
+                    let tests = crate::psi_lowering::boolean_control::boolean_decision_test_count(
+                        &decision,
+                    );
+                    let decision_block = block_id(next_block);
+                    next_block = next_block
+                        .checked_add(u64::try_from(tests).map_err(|_| {
+                            LoweringError::Unsupported("guard decision count exceeds identities")
+                        })?)
+                        .ok_or(LoweringError::Unsupported(
+                            "guard decision identities overflow",
+                        ))?;
+                    let (root, nested) =
+                        crate::psi_lowering::boolean_control::emit_inlined_boolean_guard_blocks(
+                            &decision,
+                            &values,
+                            Vec::new(),
+                            &crate::psi_lowering::boolean_control::LoweredBooleanDecisionTarget {
+                                block: true_block,
+                                arguments: Vec::new(),
+                            },
+                            &crate::psi_lowering::boolean_control::LoweredBooleanDecisionTarget {
+                                block: false_block,
+                                arguments: Vec::new(),
+                            },
+                            decision_block,
+                            block_id(decision_block.get().checked_add(1).ok_or(
+                                LoweringError::Unsupported("guard decision identities overflow"),
+                            )?),
+                            &mut next_value,
+                            &mut next_edge,
+                            &mut operations,
+                        );
+                    evaluation.blocks.push(root);
+                    evaluation.blocks.extend(nested);
+                    let edge = edge_id(allocate_dense(&mut next_edge)?);
+                    if let Some(rank) = current_rank {
+                        rank_edges.insert(
+                            edge,
+                            (
+                                rank,
+                                terminal_psi::TerminalNaturalRankComparison::Preserving,
+                            ),
+                        );
+                    }
+                    Terminator::Jump {
+                        edge,
+                        target: decision_block,
+                        arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
+                    }
+                } else {
+                    Terminator::Conditional {
+                        condition: condition.ok_or(LoweringError::Unsupported(
+                            "Unit graph conditional lost its guard",
+                        ))?,
+                        when_true,
+                        when_false,
+                    }
+                }
+            }
             CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. } => {
                 let prepared = prepared_cases.as_ref().ok_or(LoweringError::Unsupported(
                     "Unit graph case terminator lost its prepared payloads",
@@ -857,7 +965,7 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn emit(
             parameters: evaluation.parameters,
             structural_parameters: evaluation.block_structural_parameters,
             operations: operations[evaluation.operation_start
-                ..if condition.is_some() || prepared_cases.is_some() {
+                ..if condition.is_some() || branch_guard.is_some() || prepared_cases.is_some() {
                     body_end
                 } else {
                     operations.len()
