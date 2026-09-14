@@ -181,9 +181,38 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   and in-bounds byte count are independently representable and rejected by
   replay; an unknown or other-function machine, out-of-function text offsets,
   zero or overflowing byte counts, and a duplicated row are rejected at
-  encoding as non-canonical; a dropped row is rejected by replay. Remaining:
-  stored, forwarded-descriptor, and forwarded-dynamic-parameter custody
-  tables.
+  encoding as non-canonical; a dropped row is rejected by replay. Landed:
+  installed stored dynamic call rows
+  (`installation_stored_dynamic_call_rejects_every_one_field_substitution`)
+  — the table's application report fingerprint and an unresolved slot's
+  target, the dispatch's operation and text offset and byte count, the
+  establishment's operation and byte count, and the descriptor and
+  selection ordinals and descriptor home offset are independently
+  representable and rejected by replay; the application commitment, caller
+  machine, unselected realization, unknown source place, selected table
+  byte offset, empty or out-of-function byte counts, and out-of-range or
+  overlapping establishment and dispatch offsets are rejected at encoding
+  as non-canonical, as are dropped, duplicated, or swapped
+  conformance-table slots and dropped or duplicated calls and tables.
+  Landed: installed forwarded dynamic-parameter call rows
+  (`installation_forwarded_dynamic_parameter_call_rejects_every_one_field_substitution`)
+  — the call's operation, source value, scalar type, self-function callee,
+  text offset, and byte count are independently representable and rejected
+  by replay; an unknown or other-function machine or callee, parameter
+  ordinals, a cleared or non-integer scalar type, out-of-function text
+  offsets, an empty byte count, and a duplicated row are rejected at
+  encoding as non-canonical; a dropped row is rejected by replay. Landed:
+  installed forwarded dynamic-descriptor adapter, table, and call rows
+  (`installation_forwarded_dynamic_descriptor_rejects_every_one_field_substitution`)
+  — the table's application report fingerprint, and the call's operation,
+  other-function callee, source place and access, text offset, and byte
+  count are independently representable and rejected by replay; adapter and
+  table application commitments, adapter row index, realization, text
+  offset and byte count, table data offset and byte count, slot row index,
+  realization and offset joins, the call's machine, callee, commitment and
+  semantic result, and out-of-range offsets and byte counts are rejected at
+  encoding as non-canonical, as are dropped or duplicated adapters, tables,
+  and calls.
 
 ## Psi optimization and loops
 
