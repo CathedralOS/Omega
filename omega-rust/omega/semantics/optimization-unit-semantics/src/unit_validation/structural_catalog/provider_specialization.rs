@@ -63,10 +63,7 @@ pub(crate) fn validate_provider_attachment_specialization(
         [parameter] => parameter.position != 0 || parameter.structural_type != attachment,
         _ => true,
     };
-    if provider_roots.is_empty()
-        || invalid_self
-        || provider_roots.windows(2).any(|pair| pair[0].3 >= pair[1].3)
-    {
+    if invalid_self || provider_roots.windows(2).any(|pair| pair[0].3 >= pair[1].3) {
         return Err(invalid());
     }
 
@@ -121,6 +118,8 @@ pub(crate) fn validate_provider_attachment_specialization(
             _ => {}
         }
     }
+    // Both sets are empty for an unused provider field. Any executed boundary
+    // still requires its exact root, and an uncalled root remains invalid.
     if called_boundaries != specialized_boundaries {
         return Err(invalid());
     }

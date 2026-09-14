@@ -26,6 +26,10 @@ fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
     missing_root.functions[0].structural_places.pop();
     assert_invalid(missing_root);
 
+    let mut missing_all_roots = baseline.clone();
+    missing_all_roots.functions[0].structural_places.clear();
+    assert_invalid(missing_all_roots);
+
     let mut extra_root = baseline.clone();
     extra_root.functions[0]
         .structural_places

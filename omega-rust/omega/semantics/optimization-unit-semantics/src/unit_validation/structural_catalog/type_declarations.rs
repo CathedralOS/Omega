@@ -15,6 +15,14 @@ pub(crate) fn validate_structural_fields(
             },
         );
     }
+    // An unused provider field retains its declaration and attachment, but
+    // contributes no provider root. Function validation separately rejoins
+    // each used field's specialization roots to its exact boundary calls.
+    let has_provider_attachment = permit_provider_attachment
+        && unit
+            .functions
+            .iter()
+            .any(|function| function.attachment == Some(structural_type));
     let mut identities = BTreeSet::new();
     for field in fields {
         if field.identity.is_empty() || !identities.insert(field.identity.as_str()) {
@@ -42,8 +50,7 @@ pub(crate) fn validate_structural_fields(
             (
                 terminal_psi::StructuralFieldType::Erased { .. },
                 terminal_psi::BindingRelevance::Relevant,
-            ) if permit_provider_attachment
-                && has_provider_attachment_witness(unit, structural_type, field.id) => {}
+            ) if has_provider_attachment => {}
             (
                 terminal_psi::StructuralFieldType::Erased { .. },
                 terminal_psi::BindingRelevance::Relevant,
@@ -102,26 +109,6 @@ pub(crate) fn validate_structural_cases(
         validate_structural_fields(unit, structural_type, Some(case.id), &case.fields, false)?;
     }
     Ok(())
-}
-
-pub(crate) fn has_provider_attachment_witness(
-    unit: &PsiOptimizationUnit,
-    structural_type: StructuralTypeId,
-    field: semantic_vocabulary::StructuralFieldId,
-) -> bool {
-    unit.functions.iter().any(|function| {
-        function.attachment == Some(structural_type)
-            && function.structural_places.iter().any(|place| {
-                matches!(
-                    place.kind,
-                    StructuralPlaceKind::ProviderAttachment {
-                        attachment,
-                        field: provider_field,
-                        ..
-                    } if attachment == structural_type && provider_field == field
-                )
-            })
-    })
 }
 
 pub(crate) fn validate_structural_type_graph(

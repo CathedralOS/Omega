@@ -1,19 +1,52 @@
 //! Source eligibility cannot be recovered from native layout: identical record
 //! shapes may have different zero gates and nominal cleanup. Derive this private
-//! correspondence before source erasure and bind it to the exact Terminal self.
+//! correspondence before source erasure and bind it to the exact Terminal
+//! attachment and retained or erased receiver projection.
 //! It is not a standalone proof from source-free Terminal bytes or root authority.
 
+use checked_trees::data::DataMember;
 use checked_trees::types::TypeReferenceNode;
 use checked_trees::{CheckedTerminalMachineSelection, CheckedTrees};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralFieldType, StructuralTypeShape, TerminalModule};
 
+/// Checked projection of the source receiver into the Terminal entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedProgramEntryReceiverProjection {
+    Retained {
+        terminal_self: PlaceId,
+        source_position: u32,
+    },
+    Erased {
+        source_position: u32,
+    },
+}
+
+/// An exact source Bound-service field requiring separate root establishment.
+/// This correspondence carries no selected-plan or installation authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedProgramEntryFusedServiceField {
+    field_identity: String,
+    carrier_type_identity: String,
+}
+
+impl CheckedProgramEntryFusedServiceField {
+    pub fn field_identity(&self) -> &str {
+        &self.field_identity
+    }
+
+    pub fn carrier_type_identity(&self) -> &str {
+        &self.carrier_type_identity
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedProgramEntryReceiverEligibility {
     source_receiver_type_identity: String,
     owned_receiver_type_identity: String,
-    terminal_self: PlaceId,
+    projection: CheckedProgramEntryReceiverProjection,
     terminal_receiver_type: StructuralTypeId,
+    fused_service_fields: Vec<CheckedProgramEntryFusedServiceField>,
 }
 
 impl CheckedProgramEntryReceiverEligibility {
@@ -25,12 +58,16 @@ impl CheckedProgramEntryReceiverEligibility {
         &self.owned_receiver_type_identity
     }
 
-    pub const fn terminal_self(&self) -> PlaceId {
-        self.terminal_self
+    pub const fn projection(&self) -> CheckedProgramEntryReceiverProjection {
+        self.projection
     }
 
     pub const fn terminal_receiver_type(&self) -> StructuralTypeId {
         self.terminal_receiver_type
+    }
+
+    pub fn fused_service_fields(&self) -> &[CheckedProgramEntryFusedServiceField] {
+        &self.fused_service_fields
     }
 }
 
@@ -52,10 +89,13 @@ pub(super) fn derive(
     if receivers.next().is_some() || !receiver.is_mutable {
         return None;
     }
-    let source_position = checked
-        .state_parameters(state)
-        .iter()
-        .position(|parameter| parameter.is_self)?;
+    let source_position = u32::try_from(
+        checked
+            .state_parameters(state)
+            .iter()
+            .position(|parameter| parameter.is_self)?,
+    )
+    .ok()?;
     let mut owned = receiver.type_reference;
     loop {
         match checked.type_reference_table.type_reference(owned) {
@@ -92,21 +132,47 @@ pub(super) fn derive(
         .machines
         .iter()
         .find(|machine| machine.id == module.entry)?;
+    let terminal_receiver_type = entry.attachment?;
     let mut parameters = entry
         .structural_parameters
         .iter()
         .filter(|parameter| parameter.is_self);
-    let parameter = parameters.next()?;
-    if parameters.next().is_some()
-        || parameter.access != StructuralAccess::MutableBorrow
-        || usize::try_from(parameter.position).ok()? != source_position
-    {
-        return None;
-    }
-    let structural_type = module
+    let projection = match parameters.next() {
+        Some(parameter) => {
+            if parameters.next().is_some()
+                || parameter.access != StructuralAccess::MutableBorrow
+                || parameter.position != source_position
+                || parameter.structural_type != terminal_receiver_type
+            {
+                return None;
+            }
+            CheckedProgramEntryReceiverProjection::Retained {
+                terminal_self: parameter.place,
+                source_position,
+            }
+        }
+        None => {
+            // Clearing the marker on a surviving parameter is not erasure.
+            // Structural positions retain their authored source positions,
+            // independently of the compact scalar parameter partition.
+            if entry
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.position == source_position)
+            {
+                return None;
+            }
+            CheckedProgramEntryReceiverProjection::Erased { source_position }
+        }
+    };
+    let mut structural_types = module
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == parameter.structural_type)?;
+        .filter(|declaration| declaration.id == terminal_receiver_type);
+    let structural_type = structural_types.next()?;
+    if structural_types.next().is_some() {
+        return None;
+    }
     let owner_path = checked.symbols.display_path(definition.symbol, "::");
     let mut owned_receiver_type_identity = String::from("named(name(");
     for character in owner_path.chars() {
@@ -124,8 +190,7 @@ pub(super) fn derive(
     // empty dimensions; a zero byte count never excuses an invalid element.
     // Erased qualification establishment remains an independent installed
     // occurrence obligation; this correspondence supplies no Bound authority.
-    if entry.attachment != Some(parameter.structural_type)
-        || structural_type.identity != owned_receiver_type_identity
+    if structural_type.identity != owned_receiver_type_identity
         || fields.iter().any(|field| match field.field_type {
             StructuralFieldType::Scalar(_)
             | StructuralFieldType::BoundedInteger(_)
@@ -134,10 +199,50 @@ pub(super) fn derive(
             StructuralFieldType::Structural(structural_type) => !zero_valid_record_storage(
                 &module.structural_types,
                 structural_type,
-                &mut vec![parameter.structural_type],
+                &mut vec![terminal_receiver_type],
             ),
             _ => true,
         })
+    {
+        return None;
+    }
+    let mut fused_service_fields = Vec::new();
+    for member in checked.data_members(definition) {
+        let DataMember::Field(field) = member else {
+            continue;
+        };
+        let Some(carrier) = checked
+            .bound_service_parameter_carrier(field.type_reference)
+            .ok()?
+        else {
+            continue;
+        };
+        let field_identity = field
+            .identity
+            .map(|identity| format!("#{identity}"))
+            .unwrap_or_else(|| field.name.as_str().to_owned());
+        let mut terminal_fields = fields
+            .iter()
+            .filter(|candidate| candidate.identity == field_identity);
+        let terminal_field = terminal_fields.next()?;
+        if terminal_fields.next().is_some()
+            || !matches!(
+                &terminal_field.field_type,
+                StructuralFieldType::Erased { type_identity }
+                    if type_identity == &carrier.carrier_type_identity
+            )
+        {
+            return None;
+        }
+        fused_service_fields.push(CheckedProgramEntryFusedServiceField {
+            field_identity,
+            carrier_type_identity: carrier.carrier_type_identity,
+        });
+    }
+    fused_service_fields.sort_by(|left, right| left.field_identity.cmp(&right.field_identity));
+    if fused_service_fields
+        .windows(2)
+        .any(|pair| pair[0].field_identity == pair[1].field_identity)
     {
         return None;
     }
@@ -146,8 +251,9 @@ pub(super) fn derive(
             .normalized_type_identity(receiver.type_reference)
             .into_string(),
         owned_receiver_type_identity,
-        terminal_self: parameter.place,
-        terminal_receiver_type: parameter.structural_type,
+        projection,
+        terminal_receiver_type,
+        fused_service_fields,
     })
 }
 
@@ -312,6 +418,13 @@ mod tests {
         let eligible = receipt
             .receiver_eligibility()
             .expect("plain source record needs no executable cleanup");
+        assert!(matches!(
+            eligible.projection(),
+            CheckedProgramEntryReceiverProjection::Retained {
+                source_position: 0,
+                ..
+            }
+        ));
         let mut module =
             terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
         let selection =
@@ -329,6 +442,18 @@ mod tests {
         assert!(derive(&checked, selection, &module).is_none());
         let mut module =
             terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        let entry = module
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        entry.structural_parameters[0].is_self = false;
+        assert!(
+            derive(&checked, selection, &module).is_none(),
+            "a retained receiver cannot become erased by losing its self marker"
+        );
+        let mut module =
+            terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
         module
             .structural_types
             .iter_mut()
@@ -336,6 +461,122 @@ mod tests {
             .unwrap()
             .identity = "different-owner".into();
         assert!(derive(&checked, selection, &module).is_none());
+    }
+
+    #[test]
+    fn erased_receiver_eligibility_preserves_exact_attachment_without_a_place() {
+        for source in [
+            "data Main {} machine Main::run(&mut self) {}",
+            "data Main { value: i32; bytes: [u8; 4]; } machine Main::run(&mut self) {}",
+        ] {
+            let checked = check_source(source);
+            let produced = TerminalProductionRequest::new(&checked, "Main::run")
+                .produce_program_entry([9; 32])
+                .unwrap();
+            let eligible = produced.receipt().receiver_eligibility().unwrap();
+            assert_eq!(
+                eligible.projection(),
+                CheckedProgramEntryReceiverProjection::Erased { source_position: 0 }
+            );
+            assert_eq!(eligible.owned_receiver_type_identity(), "named(name(Main))");
+            let module =
+                terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+            let entry = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == module.entry)
+                .unwrap();
+            assert_eq!(entry.attachment, Some(eligible.terminal_receiver_type()));
+            assert!(
+                entry
+                    .structural_parameters
+                    .iter()
+                    .all(|parameter| !parameter.is_self)
+            );
+            let selection =
+                checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run")
+                    .unwrap();
+            for corruption in 0..3 {
+                let mut changed = module.clone();
+                if corruption == 0 {
+                    changed
+                        .machines
+                        .iter_mut()
+                        .find(|machine| machine.id == changed.entry)
+                        .unwrap()
+                        .attachment = None;
+                } else {
+                    let declaration = changed
+                        .structural_types
+                        .iter_mut()
+                        .find(|declaration| declaration.id == eligible.terminal_receiver_type())
+                        .unwrap();
+                    if corruption == 1 {
+                        declaration.identity = "different-owner".into();
+                    } else {
+                        let duplicate = declaration.clone();
+                        changed.structural_types.push(duplicate);
+                    }
+                }
+                assert!(
+                    derive(&checked, selection, &changed).is_none(),
+                    "erased receiver attachment corruption {corruption}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn ordinary_erased_fields_require_no_fused_service_establishment() {
+        for body in ["", "self.value = 7;"] {
+            let checked = check_source(&format!(
+                "data Evidence {{}} data Main {{ value: i32; proof [erased]: Evidence; }} \
+                 machine Main::run(&mut self) {{ {body} }}"
+            ));
+            let produced = TerminalProductionRequest::new(&checked, "Main::run")
+                .produce_program_entry([9; 32])
+                .unwrap();
+            let eligible = produced.receipt().receiver_eligibility().unwrap();
+            assert!(eligible.fused_service_fields().is_empty());
+            let module =
+                terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+            let declaration = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == eligible.terminal_receiver_type())
+                .unwrap();
+            let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                panic!("receiver remains a record");
+            };
+            assert!(
+                fields.iter().any(|field| {
+                    matches!(field.field_type, StructuralFieldType::Erased { .. })
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn erased_receivers_cannot_hide_nominal_cleanup_or_nonzero_gates() {
+        let checked = check_source("data Main { value: i32; } machine Main::run(&mut self) {}");
+        let produced = TerminalProductionRequest::new(&checked, "Main::run")
+            .produce_program_entry([9; 32])
+            .unwrap();
+        let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        // The erased Terminal attachment cannot establish source obligations;
+        // derive must inspect the actual nominal owner even without a self place.
+        for source in [
+            "data Helper {} machine Helper::finish() {} data Main { value: i32; } machine Main::drop(&mut self) { Helper::finish(); } machine Main::run(&mut self) {}",
+            "data Child {} machine Child::drop(&mut self) {} data Main { value: i32; child: Child; } machine Main::run(&mut self) {}",
+            "data Main { value: i32 [1..=9]; } machine Main::run(&mut self) {}",
+            "data Child { value: i32 [1..=9]; } data Main { value: i32; child: Child; } machine Main::run(&mut self) {}",
+        ] {
+            let checked = check_source(source);
+            let selection =
+                checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run")
+                    .unwrap();
+            assert!(derive(&checked, selection, &module).is_none(), "{source}");
+        }
     }
 
     #[test]
@@ -398,14 +639,6 @@ mod tests {
         assert!(
             produced.receipt().receiver_eligibility().is_none(),
             "a free entry does not acquire an implicit receiver"
-        );
-        let checked = check_source("data Main {} machine Main::run(&mut self) {}");
-        let produced = TerminalProductionRequest::new(&checked, "Main::run")
-            .produce_program_entry([9; 32])
-            .unwrap();
-        assert!(
-            produced.receipt().receiver_eligibility().is_none(),
-            "an erased self requires an explicit source-to-Terminal projection, not a fabricated place"
         );
     }
 }

@@ -181,17 +181,9 @@ fn validate_executable_entry_receiver(
         request.program_entry.source().receiver(),
         program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
     );
-    if !has_receiver {
-        // A provisioned receiver whose self place erased before realization
-        // keeps its mode through the retained entry attachment: that attached
-        // type is the exact record the root bridge provisions and lends.
-        // Losing it leaves the bridge nothing to provision, which is mode
-        // loss rather than erasure.
-        let retains_receiver_type = plan
-            .functions
-            .iter()
-            .any(|function| function.machine == plan.entry && function.attachment.is_some());
-        if source_provisions_receiver && !retains_receiver_type {
+    if !source_provisions_receiver {
+        if has_receiver {
+            // A free source entry cannot acquire a receiver through lowering.
             return Err(realization_error(
                 "ProgramEntry receiver provisioning",
                 "lowered entry does not preserve the source-selected receiver mode",
@@ -199,14 +191,28 @@ fn validate_executable_entry_receiver(
         }
         return Ok(false);
     }
-    if !source_provisions_receiver {
-        // A free source entry cannot acquire a receiver through lowering.
-        return Err(realization_error(
-            "ProgramEntry receiver provisioning",
-            "lowered entry does not preserve the source-selected receiver mode",
-        ));
+    if !has_receiver {
+        // Erasure removes the borrow parameter, not the source owner's
+        // initialization and cleanup obligations. The attachment still binds
+        // that owner, and checked eligibility below must justify eliding it.
+        let lowered_attachment = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == plan.entry)
+            .and_then(|function| function.attachment);
+        let terminal_attachment = terminal
+            .machines
+            .iter()
+            .find(|machine| machine.id == terminal.entry)
+            .and_then(|machine| machine.attachment);
+        if lowered_attachment.is_none() || lowered_attachment != terminal_attachment {
+            return Err(realization_error(
+                "ProgramEntry receiver provisioning",
+                "lowered entry does not preserve the source-selected receiver mode",
+            ));
+        }
     }
-    if request.target != target::NativeTarget::macos_arm64() {
+    if has_receiver && request.target != target::NativeTarget::macos_arm64() {
         return Err(realization_error(
             "ProgramEntry receiver provisioning",
             "the executable entry retains a self parameter, but no root-backed bridge constructs and lends its receiver; source-entry settlement alone does not provision receiver storage",
@@ -230,6 +236,12 @@ fn validate_executable_entry_receiver(
             "ProgramEntry receiver provisioning",
             "hosted receiver requires a checked ZII-valid value with no executable nominal cleanup",
         ));
+    }
+    if !has_receiver {
+        // Source ZII/no-code disposal and the exact erased projection have
+        // been replayed. No physical receiver argument or storage is needed;
+        // Fused establishment is still checked independently before this call.
+        return Ok(false);
     }
     if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
         return Err(realization_error(

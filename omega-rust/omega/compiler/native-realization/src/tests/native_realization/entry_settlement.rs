@@ -26,7 +26,7 @@ fn independently_settles_exact_hosted_source_and_entry() {
 }
 
 #[test]
-fn independently_settles_exact_fused_service_root() {
+fn ordinary_erased_fields_cannot_acquire_fused_root_establishment() {
     let (artifact, receipt, source, establishment) = fused_service_custody();
     assert_ne!(
         source.receiver().normalized_type_identity(),
@@ -37,11 +37,22 @@ fn independently_settles_exact_fused_service_root() {
     let settlement = validate_native_program_entry_settlement(
         &artifact,
         &receipt,
-        NativeProgramEntrySettlement::new(&source, None, &rows),
+        NativeProgramEntrySettlement::new(&source, None, &[]),
         target::NativeTarget::windows_x64(),
     )
-    .expect("independent Fused root settlement");
-    assert_eq!(settlement.fused_service_establishments(), rows);
+    .expect("ordinary erased Evidence requires no service establishment");
+    assert!(settlement.fused_service_establishments().is_empty());
+
+    assert_eq!(
+        validate_native_program_entry_settlement(
+            &artifact,
+            &receipt,
+            NativeProgramEntrySettlement::new(&source, None, &rows),
+            target::NativeTarget::windows_x64(),
+        ),
+        Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift),
+        "runtime erasure does not classify an ordinary field as Service in Bound",
+    );
 
     let substituted = establishment_for_source(
         &source,
@@ -161,6 +172,17 @@ pub(crate) fn fused_service_custody() -> (
     let terminal_psi::StructuralFieldType::Erased { type_identity } = &field.field_type else {
         panic!("service fixture field remains erased")
     };
+    let source_machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == selection.machine)
+        .unwrap();
+    let source_state = checked.machine_states(source_machine).first().unwrap();
+    let source_receiver = checked
+        .state_parameters(source_state)
+        .iter()
+        .find(|parameter| parameter.is_self)
+        .unwrap();
     let source = program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
         target::TargetProfile::WindowsX64.program_entry_slot(),
         selection.machine,
@@ -169,7 +191,9 @@ pub(crate) fn fused_service_custody() -> (
         "entry".into(),
         "test::Main::launch(&mut self) -> Unit".into(),
         program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
-            normalized_type_identity: "test::Main".into(),
+            normalized_type_identity: checked
+                .normalized_type_identity(source_receiver.type_reference)
+                .into_string(),
         },
         Vec::new(),
     )

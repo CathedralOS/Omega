@@ -467,7 +467,7 @@ fn structural_field_erasure_matrix_matches_canonical_terminal_admission() {
 }
 
 #[test]
-fn relevant_erased_field_requires_an_exact_record_provider_attachment_witness() {
+fn relevant_erased_field_requires_an_exact_record_attachment() {
     let owner = id(444, StructuralTypeId::new);
     let field = id(1, semantic_vocabulary::StructuralFieldId::new);
     let provider_field = || {
@@ -492,6 +492,17 @@ fn relevant_erased_field_requires_an_exact_record_provider_attachment_witness() 
     validate_psi_optimization_unit(&valid)
         .expect("a complete provider specialization witnesses its relevant erased field");
 
+    let mut unused = structural_catalog_unit(vec![structural_type(
+        444,
+        terminal_psi::StructuralTypeShape::Record {
+            fields: vec![provider_field()],
+        },
+    )]);
+    unused.functions[0].attachment = Some(owner);
+    refresh_identity(&mut unused);
+    validate_psi_optimization_unit(&unused)
+        .expect("an unused provider field retains its attachment without an invented root");
+
     for (attachment, provider_field_id) in [
         (None, None),
         (
@@ -513,15 +524,17 @@ fn relevant_erased_field_requires_an_exact_record_provider_attachment_witness() 
                 .push(provider_place(attachment, provider_field_id));
         }
         refresh_identity(&mut invalid);
-        assert_eq!(
-            validate_psi_optimization_unit(&invalid),
-            Err(
-                OptimizationUnitValidationError::InvalidErasedStructuralField {
-                    structural_type: owner,
-                    field,
-                }
+        let expected = if attachment == Some(owner) {
+            OptimizationUnitValidationError::InvalidProviderAttachmentSpecialization(
+                invalid.functions[0].machine,
             )
-        );
+        } else {
+            OptimizationUnitValidationError::InvalidErasedStructuralField {
+                structural_type: owner,
+                field,
+            }
+        };
+        assert_eq!(validate_psi_optimization_unit(&invalid), Err(expected));
     }
 
     for shape in [

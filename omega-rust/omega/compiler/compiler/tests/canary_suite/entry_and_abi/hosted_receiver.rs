@@ -273,3 +273,162 @@ fn hosted_receiver_keeps_local_scalar_call_results_across_later_mutation() {
         ReceiverObservation::LocalBorrowedResultSnapshot,
     );
 }
+
+#[test]
+fn hosted_erased_receiver_preserves_source_cleanup_eligibility() {
+    for (nominal_cleanup, bound_service) in [(false, false), (false, true), (true, false)] {
+        let directory = unique_no_output_build_dir();
+        fs::create_dir(&directory).expect("create owned erased-receiver project");
+        let project = HostedProject(directory);
+        let standard_library = repo_root()
+            .join("source/library/std")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let provider = if bound_service {
+            "builder.select_provider<Console, ConsoleNativeProvider>();"
+        } else {
+            ""
+        };
+        fs::write(
+            project.0.join("build.omg"),
+            format!(
+                r#"
+machine build(builder: &mut Build) {{
+    builder.application("erased-receiver");
+    builder.depend(Source::Path {{ location: "{standard_library}" }});
+    {provider}
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}}
+"#
+            ),
+        )
+        .unwrap();
+        let cleanup = if nominal_cleanup {
+            "machine Main::drop(&mut self) { Helper::finish(); }"
+        } else {
+            ""
+        };
+        let service_field = if bound_service {
+            "console: Service<Console> in Bound;"
+        } else {
+            ""
+        };
+        fs::write(
+            project.0.join("main.omg"),
+            format!(
+                r#"
+use omega_language_std::console;
+use omega::language::core::service;
+data Helper {{}}
+machine Helper::finish() {{}}
+data Main {{ value: i32; {service_field} }}
+{cleanup}
+machine Main::main(&mut self) {{}}
+"#
+            ),
+        )
+        .unwrap();
+        if bound_service {
+            assert_erased_service_settlement_requires_its_source_row(&project.0.join("main.omg"));
+        }
+        let result = compile_with_auxiliary_artifacts(CanaryCompileSpec {
+            root_path: project.0.join("main.omg"),
+            build_dir: Some(project.0.join("build")),
+            target_name: Some("macos_arm64".into()),
+            product: CanaryCompileProduct::NativeArtifact,
+        });
+        if nominal_cleanup {
+            let Err(diagnostics) = result else {
+                panic!("an unused receiver cannot silently lose its nominal cleanup");
+            };
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("no executable nominal cleanup")),
+                "{diagnostics:?}"
+            );
+            continue;
+        }
+        let report = result.expect("trivial unused receiver still produces a native executable");
+        assert!(
+            report
+                .retained_native_artifact()
+                .unwrap()
+                .object()
+                .hosted_receiver_binding()
+                .is_none(),
+            "checked erasure requires no physical receiver argument"
+        );
+        let report = report
+            .publish_retained_native_artifact(&project.0.join("build"))
+            .unwrap();
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        {
+            let output = Command::new(report.checked_native_executable_path().unwrap())
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert!(
+                output.stdout.is_empty() && output.stderr.is_empty(),
+                "{output:?}"
+            );
+        }
+        #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+        {
+            let _ = report;
+            eprintln!(
+                "SKIP: erased receiver runtime requires macOS AArch64; native product checked"
+            );
+        }
+    }
+}
+
+fn assert_erased_service_settlement_requires_its_source_row(root: &Path) {
+    let checked =
+        compile_reviewed_repository_fixture(CheckedCompileRequest::new(root, Some("macos_arm64")))
+            .expect("check the actual core Bound service and selected provider");
+    let selected = checked.selected_program_entry().unwrap();
+    let source = selected.source_signature();
+    let produced = terminal_production::TerminalProductionRequest::for_machine_symbol(
+        &checked,
+        source.machine_symbol(),
+    )
+    .produce_program_entry(source.identity().bytes())
+    .unwrap();
+    let eligible = produced.receipt().receiver_eligibility().unwrap();
+    assert!(matches!(
+        eligible.projection(),
+        terminal_production::CheckedProgramEntryReceiverProjection::Erased { .. }
+    ));
+    assert_eq!(eligible.fused_service_fields().len(), 1);
+    assert_eq!(
+        eligible.fused_service_fields()[0].field_identity(),
+        "console"
+    );
+    let calling_plans = selected.calling_plans().map(|plans| {
+        (
+            &plans.semantic_calling_application,
+            &plans.physical_calling_application,
+            &plans.storage_entry,
+        )
+    });
+    let rows = selected.fused_service_establishments();
+    assert_eq!(rows.len(), 1);
+    native_realization::validate_native_program_entry_settlement(
+        produced.artifact(),
+        produced.receipt(),
+        native_realization::NativeProgramEntrySettlement::new(source, calling_plans, rows),
+        target::NativeTarget::macos_arm64(),
+    )
+    .expect("exact source service roster independently settles");
+    assert_eq!(
+        native_realization::validate_native_program_entry_settlement(
+            produced.artifact(),
+            produced.receipt(),
+            native_realization::NativeProgramEntrySettlement::new(source, calling_plans, &[]),
+            target::NativeTarget::macos_arm64(),
+        ),
+        Err(native_realization::NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift),
+        "removing the unused Bound service row must not bypass establishment",
+    );
+}
