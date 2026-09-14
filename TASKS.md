@@ -1787,10 +1787,16 @@ Owners include
   ordinary successor partitions residual custody per edge through the shared
   source-run splice, transfer sources resolve rebound frontier places, and
   the checker's state-exit locals accept the receipt-backed destination
-  (`pass/expressions/owned_match_authored_state`, macOS). Remaining: owned
-  call arms and record fields moving existing affine children still need
-  their exact residual transport; preserve exact origins and actual death
-  edges.
+  (`pass/expressions/owned_match_authored_state`, macOS). `517e86d465`
+  moves projected affine children through owned match arms: a field or
+  fixed-index chain on a local record or a call's structural product becomes
+  a path-bearing owned argument, the exact residual complement dies on the
+  selected edge, and the Terminal interpreter replays the verifier's split
+  contract so the root carrier leaves storage only after every semantic
+  path is discharged (`pass/expressions/owned_match_projected_field`,
+  macOS). Remaining: parameter, borrowed, and linear custody joins plus the
+  borrowed-subject and operator-result obligations below; preserve exact
+  origins and actual death edges.
   Owners: `validation/src/expression_types/{match_dispatch,result_type}.rs`,
   checked scalar computation/result continuations, Terminal production and
   canonical package-review contract/index projection. Preserve a once-evaluated
