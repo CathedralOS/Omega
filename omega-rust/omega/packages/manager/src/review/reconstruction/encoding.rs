@@ -105,6 +105,7 @@ pub(super) fn encode_question(
     encoder.u16(PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION)?;
     encoder.bytes(source_closure.canonical_bytes())?;
     encoder.count(entries.len())?;
+    let mut total_ledger_bytes = 0usize;
     for entry in entries {
         let ledger_bytes =
             encode_ordinary_package_obligation_ledger(&entry.obligations).map_err(|_| {
@@ -112,6 +113,23 @@ pub(super) fn encode_question(
                     "package reconstruction question contains an invalid obligation ledger",
                 )
             })?;
+        if ledger_bytes.len() > limits.maximum_ledger_bytes {
+            return Err(CanonicalPackageReconstructionQuestionError::new(
+                "package reconstruction obligation ledger exceeds its byte ceiling",
+            ));
+        }
+        total_ledger_bytes = total_ledger_bytes
+            .checked_add(ledger_bytes.len())
+            .ok_or_else(|| {
+                CanonicalPackageReconstructionQuestionError::new(
+                    "package reconstruction ledger-byte accounting overflowed",
+                )
+            })?;
+        if total_ledger_bytes > limits.maximum_total_ledger_bytes {
+            return Err(CanonicalPackageReconstructionQuestionError::new(
+                "package reconstruction question exceeds its total ledger-byte ceiling",
+            ));
+        }
         encoder.bytes(&ledger_bytes)?;
     }
     encoder.finish()
