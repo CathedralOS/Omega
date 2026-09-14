@@ -2,9 +2,15 @@
 
 Temporary evidence for P1 encoder feasibility and bounded Delta simplification
 on [the bootstrap board](../../TASKS_BOOTSTRAP.md). This is engineering evidence,
-not an owner ruling, admitted artifact, or complete-chain proof. Delete each
-section when its named comparison is resolved; retain only a necessary
-implementation argument beside its owner. Delete this draft when both close.
+not an owner ruling, admitted artifact, or complete-chain proof. Both named
+comparisons are now decided; each section records its decision above the
+retained measurements. The Delta section persists because its numbers back the
+retention records at the mechanism owners and an inbound
+`#delta-simplification` link. The P1 ledger persists as the live feasibility
+account for the paused consolidated candidate: delete it when the complete
+definition package and integrated recipe replace its extrapolations with actual
+full-subject costs, or when an owner ruling retires the route. Delete this
+draft when both sections are absorbed or superseded.
 The [minimization contract](../../bootstrap/MINIMIZATION.md) owns the review rules.
 
 ## Delta simplification
@@ -12,6 +18,37 @@ The [minimization contract](../../bootstrap/MINIMIZATION.md) owns the review rul
 Question: can the existing normalization or name-construction machinery be
 simplified without losing selected conformance? The current customer alone is
 not the full admitted source envelope.
+
+**Decision — resolved: retain all three mechanisms; no simplification is
+taken.** Each measured mechanism has a live conformance consumer, and removing
+any of them narrows admitted source or removes a consumer's evidence rather
+than simplifying the chain:
+
+- Body-height normalization stays. Delta admits expression depth 1,024 while
+  the selected Gamma evaluator admits at most 255 nested expression lists per
+  function body, and lowering can exceed the evaluator bound inside that
+  envelope; the [normalization gate](../../tests/delta/normalization/run.sh)
+  exercises the obligation at depth 1,024 and width 2,048. On this customer the
+  pass is already minimal: `normalization_visit` compares each body root's
+  recorded height against the budget and returns fitting nodes unchanged, so
+  the 724 fitting definitions cost one comparison and one definition rewrap
+  each, generate no helpers, and leave the emitted receipt byte-identical.
+- Both node summaries stay. The cached byte extent feeds emission's count-only
+  preflight, which produces the exact 16,777,212-byte admission and the DCOUT
+  resource-12 refusal carrying the complete count; recorded height feeds
+  normalization's per-node budget decision and the lowering-plan gate's
+  pre-normalization expectations. Removing either summary removes its
+  consumer's evidence, not only private metadata.
+- The shared-prefix name cursor stays without expansion, as its
+  [owner README](../../bootstrap/3_delta/implementation/checking/names/README.md)
+  already records; the measured removal cost below bought no conformance or
+  failure-behavior improvement.
+
+The required exact-emission comparison is discharged on this customer: with no
+over-height body, normalization adds no helpers and the published receipt stays
+byte-identical. For over-height admitted sources removal cannot preserve
+emission at all — the unnormalized body exceeds the evaluator's census bound —
+so no further deletion comparison remains to run.
 
 Measurements used the 612,994-byte Epsilon-plus-entry subject with SHA-256
 `251a97366c26c4356e4c573e353f8998d3c7d26985bc6052deafc4fe28a43f94`.
@@ -31,8 +68,9 @@ on that subject. Both receipts matched the selected evaluator's exact
 711,597-byte output. The difference is 275,352 pairs at 40 bytes each;
 this is cumulative allocation, not live memory or host RSS. Both fit the
 selected provision. Single-run timings do not establish a throughput gain.
-Retain the [existing cursor](../../bootstrap/3_delta/implementation/checking/names/README.md)
-without expansion while assessing simplification; neither customer fit nor
+The decision above retains the
+[existing cursor](../../bootstrap/3_delta/implementation/checking/names/README.md)
+without expansion; neither customer fit nor
 this isolated comparison closes full parameter, constructor, or match limits.
 Both investigations ran on macOS arm64; no Windows result is claimed.
 
@@ -48,6 +86,30 @@ requires complete error-valued Beta definitions, independently constructed
 source/tape/limits/theory ownership, and a source-owned untrusted producer.
 An encoding certificate would still leave evaluator correctness separately
 trusted. Source-shape, capacity, and component checks do not close P1.
+
+**Decision — the named comparison is resolved.** The consolidated candidate's
+state architecture is the required shape and supersedes every earlier
+baseline; the following are retired as evaluation units, not merely deprioritized:
+
+- the history-bearing scan state carrying accumulated output and completed
+  tokens (~10-20GB-class ground table, physically impossible);
+- the repeated output-successor counter recipe as a route baseline
+  (4,611,614 unshared / 2,122,796 shared work for that one component);
+- the normalized linked-list recipe (required-record floor 8,553,056 bytes,
+  already above the 8,388,608-byte request before theory and states); and
+- per-byte Word-successor counting as a source counter (25,285,216 request
+  bytes diagnostic; not a baseline).
+
+The candidate remains the proposed evaluation unit, with two priced design
+levers: adopt the permitted concat-collapse flatten (~10 times on that
+component) and price count-out-of-state (~11.3 times on leaf-state
+distinctness) before fixing the state record. No measured or derivable recipe
+family reaches acceptance under the selected provisions, so the strategy pause
+stands. Residual routes — recipe restructuring toward the ~675,017-work
+physical ceiling, checked closed-lemma composition across bounded requests
+(owner escalation), or more native backing (owner decision) — are not
+selectable from this review: restructuring needs the complete definition
+package owed by the P1 item, and the other two are owner rulings.
 
 The following retained discriminators concern the 46,484-byte source and
 8,355-byte tape. They are not estimates of the plan's complete token-at-a-time
@@ -192,6 +254,17 @@ Compare the integrated recipe against the
 and Gamma's enclosing frame and arena, not a work-limit constant alone.
 The current request/work provisions are 8 MiB and 655,360 work; larger private
 provisions are candidates, not demonstrated fits or changes to language laws.
+
+**Decision — no provision change is taken.** Every derivable integrated
+scenario lands ~9-41 times over the 655,360-work provision and ~1.6-3.1 times
+over the 8-MiB request, while the allocation ledger admits at most
+675,017 work under the selected 40,265,318-pair arena — the current provision
+already consumes ~97% of that physical ceiling. A larger work provision is
+therefore not a private-capacity edit but the native-backing route, which is
+an owner-level realization decision; a larger request likewise requires
+rederived ground/index/memo and allocation bounds before it is a candidate.
+No still-partial ledger justifies selecting either, and no profile change is
+recorded at the owners.
 
 A larger request requires rederived ground/index/memo and allocation bounds.
 A larger Gamma frame requires a coherent memory layout and exact/adjacent
