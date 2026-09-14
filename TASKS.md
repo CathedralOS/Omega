@@ -957,24 +957,23 @@ Owners include
   fenced until their general rules land. Acceptance includes nested field/index
   canaries on both Linux ISAs.
 
-  Resume evidence: `8ba0bd1fff` landed the index hop of a field/index path.
-  `SymbolicFieldValue::new_indexed{,_numbered}` carries an exact `element_index`
-  into a repeated field; `derive_symbolic_materialization`
-  (`omega-rust/psi/foundation/layout-plans/src/lib.rs`) resolves `field[index]`
-  to that element's `At` placement, checks the bound before any target
-  resolution, and joins the index into the duplicate-supply key. The write still
-  realizes as a resolved value, a loader-native `NativePointerRelocation`, or a
-  `RuntimeWriter`. macOS arm64 (`aarch64-apple-darwin`): `mbx nextest run -p
-  layout-plans --lib` 40 pass; `mbx nextest run -p compiler --test layout_plans
-  indexed_symbolic_materialization_preserves_the_exact_element_path` passes
-  `handlers[2]` through `compile_to_checked` -> `compute_layout_plan` ->
-  post-handoff `execute`; `isa-aarch64`/`isa-x86_64` `post_handoff_writer` legs
-  pass. Linux x86-64 and Linux aarch64 legs were unavailable on this host: no
-  `x86_64-unknown-linux-gnu`/`aarch64-unknown-linux-gnu` rustup targets, no
-  cross-linkers, and the Docker daemon was not running. Next acceptance: a
-  nested-record field path (`a.b`) needs an inner-placement carrier the flat
-  `LayoutPlanReport` does not yet expose, plus the two Linux canary legs on a
-  Linux host.
+  Resume evidence: `8ba0bd1fff` landed the index hop; `40347fde2c`,
+  `78685f4bff`, and `955ce0427a` landed the `SymbolicFieldInnerLayout` carrier
+  and bounded recursive path traversal
+  (`derive_symbolic_materialization_with_inner_layouts`,
+  `omega-rust/psi/foundation/layout-plans/src/lib.rs`); `c045400290` lowers the
+  nested writers for `linux_x64` and `linux_arm64`. The compiler tests
+  `*_symbolic_materialization_*` in
+  `omega-rust/omega/compiler/compiler/tests/layout_plans.rs` now also execute
+  the lowered host-ISA fragment natively (`lower_writer_on_both_linux_isas`
+  links a guarded C driver via the shared `native_function` harness and
+  compares the image with the Rust reference writer). Linux x86-64 host:
+  `cargo nextest run -p compiler --test layout_plans symbolic_materialization`
+  4 pass with the x86-64 native leg executed. The Linux aarch64 native leg is
+  host-gated and has not yet run on a Linux aarch64 host; macOS/Windows/QEMU
+  legs were unavailable here. Next acceptance: run the same filter on a Linux
+  aarch64 host, then lift one of the fenced shapes (nested sum arrays or
+  direct-sum coexistence) under a general rule.
 
 ## P3 - Terminal Psi, PCC, and observation
 
