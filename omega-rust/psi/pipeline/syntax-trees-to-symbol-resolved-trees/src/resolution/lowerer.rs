@@ -191,6 +191,8 @@ pub(crate) struct Lowerer {
     pub(crate) pending_synthesized_transition_argument_states:
         Vec<SynthesizedTransitionArgumentState>,
     arm_state_counter: u32,
+    /// Present when this lowerer extends a retained base.
+    pub(crate) seed: Option<BaseSeed>,
 }
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RootWatermarks {
@@ -222,6 +224,13 @@ impl RootWatermarks {
         }
     }
 }
+/// What a seeded lowerer keeps from its base until finishing consumes it.
+pub(crate) struct BaseSeed {
+    pub(crate) roots: RootWatermarks,
+    pub(crate) service_reaches: language_semantics::ServiceReachTable,
+    pub(crate) service_reach_rows: language_semantics::ServiceReachRowTable,
+}
+
 /// One continuation state the guarded-arm value-call rewrite synthesizes.
 pub(crate) struct SynthesizedArmState {
     pub(crate) name: String,
@@ -290,10 +299,38 @@ impl Lowerer {
             pending_synthesized_states: Vec::new(),
             pending_synthesized_transition_argument_states: Vec::new(),
             arm_state_counter: 0,
+            seed: None,
         }
     }
 
-    pub(crate) fn seed_resolved_base(&mut self, base: SymbolResolvedTrees) {
+    /// Extend a retained base: its source frontier must be the exact prefix of
+    /// this lowerer's sources, and its declarations become the pending
+    /// sidecars a later stratum resolves against.
+    pub(crate) fn seed_resolved_base(
+        &mut self,
+        base: SymbolResolvedTrees,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(sources) = &self.sources else {
+            return Err(vec![Diagnostic::error(
+                "seeded symbol resolution requires retained source custody",
+            )]);
+        };
+        let retained_sources = base.symbols.source_files().collect::<Vec<_>>();
+        if retained_sources.len() > sources.len()
+            || !retained_sources
+                .iter()
+                .copied()
+                .eq(sources.files().take(retained_sources.len()))
+        {
+            return Err(vec![Diagnostic::error(
+                "seeded symbol resolution source map does not retain the exact base frontier",
+            )]);
+        }
+        self.seed = Some(BaseSeed {
+            roots: RootWatermarks::capture(&base),
+            service_reaches: base.service_reaches.clone(),
+            service_reach_rows: base.service_reach_rows.clone(),
+        });
         self.pending_const_declarations = base
             .const_declarations
             .iter()
@@ -349,6 +386,7 @@ impl Lowerer {
                 });
         }
         self.symbol_resolved_trees = base;
+        Ok(())
     }
 
     pub(crate) fn source_reference_can_see_declaration(
@@ -402,6 +440,44 @@ impl Lowerer {
         let name = format!("__hoist_{}", self.hoist_counter);
         self.hoist_counter += 1;
         name
+    }
+
+    /// The constant selector lowering ran under, handed back before finishing.
+    pub(crate) fn take_constant_selection(
+        &mut self,
+    ) -> Result<
+        crate::preparation::generic_data::constant_selection::ConstantSelection<'static>,
+        Vec<Diagnostic>,
+    > {
+        self.constant_selection.take().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "constant preparation lost its source-aware selector",
+            )]
+        })
+    }
+
+    /// The finished trees: tables rebuilt from the lowered roots, with the
+    /// interned semantic rows and domains built during lowering kept.
+    pub(crate) fn into_trees(self) -> SymbolResolvedTrees {
+        let SymbolResolvedTrees {
+            roots,
+            tables,
+            symbols,
+            service_reaches,
+            service_reach_rows,
+            authored_service_reach_rows,
+            semantic_domains,
+            external_bindings,
+            evidence_forwardings,
+        } = self.symbol_resolved_trees;
+        let mut trees = SymbolResolvedTrees::with_roots(roots, tables, symbols);
+        trees.service_reaches = service_reaches;
+        trees.service_reach_rows = service_reach_rows;
+        trees.authored_service_reach_rows = authored_service_reach_rows;
+        trees.semantic_domains = semantic_domains;
+        trees.external_bindings = external_bindings;
+        trees.evidence_forwardings = evidence_forwardings;
+        trees
     }
 
     /// Pair every root machine and pending signature with its authored

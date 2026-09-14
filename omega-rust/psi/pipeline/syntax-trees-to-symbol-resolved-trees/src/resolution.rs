@@ -1,27 +1,26 @@
 //! Start here: the resolution route.
 //!
-//! [`resolve`] takes one [`ResolutionRequest`] and runs the phases in order:
-//! `module_normalization` validates, `trait_defaults` synthesizes default
-//! machines, `lowering` translates each root item into the carrier while the
-//! `Lowerer` collects pending selections, and [`finish`] assigns symbols and
-//! settles those selections through `symbols`, `constant`, and `selection`.
-//! The other operations run the same route for a different product:
+//! [`resolve`] takes one [`ResolutionRequest`]; [`begin`] prepares the forest
+//! and a lowerer, and [`drive`] is the route: translate every root item, then
+//! let each owner settle its phase in the one order their preconditions
+//! allow. The other operations run the same route for a different product.
 //! [`resolve_const_argument_selection`] selects const arguments without
-//! synthesis or evaluation, [`prepare_const_initializer_selection`] stops at
-//! preparation evidence that grants no typing authority, and
-//! [`resolve_extension`] resolves a later stratum against a retained base and
-//! returns the carrier the typed continuation rebases; see `continuations`.
-//! `lowerer` is the working state this route drives.
+//! synthesis or evaluation. [`prepare_const_initializer_selection`] stops at
+//! preparation evidence that grants no typing authority. [`resolve_extension`]
+//! resolves a later stratum against a retained base and returns the carrier
+//! the typed continuation rebases; see `continuations`. `lowerer` is the
+//! working state this route drives.
 
 mod continuations;
 pub(crate) mod lowerer;
 
-use crate::lowering::item::lower_item;
+use crate::preparation::generic_data::constant_selection::ConstantSelection;
+use crate::{constant, lowering, preparation, selection};
 pub use continuations::{
     ConstInitializerSelection, RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
 };
 use diagnostics::Diagnostic;
-use lowerer::{ConstResolutionMode, Lowerer, RootWatermarks};
+use lowerer::{ConstResolutionMode, Lowerer};
 use source::SourceMap;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
@@ -58,7 +57,8 @@ pub struct ExtensionRequest<'a> {
 
 /// Resolve every name in the forest to its exact declaration.
 pub fn resolve(request: ResolutionRequest<'_>) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    resolve_with_constants(request, ConstResolutionMode::Complete).map(|prepared| prepared.trees)
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
 
 /// Resolve raw index expressions in their authored owners through normal
@@ -67,8 +67,8 @@ pub fn resolve(request: ResolutionRequest<'_>) -> Result<SymbolResolvedTrees, Ve
 pub fn resolve_const_argument_selection(
     request: ResolutionRequest<'_>,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    resolve_with_constants(request, ConstResolutionMode::ArgumentSelection)
-        .map(|prepared| prepared.trees)
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
+    drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
 
 /// Resolve declaration dependencies without inventing provisional values.
@@ -78,34 +78,11 @@ pub fn resolve_const_argument_selection(
 pub fn prepare_const_initializer_selection(
     request: ResolutionRequest<'_>,
 ) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
-    let syntax = request.syntax;
-    let preparation = resolve_with_constants(request, ConstResolutionMode::InitializerSelection)?;
-    for definition in syntax.root_items().filter_map(|item| match item {
-        syntax_trees::item::Item::Const(definition)
-            if crate::constant::requires_const_initializer_evaluation(syntax, definition) =>
-        {
-            Some(definition)
-        }
-        _ => None,
-    }) {
-        preparation
-            .trees
-            .const_declarations
-            .iter()
-            .find(|declaration| {
-                preparation
-                    .trees
-                    .symbols
-                    .symbol_source_span(declaration.symbol)
-                    == Some(definition.name.source_span())
-            })
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "initializer preparation lost its exact declaration",
-                )]
-            })?;
-        preparation.pending_leaves(syntax, definition)?;
-    }
+    let forest = request.syntax;
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
+    let (trees, selection) = drive(lowerer, &syntax)?;
+    let preparation = ConstInitializerSelection { trees, selection };
+    preparation.validate_initializer_leaves(forest)?;
     Ok(preparation)
 }
 
@@ -122,305 +99,62 @@ pub fn resolve_extension(
 ) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
     let ExtensionRequest {
         base,
-        syntax: extension_syntax,
+        syntax,
         sources,
-        top_level_bindings: additional_source_scoped_top_level_bindings,
+        top_level_bindings,
     } = request;
-    let constant_selection =
-        crate::preparation::generic_data::constant_selection::ConstantSelection::new(
-            extension_syntax,
-            Some(sources.clone()),
-            additional_source_scoped_top_level_bindings.clone(),
-        )?;
-    crate::preparation::module_normalization::validate_with_selection(
-        extension_syntax,
-        &constant_selection,
-    )?;
-    let retained_sources = base.symbols.source_files().collect::<Vec<_>>();
-    if retained_sources.len() > sources.len()
-        || !retained_sources
-            .iter()
-            .copied()
-            .eq(sources.files().take(retained_sources.len()))
-    {
-        return Err(vec![Diagnostic::error(
-            "seeded symbol resolution source map does not retain the exact base frontier",
-        )]);
-    }
     let authored_selection_frontier = base.authored_selection_extension_frontier();
     let retained_base = base.clone();
-    let roots = RootWatermarks::capture(&base);
-    let retained_service_reaches = base.service_reaches.clone();
-    let retained_service_reach_rows = base.service_reach_rows.clone();
-    let mut syntax_trees = extension_syntax.clone();
-    crate::preparation::trait_defaults::synthesize_trait_defaults_after_module_validation(
-        &mut syntax_trees,
-        &constant_selection,
-    )?;
-    let mut lowerer = Lowerer::new(Some(sources), additional_source_scoped_top_level_bindings);
-    lowerer.constant_selection = Some(constant_selection);
-    lowerer.seed_resolved_base(base);
-
-    for item in syntax_trees.root_items() {
-        lower_item(&mut lowerer, &syntax_trees, item).map_err(|diagnostic| vec![diagnostic])?;
-    }
-    for selection in &mut lowerer.pending_const_selections {
-        selection.declaration_ordinal = selection
-            .declaration_ordinal
-            .checked_add(roots.const_declarations)
-            .expect("seeded const declaration ordinal overflow");
-    }
-
-    finish(
-        lowerer,
-        FinishMode::Seeded {
-            roots,
-            retained_service_reaches,
-            retained_service_reach_rows,
-        },
-    )
-    .map(|trees| SeededSymbolResolvedTrees {
+    let request = ResolutionRequest {
+        syntax,
+        sources: Some(sources),
+        top_level_bindings,
+    };
+    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    lowerer.seed_resolved_base(base)?;
+    let (trees, _) = drive(lowerer, &syntax)?;
+    Ok(SeededSymbolResolvedTrees {
         trees,
         authored_selection_frontier,
         retained_base: Box::new(retained_base),
     })
 }
 
-/// Resolve one forest: rewrite syntax before any symbol exists, translate
-/// every root item into the carrier, then settle everything left pending.
-fn resolve_with_constants(
+/// Prepare the forest under its constant selector and a lowerer that owns the
+/// request's custody.
+fn begin(
     request: ResolutionRequest<'_>,
-    const_resolution_mode: ConstResolutionMode,
-) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
-    let ResolutionRequest {
-        syntax: syntax_trees,
-        sources,
-        top_level_bindings: source_scoped_top_level_bindings,
-    } = request;
-    let constant_selection =
-        crate::preparation::generic_data::constant_selection::ConstantSelection::new(
-            syntax_trees,
-            sources.clone(),
-            source_scoped_top_level_bindings.clone(),
-        )?;
-    crate::preparation::module_normalization::validate_with_const_resolution_mode(
-        syntax_trees,
-        &constant_selection,
-        const_resolution_mode,
+    constants: ConstResolutionMode,
+) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
+    let prepared = preparation::prepare(
+        request.syntax,
+        request.sources.clone(),
+        request.top_level_bindings.clone(),
+        constants,
     )?;
-    let mut syntax_trees = syntax_trees.clone();
-    crate::preparation::trait_defaults::synthesize_trait_defaults_after_module_validation(
-        &mut syntax_trees,
-        &constant_selection,
-    )?;
-    let mut lowerer = Lowerer::new(sources, source_scoped_top_level_bindings);
-    lowerer.constant_selection = Some(constant_selection);
-    lowerer.const_resolution_mode = const_resolution_mode;
-
-    for item in syntax_trees.root_items() {
-        lower_item(&mut lowerer, &syntax_trees, item).map_err(|diagnostic| vec![diagnostic])?;
-    }
-
-    let selection = lowerer.constant_selection.take().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "constant preparation lost its source-aware selector",
-        )]
-    })?;
-    let trees = finish(lowerer, FinishMode::Complete)?;
-    Ok(ConstInitializerSelection { trees, selection })
+    let mut lowerer = Lowerer::new(request.sources, request.top_level_bindings);
+    lowerer.constant_selection = Some(prepared.constant_selection);
+    lowerer.const_resolution_mode = constants;
+    Ok((prepared.syntax, lowerer))
 }
 
-enum FinishMode {
-    Complete,
-    Seeded {
-        roots: RootWatermarks,
-        retained_service_reaches: language_semantics::ServiceReachTable,
-        retained_service_reach_rows: language_semantics::ServiceReachRowTable,
-    },
-}
-
-/// Assign symbols and settle every pending selection, in the one order the
-/// passes' preconditions allow.
-fn finish(
+/// The route. Each phase is one call into its owner, in the one order their
+/// preconditions allow: operator homes need no symbols; constants need the
+/// table; the authored-selection ledger needs substituted constants; operator
+/// obligations need the ledger; every remaining selection needs all of it.
+fn drive(
     mut lowerer: Lowerer,
-    finish_mode: FinishMode,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    crate::selection::domain_operator_homes::normalize_domain_operator_homes(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.namespace_declarations,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    match &finish_mode {
-        FinishMode::Complete => crate::symbols::assign_symbols(
-            &mut lowerer.symbol_resolved_trees,
-            lowerer.sources.take(),
-            std::mem::take(&mut lowerer.source_scoped_top_level_bindings),
-            &lowerer.pending_const_declarations,
-            &lowerer.namespace_declarations,
-        )?,
-        FinishMode::Seeded { roots, .. } => {
-            let sources = lowerer.sources.take().ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "seeded symbol resolution requires retained source custody",
-                )]
-            })?;
-            crate::symbols::assign_symbols_against_resolved_base(
-                &mut lowerer.symbol_resolved_trees,
-                sources,
-                std::mem::take(&mut lowerer.source_scoped_top_level_bindings),
-                *roots,
-                &lowerer.pending_const_declarations,
-                &lowerer.namespace_declarations,
-            )?;
-        }
-    }
-    crate::symbols::normalize_static_module_calls(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_static_module_calls,
-        &lowerer.pending_static_module_statement_calls,
-    );
-    crate::lowering::state::finalize_outcome_specific_contract_symbols(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_outcome_specific_contracts,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::constant::finalize_const_declarations(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_const_declarations,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::constant::finalize_const_argument_selections(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_const_argument_selections,
-        &lowerer.pending_const_argument_slots,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::symbols::assign_constant_expression_symbols(
-        &mut lowerer.symbol_resolved_trees,
-        lowerer
-            .pending_const_values
-            .iter()
-            .copied()
-            .chain(lowerer.pending_const_argument_expressions.iter().copied()),
-    );
-    crate::selection::authored_selections::finalize_constant_expression_selections(
-        &mut lowerer.symbol_resolved_trees,
-        lowerer
-            .pending_const_values
-            .iter()
-            .copied()
-            .chain(lowerer.pending_const_argument_expressions.iter().copied()),
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::constant::initializer_normalization::finalize(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_const_initializers,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::constant::substitute_resolved_constants(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_authored_expressions,
-        &mut lowerer.pending_const_selections,
-        lowerer.const_resolution_mode != ConstResolutionMode::Complete,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::constant::finalize_const_selections(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_const_selections,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::selection::authored_selections::finalize_authored_expression_selections(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_authored_expressions,
-        &lowerer.pending_authored_proof_memberships,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::constant::initializer_normalization::finalize_operator_obligations(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_const_initializers,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    let compatibility =
-        crate::selection::signature_free_requirements::validate_signature_free_requirement_compatibility(
-            &lowerer.symbol_resolved_trees,
-        );
-    if !compatibility.is_empty() {
-        return Err(compatibility);
-    }
-    crate::selection::machine_parameter_requirements::normalize_nominal_machine_parameter_requirements(
-        &mut lowerer.symbol_resolved_trees,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::selection::machine_parameter_requirements::normalize_trait_machine_requirement_arguments(
-        &mut lowerer.symbol_resolved_trees,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::selection::evidence_forwardings::bind_evidence_forwarding_owners(
-        &mut lowerer.symbol_resolved_trees,
-    );
-    let (pending_machine_service_reaches, pending_signature_service_reaches) =
-        lowerer.pending_service_reaches();
-    crate::selection::conformance_blocks::normalize_closed_conformance_blocks(
-        &mut lowerer.symbol_resolved_trees,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::selection::authored_selections::finalize_conformance_reference_selections(
-        &mut lowerer.symbol_resolved_trees,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    crate::selection::domain_establishment::normalize_domain_establishment_routes(
-        &mut lowerer.symbol_resolved_trees,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    match finish_mode {
-        FinishMode::Complete => crate::selection::service_reaches::normalize_service_reaches(
-            &mut lowerer.symbol_resolved_trees,
-            &pending_machine_service_reaches,
-            &pending_signature_service_reaches,
-        ),
-        FinishMode::Seeded {
-            retained_service_reaches,
-            retained_service_reach_rows,
-            ..
-        } => crate::selection::service_reaches::normalize_service_reaches_with_retained_tables(
-            &mut lowerer.symbol_resolved_trees,
-            &pending_machine_service_reaches,
-            &pending_signature_service_reaches,
-            retained_service_reaches,
-            retained_service_reach_rows,
-        ),
-    }
-    .map_err(|diagnostic| vec![diagnostic])?;
-    lowerer.symbol_resolved_trees.rebuild_tables();
-    crate::selection::conformance_blocks::route_inline_member_calls(
-        &mut lowerer.symbol_resolved_trees,
-    );
-    Ok(finished_trees(lowerer.symbol_resolved_trees))
-}
-
-/// Rebuild the tables from the lowered roots. The interned semantic rows and
-/// domains built during lowering survive the rebuild.
-fn finished_trees(lowered: SymbolResolvedTrees) -> SymbolResolvedTrees {
-    let SymbolResolvedTrees {
-        roots,
-        tables,
-        symbols,
-        service_reaches,
-        service_reach_rows,
-        authored_service_reach_rows,
-        semantic_domains,
-        external_bindings,
-        evidence_forwardings,
-    } = lowered;
-
-    let mut trees = SymbolResolvedTrees::with_roots(roots, tables, symbols);
-    trees.service_reaches = service_reaches;
-    trees.service_reach_rows = service_reach_rows;
-    trees.authored_service_reach_rows = authored_service_reach_rows;
-    trees.semantic_domains = semantic_domains;
-    trees.external_bindings = external_bindings;
-    trees.evidence_forwardings = evidence_forwardings;
-    trees
+    syntax: &SyntaxTrees,
+) -> Result<(SymbolResolvedTrees, ConstantSelection<'static>), Vec<Diagnostic>> {
+    lowering::lower_items(&mut lowerer, syntax)?;
+    let constant_selection = lowerer.take_constant_selection()?;
+    selection::select_operator_homes(&mut lowerer)?;
+    crate::symbols::assign(&mut lowerer)?;
+    constant::finalize(&mut lowerer)?;
+    selection::finalize_authored_selections(&mut lowerer)?;
+    constant::finalize_operator_obligations(&mut lowerer)?;
+    selection::finalize(&mut lowerer)?;
+    Ok((lowerer.into_trees(), constant_selection))
 }
 
 #[cfg(test)]
