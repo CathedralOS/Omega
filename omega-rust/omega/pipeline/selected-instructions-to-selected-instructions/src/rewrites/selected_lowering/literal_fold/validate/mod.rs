@@ -11,6 +11,7 @@ use register_model::{
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };
+use selected_instructions::ValidatedMachineEffectCatalog;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use crate::{
@@ -38,6 +39,7 @@ pub fn validate_literal_fold<S: ValidatedSelectedAnalysis>(
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    effect_catalog: &ValidatedMachineEffectCatalog,
     plan: LiteralFoldPlan,
 ) -> Result<ValidatedLiteralFold, LiteralFoldError> {
     validate_literal_fold_roots(
@@ -52,6 +54,7 @@ pub fn validate_literal_fold<S: ValidatedSelectedAnalysis>(
         constraints,
         reservations,
         selected_keys,
+        effect_catalog,
     )?;
     if plan.source_selected != selected.selected_identity()
         || plan.spill_choices != spill_choices.receipt().identity()
@@ -60,13 +63,14 @@ pub fn validate_literal_fold<S: ValidatedSelectedAnalysis>(
         || plan.legality != legality.receipt().identity()
         || plan.register_environment != register_environment
         || plan.allocator_availability != availability.receipt().identity()
+        || plan.machine_effect_catalog != effect_catalog.identity()
         || plan.optimization_unit != selected.optimization_unit_identity()
         || plan.fuel_schedule != selected.fuel_schedule_identity()
     {
         return Err(LiteralFoldError::RootMismatch);
     }
 
-    let rows = reconstruct_immediate_rows(constraints, selected_keys, plan.policy)?;
+    let rows = reconstruct_immediate_rows(constraints, selected_keys, plan.policy, effect_catalog)?;
     let (expected_functions, transformed) = reconstruct_literal_fold(selected, recovery, &rows)?;
     if plan.functions != expected_functions {
         return Err(LiteralFoldError::DecisionMismatch { function: 0 });

@@ -1,7 +1,7 @@
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterConstraintKey, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
+    MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
@@ -13,7 +13,7 @@ use crate::{
 };
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 4;
+const LITERAL_FOLD_VERSION: u32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldIdentity(pub(crate) [u8; 32]);
@@ -115,6 +115,11 @@ pub struct LiteralFoldPlan {
     pub legality: AllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
+    /// The validated machine-effect catalog the pair descriptors were
+    /// admitted against: producer, consumer, and rewritten declarations are
+    /// resolved in this catalog by both the producer and the independent
+    /// replay.
+    pub machine_effect_catalog: MachineEffectCatalogIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
     pub fuel_schedule: FuelScheduleIdentity,
     pub policy: LiteralFoldPolicy,
@@ -153,6 +158,7 @@ impl LiteralFoldPlan {
         let legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
         let allocator_availability = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
+        let machine_effect_catalog = MachineEffectCatalogIdentity::from_bytes(cursor.array()?);
         let optimization_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let raw_fuel = u32::from_le_bytes(cursor.array()?);
         let fuel_schedule = FuelScheduleIdentity::new(raw_fuel)
@@ -205,6 +211,7 @@ impl LiteralFoldPlan {
             legality,
             register_environment,
             allocator_availability,
+            machine_effect_catalog,
             optimization_unit,
             fuel_schedule,
             policy,
@@ -251,6 +258,7 @@ pub struct LiteralFoldValidationReceipt {
     pub(crate) legality: AllocationLegalityIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
+    pub(crate) machine_effect_catalog: MachineEffectCatalogIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
@@ -284,6 +292,11 @@ impl LiteralFoldValidationReceipt {
     }
     pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
         self.allocator_availability
+    }
+    /// The validated machine-effect catalog identity the fold's producer and
+    /// independent replay both bound.
+    pub const fn machine_effect_catalog(self) -> MachineEffectCatalogIdentity {
+        self.machine_effect_catalog
     }
     pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
         self.optimization_unit
@@ -362,6 +375,15 @@ pub enum LiteralFoldError {
     ConsumerMismatch {
         function: usize,
     },
+    /// The producer, consumer, or rewritten catalog declaration does not
+    /// satisfy the pair's declared machine-effect surface.
+    EffectSurfaceMismatch {
+        function: usize,
+    },
+    /// The bound machine-effect catalog does not declare a policy-enabled
+    /// rewritten form under its constraint key, or that declaration violates
+    /// the pair's declared effect isolation.
+    EffectCatalogMismatch,
     ImmediateConstraintMismatch,
     IdentifierUnderflow {
         function: usize,

@@ -1,17 +1,21 @@
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    MachineSemanticKind, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionPlan, SelectedInstructionProvenance,
+    SelectedOperand, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
 use crate::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, RecoveryClassification,
     RecoveryVictimRole, ValidatedRecoveryClassifications, ValidatedSelectedAnalysis,
+    machine_semantic_kind,
 };
 
-use super::constraints::ValidationImmediateRows;
+use super::constraints::{
+    ValidationImmediateRows, effect_declaration, isolated_effect_alternative,
+    isolated_effect_declaration, isolated_rewritten_declaration,
+};
 
 pub(super) fn reconstruct_literal_fold(
     selected: &impl ValidatedSelectedAnalysis,
@@ -126,6 +130,15 @@ fn reconstruct_action(
         || literal.operands.len() != 1
         || literal.operands[0].virtual_register != candidate.victim
         || literal.operands[0].access != RegisterOperandAccess::Def
+        // The eliminated instruction's record must carry no unit traffic at
+        // all: removing it would silently drop any implicit use, definition,
+        // clobber, or operand binding it declared.
+        || literal.operands[0].fixed_view.is_some()
+        || literal.operands[0].tied_to.is_some()
+        || literal.operands[0].early_clobber
+        || !literal.implicit_uses.is_empty()
+        || !literal.implicit_defs.is_empty()
+        || !literal.clobbers.is_empty()
     {
         return Err(LiteralFoldError::LiteralMismatch {
             function: function_index,
@@ -136,19 +149,37 @@ fn reconstruct_action(
     // alone: binary consumers fold the literal into an immediate form whose
     // row it owns, while unary extension consumers fold into a direct
     // `MaterializeI64` of the extension's exact output bits.
-    let (shape, row) = match consumer.kind {
-        SelectedInstructionKind::ExactAddI64 { .. } => (SourceShape::BinaryImmediate, rows.add),
-        SelectedInstructionKind::ExactSubtractI64 { .. } => {
-            (SourceShape::BinaryImmediate, rows.subtract)
-        }
-        SelectedInstructionKind::CompareI64 => (SourceShape::BinaryImmediate, rows.compare),
+    let (shape, row, rewritten) = match consumer.kind {
+        SelectedInstructionKind::ExactAddI64 { .. } => (
+            SourceShape::BinaryImmediate,
+            rows.add,
+            MachineSemanticKind::ExactAddI64Immediate,
+        ),
+        SelectedInstructionKind::ExactSubtractI64 { .. } => (
+            SourceShape::BinaryImmediate,
+            rows.subtract,
+            MachineSemanticKind::ExactSubtractI64Immediate,
+        ),
+        SelectedInstructionKind::CompareI64 => (
+            SourceShape::BinaryImmediate,
+            rows.compare,
+            MachineSemanticKind::CompareI64Immediate,
+        ),
         SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU16
         | SelectedInstructionKind::ZeroExtendU32
         | SelectedInstructionKind::SignExtendI8
         | SelectedInstructionKind::SignExtendI16
-        | SelectedInstructionKind::SignExtendI32 => (SourceShape::UnaryExtension, rows.materialize),
-        _ => (SourceShape::BinaryImmediate, None),
+        | SelectedInstructionKind::SignExtendI32 => (
+            SourceShape::UnaryExtension,
+            rows.materialize,
+            MachineSemanticKind::MaterializeI64,
+        ),
+        _ => (
+            SourceShape::BinaryImmediate,
+            None,
+            MachineSemanticKind::MaterializeI64,
+        ),
     };
     let row = row.ok_or(LiteralFoldError::ConsumerMismatch {
         function: function_index,
@@ -230,6 +261,60 @@ fn reconstruct_action(
         operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
     }) {
         return Err(LiteralFoldError::ConsumerMismatch {
+            function: function_index,
+        });
+    }
+
+    // The validator re-derives the effect-surface admission from the bound
+    // catalog itself: the eliminated literal's declaration must be isolated
+    // including every implicit unit it could have written, the consumer's
+    // declaration must be isolated outside a unit surface the rewrite may
+    // replace — no implicit uses, and every implicit definition must stay
+    // defined by every alternative the rewritten form could select — and the
+    // rewritten declaration must be isolated with no implicit uses or
+    // clobbers beyond its declared result channel.
+    let producer_declaration = effect_declaration(
+        rows.catalog,
+        MachineSemanticKind::MaterializeI64,
+        literal.constraint,
+    )
+    .ok_or(LiteralFoldError::EffectSurfaceMismatch {
+        function: function_index,
+    })?;
+    let consumer_declaration = effect_declaration(
+        rows.catalog,
+        machine_semantic_kind(consumer.kind),
+        consumer.constraint,
+    )
+    .ok_or(LiteralFoldError::EffectSurfaceMismatch {
+        function: function_index,
+    })?;
+    let rewritten_declaration = effect_declaration(rows.catalog, rewritten, row.key).ok_or(
+        LiteralFoldError::EffectSurfaceMismatch {
+            function: function_index,
+        },
+    )?;
+    if !isolated_effect_declaration(producer_declaration)
+        || !producer_declaration.alternatives.iter().all(|alternative| {
+            isolated_effect_alternative(alternative)
+                && alternative.encoded.implicit_unit_uses.is_empty()
+                && alternative.encoded.implicit_unit_defs.is_empty()
+                && alternative.encoded.implicit_unit_clobbers.is_empty()
+        })
+        || !isolated_effect_declaration(consumer_declaration)
+        || !consumer_declaration.alternatives.iter().all(|alternative| {
+            isolated_effect_alternative(alternative)
+                && alternative.encoded.implicit_unit_uses.is_empty()
+                && alternative.encoded.implicit_unit_defs.iter().all(|unit| {
+                    rewritten_declaration
+                        .alternatives
+                        .iter()
+                        .all(|rewritten| rewritten.encoded.implicit_unit_defs.contains(unit))
+                })
+        })
+        || !isolated_rewritten_declaration(rewritten_declaration)
+    {
+        return Err(LiteralFoldError::EffectSurfaceMismatch {
             function: function_index,
         });
     }

@@ -18,6 +18,19 @@ pub use facts::*;
 use crate::ValidatedSelectedAnalysis;
 use register_environment::ValidatedTargetRegisterEnvironment;
 
+/// Construct and independently validate the target's machine-effect catalog
+/// against `constraints`.
+///
+/// Optimizations whose descriptors admit a machine-effect surface bind this
+/// catalog's identity and resolve producer, consumer, and rewritten
+/// declarations in it rather than re-deriving target-specific declarations.
+pub fn validated_machine_effect_catalog(
+    target: target::NativeTarget,
+    constraints: &register_model::ValidatedRegisterConstraintCatalog,
+) -> Result<selected_instructions::ValidatedMachineEffectCatalog, MachineEffectStageError> {
+    catalog::validated_catalog(target, constraints)
+}
+
 /// Construct and independently replay effects for the current selected program.
 pub fn analyze_machine_effects<S: ValidatedSelectedAnalysis>(
     selected: &S,

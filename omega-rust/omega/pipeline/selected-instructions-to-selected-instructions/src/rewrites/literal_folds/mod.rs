@@ -6,12 +6,13 @@
 
 use crate::{
     AllocationLegalityError, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPolicy,
-    LiveRangeError, LivenessError, RecoveryClassificationError, RecoveryClassificationPolicy,
-    SpillChoiceError, SpillChoicePolicy, ValidatedAllocationLegality, ValidatedLiteralFold,
-    ValidatedLiveRanges, ValidatedLiveness, ValidatedRecoveryClassifications,
+    LiveRangeError, LivenessError, MachineEffectStageError, RecoveryClassificationError,
+    RecoveryClassificationPolicy, SpillChoiceError, SpillChoicePolicy, ValidatedAllocationLegality,
+    ValidatedLiteralFold, ValidatedLiveRanges, ValidatedLiveness, ValidatedRecoveryClassifications,
     ValidatedSelectedAnalysis, ValidatedSpillChoices, analyze_allocation_legality,
     analyze_live_ranges, analyze_liveness, choose_spill_victims, classify_pressure_recovery,
     fold_selected_incoming_literal, resolve_selected_lowering_rules,
+    validated_machine_effect_catalog,
 };
 use optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,

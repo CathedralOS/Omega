@@ -1,24 +1,34 @@
 //! Producer selection of admitted immediate-form constraints.
 
 use register_model::{
-    RegisterInstructionConstraint, RegisterOperandAccess, TargetRegisterEnvironmentConstraintKeys,
-    ValidatedRegisterConstraintCatalog,
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+    TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog,
 };
-use selected_instructions::SelectedInstructionKind;
+use selected_instructions::{
+    MachineEffectDeclaration, MachineSemanticKind, SelectedInstructionKind,
+    ValidatedMachineEffectCatalog,
+};
 
 use crate::{
     LiteralFoldError, LiteralFoldPolicy, PairOperandShape, PairResultDisposition,
     SelectedInstructionPairRule, enabled_pair_rules,
 };
 
-/// One policy-enabled catalog row bound to its constraint-catalog row.
+/// One policy-enabled catalog row bound to its constraint-catalog row and to
+/// the rewritten form's machine-effect declaration.
 pub(super) struct AdmittedPair<'a> {
     pub(super) rule: SelectedInstructionPairRule,
     pub(super) row: &'a RegisterInstructionConstraint,
+    /// The rewritten form's declaration in the bound effect catalog, already
+    /// admitted against the pair's declared machine-effect surface.
+    pub(super) declaration: &'a MachineEffectDeclaration,
 }
 
 pub(super) struct AdmittedPairs<'a> {
     pairs: Vec<AdmittedPair<'a>>,
+    /// The bound catalog the per-candidate producer and consumer
+    /// declarations resolve against.
+    pub(super) catalog: &'a ValidatedMachineEffectCatalog,
 }
 
 impl<'a> AdmittedPairs<'a> {
@@ -29,10 +39,28 @@ impl<'a> AdmittedPairs<'a> {
     }
 }
 
+/// The single catalog declaration for `semantic` bound to `constraint`, or
+/// none when the catalog does not declare exactly one such form.
+pub(super) fn effect_declaration(
+    catalog: &ValidatedMachineEffectCatalog,
+    semantic: MachineSemanticKind,
+    constraint: RegisterConstraintKey,
+) -> Option<&MachineEffectDeclaration> {
+    let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
+        declaration.semantic == semantic && declaration.constraint == constraint
+    });
+    let declaration = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(declaration)
+}
+
 pub(super) fn select_admitted_pairs<'a>(
     constraints: &'a ValidatedRegisterConstraintCatalog,
     keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: LiteralFoldPolicy,
+    catalog: &'a ValidatedMachineEffectCatalog,
 ) -> Result<AdmittedPairs<'a>, LiteralFoldError> {
     let find = |key| {
         constraints
@@ -49,9 +77,23 @@ pub(super) fn select_admitted_pairs<'a>(
             .ok_or(LiteralFoldError::ImmediateConstraintMismatch)?;
         let row = find(key)?;
         validate_immediate_row(rule, row)?;
-        pairs.push(AdmittedPair { rule, row });
+        // The bound effect catalog must declare the rewritten form under the
+        // row's constraint key, and the declaration must satisfy the pair's
+        // declared machine-effect surface: no implicit unit uses or clobbers
+        // beyond the declared result channel and no memory, trap, stack, or
+        // control-flow traffic.
+        let declaration = effect_declaration(catalog, rule.rewritten(), row.key)
+            .ok_or(LiteralFoldError::EffectCatalogMismatch)?;
+        if !rule.machine_effects().admits_rewritten(declaration) {
+            return Err(LiteralFoldError::EffectCatalogMismatch);
+        }
+        pairs.push(AdmittedPair {
+            rule,
+            row,
+            declaration,
+        });
     }
-    Ok(AdmittedPairs { pairs })
+    Ok(AdmittedPairs { pairs, catalog })
 }
 
 /// Admit the rewritten row whose operand shape matches the rule's declared

@@ -13,6 +13,7 @@ use register_model::{
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };
+use selected_instructions::ValidatedMachineEffectCatalog;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use crate::{
@@ -39,6 +40,7 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    effect_catalog: &ValidatedMachineEffectCatalog,
     policy: LiteralFoldPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<LiteralFoldPlan, LiteralFoldError> {
@@ -54,8 +56,9 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
         constraints,
         reservations,
         selected_keys,
+        effect_catalog,
     )?;
-    let rows = select_admitted_pairs(constraints, selected_keys, policy)?;
+    let rows = select_admitted_pairs(constraints, selected_keys, policy, effect_catalog)?;
     let (functions, transformed) = derive_function_folds(selected, recovery, &rows)?;
     let applied = functions
         .iter()
@@ -72,6 +75,7 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
         legality: legality.receipt().identity(),
         register_environment,
         allocator_availability: availability.receipt().identity(),
+        machine_effect_catalog: effect_catalog.identity(),
         optimization_unit: selected.optimization_unit_identity(),
         fuel_schedule: selected.fuel_schedule_identity(),
         policy,
