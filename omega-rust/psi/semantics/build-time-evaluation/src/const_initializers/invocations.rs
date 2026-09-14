@@ -148,9 +148,12 @@ impl Invocation<'_> {
         entry: &State,
         snapshots: Vec<ExpressionNode>,
     ) -> Result<(), String> {
-        // A published guarded ceiling has no private whole-body summary. Check
-        // its exact invocation instead of inspecting the body to narrow that
-        // ceiling, or treating successful interpretation as admission evidence.
+        // A published guarded ceiling has no private whole-body summary, and an
+        // authored `requires` premise has no meaning outside an invocation.
+        // Check the exact call instead of inspecting the body to narrow either
+        // contract, or treating successful interpretation as admission
+        // evidence: the probe's ordinary checking discharges the premise and
+        // the guarded routes at the snapshot arguments.
         // All original initializer probes must leave this private body check:
         // their detached expressions use exact evaluation, not runtime ranges.
         let mut probe = self.program.typed().clone();
@@ -239,7 +242,13 @@ impl Invocation<'_> {
         )
     }
 
-    fn selected(&self, expression: ExpressionHandle) -> Result<(&Machine, &State), String> {
+    /// Resolve the exact closed ordinary entry for a call and admit it against
+    /// the common floor. The returned flag records that the closure carries an
+    /// authored `requires` premise: such an invocation still owes the premise,
+    /// discharged by the concrete checked probe before interpretation, so the
+    /// caller must always run that probe rather than relying on the floor's
+    /// conservative closure fence.
+    fn selected(&self, expression: ExpressionHandle) -> Result<(bool, &Machine, &State), String> {
         let typed = self.program.typed();
         crate::admission::require_call_expression_selection(
             typed,
@@ -277,12 +286,22 @@ impl Invocation<'_> {
             .machine_states(machine)
             .first()
             .ok_or("constant call lost its entry")?;
-        self.program.admission.require_common_floor_for_invocation(
-            typed,
-            machine,
-            BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression)),
-        )?;
-        Ok((machine, state))
+        let custody =
+            BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression));
+        if self
+            .program
+            .admission
+            .closure_includes_authored_requires(typed, machine)
+        {
+            self.program
+                .admission
+                .require_common_floor_for_concrete_premise_invocation(typed, machine, custody)?;
+            return Ok((true, machine, state));
+        }
+        self.program
+            .admission
+            .require_common_floor_for_invocation(typed, machine, custody)?;
+        Ok((false, machine, state))
     }
 }
 
@@ -292,7 +311,7 @@ impl ConstantCalls for Invocation<'_> {
         expression: ExpressionHandle,
     ) -> Result<(PrimitiveType, Vec<Diagnostic>), String> {
         let typed = self.program.typed();
-        let (_, entry) = self.selected(expression)?;
+        let (_, _, entry) = self.selected(expression)?;
         let destination =
             crate::const_generic_expressions::exact_probe_destination(typed, entry.return_type)
                 .ok_or("constant call result needs an exact builtin integer or Boolean carrier")?;
@@ -332,14 +351,17 @@ impl ConstantCalls for Invocation<'_> {
         expression: ExpressionHandle,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
         let typed = self.program.typed();
-        let (machine, entry) = self.selected(expression)?;
-        // Reuse complete argument-independent evidence when it exists. Only a
-        // fallible or otherwise unsummarized call needs fresh checking snapshots.
-        let needs_concrete_discharge = !self
-            .program
-            .crash_causes
-            .iter()
-            .any(|(symbol, causes)| *symbol == machine.symbol && causes.is_empty());
+        let (premise_discharge, machine, entry) = self.selected(expression)?;
+        // Reuse complete argument-independent evidence when it exists. A
+        // fallible or otherwise unsummarized call needs fresh checking
+        // snapshots, and an authored `requires` premise in the closure always
+        // does: only the concrete probe can decide it at these arguments.
+        let needs_concrete_discharge = premise_discharge
+            || !self
+                .program
+                .crash_causes
+                .iter()
+                .any(|(symbol, causes)| *symbol == machine.symbol && causes.is_empty());
         let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
             return Err("constant execution lost its selected call".into());
         };
@@ -392,15 +414,30 @@ impl ConstantCalls for Invocation<'_> {
         if needs_concrete_discharge {
             self.require_concrete_failure_discharge(expression, machine, entry, snapshots)?;
         }
-        let result = self
-            .program
-            .admission
-            .evaluate_const_evaluable_machine_symbol_for_invocation(
-                typed,
-                machine.symbol,
-                arguments,
-                BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression)),
-            )?;
+        let custody =
+            BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression));
+        let result = if premise_discharge {
+            // The probe above re-ran ordinary checked contract proof at the
+            // snapshot arguments; its success is what admits the authored
+            // `requires` premises here. Interpretation itself proves nothing.
+            self.program
+                .admission
+                .evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
+                    typed,
+                    machine.symbol,
+                    arguments,
+                    custody,
+                )?
+        } else {
+            self.program
+                .admission
+                .evaluate_const_evaluable_machine_symbol_for_invocation(
+                    typed,
+                    machine.symbol,
+                    arguments,
+                    custody,
+                )?
+        };
         let destination =
             crate::const_generic_expressions::exact_probe_destination(typed, entry.return_type)
                 .ok_or("constant result lost its exact carrier")?;

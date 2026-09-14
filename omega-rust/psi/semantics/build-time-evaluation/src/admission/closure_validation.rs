@@ -5,10 +5,16 @@ use typed_trees::machine::Machine;
 
 use super::BuildTimeCallEdge;
 
-pub(super) fn checked_closure_violation(
+/// `discharge_authored_requires` is set only for a concrete invocation whose
+/// own checked probe re-runs ordinary contract checking at snapshot arguments.
+/// The premise is still enforced there — at the exact concrete call — so the
+/// closure walk stands down on that axis alone; termination, linear carriers,
+/// and the other floor obligations keep applying unchanged.
+pub(super) fn checked_closure_violation_with_premise_discharge(
     call_edges: &[BuildTimeCallEdge],
     program: &TypedTrees,
     root: &Machine,
+    discharge_authored_requires: bool,
 ) -> Option<String> {
     let mut completed = Vec::new();
     let mut active = Vec::new();
@@ -20,7 +26,64 @@ pub(super) fn checked_closure_violation(
         &mut completed,
         &mut active,
         &mut path,
+        discharge_authored_requires,
     )
+}
+
+/// Whether `root`'s call-edge closure carries any authored `requires` premise —
+/// on a reachable machine, one of its states, or a callable signature target.
+/// The traversal mirrors `machine_termination_violation`'s edge following: an
+/// unmeasured terminal recursion edge keeps its machine symbol here as well.
+pub(super) fn closure_has_authored_requires(
+    call_edges: &[BuildTimeCallEdge],
+    program: &TypedTrees,
+    root: SymbolHandle,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(machine_symbol) = pending.pop() {
+        if visited.contains(&machine_symbol) {
+            continue;
+        }
+        visited.push(machine_symbol);
+        let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+        else {
+            continue;
+        };
+        if has_authored_requires(program.machine_contracts(machine))
+            || program
+                .machine_states(machine)
+                .iter()
+                .any(|state| has_authored_requires(program.state_contracts(state)))
+        {
+            return true;
+        }
+        for call in call_edges
+            .iter()
+            .filter(|call| call.source_machine_symbol == machine_symbol)
+        {
+            let target_machine_symbol = if call.target_machine_symbol.is_valid() {
+                Some(call.target_machine_symbol)
+            } else if call.target_state_symbol.is_valid()
+                && program.symbols.get(call.target_state_symbol).kind == SymbolKind::Machine
+            {
+                Some(call.target_state_symbol)
+            } else {
+                None
+            };
+            match target_machine_symbol {
+                Some(target) => pending.push(target),
+                None if callable_has_authored_requires(program, call.target_state_symbol) => {
+                    return true;
+                }
+                None => {}
+            }
+        }
+    }
+    false
 }
 
 fn machine_termination_violation(
@@ -30,6 +93,7 @@ fn machine_termination_violation(
     completed: &mut Vec<SymbolHandle>,
     active: &mut Vec<SymbolHandle>,
     path: &mut Vec<String>,
+    discharge_authored_requires: bool,
 ) -> Option<String> {
     if completed.contains(&machine_symbol) {
         return None;
@@ -40,7 +104,9 @@ fn machine_termination_violation(
         .find(|machine| machine.symbol == machine_symbol)?;
     path.push(machine.name.as_str().to_owned());
 
-    if let Some(violation) = machine_precondition_violation(program, machine, path) {
+    if !discharge_authored_requires
+        && let Some(violation) = machine_precondition_violation(program, machine, path)
+    {
         path.pop();
         return Some(violation);
     }
@@ -102,14 +168,18 @@ fn machine_termination_violation(
                 completed,
                 active,
                 path,
+                discharge_authored_requires,
             ) {
                 active.retain(|active_symbol| *active_symbol != machine_symbol);
                 path.pop();
                 return Some(violation);
             }
-        } else if let Some(violation) =
-            callable_contract_violation(program, call.target_state_symbol, path)
-        {
+        } else if let Some(violation) = callable_contract_violation(
+            program,
+            call.target_state_symbol,
+            path,
+            discharge_authored_requires,
+        ) {
             active.retain(|active_symbol| *active_symbol != machine_symbol);
             path.pop();
             return Some(violation);
@@ -224,11 +294,10 @@ fn machine_linear_carrier_violation(
     None
 }
 
-fn callable_contract_violation(
-    program: &TypedTrees,
+fn callable_signature<'program>(
+    program: &'program TypedTrees,
     symbol: SymbolHandle,
-    path: &[String],
-) -> Option<String> {
+) -> Option<&'program typed_trees::signature::StateSignature> {
     if !symbol.is_valid()
         || matches!(
             program.symbols.get(symbol).kind,
@@ -237,8 +306,7 @@ fn callable_contract_violation(
     {
         return None;
     }
-
-    let signature = program
+    program
         .machine_parameter_signature(symbol)
         .map(|(_, signature)| signature)
         .or_else(|| {
@@ -248,10 +316,26 @@ fn callable_contract_violation(
                     .iter()
                     .find(|signature| signature.symbol == symbol)
             })
-        });
-    let signature = signature?;
+        })
+}
 
-    if has_authored_requires(program.state_signature_contracts(signature)) {
+fn callable_has_authored_requires(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+    callable_signature(program, symbol).is_some_and(|signature| {
+        has_authored_requires(program.state_signature_contracts(signature))
+    })
+}
+
+fn callable_contract_violation(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+    path: &[String],
+    discharge_authored_requires: bool,
+) -> Option<String> {
+    let signature = callable_signature(program, symbol)?;
+
+    if !discharge_authored_requires
+        && has_authored_requires(program.state_signature_contracts(signature))
+    {
         return Some(format!(
             "callable contract `{}` has an authored `requires` premise along `{}`; pre-check semantic evaluation has no checked invocation proof for that premise",
             signature.name,
