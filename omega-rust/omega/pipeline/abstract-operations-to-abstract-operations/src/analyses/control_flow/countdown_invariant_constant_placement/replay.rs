@@ -34,12 +34,16 @@ pub(super) fn reconstruct(
         .iter()
         .map(|summary| (summary.counted_loop.certificate.component.clone(), summary))
         .collect::<BTreeMap<_, _>>();
+    // The countdown chain is keyed by the certified subset of the validated
+    // SCC roster; uncertified components carry no counted or invariant row.
     if functions.len() != unit.functions.len()
         || components.len() != custody.components().len()
         || counted_loops.len() != counted.loops().len()
         || invariant_loops.len() != invariants.loops().len()
-        || components.keys().ne(counted_loops.keys())
-        || components.keys().ne(invariant_loops.keys())
+        || counted_loops.keys().ne(invariant_loops.keys())
+        || counted_loops
+            .keys()
+            .any(|component| !components.contains_key(component))
     {
         return Err(CountdownInvariantConstantPlacementAnalysisError::ComponentRosterMismatch);
     }
@@ -521,9 +525,13 @@ fn validate_roots(
         .iter()
         .map(|summary| &summary.counted_loop.certificate.component)
         .collect::<Vec<_>>();
-    if component_keys != certificate_keys
-        || component_keys != counted_keys
-        || component_keys != invariant_keys
+    // Certificates name the certified subset of the validated SCC roster; the
+    // counted and invariant rosters must cover exactly that subset.
+    if certificate_keys != counted_keys
+        || counted_keys != invariant_keys
+        || certificate_keys
+            .iter()
+            .any(|key| !component_keys.contains(key))
     {
         return Err(CountdownInvariantConstantPlacementAnalysisError::ComponentRosterMismatch);
     }

@@ -54,16 +54,14 @@ pub(super) fn validated(
 }
 
 /// Reconstruct every loop-carried custody the transformed unit still owns.
-/// Counted-loop, invariant-constant, and placement custody only exist when
-/// every component carries countdown evidence; Natural and unranked
-/// components keep their component and freeze custody through
+/// Counted-loop, invariant-constant, and placement custody reconstruct for
+/// each surviving certificate-bearing component; uncertified Natural and
+/// unranked components keep their component and freeze custody through
 /// `from_transformed` alone.
 pub(super) fn reconstruct_custody(
     session: &VerifiedPsiOptimizationSession,
 ) -> Result<(), LoopInvariantScalarMotionError> {
-    if session.cycle_components().components().len()
-        == session.ranking_certificates().certificates().len()
-    {
+    if !session.ranking_certificates().certificates().is_empty() {
         session
             .counted_loop_analysis()
             .map_err(LoopInvariantScalarMotionError::CountedLoop)?;

@@ -114,7 +114,20 @@ fn validate_roots(
     {
         return Err(CountedLoopAnalysisError::TerminalIdentityMismatch);
     }
-    if custody.components().len() != custody.ranking_certificates().certificates().len() {
+    // Ranking certificates name the certified subset of the validated SCC
+    // roster; uncertified Natural and unranked components remain in custody
+    // without entering this analysis.
+    if custody
+        .ranking_certificates()
+        .certificates()
+        .iter()
+        .any(|certificate| {
+            !custody
+                .components()
+                .iter()
+                .any(|component| component.id == certificate.component)
+        })
+    {
         return Err(CountedLoopAnalysisError::CertificateComponentRosterMismatch);
     }
     Ok(())

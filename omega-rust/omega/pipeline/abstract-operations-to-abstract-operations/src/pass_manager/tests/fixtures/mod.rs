@@ -6,6 +6,7 @@
 
 mod baseline;
 mod compatible_policy;
+mod cyclic;
 mod division_and_remainder;
 mod exact_add;
 mod proof_certificates;
@@ -14,6 +15,7 @@ pub(super) use baseline::verified_empty_unit;
 pub(super) use compatible_policy::{
     verified_compatible_policy_cse_unit, verified_compatible_policy_phi_gvn_unit,
 };
+pub(super) use cyclic::verified_unranked_cycle_unit;
 pub(super) use division_and_remainder::{
     verified_exact_remainder_by_one_unit, verified_exact_self_divide_unit,
     verified_exact_self_remainder_unit, verified_exact_signed_remainder_by_negative_one_unit,

@@ -274,7 +274,13 @@ fn validate_roots(
         .iter()
         .map(|summary| &summary.certificate.component)
         .collect::<Vec<_>>();
-    if component_keys != certificate_keys || component_keys != counted_keys {
+    // Certified components are the subset of the validated SCC roster named by
+    // ranking certificates; the counted roster must cover exactly that subset.
+    if certificate_keys != counted_keys
+        || certificate_keys
+            .iter()
+            .any(|key| !component_keys.contains(key))
+    {
         return Err(CountdownInvariantConstantAnalysisError::ComponentRosterMismatch);
     }
     Ok(())
