@@ -62,6 +62,9 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
             port: *port,
         },
         AbstractOperation::DynamicDescriptorParameter { .. }
+        // An atomic event carries no call or boundary edge; its ordering and
+        // custody evidence stay on the operation itself.
+        | AbstractOperation::AtomicEvent { .. }
         | AbstractOperation::StoreDynamicDescriptor { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. }
         | AbstractOperation::ByteSequenceWrite { .. }

@@ -6,6 +6,7 @@
 
 use super::*;
 
+mod atomic;
 mod calls_and_effects;
 mod control;
 mod ieee_float;
@@ -28,6 +29,8 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishRecord { .. } => structural::encode(bytes, operation),
+
+        O::AtomicEvent { .. } => atomic::encode(bytes, operation),
 
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }

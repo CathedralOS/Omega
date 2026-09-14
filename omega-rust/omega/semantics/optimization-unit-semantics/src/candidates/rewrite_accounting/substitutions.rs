@@ -105,6 +105,29 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         }
         O::StructuralCase { .. } => {}
         O::Return { value, .. } => replace(value),
+        O::AtomicEvent { event, .. } => {
+            use abstract_operations::AbstractAtomicEvent as E;
+            // Atomic operands are scalar uses; the observed prior and
+            // results are definitions the event produces, not uses.
+            match event {
+                E::Store { value, .. } | E::Swap { value, .. } => replace(value),
+                E::ReadModifyWrite { operand, .. } => replace(operand),
+                E::CompareExchange {
+                    expected,
+                    replacement,
+                    ..
+                }
+                | E::CompareExchangeOnce {
+                    expected,
+                    replacement,
+                    ..
+                } => {
+                    replace(expected);
+                    replace(replacement);
+                }
+                E::Load { .. } | E::Fence { .. } => {}
+            }
+        }
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishByteSequenceLiteral { .. }

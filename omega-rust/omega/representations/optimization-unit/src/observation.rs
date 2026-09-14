@@ -419,6 +419,11 @@ fn operation_observations(
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::StructuralScalarFieldStore { .. }
+        // Atomic events observe or publish atomic memory and carry
+        // proof-static ordering; a fence accesses no place but remains a
+        // memory-ordering event. None of them may be erased or reordered
+        // into ordinary scalar computation.
+        | O::AtomicEvent { .. }
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishScalarCase { .. }

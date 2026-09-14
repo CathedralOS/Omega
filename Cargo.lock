@@ -6,6 +6,7 @@ version = 4
 name = "abstract-operations"
 version = "0.1.0"
 dependencies = [
+ "language-core",
  "semantic-vocabulary",
  "terminal-psi",
 ]
@@ -1330,6 +1331,7 @@ name = "optimization-unit"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "language-core",
  "optimization-core",
  "semantic-vocabulary",
  "terminal-psi",
