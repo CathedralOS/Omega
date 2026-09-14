@@ -1,6 +1,7 @@
 use register_model::RegisterViewId;
 use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 
+use super::super::compute::scan_reference;
 use super::{compute_function, fixtures::*, validate};
 use crate::{CopyAffinity, RegisterHomeError};
 
@@ -402,6 +403,72 @@ fn copy_affinity_breaks_equal_assigned_edges_toward_unassigned_votes() {
     first_canonical.assignments[0].view = RegisterViewId(0);
     assert!(matches!(
         validate::validate_function(0, &first_canonical, &legality, &ranges, &physical),
+        Err(RegisterHomeError::VirtualRegisterMismatch {
+            function: 0,
+            register: 0,
+        })
+    ));
+}
+
+#[test]
+fn copy_affinity_counts_only_the_view_an_unassigned_partner_would_take() {
+    let physical = aliased_physical();
+    // Registers 2 and 3 are single-candidate and take view 2 first, where
+    // register 1's own copy edges already pin its strongest ranking. Register
+    // 0 still has views {0, 2}; register 1 retains {0, 2}. Counting register
+    // 1's candidacy as a vote for every shared view would tie and fall to
+    // the lowest candidate 0 — but register 1 would still choose view 2 for
+    // its own two satisfied edges, so the coalesce would be lost. Its vote
+    // counts only toward view 2, the view it would actually take once
+    // register 0's home lands there.
+    let mut legality = legality(&[(0, 1), (2, 3), (4, 5), (6, 7)]);
+    set_candidates(&mut legality, 0, &[0, 2]);
+    set_candidates(&mut legality, 1, &[0, 2]);
+    set_candidates(&mut legality, 2, &[2]);
+    set_candidates(&mut legality, 3, &[2]);
+    let mut ranges = ranges(4, &[]);
+    ranges.copy_affinities.push(CopyAffinity {
+        block: SelectedBlockId(0),
+        instruction: SelectedInstructionId(0),
+        source: VirtualRegisterId(0),
+        destination: VirtualRegisterId(1),
+    });
+    for destination in [2, 3] {
+        ranges.copy_affinities.push(CopyAffinity {
+            block: SelectedBlockId(0),
+            instruction: SelectedInstructionId(1),
+            source: VirtualRegisterId(1),
+            destination: VirtualRegisterId(destination),
+        });
+    }
+
+    let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+    assert_eq!(
+        homes
+            .assignments
+            .iter()
+            .map(|assignment| assignment.view)
+            .collect::<Vec<_>>(),
+        vec![
+            RegisterViewId(2),
+            RegisterViewId(2),
+            RegisterViewId(2),
+            RegisterViewId(2)
+        ]
+    );
+    assert_eq!(
+        validate::replay_function(0, &legality, &ranges, &physical).unwrap(),
+        homes
+    );
+    assert_eq!(
+        scan_reference::compute_function(0, &legality, &ranges, &physical).unwrap(),
+        homes
+    );
+
+    let mut uncoalesced = homes.clone();
+    uncoalesced.assignments[0].view = RegisterViewId(0);
+    assert!(matches!(
+        validate::validate_function(0, &uncoalesced, &legality, &ranges, &physical),
         Err(RegisterHomeError::VirtualRegisterMismatch {
             function: 0,
             register: 0,
