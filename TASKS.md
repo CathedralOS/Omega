@@ -1457,7 +1457,12 @@ Owners include
   (`PackagePolicyRepresentation::rejoin_foreign_demands`); remaining:
   physical movement and lifecycle planning, including transitive
   inert-carrier proof and multiplicity checks. Equal size/alignment or compact
-  fingerprints cannot establish agreement.
+  fingerprints cannot establish agreement. External compatibility and
+  native-foreign binding materialization now consume the same authoritative
+  selection list (`evaluate_compatibility_boundary_entry_plan`), witnessed by
+  `calling_policy_plans::compatibility_boundary_materializes_the_selected_opaque_carrier`
+  and `calling_policy_plans::compatibility_boundary_rejects_opaque_by_value_without_build_selection`;
+  physical transport, artifact custody, and lifecycle/drop planning remain open.
 
   Carry the application through native artifacts, replacement compatibility,
   stable-handle eras, and independently replaceable provider contracts.

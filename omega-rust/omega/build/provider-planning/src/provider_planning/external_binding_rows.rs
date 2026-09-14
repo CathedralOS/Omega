@@ -13,6 +13,7 @@ pub fn settle_external_binding_rows(
     boundary_calling_plan_realizations: &[
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
+    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<(), Vec<Diagnostic>> {
     let rows = extract_external_binding_rows(
         selected_target,
@@ -20,6 +21,7 @@ pub fn settle_external_binding_rows(
         selected_plans,
         boundary_calling_plan_realizations,
         typed,
+        opaque_representation_selections,
     )?;
     if retained.as_ref() == rows.as_slice() {
         return Ok(());
@@ -38,6 +40,7 @@ pub fn extract_external_binding_rows(
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
     typed: &typed_trees::TypedTrees,
+    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     extract_external_binding_rows_for_scope(
         selected_target,
@@ -46,6 +49,7 @@ pub fn extract_external_binding_rows(
         boundary_calling_plan_realizations,
         typed,
         false,
+        opaque_representation_selections,
     )
 }
 
@@ -64,6 +68,7 @@ pub fn extract_native_external_binding_rows(
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
     typed: &typed_trees::TypedTrees,
+    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     extract_external_binding_rows_for_scope(
         selected_target,
@@ -72,6 +77,7 @@ pub fn extract_native_external_binding_rows(
         boundary_calling_plan_realizations,
         typed,
         true,
+        opaque_representation_selections,
     )
 }
 
@@ -84,6 +90,7 @@ fn extract_external_binding_rows_for_scope(
     ],
     typed: &typed_trees::TypedTrees,
     native_mechanisms_only: bool,
+    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     use calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
     use effects::provider_plan::ProviderBinding;
@@ -189,6 +196,7 @@ fn extract_external_binding_rows_for_scope(
                             &binding,
                             ExternalBindingKind::TableFunction { .. }
                         )),
+                        opaque_representation_selections,
                     )
                     .map_err(|reason| {
                         vec![Diagnostic::error(format!(

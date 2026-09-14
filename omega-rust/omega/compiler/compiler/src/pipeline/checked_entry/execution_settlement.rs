@@ -116,6 +116,7 @@ pub(super) fn check_selected_execution(
         package_inputs,
         &build_config.provider_selections,
         &boundary_calling_plan_realizations,
+        &build_config.opaque_representation_selections,
     )?;
     let selected_native_target = selected_target_profile.map(target::TargetProfile::native_target);
     let provider_selection_target =

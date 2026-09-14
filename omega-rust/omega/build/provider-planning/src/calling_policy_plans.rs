@@ -374,6 +374,7 @@ pub fn evaluate_compatibility_boundary_entry_plan(
     requirement_identity: &str,
     policy: CallingPolicy,
     dispatch_only_parameter_count: usize,
+    opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<Option<BoundaryEntryPlan>, String> {
     let trait_leaf = trait_name.rsplit("::").next().unwrap_or(trait_name);
     let trait_candidates = typed
@@ -443,7 +444,7 @@ pub fn evaluate_compatibility_boundary_entry_plan(
             &[],
             requirement_identity,
             native_target,
-            &[],
+            opaque_representation_selections,
         )?
     } else {
         let top_level_index = candidate_index - trait_candidates.len();
@@ -458,7 +459,7 @@ pub fn evaluate_compatibility_boundary_entry_plan(
             entry,
             requirement_identity,
             native_target,
-            &[],
+            opaque_representation_selections,
         )?
     };
     let classified =
