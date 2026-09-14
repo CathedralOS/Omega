@@ -30,12 +30,13 @@ pub(super) fn deduplicate(
     source_calls: &[lowered_psi::LoweredSourceCallOccurrence],
     retained_values: &BTreeSet<ValueId>,
 ) {
-    // Ranking evidence names exact value identities: it is proof and
-    // termination custody, not a use list the substitution can rewrite.
-    if machine.ranked_scc.is_some() {
-        return;
-    }
+    // Ranking evidence names exact value identities over the covered cyclic
+    // components: it is proof and termination custody, not a use list the
+    // substitution can rewrite. Covered member blocks keep their exact
+    // contents; duplicates outside them still collapse.
+    let coverage = crate::ranked::ranked_coverage(machine);
     let mut retained_values = retained_values.clone();
+    retained_values.extend(coverage.values.iter().copied());
     for proposition in &machine.contract.requires {
         retain_proposition(proposition, &mut retained_values);
     }
@@ -97,8 +98,12 @@ pub(super) fn deduplicate(
             let mut kind = operation.kind.clone();
             kind.map_scalar_uses(&mut |value| representative.get(&value).copied().unwrap_or(value));
             // A value named by proof or custody sidecars keeps its own
-            // identity; it may still canonicalize a later duplicate.
+            // identity; it may still canonicalize a later duplicate. A
+            // covered member's operation stays exact, and a result used
+            // inside a member block is never substituted away.
             if !retained_values.contains(&result.id)
+                && !coverage.blocks.contains(&block_id)
+                && !coverage.member_uses.contains(&result.id)
                 && let Some(leader) = leaders.iter().find(|leader| {
                     leader.kind == kind
                         && dominators
@@ -559,16 +564,86 @@ mod tests {
     }
 
     #[test]
-    fn ranked_machine_is_left_unchanged() {
-        let mut machine = machine(vec![block(
-            1,
-            vec![constant(10, 10, 7), constant(11, 11, 7)],
-            return_value(1, 10),
-        )]);
-        machine.ranked_scc = Some(TerminalRankedScc::Natural(Vec::new()));
-        let before = machine.clone();
+    fn covered_component_contents_stay_exact_while_outside_duplicates_collapse() {
+        // b1 is the entry, b2 a covered self-loop member. The entry's second
+        // constant is an ordinary duplicate and collapses to the first. The
+        // member's operations stay exact, and the member-used `v11` keeps its
+        // producer even though it duplicates `v10`.
+        let mut machine = machine(vec![
+            block(
+                1,
+                vec![
+                    constant(10, 10, 7),
+                    constant(11, 11, 7),
+                    constant(12, 12, 7),
+                ],
+                jump(1, 2, vec![]),
+            ),
+            Block {
+                structural_parameters: Vec::new(),
+                id: BlockId::new(2).unwrap(),
+                parameters: vec![ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: ValueId::new(30).unwrap(),
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                    ),
+                }],
+                operations: vec![
+                    constant(20, 20, 1),
+                    add(21, 21, 30, 20),
+                    add(22, 22, 11, 30),
+                ],
+                terminator: jump(2, 2, vec![21]),
+            },
+        ]);
+        machine.ranked_scc = Some(TerminalRankedScc::Natural(vec![
+            terminal_psi::TerminalNaturalCycle {
+                rank_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                ranks: vec![terminal_psi::TerminalBlockNaturalRank {
+                    block: BlockId::new(2).unwrap(),
+                    value: ValueId::new(30).unwrap(),
+                }],
+                edges: vec![terminal_psi::TerminalNaturalRankEdge {
+                    edge: EdgeId::new(2).unwrap(),
+                    source: BlockId::new(2).unwrap(),
+                    target: BlockId::new(2).unwrap(),
+                    successor_rank: ValueId::new(21).unwrap(),
+                    comparison: terminal_psi::TerminalNaturalRankComparison::Strict,
+                }],
+            },
+        ]));
         deduplicate(&mut machine, &[], &BTreeSet::new());
-        assert_eq!(machine, before, "ranking evidence freezes the machine");
+        assert_eq!(
+            machine.blocks[0]
+                .operations
+                .iter()
+                .map(|operation| operation.id)
+                .collect::<Vec<_>>(),
+            vec![OperationId::new(10).unwrap(), OperationId::new(11).unwrap()],
+            "the unused duplicate collapses; the member-used one keeps its producer"
+        );
+        let member = &machine.blocks[1];
+        assert_eq!(
+            member
+                .operations
+                .iter()
+                .map(|operation| operation.id)
+                .collect::<Vec<_>>(),
+            vec![
+                OperationId::new(20).unwrap(),
+                OperationId::new(21).unwrap(),
+                OperationId::new(22).unwrap()
+            ],
+            "covered contents stay exact"
+        );
+        assert!(
+            matches!(
+                &member.terminator,
+                Terminator::Jump { arguments, .. } if arguments == &vec![ValueId::new(21).unwrap()]
+            ),
+            "the covered edge keeps its exact argument"
+        );
     }
 
     #[test]

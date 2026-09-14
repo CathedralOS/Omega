@@ -11,8 +11,9 @@
 //!
 //! Propositions, ranking rows, and custody sidecars name value identities
 //! without listing direct uses: every value they can mention is retained, a
-//! ranked machine is left unchanged, and proof-bearing closures stay frozen
-//! until proof-context transport is implemented.
+//! ranked machine keeps its covered cyclic components' contents exact, and
+//! proof-bearing closures stay frozen until proof-context transport is
+//! implemented.
 //!
 //! The scan proposes removals; the independent verifier re-derives the
 //! canonical survivor for each removed operation and checks the exact

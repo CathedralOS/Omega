@@ -6,7 +6,8 @@
 //! direct scalar use, and removes the parameter with its edge-argument
 //! positions. Propositions and ranking evidence name value identities without
 //! listing direct uses: every value a proposition can mention is retained, and
-//! a ranked machine is left unchanged.
+//! a ranked machine keeps the covered cyclic components' parameter tables and
+//! every use reaching into them exact while ordinary regions still collapse.
 //!
 //! Resolution proposes substitutions; the independent verifier checks the
 //! exact before/after relation and proof questions.

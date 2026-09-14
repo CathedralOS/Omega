@@ -16,7 +16,12 @@ pub(super) fn eliminate(
         .iter()
         .flat_map(|block| &block.operations)
         .collect::<Vec<_>>();
+    // Ranking evidence pins the covered components' parameter tables and
+    // keeps the values it names live wherever they are declared; parameters
+    // on blocks outside the covered components follow the ordinary rule.
+    let coverage = crate::ranked::ranked_coverage(machine);
     let mut pending = retained_values.to_vec();
+    pending.extend(coverage.values.iter().copied());
     for operation in &operations {
         if !terminal_semantics::is_unconditionally_total_scalar(&operation.kind)
             && !inputs(&operation.kind, &mut pending)
@@ -62,8 +67,8 @@ pub(super) fn eliminate(
             | Terminator::ReturnStructural { .. } => {}
         }
     }
-    // Block parameters survive removal only in machines without ranking
-    // evidence, outside `StructuralCase` payload targets, and with at least
+    // Block parameters survive removal only outside covered component member
+    // blocks, outside `StructuralCase` payload targets, and with at least
     // one inventoried incoming edge. Entry blocks declare no parameters and
     // crash continuations declare only empty parameter tables, so neither
     // needs special handling.
@@ -73,7 +78,7 @@ pub(super) fn eliminate(
         for (position, parameter) in block.parameters.iter().enumerate() {
             parameter_owner.insert(parameter.id, (block.id, position));
         }
-        if machine.ranked_scc.is_none()
+        if !coverage.blocks.contains(&block.id)
             && !structural_case_targets.contains(&block.id)
             && incoming_arguments.contains_key(&block.id)
         {
