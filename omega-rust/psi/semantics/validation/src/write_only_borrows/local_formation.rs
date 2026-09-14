@@ -63,7 +63,6 @@ pub(super) fn admitted(
                     },
                     name: parameter.name.as_str().to_owned(),
                     referee: *referee,
-                    is_parameter: true,
                 })
             }),
     );
@@ -83,7 +82,6 @@ pub(super) fn admitted(
                     receiver_machine: SymbolHandle::invalid(),
                     name: source.name.as_str().to_owned(),
                     referee: *referee,
-                    is_parameter: false,
                 })
             }),
     );
