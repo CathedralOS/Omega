@@ -667,6 +667,7 @@ fn nested_record_mutable_receiver_updates_exact_child_storage() {
                 path: vec![],
                 field: structural_field_id(1),
                 value: value_id(12),
+                range_obligation: None,
             },
         },
     );
@@ -795,6 +796,7 @@ fn owned_nested_record_call_copies_payload_before_mutating_its_child() {
                 path: vec![StructuralPathSegment::Field("child".into())],
                 field: structural_field_id(1),
                 value: value_id(30),
+                range_obligation: None,
             },
         },
     ];

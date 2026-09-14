@@ -11,6 +11,7 @@ use semantic_vocabulary::{
 mod byte_subslice;
 mod case_analysis;
 mod conjunction_endpoints;
+mod live_field_aliases;
 
 fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {
     ScalarTerm::value(

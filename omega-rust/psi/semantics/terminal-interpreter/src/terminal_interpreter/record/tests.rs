@@ -415,6 +415,7 @@ fn owned_record_argument_mutation_does_not_change_the_callers_referent() {
                 path: Vec::new(),
                 field: StructuralFieldId::new(1).unwrap(),
                 value: ValueId::new(21).unwrap(),
+                range_obligation: None,
             },
         },
     ];

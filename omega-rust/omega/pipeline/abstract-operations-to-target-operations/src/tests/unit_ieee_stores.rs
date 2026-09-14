@@ -83,6 +83,7 @@ fn plan(format: IeeeFloatFormat, field_store: bool) -> AbstractOperationPlan {
     let result = AbstractResult { value, scalar_type };
     let store = if field_store {
         AbstractOperation::StructuralScalarFieldStore {
+            range_obligation: None,
             psi_operation: operation,
             destination: destination.clone(),
             path: Vec::new(),

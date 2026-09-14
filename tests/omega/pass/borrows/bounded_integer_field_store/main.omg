@@ -1,0 +1,27 @@
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Counter [copy] {
+    value: i32 [0..=16];
+    signed: i8 [-5..=5];
+}
+
+machine Counter::replace(&mut self) {
+    self.value = 7;
+    self.signed = -3;
+}
+
+data Main {
+    console: Service<Console> in Bound;
+    counter: Counter;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.counter.replace();
+    transition self.counter.value == 7 && self.counter.signed == -3 {
+        true -> success()
+        false -> failure()
+    }
+    state success(&mut self) { self.console.exit_process(70); }
+    state failure(&mut self) { self.console.exit_process(71); }
+}

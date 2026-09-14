@@ -127,6 +127,53 @@ fn validate_structural_field_range_authority(
     use terminal_psi::{RecordFieldValue, StructuralTypeShape};
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         match &node.operation {
+            O::StructuralScalarFieldStore {
+                psi_operation,
+                destination,
+                path,
+                field,
+                value,
+                range_obligation,
+            } => {
+                // Check the current store, not merely the original Terminal
+                // write: a rewrite can change its RHS or selected declaration.
+                let parent = super::super::structural_catalog::resolve_structural_path(
+                    types,
+                    destination.structural_type,
+                    path,
+                )
+                .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+                let Some(terminal_psi::StructuralTypeDeclaration {
+                    shape: StructuralTypeShape::Record { fields },
+                    ..
+                }) = types.get(&parent).copied()
+                else {
+                    return Err(
+                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                    );
+                };
+                let declaration = fields
+                    .iter()
+                    .find(|candidate| candidate.id == *field)
+                    .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+                if matches!(
+                    declaration.field_type,
+                    terminal_psi::StructuralFieldType::BoundedInteger(_)
+                ) != range_obligation.is_some()
+                {
+                    return Err(
+                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                    );
+                }
+                validate_field_range_authority(
+                    unit,
+                    function.machine,
+                    *psi_operation,
+                    declaration,
+                    value.value,
+                    *range_obligation,
+                )?;
+            }
             O::EstablishScalarCase {
                 psi_operation,
                 result,

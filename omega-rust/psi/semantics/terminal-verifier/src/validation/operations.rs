@@ -224,6 +224,7 @@ pub(super) fn validate_operation_operands(
         ref path,
         field,
         value,
+        range_obligation,
     } = operation.kind
     {
         require_defined(value, value_types, defined)?;
@@ -236,6 +237,19 @@ pub(super) fn validate_operation_operands(
             field,
         )?;
         let actual = value_types[&value];
+        if super::structural_scalar_fields::structural_scalar_field_store_range(
+            module, machine, operation,
+        )
+        .is_some()
+            != range_obligation.is_some()
+        {
+            return Err(ModuleError::InvalidStructuralScalarFieldStore {
+                operation: operation.id,
+                destination,
+                path: path.clone(),
+                field,
+            });
+        }
         if actual != expected {
             return Err(ModuleError::StructuralScalarFieldStoreValueTypeMismatch {
                 operation: operation.id,

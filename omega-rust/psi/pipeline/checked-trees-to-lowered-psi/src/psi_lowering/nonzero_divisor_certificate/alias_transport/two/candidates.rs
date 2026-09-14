@@ -4,7 +4,7 @@ use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, ScalarTerm};
 
 use super::super::super::integer_evidence::cited_facts;
-use super::super::index::{distinct_same_carrier_values, indexed_bounds};
+use super::super::index::{distinct_same_carrier_subjects, indexed_bounds};
 use super::completion;
 
 pub(super) fn find(
@@ -18,7 +18,7 @@ pub(super) fn find(
             continue;
         };
         for (root, middle_alias) in [(outer_left, outer_right), (outer_right, outer_left)] {
-            if !distinct_same_carrier_values(root, middle_alias) {
+            if !distinct_same_carrier_subjects(root, middle_alias) {
                 continue;
             }
             for (inner_citation, inner_equality) in cited_facts(assumptions, semantic_axioms) {
@@ -35,7 +35,8 @@ pub(super) fn find(
                 } else {
                     continue;
                 };
-                if bound_alias == root || !distinct_same_carrier_values(middle_alias, bound_alias) {
+                if bound_alias == root || !distinct_same_carrier_subjects(middle_alias, bound_alias)
+                {
                     continue;
                 }
                 let Some(bounds) = bounds_by_endpoint.get(bound_alias) else {

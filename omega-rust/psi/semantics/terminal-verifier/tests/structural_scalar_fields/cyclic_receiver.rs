@@ -51,6 +51,7 @@ fn store(operation: u64, destination: u64, value: u64) -> Operation {
             path: Vec::new(),
             field: id(1),
             value: id(value),
+            range_obligation: None,
         },
     }
 }

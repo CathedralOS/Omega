@@ -247,6 +247,7 @@ fn receiver_field_stores_keep_a_local_snapshot_and_a_fresh_read_across_a_borrowe
         .enumerate()
         .filter_map(|(ordinal, operation)| {
             let OperationKind::StructuralScalarFieldStore {
+                range_obligation: None,
                 destination,
                 path,
                 field,
@@ -443,6 +444,7 @@ fn assert_receiver_store_with_access(
     assert_eq!(block.operations.len(), if from_parameter { 1 } else { 2 });
     let store = block.operations.last().expect("receiver store");
     let OperationKind::StructuralScalarFieldStore {
+        range_obligation: None,
         destination,
         path,
         field,

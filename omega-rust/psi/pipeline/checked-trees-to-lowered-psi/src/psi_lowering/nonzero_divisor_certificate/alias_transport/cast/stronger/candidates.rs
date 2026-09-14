@@ -4,7 +4,7 @@ use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, ScalarTerm};
 
 use super::super::super::super::integer_evidence::cited_facts;
-use super::super::super::distinct_same_carrier_values;
+use super::super::super::distinct_same_carrier_subjects;
 
 mod bound;
 
@@ -28,7 +28,7 @@ pub(super) fn find<T>(
             (equality_left, equality_right),
             (equality_right, equality_left),
         ] {
-            if !distinct_same_carrier_values(root, alias) {
+            if !distinct_same_carrier_subjects(root, alias) {
                 continue;
             }
             for (bound_citation, bound) in cited_facts(assumptions, semantic_axioms) {

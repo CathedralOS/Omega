@@ -68,7 +68,12 @@ pub(super) fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<Optimi
 fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, OperationId)> {
     use AbstractOperation as O;
     match operation {
-        O::ByteSequenceSubslice {
+        O::StructuralScalarFieldStore {
+            psi_operation,
+            range_obligation: Some(obligation),
+            ..
+        }
+        | O::ByteSequenceSubslice {
             psi_operation,
             obligation,
             ..

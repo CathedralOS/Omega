@@ -2545,6 +2545,7 @@ fn lower_caller_store_operations(
                 path: lower_structural_path(&store.carrier_path),
                 field: field.id,
                 value: value_id(1),
+                range_obligation: None,
             },
         },
     ])
@@ -2723,6 +2724,9 @@ fn lower_realization_store_operation(
             crate::psi_lowering::structural_scalar_store::StoreAccessPolicy::MutableOnly,
         )?;
     let scalar_type = lowered.scalar_type;
+    if lowered.requires_range_obligation {
+        return unsupported("dynamic realization store requires a range-proof emission context");
+    }
     let constant = match store.value.as_pure().ok_or(LoweringError::Unsupported(
         "dynamic realization store computation is unsupported",
     ))? {
@@ -2770,6 +2774,7 @@ fn lower_realization_store_operation(
                 path: lowered.path,
                 field: lowered.field,
                 value: constant_value,
+                range_obligation: None,
             },
         },
     ])

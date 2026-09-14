@@ -12,6 +12,8 @@ use terminal_psi::{
 };
 use terminal_verifier::{ModuleError, reconstruct_operation_obligations, validate_module};
 
+#[path = "structural_scalar_fields/bounded_stores.rs"]
+mod bounded_stores;
 #[path = "structural_scalar_fields/contract_fields.rs"]
 mod contract_fields;
 #[path = "structural_scalar_fields/cyclic_receiver.rs"]
@@ -160,6 +162,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                                 path: vec![StructuralPathSegment::Field("item".into())],
                                 field: id::<StructuralFieldId>(1),
                                 value: id::<ValueId>(1),
+                                range_obligation: None,
                             },
                         },
                         Operation {

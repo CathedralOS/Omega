@@ -129,6 +129,7 @@ pub enum AbstractOperation {
         path: Vec<StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
         value: AbstractResult,
+        range_obligation: Option<semantic_vocabulary::ObligationId>,
     },
     /// One normalized atomic memory event with its proof-static ordering
     /// retained as checkable evidence. `event.ordering_is_legal()` and

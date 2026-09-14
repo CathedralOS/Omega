@@ -103,13 +103,17 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             path,
             field,
             value,
+            range_obligation,
         } => {
-            bytes.u8(50);
+            bytes.u8(if range_obligation.is_some() { 75 } else { 50 });
             bytes.id(*psi_operation);
             encode_structural_parameter(bytes, destination);
             bytes.slice(path, encode_structural_path_segment);
             bytes.id(*field);
             encode_abstract_result(bytes, *value);
+            if let Some(obligation) = range_obligation {
+                bytes.id(*obligation);
+            }
         }
         O::EstablishScalarCase {
             psi_operation,

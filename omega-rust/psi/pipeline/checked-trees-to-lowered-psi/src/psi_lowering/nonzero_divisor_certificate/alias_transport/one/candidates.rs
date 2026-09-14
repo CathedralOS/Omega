@@ -4,7 +4,7 @@ use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, ScalarTerm};
 
 use super::super::super::integer_evidence::cited_facts;
-use super::super::index::{distinct_same_carrier_values, indexed_bounds};
+use super::super::index::{distinct_same_carrier_subjects, indexed_bounds};
 use super::completion;
 
 pub(super) fn prove(
@@ -18,7 +18,7 @@ pub(super) fn prove(
             continue;
         };
         for (root, alias) in [(left, right), (right, left)] {
-            if !distinct_same_carrier_values(root, alias) {
+            if !distinct_same_carrier_subjects(root, alias) {
                 continue;
             }
             let Some(bounds) = bounds_by_endpoint.get(alias) else {

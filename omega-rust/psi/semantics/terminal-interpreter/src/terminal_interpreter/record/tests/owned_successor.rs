@@ -39,6 +39,7 @@ fn owned_successor_module() -> TerminalModule {
                 path: Vec::new(),
                 field: StructuralFieldId::new(1).unwrap(),
                 value: ValueId::new(21).unwrap(),
+                range_obligation: None,
             },
         },
     ];

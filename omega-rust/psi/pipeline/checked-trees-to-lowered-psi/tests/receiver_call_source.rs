@@ -284,6 +284,7 @@ fn assert_receiver_call(access: StructuralAccess, from_parameter: bool, self_cal
         );
         let store = callee_block.operations.last().expect("callee store");
         let OperationKind::StructuralScalarFieldStore {
+            range_obligation: None,
             destination,
             path,
             field: stored_field,

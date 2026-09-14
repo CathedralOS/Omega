@@ -12,6 +12,32 @@ pub(super) struct LoweredStructuralScalarStore {
     pub path: Vec<StructuralPathSegment>,
     pub field: StructuralFieldId,
     pub scalar_type: ScalarType,
+    pub requires_range_obligation: bool,
+}
+
+impl LoweredStructuralScalarStore {
+    /// Each replacement requests its own declaration-derived range proof against
+    /// the completed RHS. Neither an earlier read nor the root's initial validity
+    /// can stand in for proving the value about to be stored.
+    pub(super) fn into_operation(
+        self,
+        destination: PlaceId,
+        value: ValueId,
+        next_obligation: &mut u64,
+    ) -> Result<OperationKind, LoweringError> {
+        let range_obligation = if self.requires_range_obligation {
+            Some(obligation_id(allocate_dense(next_obligation)?))
+        } else {
+            None
+        };
+        Ok(OperationKind::StructuralScalarFieldStore {
+            destination,
+            path: self.path,
+            field: self.field,
+            value,
+            range_obligation,
+        })
+    }
 }
 
 pub(super) fn lower_structural_scalar_store_destination(
@@ -52,9 +78,6 @@ pub(super) fn lower_structural_scalar_store_place(
     access_policy: StoreAccessPolicy,
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
     let scalar_type = terminal_scalar_type(store.primitive_type)?;
-    let field_type = crate::psi_lowering::structural_types::terminal_structural_field_type(
-        store.primitive_type,
-    )?;
     let (path, field) = lower_structural_field_place(
         store.statement_index,
         expected_statement_index,
@@ -70,13 +93,17 @@ pub(super) fn lower_structural_scalar_store_place(
         structural_types,
         access_policy,
     )?;
-    if field.field_type != field_type {
+    if field.field_type.scalar_type() != Some(scalar_type) {
         return unsupported("structural scalar store field has a different type");
     }
     Ok(LoweredStructuralScalarStore {
         path,
         field: field.id,
         scalar_type,
+        requires_range_obligation: matches!(
+            field.field_type,
+            StructuralFieldType::BoundedInteger(_)
+        ),
     })
 }
 

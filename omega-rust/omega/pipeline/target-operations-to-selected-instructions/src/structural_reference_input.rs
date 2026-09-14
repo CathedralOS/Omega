@@ -556,18 +556,19 @@ pub(crate) fn store(
     if !terminal_psi::is_bounded_structural_scalar_store_path(path) {
         return None;
     }
-    scalar_field_geometry(root, path, field, scalar, declarations, false)
+    // Current-IR validation binds every bounded write to its accepted range
+    // proposition. This helper checks physical geometry, not proof authority.
+    scalar_field_geometry(root, path, field, scalar, declarations)
 }
 
-/// Geometry is shared, but a bounded load and an invariant-changing store have
-/// different admission. Constructor/entry range proofs do not authorize a write.
+/// Reads and proven writes share carrier geometry. Neither this layout nor a
+/// constructor/entry range proof supplies the separate authority for a write.
 fn scalar_field_geometry(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
-    allow_bounded_integer: bool,
 ) -> Option<(u32, u8)> {
     let (carrier, carrier_offset) = project(root, path, declarations)?;
     let StructuralTypeShape::Record { fields } = &declarations
@@ -588,7 +589,7 @@ fn scalar_field_geometry(
             let matches_type = match candidate.field_type {
                 StructuralFieldType::Scalar(actual) => actual == scalar,
                 StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(format) == scalar,
-                StructuralFieldType::BoundedInteger(bounds) if allow_bounded_integer => {
+                StructuralFieldType::BoundedInteger(bounds) => {
                     ScalarType::Integer(bounds.integer_type()) == scalar
                 }
                 _ => false,
@@ -627,7 +628,7 @@ pub(crate) fn field_read(
         return None;
     }
     plain_record_shape(structural_type, declarations)?;
-    scalar_field_geometry(structural_type, path, field, scalar, declarations, true)
+    scalar_field_geometry(structural_type, path, field, scalar, declarations)
 }
 
 #[cfg(test)]
@@ -635,7 +636,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bounded_integer_geometry_allows_exact_reads_but_not_unproved_stores() {
+    fn bounded_integer_geometry_retains_exact_read_and_store_carriers() {
         use semantic_vocabulary::{BoundedIntegerType, IntegerSign, IntegerType, IntegerValue};
 
         let root = StructuralTypeId::new(1).unwrap();
@@ -665,11 +666,15 @@ mod tests {
             field_read(root, &[], field, scalar, &declarations),
             Some((0, 1))
         );
-        assert_eq!(store(root, &[], field, scalar, &declarations), None);
+        assert_eq!(store(root, &[], field, scalar, &declarations), Some((0, 1)));
         for wrong in [
             IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
             IntegerType::new(IntegerSign::Signed, 16).unwrap(),
         ] {
+            assert_eq!(
+                store(root, &[], field, ScalarType::Integer(wrong), &declarations),
+                None,
+            );
             assert_eq!(
                 field_read(root, &[], field, ScalarType::Integer(wrong), &declarations),
                 None,

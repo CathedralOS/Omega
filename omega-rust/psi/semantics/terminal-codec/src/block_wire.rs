@@ -241,12 +241,16 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 path,
                 field,
                 value,
+                range_obligation,
             } => {
-                writer.u8(46);
+                writer.u8(if range_obligation.is_some() { 75 } else { 46 });
                 writer.id(destination);
                 encode_structural_path(writer, "structural scalar field store path", &path)?;
                 writer.id(field);
                 writer.id(value);
+                if let Some(obligation) = range_obligation {
+                    writer.id(obligation);
+                }
             }
             OperationKind::EstablishScalarArray { elements } => {
                 writer.u8(64);
@@ -1131,6 +1135,14 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                 path: decode_structural_path(reader)?,
                 field: reader.id("StructuralFieldId")?,
                 value: reader.id("ValueId")?,
+                range_obligation: None,
+            },
+            75 => OperationKind::StructuralScalarFieldStore {
+                destination: reader.id("PlaceId")?,
+                path: decode_structural_path(reader)?,
+                field: reader.id("StructuralFieldId")?,
+                value: reader.id("ValueId")?,
+                range_obligation: Some(reader.id("ObligationId")?),
             },
             64 => OperationKind::EstablishScalarArray {
                 elements: decode_counted(reader, |reader| reader.id("ValueId"))?,
@@ -1881,6 +1893,7 @@ mod tests {
                     path: vec![StructuralPathSegment::Field("item".into())],
                     field: id::<StructuralFieldId>(4),
                     value: id::<ValueId>(5),
+                    range_obligation: None,
                 },
             }],
             terminator: Terminator::ReturnUnit {
@@ -1900,7 +1913,26 @@ mod tests {
             &id::<StructuralFieldId>(4).get().to_le_bytes()
         );
         assert_eq!(&bytes[60..68], &id::<ValueId>(5).get().to_le_bytes());
-        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(store));
+        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(store.clone()));
+
+        let mut bounded = store;
+        let OperationKind::StructuralScalarFieldStore {
+            range_obligation, ..
+        } = &mut bounded.operations[0].kind
+        else {
+            panic!("store");
+        };
+        *range_obligation = Some(id::<ObligationId>(7));
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &bounded).expect("bounded store encodes");
+        let bounded_bytes = writer.finish();
+        assert_eq!(bounded_bytes[30], 75, "bounded scalar store extension tag");
+        assert_eq!(&bounded_bytes[31..68], &bytes[31..68]);
+        assert_eq!(
+            &bounded_bytes[68..76],
+            &id::<ObligationId>(7).get().to_le_bytes()
+        );
+        assert_eq!(decode_block(&mut Reader::new(&bounded_bytes)), Ok(bounded));
 
         let mut invalid_path = bytes;
         invalid_path[43] = 255;

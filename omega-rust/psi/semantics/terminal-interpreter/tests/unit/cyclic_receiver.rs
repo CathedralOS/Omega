@@ -111,6 +111,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
             path: Vec::new(),
             field: structural_field_id(field),
             value: value_id(value),
+            range_obligation: None,
         },
     };
     let call = |identity, callee, receiver| Operation {

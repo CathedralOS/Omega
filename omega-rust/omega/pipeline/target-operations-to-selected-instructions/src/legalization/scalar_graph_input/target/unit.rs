@@ -349,6 +349,7 @@ pub(super) fn validate_operation(
                 path: expected_path,
                 field: expected_field,
                 value,
+                ..
             },
         ) => {
             let parameter = parameters

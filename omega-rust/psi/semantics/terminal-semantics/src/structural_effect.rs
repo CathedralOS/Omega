@@ -1177,6 +1177,7 @@ pub fn structural_effect_leaf_observation_in(
                 path,
                 field,
                 value,
+                ..
             },
         ) => StructuralEffectObservation::ScalarFieldStored {
             destination: *destination,

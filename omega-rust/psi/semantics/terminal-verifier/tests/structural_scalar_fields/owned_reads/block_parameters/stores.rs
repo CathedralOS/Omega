@@ -67,6 +67,7 @@ fn store_module(multiplicity: StructuralMultiplicity, home: u8) -> TerminalModul
             path: Vec::new(),
             field: id(1),
             value: id(4),
+            range_obligation: None,
         },
     });
     module
