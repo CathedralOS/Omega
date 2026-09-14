@@ -42,7 +42,8 @@ fn unported_selections_fail_closed_instead_of_recording_identity() {
     for optimization in PsiOptimization::ALL {
         if matches!(
             optimization,
-            PsiOptimization::CopyPropagation
+            PsiOptimization::ControlFlowCleanup
+                | PsiOptimization::CopyPropagation
                 | PsiOptimization::DeadPureScalarElimination
                 | PsiOptimization::GlobalValueNumbering
                 | PsiOptimization::SparseConditionalConstantPropagation

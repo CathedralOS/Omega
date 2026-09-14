@@ -6,6 +6,7 @@
 //! publication. The phase consumes the complete unsealed Psi product and
 //! returns the only carrier accepted by canonical Terminal publication.
 
+mod control_flow_cleanup;
 mod copy_propagation;
 mod dead_scalar_elimination;
 mod global_value_numbering;
@@ -34,6 +35,9 @@ pub fn run_psi_optimization(
     let (input_semantic, input_proof) = validate_carrier(&lowered)?;
     for selected in selections.as_slice() {
         match selected {
+            PsiOptimization::ControlFlowCleanup => {
+                lowered = control_flow_cleanup::cleanup(lowered)?;
+            }
             PsiOptimization::SparseConditionalConstantPropagation => {
                 lowered = sparse_conditional_constant_propagation::propagate(lowered)?;
             }
