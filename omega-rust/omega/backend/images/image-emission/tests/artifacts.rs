@@ -1570,6 +1570,346 @@ fn installation_private_function_row_rejects_every_one_field_substitution() {
 }
 
 #[test]
+fn installation_dynamic_conformance_table_rejects_every_one_field_substitution() {
+    let artifact = build_object_artifact(&dynamic_conformance_table_plan())
+        .expect("dynamic-table object artifact");
+    assert_eq!(artifact.dynamic_conformance_tables().len(), 1);
+    assert_eq!(artifact.dynamic_conformance_tables()[0].slots.len(), 2);
+    assert_eq!(
+        artifact.dynamic_conformance_tables()[0].slots[0].target,
+        Some(machine_id(2))
+    );
+    assert_eq!(
+        artifact.dynamic_conformance_tables()[0].slots[1].target,
+        None
+    );
+    let image = emit_executable_image(&artifact, 3).expect("dynamic-table image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
+        .expect("dynamic-table installation");
+    validate_installation_record(&record, &image).expect("authentic binding");
+    assert_eq!(record.dynamic_conformance_tables().len(), 1);
+    assert_eq!(record.dynamic_conformance_tables()[0].slots.len(), 2);
+    assert_eq!(record.dynamic_calls().len(), 1);
+    let authentic_fingerprint =
+        installation_fingerprint(&record).expect("authentic installation fingerprint");
+
+    let function_text_offset = record
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(3))
+        .expect("dynamic caller row")
+        .text_offset;
+
+    // These one-field substitutions remain representable: they encode and
+    // decode canonically, recompute to a different installation identity, and
+    // independent replay against the unchanged image rejects them.
+    type StillEncodedMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+    );
+    let still_encodes: Vec<StillEncodedMutation> = vec![
+        (
+            "table::application_report_fingerprint",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0]
+                    .application_report_fingerprint = u64::MAX;
+            }),
+        ),
+        (
+            "table::slots[1]::target",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].slots[1].target =
+                    Some(machine_id(1));
+            }),
+        ),
+        (
+            "call::operation",
+            Box::new(|record| {
+                record.dynamic_calls_mut_for_test()[0].operation = operation_id(98);
+            }),
+        ),
+        (
+            "call::text_offset",
+            Box::new(move |record| {
+                record.dynamic_calls_mut_for_test()[0].text_offset = function_text_offset + 1;
+            }),
+        ),
+        (
+            "call::byte_count",
+            Box::new(|record| {
+                record.dynamic_calls_mut_for_test()[0].byte_count += 1;
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted record encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted record decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted record"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted record"
+        );
+    }
+
+    // Canonical record-shape joins reject every other one-field substitution
+    // at encoding, before any identity or replay could accept it.
+    let foreign_commitment =
+        terminal_psi::ClosedConformanceApplicationCommitment::from_digest([7; 32]);
+    type RejectedMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+        InstallationError,
+    );
+    let rejected: Vec<RejectedMutation> = vec![
+        (
+            "table::application_commitment",
+            Box::new(move |record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].application_commitment =
+                    foreign_commitment;
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(3)),
+        ),
+        (
+            "table::application_report_fingerprint::zero",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0]
+                    .application_report_fingerprint = 0;
+            }),
+            InstallationError::InvalidDynamicConformanceTable,
+        ),
+        (
+            "table::data_offset",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].data_offset = 8;
+            }),
+            InstallationError::InvalidDynamicConformanceTable,
+        ),
+        (
+            "table::byte_count",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].byte_count = 8;
+            }),
+            InstallationError::InvalidDynamicConformanceTable,
+        ),
+        (
+            "table::slots[0]::row_index",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].slots[0].row_index = 1;
+            }),
+            InstallationError::InvalidDynamicConformanceTable,
+        ),
+        (
+            "table::slots[0]::data_offset",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].slots[0].data_offset = 8;
+            }),
+            InstallationError::InvalidDynamicConformanceTable,
+        ),
+        (
+            "table::slots[0]::target::unknown",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].slots[0].target =
+                    Some(machine_id(98));
+            }),
+            InstallationError::InvalidDynamicConformanceTable,
+        ),
+        (
+            "table::slots[0]::target::retargeted",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].slots[0].target =
+                    Some(machine_id(1));
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(3)),
+        ),
+        (
+            "table::slots[0]::target::erased",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].slots[0].target = None;
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(3)),
+        ),
+        (
+            "table::slots[1]::row_index",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].slots[1].row_index = 0;
+            }),
+            InstallationError::InvalidDynamicConformanceTable,
+        ),
+        (
+            "table::slots[1]::data_offset",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].slots[1].data_offset = 0;
+            }),
+            InstallationError::InvalidDynamicConformanceTable,
+        ),
+        (
+            "table::slots[1]::target::unknown",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].slots[1].target =
+                    Some(machine_id(98));
+            }),
+            InstallationError::InvalidDynamicConformanceTable,
+        ),
+        (
+            "call::machine::unknown",
+            Box::new(|record| {
+                record.dynamic_calls_mut_for_test()[0].machine = machine_id(98);
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(98)),
+        ),
+        (
+            "call::machine::other_function",
+            Box::new(|record| {
+                record.dynamic_calls_mut_for_test()[0].machine = machine_id(1);
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(1)),
+        ),
+        (
+            "call::application_commitment",
+            Box::new(move |record| {
+                record.dynamic_calls_mut_for_test()[0].application_commitment = foreign_commitment;
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::initial_source",
+            Box::new(|record| {
+                record.dynamic_calls_mut_for_test()[0].initial_source =
+                    PlaceId::new(98).expect("substituted source");
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::rebound_source",
+            Box::new(|record| {
+                record.dynamic_calls_mut_for_test()[0].rebound_source =
+                    PlaceId::new(98).expect("substituted source");
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::selected_table_byte_offset::unresolved_row",
+            Box::new(|record| {
+                record.dynamic_calls_mut_for_test()[0].selected_table_byte_offset = 8;
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::selected_table_byte_offset::misaligned",
+            Box::new(|record| {
+                record.dynamic_calls_mut_for_test()[0].selected_table_byte_offset = 7;
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::realization",
+            Box::new(|record| {
+                record.dynamic_calls_mut_for_test()[0].realization = machine_id(1);
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::text_offset::before_function",
+            Box::new(move |record| {
+                record.dynamic_calls_mut_for_test()[0].text_offset = function_text_offset - 1;
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::byte_count::empty",
+            Box::new(|record| {
+                record.dynamic_calls_mut_for_test()[0].byte_count = 0;
+            }),
+            InstallationError::InvalidDynamicCall(machine_id(3)),
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: canonical encoding rejects the substitution"
+        );
+    }
+
+    // Roster-level custody: reordering, dropping, or duplicating slots and
+    // tables breaks canonical ordering, byte counts, or commitment closure
+    // before any identity or replay could accept it.
+    let mut swapped_slots = record.clone();
+    swapped_slots.dynamic_conformance_tables_mut_for_test()[0]
+        .slots
+        .swap(0, 1);
+    assert_eq!(
+        encode_installation_record(&swapped_slots),
+        Err(InstallationError::InvalidDynamicConformanceTable)
+    );
+    let mut dropped_slot = record.clone();
+    dropped_slot.dynamic_conformance_tables_mut_for_test()[0]
+        .slots
+        .pop();
+    assert_eq!(
+        encode_installation_record(&dropped_slot),
+        Err(InstallationError::InvalidDynamicConformanceTable)
+    );
+    let mut duplicated_slot = record.clone();
+    let slot = duplicated_slot.dynamic_conformance_tables()[0].slots[1];
+    duplicated_slot.dynamic_conformance_tables_mut_for_test()[0]
+        .slots
+        .push(slot);
+    assert_eq!(
+        encode_installation_record(&duplicated_slot),
+        Err(InstallationError::InvalidDynamicConformanceTable)
+    );
+    let mut dropped_table = record.clone();
+    dropped_table
+        .dynamic_conformance_tables_mut_for_test()
+        .pop();
+    assert_eq!(
+        encode_installation_record(&dropped_table),
+        Err(InstallationError::InvalidImageSectionLayout)
+    );
+    let mut duplicated_table = record.clone();
+    let table = duplicated_table.dynamic_conformance_tables()[0].clone();
+    duplicated_table
+        .dynamic_conformance_tables_mut_for_test()
+        .push(table);
+    assert_eq!(
+        encode_installation_record(&duplicated_table),
+        Err(InstallationError::InvalidDynamicConformanceTable)
+    );
+    let mut dropped_call = record.clone();
+    dropped_call.dynamic_calls_mut_for_test().pop();
+    assert_eq!(
+        encode_installation_record(&dropped_call),
+        Err(InstallationError::InvalidDynamicConformanceTable)
+    );
+    let mut duplicated_call = record.clone();
+    let call = duplicated_call.dynamic_calls()[0];
+    duplicated_call.dynamic_calls_mut_for_test().push(call);
+    assert_eq!(
+        encode_installation_record(&duplicated_call),
+        Err(InstallationError::InvalidDynamicCall(machine_id(3)))
+    );
+}
+
+#[test]
 fn object_boundary_rejects_noncanonical_or_incomplete_machine_code_plans() {
     let mut reordered = two_function_plan();
     reordered.functions.swap(0, 1);
@@ -5694,6 +6034,276 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
             },
         ],
     }
+}
+
+/// The edge-owned cleanup caller extended with one byte-exact rebound dynamic
+/// call so object construction materializes an ordinary dynamic conformance
+/// table with one resolved and one unresolved slot.
+fn dynamic_conformance_table_plan() -> MachineCodePlan {
+    let mut plan = edge_owned_cleanup_plan();
+    let owner = machine_id(3);
+    let operation = operation_id(4);
+    let place = PlaceId::new(1).expect("dynamic source place");
+    let structural_type = StructuralTypeId::new(1).expect("structural type");
+    let empty_shape = calling_conventions::ValueShape::integer(0, 1);
+    let empty_placement = calling_conventions::ValuePlacement {
+        shape: empty_shape,
+        locations: Vec::new(),
+    };
+    // The two-word descriptor travels as one indirect pointer argument.
+    let descriptor_placement = calling_conventions::ValuePlacement {
+        shape: calling_conventions::ValueShape::integer(16, 8),
+        locations: vec![calling_conventions::ValueLocation::Indirect {
+            pointer: calling_conventions::IndirectPointerLocation::Register(
+                calling_conventions::MachineRegister::X86Rdi,
+            ),
+            copy_stack_byte_offset: None,
+            byte_size: 16,
+            alignment: 8,
+        }],
+    };
+    let mut application = terminal_psi::ClosedConformanceApplication {
+        owner,
+        declaration_identity: "closed.decl".to_string(),
+        telescope: Vec::new(),
+        subject_identity: None,
+        trait_identity: "closed.trait".to_string(),
+        trait_lifetime_arguments: Vec::new(),
+        trait_arguments: Vec::new(),
+        realization_callables: vec![terminal_psi::ClosedConformanceRealizationCallable {
+            source_callable_identity: "closed.callable.a".to_string(),
+            machine: machine_id(2),
+            result: terminal_psi::ClosedConformanceCallableResult::Unit,
+        }],
+        rows: vec![
+            terminal_psi::ClosedConformanceRow {
+                declaring_trait_identity: "closed.trait".to_string(),
+                public_requirement_identity: "closed.req.a".to_string(),
+                requirement_identity: "closed.req.a.impl".to_string(),
+                realization_identity: "closed.real.a".to_string(),
+                realization_callable_identity: Some("closed.callable.a".to_string()),
+            },
+            terminal_psi::ClosedConformanceRow {
+                declaring_trait_identity: "closed.trait".to_string(),
+                public_requirement_identity: "closed.req.b".to_string(),
+                requirement_identity: "closed.req.b.impl".to_string(),
+                realization_identity: "closed.real.b".to_string(),
+                realization_callable_identity: None,
+            },
+        ],
+        report_fingerprint: 0,
+        commitment: terminal_psi::ClosedConformanceApplicationCommitment::default(),
+    };
+    application.report_fingerprint =
+        terminal_psi::closed_conformance_application_report_fingerprint(&application);
+    application.commitment = terminal_psi::closed_conformance_application_commitment(&application);
+    assert_ne!(application.report_fingerprint, 0);
+    assert!(!application.commitment.is_zero());
+    let selection_source = terminal_psi::StructuralArgument {
+        place,
+        path: Vec::new(),
+        access: StructuralAccess::SharedBorrow,
+    };
+    let initial = terminal_psi::TerminalDynamicConformanceSelection {
+        owner,
+        ordinal: 0,
+        source: selection_source.clone(),
+        conformance_application_report_fingerprint: application.report_fingerprint,
+        conformance_application_commitment: application.commitment,
+    };
+    let rebound = terminal_psi::TerminalDynamicConformanceSelection {
+        ordinal: 1,
+        ..initial.clone()
+    };
+    let instance_source = target_operations::TargetStructuralArgument {
+        place,
+        access: StructuralAccess::SharedBorrow,
+        path: Vec::new(),
+        root_structural_type: structural_type,
+        structural_type,
+        shape: empty_shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        source: target_operations::TargetStructuralArgumentSource::Placement(
+            empty_placement.clone(),
+        ),
+        destination: descriptor_placement.clone(),
+    };
+    let dynamic_call = machine_code::DynamicCallRecord {
+        psi_operation: operation,
+        dynamic_dispatch: abstract_operations::AbstractReboundDynamicDispatch {
+            initial,
+            rebound,
+            descriptor: terminal_psi::TerminalReboundDynamicDescriptor {
+                owner,
+                ordinal: 0,
+                initial_selection_ordinal: 0,
+                rebound_selection_ordinal: 1,
+            },
+            initial_application: application.clone(),
+            application,
+            dispatch: terminal_psi::TerminalIndirectDynamicDispatch {
+                owner,
+                operation,
+                descriptor_ordinal: 0,
+                declaring_trait_identity: "closed.trait".to_string(),
+                public_requirement_identity: "closed.req.a".to_string(),
+                requirement_identity: "closed.req.a.impl".to_string(),
+                realization_identity: "closed.real.a".to_string(),
+                realization_callable_identity: "closed.callable.a".to_string(),
+                realization: machine_id(2),
+            },
+        },
+        call_plan: calling_conventions::CallPlan {
+            policy: calling_conventions::CallingPolicy::SystemVAMD64,
+            parameters: vec![descriptor_placement.clone()],
+            result: None,
+            callback_materializations: Vec::new(),
+            ordinary_clobbers: calling_conventions::RegisterSet::new([]),
+            stack_alignment: 16,
+            shadow_bytes: 0,
+            entry_control: calling_conventions::EntryControl::CallReturn,
+        },
+        result: None,
+        descriptor_abi: machine_code::DynamicTraitDescriptorAbiRecord {
+            instance_byte_offset: 0,
+            table_byte_offset: 8,
+            word_byte_size: 8,
+            total_byte_size: 16,
+            byte_alignment: 8,
+        },
+        descriptor_home_byte_offset: 0,
+        initial_instance: machine_code::DynamicInstanceMaterializationRecord {
+            selection_ordinal: 0,
+            source: instance_source.clone(),
+            source_home_byte_offset: 0,
+            source_home_indirect: false,
+            code_offset: 4,
+            byte_count: 9,
+        },
+        table_address: machine_code::DynamicTableAddressMaterialization {
+            code_offset: 22,
+            byte_count: 12,
+            encoding: machine_code::DynamicTableAddressEncoding::X86_64Relative32 {
+                relocation_offset: 25,
+            },
+        },
+        rebound_instance: machine_code::DynamicInstanceMaterializationRecord {
+            selection_ordinal: 1,
+            source: instance_source,
+            source_home_byte_offset: 0,
+            source_home_indirect: false,
+            code_offset: 13,
+            byte_count: 9,
+        },
+        argument: machine_code::InternalUnitCallArgumentRecord {
+            place,
+            access: StructuralAccess::SharedBorrow,
+            path: Vec::new(),
+            root_structural_type: structural_type,
+            structural_type,
+            shape: empty_shape,
+            source_byte_offset: 0,
+            source_location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
+            call_stack_bytes: 24,
+            fixed_array_length: None,
+            element_stride: None,
+            source: machine_code::InternalUnitStructuralArgumentSourceRecord::Placement(
+                empty_placement,
+            ),
+            destination: descriptor_placement,
+            code_offset: 38,
+            byte_count: 5,
+            bytes: vec![0x48, 0x8b, 0x7c, 0x24, 0x18],
+        },
+        selected_table_byte_offset: 0,
+        indirect_call_offset: 51,
+        indirect_call_byte_count: 3,
+        unit_stack: UnitCallStackEvidence {
+            outbound: Some(StackAdjustmentPair {
+                byte_size: 24,
+                allocation_offset: 34,
+                allocation_byte_count: 4,
+                release_offset: 54,
+                release_byte_count: 4,
+            }),
+        },
+        operation_ordinal: 0,
+        code_offset: 0,
+        byte_count: 58,
+    };
+
+    let caller = &mut plan.functions[2];
+    caller.attachment = Some(structural_type);
+    caller.provenance.operations = vec![operation];
+    caller.bytes = vec![
+        // sub rsp, 16 — function frame holding the dynamic descriptor home.
+        0x48, 0x83, 0xec, 0x10, //
+        // lea r11, [rsp]; mov [rsp], r11 — initial instance word.
+        0x4c, 0x8d, 0x1c, 0x24, 0x4c, 0x89, 0x5c, 0x24, 0x00, //
+        // lea r11, [rsp]; mov [rsp], r11 — rebound instance word.
+        0x4c, 0x8d, 0x1c, 0x24, 0x4c, 0x89, 0x5c, 0x24, 0x00, //
+        // lea r10, [rip+rel32]; mov [rsp+8], r10 — table address word.
+        0x4c, 0x8d, 0x15, 0x00, 0x00, 0x00, 0x00, 0x4c, 0x89, 0x54, 0x24, 0x08, //
+        // sub rsp, 24 — outbound call frame.
+        0x48, 0x83, 0xec, 0x18, //
+        // mov rdi, [rsp+24] — argument descriptor pointer.
+        0x48, 0x8b, 0x7c, 0x24, 0x18, //
+        // mov r11, [rsp+32]; mov r11, [r11]; call r11.
+        0x4c, 0x8b, 0x5c, 0x24, 0x20, 0x4d, 0x8b, 0x1b, 0x41, 0xff, 0xd3, //
+        // add rsp, 24 — outbound release completes the operation span.
+        0x48, 0x83, 0xc4, 0x18, //
+        // Original edge-owned cleanup tail, shifted by 58 bytes.
+        0x48, 0x83, 0xec, 0x08, 0xe8, 0x00, 0x00, 0x00, 0x00, 0x48, 0x83, 0xc4, 0x08, //
+        // add rsp, 16; ret — frame release and return close the edge span.
+        0x48, 0x83, 0xc4, 0x10, 0xc3,
+    ];
+    caller.unit_stack = Some(UnitStackEvidence {
+        frame: Some(StackAdjustmentPair {
+            byte_size: 16,
+            allocation_offset: 0,
+            allocation_byte_count: 4,
+            release_offset: 71,
+            release_byte_count: 4,
+        }),
+        aarch64_return_link: None,
+        stack_alignment: 16,
+    });
+    caller.dynamic_calls = vec![dynamic_call];
+    caller.internal_calls[0].offset = 63;
+    caller.internal_calls[0].unit_stack = Some(UnitCallStackEvidence {
+        outbound: Some(StackAdjustmentPair {
+            byte_size: 8,
+            allocation_offset: 58,
+            allocation_byte_count: 4,
+            release_offset: 67,
+            release_byte_count: 4,
+        }),
+    });
+    caller.internal_unit_calls[0].code_offset = 58;
+    caller.internal_unit_calls[0].operation_ordinal = 1;
+    let cleanup = caller
+        .unit_affine_cleanup
+        .as_mut()
+        .expect("Unit cleanup fixture");
+    cleanup.code_offset = 58;
+    cleanup.byte_count = 18;
+    caller.semantic_code_attribution = vec![
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Operation(operation),
+            operation_ordinal: 0,
+            code_offset: 0,
+            byte_count: 58,
+        },
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Edge(edge_id(3)),
+            operation_ordinal: 1,
+            code_offset: 58,
+            byte_count: 18,
+        },
+    ];
+    plan
 }
 
 fn mixed_edge_owned_cleanup_plan() -> MachineCodePlan {

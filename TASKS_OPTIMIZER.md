@@ -194,7 +194,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   representable and rejected by replay; a non-thunk identity kind, text
   offset, zero/extended byte count, non-canonical ABI placements and value
   collisions, and a dropped row are rejected at encoding as non-canonical.
-  Remaining: dynamic tables.
+  Landed: installed dynamic conformance tables and dynamic call rows
+  (`installation_dynamic_conformance_table_rejects_every_one_field_substitution`)
+  — the application report fingerprint, an unresolved slot's target, and the
+  call's operation, text offset, and byte count are independently
+  representable and rejected by replay; the application commitment, a zero
+  fingerprint, table data offset and byte count, slot row indices and data
+  offsets, resolved-slot retarget or erasure, unknown slot targets, the
+  caller machine, initial and rebound sources, the selected table byte
+  offset, the realization, and swapped, dropped, or duplicated slots,
+  tables, and calls are rejected at encoding as non-canonical. Remaining:
+  stored, forwarded-descriptor, and dynamic-parameter custody tables.
 
 ## Psi optimization and loops
 
