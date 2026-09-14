@@ -1,0 +1,111 @@
+{
+  "wave": "w6",
+  "max_acu_limit": 10,
+  "devin_mode": "fusion",
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "w6"],
+  "owner_label_prefix": "Jarod / swarm-w6",
+  "exclusions": [
+    "SUBJECT-QUALIFIED-ARTIFACT-PROOFS",
+    "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
+    "UEFI-OS-HANDOFF",
+    "RUNTIME-VALUE-GENERICS",
+    "PROOF-KERNEL-CORE",
+    "DELTA-COMPILER",
+    "PCC-CANONICAL-SEMANTIC-LEDGER",
+    "FLOAT-PROVIDERS",
+    "SQUALR-HEADLESS",
+    "MACOS-APPLICATION-PUBLICATION",
+    "GENERAL-CYCLIC-EXECUTION",
+    "GENERATED-DIFFERENTIALS",
+    "NORMALIZED-ABI-LOWERING",
+    "PROOF-CONTRACT-MIGRATION",
+    "PROOF-RELEVANCE-MIGRATION",
+    "PSIIR"
+  ],
+  "sessions": [
+    {
+      "name": "symbolic-materialization",
+      "board": "TASKS.md",
+      "item": "SYMBOLIC-MATERIALIZATION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/foundation/layout-plans/src",
+        "omega-rust/psi/semantics/build-time-evaluation/src/layout_plans",
+        "omega-rust/psi/semantics/build-time-evaluation/src/placed_views",
+        "omega-rust/omega/compiler/compiler/tests/layout_plans.rs"
+      ],
+      "suggested_first_slice": "Complete one nested-record field path (a.b) inner-placement carrier in the flat LayoutPlanReport; this Linux x86-64 host can run the Linux canary legs the previous session could not."
+    },
+    {
+      "name": "opaque-boundary-abi",
+      "board": "TASKS.md",
+      "item": "OPAQUE-BY-VALUE-BOUNDARY-ABI",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/provider-planning/src/calling_policy_plans/opaque_representations.rs",
+        "omega-rust/omega/representations/boundary-applications/src/realization.rs",
+        "omega-rust/omega/representations/installation-evidence/src/lib.rs"
+      ],
+      "suggested_first_slice": "Complete one independently compiled opaque by-value representation agreement and rejoin its consumer demands to the producer declarations."
+    },
+    {
+      "name": "borrow-proof-convergence",
+      "board": "TASKS.md",
+      "item": "BORROW-PROOF-CONVERGENCE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/validation/src/places.rs",
+        "omega-rust/psi/semantics/validation/src/slice_ranking.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/borrows",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/borrow"
+      ],
+      "suggested_first_slice": "Extend range-premise read dependencies to one selected call, indexing operator, or atomic read with established complete footprint and operation stability."
+    },
+    {
+      "name": "foreign-retained-args",
+      "board": "TASKS.md",
+      "item": "FOREIGN-RETAINED-ARGUMENT-BACKING",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/backend/runtime/external-roots/src/epoch_stack_demand.rs",
+        "omega-rust/omega/backend/runtime/runtime-abi/src/lib.rs"
+      ],
+      "suggested_first_slice": "Generalize one retained outbound argument beyond callbacks with explicit backing, range, access, lifetime, and revision provenance."
+    },
+    {
+      "name": "exact-selection-families",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "EXACT-SELECTION-FAMILIES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection",
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/optimized"
+      ],
+      "suggested_first_slice": "Add one exact address-mode, compare/branch, extension, or constant-materialization selection family with independent validation."
+    },
+    {
+      "name": "allocation-refinement",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "ALLOCATION-REFINEMENT",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation"
+      ],
+      "suggested_first_slice": "Complete one coalescing, live-range-splitting, fixed-interval, or rematerialization decision while preserving aliases, liveness, and target custody."
+    },
+    {
+      "name": "frame-layout",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "FRAME-LAYOUT",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase",
+        "omega-rust/omega/backend/layout/src/sum_materialization"
+      ],
+      "suggested_first_slice": "Extend one exact nonzero-frame realization case beyond the current bounded ordinary CFG family with replayed accesses."
+    }
+  ]
+}
