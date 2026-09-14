@@ -16,7 +16,13 @@ fn call_mut(
 
 #[test]
 fn legal_call_order_callee_plan_arguments_lineage_and_evidence_fail_closed() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let staged = staged_selected(target);
         let original = staged.legalized().plan();
         let validate = |plan| {

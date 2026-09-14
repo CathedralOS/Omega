@@ -6,7 +6,13 @@ use super::fixture::{caller_machine, staged_homes, staged_legality};
 
 #[test]
 fn call_clobbers_remove_every_aliasing_home_at_the_live_across_call_point() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let staged = staged_legality(target);
         let selected = staged.live_range_stage().liveness_stage().selected_stage();
         let selected_function = selected
@@ -77,7 +83,10 @@ fn call_clobbers_remove_every_aliasing_home_at_the_live_across_call_point() {
 fn homes_preserve_the_live_result_and_every_fixed_call_operand() {
     for (target, convention_name) in [
         (NativeTarget::linux_x64(), "system-v-amd64"),
+        (NativeTarget::windows_x64(), "microsoft-x64"),
+        (NativeTarget::uefi_x64(), "microsoft-x64"),
         (NativeTarget::linux_arm64(), "aapcs64"),
+        (NativeTarget::macos_arm64(), "darwin-aapcs64"),
     ] {
         let staged = staged_homes(target);
         let selected = staged

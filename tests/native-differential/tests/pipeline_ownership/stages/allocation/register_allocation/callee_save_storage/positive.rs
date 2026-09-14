@@ -4,7 +4,13 @@ use super::fixture::{call_requirements, ordinary_requirements, stage, wide_budge
 
 #[test]
 fn preserved_register_units_form_exact_target_storage_slots_and_replay() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let (requirements, environment) = call_requirements(target);
         let first = stage(&requirements, &environment, wide_budget()).unwrap();
         let repeated = stage(&requirements, &environment, wide_budget()).unwrap();
@@ -47,22 +53,26 @@ fn preserved_register_units_form_exact_target_storage_slots_and_replay() {
         assert_eq!(slots[0].size_bytes, 8);
         assert_eq!(slots[0].alignment_bytes, 8);
         assert_eq!(slots[0].abstract_offset_bytes, 0);
-        assert_eq!(
-            slots[0].preserved_units.len(),
-            if target == NativeTarget::linux_x64() {
-                4
-            } else {
-                1
-            }
+        // Every preserved or modified unit must belong to the convention the
+        // target selected; this is what ties slot geometry to each ABI.
+        assert!(
+            slots[0]
+                .preserved_units
+                .iter()
+                .all(|unit| requirements.plan().callee_saved_units.contains(unit))
         );
-        assert_eq!(
-            slots[0].modified_units.len(),
-            if target == NativeTarget::linux_x64() {
-                4
-            } else {
-                1
-            }
+        assert!(
+            slots[0]
+                .modified_units
+                .iter()
+                .all(|unit| requirements.plan().callee_saved_units.contains(&unit.unit))
         );
+        let expected_units = match target.architecture {
+            target::Architecture::X86_64 => 4,
+            target::Architecture::Aarch64 => 1,
+        };
+        assert_eq!(slots[0].preserved_units.len(), expected_units);
+        assert_eq!(slots[0].modified_units.len(), expected_units);
         assert!(first.plan().functions.iter().all(|function| {
             function.slots.iter().enumerate().all(|(index, slot)| {
                 slot.id
