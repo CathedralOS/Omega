@@ -143,6 +143,7 @@ pub(super) fn project(
         },
         AbstractOperation::StructuralCaseMembership {
             source,
+            path,
             case,
             result,
             ..
@@ -150,12 +151,16 @@ pub(super) fn project(
             if result.scalar_type != ScalarType::Boolean {
                 return Err(Error::SourceCustodyMismatch);
             }
+            let (case_tag, tag_byte_offset) =
+                scalar_graph_input::structural_case::membership_layout(
+                    optimized, *source, path, *case, plan,
+                )?;
             LegalizedScalarInstructionKind::StructuralCaseMembership {
                 source: *source,
+                path: path.clone(),
                 case: *case,
-                case_tag: scalar_graph_input::structural_case::membership_tag(
-                    optimized, *source, *case, plan,
-                )?,
+                case_tag,
+                tag_byte_offset,
             }
         }
         AbstractOperation::PrimitiveScalarRead { source, .. } => {

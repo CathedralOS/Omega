@@ -14,6 +14,7 @@ fn membership_module(access: StructuralAccess) -> TerminalModule {
             qualifications: Default::default(),
         }),
         kind: OperationKind::StructuralCaseMembership {
+            path: Vec::new(),
             source: machine.structural_parameters[0].place,
             case: StructuralCaseId::new(1).unwrap(),
         },

@@ -119,12 +119,15 @@ pub(crate) fn validate(
                 ))?;
             validate_pure(checked, binding, ScalarType::Boolean)?;
             let expression = storage_reads::guard_subject(checked, expression);
-            let (subject, case) = storage_reads::case_membership::authored(
+            let (subject, path, case) = storage_reads::case_membership::authored(
                 checked, state, expression,
             )?
             .ok_or(LoweringError::Unsupported(
                 "scalar tail has neither authored fallback nor exact case coverage",
             ))?;
+            if !path.is_empty() {
+                return unsupported("exhaustive scalar guards require whole-root case coverage");
+            }
             let ExpressionNode::Binary(binary) = checked.expression_table.expression(expression)
             else {
                 return unsupported("exhaustive scalar guard lost its case expression");

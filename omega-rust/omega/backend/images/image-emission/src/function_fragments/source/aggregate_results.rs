@@ -54,16 +54,22 @@ pub(super) fn operation(
 ) -> bool {
     let graph = &target.graph;
     match source {
-        AbstractOperation::StructuralCaseMembership { psi_operation, result, source, case } => {
+        AbstractOperation::StructuralCaseMembership { psi_operation, result, source, path, case } => {
+            let mut observations = graph.blocks.iter().flat_map(|block| &block.operations).filter_map(|row| match row {
+                TargetUnitOperation::StructuralCaseMembership { psi_operation: retained, result: retained_result, source: retained_source, path: retained_path, case: retained_case, tag_byte_offset, .. }
+                    if retained == psi_operation && retained_result == result && retained_source == source && retained_path == path && retained_case == case => Some(*tag_byte_offset),
+                _ => None,
+            });
+            let Some(tag_byte_offset) = observations.next() else { return false; };
             result.scalar_type == semantic_vocabulary::ScalarType::Boolean
-                && graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
-                    TargetUnitOperation::StructuralCaseMembership { psi_operation: retained, result: retained_result, source: retained_source, case: retained_case, .. }
-                    if retained == psi_operation && retained_result == result && retained_source == source && retained_case == case
-                )).count() == 1
+                && observations.next().is_none()
                 && selected.blocks.iter().flat_map(|block| &block.instructions).filter(|row|
                     row.provenance.operations == [*psi_operation] && row.provenance.values == [result.value]
-                        && matches!(row.kind, selected_instructions::SelectedInstructionKind::Load32 { byte_offset: 0 }
-                            | selected_instructions::SelectedInstructionKind::ZeroExtendU32)
+                        && match row.kind {
+                            selected_instructions::SelectedInstructionKind::Load32 { byte_offset } => byte_offset == tag_byte_offset,
+                            selected_instructions::SelectedInstructionKind::ZeroExtendU32 => path.is_empty() && tag_byte_offset == 0,
+                            _ => false,
+                        }
                 ).count() == 1
         }
         AbstractOperation::EstablishRecord { psi_operation, result, fields } => {

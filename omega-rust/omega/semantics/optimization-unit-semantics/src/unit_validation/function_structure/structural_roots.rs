@@ -51,6 +51,7 @@ pub(crate) fn validate_structural_root_operations(
             match &node.operation {
                 O::StructuralCaseMembership {
                     source,
+                    path,
                     case,
                     result,
                     ..
@@ -61,15 +62,19 @@ pub(crate) fn validate_structural_root_operations(
                     let valid = result.scalar_type == ScalarType::Boolean
                         && signature.is_some_and(|signature| {
                             signature.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
-                                && structural_types
-                                    .get(&signature.structural_type)
-                                    .is_some_and(|declaration| match &declaration.shape {
-                                        terminal_psi::StructuralTypeShape::Sum { cases }
-                                        | terminal_psi::StructuralTypeShape::Mixed {
-                                            cases, ..
-                                        } => cases.iter().any(|candidate| candidate.id == *case),
-                                        _ => false,
-                                    })
+                                && super::super::structural_catalog::resolve_structural_path(
+                                    structural_types,
+                                    signature.structural_type,
+                                    path,
+                                )
+                                .and_then(|endpoint| structural_types.get(&endpoint))
+                                .is_some_and(|declaration| match &declaration.shape {
+                                    terminal_psi::StructuralTypeShape::Sum { cases }
+                                    | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => {
+                                        cases.iter().any(|candidate| candidate.id == *case)
+                                    }
+                                    _ => false,
+                                })
                         });
                     if !valid {
                         return Err(

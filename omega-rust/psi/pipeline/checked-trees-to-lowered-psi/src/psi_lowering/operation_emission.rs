@@ -278,10 +278,11 @@ pub(super) fn emit_boolean_expression(
             next_value_identity,
             operations,
         ),
-        LoweredBooleanReturnExpression::StructuralCaseMembership { source, case } => {
+        LoweredBooleanReturnExpression::StructuralCaseMembership { source, path, case } => {
             emit_scalar_leaf(
                 OperationKind::StructuralCaseMembership {
                     source: *source,
+                    path: path.clone(),
                     case: *case,
                 },
                 ScalarType::Boolean,

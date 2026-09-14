@@ -8,7 +8,14 @@ pub(crate) fn authored(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
     expression: ExpressionHandle,
-) -> Result<Option<(symbols::SymbolHandle, String)>, LoweringError> {
+) -> Result<
+    Option<(
+        symbols::SymbolHandle,
+        Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+        String,
+    )>,
+    LoweringError,
+> {
     let ExpressionNode::Binary(binary) = checked.expression_table.expression(expression) else {
         return Ok(None);
     };
@@ -29,10 +36,118 @@ pub(crate) fn authored(
     ) {
         return Ok(None);
     }
-    let subject = match checked.expression_table.expression(binary.left) {
+    let mut subject = match checked.expression_table.expression(binary.left) {
         ExpressionNode::Borrow(borrow) => borrow.target,
         _ => binary.left,
     };
+    let mut path = Vec::new();
+    let mut visited = Vec::new();
+    loop {
+        if visited.contains(&subject) {
+            return unsupported("case observation has a cyclic authored projection");
+        }
+        visited.push(subject);
+        match checked.expression_table.expression(subject) {
+            ExpressionNode::Member(member) => {
+                if member.case_variant.is_some() || !member.member_symbol.is_valid() {
+                    return Ok(None);
+                }
+                let field = validation::exact_self_field(&checked.typed, machine, subject)
+                    .or_else(|| {
+                        if matches!(checked.expression_table.expression(member.receiver),
+                            ExpressionNode::Name(name) if name.symbol == machine.symbol
+                                || matches!(checked.expression_table.name_path_members(name.members),
+                                    [spelling] if spelling.as_str() == "self"))
+                        {
+                            return None;
+                        }
+                        let mut reference = validation::declared_place_type_raw(
+                            &checked.typed,
+                            machine,
+                            Some(state),
+                            member.receiver,
+                        )?;
+                        let owner = loop {
+                            use checked_trees::types::TypeReferenceNode;
+                            match checked.type_reference_table.type_reference(reference) {
+                                TypeReferenceNode::Reference { referee, .. }
+                                | TypeReferenceNode::Constrained {
+                                    base_type: referee, ..
+                                } => reference = *referee,
+                                TypeReferenceNode::Named { symbol, .. }
+                                | TypeReferenceNode::Generic {
+                                    base_symbol: symbol,
+                                    ..
+                                } => break *symbol,
+                                _ => return None,
+                            }
+                        };
+                        let declaration = checked
+                            .data_definitions()
+                            .iter()
+                            .find(|data| owner.is_valid() && data.symbol == owner)?;
+                        // Ordinary members can name generated accessors. Their
+                        // field identity comes from this exact receiver type.
+                        validation::exact_data_member_field(
+                            &checked.typed,
+                            declaration,
+                            if checked.symbols.get(member.member_symbol).kind
+                                == symbols::SymbolKind::Field
+                            {
+                                member.member_symbol
+                            } else {
+                                symbols::SymbolHandle::invalid()
+                            },
+                            member.member.as_str(),
+                            None,
+                        )
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "case observation lost its authored field",
+                    ))?;
+                if field.relevance.is_erased() {
+                    return Ok(None);
+                }
+                path.push(checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                    field
+                        .identity
+                        .map(|identity| format!("#{identity}"))
+                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                ));
+                subject = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                if !validation::place_has_builtin_coordinates(
+                    &checked.typed, machine, Some(state), subject,
+                )
+                    || checked.facts.operators.uses.iter().any(|(_, selected)| {
+                        selected.expression == subject
+                            && (selected.spelling != language_core::OperatorSpelling::Index
+                                || selected.selected_operator_symbol.is_valid()
+                                || selected.candidate_count != 0
+                                || !matches!(selected.status,
+                                    checked_trees::CheckedOperatorResolutionStatus::Missing
+                                    | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback))
+                    })
+                {
+                    return Ok(None);
+                }
+                let Some(element_index) = checked
+                    .expression_table
+                    .constant_integer_value(indexed.index)
+                    .and_then(|value| u64::try_from(value).ok())
+                else {
+                    return Ok(None);
+                };
+                path.push(
+                    checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index),
+                );
+                subject = indexed.collection;
+            }
+            _ => break,
+        }
+    }
+    path.reverse();
     let ExpressionNode::Name(subject) = checked.expression_table.expression(subject) else {
         return Ok(None);
     };
@@ -126,5 +241,5 @@ pub(crate) fn authored(
         .identity
         .map(|identity| format!("#{identity}"))
         .unwrap_or_else(|| case.name.as_str().to_owned());
-    Ok(Some((subject, identity)))
+    Ok(Some((subject, path, identity)))
 }

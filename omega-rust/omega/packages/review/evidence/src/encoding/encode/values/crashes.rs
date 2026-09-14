@@ -55,6 +55,13 @@ pub(crate) fn encode_structural_path(
                 encoder.tag("case", 1);
                 encoder.field("case", |encoder| encoder.string(case))?;
             }
+            PackageReviewStructuralPredicatePathSegment::FixedIndex(element_index) => {
+                encoder.tag("fixed_index", 2);
+                encoder.field("index", |encoder| {
+                    encoder.u64(*element_index);
+                    Ok(())
+                })?;
+            }
         }
         Ok(())
     })

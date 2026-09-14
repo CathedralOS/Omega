@@ -20,6 +20,7 @@ pub(super) fn observe(
         psi_operation,
         result,
         source,
+        path,
         case,
     } = operation
     else {
@@ -38,15 +39,7 @@ pub(super) fn observe(
         }
         parameter.structural_type
     };
-    let declaration = types.get(&identity).ok_or_else(invalid)?;
-    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return Err(invalid());
-    };
-    let case_tag = cases
-        .iter()
-        .position(|candidate| candidate.id == *case)
-        .and_then(|ordinal| u32::try_from(ordinal).ok())
-        .ok_or_else(invalid)?;
+    let (tag_byte_offset, case_tag) = case_projection(identity, path, *case, types)?;
     if result.scalar_type != ScalarType::Boolean {
         return Err(invalid());
     }
@@ -55,11 +48,45 @@ pub(super) fn observe(
         psi_operation: *psi_operation,
         result: *result,
         source: *source,
+        path: path.clone(),
+        tag_byte_offset,
         case: *case,
         case_tag,
     });
     provenance.operations.push(*psi_operation);
     Ok(())
+}
+
+fn case_projection(
+    identity: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    case: semantic_vocabulary::StructuralCaseId,
+    types: &StructuralTypeLookup<'_>,
+) -> Result<(u32, u32), LoweringError> {
+    let invalid = || LoweringError::UnknownStructuralType(identity);
+    let (identity, tag_byte_offset) = if path.is_empty() {
+        (identity, 0)
+    } else {
+        let (endpoint, _, offset) =
+            crate::lowering::structural_layout::resolve_structural_projection_path(
+                identity,
+                path,
+                types,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )?;
+        (endpoint, offset)
+    };
+    let declaration = types.get(&identity).ok_or_else(invalid)?;
+    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return Err(invalid());
+    };
+    let case_tag = cases
+        .iter()
+        .position(|candidate| candidate.id == case)
+        .and_then(|ordinal| u32::try_from(ordinal).ok())
+        .ok_or_else(invalid)?;
+    Ok((tag_byte_offset, case_tag))
 }
 
 pub(super) fn lower(
@@ -168,4 +195,103 @@ pub(super) fn lower(
         source: home.clone(),
         cases: lowered,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn projected_case_layout_retains_nested_offset_and_nominal_ordinal() {
+        let sum = StructuralTypeId::new(1).unwrap();
+        let array = StructuralTypeId::new(2).unwrap();
+        let record = StructuralTypeId::new(3).unwrap();
+        let red = semantic_vocabulary::StructuralCaseId::new(90).unwrap();
+        let blue = semantic_vocabulary::StructuralCaseId::new(12).unwrap();
+        let field = |number, identity: &str, field_type| terminal_psi::StructuralFieldDeclaration {
+            id: StructuralFieldId::new(number).unwrap(),
+            identity: identity.into(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type,
+        };
+        let catalog: abstract_operations::StructuralTypeCatalog = vec![
+            StructuralTypeDeclaration {
+                id: sum,
+                identity: "Color".into(),
+                shape: StructuralTypeShape::Sum {
+                    cases: vec![
+                        terminal_psi::StructuralCaseDeclaration {
+                            id: red,
+                            identity: "Red".into(),
+                            fields: Vec::new(),
+                        },
+                        terminal_psi::StructuralCaseDeclaration {
+                            id: blue,
+                            identity: "Blue".into(),
+                            fields: Vec::new(),
+                        },
+                    ],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: array,
+                identity: "Colors".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: sum,
+                    length: 2,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: record,
+                identity: "Record".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        field(
+                            1,
+                            "prefix",
+                            StructuralFieldType::Scalar(ScalarType::Boolean),
+                        ),
+                        field(2, "colors", StructuralFieldType::Structural(array)),
+                    ],
+                },
+            },
+        ]
+        .into();
+        let types = StructuralTypeLookup::new(&catalog);
+        let path = vec![
+            StructuralPathSegment::Field("colors".into()),
+            StructuralPathSegment::FixedIndex(1),
+        ];
+        // A one-byte prefix is followed by four-byte aligned tags: second tag is at 8.
+        assert_eq!(
+            case_projection(record, &path, blue, &types).unwrap(),
+            (8, 1)
+        );
+        assert_eq!(case_projection(sum, &[], red, &types).unwrap(), (0, 0));
+        assert_eq!(
+            case_projection(array, &[StructuralPathSegment::FixedIndex(0)], blue, &types).unwrap(),
+            (0, 1)
+        );
+        for invalid in [
+            vec![
+                StructuralPathSegment::Field("colors".into()),
+                StructuralPathSegment::FixedIndex(2),
+            ],
+            vec![StructuralPathSegment::Field("missing".into())],
+            vec![StructuralPathSegment::Field("prefix".into())],
+            vec![StructuralPathSegment::Field("colors".into())],
+            vec![StructuralPathSegment::Referent],
+        ] {
+            assert!(case_projection(record, &invalid, blue, &types).is_err());
+        }
+        assert!(
+            case_projection(
+                record,
+                &path,
+                semantic_vocabulary::StructuralCaseId::new(99).unwrap(),
+                &types
+            )
+            .is_err()
+        );
+    }
 }

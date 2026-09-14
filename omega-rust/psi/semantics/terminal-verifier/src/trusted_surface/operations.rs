@@ -185,8 +185,8 @@ static OP_PRIMITIVE_SCALAR_READ: TrustedSurfaceEntry = entry(
 );
 static OP_STRUCTURAL_CASE_MEMBERSHIP: TrustedSurfaceEntry = entry(
     "operation:structural-case-membership",
-    "a validated structural case membership test over a sum-typed place",
-    "the membership observation's result equation",
+    "a readable live whole root and validated field/index path to the exact nominal sum case",
+    "the exact root/path/case Boolean observation; no reusable current-storage equation or payload refinement",
     EFFECT_DEPS,
     &[VOCAB, TS_LIB, TS_SE, OP_FACTS, VAL_OPS, VAL_CASE_MEMBERSHIP],
 );

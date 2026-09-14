@@ -81,6 +81,7 @@ fn execution() -> TerminalExecution {
         .collect::<BTreeMap<_, _>>();
     let current_machine = MachineId::new(1).unwrap();
     TerminalExecution {
+        structural_cases: BTreeMap::new(),
         structural_types: BTreeMap::from([
             (
                 structural_type(1),

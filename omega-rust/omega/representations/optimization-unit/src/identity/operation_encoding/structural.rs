@@ -39,12 +39,14 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             psi_operation,
             result,
             source,
+            path,
             case,
         } => {
             bytes.u8(71);
             bytes.id(*psi_operation);
             encode_abstract_result(bytes, *result);
             bytes.id(*source);
+            bytes.slice(path, encode_structural_path_segment);
             bytes.id(*case);
         }
         O::PrimitiveScalarRead {

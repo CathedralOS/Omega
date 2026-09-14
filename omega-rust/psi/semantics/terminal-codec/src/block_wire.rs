@@ -105,9 +105,10 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 writer.u8(62);
                 writer.id(source);
             }
-            OperationKind::StructuralCaseMembership { source, case } => {
+            OperationKind::StructuralCaseMembership { source, path, case } => {
                 writer.u8(66);
                 writer.id(source);
+                encode_structural_path(writer, "case membership path", &path)?;
                 writer.id(case);
             }
             OperationKind::ByteSequenceSubslice {
@@ -1046,6 +1047,7 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             },
             66 => OperationKind::StructuralCaseMembership {
                 source: reader.id("PlaceId")?,
+                path: decode_structural_path(reader)?,
                 case: reader.id("StructuralCaseId")?,
             },
             43 => OperationKind::WriteOnlyPrimitiveStore {

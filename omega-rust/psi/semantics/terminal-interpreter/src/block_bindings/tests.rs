@@ -107,6 +107,7 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         })
         .collect();
     TerminalExecution {
+        structural_cases: BTreeMap::new(),
         structural_types: BTreeMap::from([(
             structural_type,
             StructuralTypeDeclaration {

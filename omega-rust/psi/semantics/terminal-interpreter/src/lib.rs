@@ -12,6 +12,9 @@ mod byte_sequence_subslice;
 use byte_sequence_binding::{ByteSequenceBinding, StructuralCallArguments};
 mod byte_sequence_view;
 mod byte_sequence_write;
+mod case_membership;
+use case_membership::StructuralCaseContents;
+pub use case_membership::TerminalStructuralCaseValue;
 mod record;
 mod reference;
 mod scalar_array;
@@ -32,6 +35,16 @@ mod structural_argument_binding_tests;
 pub use boundary_byte_buffers::TerminalBoundaryByteBuffer;
 pub use effect_results::TerminalEffectResult;
 pub use structural_scalar_fields::TerminalStructuralScalarFieldValue;
+
+/// Exact initialized contents supplied by the embedding host for structural
+/// entry arguments. All paths remain rooted in the original referents.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TerminalStructuralInputs<'input> {
+    pub arguments: &'input [TerminalStructuralValue],
+    pub scalar_fields: &'input [TerminalStructuralScalarFieldValue],
+    pub primitive_values: &'input [TerminalStructuralPrimitiveValue],
+    pub cases: &'input [TerminalStructuralCaseValue],
+}
 
 pub use semantic_value_comparison::{
     TerminalTraceScalarComparisonError, TerminalTraceScalarValueSide,
@@ -546,6 +559,9 @@ pub struct TerminalExecution {
     /// parameter. Immutable backing implements a logical copy of the live prefix.
     structural_byte_sequence_fields: BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView>,
     structural_byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
+    /// Entry-provided discriminators remain attached to the original referent
+    /// across projected and forwarded calls, independent of machine-local IDs.
+    structural_cases: BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
     scalar_case_values: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
@@ -773,6 +789,29 @@ impl TerminalExecution {
         structural_scalar_fields: &[TerminalStructuralScalarFieldValue],
         structural_primitive_values: &[TerminalStructuralPrimitiveValue],
     ) -> Result<Self, TerminalArtifactInterpretError> {
+        Self::start_artifact_with_structural_inputs(
+            semantic_bytes,
+            proof_bytes,
+            profile,
+            scalar_arguments,
+            TerminalStructuralInputs {
+                arguments: structural_arguments,
+                scalar_fields: structural_scalar_fields,
+                primitive_values: structural_primitive_values,
+                cases: &[],
+            },
+        )
+    }
+
+    /// Decode and independently verify an artifact, then bind its initialized
+    /// entry contents before committing any operation or custody transfer.
+    pub fn start_artifact_with_structural_inputs(
+        semantic_bytes: &[u8],
+        proof_bytes: &[u8],
+        profile: &proof_admission::AdmissionProfile,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_inputs: TerminalStructuralInputs<'_>,
+    ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
         let proof = terminal_codec::decode_proof_bundle(proof_bytes)
@@ -780,15 +819,19 @@ impl TerminalExecution {
         let verified =
             terminal_verifier::verify_module_for_interpretation(&module, &proof, profile)
                 .map_err(TerminalArtifactInterpretError::Verification)?;
-        Self::start_verified_module(
+        let mut execution = Self::start_verified_module(
             verified.module(),
             scalar_arguments,
-            structural_arguments,
-            structural_scalar_fields,
-            structural_primitive_values,
+            structural_inputs.arguments,
+            structural_inputs.scalar_fields,
+            structural_inputs.primitive_values,
             None,
         )
-        .map_err(TerminalArtifactInterpretError::Execution)
+        .map_err(TerminalArtifactInterpretError::Execution)?;
+        execution
+            .bind_structural_cases(structural_inputs.cases)
+            .map_err(TerminalArtifactInterpretError::Execution)?;
+        Ok(execution)
     }
 
     /// Begin execution with one explicit provider installation previously
@@ -1071,6 +1114,7 @@ impl TerminalExecution {
             structural_scalar_fields,
             structural_byte_sequence_fields: BTreeMap::new(),
             structural_byte_arrays: BTreeMap::new(),
+            structural_cases: BTreeMap::new(),
             scalar_case_values: BTreeMap::new(),
             scalar_array_values: BTreeMap::new(),
             byte_sequence_values: BTreeMap::new(),
@@ -2632,13 +2676,11 @@ impl TerminalExecution {
                             TerminalScalarValue::Boolean(value),
                         );
                     }
-                    OperationKind::StructuralCaseMembership { source, case } => {
-                        let value = self.scalar_case_values.get(&source).ok_or(
-                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-                        )?;
+                    OperationKind::StructuralCaseMembership { source, path, case } => {
+                        let active_case = self.observe_structural_case(source, &path)?;
                         self.values.insert(
                             operation.result.expect_scalar().id,
-                            TerminalScalarValue::Boolean(value.result_case == case),
+                            TerminalScalarValue::Boolean(active_case == case),
                         );
                     }
                     OperationKind::BooleanStructuralField {

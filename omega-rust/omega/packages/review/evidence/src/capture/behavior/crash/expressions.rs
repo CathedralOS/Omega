@@ -211,6 +211,9 @@ fn project_structural_path(
             checked_trees::CheckedStructuralPredicatePathSegment::Case(case) => {
                 PackageReviewStructuralPredicatePathSegment::Case(case.clone())
             }
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) => {
+                PackageReviewStructuralPredicatePathSegment::FixedIndex(*element_index)
+            }
         })
         .collect()
 }

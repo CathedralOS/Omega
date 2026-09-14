@@ -759,6 +759,7 @@ impl LoweredDirectExpression {
 enum LoweredBooleanReturnExpression {
     StructuralCaseMembership {
         source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
         case: semantic_vocabulary::StructuralCaseId,
     },
     PrimitiveRead {

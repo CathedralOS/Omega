@@ -22,6 +22,7 @@ pub enum PackageReviewPrimitiveType {
 pub enum PackageReviewStructuralPredicatePathSegment {
     Field(String),
     Case(String),
+    FixedIndex(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

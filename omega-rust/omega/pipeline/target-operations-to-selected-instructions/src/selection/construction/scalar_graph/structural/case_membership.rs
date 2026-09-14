@@ -8,20 +8,23 @@ pub(in crate::selection) fn observe(
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let LegalizedScalarInstructionKind::StructuralCaseMembership {
         source: place,
+        path,
         case,
         case_tag,
-    } = row.kind
+        tag_byte_offset,
+    } = &row.kind
     else {
         return Err(invalid());
     };
     let result = row.result.ok_or_else(invalid)?;
     if result.scalar_type != ScalarType::Boolean
-        || crate::selection::aggregate_result_input::membership_tag(source, place, case)
-            != Some(case_tag)
+        || crate::selection::aggregate_result_input::membership_layout(source, *place, path, *case)
+            != Some((*case_tag, *tag_byte_offset))
     {
         return Err(invalid());
     }
-    let tag = transport_register(builder, place, 0)?;
+    let place = *place;
+    let tag = transport_register(builder, place, *tag_byte_offset)?;
     let provenance = SelectedInstructionProvenance {
         operations: vec![row.operation],
         values: vec![result.value],
@@ -39,17 +42,25 @@ pub(in crate::selection) fn observe(
             builder,
             row,
             place,
-            0,
+            *tag_byte_offset,
             4,
             SelectedMemoryAccessRole::ReadPlace,
         )?;
         builder.emit(
-            SelectedInstructionKind::Load32 { byte_offset: 0 },
+            SelectedInstructionKind::Load32 {
+                byte_offset: *tag_byte_offset,
+            },
             builder.constraints.keys.load32.ok_or_else(invalid)?,
             &[pointer, tag],
             provenance,
         )?;
     } else {
+        // Projected tags use addressable aggregate storage, including when the
+        // entry ABI supplied value fragments. Only a whole sum can use its
+        // first fragment directly; a projection must never fall back to it.
+        if !path.is_empty() || *tag_byte_offset != 0 {
+            return Err(invalid());
+        }
         // Owned ABI fragments contain value bytes. Narrow the tag before
         // comparing so adjacent payload bits cannot affect membership.
         let fragment = builder
@@ -69,7 +80,7 @@ pub(in crate::selection) fn observe(
     let expected = transport_register(builder, place, 0)?;
     builder.emit(
         SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(u128::from(case_tag)),
+            value: IntegerValue::Unsigned(u128::from(*case_tag)),
         },
         builder.constraints.keys.materialize_i64,
         &[expected],

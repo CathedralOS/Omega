@@ -6,7 +6,7 @@ use semantic_vocabulary::PlaceId;
 use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
 /// Owned aggregate inputs only need addressable storage when an operation observes a
-/// field or lends the original value. Pure whole-value transport keeps its ABI
+/// field, observes a projected case, or lends the original value. Pure whole-value transport keeps its ABI
 /// fragments; a materialized home becomes the value's storage for later uses.
 pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     let Some(signature) = &source.structural else {
@@ -19,7 +19,9 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
                 declaration.id == parameter.semantic.structural_type
                     && matches!(
                         declaration.shape,
-                        StructuralTypeShape::Record { .. } | StructuralTypeShape::Sum { .. }
+                        StructuralTypeShape::Record { .. }
+                            | StructuralTypeShape::Sum { .. }
+                            | StructuralTypeShape::FixedArray { .. }
                     )
             })
     }) {
@@ -28,6 +30,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
     source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
         match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. } => source.place == place,
+            LegalizedScalarInstructionKind::StructuralCaseMembership { source, path, .. } => *source == place && !path.is_empty(),
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
                 matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
                     if semantic.place == place && semantic.access != StructuralAccess::Owned)
@@ -40,11 +43,12 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
 /// Reconstruct nominal tag identity from the retained readable root contract.
 /// This lookup establishes shape and layout, not occurrence liveness: optimized
 /// ownership/dominance replay and exact legalized-source replay remain required.
-pub(super) fn membership_tag(
+pub(super) fn membership_layout(
     source: &LegalizedScalarFunction,
     place: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
     case: semantic_vocabulary::StructuralCaseId,
-) -> Option<u32> {
+) -> Option<(u32, u32)> {
     let signature = source.structural.as_ref()?;
     let parameter = signature
         .parameters
@@ -75,6 +79,8 @@ pub(super) fn membership_tag(
             .filter_map(|row| {
                 let result = match &row.kind {
                     LegalizedScalarInstructionKind::EstablishScalarCase { result, .. }
+                    | LegalizedScalarInstructionKind::EstablishRecord { result, .. }
+                    | LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
                     | LegalizedScalarInstructionKind::HostedReadByte { result, .. } => result,
                     LegalizedScalarInstructionKind::Call(call) => {
                         call.structural_result.as_ref()?
@@ -102,6 +108,8 @@ pub(super) fn membership_tag(
         }
         result.structural_type
     };
+    let (identity, byte_offset) =
+        crate::structural_reference_input::project(identity, path, &signature.structural_types)?;
     let declaration = signature
         .structural_types
         .iter()
@@ -133,6 +141,7 @@ pub(super) fn membership_tag(
         .iter()
         .position(|candidate| candidate.id == case)
         .and_then(|ordinal| u32::try_from(ordinal).ok())
+        .map(|tag| (tag, byte_offset))
 }
 
 /// These places are created inside the graph, not copied from incoming parameters.

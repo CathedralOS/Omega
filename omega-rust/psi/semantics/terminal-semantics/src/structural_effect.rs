@@ -34,7 +34,7 @@ pub enum StructuralEffectCustody {
     ExactReferenceCarrier,
     ExactPrimitiveLocal,
     ExactReadablePrimitiveRoot,
-    ExactReadableSumRoot,
+    ExactReadableSumProjection,
     ExactWriteOnlyPrimitiveRoot,
     ExactStructuralScalarField,
     ExactStructuralByteSequenceField,
@@ -252,7 +252,7 @@ impl StructuralEffectSemanticRow {
             tag: OperationSemanticTag::StructuralCaseMembership,
             schema: structural_effect_leaf(
                 StructuralEffectResultShape::Boolean,
-                StructuralEffectCustody::ExactReadableSumRoot,
+                StructuralEffectCustody::ExactReadableSumProjection,
                 StructuralEffectAction::ObserveCaseMembership,
                 StructuralEffectExternalEffect::None,
                 StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
@@ -549,6 +549,7 @@ pub enum StructuralEffectObservation {
     /// Captures one tag observation without a reusable current-storage fact.
     CaseMembershipObserved {
         source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
         case: StructuralCaseId,
         result: ValueId,
     },
@@ -812,7 +813,7 @@ fn validate_structural_effect_schema(
             }
             StructuralEffectAction::ObserveCaseMembership => {
                 schema.result == StructuralEffectResultShape::Boolean
-                    && schema.custody == StructuralEffectCustody::ExactReadableSumRoot
+                    && schema.custody == StructuralEffectCustody::ExactReadableSumProjection
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier
                         == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
@@ -1034,9 +1035,10 @@ pub fn structural_effect_leaf_observation_in(
         }
         (
             StructuralEffectAction::ObserveCaseMembership,
-            OperationKind::StructuralCaseMembership { source, case },
+            OperationKind::StructuralCaseMembership { source, path, case },
         ) => StructuralEffectObservation::CaseMembershipObserved {
             source: *source,
+            path: path.clone(),
             case: *case,
             result: operation.result.expect_scalar().id,
         },

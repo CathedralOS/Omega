@@ -15,22 +15,27 @@ pub(super) fn validate(
         (
             LegalizedScalarInstructionKind::StructuralCaseMembership {
                 source,
+                path,
                 case,
                 case_tag,
+                tag_byte_offset,
             },
             AbstractOperation::StructuralCaseMembership {
                 source: expected,
+                path: expected_path,
                 case: expected_case,
                 result,
                 ..
             },
         ) if source == expected
+            && path == expected_path
             && case == expected_case
             && result.scalar_type == ScalarType::Boolean
-            && *case_tag
-                == scalar_graph_input::structural_case::membership_tag(
+            && (*case_tag, *tag_byte_offset)
+                == scalar_graph_input::structural_case::membership_layout(
                     optimized,
                     *expected,
+                    expected_path,
                     *expected_case,
                     plan,
                 )? => {}

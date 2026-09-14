@@ -86,12 +86,13 @@ pub(in crate::legalization) fn source_owner(
 }
 
 /// Resolve the exact nominal case under the independently validated root access.
-pub(in crate::legalization) fn membership_tag(
+pub(in crate::legalization) fn membership_layout(
     function: &PsiOptimizationFunction,
     source: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
     case: semantic_vocabulary::StructuralCaseId,
     plan: &AbstractOperationPlan,
-) -> Result<u32, LegalizationError> {
+) -> Result<(u32, u32), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     let identity = if let Ok((_, result)) = source_result(function, source) {
         if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
@@ -124,6 +125,9 @@ pub(in crate::legalization) fn membership_tag(
         }
         parameter.structural_type
     };
+    let (identity, byte_offset) =
+        crate::structural_reference_input::project(identity, path, &plan.structural_types)
+            .ok_or(invalid.clone())?;
     let layout = super::aggregate_results::sum_type_layout(identity, plan)?;
     if layout.tag_byte_offset != 0
         || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
@@ -142,6 +146,7 @@ pub(in crate::legalization) fn membership_tag(
         .iter()
         .position(|candidate| candidate.id == case)
         .and_then(|ordinal| u32::try_from(ordinal).ok())
+        .map(|tag| (tag, byte_offset))
         .ok_or(invalid)
 }
 

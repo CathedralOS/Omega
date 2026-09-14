@@ -533,6 +533,7 @@ pub struct CheckedStructuralParameterField {
 pub enum CheckedStructuralPredicatePathSegment {
     Field(String),
     Case(String),
+    FixedIndex(u64),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

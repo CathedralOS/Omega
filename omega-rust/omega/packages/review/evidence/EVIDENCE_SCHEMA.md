@@ -1,11 +1,11 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 131 and row schema version 89. This file
+The canonical review schema is version 132 and row schema version 90. This file
 records the closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance. Proof-interface sections follow the
 [contract/bundle direction](../../../../../wiki/spec/proofs/contracts.md)
 and require encoding migration; they are not a claim that replacement proof
-rows already exist in version 131. The source/codec changes and exact-version
+rows already exist in version 132. The source/codec changes and exact-version
 rejection controls belong to `PROOF-CONTRACT-MIGRATION`.
 
 This describes the current encoding and support limits, not a
@@ -18,7 +18,7 @@ certificates below answer actual compiler proof questions. Compiler proof/reach
 checks and native artifact validation remain independent of installation.
 
 The separate external-supply policy component uses
-`OMEGA-EXTERNAL-SUPPLY-POLICY` version 3, bounded to 4 MiB. It preserves the
+`OMEGA-EXTERNAL-SUPPLY-POLICY` version 4, bounded to 4 MiB. It preserves the
 complete callable and requirement coordinates, all eight binding alternatives,
 the exact four foreign-locator forms, target, and producer identities. It omits
 evaluation accounting, evaluator/materializer schema markers, closure/evaluation/
@@ -41,14 +41,14 @@ policy baseline below includes this component; the manager retains only exact
 risk-bearing rows beside source pins and accepted decisions. This component does not change the
 full-review schema or any compiler validator.
 
-`OMEGA-PACKAGE-POLICY` version 3 composes the full inert package baseline under
+`OMEGA-PACKAGE-POLICY` version 4 composes the full inert package baseline under
 those same aggregate ceilings. Its field order is package, target, public API
 (traits, conformances, domains, consts, operators, data), callables,
 selected providers, terminal permissions, representation, external supplies,
 dangerous capabilities, slack, semantic dependencies, and D29 applications
 (symbolic demands, closed realizations). Child components share the enclosing
 writer/reader directly; they do not embed component envelopes or reset budgets.
-The callable component is version 4: after `declared_service_reach`, each
+The callable component is version 5: after `declared_service_reach`, each
 callable carries `service_reach_dependency`, containing ordered concrete
 nominal services and ordered `u32` parameter ordinals in its complete static
 telescope. Each ordinal must select an existing nominal machine contract,
@@ -59,7 +59,7 @@ and exact canonical re-encoding, not compiler derivations. Version 3 callable
 and version 2 baseline bytes reject rather than inventing a missing dependency.
 The baseline version changes because child components share its envelope.
 The calling, selected-provider, terminal-permission, representation, and
-external-supply component schemas remain version 3 for complete nested policy
+external-supply component schemas are version 4 for complete nested policy
 signatures, including exact nominal case membership. Conformance and
 physical-calling component schemas remain version 1. Nominal membership uses
 contract-expression tag 22 with a recursive subject and exact nominal case;
@@ -74,6 +74,14 @@ old signatures. Source pins, graph edges and project decisions belong to the
 manager's lock envelope, not this policy record. Compiler proof/discharge and
 row-source custody are not policy identity or substitutes for fresh admission
 validation.
+
+Structural predicate paths retain field tag 0 and case tag 1 with their existing
+string payloads, and fixed-index tag 2 with an exact little-endian `u64` payload.
+Indexes are numeric coordinates, not names. The closed vocabulary increment
+versions the enclosing review and signature-bearing policy schemas above;
+old decoders reject tag 2 and old schema envelopes reject on current recovery.
+Recovery bounds framing and preserves coordinates; it does not reconstruct an
+array declaration or grant an executable projection from an inert review row.
 
 The complete baseline also has text format version 1, introduced by the exact
 header `omega_package_policy_text 1` followed by LF. It names the binary format
@@ -99,7 +107,7 @@ canonical scratch; verification does not allocate another expanded text buffer.
 This adds no proof, acceptance, or replay fields and changes no binary schema.
 
 Complete normalized audit rows have their own version 2, independent of
-legacy review row version 89. Binary rows start with
+legacy review row version 90. Binary rows start with
 `OMEGA-PACKAGE-POLICY-ROW` and a zero byte; named text starts with
 `omega_package_policy_row_text 1` and LF. Each row binds its row and baseline
 schemas, package, exact target, kind, initial/update decision classification,

@@ -563,9 +563,13 @@ pub(super) fn validate_machine(
                         ));
                     }
                 }
-                OperationKind::StructuralCaseMembership { source, case } => {
+                OperationKind::StructuralCaseMembership {
+                    source,
+                    ref path,
+                    case,
+                } => {
                     super::structural_case_membership::validate(
-                        module, machine, operation, source, case,
+                        module, machine, operation, source, path, case,
                     )?;
                 }
                 OperationKind::BooleanStructuralField {

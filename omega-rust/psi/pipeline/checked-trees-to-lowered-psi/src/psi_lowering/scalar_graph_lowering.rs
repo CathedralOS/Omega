@@ -1427,7 +1427,8 @@ fn lower_checked_boolean_expression_with_parameters(
                     checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
                         Ok(identity.clone())
                     }
-                    checked_trees::CheckedStructuralPredicatePathSegment::Case(_) => {
+                    checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
+                    | checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_) => {
                         unsupported("case-payload predicates are contract-only")
                     }
                 })
@@ -1490,12 +1491,13 @@ fn lower_checked_boolean_expression_with_parameters(
             }
         }
         CheckedBooleanExpression::StructuralCaseMembership { subject, case } => {
-            let (source, case) = crate::psi_lowering::scalar_bindings::structural_cases::resolve(
-                structural_cases,
-                subject,
-                case,
-            )?;
-            LoweredBooleanReturnExpression::StructuralCaseMembership { source, case }
+            let (source, path, case) =
+                crate::psi_lowering::scalar_bindings::structural_cases::resolve(
+                    structural_cases,
+                    subject,
+                    case,
+                )?;
+            LoweredBooleanReturnExpression::StructuralCaseMembership { source, path, case }
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }

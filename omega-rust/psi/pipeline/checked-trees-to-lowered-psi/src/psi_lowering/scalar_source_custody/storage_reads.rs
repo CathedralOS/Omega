@@ -564,13 +564,15 @@ fn collect_authored_storage_reads(
         return unsupported("scalar storage source contains a stale or cyclic expression");
     }
     active.push(expression);
-    if let Some((subject, case)) = case_membership::authored(checked, state, expression)? {
+    if let Some((subject, subject_path, case)) =
+        case_membership::authored(checked, state, expression)?
+    {
         reads.push((
             path.clone(),
             subject,
             PrimitiveType::Bool,
             ReadKind::CaseMembership {
-                path: Vec::new(),
+                path: subject_path,
                 case,
             },
         ));
