@@ -498,9 +498,14 @@ pub(super) fn call_is_exact(
                 argument.root_structural_type == source.structural_type
                     && *placement == source.source
                     && argument.source_location == source.location
+                    // The original pointer may lend weaker access without
+                    // changing its backing or call-local projection custody.
                     && (argument.access == source.access
                         || source.access == StructuralAccess::MutableBorrow
-                            && argument.access == StructuralAccess::WriteOnlyBorrow)
+                            && matches!(
+                                argument.access,
+                                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                            ))
                     && u64::from(argument.source_byte_offset)
                         .checked_add(referent_bytes)
                         .is_some_and(|end| end <= u64::from(source.shape.byte_size))

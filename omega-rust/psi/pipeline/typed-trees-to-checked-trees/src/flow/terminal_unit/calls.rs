@@ -1459,21 +1459,6 @@ fn fixed_array_literal_length(
     Some(*length)
 }
 
-fn place_literal_index_path(path: &[facts::PlaceSegment]) -> Option<&[facts::PlaceSegment]> {
-    let field_count = path
-        .iter()
-        .position(|segment| matches!(segment, facts::PlaceSegment::FixedIndex { .. }))?;
-    let (fields, indexes) = path.split_at(field_count);
-    (!indexes.is_empty()
-        && fields
-            .iter()
-            .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
-        && indexes
-            .iter()
-            .all(|segment| matches!(segment, facts::PlaceSegment::FixedIndex { .. })))
-    .then_some(fields)
-}
-
 pub(super) fn ordinary_projected_call_is_supported(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -1582,19 +1567,23 @@ pub(super) fn ordinary_projected_call_is_supported(
                 }
                 let field_path = checked_nonempty_field_path(&argument.path);
                 let indexed_fields = checked_literal_index_path(&argument.path);
+                let static_path = argument.path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        CheckedUnitStructuralPathSegment::Field(_)
+                            | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                    )
+                });
                 match argument.access {
                     CheckedStructuralAccess::SharedBorrow => {
                         source.multiplicity == Multiplicity::Unrestricted
                             && crate::checks::type_multiplicity(program, target.type_reference)
                                 == Multiplicity::Unrestricted
-                            && (field_path
-                                || indexed_fields.is_some_and(|fields| {
-                                    !fields.is_empty() && argument.path.len() == fields.len() + 1
-                                }))
+                            && static_path
                     }
                     CheckedStructuralAccess::MutableBorrow => {
                         source.access == CheckedStructuralAccess::MutableBorrow
-                            && ((source.multiplicity == Multiplicity::Unrestricted && field_path)
+                            && ((source.multiplicity == Multiplicity::Unrestricted && static_path)
                                 || ((field_path
                                     || indexed_fields.is_some_and(|fields| !fields.is_empty()))
                                     && byte_sequence_carrier(program, target.type_reference, &[])
@@ -1603,8 +1592,12 @@ pub(super) fn ordinary_projected_call_is_supported(
                                         )))
                     }
                     CheckedStructuralAccess::WriteOnlyBorrow => {
-                        source.access == CheckedStructuralAccess::WriteOnlyBorrow
-                            && (field_path || indexed_fields.is_some())
+                        matches!(
+                            source.access,
+                            CheckedStructuralAccess::MutableBorrow
+                                | CheckedStructuralAccess::WriteOnlyBorrow
+                        ) && source.multiplicity == Multiplicity::Unrestricted
+                            && static_path
                     }
                     CheckedStructuralAccess::Owned => false,
                 }
@@ -2275,6 +2268,50 @@ pub(super) fn structural_call_arguments(
                 path
             }
             segments
+                if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                    && caller_parameters[source_index].multiplicity
+                        == Multiplicity::Unrestricted
+                    && caller_parameters[source_index].qualifications.is_empty()
+                    && matches!(
+                        (
+                            caller_parameters[source_index].access,
+                            structural_access_for_type_reference(program, target.type_reference)?
+                        ),
+                        (
+                            CheckedStructuralAccess::MutableBorrow,
+                            CheckedStructuralAccess::SharedBorrow
+                                | CheckedStructuralAccess::MutableBorrow
+                                | CheckedStructuralAccess::WriteOnlyBorrow
+                        ) | (
+                            CheckedStructuralAccess::SharedBorrow,
+                            CheckedStructuralAccess::SharedBorrow
+                        ) | (
+                            CheckedStructuralAccess::WriteOnlyBorrow,
+                            CheckedStructuralAccess::WriteOnlyBorrow
+                        )
+                    )
+                    && segments.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            facts::PlaceSegment::Field { .. }
+                                | facts::PlaceSegment::FixedIndex { .. }
+                        )
+                    }) =>
+            {
+                // Static projection changes the selected referent, not loan
+                // authority. One exact path/type/bounds reconstruction serves
+                // fields and arrays at every depth; authored access and alias
+                // custody are still rejoined below. Byte-view presentation and
+                // owned partial transfers retain their separate contracts.
+                projected_argument_path_with_identity(
+                    program,
+                    caller_state.symbol,
+                    statement_index,
+                    &place,
+                    &target_identity,
+                )?
+            }
+            segments
                 if allow_field_path_projection
                     && allow_fixed_index_projection
                     && target_machine.supply_mode == MachineSupplyMode::CheckedBody
@@ -2341,45 +2378,10 @@ pub(super) fn structural_call_arguments(
                 )?
             }
             segments @ [facts::PlaceSegment::Field { .. }, ..]
-                if ((allow_field_path_projection
+                if (allow_field_path_projection
                     && segments
                         .iter()
                         .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. })))
-                    || (target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                        && caller_parameters.get(source_index)?.multiplicity
-                            == Multiplicity::Unrestricted
-                        && match structural_access_for_type_reference(
-                            program,
-                            target.type_reference,
-                        )? {
-                            CheckedStructuralAccess::SharedBorrow => {
-                                segments.iter().all(|segment| {
-                                    matches!(segment, facts::PlaceSegment::Field { .. })
-                                }) || place_literal_index_path(segments).is_some_and(|fields| {
-                                    !fields.is_empty() && segments.len() == fields.len() + 1
-                                })
-                            }
-                            CheckedStructuralAccess::MutableBorrow => {
-                                caller_parameters.get(source_index)?.access
-                                    == CheckedStructuralAccess::MutableBorrow
-                                    && segments.iter().all(|segment| {
-                                        matches!(segment, facts::PlaceSegment::Field { .. })
-                                    })
-                            }
-                            CheckedStructuralAccess::Owned
-                            | CheckedStructuralAccess::WriteOnlyBorrow => false,
-                        })
-                    || (target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                        && caller_parameters.get(source_index)?.access
-                            == CheckedStructuralAccess::WriteOnlyBorrow
-                        && structural_access_for_type_reference(
-                            program,
-                            target.type_reference,
-                        )? == CheckedStructuralAccess::WriteOnlyBorrow
-                        && (segments.iter().all(|segment| {
-                            matches!(segment, facts::PlaceSegment::Field { .. })
-                        }) || place_literal_index_path(segments)
-                            .is_some_and(|fields| !fields.is_empty()))))
                     && caller_parameters
                         .get(source_index)?
                         .qualifications

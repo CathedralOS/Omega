@@ -321,15 +321,27 @@ pub(in crate::lowering) fn lower_structural_argument(
                 place: argument.place,
             });
         };
-    let exact_write_only_projection = argument.access == StructuralAccess::WriteOnlyBorrow
-        && callee_parameter.access == StructuralAccess::WriteOnlyBorrow
+    // Borrowing selects the same original storage for every permitted access
+    // attenuation. The existing resolver reconstructs each field/index hop.
+    let exact_borrowed_projection = argument.access == callee_parameter.access
         && callee_parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameters_by_place
             .get(&argument.place)
             .is_some_and(|source| {
                 matches!(
-                    source.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                    (source.access, argument.access),
+                    (
+                        StructuralAccess::MutableBorrow,
+                        StructuralAccess::SharedBorrow
+                            | StructuralAccess::MutableBorrow
+                            | StructuralAccess::WriteOnlyBorrow
+                    ) | (
+                        StructuralAccess::SharedBorrow,
+                        StructuralAccess::SharedBorrow
+                    ) | (
+                        StructuralAccess::WriteOnlyBorrow,
+                        StructuralAccess::WriteOnlyBorrow
+                    )
                 ) && source.multiplicity == StructuralMultiplicity::Unrestricted
             })
         && argument
@@ -365,7 +377,7 @@ pub(in crate::lowering) fn lower_structural_argument(
                     )?;
                 (selected_type, selected_shape, offset, length, stride)
             }
-            path if exact_write_only_projection => {
+            path if exact_borrowed_projection => {
                 let (projected_type, projected_shape, offset) = resolve_structural_projection_path(
                     source_structural_type,
                     path,

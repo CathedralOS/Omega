@@ -2,16 +2,27 @@
 
 use std::collections::BTreeSet;
 
-use semantic_vocabulary::{PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, IntegerValue, PlaceId, ScalarType, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
+};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
-    TerminalModule,
+    StructuralPathSegment, TerminalModule,
 };
 
 use super::{
     ExecutableMachine, StructuralRuntimePlace, TerminalExecution, TerminalInterpretError,
-    TerminalStructuralValue, terminal_scalar_belongs_to_type,
+    TerminalScalarValue, TerminalStructuralValue, terminal_scalar_belongs_to_type,
 };
+
+enum PrimitiveStorage {
+    Scalar(StructuralRuntimePlace),
+    ArrayElement {
+        array: StructuralRuntimePlace,
+        index: usize,
+    },
+}
 
 pub(super) struct LocalStructuralIdentities {
     reserved: BTreeSet<u64>,
@@ -119,7 +130,7 @@ impl TerminalExecution {
         &self,
         place: PlaceId,
         writing: bool,
-    ) -> Result<(StructuralRuntimePlace, ScalarType), TerminalInterpretError> {
+    ) -> Result<(PrimitiveStorage, ScalarType), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
             .machines
@@ -162,14 +173,45 @@ impl TerminalExecution {
         if view.structural_type != structural_type {
             return Err(invalid());
         }
-        // Initialized array backing has one mutation owner. Projected scalar
-        // storage is not a second, potentially stale copy of its elements.
+        // A callee's whole primitive parameter can be the caller's projected
+        // array element. Resolve that original backing, shared with byte-view
+        // loans, instead of installing a second scalar copy. The call's typed
+        // path was independently checked before it became this runtime view.
+        if let Some((StructuralPathSegment::FixedIndex(index), parent_path)) =
+            view.path.split_last()
+        {
+            let array = StructuralRuntimePlace {
+                opaque_identity: view.opaque_identity,
+                path: parent_path.to_vec(),
+            };
+            if let Some(bytes) = self.structural_byte_arrays.get(&array) {
+                let byte_type =
+                    IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?;
+                let index = usize::try_from(*index).map_err(|_| invalid())?;
+                if *scalar_type != ScalarType::Integer(byte_type)
+                    || bytes.get(index).is_none()
+                    || self
+                        .structural_primitive_storage
+                        .contains_key(&StructuralRuntimePlace::from(view))
+                {
+                    return Err(invalid());
+                }
+                return Ok((
+                    PrimitiveStorage::ArrayElement { array, index },
+                    *scalar_type,
+                ));
+            }
+        }
+        // Other overlaps cannot silently fall back to independent storage.
         if self.structural_byte_arrays.keys().any(|array| {
             array.opaque_identity == view.opaque_identity && view.path.starts_with(&array.path)
         }) {
             return Err(invalid());
         }
-        Ok((StructuralRuntimePlace::from(view), *scalar_type))
+        Ok((
+            PrimitiveStorage::Scalar(StructuralRuntimePlace::from(view)),
+            *scalar_type,
+        ))
     }
 
     pub(super) fn execute_primitive_establishment(
@@ -234,13 +276,26 @@ impl TerminalExecution {
             .scalar()
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         let (storage, scalar_type) = self.primitive_access(source, false)?;
-        let scalar = self
-            .structural_primitive_storage
-            .get(&storage)
-            .copied()
-            .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
-                source,
-            ))?;
+        let scalar = match storage {
+            PrimitiveStorage::Scalar(storage) => {
+                self.structural_primitive_storage.get(&storage).copied()
+            }
+            PrimitiveStorage::ArrayElement { array, index } => {
+                let ScalarType::Integer(integer) = scalar_type else {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                };
+                self.structural_byte_arrays
+                    .get(&array)
+                    .and_then(|bytes| bytes.get(index))
+                    .map(|byte| TerminalScalarValue::Integer {
+                        scalar_type: integer,
+                        value: IntegerValue::Unsigned(u128::from(*byte)),
+                    })
+            }
+        }
+        .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
+            source,
+        ))?;
         if result.scalar_type != scalar_type
             || scalar.scalar_type() != scalar_type
             || !terminal_scalar_belongs_to_type(scalar)
@@ -269,10 +324,29 @@ impl TerminalExecution {
         if scalar.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(scalar) {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let stored = self.structural_primitive_storage.get_mut(&storage).ok_or(
-            TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
-        )?;
-        *stored = scalar;
+        match storage {
+            PrimitiveStorage::Scalar(storage) => {
+                let stored = self.structural_primitive_storage.get_mut(&storage).ok_or(
+                    TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
+                )?;
+                *stored = scalar;
+            }
+            PrimitiveStorage::ArrayElement { array, index } => {
+                let TerminalScalarValue::Integer {
+                    value: IntegerValue::Unsigned(value),
+                    ..
+                } = scalar
+                else {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                };
+                let byte = u8::try_from(value)
+                    .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+                self.structural_byte_arrays
+                    .get_mut(&array)
+                    .and_then(|bytes| bytes.replace_byte(index, byte))
+                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            }
+        }
         Ok(())
     }
 

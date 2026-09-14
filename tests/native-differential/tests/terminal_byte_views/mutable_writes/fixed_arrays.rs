@@ -3,6 +3,8 @@ use super::*;
 
 #[path = "fixed_arrays/admission.rs"]
 mod admission;
+#[path = "fixed_arrays/primitive_elements.rs"]
+mod primitive_elements;
 
 fn array_writer(length: usize, field: bool) -> lowered_psi::LoweredPsi {
     let caller = if field {
