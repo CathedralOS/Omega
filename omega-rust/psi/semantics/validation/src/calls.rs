@@ -112,6 +112,23 @@ pub(crate) fn validate_call_node(
         }
         Ok(None) => {}
     }
+
+    // `Schema::encode(...)` / `Schema::decode(...)`: the wire module owns the
+    // synthesized encoder/decoder calls' diagnostics (chapter 20, wire
+    // stage 2). This runs before the state-receiver gate below: a schema
+    // receiver names a compile-time declaration, never current-state
+    // storage, and its resolved symbol may be a module-qualified path that
+    // gate cannot see.
+    if crate::wire::validate_wire_schema_call(
+        program,
+        call,
+        current_machine,
+        current_state,
+        diagnostics,
+    ) {
+        return;
+    }
+
     let namespace: Vec<_> = receiver_members
         .iter()
         .map(|member| member.as_str())
@@ -147,19 +164,6 @@ pub(crate) fn validate_call_node(
             )));
             return;
         }
-    }
-
-    // `Schema::encode(...)` / `Schema::decode(...)`: the wire
-    // module owns the synthesized encoder/decoder calls' diagnostics
-    // (chapter 20, wire stage 2).
-    if crate::wire::validate_wire_schema_call(
-        program,
-        call,
-        current_machine,
-        current_state,
-        diagnostics,
-    ) {
-        return;
     }
 
     // Asm intrinsic statements (`asm { hlt }`, `asm { out port, value }`)

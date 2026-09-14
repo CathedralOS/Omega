@@ -1,0 +1,1 @@
+out buffer `[u8; 7]` is too small: the worst-case encoding needs 13 bytes

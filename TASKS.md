@@ -1602,8 +1602,15 @@ Owners include
   binds declaration symbols, and bare names colliding across modules reject
   as ambiguous (`canary_suite
   reports_and_capabilities::wire_compatibility_era_dispatch_is_policy_selected_not_declaration_order`,
-  macOS). Open: retired-identity reuse rejection; the current-shape
-  codec-call surface still locates schemas by leaf name.
+  macOS). The codec-call surface now binds receivers by declaration identity
+  too: `module::Schema::encode`/`decode` resolve through the qualified
+  declaration path (`typed_trees::TypedTrees::wire_call_receiver_schema`),
+  wire validation claims the call before the state-receiver gate
+  (`validation/src/calls.rs`), and a bare leaf colliding across sibling
+  module schemas rejects as ambiguous
+  (`pass/wire/wire_codec_qualified_schema_calls`,
+  `fail/wire/wire_codec_{ambiguous_schema_receiver,schema_identity_buffer_bound}`,
+  macOS `--check`). Open: retired-identity reuse rejection.
 
   Acceptance: an old/new ordinary declaration pair and explicitly selected
   checked migration satisfy the requesting channel/store policy; missing routes

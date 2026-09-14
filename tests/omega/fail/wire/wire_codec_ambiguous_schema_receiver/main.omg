@@ -1,0 +1,20 @@
+// `first` and `second` publish identically named schemas. A bare `Counter`
+// codec receiver selects no unique declaration: the call must reject as
+// ambiguous rather than binding whichever schema was declared first.
+
+use first;
+use second;
+
+data Main {
+    buffer: [u8; 64];
+    written: u64;
+}
+
+machine Main::main(&mut self) {
+    let msg: second::Counter = second::Counter {
+        counter: 7,
+        timestamp: 9
+    };
+
+    Counter::encode(&msg, &mut self.buffer, &mut self.written);
+}

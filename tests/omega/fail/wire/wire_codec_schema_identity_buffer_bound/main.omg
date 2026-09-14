@@ -1,0 +1,21 @@
+// `second::Counter` encodes two fields (13 bytes worst case); the
+// same-named `first::Counter` encodes one (7 bytes). The out buffer is
+// sized for `first`'s schema, so this call passes only if the receiver
+// bound the wrong declaration -- it must reject against `second`'s.
+
+use first;
+use second;
+
+data Main {
+    buffer: [u8; 7];
+    written: u64;
+}
+
+machine Main::main(&mut self) {
+    let msg: second::Counter = second::Counter {
+        counter: 7,
+        timestamp: 9
+    };
+
+    second::Counter::encode(&msg, &mut self.buffer, &mut self.written);
+}
