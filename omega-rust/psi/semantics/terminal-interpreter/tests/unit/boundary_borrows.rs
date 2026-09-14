@@ -105,7 +105,7 @@ fn assert_boundary_execution(module: &TerminalModule, identities: &[u64], expect
         .expect("repeated loans preserve owner custody");
     let semantic = encode_module(module).unwrap();
     assert_eq!(&decode_module(&semantic).unwrap(), module);
-    let evidence = encode_proof_bundle(&proof).unwrap();
+    let evidence = encode_proof_section(module, &proof).unwrap();
     let values = identities
         .iter()
         .map(|identity| TerminalStructuralValue {

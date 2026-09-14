@@ -7,7 +7,8 @@ fn encoded_computed_arms(source: &str, combined: bool) -> (Vec<u8>, Vec<u8>) {
         .unwrap_or_else(|error| panic!("{source}, combined={combined}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).expect("encode semantics"),
-        encode_proof_bundle(&lowered.proof_bundle).expect("encode proof"),
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof"),
     )
 }
 

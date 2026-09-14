@@ -19,7 +19,11 @@ fn acyclic_mutable_write_cannot_substitute_another_available_byte() {
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
-            proof_bytes: &terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_section(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+            )
+            .unwrap(),
             obligation_ledger_bytes: None,
         },
         &AdmissionProfile::default(),

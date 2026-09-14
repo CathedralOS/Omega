@@ -5,7 +5,7 @@ use semantic_vocabulary::{
     PlaceId, PsiSemanticId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
     ValueId,
 };
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{
     BindingRelevance, Block, MachineContract, Operation, OperationKind, OperationResult,
     StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
@@ -254,7 +254,7 @@ fn lower(
     module: &TerminalModule,
 ) -> Result<abstract_operations::AbstractOperationPlan, ArtifactLoweringError> {
     let semantic = encode_module(module).expect("semantic module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof = encode_proof_section(module, &ProofBundle::default()).expect("empty proof encodes");
     lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -434,7 +434,7 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
     )];
     module.machines = vec![machine];
     let semantic = encode_module(&module).expect("owned record read is canonical Terminal");
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

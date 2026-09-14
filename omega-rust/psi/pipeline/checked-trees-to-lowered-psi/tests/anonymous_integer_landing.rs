@@ -5,7 +5,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
@@ -22,7 +22,8 @@ fn execute(source: &str, arguments: &[TerminalScalarValue]) -> TerminalExecution
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
         .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     let semantics = encode_module(&lowered.semantic_module).expect("canonical semantic bytes");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("canonical proof bytes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("canonical proof bytes");
     // The interpreter decodes and verifies the serialized sections independently;
     // no checked scalar tree or producer-owned module is an execution input.
     interpret_terminal_artifact(&semantics, &proof, &AdmissionProfile::default(), arguments)

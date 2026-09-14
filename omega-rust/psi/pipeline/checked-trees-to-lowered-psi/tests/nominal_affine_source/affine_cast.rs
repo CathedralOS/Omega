@@ -132,7 +132,8 @@ fn affine_cast_affine_sandwich_retains_every_independent_proof_end_to_end() {
     drop(verified);
 
     let semantics = encode_module(&lowered.semantic_module).expect("encode sandwich module");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode sandwich proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode sandwich proof");
     assert_eq!(
         decode_module(&semantics).expect("decode sandwich module"),
         lowered.semantic_module,

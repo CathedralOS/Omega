@@ -187,7 +187,7 @@ pub(crate) fn structural_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 

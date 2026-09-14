@@ -2,7 +2,7 @@
 
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::StructuralPlaceKind;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{
     Block, MachineContract, Operation, OperationKind, OperationResult, StructuralCaseDeclaration,
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
@@ -138,7 +138,8 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
         }],
     };
     let semantic = encode_module(&module).expect("the payloadless case module verifies");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let result = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -234,6 +235,8 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
     };
     called.machines = vec![caller, callee];
     let semantic = encode_module(&called).expect("payloadless caller verifies");
+    let proof = encode_proof_section(&called, &ProofBundle::default())
+        .expect("empty proof encodes for the called module");
     let result = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

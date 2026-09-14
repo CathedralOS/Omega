@@ -1,7 +1,7 @@
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     ProviderInstallationSelection, TerminalExecution, TerminalExecutionResult,
@@ -116,7 +116,7 @@ fn execute_candidates(
 ) {
     let semantic = encode_module(module).expect("encode");
     assert_eq!(decode_module(&semantic).expect("decode"), *module);
-    let proof = encode_proof_bundle(proof).expect("proof");
+    let proof = encode_proof_section(module, proof).expect("proof");
     let profile = proof_admission::AdmissionProfile::default();
     for candidate in &module.provider_candidates {
         assert!(matches!(

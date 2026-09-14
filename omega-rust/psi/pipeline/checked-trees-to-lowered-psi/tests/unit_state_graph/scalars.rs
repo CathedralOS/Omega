@@ -62,7 +62,7 @@ fn effects(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, i128)> {
         .expect("state-local values and selected successor operands lower");
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )

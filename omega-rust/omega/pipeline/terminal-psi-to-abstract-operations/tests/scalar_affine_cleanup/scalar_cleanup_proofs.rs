@@ -9,7 +9,7 @@ use proof_admission::{
 use semantic_vocabulary::{
     EvidenceIdentity, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
 };
-use terminal_codec::{encode_module, encode_proof_bundle, proof_bundle_fingerprint};
+use terminal_codec::{encode_module, encode_proof_section, proof_bundle_fingerprint};
 use terminal_psi::{
     Block, MachineContract, NominalAffineCleanup, Operation, OperationKind, OperationResult,
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
@@ -89,9 +89,10 @@ fn omega_projects_verified_scalar_cleanup_proofs_without_regrouping_actions() {
     assert_eq!(verified_cleanup.requirement_obligations, [obligation_id(1)]);
 
     let semantics = encode_module(&module).expect("contextual scalar cleanup encodes");
-    let proof_bytes = encode_proof_bundle(&proof).expect("contextual scalar proof encodes");
+    let proof_bytes =
+        encode_proof_section(&module, &proof).expect("contextual scalar proof encodes");
     assert!(matches!(
-        lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantics, proof_bytes: &encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes"), obligation_ledger_bytes: None }, &AdmissionProfile::default()).and_then(|admitted| admitted.try_into_plan()),
+        lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantics, proof_bytes: &encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes"), obligation_ledger_bytes: None }, &AdmissionProfile::default()).and_then(|admitted| admitted.try_into_plan()),
         Err(ArtifactLoweringError::Verification(
             terminal_verifier::VerificationError::MissingEvidence(obligation)
         )) if obligation == obligation_id(1)

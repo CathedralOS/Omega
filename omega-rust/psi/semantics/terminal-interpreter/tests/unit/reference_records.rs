@@ -355,7 +355,7 @@ fn owned_reference_record_entry_rejects_forged_opaque_host_custody() {
     module.entry = consume.id;
     module.machines = vec![consume];
     let semantic = encode_module(&module).expect("internal owned ingress is a valid interface");
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let outcome = TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
         &semantic,
         &proof,
@@ -831,7 +831,7 @@ fn execute_record_reference_values(
     returned: u128,
 ) {
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let scalar = |value| TerminalScalarValue::Integer {
         scalar_type: integer,

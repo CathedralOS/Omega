@@ -137,7 +137,7 @@ fn nested_module() -> TerminalModule {
 fn assert_byte_effects(module: &TerminalModule, expected: &[Vec<Vec<u8>>]) {
     let semantic = encode_module(module).expect("byte forwarding module encodes");
     assert_eq!(decode_module(&semantic).unwrap(), *module);
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(module, &ProofBundle::default()).unwrap();
     let mut reference = None;
     for incremental in [false, true] {
         let mut execution =
@@ -410,7 +410,7 @@ fn opaque_identity_does_not_supply_missing_incoming_byte_contents() {
         .operations
         .push(boundary(3, &[3]));
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     for (path, expected) in [
         (
             Vec::new(),

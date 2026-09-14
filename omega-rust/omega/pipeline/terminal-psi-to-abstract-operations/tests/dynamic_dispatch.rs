@@ -8,7 +8,7 @@ use semantic_vocabulary::{FuelScheduleIdentity, IntegerSign, IntegerType, Scalar
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::StructuralPathSegment;
 use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -41,7 +41,8 @@ fn verified_stored_dynamic_descriptor_retains_aggregate_custody_through_optimiza
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("stored dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -163,7 +164,8 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("rebound dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -301,7 +303,8 @@ fn verified_changed_conformance_rebound_retains_both_applications() {
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("changed-conformance rebound lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -420,7 +423,8 @@ fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatc
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("forwarded dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -627,7 +631,8 @@ fn verified_direct_scalar_forwarding_retains_selection_and_result_custody() {
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("direct scalar forwarding lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

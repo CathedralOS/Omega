@@ -224,7 +224,7 @@ fn guarded_byte_reads_preserve_raw_bytes_empty_skip_continuation_and_fuel() {
         (vec![0xff], u64::MAX, vec![7]),
     ] {
         let module = guarded_module(bytes, byte_index);
-        let proof = encode_proof_bundle(&certificate(&module)).unwrap();
+        let proof = encode_proof_section(&module, &certificate(&module)).unwrap();
         let semantic = encode_module(&module).unwrap();
         assert_eq!(decode_module(&semantic).unwrap(), module);
         let mut reference = None;

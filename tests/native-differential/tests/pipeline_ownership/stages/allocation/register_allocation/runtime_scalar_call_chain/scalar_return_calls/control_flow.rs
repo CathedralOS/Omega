@@ -19,8 +19,12 @@ fn branch_calls_and_join_parameters_reach_common_native_publication() {
             *target = join;
         }
         middle.blocks.sort_by_key(|block| block.id);
+        let shuffled_proof = reseal_proof(&shuffled, &proof);
         let shuffled = terminal_codec::encode_module(&shuffled).unwrap();
-        publish_scalar_artifacts(expected, [(semantic, proof.clone()), (shuffled, proof)]);
+        publish_scalar_artifacts(
+            expected,
+            [(semantic, proof.clone()), (shuffled, shuffled_proof)],
+        );
     }
 }
 
@@ -193,5 +197,8 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
             },
         },
     ];
-    (terminal_codec::encode_module(&module).unwrap(), proof)
+    (
+        terminal_codec::encode_module(&module).unwrap(),
+        reseal_proof(&module, &proof),
+    )
 }

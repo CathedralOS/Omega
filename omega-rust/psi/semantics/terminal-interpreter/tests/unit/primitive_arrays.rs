@@ -150,7 +150,7 @@ fn direct_primitive_array_paths_update_constructed_scalar_payload_without_shadow
         assert_eq!(decode_module(&bytes).unwrap(), module);
         let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
             &bytes,
-            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
             &[],
@@ -320,7 +320,7 @@ fn start(module: &TerminalModule, array_path: &[StructuralPathSegment]) -> Termi
     assert_eq!(decode_module(&semantic).unwrap(), *module);
     TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
         &semantic,
-        &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        &encode_proof_section(module, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
         &[],
         &[TerminalStructuralValue {

@@ -8,7 +8,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, TerminalScalarValue,
     interpret_terminal_artifact_measured,
@@ -45,7 +45,8 @@ fn recorded_source(source: &str, selected: bool) -> Vec<u128> {
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
         .expect("selection residuals transport across the state edge");
     let semantic_bytes = encode_module(&lowered.semantic_module).unwrap();
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof_bytes =
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let module = terminal_codec::decode_module(&semantic_bytes).unwrap();
     let proof = terminal_codec::decode_proof_bundle(&proof_bytes).unwrap();
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())

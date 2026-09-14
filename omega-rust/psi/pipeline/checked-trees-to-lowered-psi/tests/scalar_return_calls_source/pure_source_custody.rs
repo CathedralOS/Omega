@@ -63,7 +63,7 @@ fn encoded_checked(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) 
     let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "value").unwrap();
     (
         encode_module(&lowered.semantic_module).unwrap(),
-        encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
     )
 }
 

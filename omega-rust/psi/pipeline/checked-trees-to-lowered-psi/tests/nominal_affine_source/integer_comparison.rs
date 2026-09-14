@@ -4080,7 +4080,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     let semantics =
         encode_module(&lowered.semantic_module).expect("shared integer convergence encodes");
     assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("shared integer convergence proof encodes");
     assert_eq!(
         decode_proof_bundle(&proof).expect("shared integer convergence proof decodes"),

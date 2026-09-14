@@ -152,7 +152,9 @@ fn exercise_boundary_outcomes(
     };
     use terminal_psi::CrashCause;
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let root = lowered
         .semantic_module
         .machines
@@ -270,7 +272,8 @@ fn exercise_boundary_outcomes(
 fn verify_roundtrip(lowered: &lowered_psi::LoweredPsi) {
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).expect("encode module");
     let evidence =
-        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proofs");
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proofs");
     let module = terminal_codec::decode_module(&semantic).expect("decode module");
     let proof = terminal_codec::decode_proof_bundle(&evidence).expect("decode proofs");
     assert_eq!(module, lowered.semantic_module);

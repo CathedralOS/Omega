@@ -3,7 +3,7 @@
 use abstract_operations::AbstractOperation;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{ScalarType, StructuralPlaceKind};
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{
     Block, MachineContract, StructuralAccess, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
@@ -134,7 +134,8 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
         }],
     };
     let semantics = encode_module(&module).expect("exact jump affine cleanup should encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof should encode");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof should encode");
 
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {

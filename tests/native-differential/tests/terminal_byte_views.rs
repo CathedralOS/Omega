@@ -78,7 +78,8 @@ fn byte_view_length_helper_executes_with_original_descriptor() {
         for depth in [1, 3] {
             let module = fixtures::byte_view_length_helper_chain(depth);
             let semantic = terminal_codec::encode_module(&module).unwrap();
-            let proof = terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap();
+            let proof =
+                terminal_codec::encode_proof_section(&module, &ProofBundle::default()).unwrap();
             let selections = OptimizationSelections::new([]).unwrap();
             let optimized = optimize_artifact_sections(
                 &semantic,
@@ -167,7 +168,7 @@ fn byte_view_target(
     target: NativeTarget,
 ) -> abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations {
     let semantic = terminal_codec::encode_module(module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(proof).unwrap();
+    let proof = terminal_codec::encode_proof_section(module, proof).unwrap();
     let selections = OptimizationSelections::new([]).unwrap();
     // This public boundary decodes and verifies the artifact before projection.
     let optimized = optimize_artifact_sections(
@@ -384,7 +385,7 @@ fn byte_view_length_rejects_an_unavailable_descriptor_source() {
 fn assert_byte_read_proof_rejected(module: &TerminalModule, proof: &ProofBundle) {
     let semantic =
         terminal_codec::encode_module(module).expect("negative fixture remains structurally valid");
-    let proof = terminal_codec::encode_proof_bundle(proof).unwrap();
+    let proof = terminal_codec::encode_proof_section(module, proof).unwrap();
     match terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

@@ -5,7 +5,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue,
@@ -30,7 +30,8 @@ fn assert_execution(source: &str, expected: TerminalScalarValue) {
             .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
         (
             encode_module(&lowered.semantic_module).expect("canonical semantic bytes"),
-            encode_proof_bundle(&lowered.proof_bundle).expect("canonical proof bytes"),
+            encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .expect("canonical proof bytes"),
         )
     };
     // No typed trees or producer-owned evidence objects reach execution.
@@ -51,7 +52,7 @@ fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
         .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).unwrap(),
-        encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
     )
 }
 

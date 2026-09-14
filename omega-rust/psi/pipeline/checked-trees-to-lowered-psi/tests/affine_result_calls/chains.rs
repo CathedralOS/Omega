@@ -141,7 +141,7 @@ pub(super) fn assert_execution(
     fuel: usize,
 ) {
     let semantic = encode_module(module).unwrap();
-    let proof = encode_proof_bundle(proof_bundle).unwrap();
+    let proof = encode_proof_section(module, proof_bundle).unwrap();
     let decoded = decode_module(&semantic).unwrap();
     let decoded_proof = decode_proof_bundle(&proof).unwrap();
     let verified =

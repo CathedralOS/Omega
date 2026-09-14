@@ -6,7 +6,11 @@ fn verified_writer() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimiza
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
-            proof_bytes: &terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_section(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+            )
+            .unwrap(),
             obligation_ledger_bytes: None,
         },
         &AdmissionProfile::default(),
@@ -159,7 +163,8 @@ fn natural_writer_legalization_requires_verified_custody_and_exact_payloads() {
     let selections = optimization_core::OptimizationSelections::new([]).unwrap();
     let optimized = native_realization::optimize_artifact_sections(
         &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
-        &terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap(),
         &AdmissionProfile::default(),
         native_realization::compiler_baseline_request_v1(&selections),
     )

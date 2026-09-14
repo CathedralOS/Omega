@@ -105,7 +105,7 @@ fn installed_start_with_arguments(
 ) -> TerminalExecution {
     let semantic = encode_module(module).unwrap();
     assert_eq!(decode_module(&semantic).unwrap(), *module);
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(module, &ProofBundle::default()).unwrap();
     let profile = AdmissionProfile::default();
     let installation =
         admit_provider_installation_from_artifact(&semantic, &proof, &profile, &[selection()])
@@ -350,7 +350,7 @@ fn installed_structural_provider_preserves_identity_into_a_projected_boundary_ef
 fn installed_structural_provider_rejects_missing_foreign_or_drifted_custody() {
     let module = module(false);
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let profile = AdmissionProfile::default();
     let installation =
         admit_provider_installation_from_artifact(&semantic, &proof, &profile, &[selection()])
@@ -379,10 +379,11 @@ fn installed_structural_provider_rejects_missing_foreign_or_drifted_custody() {
     let mut foreign = module.clone();
     foreign.provider_candidates[0].provider_identity = "test::Foreign".into();
     let foreign_semantic = encode_module(&foreign).unwrap();
+    let foreign_proof = encode_proof_section(&foreign, &ProofBundle::default()).unwrap();
     assert!(matches!(
         TerminalExecution::start_artifact_with_provider_installation(
             &foreign_semantic,
-            &proof,
+            &foreign_proof,
             &profile,
             &[],
             &arguments(),

@@ -151,7 +151,7 @@ fn conditional_unit_byte_calls_reject_changed_selected_control() {
     let module = conditional_unit_byte_output_module();
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let semantic = terminal_codec::encode_module(&module).unwrap();
-        let proof = terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap();
+        let proof = terminal_codec::encode_proof_section(&module, &ProofBundle::default()).unwrap();
         let selections = OptimizationSelections::new([]).unwrap();
         let optimized = optimize_artifact_sections(
             &semantic,

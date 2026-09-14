@@ -45,7 +45,8 @@ fn generated_bodies_use_retained_module_constants_after_build_execution() {
             .expect("generated constant use lowers without a runtime constant owner");
         (
             terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
-            terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+            terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .unwrap(),
         )
     });
     drop(checked);

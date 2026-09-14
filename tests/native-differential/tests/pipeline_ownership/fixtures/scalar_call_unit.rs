@@ -130,7 +130,7 @@ pub(crate) fn scalar_call_unit_artifact_with(
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 

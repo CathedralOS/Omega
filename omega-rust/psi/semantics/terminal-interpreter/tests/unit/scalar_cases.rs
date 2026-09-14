@@ -77,7 +77,7 @@ fn scalar_case_constructor_mixed_call_requires_exact_positional_proof() {
     );
     let measured = interpret_terminal_artifact_measured(
         &encode_module(&module).unwrap(),
-        &encode_proof_bundle(&bundle).unwrap(),
+        &encode_proof_section(&module, &bundle).unwrap(),
         &AdmissionProfile::default(),
         &[count(17), count(83)],
     )
@@ -333,7 +333,7 @@ fn scalar_case_call_module() -> TerminalModule {
 fn scalar_case_constructor_returns_runtime_fields_through_call_and_reordered_inspection() {
     let module = scalar_case_call_module();
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
@@ -499,7 +499,7 @@ fn scalar_case_constructor_checks_exact_range_before_any_result_facts() {
     verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
     let measured = interpret_terminal_artifact_measured(
         &encode_module(&module).unwrap(),
-        &encode_proof_bundle(&bundle).unwrap(),
+        &encode_proof_section(&module, &bundle).unwrap(),
         &AdmissionProfile::default(),
         &[count(17), count(83)],
     )
@@ -611,7 +611,7 @@ fn scalar_case_constructor_result_disposes_on_ordinary_returns_and_edges() {
         }
         let measured = interpret_terminal_artifact_measured(
             &encode_module(&module).unwrap(),
-            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[count(17), count(83)],
         )
@@ -740,7 +740,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
     module.machines = vec![machine];
     let measured = interpret_terminal_artifact_measured(
         &encode_module(&module).unwrap(),
-        &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
         &[count(3), count(83)],
     )

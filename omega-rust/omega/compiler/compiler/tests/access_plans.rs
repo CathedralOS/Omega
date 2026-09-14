@@ -997,8 +997,9 @@ machine Inspector::inspect(
         lower_machine(&checked, "Inspector::inspect").expect("lower placed-view consumer");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode placed-view Terminal module");
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
-        .expect("encode placed-view proof bundle");
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode placed-view proof bundle");
 
     assert!(matches!(
         terminal_psi_to_abstract_operations::lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: None }, &proof_admission::AdmissionProfile::default()).and_then(|admitted| admitted.try_into_plan()),
@@ -1143,8 +1144,9 @@ machine Inspector::inspect(
         lower_machine(&checked, "Inspector::inspect").expect("lower placed-view consumer");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode placed-view Terminal module");
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
-        .expect("encode placed-view proof bundle");
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode placed-view proof bundle");
     let profile = proof_admission::AdmissionProfile::default();
     let trust_graph =
         terminal_codec::current_terminal_trust_graph().expect("current terminal trust graph");

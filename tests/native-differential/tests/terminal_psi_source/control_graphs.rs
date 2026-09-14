@@ -24,7 +24,7 @@ fn checked_source_nested_jump_expressions_reach_terminal_and_target_lowering() {
     );
     let semantic_bytes = encode_module(&lowered.semantic_module)
         .expect("computed nested jump should encode canonically");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("computed nested-jump proof should encode canonically");
     let semantic_module =
         decode_module(&semantic_bytes).expect("decode computed nested-jump module");
@@ -116,7 +116,7 @@ fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm(
 
     let semantic_bytes = encode_module(&lowered.semantic_module)
         .expect("computed conditional edge should encode canonically");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("computed conditional-edge proof should encode canonically");
     let semantic_module =
         decode_module(&semantic_bytes).expect("decode computed conditional-edge module");
@@ -204,7 +204,7 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
 
     let semantic_bytes =
         encode_module(&lowered.semantic_module).expect("short-circuit computed edge should encode");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("short-circuit computed-edge proof should encode");
     let semantic_module =
         decode_module(&semantic_bytes).expect("short-circuit computed edge should decode");

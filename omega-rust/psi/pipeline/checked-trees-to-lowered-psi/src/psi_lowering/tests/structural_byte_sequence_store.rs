@@ -564,7 +564,9 @@ fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes()
     lowered.proof_bundle.evidence.clear();
     crate::psi_lowering::operation_proofs::finalize_operation_proofs(&mut lowered).unwrap();
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let mut execution =
         terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
             &semantic,

@@ -175,7 +175,8 @@ fn checked_source_exact_literal_narrowing_relands_before_psi() {
     );
 
     let semantic = encode_module(&lowered.semantic_module).expect("narrowing semantic bytes");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("narrowing proof bytes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("narrowing proof bytes");
     drop(lowered);
     let measured =
         interpret_terminal_artifact_measured(&semantic, &proof, &AdmissionProfile::default(), &[])

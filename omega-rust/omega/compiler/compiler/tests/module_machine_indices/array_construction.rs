@@ -126,7 +126,8 @@ fn array_results_retain_module_selection_and_empty_dimensions_after_decode() {
             .unwrap_or_else(|error| panic!("{name}: {error:?}"));
         artifacts.push((
             terminal_codec::encode_module(&lowered.semantic_module).expect("canonical semantics"),
-            terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("canonical proof"),
+            terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .expect("canonical proof"),
             dimensions,
             expected,
             leaf,
@@ -156,7 +157,9 @@ fn array_construction_composes_with_local_bindings_and_ordinary_calls() {
         let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read")
             .unwrap_or_else(|error| panic!("{body}: {error:?}"));
         let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-        let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+        let proof =
+            terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .unwrap();
         drop(checked);
         drop(lowered);
         assert_decoded_array(
@@ -200,7 +203,8 @@ fn existing_module_array_customer_returns_real_arrays_from_portable_bytes() {
             .unwrap_or_else(|error| panic!("{name}: {error:?}"));
         artifacts.push((
             terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
-            terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+            terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .unwrap(),
             arguments,
             width,
             values,
@@ -239,7 +243,9 @@ fn computed_array_leaves_retain_parameters_arithmetic_and_local_snapshots() {
     let checked = compile(&root, root_inputs(&root));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read").unwrap();
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     drop(checked);
     drop(lowered);
     for value in [0, 42, 255] {
@@ -274,7 +280,9 @@ fn array_leaf_calls_and_storage_reads_execute_in_source_order() {
     let checked = compile(&root, root_inputs(&root));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read").unwrap();
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     drop(checked);
     drop(lowered);
     assert_decoded_array(
@@ -303,7 +311,9 @@ fn boolean_array_leaves_preserve_selective_calls_and_effect_order() {
     let checked = compile(&root, root_inputs(&root));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read").unwrap();
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     drop(checked);
     drop(lowered);
     for (enabled, expected) in [
@@ -336,7 +346,9 @@ fn computed_array_leaves_preserve_widening_and_exact_casts() {
     let checked = compile(&root, root_inputs(&root));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read").unwrap();
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     drop(checked);
     drop(lowered);
     for input in [0, 42, 255] {
@@ -404,7 +416,9 @@ fn computed_array_exact_narrowing_retains_its_proof_obligation() {
         "partial conversion must retain an exact-cast operation"
     );
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     drop(checked);
     drop(lowered);
     for input in [0, 42, 255] {
@@ -445,7 +459,9 @@ fn boolean_array_leaves_compose_nested_selection_and_constant_projection() {
     let checked = compile(&root, root_inputs(&root));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read").unwrap();
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     drop(checked);
     drop(lowered);
     for (left, right, expected) in [

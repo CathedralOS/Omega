@@ -43,8 +43,9 @@ fn natural_loop_unit() -> (
         .expect("lower natural loop");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode natural-loop semantics");
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
-        .expect("encode natural-loop proof");
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode natural-loop proof");
     let input = lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

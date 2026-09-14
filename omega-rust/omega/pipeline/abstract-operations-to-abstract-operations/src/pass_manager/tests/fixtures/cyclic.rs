@@ -144,7 +144,8 @@ pub(in crate::pass_manager::tests) fn verified_unranked_cycle_unit() -> Verified
     };
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let proof =
-        terminal_codec::encode_proof_bundle(&terminal_verifier::ProofBundle::default()).unwrap();
+        terminal_codec::encode_proof_section(&module, &terminal_verifier::ProofBundle::default())
+            .unwrap();
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

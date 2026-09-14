@@ -3,7 +3,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, Proposition, S
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -95,7 +95,8 @@ fn bounded_exact_left_shift_uses_only_its_canonical_certificate() {
     );
 
     let semantic_bytes = encode_module(&lowered.semantic_module).expect("encode semantics");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof");
 
     let mut mutated_proof = decode_proof_bundle(&proof_bytes).expect("decode proof mutation");
     let mutated_evidence = mutated_proof

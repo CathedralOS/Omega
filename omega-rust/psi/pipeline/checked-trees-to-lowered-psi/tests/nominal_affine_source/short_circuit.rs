@@ -144,7 +144,7 @@ fn mixed_nominal_scalar_return_source_distributes_reused_short_circuit_value() {
     let semantics = encode_module(&lowered.semantic_module)
         .expect("reused nominal short-circuit module encodes");
     assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("reused nominal short-circuit proof encodes");
     assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
 
@@ -263,7 +263,7 @@ fn mixed_contextual_scalar_return_proves_cleanup_on_every_short_circuit_leaf() {
     let semantics = encode_module(&lowered.semantic_module)
         .expect("mixed contextual short-circuit module encodes");
     assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("mixed contextual short-circuit proof encodes");
     assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
 

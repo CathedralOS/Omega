@@ -22,7 +22,9 @@ fn execute(source: &str, arguments: &[TerminalScalarValue]) -> TerminalExecution
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
         .unwrap_or_else(|error| panic!("computation array source must lower: {error:?}\n{source}"));
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     assert_eq!(
         terminal_codec::decode_module(&semantic).unwrap(),
         lowered.semantic_module

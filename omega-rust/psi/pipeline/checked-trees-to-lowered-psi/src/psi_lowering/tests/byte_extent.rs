@@ -133,7 +133,9 @@ fn guarded_subslice_extent_proves_strict_length_descent_and_executes() {
     crate::psi_lowering::operation_proofs::finalize_operation_proofs(&mut lowered)
         .expect("a guarded tail's exact extent proves strict descent");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let execution = terminal_interpreter::interpret_terminal_artifact_measured(
         &semantic,
         &proof,

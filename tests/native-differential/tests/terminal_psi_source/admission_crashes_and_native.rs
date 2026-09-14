@@ -210,8 +210,9 @@ fn interpreted_terminal_source_matches_target_lowering() {
         .expect("source-produced terminal Psi should encode canonically");
     let original_identity = terminal_psi_identity(&lowered.semantic_module)
         .expect("source-produced terminal Psi should have a semantic identity");
-    let canonical_proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
-        .expect("source-produced proof bundle should encode canonically");
+    let canonical_proof_bytes =
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("source-produced proof bundle should encode canonically");
     let optimization = terminal_codec::build_identity_optimization_execution_record(
         &lowered.semantic_module,
         &lowered.proof_bundle,

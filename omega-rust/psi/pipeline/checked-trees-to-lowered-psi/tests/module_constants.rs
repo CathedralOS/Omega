@@ -6,7 +6,7 @@ use std::{path::PathBuf, sync::Arc};
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees::SyntaxTrees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
@@ -55,7 +55,8 @@ fn module_constants_publish_exact_values_without_producer_state() {
             .expect("lower constant consumer");
         artifacts.push((
             encode_module(&lowered.semantic_module).expect("encode semantics"),
-            encode_proof_bundle(&lowered.proof_bundle).expect("encode proof"),
+            encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .expect("encode proof"),
             expected,
         ));
     }

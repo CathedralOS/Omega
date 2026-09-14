@@ -105,7 +105,7 @@ fn ieee_relations_round_trip_and_execute_both_formats_without_order_complements(
                     "operation relation participates in identity"
                 );
                 encodings.push(semantic.clone());
-                let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+                let proof = encode_proof_section(&decoded, &ProofBundle::default()).unwrap();
                 let measured = interpret_terminal_artifact_measured(
                     &semantic,
                     &proof,

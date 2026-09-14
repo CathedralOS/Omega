@@ -53,7 +53,7 @@ fn mixed_conditional_calls_execute_only_on_selected_branch() {
 ))]
 fn execute(module: &TerminalModule, call_count: usize, driver: &str) {
     let semantic = terminal_codec::encode_module(module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&proof::for_module(module)).unwrap();
+    let proof = terminal_codec::encode_proof_section(module, &proof::for_module(module)).unwrap();
     let selections = OptimizationSelections::new([]).unwrap();
     let optimized = optimize_artifact_sections(
         &semantic,

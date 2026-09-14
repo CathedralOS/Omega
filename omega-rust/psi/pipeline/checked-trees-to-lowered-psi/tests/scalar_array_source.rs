@@ -65,7 +65,8 @@ fn same_typed_array_locals_return_the_authored_binding_contents() {
         let semantic =
             terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
         let proof =
-            terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+            terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .expect("encode proof");
         let TerminalExecutionResult::ScalarArray(result) =
             interpret_terminal_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
                 .expect("execute decoded array return")
@@ -409,7 +410,9 @@ fn array_parameters_locals_and_calls_execute_in_authored_leaf_order() {
         let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
             .expect("lower evaluated array operands");
         let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-        let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+        let proof =
+            terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .unwrap();
         let byte = |value| TerminalScalarValue::Integer {
             scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
             value: IntegerValue::Unsigned(value),
@@ -775,7 +778,9 @@ fn nested_literal_casts_preserve_the_exact_value_and_each_intermediate_fit() {
     let lowered = checked_trees_to_lowered_psi::lower_machine(&original, "selected")
         .expect("nested exact literal casts lower");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let TerminalExecutionResult::ScalarArray(result) =
         interpret_terminal_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
             .expect("execute nested exact literal casts")

@@ -46,7 +46,7 @@ fn indexed_stores_survive_callee_return_and_every_fuel_pause() {
             .expect("fixed-fuel evidence reconstructs independently");
         assert_eq!(certificate.ceiling_units(), 10);
         let semantic = encode_module(&module).expect("indexed stores encode");
-        let proof = encode_proof_bundle(&proof_bundle).unwrap();
+        let proof = encode_proof_section(&module, &proof_bundle).unwrap();
         drop(module);
 
         // Pause at each operation and return boundary, including after the

@@ -5,7 +5,7 @@ use semantic_vocabulary::{ContentAlgebraKind, ContentPlaceVersion};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
@@ -890,7 +890,8 @@ fn source_unit_retains_ordered_empty_affine_local_cleanup() {
         "reordered cleanup is not a valid terminal module"
     );
 
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("Unit proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("Unit proof encodes");
     let arguments = machine
         .structural_parameters
         .iter()
@@ -1031,7 +1032,8 @@ fn source_unit_construction_prefix_reaches_verified_interpreted_terminal_psi() {
     *length = 4;
     assert!(terminal_verifier::validate_module_representation(&wrong_root).is_err());
 
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("construction proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("construction proof encodes");
     let mut execution =
         TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
             .expect("construction-prefix artifact starts");
@@ -1362,7 +1364,8 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
             assert!(terminal_verifier::validate_module_representation(&fenced_successor).is_err());
         }
 
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("construction proof encodes");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("construction proof encodes");
         let mut execution =
             TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
                 .expect("wider construction-prefix artifact starts");
@@ -1482,7 +1485,8 @@ fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
         decode_module(&semantic).expect("result boundary semantics decode"),
         *module
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("result boundary proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("result boundary proof encodes");
     terminal_verifier::verify_module(module, &lowered.proof_bundle, &AdmissionProfile::default())
         .expect("result-bearing boundary custody verifies");
     let mut mismatched_result = module.clone();
@@ -1629,7 +1633,8 @@ fn source_content_custody_exit_retains_projection_and_commits_only_after_success
         decode_module(&semantic).expect("content custody semantics decode"),
         *module
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("content custody proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("content custody proof encodes");
     terminal_verifier::verify_module(module, &lowered.proof_bundle, &AdmissionProfile::default())
         .expect("content-bearing boundary custody verifies");
 
@@ -1712,7 +1717,8 @@ fn source_content_custody_unit_exit_retains_projection_and_consumes_claim() {
     assert_eq!(content_claim.projections.len(), 1);
 
     let semantic = encode_module(module).expect("Unit content custody semantics encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("Unit content proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("Unit content proof encodes");
     terminal_verifier::verify_module(module, &lowered.proof_bundle, &AdmissionProfile::default())
         .expect("content-bearing Unit boundary custody verifies");
 
@@ -1893,7 +1899,8 @@ fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
     }
 
     let semantic = encode_module(module).expect("indexed semantics encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("indexed proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("indexed proof encodes");
     terminal_verifier::verify_module(module, &lowered.proof_bundle, &AdmissionProfile::default())
         .expect("indexed custody verifies");
     let mut incomplete = module.clone();
@@ -2012,7 +2019,8 @@ fn literal_fixed_array_custody_crosses_ordinary_unit_calls_without_losing_siblin
 
     let semantic = encode_module(&lowered.semantic_module).expect("semantics encode");
     assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -2162,7 +2170,8 @@ fn whole_root_source_passthrough_reaches_verified_and_interpreted_terminal_psi()
     assert_eq!(decode_module(&semantic).unwrap(), *module);
     terminal_verifier::verify_module(module, &lowered.proof_bundle, &AdmissionProfile::default())
         .expect("source-produced structural transfer verifies");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 0x5eed,
         structural_type: result.structural_type,
@@ -2355,7 +2364,8 @@ fn structural_return_discards_one_claim_free_affine_parameter_after_materializat
         &AdmissionProfile::default(),
     )
     .expect("independent verifier reconstructs the exact affine cleanup");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encodes");
     let returned = TerminalStructuralValue {
         opaque_identity: 0x5eed,
         structural_type: result.structural_type,
@@ -2469,7 +2479,8 @@ fn structural_return_establishes_and_discards_one_trivial_affine_local() {
         qualifications: result.qualifications.clone(),
         path: Vec::new(),
     };
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
         &proof,
@@ -2579,7 +2590,8 @@ fn structural_return_establishes_multiple_locals_in_declaration_order_and_discar
         qualifications: result.qualifications.clone(),
         path: Vec::new(),
     };
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
         &proof,
@@ -2705,7 +2717,8 @@ fn structural_return_cleans_locals_then_every_affine_tail_parameter_in_reverse_o
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
         &proof,

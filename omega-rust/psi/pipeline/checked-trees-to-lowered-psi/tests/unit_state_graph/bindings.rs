@@ -183,7 +183,7 @@ fn direct_conditional_join_selects_two_views_and_independent_scalar_permutations
 
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )
@@ -234,7 +234,7 @@ fn direct_conditional_join_selects_two_views_and_independent_scalar_permutations
 fn one_unit_resume_preserves_selected_views_and_emits_each_call_once() {
     let lowered = lowered(SOURCE);
     let semantic = encode_module(&lowered.semantic_module).unwrap();
-    let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let profile = AdmissionProfile::default();
     let decoded_module = terminal_codec::decode_module(&semantic).unwrap();
     let decoded_proof = terminal_codec::decode_proof_bundle(&proof).unwrap();
@@ -617,7 +617,7 @@ fn unranked_self_bindings_validate_without_claiming_finite_fuel() {
     );
     let mut execution = TerminalExecution::start_artifact(
         &encode_module(&changed).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&changed, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )

@@ -29,7 +29,8 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
     );
 
     let semantic = encode_module(&lowered.semantic_module).expect("exact-multiply semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-multiply proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("exact-multiply proof");
     let module = decode_module(&semantic).expect("decode exact-multiply semantics");
     assert_eq!(module.vocabulary_marker, VocabularyMarker::CURRENT);
     let mut missing_multiply_proof =
@@ -120,7 +121,8 @@ fn checked_source_exact_multiply_uses_joint_runtime_bound() {
         VocabularyMarker::CURRENT
     );
     let semantic = encode_module(&lowered.semantic_module).expect("joint multiply semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("joint multiply proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("joint multiply proof");
     let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: u32_type,
@@ -183,7 +185,8 @@ fn checked_source_exact_multiply_uses_signed_positive_runtime_bound() {
         VocabularyMarker::CURRENT
     );
     let semantic = encode_module(&lowered.semantic_module).expect("signed multiply semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed multiply proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed multiply proof");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i32_type,
@@ -251,7 +254,8 @@ fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
         VocabularyMarker::CURRENT
     );
     let semantic = encode_module(&lowered.semantic_module).expect("negative multiply semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("negative multiply proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("negative multiply proof");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i32_type,
@@ -326,7 +330,8 @@ fn checked_source_exact_multiply_uses_signed_runtime_negation_bound() {
         VocabularyMarker::CURRENT
     );
     let semantic = encode_module(&lowered.semantic_module).expect("runtime-negation semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("runtime-negation proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("runtime-negation proof");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i32_type,
@@ -396,7 +401,8 @@ fn checked_source_exact_multiply_uses_all_signed_i64_runtime_bounds() {
         VocabularyMarker::CURRENT
     );
     let semantic = encode_module(&lowered.semantic_module).expect("signed i64 semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed i64 proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed i64 proof");
     let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i64_type,

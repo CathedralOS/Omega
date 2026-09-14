@@ -3,7 +3,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarTerm};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::{
     AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue,
@@ -218,7 +218,8 @@ fn landed_affine_sibling_custody_crosses_source_codec_and_independent_verificati
     .expect("independent verification replays the landed sibling");
 
     let module_bytes = encode_module(&lowered.semantic_module).expect("encode module");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof bundle");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof bundle");
     let decoded_module = decode_module(&module_bytes).expect("decode module");
     let decoded_proof = decode_proof_bundle(&proof_bytes).expect("decode proof bundle v19");
     assert_eq!(decoded_module, lowered.semantic_module);
@@ -337,7 +338,8 @@ fn definition_affine_divisor_crosses_source_codec_and_independent_verification(
     drop(verified);
 
     let module_bytes = encode_module(&lowered.semantic_module).expect("encode module");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof bundle");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof bundle");
     let decoded_module = decode_module(&module_bytes).expect("decode module");
     let decoded_proof = decode_proof_bundle(&proof_bytes).expect("decode proof bundle v19");
     assert_eq!(decoded_module, lowered.semantic_module);
@@ -518,7 +520,8 @@ fn affine_to_partial_cast_exact_division_and_remainder_cross_source_codec_verifi
     )
     .expect("independent verifier reconstructs affine then cast custody");
     let module_bytes = encode_module(&lowered.semantic_module).expect("encode module");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof bundle");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof bundle");
     assert_eq!(
         decode_module(&module_bytes).expect("decode module"),
         lowered.semantic_module,
@@ -664,7 +667,8 @@ fn partial_cast_to_affine_exact_division_and_remainder_cross_source_codec_verifi
     )
     .expect("independent verifier reconstructs cast then affine custody");
     let module_bytes = encode_module(&lowered.semantic_module).expect("encode module");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof bundle");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof bundle");
     assert_eq!(
         decode_module(&module_bytes).expect("decode module"),
         lowered.semantic_module,
@@ -819,7 +823,8 @@ fn affine_cast_affine_exact_division_and_remainder_cross_source_codec_verificati
     )
     .expect("independent verifier reconstructs affine-cast-affine custody");
     let module_bytes = encode_module(&lowered.semantic_module).expect("encode module");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof bundle");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof bundle");
     assert_eq!(
         decode_module(&module_bytes).expect("decode module"),
         lowered.semantic_module,

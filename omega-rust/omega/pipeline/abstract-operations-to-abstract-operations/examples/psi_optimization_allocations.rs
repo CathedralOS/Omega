@@ -95,7 +95,9 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
         checked_trees_to_lowered_psi::lower_machine(&checked, "measure").expect("lower measure");
     let semantic =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof");
     let input = lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

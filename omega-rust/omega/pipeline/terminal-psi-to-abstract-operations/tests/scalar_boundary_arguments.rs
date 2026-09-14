@@ -4,7 +4,7 @@ use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, PlaceId, ScalarType,
     StructuralTypeId, ValueId,
 };
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, MachineContract, Operation, OperationKind, OperationResult,
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
@@ -119,7 +119,8 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
         }],
     };
     let semantic = encode_module(&module).expect("scalar boundary artifact encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof bundle encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof bundle encodes");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -167,15 +168,17 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     )
     .expect("covered opaque boundary contract verifies independently");
     let crashing_semantic = encode_module(&crashing).unwrap();
+    let crashing_proof = encode_proof_section(&crashing, &ProofBundle::default())
+        .expect("empty proof bundle encodes for the crashing module");
     assert!(matches!(
-        lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &crashing_semantic, proof_bytes: &proof, obligation_ledger_bytes: None }, &AdmissionProfile::default()).and_then(|admitted| admitted.try_into_plan()),
+        lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &crashing_semantic, proof_bytes: &crashing_proof, obligation_ledger_bytes: None }, &AdmissionProfile::default()).and_then(|admitted| admitted.try_into_plan()),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
             terminal_psi_to_abstract_operations::LoweringError::UnsupportedBoundaryCrashContract(id)
         )) if id == boundary
     ));
     let execution = terminal_interpreter::TerminalExecution::start_artifact(
         &crashing_semantic,
-        &proof,
+        &crashing_proof,
         &AdmissionProfile::default(),
         &[
             terminal_interpreter::TerminalScalarValue::Boolean(false),
@@ -231,6 +234,8 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     };
     trivial_affine_discards.push(place);
     let semantic = encode_module(&module).expect("structural boundary artifact encodes");
+    let proof = encode_proof_section(&module, &ProofBundle::default())
+        .expect("empty proof bundle encodes for the structural boundary module");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

@@ -1558,8 +1558,9 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         .expect("ranked semantic identity should encode");
     let decoded = terminal_codec::decode_module(&bytes).expect("ranked identity decodes");
     assert_eq!(decoded, lowered.semantic_module);
-    let proof_bytes = terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
-        .expect("ranked proof identity should encode");
+    let proof_bytes =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("ranked proof identity should encode");
     let decoded_proof = terminal_codec::decode_proof_bundle(&proof_bytes)
         .expect("ranked proof identity decodes canonically");
     let decoded_fixed_fuel_verified = terminal_verifier::verify_module_for_fixed_fuel(
@@ -1598,8 +1599,9 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         .expect("public lowering admits the interpreter-only ranked slice");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("ranked semantic section encodes");
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
-        .expect("ranked proof section encodes");
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("ranked proof section encodes");
     let decoded_native = terminal_verifier::verify_module_for_native_ranked_countdown(
         &decoded,
         &decoded_proof,

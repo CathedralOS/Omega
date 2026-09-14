@@ -3,7 +3,7 @@
 use abstract_operations::{AbstractFunctionResult, AbstractOperation};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::StructuralPlaceKind;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{
     Block, CrashCause, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract,
     StructuralAccess, StructuralDomainDeclaration, StructuralMultiplicity,
@@ -136,7 +136,8 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         }],
     };
     let semantics = encode_module(&module).expect("structural return should encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof should encode");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof should encode");
 
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
@@ -201,6 +202,8 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         frontier_lower_bound: vec![claim],
     };
     let semantics = encode_module(&crash_only).expect("structural crash-only machine encodes");
+    let proof = encode_proof_section(&crash_only, &ProofBundle::default())
+        .expect("empty proof should encode for the crash-only module");
     let lowered = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantics,
@@ -256,6 +259,8 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         terminator: original_return,
     });
     let semantics = encode_module(&branching).unwrap();
+    let proof = encode_proof_section(&branching, &ProofBundle::default())
+        .expect("empty proof should encode for the branching module");
     let lowered = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantics,
@@ -336,6 +341,8 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     {
         trivial_affine_discards.push(local.id);
     }
+    let proof = encode_proof_section(&with_local, &ProofBundle::default())
+        .expect("empty proof should encode for the with-local module");
     let lowered = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &encode_module(&with_local).unwrap(),
@@ -396,6 +403,8 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     };
     trivial_affine_discards.push(extra);
     let semantics = encode_module(&wider_cleanup).expect("wider cleanup return should encode");
+    let proof = encode_proof_section(&wider_cleanup, &ProofBundle::default())
+        .expect("empty proof should encode for the wider cleanup module");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantics,
@@ -449,6 +458,8 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     };
     *trivial_affine_discards = vec![second_extra, extra];
     let semantics = encode_module(&wider_cleanup).expect("two affine cleanups should encode");
+    let proof = encode_proof_section(&wider_cleanup, &ProofBundle::default())
+        .expect("empty proof should encode for the two-cleanup module");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantics,

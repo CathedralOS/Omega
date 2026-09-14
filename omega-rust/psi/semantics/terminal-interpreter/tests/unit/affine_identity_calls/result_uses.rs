@@ -73,7 +73,7 @@ fn unit_calls_consume_whole_affine_results_and_resume_through_both_cleanups() {
             terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, decoded.entry).unwrap();
         terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
         assert_eq!(certificate.ceiling_units(), 5);
-        let proof = encode_proof_bundle(&bundle).unwrap();
+        let proof = encode_proof_section(&decoded, &bundle).unwrap();
         let inputs = [0xaff1, 0xaff2].map(|opaque_identity| TerminalStructuralValue {
             opaque_identity,
             structural_type: structural_type_id(1),

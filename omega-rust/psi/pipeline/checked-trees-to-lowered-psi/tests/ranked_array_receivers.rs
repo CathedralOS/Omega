@@ -63,7 +63,8 @@ fn canonical_countdown(field_type: &str) -> (TerminalModule, ProofBundle) {
     let semantic_bytes =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode ranked semantics");
     let proof_bytes =
-        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode ranked proof");
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode ranked proof");
     let module = terminal_codec::decode_module(&semantic_bytes).expect("decode ranked semantics");
     let proof = terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode ranked proof");
     assert_eq!(
@@ -71,7 +72,7 @@ fn canonical_countdown(field_type: &str) -> (TerminalModule, ProofBundle) {
         semantic_bytes
     );
     assert_eq!(
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
         proof_bytes
     );
     assert_eq!(module, lowered.semantic_module);

@@ -65,7 +65,7 @@ fn assert_result_use(source: &str, name: &str) {
         &[consuming_machine.structural_parameters[0].place]
     );
     let semantic = encode_module(module).unwrap();
-    let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let decoded = decode_module(&semantic).unwrap();
     let proof_bundle = decode_proof_bundle(&proof).unwrap();
     terminal_verifier::verify_module(&decoded, &proof_bundle, &AdmissionProfile::default())

@@ -38,7 +38,7 @@ fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
         .expect("returned boundary scalar with computed operand lowers");
     let semantic = encode_module(&lowered.semantic_module).unwrap();
-    let evidence = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let evidence = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let module = decode_module(&semantic).unwrap();
     let proof = terminal_codec::decode_proof_bundle(&evidence).unwrap();
     assert_eq!(module, lowered.semantic_module);
@@ -187,7 +187,7 @@ fn unit_wrapper_artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec
         .expect("Unit closure transfers structural arguments and claims to its scalar wrapper");
     let artifact = (
         encode_module(&lowered.semantic_module).unwrap(),
-        encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
     );
     terminal_verifier::verify_module(
         &decode_module(&artifact.0).unwrap(),

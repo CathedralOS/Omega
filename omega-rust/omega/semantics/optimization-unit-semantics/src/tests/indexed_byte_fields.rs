@@ -22,7 +22,9 @@ pub(crate) fn indexed_field_unit() -> PsiOptimizationUnit {
     let terminal =
         checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").unwrap();
     let semantic = terminal_codec::encode_module(&terminal.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&terminal.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+            .unwrap();
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

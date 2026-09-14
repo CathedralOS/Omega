@@ -104,7 +104,8 @@ fn verified(backedge_ordinal: u64) -> VerifiedPsiOptimizationUnit {
     let input = lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&module).unwrap(),
-            proof_bytes: &terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_section(&module, &ProofBundle::default())
+                .unwrap(),
             obligation_ledger_bytes: None,
         },
         &proof_admission::AdmissionProfile::default(),
@@ -241,7 +242,7 @@ fn build(module: &TerminalModule, proof: &ProofBundle) -> VerifiedPsiOptimizatio
     let input = lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(module).unwrap(),
-            proof_bytes: &terminal_codec::encode_proof_bundle(proof).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_section(module, proof).unwrap(),
             obligation_ledger_bytes: None,
         },
         &proof_admission::AdmissionProfile::default(),

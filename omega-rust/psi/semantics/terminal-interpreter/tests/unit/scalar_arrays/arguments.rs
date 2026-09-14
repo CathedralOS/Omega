@@ -227,7 +227,7 @@ fn array_arguments_preserve_order_duplicates_forwarding_and_caller_payload_at_ev
                 let module = module(&dimensions, duplicate, prior, &leaves);
                 let semantic = encode_module(&module).unwrap();
                 assert_eq!(decode_module(&semantic).unwrap(), module);
-                let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+                let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
                 let mut expected_leaves = leaves.clone();
                 if duplicate && !prior {
                     expected_leaves.reverse();
@@ -281,7 +281,7 @@ fn array_arguments_preserve_boolean_and_ieee_bit_patterns() {
         let module = module(&[2], true, false, &leaves);
         let result = interpret_terminal_artifact_measured(
             &encode_module(&module).unwrap(),
-            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
         )
@@ -305,7 +305,7 @@ fn opaque_host_array_parameters_cannot_invent_returned_contents() {
         });
         let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
             &encode_module(&module).unwrap(),
-            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
             &arguments,

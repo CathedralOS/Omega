@@ -54,7 +54,7 @@ fn execute(source: &str, arguments: &[TerminalScalarValue], expected: TerminalSc
         artifact.semantic_bytes()
     );
     assert_eq!(
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
         artifact.proof_bytes()
     );
     let calls = module

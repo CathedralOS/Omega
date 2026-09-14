@@ -2,7 +2,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, TerminalScalarValue,
     interpret_terminal_artifact_measured,
@@ -65,7 +65,7 @@ fn ordinary_calls_retain_multistate_branches_and_return_to_caller() {
 fn execute(lowered: &lowered_psi::LoweredPsi) -> Vec<u128> {
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )
@@ -127,7 +127,7 @@ fn nested_composed_and_ordinary_calls_share_bodies_and_continue_in_order() {
         if let Some(enabled) = arguments {
             let execution = interpret_terminal_artifact_measured(
                 &encode_module(&lowered.semantic_module).unwrap(),
-                &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+                &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
                 &AdmissionProfile::default(),
                 &[TerminalScalarValue::Boolean(enabled)],
             )

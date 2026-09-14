@@ -150,7 +150,7 @@ pub(super) fn verified_exact_add_unit_with_right(
         }],
     };
     let semantic = terminal_codec::encode_module(&module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&proof).unwrap();
+    let proof = terminal_codec::encode_proof_section(&module, &proof).unwrap();
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

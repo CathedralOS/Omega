@@ -2,7 +2,7 @@
 
 use abstract_operations::AbstractOperation;
 use proof_admission::AdmissionProfile;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 use terminal_psi_to_abstract_operations::{
     build_verified_psi_optimization_unit, lower_artifact, lower_artifact_for_native_realization,
@@ -76,7 +76,8 @@ fn assert_array_retention(source: &str, entry: &str) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
         .expect("selected array reaches Terminal");
     let semantic = encode_module(&lowered.semantic_module).expect("encode array semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode array proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode array proof");
     let module = decode_module(&semantic).expect("decode array semantics");
     let decoded_proof = decode_proof_bundle(&proof).expect("decode array proof");
     let profile = AdmissionProfile::default();

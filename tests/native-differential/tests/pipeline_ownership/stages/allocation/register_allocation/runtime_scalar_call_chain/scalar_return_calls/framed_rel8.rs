@@ -39,7 +39,10 @@ fn padded_returning_call_artifact(equal: bool, padding: u32) -> (Vec<u8>, Vec<u8
             },
         });
     }
-    (terminal_codec::encode_module(&module).unwrap(), proof)
+    (
+        terminal_codec::encode_module(&module).unwrap(),
+        reseal_proof(&module, &proof),
+    )
 }
 
 fn framed(equal: bool, padding: u32) -> (bool, StagedFunctionFragmentFrameApplication) {

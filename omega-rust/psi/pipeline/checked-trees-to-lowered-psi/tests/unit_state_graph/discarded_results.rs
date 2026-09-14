@@ -48,7 +48,7 @@ fn effects(source: &str) -> Vec<Vec<u8>> {
         .expect("discard is a result disposition, not a Unit signature");
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )
@@ -316,7 +316,7 @@ fn assert_original_buffer_is_updated(source: &str) {
     let mut execution =
         TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
             &encode_module(module).unwrap(),
-            &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+            &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
             &AdmissionProfile::default(),
             &[],
             &[TerminalStructuralValue {

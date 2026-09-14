@@ -29,7 +29,8 @@ fn checked_source_exact_add_uses_known_addend_bound() {
     );
 
     let semantic = encode_module(&lowered.semantic_module).expect("exact-add semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-add proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("exact-add proof");
     let module = decode_module(&semantic).expect("decode exact-add semantics");
     assert_eq!(module.vocabulary_marker, VocabularyMarker::CURRENT);
     let mut missing_add_proof = decode_proof_bundle(&proof).expect("decode exact-add proof");
@@ -131,7 +132,8 @@ fn checked_source_exact_add_uses_joint_runtime_bound() {
         .expect("the joint addition remains explicit proof-gated work");
 
     let semantic = encode_module(&lowered.semantic_module).expect("joint-bound semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("joint-bound proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("joint-bound proof");
     let module = decode_module(&semantic).expect("decode joint-bound semantics");
     for missing in [subtract_obligation, add_obligation] {
         let mut incomplete = decode_proof_bundle(&proof).expect("decode joint-bound proof");
@@ -205,7 +207,8 @@ fn checked_source_exact_add_uses_signed_nonnegative_runtime_bound() {
         VocabularyMarker::CURRENT
     );
     let semantic = encode_module(&lowered.semantic_module).expect("signed joint semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed joint proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed joint proof");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i32_type,
@@ -268,7 +271,8 @@ fn checked_source_exact_add_uses_signed_nonpositive_runtime_bound() {
         VocabularyMarker::CURRENT
     );
     let semantic = encode_module(&lowered.semantic_module).expect("signed lower joint semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed lower joint proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed lower joint proof");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i32_type,
@@ -348,7 +352,8 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
     );
 
     let semantic = encode_module(&lowered.semantic_module).expect("exact-subtract semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-subtract proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("exact-subtract proof");
     let module = decode_module(&semantic).expect("decode exact-subtract semantics");
     assert_eq!(module.vocabulary_marker, VocabularyMarker::CURRENT);
     let mut missing_subtract_proof =
@@ -439,7 +444,8 @@ fn checked_source_exact_subtract_uses_joint_runtime_bound() {
         VocabularyMarker::CURRENT
     );
     let semantic = encode_module(&lowered.semantic_module).expect("joint subtract semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("joint subtract proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("joint subtract proof");
     let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: u32_type,
@@ -498,7 +504,8 @@ fn checked_source_exact_subtract_uses_signed_nonnegative_runtime_bound() {
         VocabularyMarker::CURRENT
     );
     let semantic = encode_module(&lowered.semantic_module).expect("signed subtract semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed subtract proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed subtract proof");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i32_type,
@@ -561,7 +568,8 @@ fn checked_source_exact_subtract_uses_signed_nonpositive_runtime_bound() {
         VocabularyMarker::CURRENT
     );
     let semantic = encode_module(&lowered.semantic_module).expect("signed upper semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed upper proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed upper proof");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i32_type,
@@ -657,7 +665,8 @@ fn checked_source_exact_add_and_subtract_use_signed_i64_runtime_bounds() {
             VocabularyMarker::CURRENT
         );
         let semantic = encode_module(&lowered.semantic_module).expect("signed i64 semantics");
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed i64 proof");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("signed i64 proof");
         for &(left, right, expected) in machine_cases {
             let execution = interpret_terminal_artifact_measured(
                 &semantic,
@@ -737,7 +746,8 @@ fn checked_source_exact_arithmetic_uses_unsigned_u64_runtime_bounds() {
             VocabularyMarker::CURRENT
         );
         let semantic = encode_module(&lowered.semantic_module).expect("unsigned u64 semantics");
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("unsigned u64 proof");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("unsigned u64 proof");
         for &(left, right, expected) in machine_cases {
             let mut arguments = vec![argument(left), argument(right)];
             if passes_maximum {

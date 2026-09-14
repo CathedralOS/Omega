@@ -97,7 +97,7 @@ fn local_module() -> TerminalModule {
 fn run(module: &TerminalModule, incremental: bool) -> (TerminalExecutionResult, u64) {
     let semantic = encode_module(module).unwrap();
     assert_eq!(decode_module(&semantic).unwrap(), *module);
-    let proof = encode_proof_bundle(&ranking::proof(module)).unwrap();
+    let proof = encode_proof_section(module, &ranking::proof(module)).unwrap();
     let mut execution =
         TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
             .unwrap();
@@ -176,7 +176,7 @@ fn observe_local_identities(module: &TerminalModule) -> Vec<u64> {
         }
     }
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ranking::proof(&module)).unwrap();
+    let proof = encode_proof_section(&module, &ranking::proof(&module)).unwrap();
     let mut execution =
         TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
             .unwrap();

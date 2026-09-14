@@ -79,7 +79,7 @@ fn literal_lengths_are_exact_u64_and_meter_once_across_resume() {
         let module = literal_module(bytes);
         let semantic = encode_module(&module).unwrap();
         assert_eq!(decode_module(&semantic).unwrap(), module);
-        let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+        let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         let measured = interpret_terminal_artifact_measured(
             &semantic,
             &proof,
@@ -199,7 +199,7 @@ fn parameter_length_requires_whole_readable_borrowed_view_and_real_contents() {
     let mutable_bytes = encode_module(&mutable).unwrap();
     assert_eq!(decode_module(&mutable_bytes).unwrap(), mutable);
     let semantic = encode_module(&base).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&base, &ProofBundle::default()).unwrap();
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
         &proof,
@@ -311,7 +311,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
         module.machines.push(helper);
     }
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let mut reference = None;
     for incremental in [false, true] {
         let mut execution =

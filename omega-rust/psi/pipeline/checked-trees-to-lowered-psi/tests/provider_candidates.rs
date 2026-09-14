@@ -1,7 +1,7 @@
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     ProviderInstallationSelection, TerminalEffect, TerminalExecution, TerminalExecutionResult,
@@ -339,7 +339,8 @@ fn installed_structural_provider_receives_and_settles_the_exact_linear_claim() {
         panic!("one exact structural provider qualification")
     };
     let semantic = encode_module(&lowered.semantic_module).expect("semantic artifact");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof artifact");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof artifact");
     let installation = admit_provider_installation_from_artifact(
         &semantic,
         &proof,

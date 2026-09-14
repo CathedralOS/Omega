@@ -58,8 +58,9 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
         .expect("source-produced terminal Psi should encode canonically");
     let original_identity = terminal_psi_identity(&lowered.semantic_module)
         .expect("source-produced terminal Psi should have a semantic identity");
-    let canonical_proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
-        .expect("source-produced proof bundle should encode canonically");
+    let canonical_proof_bytes =
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("source-produced proof bundle should encode canonically");
     let canonical_debug_bytes = encode_debug_map(
         &lowered.semantic_module,
         lowered

@@ -38,7 +38,8 @@ fn surviving_byte_field_length_retains_exact_operation_and_storage_identity() {
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&module).unwrap(),
-            proof_bytes: &terminal_codec::encode_proof_bundle(
+            proof_bytes: &terminal_codec::encode_proof_section(
+                &module,
                 &terminal_verifier::ProofBundle::default(),
             )
             .unwrap(),
@@ -397,7 +398,7 @@ pub(super) fn verified_byte_operation(
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&module).unwrap(),
-            proof_bytes: &terminal_codec::encode_proof_bundle(&proof).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_section(&module, &proof).unwrap(),
             obligation_ledger_bytes: None,
         },
         &proof_admission::AdmissionProfile::default(),

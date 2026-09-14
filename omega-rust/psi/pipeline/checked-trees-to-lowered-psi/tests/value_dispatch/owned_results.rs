@@ -901,7 +901,8 @@ fn owned_match_parameter_source_returns_the_exact_selected_identity() {
     let semantic_bytes =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof_bytes =
-        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof");
     let module = terminal_codec::decode_module(&semantic_bytes).expect("decode semantics");
     let proof = terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof");
     terminal_verifier::verify_module(&module, &proof, &super::AdmissionProfile::default())
@@ -959,7 +960,8 @@ fn owned_match_parameter_sources_reject_mutated_residual_cleanup() {
     let semantic_bytes =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof_bytes =
-        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof");
     let module = terminal_codec::decode_module(&semantic_bytes).expect("decode semantics");
     let proof = terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof");
     terminal_verifier::verify_module(&module, &proof, &super::AdmissionProfile::default())

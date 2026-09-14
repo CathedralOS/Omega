@@ -57,7 +57,8 @@ fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
             let terminal =
                 checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap();
             let semantic = encode_module(&terminal.semantic_module).unwrap();
-            let proof = encode_proof_bundle(&terminal.proof_bundle).unwrap();
+            let proof =
+                encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle).unwrap();
             let input = lower_artifact_for_optimization(
                 terminal_psi_to_abstract_operations::ArtifactSections {
                     semantic_bytes: &semantic,

@@ -3,7 +3,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalExecutionResult, TerminalInterpretError,
     TerminalScalarValue, interpret_terminal_artifact,
@@ -40,7 +40,8 @@ fn encoded_arms(source: &str, combined: bool) -> (Vec<u8>, Vec<u8>) {
         .unwrap_or_else(|error| panic!("{source}, combined={combined}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).expect("encode semantics"),
-        encode_proof_bundle(&lowered.proof_bundle).expect("encode proof"),
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof"),
     )
 }
 

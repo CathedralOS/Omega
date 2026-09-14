@@ -220,7 +220,9 @@ fn array_call_results_support_whole_owned_unit_arguments() {
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
         .expect("ordinary Unit calls carry the completed array payload");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     assert_eq!(
         terminal_interpreter::interpret_terminal_artifact(
             &semantic,

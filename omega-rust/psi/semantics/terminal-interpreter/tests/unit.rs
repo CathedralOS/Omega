@@ -7,7 +7,7 @@ use semantic_vocabulary::{
     PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId,
     StructuralFieldId, StructuralTypeId, ValueId,
 };
-use terminal_codec::{decode_module, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
@@ -130,7 +130,8 @@ fn nearest_ieee_fma_executes_one_rounding_for_both_interchange_formats() {
     for (operands, expected) in cases {
         let module = nearest_fma_module(operands);
         let semantic = encode_module(&module).expect("nearest-FMA semantics encode");
-        let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+        let proof =
+            encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
         let measured = interpret_terminal_artifact_measured(
             &semantic,
             &proof,
@@ -196,7 +197,8 @@ fn payloadless_case_construction_returns_exact_case_and_costs_one_operation() {
     let module = payloadless_case_module();
 
     let semantic = encode_module(&module).expect("payloadless case semantics encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let measured =
         interpret_terminal_artifact_measured(&semantic, &proof, &AdmissionProfile::default(), &[])
             .expect("verified payloadless case executes");
@@ -226,7 +228,8 @@ fn payloadless_case_construction_returns_exact_case_and_costs_one_operation() {
 fn payloadless_structural_call_returns_exact_case_in_four_resumable_units() {
     let module = payloadless_call_module();
     let semantic = encode_module(&module).expect("payloadless call semantics encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut execution =
         TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
             .expect("verified payloadless call starts");
@@ -382,7 +385,7 @@ fn reference_release_module() -> TerminalModule {
 #[test]
 fn reference_release_preserves_backing_and_is_atomic_at_fuel_exhaustion() {
     let semantic = encode_module(&reference_release_module()).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&reference_release_module(), &ProofBundle::default()).unwrap();
     let initial = TerminalStructuralPrimitiveValue {
         argument_index: 0,
         value: TerminalScalarValue::Integer {
@@ -477,7 +480,7 @@ fn mutable_reference_temporarily_lends_shared_read_and_write_only_store() {
             },
         );
         let semantic = encode_module(&module).unwrap();
-        let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+        let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
         let mut execution =
             TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
@@ -527,7 +530,8 @@ fn mutable_reference_temporarily_lends_shared_read_and_write_only_store() {
 fn structural_scalar_field_store_is_visible_through_a_projected_call_without_replay() {
     let module = structural_scalar_field_call_module();
     let semantic = encode_module(&module).expect("structural scalar-field semantics encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let structural = TerminalStructuralValue {
         opaque_identity: 95,
         structural_type: structural_type_id(95),
@@ -598,7 +602,8 @@ fn structural_scalar_call_binds_scalar_and_structural_arguments_together() {
     };
 
     let semantic = encode_module(&module).expect("mixed structural-scalar semantics encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let structural = TerminalStructuralValue {
         opaque_identity: 95,
         structural_type: structural_type_id(95),
@@ -637,7 +642,7 @@ fn rebound_dynamic_scalar_call_executes_and_composes_its_fixed_fuel_callee() {
         .expect("rebound dynamic scalar fixed-fuel certificate replays");
 
     let semantic = encode_module(&module).expect("rebound dynamic scalar semantics encode");
-    let proof = encode_proof_bundle(&proof_bundle).expect("empty proof encodes");
+    let proof = encode_proof_section(&module, &proof_bundle).expect("empty proof encodes");
     let structural = TerminalStructuralValue {
         opaque_identity: 95,
         structural_type: structural_type_id(95),
@@ -672,7 +677,7 @@ fn dynamic_descriptor_parameter_crosses_a_real_interpreter_call() {
     verify_module(&module, &proof_bundle, &AdmissionProfile::default())
         .expect("dynamic descriptor parameter module verifies");
     let semantic = encode_module(&module).expect("dynamic descriptor parameter semantics encode");
-    let proof = encode_proof_bundle(&proof_bundle).expect("empty proof encodes");
+    let proof = encode_proof_section(&module, &proof_bundle).expect("empty proof encodes");
     let structural = TerminalStructuralValue {
         opaque_identity: 95,
         structural_type: structural_type_id(95),
@@ -711,7 +716,7 @@ fn dynamic_descriptor_parameter_joins_two_exact_predecessors() {
         module,
         "canonical Terminal encoding retains both predecessor arguments",
     );
-    let proof = encode_proof_bundle(&proof_bundle).expect("empty proof encodes");
+    let proof = encode_proof_section(&module, &proof_bundle).expect("empty proof encodes");
 
     for (choose_first, expected) in [(true, 99), (false, 41)] {
         let structural = TerminalStructuralValue {
@@ -749,7 +754,8 @@ fn assert_write_only_store_atomic(
     written_value: TerminalScalarValue,
 ) {
     let semantic = encode_module(&module).expect("primitive-store semantics encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let structural = TerminalStructuralValue {
         opaque_identity,
         structural_type: structural_type_id(91),
@@ -810,7 +816,8 @@ fn assert_write_only_store_atomic(
 fn write_only_primitive_storage_requires_an_existing_exact_value_and_never_observes_it() {
     let module = write_only_primitive_call_module();
     let semantic = encode_module(&module).expect("primitive-store semantics encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let structural = TerminalStructuralValue {
         opaque_identity: 92,
@@ -1003,7 +1010,8 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
         }],
     };
     let semantic = encode_module(&module).expect("structural return encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 0x5eed,
         structural_type,
@@ -1051,7 +1059,8 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
 fn internal_structural_call_rebinds_claim_and_preserves_value_identity() {
     let module = internal_structural_call_module(false);
     let semantic = encode_module(&module).expect("structural call encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 0xc011,
         structural_type: structural_type_id(1),
@@ -1083,7 +1092,8 @@ fn internal_structural_call_rebinds_claim_and_preserves_value_identity() {
 fn internal_structural_call_resumes_at_each_charge_without_replaying_custody() {
     let module = internal_structural_call_module(false);
     let semantic = encode_module(&module).expect("structural call encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 0xc012,
         structural_type: structural_type_id(1),
@@ -1159,7 +1169,8 @@ fn internal_structural_call_resumes_at_each_charge_without_replaying_custody() {
 fn internal_multi_claim_structural_call_resumes_without_replaying_or_swapping_claims() {
     let module = multi_claim_internal_structural_call_module(false);
     let semantic = encode_module(&module).expect("multi-claim structural call encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 0xc014,
         structural_type: structural_type_id(1),
@@ -1211,7 +1222,8 @@ fn internal_multi_claim_structural_call_resumes_without_replaying_or_swapping_cl
 fn crashing_structural_callee_never_produces_a_caller_result() {
     let module = internal_structural_call_module(true);
     let semantic = encode_module(&module).expect("crashing structural call encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 0xc013,
         structural_type: structural_type_id(1),
@@ -1243,7 +1255,8 @@ fn crashing_structural_callee_never_produces_a_caller_result() {
 fn crashing_multi_claim_structural_callee_preserves_the_exact_abandonment_frontier() {
     let module = multi_claim_internal_structural_call_module(true);
     let semantic = encode_module(&module).expect("crashing multi-claim call encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 0xc015,
         structural_type: structural_type_id(1),
@@ -1290,7 +1303,8 @@ fn unit_return_performs_affine_discard_only_after_edge_charge() {
     module.machines = vec![machine];
     module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("affine cleanup module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
         &proof,
@@ -1316,7 +1330,8 @@ fn unit_return_performs_affine_discard_only_after_edge_charge() {
 fn partial_affine_return_charges_edge_before_exact_residual_cleanup() {
     let module = partial_affine_field_module();
     let semantic = encode_module(&module).expect("partial affine module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 50,
         structural_type: structural_type_id(2),
@@ -1385,7 +1400,8 @@ fn nominal_affine_cleanup_resumes_across_both_edge_charges() {
             .collect(),
     };
     let semantic = encode_module(&module).expect("nominal cleanup encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 70,
         structural_type: structural_type_id(1),
@@ -1434,7 +1450,8 @@ fn nominal_affine_cleanup_resumes_across_both_edge_charges() {
 fn ordered_nominal_affine_cleanups_run_in_reverse_parameter_order_after_one_root_charge() {
     let module = ordered_empty_nominal_affine_module(false);
     let semantic = encode_module(&module).expect("ordered nominal cleanups encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let arguments = [
         TerminalStructuralValue {
             opaque_identity: 80,
@@ -1498,7 +1515,8 @@ fn ordered_nominal_affine_cleanups_run_in_reverse_parameter_order_after_one_root
 fn ordered_nominal_affine_cleanups_can_invoke_the_same_cleanup_machine_twice() {
     let module = ordered_empty_nominal_affine_module(true);
     let semantic = encode_module(&module).expect("same-target nominal cleanups encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let arguments = [
         TerminalStructuralValue {
             opaque_identity: 82,
@@ -1544,7 +1562,8 @@ fn ordered_nominal_affine_cleanups_can_invoke_the_same_cleanup_machine_twice() {
 fn three_nominal_affine_cleanups_run_in_exact_reverse_parameter_order() {
     let module = three_ordered_empty_nominal_affine_module(false);
     let semantic = encode_module(&module).expect("three ordered nominal cleanups encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let arguments = [
         TerminalStructuralValue {
             opaque_identity: 90,
@@ -1605,7 +1624,8 @@ fn three_nominal_affine_cleanups_run_in_exact_reverse_parameter_order() {
 fn ordered_nominal_affine_cleanups_run_one_executable_body_before_the_empty_action() {
     let module = ordered_one_executable_nominal_affine_module();
     let semantic = encode_module(&module).expect("ordered executable nominal cleanups encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let arguments = [
         TerminalStructuralValue {
             opaque_identity: 84,
@@ -1662,7 +1682,8 @@ fn ordered_nominal_affine_cleanups_run_one_executable_body_before_the_empty_acti
 fn ordered_nominal_affine_cleanups_run_two_distinct_executable_bodies_in_order() {
     let module = ordered_two_distinct_executable_nominal_affine_module();
     let semantic = encode_module(&module).expect("two executable nominal cleanups encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let arguments = [
         TerminalStructuralValue {
             opaque_identity: 86,
@@ -1720,7 +1741,8 @@ fn ordered_nominal_affine_cleanups_run_two_distinct_executable_bodies_in_order()
 fn ordered_nominal_affine_cleanups_repeat_a_shared_executable_target_and_helper() {
     let module = ordered_shared_executable_nominal_affine_module();
     let semantic = encode_module(&module).expect("shared executable nominal cleanup encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let arguments = [
         TerminalStructuralValue {
             opaque_identity: 88,
@@ -1770,7 +1792,8 @@ fn ordered_nominal_affine_cleanups_repeat_a_shared_executable_target_and_helper(
 fn three_nominal_affine_cleanups_repeat_a_shared_executable_body_three_times() {
     let module = three_ordered_shared_executable_nominal_affine_module();
     let semantic = encode_module(&module).expect("three shared nominal cleanups encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let arguments = (93..96)
         .map(|opaque_identity| TerminalStructuralValue {
             opaque_identity,
@@ -1823,7 +1846,8 @@ fn three_nominal_affine_cleanups_repeat_a_shared_executable_body_three_times() {
 fn executable_nominal_affine_cleanup_charges_root_call_helper_and_drop_in_order() {
     let module = executable_nominal_affine_module();
     let semantic = encode_module(&module).expect("executable nominal cleanup encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 71,
         structural_type: structural_type_id(1),
@@ -1881,7 +1905,8 @@ fn executable_nominal_affine_cleanup_charges_root_call_helper_and_drop_in_order(
 fn two_helper_nominal_affine_cleanup_charges_all_six_sites_in_source_order() {
     let module = two_helper_nominal_affine_module();
     let semantic = encode_module(&module).expect("two-helper nominal cleanup encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 72,
         structural_type: structural_type_id(1),
@@ -1937,7 +1962,8 @@ fn two_helper_nominal_affine_cleanup_charges_all_six_sites_in_source_order() {
 fn three_helper_nominal_affine_cleanup_charges_all_eight_sites_in_source_order() {
     let module = three_helper_nominal_affine_module();
     let semantic = encode_module(&module).expect("three-helper nominal cleanup encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 73,
         structural_type: structural_type_id(1),
@@ -2008,7 +2034,8 @@ fn scalar_return_performs_affine_discard_only_after_edge_charge() {
     module.machines = vec![machine];
     module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("scalar affine cleanup module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
         &proof,
@@ -2083,7 +2110,8 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
     module.machines = vec![machine];
     module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("jump affine cleanup module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
         &proof,
@@ -2187,7 +2215,8 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
     module.machines = vec![machine];
     module.root_service_reach = Default::default();
     let semantic = encode_module(&module).expect("conditional affine cleanup module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
 
     for condition in [true, false] {
         let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
@@ -2263,8 +2292,9 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
 fn byte_sequence_literal_round_trips_non_utf8_and_reaches_boundary_exactly() {
     let module = byte_sequence_literal_module(vec![0x00, 0x7f, 0x80, 0xff]);
     let semantic = encode_module(&module).expect("byte literal semantics encode");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     assert_eq!(decode_module(&semantic), Ok(module));
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
     let mut handler = RecordingHandler::default();
 
     let measured = interpret_terminal_artifact_with_effect_handler_measured(
@@ -2315,7 +2345,8 @@ fn byte_sequence_literal_tampering_fails_closed() {
 fn boundary_scalar_arguments_reach_effect_handlers_in_declared_order() {
     let module = scalar_boundary_effect_module();
     let semantic = encode_module(&module).expect("scalar boundary module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut handler = RecordingHandler::default();
     let measured = interpret_terminal_artifact_with_effect_handler_measured(
         &semantic,
@@ -2348,7 +2379,8 @@ fn boundary_scalar_arguments_reach_effect_handlers_in_declared_order() {
 fn boundary_scalar_argument_effect_rejection_is_fail_closed() {
     let module = scalar_boundary_effect_module();
     let semantic = encode_module(&module).expect("scalar boundary module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut execution =
         TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
             .expect("verified scalar boundary call starts");
@@ -2367,7 +2399,8 @@ fn boundary_scalar_argument_effect_rejection_is_fail_closed() {
 fn unsupported_structural_boundary_result_rejects_before_the_effect() {
     let module = structural_boundary_effect_module();
     let semantic = encode_module(&module).expect("structural boundary module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut execution =
         TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
             .expect("verified structural boundary call starts");
@@ -2387,7 +2420,8 @@ fn unsupported_structural_boundary_result_rejects_before_the_effect() {
 fn structural_boundary_result_establishes_affine_custody_once_before_cleanup() {
     let module = structural_boundary_effect_module();
     let semantic = encode_module(&module).expect("structural result module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut execution =
         TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
             .expect("verified structural result starts");
@@ -2465,7 +2499,8 @@ fn malformed_structural_boundary_results_establish_no_runtime_custody() {
     ] {
         let module = structural_boundary_effect_module();
         let semantic = encode_module(&module).expect("structural result module encodes");
-        let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+        let proof =
+            encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
         let mut execution =
             TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
                 .expect("verified structural result starts");
@@ -2493,7 +2528,8 @@ fn malformed_structural_boundary_results_establish_no_runtime_custody() {
 fn rejected_structural_boundary_result_establishes_no_value_or_effect() {
     let module = structural_boundary_effect_module();
     let semantic = encode_module(&module).expect("structural result module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut execution =
         TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
             .expect("verified structural result starts");
@@ -2559,7 +2595,8 @@ fn unit_calls_transfer_numbered_record_field_claims() {
         machine.entry_claims[0].path = vec!["#7".into()];
     }
     let semantic = encode_module(&module).expect("numbered field-custody module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
         &proof,
@@ -2614,7 +2651,8 @@ fn unit_calls_transfer_and_settle_nested_record_field_claims() {
     }
 
     let semantic = encode_module(&module).expect("nested field-custody module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = structural_value(47);
     let mut handler = RecordingHandler::default();
     let measured = interpret_terminal_artifact_with_effect_handler_measured(
@@ -2699,7 +2737,8 @@ fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
     });
 
     let semantic = encode_module(&module).expect("sibling field-custody module encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = structural_value(46);
     let mut handler = RecordingHandler::default();
     let measured = interpret_terminal_artifact_with_effect_handler_measured(
@@ -2994,7 +3033,8 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
 fn effect_artifact_sections() -> (Vec<u8>, Vec<u8>) {
     (
         encode_module(&effect_module()).expect("effect semantics encode"),
-        encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes"),
+        encode_proof_section(&effect_module(), &ProofBundle::default())
+            .expect("empty proof encodes"),
     )
 }
 
@@ -3389,7 +3429,7 @@ fn empty_contract(id: ContractId) -> MachineContract {
 fn artifact_sections() -> (Vec<u8>, Vec<u8>) {
     (
         encode_module(&unit_module()).expect("unit semantics encode"),
-        encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes"),
+        encode_proof_section(&unit_module(), &ProofBundle::default()).expect("empty proof encodes"),
     )
 }
 
@@ -4474,7 +4514,8 @@ fn scalar_return_materializes_result_then_runs_nominal_cleanup() {
     };
 
     let semantic = encode_module(&module).expect("scalar nominal cleanup encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
         &proof,
@@ -4638,7 +4679,8 @@ fn contextual_scalar_return_materializes_then_executes_reverse_ordered_cleanups(
         evidence,
     };
     let semantic = encode_module(&module).expect("contextual scalar cleanup encodes");
-    let proof = encode_proof_bundle(&proof_bundle).expect("contextual cleanup proof encodes");
+    let proof =
+        encode_proof_section(&module, &proof_bundle).expect("contextual cleanup proof encodes");
     let structural_arguments = [
         TerminalStructuralValue {
             opaque_identity: 130,
@@ -4720,7 +4762,8 @@ fn mixed_scalar_return_cleanup_resumes_nominal_work_around_a_no_code_discard() {
     };
 
     let semantic = encode_module(&module).expect("mixed scalar cleanup stream encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let structural_arguments = [
         TerminalStructuralValue {
             opaque_identity: 120,

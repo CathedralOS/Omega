@@ -147,7 +147,9 @@ fn measured_literal_last_byte_proves_bounds_and_executes_without_guard() {
         crate::psi_lowering::operation_proofs::finalize_operation_proofs(&mut lowered)
             .expect("exact literal extent proves the last byte is in bounds");
         let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-        let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+        let proof =
+            terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .unwrap();
         let execution = terminal_interpreter::interpret_terminal_artifact_measured(
             &semantic,
             &proof,

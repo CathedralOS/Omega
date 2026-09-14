@@ -255,7 +255,8 @@ fn unranked_optimizer_rejects_missing_safety_proof_and_changed_proof_catalog() {
         "unranked decrement still requires safety evidence"
     );
     proof.evidence.clear();
-    let changed_proof = terminal_codec::encode_proof_bundle(&proof).unwrap();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let changed_proof = terminal_codec::encode_proof_section(&module, &proof).unwrap();
     assert!(matches!(
         lower_artifact_for_optimization(
             terminal_psi_to_abstract_operations::ArtifactSections {

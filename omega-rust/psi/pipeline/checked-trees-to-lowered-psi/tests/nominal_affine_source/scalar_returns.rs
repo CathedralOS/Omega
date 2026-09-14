@@ -537,8 +537,8 @@ fn contextual_scalar_return_preserves_proof_context_after_result_materialization
         decode_module(&semantic_bytes).unwrap(),
         lowered.semantic_module
     );
-    let proof_bytes =
-        encode_proof_bundle(&lowered.proof_bundle).expect("contextual scalar proof encodes");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("contextual scalar proof encodes");
     assert_eq!(
         decode_proof_bundle(&proof_bytes).unwrap(),
         lowered.proof_bundle
@@ -640,7 +640,8 @@ fn mixed_contextual_scalar_return_rebases_compact_nominal_proofs_to_full_roots()
     .expect("rebased mixed contextual scalar cleanup verifies");
     let semantics = encode_module(&lowered.semantic_module).expect("mixed semantic module encodes");
     assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("mixed proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("mixed proof bundle encodes");
     assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
 
     let mut swapped = lowered.semantic_module.clone();
@@ -756,7 +757,8 @@ fn mixed_contextual_scalar_return_materializes_branch_free_bindings_before_clean
     .expect("mixed contextual scalar bindings verify");
     let semantics = encode_module(&lowered.semantic_module).expect("binding module encodes");
     assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("binding proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("binding proof encodes");
     assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
 
     let structural_arguments = [first, plain, second].map(|parameter| TerminalStructuralValue {
@@ -891,7 +893,8 @@ fn mixed_contextual_scalar_return_preserves_interleaved_primitive_inputs() {
     .expect("mixed contextual scalar inputs verify");
     let semantics = encode_module(&lowered.semantic_module).expect("input module encodes");
     assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("input proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("input proof encodes");
     assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
 
     let scalar_arguments = [
@@ -1045,7 +1048,7 @@ fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
     let semantics = encode_module(&lowered.semantic_module)
         .expect("mixed nominal short-circuit module encodes");
     assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("mixed nominal short-circuit proof encodes");
     assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
 
@@ -1159,7 +1162,7 @@ fn mixed_nominal_scalar_return_cleans_every_nested_short_circuit_leaf() {
     .expect("nested nominal short-circuit cleanup verifies on every leaf");
     let semantics = encode_module(&lowered.semantic_module)
         .expect("nested nominal short-circuit module encodes");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("nested nominal short-circuit proof encodes");
     let structural_arguments = [token, plain].map(|parameter| TerminalStructuralValue {
         opaque_identity: parameter.place.get(),
@@ -1302,7 +1305,7 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
         decode_module(&semantics).expect("shared convergence decodes"),
         lowered.semantic_module
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("shared nominal Boolean convergence proof encodes");
     let structural_arguments = [token].map(|parameter| TerminalStructuralValue {
         opaque_identity: parameter.place.get(),

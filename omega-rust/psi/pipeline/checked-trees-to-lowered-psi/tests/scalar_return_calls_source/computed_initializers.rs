@@ -91,7 +91,8 @@ fn encoded_initializers(source: &str, names: &[&str], state_count: usize) -> (Ve
         .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).expect("encode semantics"),
-        encode_proof_bundle(&lowered.proof_bundle).expect("encode proof"),
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof"),
     )
 }
 

@@ -8,7 +8,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use target::NativeTarget;
 use target_operations::{TargetOperationPlan, TargetStructuralArgument, TargetUnitOperation};
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -24,7 +24,8 @@ fn source_plan(source: &str) -> abstract_operations::AbstractOperationPlan {
     lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &encode_module(&terminal.semantic_module).expect("encode semantics"),
-            proof_bytes: &encode_proof_bundle(&terminal.proof_bundle).expect("encode proof"),
+            proof_bytes: &encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+                .expect("encode proof"),
             obligation_ledger_bytes: None,
         },
         &AdmissionProfile::default(),

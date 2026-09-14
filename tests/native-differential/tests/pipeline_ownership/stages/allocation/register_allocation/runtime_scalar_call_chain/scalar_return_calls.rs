@@ -69,7 +69,7 @@ fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
     let module = conditional_immediate_module(entry.id, vec![entry, middle, leaf]);
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        terminal_codec::encode_proof_section(&module, &ProofBundle::default()).unwrap(),
     )
 }
 
@@ -101,7 +101,10 @@ fn preserving_artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
     };
     *value = ValueId::new(28_131).unwrap();
     module.machines[2] = leaf;
-    (terminal_codec::encode_module(&module).unwrap(), proof)
+    (
+        terminal_codec::encode_module(&module).unwrap(),
+        reseal_proof(&module, &proof),
+    )
 }
 
 fn discarded_call_result_artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
@@ -121,7 +124,10 @@ fn discarded_call_result_artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
     middle.blocks[0].operations.push(second);
     // Return the first call's result. The second call must still execute:
     // ordered calls are not reconstructed from the returned value's ancestry.
-    (terminal_codec::encode_module(&module).unwrap(), proof)
+    (
+        terminal_codec::encode_module(&module).unwrap(),
+        reseal_proof(&module, &proof),
+    )
 }
 
 #[test]
@@ -148,7 +154,11 @@ fn mixed_arithmetic_calls_reject_missing_or_substituted_exact_evidence() {
     let choices = OptimizationSelections::default();
     let mut missing = terminal_codec::decode_proof_bundle(&proof).unwrap();
     assert!(missing.evidence.pop().is_some());
-    let missing = terminal_codec::encode_proof_bundle(&missing).unwrap();
+    let missing = terminal_codec::encode_proof_section(
+        &terminal_codec::decode_module(&semantic).unwrap(),
+        &missing,
+    )
+    .unwrap();
     assert!(
         optimize_artifact_sections(
             &semantic,
@@ -513,6 +523,6 @@ fn mixed_arithmetic_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }

@@ -6,7 +6,7 @@ use proof_admission::{
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PsiSemanticId, ScalarTerm, ScalarType,
 };
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::{
     Block, Operation, OperationKind, OperationResult, SuccessorEdge, Terminator, ValueDeclaration,
 };
@@ -247,7 +247,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
             machine.blocks.sort_by_key(|block| block.id);
         }
         let semantics = encode_module(&module).unwrap();
-        let proof_bytes = encode_proof_bundle(&proof).unwrap();
+        let proof_bytes = encode_proof_section(&module, &proof).unwrap();
         terminal_verifier::verify_module(
             &decode_module(&semantics).unwrap(),
             &decode_proof_bundle(&proof_bytes).unwrap(),

@@ -54,7 +54,7 @@ fn native_entrance_rejects_missing_or_substituted_scalar_invariant_certificates(
                     .evidence
                     .retain(|entry| entry.obligation != arrival.obligation);
             }
-            let bytes = terminal_codec::encode_proof_bundle(&proof).unwrap();
+            let bytes = terminal_codec::encode_proof_section(&module, &proof).unwrap();
             assert!(matches!(
                 super::lower_artifact_for_native_realization(
                     terminal_psi_to_abstract_operations::ArtifactSections {

@@ -10,7 +10,7 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -63,7 +63,8 @@ fn verified_forwarded_dynamic_unit_retains_argument_and_parameter_custody() {
         let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
             .expect("dynamic Unit source lowers to verified Terminal Psi");
         let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
-        let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+        let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+            .expect("encode proof");
         let plan = lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic,
@@ -202,7 +203,8 @@ fn verified_rebound_dynamic_unit_retains_exact_indirect_custody() {
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("rebound dynamic Unit source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -265,7 +267,8 @@ fn verified_changed_conformance_unit_retains_both_applications() {
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("changed-conformance Unit source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

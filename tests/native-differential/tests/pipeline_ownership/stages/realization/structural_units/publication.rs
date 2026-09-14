@@ -397,7 +397,7 @@ fn completion_artifact() -> (Vec<u8>, Vec<u8>, semantic_vocabulary::BoundaryMach
         .collect();
     (
         terminal_codec::encode_module(&module).unwrap(),
-        proof,
+        reseal_proof(&module, &proof),
         boundary,
     )
 }
@@ -488,7 +488,7 @@ fn provider_artifact() -> (
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        proof,
+        reseal_proof(&module, &proof),
         vec![
             terminal_psi_to_abstract_operations::SelectedProviderAdapter {
                 requirement_identity: "StructuralSink::accept".into(),

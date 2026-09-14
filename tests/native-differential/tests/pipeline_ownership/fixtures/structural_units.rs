@@ -76,7 +76,7 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -117,7 +117,10 @@ pub(crate) fn structurally_parameterized_unit_return_artifact() -> (Vec<u8>, Vec
             is_self: false,
         },
     }];
-    (terminal_codec::encode_module(&module).unwrap(), proof)
+    (
+        terminal_codec::encode_module(&module).unwrap(),
+        reseal_proof(&module, &proof),
+    )
 }
 
 pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
@@ -302,7 +305,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
     let proof = ProofBundle::default();
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -318,7 +321,7 @@ pub(crate) fn structural_extent_unit_leaf_artifact() -> (Vec<u8>, Vec<u8>) {
     let proof = ProofBundle::default();
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -334,7 +337,7 @@ pub(crate) fn statically_attached_unit_return_artifact() -> (Vec<u8>, Vec<u8>, S
     module.machines.first_mut().unwrap().attachment = Some(attachment);
     (
         terminal_codec::encode_module(&module).unwrap(),
-        proof,
+        reseal_proof(&module, &proof),
         attachment,
     )
 }

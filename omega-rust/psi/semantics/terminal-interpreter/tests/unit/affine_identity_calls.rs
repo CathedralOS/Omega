@@ -159,7 +159,7 @@ fn assert_resumes_without_replay(module: &TerminalModule, chained: bool) {
     terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate)
         .expect("identity call fuel reconstructs independently");
     assert_eq!(certificate.ceiling_units(), if chained { 5 } else { 3 });
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&decoded, &ProofBundle::default()).unwrap();
     let scalar_arguments = module.machines[0]
         .parameters
         .iter()
