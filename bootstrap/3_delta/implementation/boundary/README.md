@@ -394,12 +394,18 @@ under the current Gamma profile. It does not bound cumulative pair allocation
 or the runtime resources of generated applications. The
 [emission audit](../emission/README.md#publication-traversal-pairs) bounds
 serialization's own traversal pairs below the pair arena through the admitted
-payload extent, and the
+payload extent; the
 [normalization audit](../normalization/README.md#traversal-and-rebuild-pairs)
 charges normalizer frames, rebuilds, and per-collection capture merges to
-plan-node occurrences. Earlier-phase cumulative allocation — checking and
-lowering, including the plan size those later bounds consume — remains the
-open term.
+plan-node occurrences; and the
+[checking](../checking/README.md#traversal-and-rebuild-pairs) and
+[lowering](../lowering/README.md#traversal-and-rebuild-pairs) audits now
+charge census metadata, resolution rows, typing and lowering continuations,
+plan construction, and the shared name-trie/cursor rebuilds per source
+occurrence, bounding the produced plan size `G <= 40*S + 15`. What remains
+open is whether the per-occurrence products — dominated by the at-most-191
+sibling-row copies per rebuilt name-trie branch level and the capture `k*d`
+merge term — stay below the pair arena for every admitted shape.
 
 ### Arithmetic allocation probe
 

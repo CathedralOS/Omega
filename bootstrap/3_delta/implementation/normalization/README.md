@@ -172,16 +172,21 @@ this accounting. A collection runs once per extraction; authored definitions
 are never captured. The program-wide merge allocation is
 `sum((2*d + 1) * (k + 1) + 2*E)` over at most `J` collections.
 
-Earlier checking/lowering and normalizer frames and rebuilt nodes also
-allocate or perform work; emission preflight allocates no pairs, and its
-publication traversal is separately bounded below the pair arena by the
-admitted payload extent (see
+Earlier checking/lowering frames and rebuilt nodes also allocate or perform
+work; the [checking audit](../checking/README.md#traversal-and-rebuild-pairs)
+and [lowering audit](../lowering/README.md#traversal-and-rebuild-pairs) charge
+each of those pairs per source occurrence, including the produced plan size
+`G <= 40*S + 15` that this section's `45*G + 7*F + 1` consumes. Emission
+preflight allocates no pairs, and its publication traversal is separately
+bounded below the pair arena by the admitted payload extent (see
 [emission](../emission/README.md#publication-traversal-pairs)). The
 [traversal and rebuild accounting](#traversal-and-rebuild-pairs) below charges
 the normalizer machine per plan-node occurrence. The lexical trie reused by
 lowering is another construction pass, not free reuse of checking's stored
-environment. These formulas are source-level accounting, not measured arena
-peaks or a complete resource proof.
+environment; its cumulative inserts are charged in the
+[name-trie audit](../checking/names/README.md#pair-accounting). These
+formulas are source-level accounting, not measured arena peaks or a complete
+resource proof.
 
 #### Full-width payload refusal
 
