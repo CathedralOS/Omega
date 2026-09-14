@@ -13,7 +13,8 @@ the existing task boards, not in a second tracking system.
 - [Rust compiler completion](rust_compiler_completion.md): required release
   coverage before resuming self-hosting, removed after that migration closes.
 - [Bootstrap cost investigation](bootstrap_cost_review.md): bounded Delta/P1
-  feasibility evidence, not authority for another chain.
+  feasibility evidence and its recorded decisions, not authority for another
+  chain.
 - [Bootstrap-chain comparisons](bootstrap_chain_alternatives.md): reference
   tradeoffs, not a proposed replacement; remove when superseded or no longer useful.
 - [Learned optimization](learned_optimization_policy.md): exploratory workload,
