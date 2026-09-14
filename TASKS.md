@@ -1074,7 +1074,16 @@ Owners include
   source publishing, reload-verifying and interpreting successfully.
   Existing order transitivity, exact equality bridges and closed literal
   predicate denotation already discharge incompatible integer guards;
-  no new contradiction rule is needed. Saved scalar correlations also survive
+  no new contradiction rule is needed. Equality-cited bounds now join that
+  same bounded two-leg search: an exact `counter == 9` store fact weakens
+  through checked order legs and contradicts the guarded premise
+  `counter < 3`, while closed arithmetic endpoints evaluate through the
+  checked closed-relation primitive before denotation.
+  `integer_guarded_exit_retains_equality_bound_invariant` witnesses it end
+  to end: the retire edge pins `self.counter = 9`, the lockstep invariant
+  retains every arrival, the artifact publishes, reload-verifies and
+  interprets `step,step,step,done`; a stored bound inside the guard and a
+  mutated stored constant both reject. Saved scalar correlations also survive
   writes and mutating calls through `terminal-verifier/src/verification/field_snapshots.rs`:
   live exact field-to-SSA equalities capture affected facts before invalidation,
   without retaining stale field observations or multiplying fact variants.

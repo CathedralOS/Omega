@@ -137,6 +137,192 @@ fn guarded_implication_discharges_only_its_local_integer_contradiction() {
     }
 }
 
+/// A stored bound such as `counter == 9` is an exact equality citation, not an
+/// order fact. Weakened to its nonstrict legs it still contradicts a guarded
+/// premise like `counter < 3`, in either cited orientation.
+#[test]
+fn equality_established_integer_bounds_contradict_cited_orders() {
+    let upper = Proposition::LessThan(value(1), literal(3));
+    for equality in [
+        Proposition::Equal(value(1), literal(3)),
+        Proposition::Equal(literal(3), value(1)),
+    ] {
+        let assumptions = [equality.clone()];
+        let axioms = [upper.clone()];
+        let proof = prove(&assumptions, &axioms).expect("exact bound leg");
+        let acceptance = accept_certificate(
+            &context(),
+            &Proposition::Falsehood,
+            &assumptions,
+            &axioms,
+            &proof,
+        )
+        .unwrap();
+        assert_eq!(acceptance.assumptions.len(), 1);
+        assert_eq!(acceptance.semantic_axioms.len(), 1);
+        assert!(
+            acceptance
+                .rules
+                .contains(&AcceptedProofRule::IntegerOrderWeakening)
+        );
+        assert!(
+            acceptance
+                .rules
+                .contains(&AcceptedProofRule::PredicateDenotation)
+        );
+        for changed in [
+            vec![],
+            vec![Proposition::Equal(value(1), literal(2))],
+            vec![Proposition::Equal(value(2), literal(3))],
+        ] {
+            assert!(
+                check_certificate(
+                    &context(),
+                    &Proposition::Falsehood,
+                    &changed,
+                    &axioms,
+                    &proof
+                )
+                .is_err(),
+                "the exact bound cannot be removed or redirected"
+            );
+        }
+    }
+}
+
+/// Two equalities pinning one value to distinct literals contradict each other
+/// through their nonstrict legs; no disequality rule is needed.
+#[test]
+fn distinct_equality_literals_establish_the_integer_contradiction() {
+    let assumptions = [Proposition::Equal(value(1), literal(0))];
+    let axioms = [Proposition::Equal(value(1), literal(1))];
+    let proof = prove(&assumptions, &axioms).expect("0 <= v <= ... contradiction");
+    let acceptance = accept_certificate(
+        &context(),
+        &Proposition::Falsehood,
+        &assumptions,
+        &axioms,
+        &proof,
+    )
+    .unwrap();
+    assert_eq!(acceptance.assumptions.len(), 1);
+    assert_eq!(acceptance.semantic_axioms.len(), 1);
+    for changed in [
+        vec![],
+        vec![Proposition::Equal(value(1), literal(0)), Proposition::Truth],
+        vec![Proposition::Equal(value(2), literal(1))],
+    ] {
+        assert!(
+            check_certificate(
+                &context(),
+                &Proposition::Falsehood,
+                &assumptions,
+                &changed,
+                &proof
+            )
+            .is_err(),
+            "the second equality citation is load-bearing"
+        );
+    }
+}
+
+/// Consistent equalities, non-integer equalities, and mixed-type equalities
+/// never weaken into contradictory legs.
+#[test]
+fn equality_legs_keep_their_exact_integer_custody() {
+    let consistent = [
+        Proposition::Equal(value(1), literal(3)),
+        Proposition::Equal(literal(3), literal(3)),
+    ];
+    for axioms in [
+        vec![Proposition::LessThan(value(1), literal(4))],
+        vec![Proposition::Equal(value(1), literal(3))],
+        vec![Proposition::LessThan(value(2), literal(3))],
+    ] {
+        assert!(prove(&consistent, &axioms).is_none(), "{axioms:?}");
+    }
+    let boolean = Proposition::Equal(
+        ScalarTerm::value(ValueId::new(4).unwrap(), ScalarType::Boolean),
+        ScalarTerm::Boolean(true),
+    );
+    assert!(
+        prove(&[boolean], &[Proposition::LessThan(value(1), literal(3))]).is_none(),
+        "a Boolean equality is not an integer bound"
+    );
+    let other_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let mixed = Proposition::Equal(
+        ScalarTerm::value(ValueId::new(4).unwrap(), ScalarType::Integer(other_type)),
+        literal(3),
+    );
+    assert!(
+        prove(&[mixed], &[Proposition::LessThan(value(1), literal(3))]).is_none(),
+        "a mixed-type equality cannot name the u32 bound"
+    );
+}
+
+/// A closed arithmetic endpoint evaluates through the checked closed-relation
+/// primitive, so `value == 2 + 1` contradicts `value < 3` by literal `3 < 3`.
+#[test]
+fn closed_arithmetic_endpoints_reach_literal_contradictions() {
+    let sum = ScalarTerm::wrapping_integer_add(integer_type(), literal(2), literal(1)).unwrap();
+    let assumptions = [Proposition::Equal(value(1), sum)];
+    let axioms = [Proposition::LessThan(value(1), literal(3))];
+    let proof = prove(&assumptions, &axioms).expect("evaluated bound leg");
+    let acceptance = accept_certificate(
+        &context(),
+        &Proposition::Falsehood,
+        &assumptions,
+        &axioms,
+        &proof,
+    )
+    .unwrap();
+    assert!(
+        acceptance
+            .rules
+            .contains(&AcceptedProofRule::IntegerOrderSubstitution)
+    );
+    assert!(
+        acceptance
+            .rules
+            .contains(&AcceptedProofRule::PredicateDenotation)
+    );
+    // Open operands keep their exact identity: no closed denotation exists for
+    // `value == v2 + 1` even alongside a strict bound on the same value.
+    let open = ScalarTerm::wrapping_integer_add(integer_type(), value(2), literal(1)).unwrap();
+    assert!(
+        prove(
+            &[Proposition::Equal(value(1), open)],
+            std::slice::from_ref(&axioms[0])
+        )
+        .is_none(),
+        "an open sum is not a literal bound"
+    );
+}
+
+/// The guarded-exit shape itself: with `counter == 3` established, the premise
+/// `counter < 3` cannot hold, so the implication discharges vacuously while
+/// the uncontradicted conclusion alone still does not prove.
+#[test]
+fn guarded_implication_discharges_an_equality_bound_contradiction() {
+    let premise = Proposition::LessThan(value(1), literal(3));
+    let result = Proposition::Equal(value(2), literal(42));
+    let goal = Proposition::Implication {
+        premise: Box::new(premise),
+        conclusion: Box::new(result.clone()),
+    };
+    let axioms = [Proposition::Equal(value(1), literal(3))];
+    let proof = super::super::super::build(&context(), &goal, &[], &axioms)
+        .expect("the equality bound retires the guarded premise");
+    let acceptance = accept_certificate(&context(), &goal, &[], &axioms, &proof).unwrap();
+    assert!(acceptance.assumptions.is_empty());
+    assert_eq!(acceptance.semantic_axioms.len(), 1);
+    assert!(check_certificate(&context(), &goal, &[], &[], &proof).is_err());
+    assert!(
+        super::super::super::build(&context(), &result, &[], &axioms).is_none(),
+        "the equality bound alone never proves the conclusion"
+    );
+}
+
 #[test]
 fn integer_contradiction_search_rejects_consistent_or_unmatched_bounds() {
     let lower = Proposition::LessOrEqual(literal(3), value(1));
