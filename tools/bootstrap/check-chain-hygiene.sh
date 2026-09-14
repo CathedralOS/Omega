@@ -5,6 +5,9 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd -P)
 . "$SCRIPT_DIR/paths.sh"
+. "$SCRIPT_DIR/delta/compiler_env.sh"
+. "$SCRIPT_DIR/epsilon/evaluator_env.sh"
+. "$SCRIPT_DIR/omega/compiler_env.sh"
 
 command -v python3 >/dev/null 2>&1 || {
   echo "bootstrap chain topology: skipped (python3 absent)"
@@ -154,15 +157,13 @@ bootstrap/4_epsilon/epsilon_compiler.delta'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside selected edges"
 
-PACKED_DIR=$(mktemp -d)
-trap 'rm -rf -- "$PACKED_DIR"' EXIT HUP INT TERM
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-  "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$PACKED_DIR/compiler.gamma" \
-  --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-  "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$PACKED_DIR/evaluator.delta"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-  "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$PACKED_DIR/compiler.epsilon"
+# The enumerated compiler sources must be exactly the bound chain artifacts:
+# each require_* check binds the canonical entry, manifest, every member, the
+# packed closure, and the composed record to the audited edge records, and
+# refuses before any consumer could pack a substituted manifest.
+require_delta_compiler_identity
+require_epsilon_evaluator_identity
+require_omega_compiler_identity
 
 tracked_compiler_tapes=$(find \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_DELTA_COMPILER" \

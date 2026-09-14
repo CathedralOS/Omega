@@ -14,8 +14,9 @@ TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$TEST_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
-SOURCE_CLOSURE_MATERIALIZER="$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/omega/compiler_env.sh"
 OMEGA_BUILD="$OMEGA_PATH_OMEGA/build.omg"
 DRIVER="$TEST_DIR/execution_driver.delta"
 
@@ -28,9 +29,10 @@ TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 EPSILON="$TMP/epsilon_compiler.delta"
 DELTA="$TMP/delta_compiler.gamma"
-python3 "$SOURCE_CLOSURE_MATERIALIZER" "$OMEGA_PATH_DELTA_COMPILER_SOURCES" \
-    "$DELTA" --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
-python3 "$SOURCE_CLOSURE_MATERIALIZER" "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$EPSILON"
+# Bound materializers refuse before writing when the canonical manifest,
+# members, or packed closure differ from the audited edge records.
+materialize_delta_compiler "$DELTA"
+materialize_epsilon_evaluator "$EPSILON"
 
 if grep -Eq 'EpsilonAlpha|epsilon_alpha_' "$EPSILON"; then
     echo "Interpreted Omega experiment: Epsilon still owns Alpha encoding" >&2
@@ -42,7 +44,7 @@ fi
     exit 1
 }
 
-python3 "$SOURCE_CLOSURE_MATERIALIZER" "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$TMP/compiler.epsilon"
+materialize_omega_compiler "$TMP/compiler.epsilon"
 grep -F 'data AlphaTapeBuffer {' "$TMP/compiler.epsilon" >/dev/null || {
     echo "Interpreted Omega experiment: Omega D does not own Alpha tape construction" >&2
     exit 1
