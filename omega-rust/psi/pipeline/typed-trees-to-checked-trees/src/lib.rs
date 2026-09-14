@@ -1,6 +1,8 @@
 //! Typed trees to checked trees.
 //!
-//! Start at `checking.rs` for specialization, validation, and plan construction.
+//! Start at `checking.rs` for specialization, validation, and plan construction;
+//! it also owns the open-index normalization and static machine-call
+//! specialization steps that package orchestration reuses on typed snapshots.
 //! `selected_execution.rs` owns rebuilding plans after provider settlement.
 //! This root preserves the crate API and wires the checking subsystems.
 
@@ -32,7 +34,8 @@ pub use checking::{
     SelectedGenericOperatorProviderSpecialization,
     lower_package_typed_trees_with_selected_generic_operator_providers,
     lower_preliminary_typed_trees, lower_typed_trees,
-    lower_typed_trees_with_selected_generic_operator_providers,
+    lower_typed_trees_with_selected_generic_operator_providers, normalize_open_index_identities,
+    specialize_static_machine_calls,
 };
 pub use selected_execution::{
     SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication,
@@ -230,46 +233,6 @@ pub use product_pruning::{
 
 #[cfg(test)]
 pub(crate) use checking::lower_typed_trees_for_crash_fact_inspection;
-
-/// Bind exact PDI3 operation/algebra authority and refresh every enclosing
-/// indexed-domain semantic ID. Orchestration calls this before typed
-/// snapshots and trust receipts; checked lowering calls it before capturing
-/// generic template fingerprints and again after specialization.
-pub fn normalize_open_index_identities(
-    program: &mut typed_trees::TypedTrees,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    ::validation::normalize_open_index_expressions(program)?;
-    monomorphization::refresh_closed_domain_instance_identities(program)
-        .map_err(|diagnostic| vec![diagnostic])
-}
-
-/// Validate and consume compile-time machine-symbol selections, rewriting
-/// every complete generic call tuple to direct concrete calls. The ordinary
-/// checked-tree path invokes this before validation; orchestration also uses
-/// it on a private clone before interpreting build.omg so build-time execution
-/// sees the same specialized program as runtime lowering.
-pub fn specialize_static_machine_calls(
-    program: &mut typed_trees::TypedTrees,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    specialize_static_machine_calls_with_nominal_uses(program).map(|_| ())
-}
-
-pub(crate) fn specialize_static_machine_calls_with_nominal_uses(
-    program: &mut typed_trees::TypedTrees,
-) -> Result<Vec<::validation::ValidatedNominalMachineUse>, Vec<diagnostics::Diagnostic>> {
-    conformance_application_lifetimes::resolve_elided_conformance_lifetimes(program)?;
-    conformance_applications::validate_conformance_applications(program)?;
-    let mut nominal_uses = ::validation::validate_static_machine_selections_with_facts(program)?;
-    ::validation::validate_generic_machine_contract_entailment(program)?;
-    monomorphization::monomorphize_generic_machine_value_calls_with_nominal_uses(
-        program,
-        &mut nominal_uses,
-    )?;
-    let operational = ::validation::infer_operational_may(program);
-    ::validation::validate_static_machine_call_contracts(program, &operational)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    Ok(nominal_uses)
-}
 
 /// Derive the checked body-local termination summary for one typed machine.
 ///
