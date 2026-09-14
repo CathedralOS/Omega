@@ -519,6 +519,15 @@ impl FloatRange {
                 || (value.maximum == self.maximum
                     && (self.maximum_inclusive || !value.maximum_inclusive)))
     }
+
+    /// Whether membership in this range is finite evidence. IEEE endpoint
+    /// comparisons never hold for NaN, so membership already excludes it;
+    /// what remains are the infinities. The inclusive minimum must itself
+    /// be finite, and the maximum must be finite unless the bound is
+    /// EXCLUSIVE -- `x < +inf` rejects +inf while `x <= +inf` admits it.
+    pub(crate) fn proves_finite(&self) -> bool {
+        self.minimum.is_finite() && (self.maximum.is_finite() || !self.maximum_inclusive)
+    }
 }
 
 /// The caller's argument for the SIBLING a sibling-length atom names --
@@ -2353,13 +2362,18 @@ fn derived_binary_constraints(
         float_range_from_constraints(right_constraints),
     ) && let Some(range) = float_binary_range(operator, left_range, right_range)
     {
-        constraints.push(ProofConstraint::Named(Identifier::generated_static(
-            "finite",
-        )));
+        // The derived bound is honest, but `finite` is the stronger claim:
+        // it holds only when the bound itself EXCLUDES the infinities an
+        // overflowing operation can still reach (`1e308 + 1e308` is +inf).
+        if range.proves_finite() {
+            constraints.push(ProofConstraint::Named(Identifier::generated_static(
+                "finite",
+            )));
+        }
         constraints.push(ProofConstraint::FloatRange {
             minimum: FloatLiteral::new(range.minimum),
             maximum: FloatLiteral::new(range.maximum),
-            maximum_inclusive: true,
+            maximum_inclusive: range.maximum_inclusive,
         });
     }
 
@@ -2547,7 +2561,10 @@ fn augment_constraints_with_named_facts(constraints: &mut ConstraintBuffer) {
         }
     }
 
-    if float_range_from_constraints(constraints).is_some()
+    // A float range is `finite` evidence only when its membership excludes
+    // the infinities it names: an inclusive bound that evaluates to +inf
+    // admits it, while the exclusive `x < +inf` bounds below it.
+    if float_range_from_constraints(constraints).is_some_and(|range| range.proves_finite())
         && !has_named_constraint(constraints, "finite")
     {
         constraints.push(ProofConstraint::Named(Identifier::generated_static(
@@ -2581,7 +2598,7 @@ fn arithmetic_domain_from_constraints(
 
 fn constraints_prove_finite(constraints: &ConstraintBuffer) -> bool {
     has_named_constraint(constraints, "finite")
-        || float_range_from_constraints(constraints).is_some()
+        || float_range_from_constraints(constraints).is_some_and(|range| range.proves_finite())
 }
 
 fn has_named_constraint(constraints: &ConstraintBuffer, name: &str) -> bool {
@@ -2770,6 +2787,15 @@ fn float_binary_range(
     left: FloatRange,
     right: FloatRange,
 ) -> Option<FloatRange> {
+    // A minted range asserts IEEE membership, which NaN never satisfies.
+    // Provably-finite operands keep these operations NaN-free (magnitude
+    // overflow still reaches +-inf, which remains an honest bound). Once an
+    // operand's range admits an infinity the result can be NaN
+    // (`inf + -inf`, `inf - inf`, `0 * inf`, `inf / inf`), and no honest
+    // membership claim exists -- refuse rather than mint permissive evidence.
+    if !left.proves_finite() || !right.proves_finite() {
+        return None;
+    }
     // Interval arithmetic over an open endpoint only weakens a conservative result.
     match operator {
         BinaryOperator::Add => Some(FloatRange {
@@ -3070,5 +3096,99 @@ mod range_tests {
                 maximum: BigInt::from_u128(u128::from(u64::MAX)),
             }),
         );
+    }
+
+    #[test]
+    fn float_range_proves_finite_only_when_infinities_are_excluded() {
+        let inclusive = FloatRange {
+            minimum: 0.0,
+            maximum: 1.5,
+            maximum_inclusive: true,
+        };
+        let strict = FloatRange {
+            minimum: 0.0,
+            maximum: 1.5,
+            maximum_inclusive: false,
+        };
+        let inclusive_supremum = FloatRange {
+            minimum: 0.0,
+            maximum: f64::INFINITY,
+            maximum_inclusive: true,
+        };
+        let exclusive_supremum = FloatRange {
+            minimum: 0.0,
+            maximum: f64::INFINITY,
+            maximum_inclusive: false,
+        };
+        let infinite_floor = FloatRange {
+            minimum: f64::NEG_INFINITY,
+            maximum: 1.0,
+            maximum_inclusive: true,
+        };
+
+        assert!(inclusive.proves_finite());
+        assert!(strict.proves_finite());
+        // `x <= +inf` admits +inf; `x < +inf` and NaN reject it outright.
+        assert!(!inclusive_supremum.proves_finite());
+        assert!(exclusive_supremum.proves_finite());
+        assert!(!infinite_floor.proves_finite());
+    }
+
+    #[test]
+    fn float_binary_range_refuses_operands_that_admit_infinity() {
+        let admits_infinity = FloatRange {
+            minimum: 0.0,
+            maximum: f64::INFINITY,
+            maximum_inclusive: true,
+        };
+        let finite = FloatRange::closed(1.0);
+
+        // `inf + -inf`, `inf - inf`, `0 * inf`, `0 / 0`, `inf / inf` are all
+        // NaN; no IEEE-membership claim is honest once an operand admits one.
+        for operator in [
+            BinaryOperator::Add,
+            BinaryOperator::Subtract,
+            BinaryOperator::Multiply,
+            BinaryOperator::Divide,
+        ] {
+            assert_eq!(float_binary_range(operator, admits_infinity, finite), None);
+            assert_eq!(float_binary_range(operator, finite, admits_infinity), None);
+        }
+    }
+
+    #[test]
+    fn derived_float_range_stays_honest_through_magnitude_overflow() {
+        let mut wide = ConstraintBuffer::new();
+        wide.push(ProofConstraint::FloatRange {
+            minimum: FloatLiteral::new(0.0),
+            maximum: FloatLiteral::new(1e308),
+            maximum_inclusive: true,
+        });
+
+        let constraints = derived_binary_constraints(BinaryOperator::Add, &wide, &wide);
+
+        // `1e308 + 1e308` overflows to +inf: the derived bound reports it
+        // honestly (`result <= +inf`) but must NOT also claim `finite`.
+        assert!(constraints.iter().any(|constraint| matches!(
+            constraint,
+            ProofConstraint::FloatRange { maximum, .. } if maximum.value() == f64::INFINITY
+        )));
+        assert!(!has_named_constraint(&constraints, "finite"));
+        assert!(!constraints_prove_finite(&constraints));
+    }
+
+    #[test]
+    fn derived_float_range_proves_finite_when_the_bound_is_finite() {
+        let mut narrow = ConstraintBuffer::new();
+        narrow.push(ProofConstraint::FloatRange {
+            minimum: FloatLiteral::new(0.0),
+            maximum: FloatLiteral::new(1.5),
+            maximum_inclusive: true,
+        });
+
+        let constraints = derived_binary_constraints(BinaryOperator::Add, &narrow, &narrow);
+
+        assert!(has_named_constraint(&constraints, "finite"));
+        assert!(constraints_prove_finite(&constraints));
     }
 }

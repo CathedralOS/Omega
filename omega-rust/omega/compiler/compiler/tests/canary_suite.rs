@@ -354,6 +354,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "float/exclusive_float_range_below_endpoint",
+    "ranges/float_exclusive_supremum_discharges_finite",
     // The native differential owner publishes `observe` on all four targets.
     "structural/local_record_receivers",
     "constants/lexical_aggregate_values",

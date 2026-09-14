@@ -1,0 +1,16 @@
+// An EXCLUSIVE float endpoint whose authored decimal overflows f64 keeps its
+// IEEE reading: `x < +inf` excludes +inf itself and NaN, so the range is still
+// `finite` evidence and the parameter delivers into `f64 in Finite`. The
+// endpoint is spelled non-integral so it stays a float range -- an integral
+// spelling such as 1e400 takes the exact-integer range path instead. The
+// inclusive twin `[0.0..=<endpoint>]` admits +inf and is not finite evidence:
+// range EXISTENCE is no longer permissive widening.
+data Main {
+    sink: f64 in Finite;
+}
+
+machine Main::deliver(&mut self, value: f64 [0.0..200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.5]) { self.sink = value; }
+
+machine Main::main(&mut self) {
+    self.deliver(1.0);
+}
