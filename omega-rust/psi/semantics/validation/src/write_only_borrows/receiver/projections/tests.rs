@@ -32,7 +32,6 @@ fn capture_fixture(source: &str) -> (TypedTrees, ExpressionHandle, Vec<WriteOnly
         receiver_machine: SymbolHandle::invalid(),
         name: parameter.name.as_str().to_owned(),
         referee: *referee,
-        is_parameter: true,
     }];
     let StatementNode::LocalData(local) =
         &program.statement_table.statements(state.statement_nodes)[0]
@@ -72,7 +71,6 @@ fn bare_attached_array_receiver_rejoins_its_exact_record() {
         receiver_machine: machine.symbol,
         name: parameter.name.as_str().to_owned(),
         referee: *referee,
-        is_parameter: true,
     }];
     let StatementNode::Expression(expression) =
         &program.statement_table.statements(state.statement_nodes)[0]

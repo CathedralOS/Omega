@@ -18,7 +18,6 @@ struct WriteOnlyRoot {
     receiver_machine: SymbolHandle,
     name: String,
     referee: TypeReferenceHandle,
-    is_parameter: bool,
 }
 
 pub(crate) fn validate_checked_write_only_slice(
@@ -50,7 +49,6 @@ pub(crate) fn validate_checked_write_only_slice(
                         },
                         name: parameter.name.as_str().to_owned(),
                         referee: *referee,
-                        is_parameter: true,
                     })
                 })
                 .collect::<Vec<_>>();
@@ -78,7 +76,6 @@ pub(crate) fn validate_checked_write_only_slice(
                             receiver_machine: SymbolHandle::invalid(),
                             name: local.name.as_str().to_owned(),
                             referee: *referee,
-                            is_parameter: false,
                         })
                     }),
             );
@@ -693,58 +690,40 @@ fn write_only_element_assignment_index(
     }
 }
 
-/// Admit one exact literal primitive element of either a direct fixed-array
-/// root or an already-admitted common-field path only at the direct checked-call
-/// boundary. A finite nonempty suffix of literal indexes may traverse
-/// recursively literal fixed arrays. Dynamic indices, ranges, and aggregate
-/// elements remain excluded.
+/// Admit one exact literal primitive element of an admitted write-only place
+/// only at the direct checked-call boundary. The shared non-observing
+/// projection walk — the same judgment local formation applies through
+/// `captured_type` — owns root and bare-field bases, relevant-field identity,
+/// builtin index meaning, and in-bounds literal coordinates. This gate keeps
+/// only the rung's shape: at least one indexed hop and an unrestricted
+/// primitive leaf. Dynamic indices, ranges, and aggregate elements remain
+/// excluded.
 fn write_only_literal_indexed_direct_call_subloan(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> bool {
-    let mut collection = expression;
-    let mut indices = Vec::new();
-    while let ExpressionNode::Indexed(indexed) = program.expression_table.expression(collection) {
-        if !matches!(
-            program.expression_table.expression(indexed.index),
-            ExpressionNode::Integer(_)
-        ) {
-            return false;
+    let mut cursor = expression;
+    let mut visited = Vec::new();
+    let has_indexed_hop = loop {
+        if visited.contains(&cursor) || !program.expression_table.expression_is_valid(cursor) {
+            break false;
         }
-        indices.push(indexed.index);
-        collection = indexed.collection;
-    }
-    if indices.is_empty() {
-        return false;
-    }
-
-    let Some(mut collection_type) = direct_write_only_root(program, collection, roots)
-        .filter(|root| root.is_parameter)
-        .map(|root| root.referee)
-        .or_else(|| write_only_record_field_type(program, collection, roots))
-    else {
-        return false;
+        visited.push(cursor);
+        cursor = match program.expression_table.expression(cursor) {
+            ExpressionNode::Member(member) if member.case_variant.is_none() => member.receiver,
+            ExpressionNode::Indexed(_) => break true,
+            _ => break false,
+        };
     };
-    for index in indices.into_iter().rev() {
-        let Some((element_type, length)) =
-            fixed_unrestricted_write_only_array_shape(program, collection_type)
-        else {
-            return false;
-        };
-        let Some(index) = program
-            .expression_table
-            .constant_integer_value(index)
-            .and_then(|value| usize::try_from(value).ok())
-        else {
-            return false;
-        };
-        if index >= length {
-            return false;
-        }
-        collection_type = element_type;
-    }
-    is_unrestricted_scalar(program, collection_type)
+    has_indexed_hop
+        && receiver::projected(
+            program,
+            expression,
+            roots,
+            receiver::ProjectionAdmission::LiteralIndexes,
+        )
+        .is_some_and(|(_, leaf, _)| is_unrestricted_scalar(program, leaf))
 }
 
 fn diagnose_unsupported_write_only_assignment_target(

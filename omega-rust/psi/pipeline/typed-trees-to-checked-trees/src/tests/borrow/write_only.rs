@@ -141,6 +141,59 @@ fn finite_literal_index_suffix_may_finish_a_common_field_subloan() {
 }
 
 #[test]
+fn literal_indexed_write_only_subloan_narrows_a_local_root() {
+    lower_typed_trees(typed(
+        r#"
+            machine replace(value: &write u16) {
+                value = 7;
+            }
+
+            machine forward(values: &write [u16; 2]) {
+                let alias: &write [u16; 2] = &write values;
+                replace(&write alias[1]);
+            }
+        "#,
+    ))
+    .expect("the shared projection walk narrows a write-only local root by literal index at the call boundary, exactly as local formation admits the same place");
+}
+
+#[test]
+fn literal_indexed_write_only_subloan_interleaves_member_and_index_hops() {
+    lower_typed_trees(typed(
+        r#"
+            data Inner [copy] { values: [u16; 2]; }
+            data Outer { inners: [Inner; 2]; }
+
+            machine replace(value: &write u16) {
+                value = 7;
+            }
+
+            machine forward(outer: &write Outer) {
+                replace(&write outer.inners[0].values[1]);
+            }
+        "#,
+    ))
+    .expect("member and literal-index hops compose under the shared projection walk, matching local formation of the same place");
+}
+
+#[test]
+fn literal_indexed_write_only_subloan_requires_builtin_indexing() {
+    let rendered = rendered_rejection(
+        r#"
+            boundary operator [] Collection::read(items: &[u16], index: u64) -> u16;
+            machine replace(value: &write u16) {}
+            machine forward(values: &write [u16; 2]) {
+                replace(&write values[1]);
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("forms `&write` from an unsupported projection"),
+        "an authored index operator must not substitute for builtin coordinates: {rendered}"
+    );
+}
+
+#[test]
 fn direct_root_write_only_subloan_keeps_wider_index_shapes_fenced() {
     for (name, source) in [
         (
@@ -214,16 +267,6 @@ fn direct_root_write_only_subloan_keeps_wider_index_shapes_fenced() {
                 machine replace(value: &write Leaf) {}
                 machine forward(values: &write [[Leaf; 2]; 2]) {
                     replace(&write values[0][0]);
-                }
-            "#,
-        ),
-        (
-            "local array alias",
-            r#"
-                machine replace(value: &write u16) {}
-                machine forward(values: &write [u16; 2]) {
-                    let alias: &write [u16; 2] = &write values;
-                    replace(&write alias[1]);
                 }
             "#,
         ),
