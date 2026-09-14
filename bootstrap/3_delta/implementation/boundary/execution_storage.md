@@ -126,16 +126,35 @@ argument continues to apply; no native stack or memory partition is changed.
 The canonical compiler does not need more call contexts, lexical rows, or
 temporary-value storage for source depth or width. Explicit worklists and
 immutable plans still allocate **pairs cumulatively**; returning from a call or
-dropping a worklist does not reclaim them.
-[Serialization's own traversal](../emission/README.md#publication-traversal-pairs)
-is bounded below the pair arena by the admitted payload extent, and the
-[normalizer's frames and rebuilt nodes](../normalization/README.md#traversal-and-rebuild-pairs)
-are charged per plan-node occurrence with capture merges bounded per
-collection by `(2d + 1) * (k + 1) + 2E`. The remaining whole-producer term is
-checking and lowering: census and scoped name tries, typed metadata, typing
-continuations, the lexical trie reused by lowering, and the plan construction
-that produces the `G` those later bounds consume. This audit neither supplies
-a DCOUT heap refusal nor converts an outer Gamma failure into one.
+dropping a worklist does not reclaim them. Every producer phase now carries a
+per-occurrence charge derived in the same style:
+
+- [Serialization's own traversal](../emission/README.md#publication-traversal-pairs)
+  is bounded below the pair arena by the admitted payload extent.
+- The [normalizer's frames and rebuilt nodes](../normalization/README.md#traversal-and-rebuild-pairs)
+  are charged per plan-node occurrence with capture merges bounded per
+  collection by `(2d + 1) * (k + 1) + 2E`.
+- The [checking audit](../checking/README.md#traversal-and-rebuild-pairs)
+  charges census metadata, resolution rows, typing continuations, and
+  environment binds per source occurrence — at most `39*S + 36` site pairs —
+  and the [lowering audit](../lowering/README.md#traversal-and-rebuild-pairs)
+  charges continuation frames, plan construction, and the produced `G` at
+  `<= 200*S + 91` with `G <= 40*S + 15`.
+- The shared [name-trie and cursor audit](../checking/names/README.md#pair-accounting)
+  charges lookups, descents, fresh suffixes, and immutable rebuilds; departed
+  ancestor levels amortize to descended name bytes through the cursor zipper
+  identity, but each rebuilt branch level can still copy up to 63 sibling
+  rows.
+
+What remains open is whether these per-occurrence products stay below the
+40,265,318-pair arena for every admitted shape: the coarse checking,
+lowering, and shared-name envelope is at most `295*S + 1150*N + 149` pairs
+— before the normalizer's own `45*G + 7*F + 1` term — dominated by the
+`191`-per-level sibling copies in name rebuilds and exceeding the arena at
+maximum source extents.
+The capture `k*d` merge product carries the same open status. This audit
+neither supplies a DCOUT heap refusal nor converts an outer Gamma failure
+into one.
 
 Generated Delta applications are different programs. Their recursion and live
 storage can still exhaust the selected evaluator or diverge. The compiler's
