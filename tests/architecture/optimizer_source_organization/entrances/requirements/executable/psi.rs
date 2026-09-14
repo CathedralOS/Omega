@@ -34,6 +34,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "apply::validated(session, validated)",
     },
     RequiredCoordinationEntrance {
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/mod.rs",
+        coordination_marker: "apply::validated(session, validated)",
+    },
+    RequiredCoordinationEntrance {
         path: "omega-rust/omega/representations/optimization-unit/src/optimization_unit.rs",
         coordination_marker: "pub struct PsiOptimizationUnit",
     },

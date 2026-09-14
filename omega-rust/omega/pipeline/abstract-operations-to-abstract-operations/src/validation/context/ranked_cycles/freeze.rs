@@ -2,13 +2,12 @@
 
 use super::*;
 
-mod normalized_component;
+mod relocated_scalar_leaves;
 
 pub(super) fn validate_frozen_component_blocks(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
     components: &[OptimizerCycleComponent],
-    rankings: &[OptimizerUnsignedCountdownRankingCertificate],
 ) -> Result<(), OptimizationUnitValidationError> {
     if components.is_empty() {
         return Ok(());
@@ -18,8 +17,21 @@ pub(super) fn validate_frozen_component_blocks(
             .map_err(|_| {
                 OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch
             })?;
+    let mut machines = BTreeMap::<MachineId, Vec<&OptimizerCycleComponent>>::new();
     for component in components {
-        let machine = component.id.machine;
+        machines
+            .entry(component.id.machine)
+            .or_default()
+            .push(component);
+    }
+    // Prefix definitions and exit observations matter for unranked, Natural,
+    // and countdown cycles alike. Topology equality alone cannot preserve
+    // them; the relocation normalization retains every source-owned field
+    // while admitting only scalar-leaf motion into a component's own
+    // unique-entry preheader. Immutable signature/contract and accepted-fact
+    // custody are checked separately by the enclosing context validator. The
+    // bare seed has not yet acquired that verified metadata.
+    for (machine, machine_components) in machines {
         let expected_function = expected
             .functions
             .iter()
@@ -34,44 +46,11 @@ pub(super) fn validate_frozen_component_blocks(
             .ok_or(OptimizationUnitValidationError::RankedCycleFunctionMissing(
                 machine,
             ))?;
-        if !super::countdown_ranking::is_unsigned_countdown(input.context().module(), machine) {
-            // Prefix definitions and exit observations matter for unranked and
-            // Natural cycles alike.
-            // Topology equality or frozen SCC members alone cannot preserve them.
-            // Immutable signature/contract and accepted-fact custody are checked
-            // separately by the enclosing context validator. The bare seed has
-            // not yet acquired that verified metadata.
-            if current_function.blocks != expected_function.blocks {
-                return Err(
-                    OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
-                        machine,
-                        block: current_function.entry,
-                    },
-                );
-            }
-            continue;
-        }
-        let certificates = rankings
-            .iter()
-            .filter(|certificate| certificate.component == component.id)
-            .collect::<Vec<_>>();
-        let [certificate] = certificates.as_slice() else {
-            return Err(
-                OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
-                    machine,
-                    block: component
-                        .members
-                        .first()
-                        .copied()
-                        .unwrap_or(current_function.entry),
-                },
-            );
-        };
-        normalized_component::validate(
+        relocated_scalar_leaves::validate(
+            machine,
             expected_function,
             current_function,
-            component,
-            certificate,
+            &machine_components,
         )?;
     }
     Ok(())

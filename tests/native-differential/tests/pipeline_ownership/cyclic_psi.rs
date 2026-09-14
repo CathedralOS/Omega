@@ -42,6 +42,7 @@ mod countdown_invariant_constant_placement;
 mod countdown_invariant_constant_relocation;
 mod countdown_invariant_constants;
 mod counted_loop_analysis;
+mod loop_invariant_scalar_motion;
 mod ranking_relocated_invariant_constants;
 
 fn countdown_input() -> (terminal_psi::TerminalModule, VerifiedPsiOptimizationInput) {
