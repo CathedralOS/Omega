@@ -308,6 +308,121 @@ fn parameter_terminator_uses_reload_from_edge_initialized_storage() {
 }
 
 #[test]
+fn edge_initialized_parameters_transport_through_fresh_reload_registers() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut source = parameter_fixture(target);
+        {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            let scalar_type = function.virtual_registers[1].scalar_type;
+            let class = function.virtual_registers[1].class;
+            // The destination parameter is transported onward to a new exit
+            // block's own parameter through an ordinary edge binding.
+            function.virtual_registers.push(VirtualRegister {
+                id: VirtualRegisterId(7),
+                scalar_type,
+                class,
+                origin: VirtualRegisterOrigin::BlockParameter {
+                    source_value: ValueId::new(3).unwrap(),
+                    block: SelectedBlockId(4),
+                    parameter_index: 0,
+                },
+                definition_site: Some(ValueDefinitionSite::BlockParameter {
+                    block: BlockId::new(4).unwrap(),
+                    position: 0,
+                }),
+                entry_fixed_view: None,
+            });
+            let terminal = function.blocks[2].terminator.clone();
+            let jump = environment
+                .constraint(environment.selected_keys().jump)
+                .unwrap();
+            let mut onward = successor(4);
+            onward.role = SelectedSuccessorRole::Semantic;
+            onward.source_target = BlockId::new(4).unwrap();
+            onward.bindings.push(SelectedValueBinding {
+                semantic: abstract_operations::ValueBinding {
+                    parameter: ValueId::new(3).unwrap(),
+                    argument: ValueId::new(2).unwrap(),
+                    scalar_type,
+                },
+                transport: SelectedValueTransport::Registers {
+                    argument: VirtualRegisterId(1),
+                    parameter: VirtualRegisterId(7),
+                },
+            });
+            function.blocks[2].terminator = SelectedTerminator::Jump {
+                instruction: admission::instruction(
+                    SelectedInstructionId(2000),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: onward,
+            };
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(4),
+                origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+                instructions: Vec::new(),
+                terminator: terminal,
+            });
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        let original = &source.transformed().functions[0];
+        let transformed = &result.transformed().functions[0];
+        // Both edge stores stay; the destination gains one pair per body use
+        // plus one for the outgoing transport.
+        for id in [1, 3] {
+            assert!(matches!(
+                transformed.blocks[id].instructions[1].kind,
+                SelectedInstructionKind::Store64 { .. }
+            ));
+        }
+        let block = &transformed.blocks[2];
+        assert_eq!(
+            block.instructions.len(),
+            original.blocks[2].instructions.len() + 6
+        );
+        let tail = block.instructions.len() - 1;
+        assert!(matches!(
+            block.instructions[tail].kind,
+            SelectedInstructionKind::Load64 { .. }
+        ));
+        let SelectedTerminator::Jump { successor, .. } = &block.terminator else {
+            unreachable!()
+        };
+        assert_eq!(
+            successor.bindings[0].transport,
+            SelectedValueTransport::Registers {
+                argument: block.instructions[tail].operands[1].virtual_register,
+                parameter: VirtualRegisterId(7),
+            }
+        );
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone()
+            )
+            .is_ok()
+        );
+    }
+}
+
+#[test]
 fn incomplete_or_nonlocal_parameter_initialization_is_rejected() {
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     for mutation in 0..12 {

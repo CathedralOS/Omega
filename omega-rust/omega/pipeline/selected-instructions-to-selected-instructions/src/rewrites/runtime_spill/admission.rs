@@ -174,25 +174,59 @@ pub(super) fn admit<'source>(
                 _ => return Err(RuntimeSpillError::UnsupportedUse),
             }
         }
-        if successors.into_iter().flatten().any(|successor| {
-                successor.bindings.iter().any(|binding| {
-                    matches!(binding.transport,
-                SelectedValueTransport::Registers { argument, parameter }
-                    if argument == register || (parameter == register
-                        && (definition.is_some() || successor.block != function.blocks[block_index].id)))
-                }) || successor.structural_bindings.iter().any(|binding| {
-                    matches!(binding.transport,
-                SelectedStructuralTransport::Descriptor { argument, .. } if argument == register)
-                }) || successor.structural_case.as_ref().is_some_and(|case| {
-                    case.payloads.iter().any(|payload| match payload.transport {
-                        SelectedCasePayloadTransport::Registers { argument, parameter } => argument == register || parameter == register,
-                        SelectedCasePayloadTransport::Unmaterialized { parameter } => parameter == register,
-                        SelectedCasePayloadTransport::Unused => false,
-                    })
+        for successor in successors.into_iter().flatten() {
+            for binding in &successor.bindings {
+                let SelectedValueTransport::Registers {
+                    argument,
+                    parameter,
+                } = binding.transport
+                else {
+                    continue;
+                };
+                // The parameter side is the destination's incoming definition,
+                // never a use in this block. Only a block-parameter victim's
+                // own incoming edges may carry it; parameter_definitions has
+                // already checked every such arrival.
+                if parameter == register
+                    && (definition.is_some() || successor.block != function.blocks[block_index].id)
+                {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                }
+                if argument != register {
+                    continue;
+                }
+                // An edge-transport argument reads the victim at the end of
+                // this block. Its semantic declaration must name the victim's
+                // source value and exact type; anything else is an
+                // inconsistent plan, not a use this rewrite can serve.
+                if binding.semantic.argument != source_value
+                    || binding.semantic.scalar_type != victim.scalar_type
+                {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                }
+                uses = uses
+                    .checked_add(1)
+                    .ok_or(RuntimeSpillError::IdentityOverflow)?;
+            }
+            if successor.structural_bindings.iter().any(|binding| {
+                matches!(binding.transport,
+                SelectedStructuralTransport::Descriptor { argument, .. }
+                    | SelectedStructuralTransport::WholeValue { argument, .. }
+                    if argument == register)
+            }) || successor.structural_case.as_ref().is_some_and(|case| {
+                case.payloads.iter().any(|payload| match payload.transport {
+                    SelectedCasePayloadTransport::Registers {
+                        argument,
+                        parameter,
+                    } => argument == register || parameter == register,
+                    SelectedCasePayloadTransport::Unmaterialized { parameter } => {
+                        parameter == register
+                    }
+                    SelectedCasePayloadTransport::Unused => false,
                 })
-            })
-        {
-            return Err(RuntimeSpillError::UnsupportedUse);
+            }) {
+                return Err(RuntimeSpillError::UnsupportedUse);
+            }
         }
         for instruction in &block.instructions {
             for operand in &instruction.operands {
