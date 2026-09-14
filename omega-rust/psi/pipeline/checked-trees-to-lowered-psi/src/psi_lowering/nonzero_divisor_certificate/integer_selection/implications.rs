@@ -1,10 +1,18 @@
-//! Bounded composition of independently cited implications and exact equalities.
+//! Bounded composition of independently cited implications.
+//!
+//! A proved consequence is a lemma for ordinary arithmetic and logical proof
+//! construction, not only a fact whose syntax already matches the final goal.
+//! Introduce it as one local assumption and discharge that assumption through
+//! implication introduction/elimination. This preserves exact premise custody
+//! without adding a kernel rule or teaching every arithmetic builder to search
+//! conditional facts. The shared search budget and active implication roster
+//! prevent cyclic laws from manufacturing their own premises.
 
 use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::Proposition;
 
 use super::super::integer_evidence::projected_facts;
-use super::{case_analysis, exact, logical};
+use super::{case_analysis, logical};
 
 #[cfg(test)]
 mod tests;
@@ -83,27 +91,43 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
             else {
                 continue;
             };
-            if self.active.contains(fact.proposition) {
+            if self.active.contains(fact.proposition) || assumptions.contains(conclusion) {
                 continue;
             }
             self.remaining = self.remaining.checked_sub(1)?;
-            let Some(bridge) =
-                EqualityBridge::select(goal, conclusion, assumptions, self.semantic_axioms)
-            else {
-                continue;
-            };
             self.active.push(fact.proposition.clone());
             let premise = self.goal(premise, assumptions, depth + 1, allow_cases);
-            self.active.pop();
             if let Some(premise) = premise {
-                let proof = ProofNode {
+                let consequence = ProofNode {
                     conclusion: *conclusion.clone(),
                     rule: ProofRule::ImplicationElimination {
                         implication: Box::new(fact.proof()),
                         premise: Box::new(premise),
                     },
                 };
-                return Some(bridge.apply(proof));
+                let mut scoped = assumptions.to_vec();
+                scoped.push(*conclusion.clone());
+                let body = self.goal(goal, &scoped, depth + 1, allow_cases);
+                self.active.pop();
+                if let Some(body) = body {
+                    return Some(ProofNode {
+                        conclusion: goal.clone(),
+                        rule: ProofRule::ImplicationElimination {
+                            implication: Box::new(ProofNode {
+                                conclusion: Proposition::Implication {
+                                    premise: conclusion.clone(),
+                                    conclusion: Box::new(goal.clone()),
+                                },
+                                rule: ProofRule::ImplicationIntroduction {
+                                    body: Box::new(body),
+                                },
+                            }),
+                            premise: Box::new(consequence),
+                        },
+                    });
+                }
+            } else {
+                self.active.pop();
             }
         }
         // Case analysis appends only the currently selected disjunct. Reuse
@@ -113,95 +137,5 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
                 self.goal(goal, branch, depth + 1, false)
             })
         })?
-    }
-}
-
-enum EqualityBridge {
-    Exact,
-    Through {
-        prefix: ProofNode,
-        suffix: ProofNode,
-        reverse: bool,
-    },
-}
-
-impl EqualityBridge {
-    fn select(
-        goal: &Proposition,
-        conclusion: &Proposition,
-        assumptions: &[Proposition],
-        semantic_axioms: &[Proposition],
-    ) -> Option<Self> {
-        if goal == conclusion {
-            return Some(Self::Exact);
-        }
-        let (Proposition::Equal(goal_left, goal_right), Proposition::Equal(left, right)) =
-            (goal, conclusion)
-        else {
-            return None;
-        };
-        for (left, right, reverse) in [(left, right, false), (right, left, true)] {
-            if let Some(prefix) = exact::prove(
-                &Proposition::Equal(goal_left.clone(), left.clone()),
-                assumptions,
-                semantic_axioms,
-            ) && let Some(suffix) = exact::prove(
-                &Proposition::Equal(right.clone(), goal_right.clone()),
-                assumptions,
-                semantic_axioms,
-            ) {
-                return Some(Self::Through {
-                    prefix,
-                    suffix,
-                    reverse,
-                });
-            }
-        }
-        None
-    }
-
-    fn apply(self, mut proof: ProofNode) -> ProofNode {
-        let Self::Through {
-            prefix,
-            suffix,
-            reverse,
-        } = self
-        else {
-            return proof;
-        };
-        if reverse {
-            let Proposition::Equal(left, right) = &proof.conclusion else {
-                unreachable!("only equalities need orientation")
-            };
-            proof = ProofNode {
-                conclusion: Proposition::Equal(right.clone(), left.clone()),
-                rule: ProofRule::EqualitySymmetry {
-                    equality: Box::new(proof),
-                },
-            };
-        }
-        join(join(prefix, proof), suffix)
-    }
-}
-
-fn join(left: ProofNode, right: ProofNode) -> ProofNode {
-    let (Proposition::Equal(start, middle), Proposition::Equal(other_middle, end)) =
-        (&left.conclusion, &right.conclusion)
-    else {
-        unreachable!("equality bridges retain their exact endpoints")
-    };
-    debug_assert_eq!(middle, other_middle);
-    if start == middle {
-        return right;
-    }
-    if other_middle == end {
-        return left;
-    }
-    ProofNode {
-        conclusion: Proposition::Equal(start.clone(), end.clone()),
-        rule: ProofRule::EqualityTransitivity {
-            left_equals_middle: Box::new(left),
-            middle_equals_right: Box::new(right),
-        },
     }
 }

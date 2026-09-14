@@ -57,6 +57,51 @@ fn implication_chains_replay_exact_citations_and_goal_orientation() {
 }
 
 #[test]
+fn proved_implication_consequence_participates_in_arithmetic() {
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let integer = |identity| {
+        ScalarTerm::value(
+            ValueId::new(identity).unwrap(),
+            ScalarType::Integer(integer_type),
+        )
+    };
+    let literal =
+        |number| ScalarTerm::integer(integer_type, IntegerValue::Unsigned(number)).unwrap();
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Boolean),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+        (ValueId::new(3).unwrap(), ScalarType::Integer(integer_type)),
+    ])
+    .unwrap();
+    let goal = Proposition::LessOrEqual(literal(5), integer(3));
+    let assumptions = [polarity(1, true)];
+    let axioms = [
+        implication(
+            polarity(1, true),
+            Proposition::LessOrEqual(literal(7), integer(2)),
+        ),
+        Proposition::Equal(integer(2), integer(3)),
+    ];
+    let prove = |assumptions: &[Proposition], axioms: &[Proposition]| {
+        super::super::build(&context, &goal, assumptions, axioms)
+    };
+    let proof = prove(&assumptions, &axioms)
+        .expect("derived bound supports alias substitution and weakening");
+    check_certificate(&context, &goal, &assumptions, &axioms, &proof).unwrap();
+    for index in 0..axioms.len() {
+        let mut changed = axioms.clone();
+        changed[index] = Proposition::Truth;
+        assert!(check_certificate(&context, &goal, &assumptions, &changed, &proof).is_err());
+        assert!(prove(&assumptions, &changed).is_none());
+    }
+    assert!(prove(&[], &axioms).is_none());
+    assert!(prove(&[polarity(1, false)], &axioms).is_none());
+    assert!(check_certificate(&context, &goal, &[], &axioms, &proof).is_err());
+}
+
+#[test]
 fn implication_cycles_and_conditional_laws_supply_no_ambient_premise() {
     let goal = polarity(2, true);
     let cycle = [

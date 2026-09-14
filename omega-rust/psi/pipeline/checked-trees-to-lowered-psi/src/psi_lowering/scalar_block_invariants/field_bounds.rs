@@ -3,8 +3,10 @@
 //! A relation obligation on a field-read value can need a fact no path fact
 //! carries: the field's own state across the iteration cut. Transporting the
 //! bound through the read's exact equation produces a candidate invariant on
-//! the observed leaf, scoped to places alive for the whole invocation. These
-//! are proposals only — every actual arrival still proves the predicate
+//! the observed leaf, scoped to places alive for the whole invocation.
+//! Retain selected field guards as premises: an exit backedge may invalidate
+//! the bound after disabling the path that needs it. These are proposals only
+//! — every actual arrival still proves the predicate
 //! before the module grants authority, so a non-inductive guess (for example
 //! a bound the cycle's last iteration violates before the guard exits) is
 //! dropped by that check rather than weakening the question.
@@ -92,6 +94,16 @@ pub(super) fn candidates(
             let Some(predicates) = transported(&site.obligation.proposition, &equations) else {
                 continue;
             };
+            // Transport the site's retained field comparisons once, then
+            // select the subset scoped to each header and distinct from the
+            // proposed conclusion. These can include derived path bounds;
+            // none become trusted simply because they are candidate premises.
+            let guards = site
+                .semantic_axioms
+                .iter()
+                .filter(|fact| literal_comparison(fact))
+                .filter_map(|fact| transport_relation(fact, &equations))
+                .collect::<BTreeSet<_>>();
             // A cyclic header is entered from outside its component. Members
             // reachable only through the cycle itself carry the same facts
             // forward; the externally entered member is where the iteration
@@ -116,10 +128,32 @@ pub(super) fn candidates(
                         return candidates;
                     };
                     *remaining = next;
+                    // Reconstructed path facts describe when this demand is
+                    // reached. Transport their literal comparisons through the
+                    // same live read equations, never treating a read's own
+                    // defining equation as a guard. The conditional candidate
+                    // is weaker than an unconditional bound, but the operation
+                    // must still prove its original obligation from it.
+                    let guards = guards
+                        .iter()
+                        .filter(|guard| *guard != predicate && scope.validate(guard).is_ok())
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    let predicate = match guards.as_slice() {
+                        [] => predicate.clone(),
+                        [guard] => Proposition::Implication {
+                            premise: Box::new(guard.clone()),
+                            conclusion: Box::new(predicate.clone()),
+                        },
+                        _ => Proposition::Implication {
+                            premise: Box::new(Proposition::Conjunction(guards)),
+                            conclusion: Box::new(predicate.clone()),
+                        },
+                    };
                     // The exact invariant telescope decides scope: a predicate
                     // naming a block-local value or a dead place cannot become
                     // an assertion even though its site was reachable.
-                    if scope.validate(predicate).is_err()
+                    if scope.validate(&predicate).is_err()
                         || !proposed.insert((header, predicate.clone()))
                     {
                         continue;
@@ -127,7 +161,7 @@ pub(super) fn candidates(
                     candidates.push(ScalarBlockInvariant {
                         machine: machine.id,
                         header,
-                        predicate: predicate.clone(),
+                        predicate,
                         arrivals: Vec::new(),
                     });
                 }
@@ -135,6 +169,17 @@ pub(super) fn candidates(
         }
     }
     candidates
+}
+
+fn literal_comparison(proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => [left, right]
+            .iter()
+            .any(|term| matches!(term, ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. })),
+        _ => false,
+    }
 }
 
 /// Transport one goal's value endpoints through the arrival's exact field-read
@@ -169,6 +214,10 @@ fn transport_relation(
                 let field = equations.field(*id)?;
                 observed = true;
                 field.clone()
+            }
+            ScalarTerm::BooleanField { .. } | ScalarTerm::IntegerField { .. } => {
+                observed = true;
+                term.clone()
             }
             // Literals and existing field observations are already in scope;
             // any other term is retained for the telescope check to reject.
