@@ -42,7 +42,13 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
         if let Some(receipt) = outcome.report.optimization_rollback_receipt() {
             println!("optimizer rollback: {receipt}");
         }
-        println!("published native output to {}", path.display());
+        // A published macOS package reports its `.app` root; the inner
+        // executable stays reachable through `checked_native_executable_path`.
+        if let Some(package_root) = outcome.report.checked_native_package_path() {
+            println!("published macOS package to {}", package_root.display());
+        } else {
+            println!("published native output to {}", path.display());
+        }
         for pair in outcome.report.pcc_publications() {
             println!("published {pair}");
         }

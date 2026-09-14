@@ -284,6 +284,10 @@ pub struct TerminalNativeRealizationProposal {
     subsystem: u16,
     application_intent: Option<build_evaluation::HostedApplicationIntent>,
     application_identifier: Option<build_evaluation::ApplicationIdentifier>,
+    /// The validated authored `builder.application` name, retained beside the
+    /// intent and identifier. It supplies the publication `.app` basename and
+    /// inner executable leaf; `None` means the build declared no application.
+    application_name: Option<String>,
     post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
     program_entry: build_evaluation::SelectedCompilerProgramEntry,
     selected_provider_plans: effects::SelectedProviderPlanFacts,
@@ -307,6 +311,7 @@ impl TerminalNativeRealizationProposal {
         subsystem: u16,
         application_intent: Option<build_evaluation::HostedApplicationIntent>,
         application_identifier: Option<build_evaluation::ApplicationIdentifier>,
+        application_name: Option<String>,
         post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
         program_entry: build_evaluation::SelectedCompilerProgramEntry,
         selected_provider_plans: effects::SelectedProviderPlanFacts,
@@ -343,6 +348,7 @@ impl TerminalNativeRealizationProposal {
             subsystem,
             application_intent,
             application_identifier,
+            application_name,
             post_terminal_optimizations,
             program_entry,
             selected_provider_plans,
@@ -841,6 +847,14 @@ impl TerminalNativeRealizationProposal {
     /// output may fall back to the executable leaf as its ad-hoc label.
     pub const fn application_identifier(&self) -> Option<&build_evaluation::ApplicationIdentifier> {
         self.application_identifier.as_ref()
+    }
+
+    /// The validated authored `builder.application` name retained for
+    /// publication. It supplies the `.app` basename and inner executable leaf
+    /// for a retained proposal realized on a later machine; `None` means the
+    /// build declared a non-application role.
+    pub fn application_name(&self) -> Option<&str> {
+        self.application_name.as_deref()
     }
 
     pub const fn post_terminal_optimizations(

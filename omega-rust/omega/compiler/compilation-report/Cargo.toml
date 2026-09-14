@@ -18,6 +18,7 @@ calling-conventions = { path = "../../representations/calling-conventions" }
 effects = { path = "../../representations/effects" }
 function-identity = { path = "../../representations/function-identity" }
 image = { path = "../../backend/images/image" }
+image-macho = { path = "../../backend/images/image-macho" }
 native-artifact = { path = "../../backend/artifacts/native-artifact" }
 numerics = { path = "../../../psi/foundation/numerics" }
 package-compilation = { path = "../../build/package-compilation" }
@@ -31,3 +32,7 @@ terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"
+
+[dev-dependencies]
+arena = { path = "../../../psi/foundation/arena" }
+object-file = { path = "../../backend/object/object-file" }

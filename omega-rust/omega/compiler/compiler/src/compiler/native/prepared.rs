@@ -108,6 +108,15 @@ impl PreparedNativeCompilation {
             production_subject,
         )
         .map(|report| report.with_pcc_context(pcc_requests, terminal_admission_profile))
+        .and_then(|report| {
+            report.with_application_metadata(
+                checked
+                    .application_name()
+                    .map(|name| name.as_str().to_owned()),
+                checked.application_intent(),
+                checked.application_identifier().cloned(),
+            )
+        })
         .map_err(|message| vec![Diagnostic::error(message)])?;
         crate::compiler::native_checked::NativeCompilationWithCheckedReceipt::new(checked, report)
             .map(crate::compiler::native_checked::NativeCompilationWithCheckedReceipt::into_report)

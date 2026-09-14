@@ -1321,7 +1321,7 @@ fn sample_window_demo_runs_natively_exits_0() {
     let main_path = repo_root().join("samples/gui/window_demo/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-window-demo-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile_exact_macos_entry(CompileOptions {
+    let report = compile_exact_macos_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1329,7 +1329,19 @@ fn sample_window_demo_runs_natively_exits_0() {
     .unwrap_or_else(|d| {
         panic!("the untouched samples/gui/window_demo should compile to a native mach-o:\n{d:#?}")
     });
-    let mut child = Command::new(build_dir.join("omega-program"))
+    // A selected macOS GUI product publishes one `.app`; the checked
+    // executable accessor names the inner `Contents/MacOS/<name>` path
+    // (wiki/spec/build/macos_application.md).
+    let package_root = report
+        .checked_native_package_path()
+        .expect("window_demo publishes one .app package")
+        .to_path_buf();
+    let executable = report
+        .checked_native_executable_path()
+        .expect("window_demo retains the inner executable path")
+        .to_path_buf();
+    assert_eq!(executable, package_root.join("Contents/MacOS/window-demo"));
+    let mut child = Command::new(&executable)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .spawn()
@@ -1397,7 +1409,7 @@ fn sample_window_app_renders_natively() {
     let main_path = repo_root().join("samples/gui/window_app/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-window-app-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile_exact_macos_entry(CompileOptions {
+    let report = compile_exact_macos_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1405,7 +1417,16 @@ fn sample_window_app_renders_natively() {
     .unwrap_or_else(|d| {
         panic!("the untouched samples/gui/window_app should compile to a native mach-o:\n{d:#?}")
     });
-    let mut child = Command::new(build_dir.join("omega-program"))
+    let package_root = report
+        .checked_native_package_path()
+        .expect("window_app publishes one .app package")
+        .to_path_buf();
+    let executable = report
+        .checked_native_executable_path()
+        .expect("window_app retains the inner executable path")
+        .to_path_buf();
+    assert_eq!(executable, package_root.join("Contents/MacOS/window-app"));
+    let mut child = Command::new(&executable)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .spawn()
@@ -1477,13 +1498,24 @@ fn sample_windowed_calculator_renders_natively() {
     let main_path = repo_root().join("samples/gui/windowed_calculator/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-calc-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile_exact_macos_entry(CompileOptions {
+    let report = compile_exact_macos_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
     })
         .unwrap_or_else(|d| panic!("the untouched samples/gui/windowed_calculator should compile to a native mach-o:\n{d:#?}"));
-    let mut child = Command::new(build_dir.join("omega-program"))
+    let executable = report
+        .checked_native_executable_path()
+        .expect("windowed_calculator retains the inner executable path")
+        .to_path_buf();
+    assert_eq!(
+        executable,
+        report
+            .checked_native_package_path()
+            .expect("windowed_calculator publishes one .app package")
+            .join("Contents/MacOS/windowed-calculator")
+    );
+    let mut child = Command::new(&executable)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .spawn()
@@ -1524,7 +1556,7 @@ fn sample_image_viewer_renders_natively() {
     let main_path = sample_dir.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-image-viewer-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile_exact_macos_entry(CompileOptions {
+    let report = compile_exact_macos_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1532,7 +1564,21 @@ fn sample_image_viewer_renders_natively() {
     .unwrap_or_else(|d| {
         panic!("the untouched samples/gui/image_viewer should compile to a native mach-o:\n{d:#?}")
     });
-    let mut child = Command::new(build_dir.join("omega-program"))
+    // image_viewer is deferred from the v1 package contract for resource
+    // inclusion, but its inner executable still runs directly with the
+    // sample directory as its working directory.
+    let executable = report
+        .checked_native_executable_path()
+        .expect("image_viewer retains the inner executable path")
+        .to_path_buf();
+    assert_eq!(
+        executable,
+        report
+            .checked_native_package_path()
+            .expect("image_viewer publishes one .app package")
+            .join("Contents/MacOS/image-viewer")
+    );
+    let mut child = Command::new(&executable)
         .current_dir(&sample_dir)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())

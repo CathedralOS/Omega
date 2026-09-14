@@ -385,6 +385,7 @@ dependencies = [
 name = "compilation-report"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "backend-plan",
  "boundary-applications",
  "build-evaluation",
@@ -392,10 +393,12 @@ dependencies = [
  "effects",
  "function-identity",
  "image",
+ "image-macho",
  "lowered-psi",
  "lowered-psi-to-terminal-psi",
  "native-artifact",
  "numerics",
+ "object-file",
  "optimization-core",
  "package-compilation",
  "program-entry-plan",

@@ -156,3 +156,56 @@ fn empty_entitlements_blob() -> &'static [u8; 8] {
 fn code_slot_count(code_limit: usize) -> usize {
     code_limit.div_ceil(CODE_SIGNATURE_PAGE_SIZE)
 }
+
+/// Read the CodeDirectory identifier spelled inside one emitted executable.
+///
+/// This is the only public read of the signed container's authored identity:
+/// package publication replays it against the retained build identifier and
+/// the `CFBundleIdentifier` it wrote, so a substituted executable cannot pass
+/// with matching producer assertions alone. `LC_CODE_SIGNATURE` fields are
+/// little-endian like every load command; the superblob it points at is the
+/// one big-endian structure in the file. Malformed input returns `None`.
+pub fn code_signature_identifier(bytes: &[u8]) -> Option<String> {
+    fn little(bytes: &[u8], offset: usize) -> Option<u32> {
+        Some(u32::from_le_bytes(
+            bytes.get(offset..offset + 4)?.try_into().ok()?,
+        ))
+    }
+    fn big(bytes: &[u8], offset: usize) -> Option<u32> {
+        Some(u32::from_be_bytes(
+            bytes.get(offset..offset + 4)?.try_into().ok()?,
+        ))
+    }
+
+    let command_count = little(bytes, 16)? as usize;
+    let mut cursor = 32usize;
+    let mut signature = None;
+    for _ in 0..command_count {
+        let command_size = little(bytes, cursor + 4)? as usize;
+        let end = cursor.checked_add(command_size)?;
+        if little(bytes, cursor)? == 0x1d {
+            if signature
+                .replace((
+                    little(bytes, cursor + 8)? as usize,
+                    little(bytes, cursor + 12)? as usize,
+                ))
+                .is_some()
+            {
+                return None;
+            }
+        }
+        cursor = end;
+    }
+    let (offset, size) = signature?;
+    let blob = bytes.get(offset..offset.checked_add(size)?)?;
+    if big(blob, 0)? != 0xfade_0cc0 {
+        return None;
+    }
+    let directory = blob.get(big(blob, 16)? as usize..)?;
+    if big(directory, 0)? != 0xfade_0c02 {
+        return None;
+    }
+    let identifier = directory.get(big(directory, 20)? as usize..)?;
+    let end = identifier.iter().position(|byte| *byte == 0)?;
+    String::from_utf8(identifier[..end].to_vec()).ok()
+}

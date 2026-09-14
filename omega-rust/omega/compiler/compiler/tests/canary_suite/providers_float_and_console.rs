@@ -2314,6 +2314,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             proposal.subsystem(),
             proposal.application_intent(),
             proposal.application_identifier().cloned(),
+            proposal.application_name().map(str::to_owned),
             proposal.post_terminal_optimizations().clone(),
             proposal.program_entry().clone(),
             proposal.selected_provider_plans().clone(),

@@ -22,6 +22,10 @@ pub(super) struct AssembledSyntax {
     /// authority is attached to this source, never reconstructed from a leaf
     /// filename after imports have expanded the source frontier.
     pub(super) build_source_id: Option<source::SourceId>,
+    /// The validated authored application name when the selected build root
+    /// declares `builder.application(...)`; `None` for package/workspace
+    /// roles or a missing build root. Publication never re-derives it.
+    pub(super) application_name: Option<build_declarations::ProjectName>,
     pub(super) source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     pub(super) generated_source_custody:
         Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
@@ -314,13 +318,15 @@ fn generated_source_logical_path(
 
 /// Require the exact selected free build root to declare its project role
 /// through the same compiler-neutral grammar used by package orchestration.
-///
+/// An application declaration's validated name is retained for publication:
+/// the one authored name supplies the `.app` basename and executable leaf
+/// (wiki/spec/build/macos_application.md).
 fn validate_selected_build_role(
     source_storage: &SourceStorage,
     build_source_id: Option<source::SourceId>,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Option<build_declarations::ProjectName>, Vec<Diagnostic>> {
     let Some(build_source_id) = build_source_id else {
-        return Ok(());
+        return Ok(None);
     };
     let source = source_storage.sources.get(build_source_id).ok_or_else(|| {
         vec![Diagnostic::error(
@@ -328,7 +334,12 @@ fn validate_selected_build_role(
         )]
     })?;
     build_declarations::project_build_declaration_from_source(&source.source)
-        .map(|_| ())
+        .map(|declaration| match declaration {
+            build_declarations::BuildDeclaration::Application(application) => {
+                Some(application.name)
+            }
+            _ => None,
+        })
         .map_err(|error| {
             vec![Diagnostic::error(format!(
                 "{}: invalid project build declaration: {error}",
@@ -812,6 +823,7 @@ fn inject_build_prelude(
 fn assemble_syntax(
     sources: SourceStorage,
     build_source_id: Option<source::SourceId>,
+    application_name: Option<build_declarations::ProjectName>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
 ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
@@ -819,6 +831,7 @@ fn assemble_syntax(
         syntax_trees: sources.syntax_trees,
         sources: Arc::new(sources.sources),
         build_source_id,
+        application_name,
         source_scoped_top_level_bindings,
         generated_source_custody,
     })
@@ -1223,6 +1236,7 @@ mod tests {
             syntax_trees: base_syntax,
             sources: base_sources.clone(),
             build_source_id: None,
+            application_name: None,
             source_scoped_top_level_bindings: Vec::new(),
             generated_source_custody: Vec::new(),
         };
@@ -1311,6 +1325,7 @@ mod tests {
             syntax_trees: base_syntax,
             sources: base_sources.clone(),
             build_source_id: None,
+            application_name: None,
             source_scoped_top_level_bindings: Vec::new(),
             generated_source_custody: Vec::new(),
         };

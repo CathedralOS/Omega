@@ -18,6 +18,9 @@ pub(super) struct BuiltCheckedProgram {
         crate::pipeline::target_machines::SelectedTargetMachineDeclarations,
     pub(super) pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub(super) computed_build_config: crate::pipeline::build_config::ComputedBuildConfig,
+    /// The validated `builder.application` name retained from source assembly.
+    /// It supplies the publication `.app` basename and inner executable leaf.
+    pub(super) application_name: Option<build_declarations::ProjectName>,
     pub(super) selected_build_machine_symbol: Option<symbols::SymbolHandle>,
     pub(super) selected_build_machine_identity: Option<String>,
 }
@@ -54,6 +57,7 @@ pub(super) fn evaluate_build_and_continue(
     let target_name = selected_target_profile.map(target::TargetProfile::target_name);
     let mut generated_source_custody = syntax.generated_source_custody.clone();
     let base_sources = syntax.sources.clone();
+    let application_name = syntax.application_name.clone();
     let mut frontend = lower_checked_frontend(syntax, target_name, package_inputs, timings)?;
     let package_authority_verdict = if let Some(package_inputs) = package_inputs {
         Some(crate::pipeline::package_declaration_admission::validate_authored_declaration_selections_before_build(
@@ -181,6 +185,7 @@ pub(super) fn evaluate_build_and_continue(
             selected_target_machine_declarations,
             pending_pre_checks,
             computed_build_config,
+            application_name,
             selected_build_machine_symbol,
             selected_build_machine_identity,
         },
