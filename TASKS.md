@@ -1667,9 +1667,28 @@ Owners include
   unproven. Evidence only — resource joins, loan identity, access polarity,
   restoration, and multiplicity stay independently enforced, witnessed by
   the tampering cases under
-  `tests/borrow/certificates/stated_premises.rs`. Next slice:
-  range-premise read dependencies for selected calls, indexing operators,
-  and atomic reads with established footprints.
+  `tests/borrow/certificates/stated_premises.rs`. Fourth slice landed at
+  821eed4fea on Linux x86-64: range-premise read dependencies now admit
+  atomic loads. `collect_reads`
+  (`checks/ranges/facts/dependencies/reads.rs`) handles
+  `ExpressionNode::Atomic` under a `Load` ordering plan: `value` names
+  the resident place itself, so its complete footprint is exactly that
+  place plus its selector reads. Operation stability is pinned by a
+  load-legal `MemoryOrdering`, canonical `Scalar` result custody, and an
+  empty `result` -- each rechecked against the ordering plan so a
+  writing axis cannot borrow the load's place-shaped footprint. Store,
+  swap, read-modify-write, and both compare-exchange shapes still return
+  an incomplete read set: their `value` wraps a stored operand or
+  instruction-shaped update, so no operand scan describes their reads.
+  Evidence only -- preservation and invalidation run through the
+  existing place algebra, witnessed by
+  `tests/range_atomic_dependencies.rs`
+  (`atomic_store_retires_only_the_resident_place_premise`) and
+  `facts/dependencies/tests/atomics.rs`: a `requires` premise on
+  `self.counter.load(NoOrdering)` survives writes to sibling fields and
+  unrelated parameters and is retired by a store to the resident place
+  or to `self`. Next slice: range-premise read dependencies for selected
+  calls and indexing operators with established footprints.
 
 - **CALLBACK-PARAMETER-REQUIREMENT.** Checked admission of the nominal
   `where machine Selected satisfies Trait::requirement` binder is pinned by
