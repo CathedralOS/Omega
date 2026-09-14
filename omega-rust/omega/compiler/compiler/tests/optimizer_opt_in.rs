@@ -1089,6 +1089,371 @@ fn selected_lowering_replays_one_physical_child_per_surviving_occurrence_role() 
     });
 }
 
+#[test]
+fn verified_eliminated_occurrence_needs_no_physical_child() {
+    // The child-exemption half of the physical-child contract: a D29 covered
+    // operation that an independently validated optimization proves
+    // unreachable needs no physical child. Two private machines each apply
+    // the boundary operator, and the entry machine reaches one of them only
+    // through a constant-false transition arm, so checked D29 coverage names
+    // both Terminal operations and the ordinary build binds each surviving
+    // occurrence to its own child. ControlFlowCleanup's constant-conditional
+    // rule folds the dead arm, the unreachable-private-machine rule then
+    // proves the dead callee unreachable — pruned custody plus
+    // ProvenUnreachableAt provenance for its call node in the validated
+    // ledger — and the validated optimized projection keeps only the
+    // surviving occurrence.
+    let root = std::env::temp_dir().join(format!(
+        "omega-optimizer-opt-in-eliminated-occurrence-{}-{}",
+        std::process::id(),
+        PROJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("create eliminated-occurrence project");
+    std::fs::write(
+        root.join("main.omg"),
+        r#"data CheckedMath {}
+
+boundary operator CheckedMath::select_left(left: u64, right: u64) -> u64;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::select_left_impl(left: u64, right: u64) -> u64
+satisfies CheckedMath::select_left
+{
+    transition { _ -> left }
+}
+
+machine dead_pick() {
+    let dead: u64 = CheckedMath::select_left(1u64, 2u64);
+}
+
+machine live_pick() {
+    let kept: u64 = CheckedMath::select_left(7u64, 9u64);
+}
+
+data Main {}
+
+machine Main::main() {
+    transition false {
+        true -> run_dead()
+        false -> run_live()
+    }
+
+    state run_dead() {
+        dead_pick();
+        transition { _ -> run_live() }
+    }
+
+    state run_live() {
+        live_pick();
+        transition { _ -> done() }
+    }
+
+    state done() { }
+}
+"#,
+    )
+    .expect("write eliminated-occurrence main");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-eliminated-occurrence");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::SelectedIncomingU12CompareImmediate);
+}
+"#,
+    )
+    .expect("write eliminated-occurrence build");
+    let root_identity = package_identity(43);
+    let inputs = PackageCompilationInputs::new_package(
+        root_identity,
+        vec![PackageSourceBinding::new(
+            root_identity,
+            "root",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("eliminated-occurrence package graph should validate");
+    let report = compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(root.join("build")),
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_package_inputs(inputs),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the constant-dead boundary application must reach native custody");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("the ordinary build retains its native artifact");
+    artifact
+        .validate()
+        .expect("the ordinary native artifact replays independently");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    let physical = artifact
+        .physical_evidence()
+        .expect("both covered applications retain nonempty physical evidence");
+    // Both covered applications survive the ordinary build: two operator
+    // occurrences, each bound to exactly one physical child.
+    let [first_covered, second_covered] = physical.projection().operator_occurrences() else {
+        panic!("the ordinary build must keep both covered applications")
+    };
+    assert!(physical.projection().boundary_occurrences().is_empty());
+    assert_eq!(physical.children().len(), 2);
+    let covered_operations = [first_covered.operation(), second_covered.operation()];
+
+    // Independently replay the published artifact sections into the canonical
+    // optimizer and rerun the eliminative Psi schedule. `NativeRealizationRequest`
+    // structurally cannot carry a Psi-phase selection, so this test drives the
+    // identical `optimize_verified_abstract_input` admission that the
+    // production optimization stage uses.
+    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the published artifact replays into verified optimizer input");
+    let selections =
+        optimization_core::OptimizationSelections::new([Optimization::ControlFlowCleanup])
+            .expect("one exact optimization selection");
+    let optimized = native_realization::optimize_verified_abstract_input(
+        input.clone(),
+        native_realization::compiler_baseline_request_v1(&selections),
+    )
+    .expect("the validating run accepts the proven elimination");
+
+    // Both applications remain D29-covered in the published Terminal module;
+    // the optimized projection keeps exactly one of them.
+    let coverage = artifact
+        .boundary_application_coverage()
+        .expect("the boundary applications retain D29 coverage");
+    assert_eq!(coverage.references().len(), 2);
+    let eliminated_scope =
+        native_realization::NativePhysicalEvidenceScope::from_validated_optimization(
+            optimized.plan(),
+            optimized.validation().psi(),
+            optimized.validation().identity(),
+            optimized.validation().final_unit(),
+            coverage,
+        )
+        .expect("the validated eliminated plan still derives its physical scope");
+    let native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(
+        eliminated_projection,
+    ) = &eliminated_scope
+    else {
+        panic!("the eliminated run derives a validated optimized projection")
+    };
+    let [survivor] = eliminated_projection.projection().operator_occurrences() else {
+        panic!("exactly one operator occurrence survives the verified elimination")
+    };
+    assert!(
+        eliminated_projection
+            .projection()
+            .boundary_occurrences()
+            .is_empty()
+    );
+    let eliminated_operation = covered_operations
+        .into_iter()
+        .find(|operation| *operation != survivor.operation())
+        .expect("the projection names one covered survivor and one covered elimination");
+    assert!(
+        coverage
+            .references()
+            .iter()
+            .any(|reference| reference.terminal_operation() == eliminated_operation),
+        "the eliminated operation retains its checked D29 coverage reference"
+    );
+
+    // The elimination is independently verified, not merely absent from the
+    // final plan: the validated transformation ledger carries a
+    // ProvenUnreachableAt rewrite row for the exact input node that owned the
+    // covered call.
+    let module = terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("replay Terminal semantics");
+    let eliminated_site = module
+        .machines
+        .iter()
+        .flat_map(|machine| machine.blocks.iter().map(move |block| (machine.id, block)))
+        .flat_map(|(machine, block)| {
+            block
+                .operations
+                .iter()
+                .enumerate()
+                .map(move |(node, operation)| (machine, block.id, node, operation.id))
+        })
+        .find(|(.., operation)| *operation == eliminated_operation)
+        .map(|(machine, block, node, _)| {
+            (
+                machine,
+                block,
+                u32::try_from(node).expect("operation node index fits u32"),
+            )
+        })
+        .expect("the eliminated covered operation exists in the source Terminal module");
+    // The covered call lived in a private machine the validated run proved
+    // unreachable: the replay unit retains its pruned custody while the final
+    // plan drops the whole function.
+    let [pruned] = optimized.unit().pruned_machines.as_slice() else {
+        panic!("ControlFlowCleanup must prove exactly one private machine unreachable")
+    };
+    let dead_machine = pruned.machine;
+    assert_eq!(
+        dead_machine, eliminated_site.0,
+        "the eliminated covered operation lives in the proven-unreachable machine"
+    );
+    assert!(
+        optimized
+            .verified_input()
+            .plan()
+            .functions
+            .iter()
+            .any(|function| function.machine == dead_machine),
+        "the eliminated machine is present in the verified input plan"
+    );
+    assert!(
+        !optimized
+            .plan()
+            .functions
+            .iter()
+            .any(|function| function.machine == dead_machine),
+        "the eliminated machine is absent from the validated final plan"
+    );
+    assert!(
+        optimized
+            .transformation_ledger()
+            .records()
+            .iter()
+            .any(|record| {
+                record.provenance.iter().any(|rewrite| {
+                    !rewrite.disposition.is_realized()
+                        && rewrite.input.node().is_some_and(|location| {
+                            (location.machine, location.block, location.node) == eliminated_site
+                        })
+                })
+            }),
+        "the validated ledger proves the covered call site unreachable"
+    );
+
+    // The same coverage over the identity plan still requires the child: the
+    // exemption attaches to the verified elimination, not to the coverage row.
+    let identity = native_realization::optimize_verified_abstract_input(
+        input,
+        native_realization::compiler_baseline_request_v1(
+            &optimization_core::OptimizationSelections::default(),
+        ),
+    )
+    .expect("the identity run revalidates the unchanged plan");
+    let retained_scope =
+        native_realization::NativePhysicalEvidenceScope::from_validated_optimization(
+            identity.plan(),
+            identity.validation().psi(),
+            identity.validation().identity(),
+            identity.validation().final_unit(),
+            coverage,
+        )
+        .expect("the identity run still derives its physical scope");
+    let native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(
+        retained_projection,
+    ) = &retained_scope
+    else {
+        panic!("the identity run derives a validated optimized projection")
+    };
+    assert_eq!(
+        retained_projection
+            .projection()
+            .operator_occurrences()
+            .len(),
+        2,
+        "a covered operation that survives still requires its physical child"
+    );
+
+    // A replayed child bound to the occurrence identity the eliminated
+    // operation would have carried had it survived the eliminating run is
+    // stale: no validated survivor set answers for it. The canonical identity
+    // encoding is the same terminal + validation + final-unit authority walk
+    // the projection derivation applies.
+    let (eliminated_machine, eliminated_ordinal) = [first_covered, second_covered]
+        .into_iter()
+        .find(|occurrence| occurrence.operation() == eliminated_operation)
+        .map(|occurrence| (occurrence.machine(), occurrence.operation_ordinal()))
+        .expect("the ordinary projection names the eliminated covered operation");
+    let parts = report
+        .into_retained_native_artifact()
+        .expect("owned native artifact")
+        .into_parts();
+    let mut stale = replay_native_artifact_parts(&parts);
+    let evidence = stale
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    let terminal = optimized.validation().psi();
+    let mut canonical = Vec::new();
+    canonical.extend_from_slice(&terminal.vocabulary_marker.get().to_le_bytes());
+    canonical.extend_from_slice(terminal.program_fingerprint.as_bytes());
+    canonical.extend_from_slice(&optimized.validation().identity().bytes());
+    canonical.extend_from_slice(&optimized.validation().final_unit().bytes());
+    canonical.extend_from_slice(&eliminated_machine.get().to_le_bytes());
+    canonical.extend_from_slice(&eliminated_operation.get().to_le_bytes());
+    canonical.extend_from_slice(
+        &u64::try_from(eliminated_ordinal)
+            .expect("occurrence ordinal")
+            .to_le_bytes(),
+    );
+    let mut stale_child = evidence.children[0].clone().into_parts();
+    stale_child.projection = eliminated_projection.projection().identity();
+    stale_child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        optimization_core::OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(&canonical),
+    );
+    stale.physical_evidence_scope = eliminated_scope.clone();
+    stale.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: eliminated_projection.projection().clone(),
+                children: vec![
+                    native_realization::NativePhysicalChild::from_replayed_parts(stale_child),
+                ],
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(stale).is_err(),
+        "a physical child bound to a verified-eliminated occurrence must not replay"
+    );
+
+    // An unverified omission is equally rejected: under the published plan's
+    // own scope both covered occurrences still demand their children, so
+    // dropping one cannot replay.
+    let mut missing = replay_native_artifact_parts(&parts);
+    let mut retained = missing
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    retained.children.pop();
+    missing.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: retained.projection,
+                children: retained.children,
+                identity: retained.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        "omitting a required physical child must not replay"
+    );
+}
+
 fn replay_native_artifact_parts(
     parts: &native_realization::NativeArtifactParts,
 ) -> native_realization::NativeArtifactParts {

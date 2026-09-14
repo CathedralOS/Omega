@@ -120,8 +120,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   for the operator occurrence and `BoundaryTraitSettlement`
   (`HostedExitProcessI32`, `DirectInstructionBytes`) for the boundary
   occurrence; dropping either role, duplicating a child, or swapping a
-  child's parent all reject on independent replay. Remaining: the
-  verified-eliminated-occurrence child-exemption check.
+  child's parent all reject on independent replay.
+  `verified_eliminated_occurrence_needs_no_physical_child` closes the
+  child-exemption half: two private machines each apply a covered boundary
+  operator while a constant-false transition arm keeps the dead callee
+  source-reachable through Terminal admission, so checked D29 coverage
+  names both operations and the ordinary build binds each surviving
+  occurrence to its own child. Replaying the published artifact sections
+  through `optimize_verified_abstract_input` under `ControlFlowCleanup`
+  folds the dead arm and proves the dead callee unreachable — pruned
+  machine custody plus a `ProvenUnreachableAt` ledger row for the exact
+  eliminated call node — and the validated optimized projection keeps
+  only the surviving occurrence. The same coverage over the identity plan
+  still projects both occurrences, so the exemption attaches to the
+  verified elimination rather than the coverage row; a replayed physical
+  child bound to the eliminated occurrence's canonical identity rejects,
+  and dropping a still-required child rejects too.
 
 - **GENERATED-DIFFERENTIALS.** Extend same-artifact interpreter/native
   differential testing beyond the landed exact-integer lane to float, trap,
