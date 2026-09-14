@@ -27,7 +27,7 @@ pub(super) struct CheckedExecution {
     pub(super) selected_native_target: Option<target::NativeTarget>,
     pub(super) x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     pub(super) x86_scalar_fma_plan_associations:
-        Vec<crate::pipeline::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation>,
+        Vec<provider_planning::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation>,
     pub(super) selected_program_entry: Option<build_evaluation::SelectedCompilerProgramEntry>,
     pub(super) selected_build_machine_symbol: Option<symbols::SymbolHandle>,
     pub(super) selected_build_machine_identity: Option<String>,
@@ -249,7 +249,7 @@ pub(super) fn check_selected_execution(
         },
     )?;
     let x86_scalar_fma_plan_associations =
-        crate::pipeline::x86_fma_plan_association::bind_checked_x86_scalar_fma_plan_associations(
+        provider_planning::x86_fma_plan_association::bind_checked_x86_scalar_fma_plan_associations(
             &selected_execution_settlement.program,
             &selected_execution_settlement.selected_provider_plan_facts,
             &selected_execution_settlement.selected_provider_provenance,

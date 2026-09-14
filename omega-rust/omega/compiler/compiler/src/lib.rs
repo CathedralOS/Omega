@@ -24,7 +24,6 @@ pub use compiler::terminal_product::validate_lowered_ieee_float_comparison_custo
 pub use pipeline::checked_entry::{
     CheckedCompilation, CheckedCompileRequest, PreparedCheckedSource, compile_to_checked,
 };
-pub use pipeline::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation;
 pub(crate) use source_files_to_tokens as lexer;
 pub(crate) use tokens_to_syntax_trees as parser;
 pub use trust_model::{TrustAdmission, TrustAdmissionSettlement};

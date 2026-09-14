@@ -1589,6 +1589,7 @@ dependencies = [
  "language-semantics",
  "layout",
  "layout-plans",
+ "lowered-psi",
  "numerics",
  "package-compilation",
  "program-entry-plan",

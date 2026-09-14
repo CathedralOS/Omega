@@ -372,7 +372,7 @@ impl CheckedCompilation {
     /// admission alone never fabricates source demand or execution evidence.
     pub fn x86_scalar_fma_plan_associations(
         &self,
-    ) -> &[crate::pipeline::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation] {
+    ) -> &[provider_planning::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation] {
         &self.execution.x86_scalar_fma_plan_associations
     }
 

@@ -33,6 +33,7 @@ visualizations = { path = "../../tooling/visualizations" }
 arena = { path = "../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
+lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 flow-effects = { path = "../../../psi/representations/flow-effects" }

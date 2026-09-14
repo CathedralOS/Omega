@@ -17,7 +17,6 @@ pub mod source;
 mod source_assembly;
 mod stage;
 mod timing;
-pub(crate) mod x86_fma_plan_association;
 
 pub(crate) use crate::CompileOptions;
 pub(crate) use build_evaluation::{
