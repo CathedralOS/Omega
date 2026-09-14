@@ -20,6 +20,9 @@ mod native_error_state_failures;
 #[cfg(test)]
 mod native_mutation_failure_tests;
 mod native_mutation_failures;
+#[cfg(test)]
+mod native_query_chain_tests;
+mod native_query_chains;
 mod open_at_failures;
 mod output_failures;
 mod output_ownership;
@@ -102,6 +105,15 @@ pub(crate) use native_error_state_failures::ordered_native_error_state_attempt_i
 pub use native_mutation_failures::{
     FilesystemInputUnknownNativeHandleMutationReplayKind,
     FilesystemInputUnknownNativeHandleMutationReplayRecord,
+};
+pub use native_query_chains::{
+    FilesystemNativeHandleErrorObservationReplayRecord,
+    FilesystemNativeHandleFinalPathQueryReplayRecord,
+    FilesystemNativeHandleQueryOperationReplayRecord,
+    FilesystemSourceNativeHandleQueryChainReplayRecord,
+};
+pub(crate) use native_query_chains::{
+    source_native_handle_query_chain_attempts, source_native_handle_query_chain_is_exact,
 };
 pub use open_at_failures::FilesystemInputUnknownDescriptorOpenAtReplayRecord;
 #[cfg(test)]
@@ -474,6 +486,9 @@ pub enum FilesystemSourceInputReplayEventRecord {
     ReadLink(FilesystemSourceReadLinkReplayRecord),
     DescriptorMetadata(FilesystemSourceDescriptorMetadataReplayRecord),
     PathMetadata(FilesystemSourcePathMetadataReplayRecord),
+    /// One bounded `open_path_handle` / query / `close_handle` lifecycle on
+    /// one Source object under the constrained query-only contract.
+    NativeHandleQueryChain(FilesystemSourceNativeHandleQueryChainReplayRecord),
 }
 
 /// Typed source-input replay record reconstructed after canonical bytes cross
@@ -502,6 +517,9 @@ impl FilesystemSourceInputReplayRecord {
                     Some(metadata.logical_handle_identity)
                 }
                 FilesystemSourceInputReplayEventRecord::PathMetadata(_) => None,
+                FilesystemSourceInputReplayEventRecord::NativeHandleQueryChain(chain) => {
+                    Some(chain.logical_handle_identity)
+                }
             };
             let Some(identity) = identity else { continue };
             if identities.contains(&identity) {
@@ -1007,6 +1025,9 @@ impl FilesystemInputOutputReplayRecord {
                     FilesystemSourceInputReplayEventRecord::ReadLink(_) => 1,
                     FilesystemSourceInputReplayEventRecord::DescriptorMetadata(_) => 3,
                     FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
+                    FilesystemSourceInputReplayEventRecord::NativeHandleQueryChain(chain) => {
+                        chain.attempt_count()
+                    }
                 })
             })
             .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
@@ -1025,6 +1046,9 @@ impl FilesystemInputOutputReplayRecord {
                     Some(metadata.logical_handle_identity)
                 }
                 FilesystemSourceInputReplayEventRecord::PathMetadata(_) => None,
+                FilesystemSourceInputReplayEventRecord::NativeHandleQueryChain(chain) => {
+                    Some(chain.logical_handle_identity)
+                }
             })
             .collect::<Vec<_>>();
         for (ordinal, output) in output_files.iter().enumerate() {
@@ -1057,6 +1081,10 @@ impl FilesystemInputOutputReplayRecord {
                 FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
                     metadata.source_root == output.output_root
                         || metadata.authorized_root == output.output_root
+                }
+                FilesystemSourceInputReplayEventRecord::NativeHandleQueryChain(chain) => {
+                    chain.source_root == output.output_root
+                        || chain.logical_handle_identity == output.logical_handle_identity
                 }
             }) {
                 return Err(
@@ -1555,6 +1583,25 @@ pub(crate) fn validate_source_input_attempts(
             event_count += 1;
             continue;
         }
+        if attempts[cursor].operation_tag() == 28 {
+            let event_start = cursor;
+            cursor += 1;
+            while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 31 | 35) {
+                cursor += 1;
+            }
+            if cursor == attempts.len()
+                || attempts[cursor].operation_tag() != 29
+                || !source_native_handle_query_chain_is_exact(&attempts[event_start..=cursor])
+            {
+                return Err(
+                    "bounded filesystem replay Source native-handle query chain is inconsistent"
+                        .to_owned(),
+                );
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
         if attempts[cursor].operation_tag() != 2 {
             return Err(
                 "bounded filesystem replay requires ordered source-input events".to_owned(),
@@ -1736,6 +1783,9 @@ pub(crate) fn source_input_record_attempts(
                 FilesystemSourceInputReplayEventRecord::ReadLink(_) => 1,
                 FilesystemSourceInputReplayEventRecord::DescriptorMetadata(_) => 3,
                 FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
+                FilesystemSourceInputReplayEventRecord::NativeHandleQueryChain(chain) => {
+                    chain.attempt_count()
+                }
             }
     });
     let mut attempts = Vec::with_capacity(attempt_count);
@@ -1755,6 +1805,9 @@ pub(crate) fn source_input_record_attempts(
             }
             FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
                 attempts.push(source_path_metadata_attempt(metadata));
+            }
+            FilesystemSourceInputReplayEventRecord::NativeHandleQueryChain(chain) => {
+                attempts.extend(source_native_handle_query_chain_attempts(chain));
             }
         }
     }
