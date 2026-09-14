@@ -17,10 +17,12 @@
 // Nothing here grants access to the mapped range: placed access
 // (wiki/spec/resources/placed_access.md -- `Vacant`/`Resident` place/take/read
 // operations) is still undeclared, so this contract pins custody, state, and
-// ordering, not content. Borrowed-source custody and provider-visible
-// obligation sets (`TranslationInstallObligations`/`TranslationRelease-
-// Obligations` in psi/foundation/extents) remain later surfaces; this slice
-// models owned fixed placement with the shootdown as the one residual debt.
+// ordering, not content. The conservation model exposes
+// `TranslationInstallObligations`/`TranslationReleaseObligations` to
+// providers at the grant, pending, installed, and teardown carriers in
+// psi/foundation/extents; borrowed-source custody and a source-spelled
+// obligation surface remain later slices. This slice models owned fixed
+// placement with the shootdown as the one residual debt.
 use omega::language::core::assembly;
 use omega::language::core::extent;
 
