@@ -37,6 +37,10 @@ pub struct CheckedCompileRequest<'a> {
     /// sealed regular file before its result may publish. Mutually exclusive
     /// with `replay_record`.
     pub build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+    /// Release rollback subtracted from the authored optimization selection at
+    /// each phase boundary this child executes. The authored selection remains
+    /// the retained identity; the request can only remove exact rules it names.
+    pub optimization_rollback: crate::OptimizationRollback,
     /// Optional destination for target-independent source preparation. Cleared
     /// before validation and populated only after successful checking. Retention
     /// copies parsed storage for this child; a later child can consume the result.
@@ -55,6 +59,7 @@ impl<'a> CheckedCompileRequest<'a> {
             evaluation_sponsor: None,
             replay_record: None,
             build_snapshot: None,
+            optimization_rollback: crate::OptimizationRollback::default(),
             prepared_source_output: None,
         }
     }
@@ -78,6 +83,7 @@ impl<'a> CheckedCompileRequest<'a> {
                 evaluation_sponsor: self.evaluation_sponsor,
                 replay_record: self.replay_record,
                 build_snapshot: self.build_snapshot,
+                optimization_rollback: self.optimization_rollback,
                 prepared_source_output: None,
             },
             output,
@@ -109,6 +115,7 @@ struct CheckedChildExecution<'a> {
     evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
     replay_record: Option<&'a super::ReviewOnlyBuildFilesystemReplayRecord>,
     build_snapshot: Option<&'a build_evaluation::BuildSnapshotRequest>,
+    optimization_rollback: crate::OptimizationRollback,
 }
 
 impl CheckedChildExecution<'_> {
@@ -122,6 +129,7 @@ impl CheckedChildExecution<'_> {
             evaluation_sponsor: None,
             replay_record: None,
             build_snapshot: None,
+            optimization_rollback: crate::OptimizationRollback::default(),
         }
     }
 }
@@ -159,6 +167,7 @@ impl PreparedCheckedSource {
             evaluation_sponsor: request.evaluation_sponsor,
             replay_record: request.replay_record.as_ref(),
             build_snapshot: request.build_snapshot.as_ref(),
+            optimization_rollback: request.optimization_rollback,
         })
     }
 
@@ -196,6 +205,7 @@ impl PreparedCheckedSource {
         self,
         options: &super::CompileOptions,
         package_inputs: Option<&PackageCompilationInputs>,
+        optimization_rollback: &crate::OptimizationRollback,
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         if options.root_path != self.root_path {
             return Err(vec![Diagnostic::error(
@@ -217,6 +227,7 @@ impl PreparedCheckedSource {
             evaluation_sponsor: None,
             replay_record: None,
             build_snapshot: None,
+            optimization_rollback: optimization_rollback.clone(),
         })
     }
 
@@ -297,6 +308,7 @@ fn compile_assembled_checked_child(
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let selected_target_profile = child.selected_target_profile;
     let package_inputs = child.package_inputs;
+    let optimization_rollback = child.optimization_rollback.clone();
     let (built, sources) = build_continuation::evaluate_build_and_continue(
         root_path,
         child,
@@ -308,6 +320,7 @@ fn compile_assembled_checked_child(
         built,
         selected_target_profile,
         package_inputs,
+        &optimization_rollback,
         &mut timings,
     )?;
     CheckedCompilation::seal(execution, sources, package_inputs, timings)

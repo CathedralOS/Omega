@@ -132,7 +132,9 @@ fn is_broad_optimization_alias(name: &str) -> bool {
 }
 
 fn catalog_applicability(audit: &mut Audit, name: &str, phase: &str) -> String {
-    if phase == "Psi" {
+    // Psi and checked-tree rules own no per-rule stage catalog; both phases are
+    // target-independent transforms over fully checked source semantics.
+    if phase == "Psi" || phase == "CheckedTrees" {
         return "Target-independent".to_owned();
     }
     let catalog = match phase {

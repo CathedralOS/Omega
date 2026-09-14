@@ -2,3 +2,4 @@
 
 pub(super) mod build_vocabulary;
 pub(super) mod checked_handoff;
+pub(super) mod checked_trees;

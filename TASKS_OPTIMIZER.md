@@ -59,22 +59,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Product pruning and rollout
 
-- **CHECKED-TREE-PRODUCT-PRUNING.** After all authored code has been checked,
-  add an exact opt-in checked-tree phase for whole-product/root selection and
-  unreachable declaration pruning. Retain selected-product identity and all
-  ownership, proof, effect, boundary, and diagnostic obligations. Acceptance:
-  pruning cannot hide an invalid authored declaration; shared frontend work is
-  reusable before multi-target fan-out; each target/root-selected Psi product is
-  independently reproducible. The phase itself now exists:
-  `typed-trees-to-checked-trees/src/product_pruning.rs` runs strictly after
-  authored checking, takes an exact duplicate-free root plan, closes
-  retention over every machine edge the checked representation enumerates,
-  fails closed on retained→pruned references, and returns SHA-256
-  identity-bearing `CheckedTreeProductSelection` evidence. Remaining: the
-  coordinator opt-in wiring that maps a unified build selection to
-  `CheckedTreeProductPruning` and routes `OptimizationExecutionPhase::
-  CheckedTrees` through `prune_checked_tree_product`.
-
 - **WORKSPACE-ROLLOUT.** Keep every rule explicit opt-in until the frozen-tree
   command `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace
   --no-fail-fast` passes. Do not replace it with `--all-targets`, which omits

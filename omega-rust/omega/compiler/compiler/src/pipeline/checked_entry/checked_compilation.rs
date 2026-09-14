@@ -425,6 +425,18 @@ impl CheckedCompilation {
         self.execution.optimization.report()
     }
 
+    /// Identity-bearing evidence of the checked-tree product selection this
+    /// compilation executed, present only when the effective build selection
+    /// named `CheckedTreeProductPruning`. `None` means the checked-tree phase
+    /// ran as the identity boundary and the complete checked program remains
+    /// the product. The retained roots and pruned roster re-derive the exact
+    /// product this compilation produced; they are not a reselection input.
+    pub const fn checked_tree_product_selection(
+        &self,
+    ) -> Option<&typed_trees_to_checked_trees::CheckedTreeProductSelection> {
+        self.execution.product_selection.as_ref()
+    }
+
     pub const fn selected_provider_plans(&self) -> &effects::SelectedProviderPlanFacts {
         &self.execution.settled.selected_provider_plan_facts
     }

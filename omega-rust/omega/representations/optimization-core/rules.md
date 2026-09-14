@@ -22,6 +22,7 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` | AllocationRecovery | Target-independent | Experimental | `--disable-optimization SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` | Required |
 | `ActiveResidentImmediateU64MultiUseRematerializationV1` | AllocationRecovery | Target-independent | Experimental | `--disable-optimization ActiveResidentImmediateU64MultiUseRematerializationV1` | Required |
 | `SelectedIncomingU12CompareImmediate` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingU12CompareImmediate` | Required |
+| `CheckedTreeProductPruning` | CheckedTrees | Target-independent | Experimental | `--disable-optimization CheckedTreeProductPruning` | Required |
 <!-- exact-rule-inventory:end -->
 
 The architecture test derives exact names and phases from `Optimization::ALL`'s
@@ -36,6 +37,11 @@ the repository gate.
 - The source vocabulary names six Psi suites. The current executable Psi phase
   supports `DeadPureScalarElimination`; other nonempty selections reject until
   their transformations are implemented and independently validated there.
+- One checked-tree product-pruning rule may follow authored checking when the
+  compilation binds an exact product root; it prunes unreachable machine
+  declarations and retains the identity-bearing product selection evidence.
+  A checked-tree selection without a bound product root rejects before
+  mutation.
 - One allocation-recovery rule may precede the canonical frame and layout stages.
 - x86-64 branch relaxation runs in the resolved-layout phase.
 - Selected-lowering and retired post-allocation machine rewrite selections are

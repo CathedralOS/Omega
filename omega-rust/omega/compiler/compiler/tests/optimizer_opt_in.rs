@@ -80,8 +80,14 @@ fn exact_optimization_vocabulary_build(optimization: Optimization) -> String {
         optimization.build_case_name()
     )
     .expect("writing an optimization enable call to a String cannot fail");
+    // Checked-tree phase members require an authored product root; every other
+    // phase member evaluates on the unrooted default product.
+    let root_binding = (optimization.execution_phase()
+        == optimization_core::OptimizationExecutionPhase::CheckedTrees)
+        .then_some("    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n")
+        .unwrap_or("");
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"optimizer-exact-vocabulary\");\n{enable_call}    builder.optimizations.emit_report();\n}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"optimizer-exact-vocabulary\");\n{root_binding}{enable_call}    builder.optimizations.emit_report();\n}}\n"
     )
 }
 
@@ -2375,5 +2381,171 @@ fn package_aware_root_build_retains_its_exact_selection() {
     assert_eq!(
         checked.optimization_selections().as_slice(),
         &[Optimization::GlobalValueNumbering]
+    );
+}
+
+fn checked_tree_pruning_project(label: &str, pruning: bool, roots: bool) -> PathBuf {
+    let root = project(
+        label,
+        Some(&format!(
+            "machine build(builder: &mut Build) {{\n\
+             builder.application(\"{label}\");\n\
+             {binding}\
+             {optimization}}}\n",
+            binding = roots
+                .then_some("    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n")
+                .unwrap_or(""),
+            optimization = pruning
+                .then_some(
+                    "    builder.optimizations.enable(Optimization::CheckedTreeProductPruning);\n",
+                )
+                .unwrap_or(""),
+        )),
+    );
+    std::fs::write(
+        root.join("main.omg"),
+        "data Main { value: u8; }\nmachine Main::main(&mut self) { }\ndata Dead { value: u8; }\nmachine Dead::unused(&mut self) { }\n",
+    )
+    .expect("write checked-tree product pruning source");
+    root
+}
+
+#[test]
+fn checked_tree_product_pruning_retains_the_selected_product_root() {
+    let root = checked_tree_pruning_project("checked-tree-pruning", true, true);
+
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &root.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect("the selected checked-tree product compiles");
+
+    let machine_names = checked
+        .typed
+        .machines()
+        .iter()
+        .map(|machine| machine.name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(machine_names, ["Main::main"]);
+
+    let entry = checked
+        .selected_program_entry()
+        .expect("the selected target retains its program entry")
+        .source_signature()
+        .machine_symbol();
+    let selection = checked
+        .checked_tree_product_selection()
+        .expect("checked-tree product pruning retains its selection evidence");
+    assert_eq!(selection.roots().machines(), &[entry]);
+    assert_eq!(selection.retained_machines(), &[entry]);
+    let pruned_names = selection
+        .pruned_machines()
+        .iter()
+        .map(|symbol| checked.typed.symbols.display_path(*symbol, "::"))
+        .collect::<Vec<_>>();
+    for pruned in ["Dead::unused", "build"] {
+        assert!(
+            pruned_names.iter().any(|name| name.as_str() == pruned),
+            "pruned: {pruned_names:?}"
+        );
+    }
+    assert_ne!(selection.identity().as_bytes(), [0; 32]);
+    assert!(
+        checked
+            .optimization_selections()
+            .contains(Optimization::CheckedTreeProductPruning)
+    );
+}
+
+#[test]
+fn absent_checked_tree_pruning_selection_is_the_identity_boundary() {
+    let root = checked_tree_pruning_project("checked-tree-identity", false, true);
+
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &root.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect("an unselected checked-tree phase is the identity boundary");
+
+    let machine_names = checked
+        .typed
+        .machines()
+        .iter()
+        .map(|machine| machine.name.as_str())
+        .collect::<Vec<_>>();
+    for name in ["Main::main", "Dead::unused", "build"] {
+        assert!(machine_names.contains(&name), "retained: {machine_names:?}");
+    }
+    assert!(checked.checked_tree_product_selection().is_none());
+}
+
+#[test]
+fn checked_tree_product_pruning_without_a_bound_product_root_rejects() {
+    let root = checked_tree_pruning_project("checked-tree-no-roots", true, false);
+
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &root.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect_err("product pruning selected without a bound product root rejects");
+    assert!(
+        diagnostic_messages(&diagnostics).contains("requires at least one bound product root"),
+        "unexpected diagnostics: {}",
+        diagnostic_messages(&diagnostics)
+    );
+}
+
+#[test]
+fn checked_tree_product_pruning_cannot_hide_an_invalid_authored_declaration() {
+    let root = checked_tree_pruning_project("checked-tree-invalid", true, true);
+    std::fs::write(
+        root.join("main.omg"),
+        "data Main { value: u8; }\nmachine Main::main(&mut self) { }\ndata Dead { value: u8; }\nmachine Dead::unused(&mut self) { self.missing(); }\n",
+    )
+    .expect("write unreachable invalid authored declaration");
+
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &root.join("main.omg"),
+        Some("linux_x86_64"),
+    ))
+    .expect_err("checking precedes pruning, so the unreachable invalid machine rejects");
+    let messages = diagnostic_messages(&diagnostics);
+    assert!(
+        messages.contains("missing"),
+        "unexpected diagnostics: {messages}"
+    );
+    assert!(
+        !messages.contains("product root"),
+        "the rejection must come from checking, not pruning: {messages}"
+    );
+}
+
+#[test]
+fn checked_tree_product_pruning_rollback_restores_the_full_product() {
+    let root = checked_tree_pruning_project("checked-tree-rollback", true, true);
+
+    let checked = compile_to_checked(CheckedCompileRequest {
+        optimization_rollback: OptimizationRollback::new([Optimization::CheckedTreeProductPruning])
+            .expect("the rollback selection is unique"),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
+    })
+    .expect("the rolled-back checked-tree phase is the identity boundary");
+
+    let machine_names = checked
+        .typed
+        .machines()
+        .iter()
+        .map(|machine| machine.name.as_str())
+        .collect::<Vec<_>>();
+    for name in ["Main::main", "Dead::unused", "build"] {
+        assert!(machine_names.contains(&name), "retained: {machine_names:?}");
+    }
+    assert!(checked.checked_tree_product_selection().is_none());
+    // The authored selection remains the retained identity even though the
+    // effective selection executed as identity.
+    assert!(
+        checked
+            .optimization_selections()
+            .contains(Optimization::CheckedTreeProductPruning)
     );
 }
