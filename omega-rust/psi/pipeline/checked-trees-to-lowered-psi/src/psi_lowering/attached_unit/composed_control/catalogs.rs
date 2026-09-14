@@ -7,17 +7,20 @@ use crate::psi_lowering::attached_unit::catalog::{
     collect_service_summary, lower_program_local_root_introductions, lower_selected_unit_services,
     lower_unit_structural_type_roots,
 };
+use std::borrow::Cow;
 
-pub(crate) struct ComposedCatalogs {
-    pub(crate) structural_types: Vec<StructuralTypeDeclaration>,
-    pub(crate) type_ids: Vec<(String, StructuralTypeId)>,
-    pub(crate) domain_ids: Vec<(SemanticDomainId, StructuralDomainId)>,
-    pub(crate) services: Vec<ServiceDeclaration>,
-    pub(crate) root_service_reach: terminal_psi::TerminalRootServiceReach,
-    pub(crate) boundary_machines: Vec<BoundaryMachineDeclaration>,
+/// Standalone roots own their publication tables; shared callees borrow the
+/// already allocated closure. Only owned type tables admit generated carriers.
+pub(crate) struct ComposedCatalogs<'a> {
+    pub(crate) structural_types: Cow<'a, [StructuralTypeDeclaration]>,
+    pub(crate) type_ids: Cow<'a, [(String, StructuralTypeId)]>,
+    pub(crate) domain_ids: Cow<'a, [(SemanticDomainId, StructuralDomainId)]>,
+    pub(crate) services: Cow<'a, [ServiceDeclaration]>,
+    pub(crate) root_service_reach: Cow<'a, terminal_psi::TerminalRootServiceReach>,
+    pub(crate) boundary_machines: Cow<'a, [BoundaryMachineDeclaration]>,
     pub(crate) lowered_boundaries: Vec<LoweredComposedBoundary>,
     pub(crate) internal_targets: Vec<LoweredComposedInternalTarget>,
-    pub(crate) service_ids: Vec<(ServiceReachId, ServiceId)>,
+    pub(crate) service_ids: Cow<'a, [(ServiceReachId, ServiceId)]>,
     pub(crate) next_place: u64,
     /// Private constructor, join, and literal places; not authored result ordinals.
     pub(crate) temporary_places: Vec<StructuralPlaceDeclaration>,
@@ -112,7 +115,7 @@ pub(super) fn lower_composed_catalogs(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: &admission::AdmittedComposedUnit<'_>,
-) -> Result<ComposedCatalogs, LoweringError> {
+) -> Result<ComposedCatalogs<'static>, LoweringError> {
     lower_catalogs(
         checked,
         plan.machine,
@@ -131,7 +134,7 @@ pub(crate) fn lower_dynamic_catalogs(
     continuation: &checked_trees::CheckedDynamicUnitContinuationPlan,
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     internal_targets: &[(UnitBody<'_>, String)],
-) -> Result<ComposedCatalogs, LoweringError> {
+) -> Result<ComposedCatalogs<'static>, LoweringError> {
     let contract_service_reach = checked
         .facts
         .service_reaches
@@ -161,7 +164,7 @@ fn lower_catalogs(
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     admitted_internal_targets: &[(UnitBody<'_>, String)],
-) -> Result<ComposedCatalogs, LoweringError> {
+) -> Result<ComposedCatalogs<'static>, LoweringError> {
     if !admitted_internal_targets.is_empty() {
         return internal_calls::catalogs::lower(
             checked,
@@ -316,15 +319,15 @@ fn lower_catalogs(
     let scalar_calls = scalar_calls::prepare(checked, machine, states, &internal_targets)?;
     let root_crash_routes = lower_checked_crash_routes(checked, machine)?;
     Ok(ComposedCatalogs {
-        structural_types,
-        type_ids,
-        domain_ids: Vec::new(),
-        services,
-        root_service_reach,
-        boundary_machines,
+        structural_types: structural_types.into(),
+        type_ids: type_ids.into(),
+        domain_ids: Vec::new().into(),
+        services: services.into(),
+        root_service_reach: Cow::Owned(root_service_reach),
+        boundary_machines: boundary_machines.into(),
         lowered_boundaries,
         internal_targets,
-        service_ids,
+        service_ids: service_ids.into(),
         next_place,
         temporary_places: Vec::new(),
         result_places: Vec::new(),

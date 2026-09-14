@@ -5,10 +5,16 @@ This stage checks typed programs and retains checked facts. Start at
 execution plans, and publication are visible there in order.
 [selected_execution.rs](src/selected_execution.rs) owns rebuilding execution
 plans after provider settlement; [lib.rs](src/lib.rs) wires the public API.
+Both paths use [execution_plans.rs](src/execution_plans.rs) for independent
+scalar returns, Unit closure, then dependent structural returns. It returns owned
+plans and diagnostics; each caller retains its own cleanup and publication point.
 Public borrow requirements are in
 [loan resources and compatibility](../../../../wiki/spec/terminal-psi/loans.md).
 Authored declaration custody and carried-type dependency production are described
 in [authored selections](authored_selections.md).
+Selection type queries follow the symbol's current declaration owner before
+inspecting its fields, parameters or locals. Generated-from links are provenance,
+not a fallback to a template's type.
 
 Source obligations are specified by [state contracts](../../../../wiki/spec/language/state_contracts.md)
 and [numeric values](../../../../wiki/spec/language/numeric_values.md). Source

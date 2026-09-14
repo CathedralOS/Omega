@@ -16,7 +16,7 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn lower(
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     targets: &[(UnitBody<'_>, String)],
-) -> Result<super::super::catalogs::ComposedCatalogs, LoweringError> {
+) -> Result<super::super::catalogs::ComposedCatalogs<'static>, LoweringError> {
     let mut services = Vec::new();
     collect_installation_machine_contract_services(
         checked,
@@ -161,15 +161,27 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn lower(
     Ok(super::super::catalogs::ComposedCatalogs {
         temporary_places: Vec::new(),
         result_places: Vec::new(),
-        structural_types: shared.lowered.semantic_module.structural_types.clone(),
-        type_ids: shared.type_ids,
-        domain_ids: shared.domain_ids,
-        services: shared.lowered.semantic_module.services.clone(),
-        root_service_reach: shared.lowered.semantic_module.root_service_reach.clone(),
-        boundary_machines: shared.lowered.semantic_module.boundary_machines.clone(),
+        structural_types: shared
+            .lowered
+            .semantic_module
+            .structural_types
+            .clone()
+            .into(),
+        type_ids: shared.type_ids.into(),
+        domain_ids: shared.domain_ids.into(),
+        services: shared.lowered.semantic_module.services.clone().into(),
+        root_service_reach: std::borrow::Cow::Owned(
+            shared.lowered.semantic_module.root_service_reach.clone(),
+        ),
+        boundary_machines: shared
+            .lowered
+            .semantic_module
+            .boundary_machines
+            .clone()
+            .into(),
         lowered_boundaries,
         internal_targets,
-        service_ids: shared.service_ids,
+        service_ids: shared.service_ids.into(),
         next_place: shared.next_place,
         scalar_calls,
         root_crash_routes: lower_checked_crash_routes(checked, machine)?,

@@ -39,6 +39,13 @@ predicate positions and machine-local claims together. Ordinary and composed
 calls borrow the same records; emission consumes admitted bodies in roster order.
 Neither step allocates a second module or changes the shared identity namespace.
 
+[Composed callees](src/psi_lowering/attached_unit/composed_control/callable.rs)
+borrow the closure's type, domain, service and boundary tables; temporary places
+and identity counters remain local to emission. Standalone composed roots own
+the same tables for publication. Byte-literal stores may allocate their generated
+carrier only in an owned table; shared callees must find the prepared carrier.
+Emission does not clone a shared type table and compare it after the fact.
+
 Within emission, [calls](src/psi_lowering/operation_emission/calls.rs) owns argument
 staging and call-requirement allocation;
 [expressions](src/psi_lowering/operation_emission/expressions.rs) owns scalar leaves,
