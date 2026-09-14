@@ -2,7 +2,7 @@
 // the caller's result slot before returning from the dispatched callee.
 // Expected exit: 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Counter {}
 
@@ -19,7 +19,7 @@ machine Counter::count(&mut self, values: &[i32], acc: u8 in Wrapping) -> i32 {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let view: &[i32] = self.values.as_slice();
     let count: i32 = self.counter.count(view, 0);
     transition count == 5 {
