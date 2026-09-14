@@ -1,4 +1,7 @@
 //! Exact structural scalar-field preservation after independent Terminal verification.
+//! Bounded reads use the declared integer carrier after constructor/entry range
+//! proof reconstruction. A read captures a value; it does not relax the declared
+//! invariant, so stores without their own establishment proof remain rejected.
 
 use abstract_operations::{AbstractOperation, AbstractResult};
 use semantic_vocabulary::{
@@ -75,7 +78,9 @@ fn lower_store(
     }
     let parent_type = resolve_structural_path(structural_types, destination.structural_type, path)
         .ok_or_else(invalid)?;
-    if direct_relevant_scalar_field(structural_types, parent_type, field) != Some(scalar_type) {
+    if direct_relevant_scalar_field(structural_types, parent_type, field, false)
+        != Some(scalar_type)
+    {
         return Err(invalid());
     }
     Ok(AbstractOperation::StructuralScalarFieldStore {
@@ -102,7 +107,7 @@ fn lower_integer_read(
             .ok_or_else(invalid)?;
     let result = operation.result.scalar().ok_or_else(invalid)?;
     if !matches!(result.scalar_type, ScalarType::Integer(_))
-        || direct_relevant_scalar_field(structural_types, carrier.structural_type, field)
+        || direct_relevant_scalar_field(structural_types, carrier.structural_type, field, true)
             != Some(result.scalar_type)
     {
         return Err(invalid());
@@ -286,6 +291,7 @@ fn direct_relevant_scalar_field(
     structural_types: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
     field: StructuralFieldId,
+    allow_bounded_integer: bool,
 ) -> Option<ScalarType> {
     let declaration = exact_structural_type(structural_types, structural_type)?;
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
@@ -301,6 +307,9 @@ fn direct_relevant_scalar_field(
     match &field.field_type {
         StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
         StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
+        StructuralFieldType::BoundedInteger(bounds) if allow_bounded_integer => {
+            Some(ScalarType::Integer(bounds.integer_type()))
+        }
         StructuralFieldType::ByteSequence(_)
         | StructuralFieldType::BoundedInteger(_)
         | StructuralFieldType::Structural(_)

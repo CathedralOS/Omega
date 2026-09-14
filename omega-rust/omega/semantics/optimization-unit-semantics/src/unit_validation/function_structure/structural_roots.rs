@@ -204,7 +204,7 @@ pub(crate) fn validate_structural_root_operations(
                                     && *is_self == destination.is_self
                         )
                         && parent.is_some_and(|parent| {
-                            direct_relevant_scalar_field(structural_types, parent, *field)
+                            direct_relevant_scalar_field(structural_types, parent, *field, false)
                                 == Some(value.scalar_type)
                         });
                     if !valid {
@@ -235,7 +235,7 @@ pub(crate) fn validate_structural_root_operations(
                         })
                         .is_some_and(|carrier| {
                             let identity = carrier.structural_type;
-                            direct_relevant_scalar_field(structural_types, identity, *field)
+                            direct_relevant_scalar_field(structural_types, identity, *field, true)
                                 == Some(ScalarType::Boolean)
                         });
                     if !valid {
@@ -266,8 +266,12 @@ pub(crate) fn validate_structural_root_operations(
                             })
                             .is_some_and(|carrier| {
                                 let identity = carrier.structural_type;
-                                direct_relevant_scalar_field(structural_types, identity, *field)
-                                    == Some(result.scalar_type)
+                                direct_relevant_scalar_field(
+                                    structural_types,
+                                    identity,
+                                    *field,
+                                    true,
+                                ) == Some(result.scalar_type)
                             });
                     if !valid {
                         return Err(
@@ -409,6 +413,7 @@ fn direct_relevant_scalar_field(
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
     field: semantic_vocabulary::StructuralFieldId,
+    allow_bounded_integer: bool,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
     let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
@@ -421,6 +426,13 @@ fn direct_relevant_scalar_field(
                 terminal_psi::StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
                 terminal_psi::StructuralFieldType::IeeeFloat(format) => {
                     Some(ScalarType::IeeeFloat(*format))
+                }
+                // Construction obligations remain checked separately. A scalar
+                // observation can use this carrier, but an unproved store cannot.
+                terminal_psi::StructuralFieldType::BoundedInteger(bounds)
+                    if allow_bounded_integer =>
+                {
+                    Some(ScalarType::Integer(bounds.integer_type()))
                 }
                 _ => None,
             })

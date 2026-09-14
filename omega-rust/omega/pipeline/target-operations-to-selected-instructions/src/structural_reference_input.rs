@@ -267,6 +267,9 @@ fn plain_aggregate(
                         plain_aggregate(nested, declarations, active)
                     }
                     StructuralFieldType::Scalar(scalar) => scalar_shape(scalar).is_some(),
+                    StructuralFieldType::BoundedInteger(bounds) => {
+                        scalar_shape(ScalarType::Integer(bounds.integer_type())).is_some()
+                    }
                     StructuralFieldType::IeeeFloat(format) => {
                         scalar_shape(ScalarType::IeeeFloat(format)).is_some()
                     }
@@ -553,6 +556,19 @@ pub(crate) fn store(
     if !terminal_psi::is_bounded_structural_scalar_store_path(path) {
         return None;
     }
+    scalar_field_geometry(root, path, field, scalar, declarations, false)
+}
+
+/// Geometry is shared, but a bounded load and an invariant-changing store have
+/// different admission. Constructor/entry range proofs do not authorize a write.
+fn scalar_field_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+    allow_bounded_integer: bool,
+) -> Option<(u32, u8)> {
     let (carrier, carrier_offset) = project(root, path, declarations)?;
     let StructuralTypeShape::Record { fields } = &declarations
         .iter()
@@ -572,6 +588,9 @@ pub(crate) fn store(
             let matches_type = match candidate.field_type {
                 StructuralFieldType::Scalar(actual) => actual == scalar,
                 StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(format) == scalar,
+                StructuralFieldType::BoundedInteger(bounds) if allow_bounded_integer => {
+                    ScalarType::Integer(bounds.integer_type()) == scalar
+                }
                 _ => false,
             };
             if !matches_type {
@@ -608,12 +627,55 @@ pub(crate) fn field_read(
         return None;
     }
     plain_record_shape(structural_type, declarations)?;
-    store(structural_type, path, field, scalar, declarations)
+    scalar_field_geometry(structural_type, path, field, scalar, declarations, true)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bounded_integer_geometry_allows_exact_reads_but_not_unproved_stores() {
+        use semantic_vocabulary::{BoundedIntegerType, IntegerSign, IntegerType, IntegerValue};
+
+        let root = StructuralTypeId::new(1).unwrap();
+        let field = StructuralFieldId::new(1).unwrap();
+        let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+        let scalar = ScalarType::Integer(integer);
+        let declarations = vec![StructuralTypeDeclaration {
+            id: root,
+            identity: "BoundedRead".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: field,
+                    identity: "value".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::BoundedInteger(
+                        BoundedIntegerType::new(
+                            integer,
+                            IntegerValue::Signed(-3),
+                            IntegerValue::Signed(3),
+                        )
+                        .unwrap(),
+                    ),
+                }],
+            },
+        }];
+        assert_eq!(
+            field_read(root, &[], field, scalar, &declarations),
+            Some((0, 1))
+        );
+        assert_eq!(store(root, &[], field, scalar, &declarations), None);
+        for wrong in [
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            IntegerType::new(IntegerSign::Signed, 16).unwrap(),
+        ] {
+            assert_eq!(
+                field_read(root, &[], field, ScalarType::Integer(wrong), &declarations),
+                None,
+            );
+        }
+    }
 
     #[test]
     fn relevant_erased_record_carriers_have_geometry_but_no_field_access() {

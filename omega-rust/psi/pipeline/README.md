@@ -220,15 +220,16 @@ The same fixture has an authored hosted entry, a bound `Service<Console>` receiv
 field, and `build.omg`. Run `cargo nextest run -p compiler --test canary_suite
 --no-fail-fast -E 'test(declared_range_inference_hosted_entry_runs_natively)'` to
 produce Terminal for `Main::main`, publish for the current hosted target, and
-execute the real entry bridge. It requires exit 70 (confirming
-`inferred(0) == 256`), not exit 71; the test does not supply `self`. Static
+execute the real entry bridge. It requires exit 70 (confirming scalar and nested
+record range inference, a negative bounded i64, a nested bounded i8, and a
+full-width bounded u64 field value), not exit 71; the test does not supply `self`. Static
 declaration endpoints also pass native package checking: explicit integer
 suffixes contribute their validated carrier to authored operator selection,
 while anonymous literals remain unknown and matching authored operators retain
 custody. A raw CLI invocation still needs the ordinary local-package review;
 the canary uses the repository's reviewed-fixture harness, not a package-admission
-bypass. This entry exercises scalar call inference, not the local record paths
-below.
+bypass. Construction, nested field observation and the hosted caller share the
+ordinary native storage and scalar call path.
 
 Its `RangeValue<T>` applications also exercise closed range identity through
 generic-data synthesis. Pre-resolution typed probes retain structured interval
@@ -244,10 +245,12 @@ bounds remain proof integers until intersected with the signed or unsigned carri
 Nested forwarding retains each declaration-local carrier field and the final
 scalar field through canonical bytes, proof equations and original record backing.
 The same route handles same-typed siblings, deeper integer/Boolean observations
-and affine moves. Native reads still need local record-root custody and bounded
-leaf identity carried through abstract operations, layout and independent replay.
-The primitive-read lowerer already retains projected parameter paths, but its
-local owner lookup only admits primitive establishment, not these record roots.
+and affine moves. Native bounded field reads use `IntegerStructuralField`, keeping
+the actual local/parameter/block root, complete carrier path and final field ID.
+They are not projected `PrimitiveScalarRead` operations. The verified constructor
+and declared interval justify a fresh observation; the physical load uses the
+exact integer carrier without dropping bounded type identity. This does not
+admit bounded field stores without their own invariant-establishment proof.
 Fresh record locals also participate in the
 scalar graph's ordered statement effects: their field computations finish in
 authored order, and nested guards/selected arguments observe the completed root

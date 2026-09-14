@@ -21,11 +21,30 @@ fn nested_field_observations_replay_declaration_local_ids_and_original_root() {
 }
 
 fn field_observations(access: StructuralAccess, nested: bool) {
-    for scalar in [
-        integer(IntegerSign::Signed, 8),
-        integer(IntegerSign::Unsigned, 64),
-        ScalarType::Boolean,
+    use semantic_vocabulary::{BoundedIntegerType, IntegerType, IntegerValue};
+
+    for field_type in [
+        StructuralFieldType::Scalar(integer(IntegerSign::Signed, 8)),
+        StructuralFieldType::Scalar(integer(IntegerSign::Unsigned, 64)),
+        StructuralFieldType::Scalar(ScalarType::Boolean),
+        StructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+                IntegerValue::Signed(-3),
+                IntegerValue::Signed(3),
+            )
+            .unwrap(),
+        ),
+        StructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                IntegerValue::Unsigned(1_u128 << 63),
+                IntegerValue::Unsigned(u128::from(u64::MAX)),
+            )
+            .unwrap(),
+        ),
     ] {
+        let scalar = field_type.scalar_type().unwrap();
         for native in [
             NativeTarget::linux_x64(),
             NativeTarget::linux_arm64(),
@@ -40,7 +59,7 @@ fn field_observations(access: StructuralAccess, nested: bool) {
                         id: StructuralFieldId::new(ordinal).unwrap(),
                         identity: format!("field{ordinal}"),
                         relevance: BindingRelevance::Relevant,
-                        field_type: StructuralFieldType::Scalar(scalar),
+                        field_type: field_type.clone(),
                     })
                     .to_vec(),
             };
