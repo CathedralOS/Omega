@@ -595,10 +595,69 @@ def command_status(arguments, repository):
     return 0
 
 
+def wave_assignments(repository, wave):
+    waves = repository / "tools" / "swarm" / "waves"
+    if not waves.is_dir():
+        return {}
+    for candidate in sorted(waves.glob("*.json")):
+        if candidate.name.endswith(".outcomes.json"):
+            continue
+        try:
+            manifest = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if manifest.get("wave") == wave:
+            return {session.get("name"): session
+                    for session in manifest.get("sessions", [])}
+    return {}
+
+
+def item_closed(repository, assignment):
+    board = assignment.get("board")
+    item = assignment.get("item")
+    if not board or not item:
+        return None
+    board_path = repository / board
+    if not board_path.is_file():
+        return None
+    marker = f"**{item}.**"
+    return marker not in board_path.read_text(encoding="utf-8",
+                                              errors="replace")
+
+
+def report_summary(rows):
+    results = {}
+    for row in rows:
+        key = str(row.get("result"))
+        results[key] = results.get(key, 0) + 1
+    return {"sessions": len(rows), "results": results,
+            "items_closed": sum(1 for row in rows
+                                if row.get("item_closed") is True),
+            "acus_consumed": sum(row["acus_consumed"] for row in rows
+                                 if isinstance(row.get("acus_consumed"),
+                                               (int, float)))}
+
+
+def save_outcomes(repository, wave, rows, summary):
+    outcomes_path = (repository / "tools" / "swarm" / "waves"
+                     / f"{wave}.outcomes.json")
+    fields = ("name", "board", "item", "result", "acus_consumed",
+              "item_closed", "commits", "remaining_dependency")
+    sessions = [{key: row[key] for key in fields if key in row}
+                for row in rows]
+    record = {"wave": wave,
+              "recorded_utc": datetime.now(timezone.utc).isoformat(),
+              "summary": summary, "sessions": sessions}
+    outcomes_path.write_text(json.dumps(record, ensure_ascii=True, indent=2)
+                             + "\n", encoding="utf-8")
+    return outcomes_path
+
+
 def command_report(arguments, repository):
     fetched = fetch_sessions(arguments, repository)
     wave_directory = build_directory(repository, arguments.wave)
     wave_directory.mkdir(parents=True, exist_ok=True)
+    assignments = wave_assignments(repository, arguments.wave)
     rows = []
     missing = []
     for entry in fetched:
@@ -606,26 +665,34 @@ def command_report(arguments, repository):
         output = status.get("structured_output")
         if not output:
             missing.append(receipt["name"])
-            rows.append({"name": receipt["name"],
-                         "result": f"no structured output (status: "
-                                   f"{status.get('status')})",
-                         "acus_consumed": status.get("acus_consumed"),
-                         "url": receipt["url"]})
-            continue
-        rows.append({
-            "name": receipt["name"],
-            "result": output.get("result"),
-            "acus_consumed": status.get("acus_consumed"),
-            "commits": [f"{c.get('sha', '')[:10]} {c.get('subject', '')}"
-                        for c in output.get("commits", [])],
-            "checks": [f"{c.get('command')} ({c.get('host')}) exit {c.get('exit')}"
-                       for c in output.get("checks", [])],
-            "remaining_dependency": output.get("remaining_dependency"),
-            "unrelated_failures": output.get("unrelated_failures", []),
-            "lease_expiries": output.get("lease_expiries"),
-            "first_build_seconds": output.get("first_build_seconds"),
-            "url": receipt["url"],
-        })
+            row = {"name": receipt["name"],
+                   "result": f"no structured output (status: "
+                             f"{status.get('status')})",
+                   "acus_consumed": status.get("acus_consumed"),
+                   "url": receipt["url"]}
+        else:
+            row = {
+                "name": receipt["name"],
+                "result": output.get("result"),
+                "acus_consumed": status.get("acus_consumed"),
+                "commits": [f"{c.get('sha', '')[:10]} {c.get('subject', '')}"
+                            for c in output.get("commits", [])],
+                "checks": [f"{c.get('command')} ({c.get('host')}) exit {c.get('exit')}"
+                           for c in output.get("checks", [])],
+                "remaining_dependency": output.get("remaining_dependency"),
+                "unrelated_failures": output.get("unrelated_failures", []),
+                "lease_expiries": output.get("lease_expiries"),
+                "first_build_seconds": output.get("first_build_seconds"),
+                "url": receipt["url"],
+            }
+        assignment = assignments.get(receipt["name"], {})
+        if assignment.get("item"):
+            row["board"] = assignment["board"]
+            row["item"] = assignment["item"]
+            closed = item_closed(repository, assignment)
+            if closed is not None:
+                row["item_closed"] = closed
+        rows.append(row)
     lines = [f"# Swarm wave {arguments.wave} report", ""]
     if missing:
         lines.append("Sessions without structured output: "
@@ -635,9 +702,9 @@ def command_report(arguments, repository):
         lines.append(f"## {row['name']}")
         lines.append(f"- result: {row['result']}")
         lines.append(f"- acus_consumed: {row.get('acus_consumed')}")
-        for key in ("commits", "checks", "remaining_dependency",
-                    "unrelated_failures", "lease_expiries",
-                    "first_build_seconds", "url"):
+        for key in ("item", "item_closed", "commits", "checks",
+                    "remaining_dependency", "unrelated_failures",
+                    "lease_expiries", "first_build_seconds", "url"):
             if key in row:
                 value = row[key]
                 if isinstance(value, list):
@@ -648,9 +715,15 @@ def command_report(arguments, repository):
         lines.append("")
     report_path = wave_directory / "report.md"
     report_path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
-    emit({"command": "report", "wave": arguments.wave,
-          "report": str(report_path.relative_to(repository)),
-          "sessions_without_structured_output": missing, "sessions": rows})
+    summary = report_summary(rows)
+    record = {"command": "report", "wave": arguments.wave,
+              "report": str(report_path.relative_to(repository)),
+              "sessions_without_structured_output": missing,
+              "summary": summary, "sessions": rows}
+    if arguments.save:
+        outcomes_path = save_outcomes(repository, arguments.wave, rows, summary)
+        record["outcomes"] = str(outcomes_path.relative_to(repository))
+    emit(record)
     return 0
 
 
@@ -680,6 +753,9 @@ def main(argv=None):
     status.add_argument("--wave", required=True)
     report = subparsers.add_parser("report")
     report.add_argument("--wave", required=True)
+    report.add_argument("--save", action="store_true",
+                        help="also write the tracked outcome record "
+                             "tools/swarm/waves/<wave>.outcomes.json")
     arguments = None
     try:
         arguments = parser.parse_args(argv)

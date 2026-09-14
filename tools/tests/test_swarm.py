@@ -453,6 +453,49 @@ class SwarmTests(unittest.TestCase):
         self.assertIn("no structured output", report)
         self.assertIn("needs path owned by beta", report)
 
+    def test_report_save_records_tracked_outcomes(self):
+        directory = self.module.build_directory(self.repository, "w9")
+        self.module.write_receipts(directory, {
+            "alpha": {"name": "alpha", "session_id": "s1",
+                      "url": "https://app.devin.ai/sessions/s1"},
+            "beta": {"name": "beta", "session_id": "s2",
+                     "url": "https://app.devin.ai/sessions/s2"},
+        })
+        waves = self.repository / "tools" / "swarm" / "waves"
+        waves.mkdir(parents=True)
+        record = manifest(sessions=[
+            {"name": "alpha", "board": "TASKS.md", "item": "ITEM-ONE",
+             "host": "linux", "owning_paths": ["src/one"]},
+            {"name": "beta", "board": "TASKS.md", "item": "ITEM-GONE",
+             "host": "linux", "owning_paths": ["src/two"]}])
+        (waves / "w9.json").write_text(json.dumps(record), encoding="utf-8")
+        structured = {"result": "landed", "commits": [], "checks": [],
+                      "remaining_dependency": "", "unrelated_failures": [],
+                      "lease_expiries": 0}
+        responses = {"s1": {"status": "finished", "acus_consumed": 8.0,
+                            "structured_output": structured},
+                     "s2": {"status": "finished", "acus_consumed": 6.0,
+                            "structured_output": structured}}
+
+        def fake_urlopen(request, timeout=60):
+            session_id = request.full_url.rsplit("/", 1)[1]
+            return Response(responses[session_id])
+
+        with mock.patch.object(self.module.urllib.request, "urlopen", fake_urlopen):
+            self.assertEqual(self.module.main(
+                ["--repository", str(self.repository), "report",
+                 "--wave", "w9", "--save"]), 0)
+        outcomes = json.loads((waves / "w9.outcomes.json").read_text(
+            encoding="utf-8"))
+        by_name = {row["name"]: row for row in outcomes["sessions"]}
+        self.assertEqual(by_name["alpha"]["result"], "landed")
+        self.assertFalse(by_name["alpha"]["item_closed"])
+        self.assertTrue(by_name["beta"]["item_closed"])
+        self.assertEqual(by_name["beta"]["item"], "ITEM-GONE")
+        self.assertEqual(outcomes["summary"]["items_closed"], 1)
+        self.assertEqual(outcomes["summary"]["acus_consumed"], 14.0)
+        self.assertTrue((directory / "report.md").is_file())
+
     def test_retry_on_429_then_success_and_fail_fast_on_401(self):
         calls = []
 
