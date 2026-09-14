@@ -33,7 +33,7 @@ pub(super) fn prepare_filesystem_scope(
                 inputs
                     .canonical_source_metadata(inputs.root())
                     .map(|metadata| {
-                        crate::pipeline::build_config::BuildCanonicalSourceMetadataIdentity::new(
+                        build_evaluation::BuildCanonicalSourceMetadataIdentity::new(
                             metadata.policy_version(),
                             *metadata.source_content_commitment(),
                         )
@@ -53,7 +53,7 @@ pub(super) fn prepare_filesystem_scope(
     }
     let filesystem_replay = replay_record
         .map(|record| {
-            super::build_replay_record::rehydrate_review_only_build_filesystem_replay_record(
+            build_evaluation::rehydrate_review_only_build_filesystem_replay_record(
                 record,
                 super::BuildFilesystemReplayRecordLimits::new(
                     record.canonical_bytes().len(),
@@ -75,7 +75,7 @@ pub(super) fn prepare_filesystem_scope(
             .unwrap_or_else(|| std::path::PathBuf::from("build"))
     });
     let mut build_machine_filesystem_scope = if let Some(inputs) = package_inputs {
-        crate::pipeline::build_config::BuildMachineFilesystemScope::for_package_root(
+        build_evaluation::BuildMachineFilesystemScope::for_package_root(
             inputs
                 .package_root(inputs.root())
                 .expect("validated package inputs retain their root")
@@ -85,7 +85,7 @@ pub(super) fn prepare_filesystem_scope(
             inputs.canonical_source_metadata(inputs.root()).cloned(),
         )
     } else {
-        crate::pipeline::build_config::BuildMachineFilesystemScope::for_root(
+        build_evaluation::BuildMachineFilesystemScope::for_root(
             root_path,
             build_dir,
             filesystem_sponsor,

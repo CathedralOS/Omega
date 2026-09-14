@@ -502,7 +502,7 @@ impl CheckedCompilation {
     #[doc(hidden)]
     pub fn selected_provider_provenance(
         &self,
-    ) -> &[crate::pipeline::provider_plans::SelectedProviderReviewProvenance] {
+    ) -> &[provider_planning::SelectedProviderReviewProvenance] {
         &self.execution.settled.selected_provider_provenance
     }
 
@@ -521,9 +521,7 @@ impl CheckedCompilation {
         &self.execution.settled.callback_placements
     }
 
-    pub const fn build_evaluation_usage(
-        &self,
-    ) -> Option<crate::pipeline::build_config::BuildEvaluationUsage> {
+    pub const fn build_evaluation_usage(&self) -> Option<build_evaluation::BuildEvaluationUsage> {
         self.execution.build_evaluation_usage
     }
 
@@ -532,7 +530,7 @@ impl CheckedCompilation {
     /// comparison bytes.
     pub const fn build_observation_summary(
         &self,
-    ) -> Option<&crate::pipeline::build_config::BuildObservationSummary> {
+    ) -> Option<&build_evaluation::BuildObservationSummary> {
         self.execution.build_observation_summary.as_ref()
     }
 

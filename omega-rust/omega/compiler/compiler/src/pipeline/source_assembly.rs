@@ -456,9 +456,8 @@ fn hosted_entry_contract_seed(
         // binding claims a supplier, the bundled toolchain copy is the same
         // closed target definition the slot vocabulary already names.
         Some(inputs) => {
-            let accepted_role = crate::pipeline::build_config::program_entry_semantic_binding_role(
-                contract_package,
-            );
+            let accepted_role =
+                build_evaluation::program_entry_semantic_binding_role(contract_package);
             let accepted_package = inputs
                 .accepted_semantic_binding(accepted_role)
                 .map(|binding| binding.package());

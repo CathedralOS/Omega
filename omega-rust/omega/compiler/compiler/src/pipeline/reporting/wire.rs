@@ -10,7 +10,7 @@ use typed_trees::wire::{WireMember, WireSchema};
 
 pub(in crate::pipeline) fn validate_wire_protocol(
     typed: &TypedTrees,
-    compatibility_demands: &[crate::pipeline::build_config::WireCompatibilityDemand],
+    compatibility_demands: &[build_evaluation::WireCompatibilityDemand],
 ) -> Result<(), Vec<Diagnostic>> {
     validate_wire_protocol_report(&build_wire_protocol_report(typed, compatibility_demands))
 }
@@ -58,7 +58,7 @@ struct SchemaRow {
 
 fn build_wire_protocol_report(
     typed: &TypedTrees,
-    compatibility_demands: &[crate::pipeline::build_config::WireCompatibilityDemand],
+    compatibility_demands: &[build_evaluation::WireCompatibilityDemand],
 ) -> WireProtocolReport {
     let mut rows = typed
         .wire_schemas()
@@ -253,7 +253,7 @@ fn stable_wire_report_identity<'a>(
 fn compatibility_demand_report(
     typed: &TypedTrees,
     rows: &[SchemaRow],
-    demand: &crate::pipeline::build_config::WireCompatibilityDemand,
+    demand: &build_evaluation::WireCompatibilityDemand,
 ) -> WireCompatibilityDemandReportEntry {
     let local = select_era_path(
         &demand.local_schema,
@@ -442,7 +442,7 @@ fn select_era_path<'a, T>(
 fn schema_selection_detail(
     local: &EraSelection<&WireSchemaReportEntry>,
     peer: &EraSelection<&WireSchemaReportEntry>,
-    demand: &crate::pipeline::build_config::WireCompatibilityDemand,
+    demand: &build_evaluation::WireCompatibilityDemand,
 ) -> String {
     if matches!(local, EraSelection::Missing) && matches!(peer, EraSelection::Missing) {
         return format!(

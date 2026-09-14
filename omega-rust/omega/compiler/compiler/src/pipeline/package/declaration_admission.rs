@@ -12,19 +12,19 @@ use symbols::SymbolKind;
 /// activation appends any own generated source. Construction stays private so
 /// build orchestration cannot pair an authority verdict with a different
 /// source closure.
-pub(super) struct AuthoredDeclarationAuthorityVerdict {
+pub(in crate::pipeline) struct AuthoredDeclarationAuthorityVerdict {
     base_source_consumption_commitment: package_compilation::PackageSourceConsumptionCommitment,
 }
 
 impl AuthoredDeclarationAuthorityVerdict {
-    pub(super) const fn base_source_consumption_commitment(
+    pub(in crate::pipeline) const fn base_source_consumption_commitment(
         &self,
     ) -> package_compilation::PackageSourceConsumptionCommitment {
         self.base_source_consumption_commitment
     }
 }
 
-pub(super) fn validate_authored_declaration_selections_before_build(
+pub(in crate::pipeline) fn validate_authored_declaration_selections_before_build(
     typed: &typed_trees::TypedTrees,
     packages: &PackageCompilationInputs,
     generated_source_custody: &[(source::SourceId, build_output::PackageGeneratedSource)],
@@ -49,7 +49,7 @@ pub(super) fn validate_authored_declaration_selections_before_build(
     })
 }
 
-pub(super) fn validate_authored_declaration_selections(
+pub(in crate::pipeline) fn validate_authored_declaration_selections(
     program: &CheckedTrees,
     packages: &PackageCompilationInputs,
 ) -> Result<(), Vec<Diagnostic>> {
