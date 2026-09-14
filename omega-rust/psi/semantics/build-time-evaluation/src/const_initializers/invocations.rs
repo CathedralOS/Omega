@@ -30,6 +30,7 @@ pub(super) struct CheckedInitializers {
     admission: BuildTimeAdmissionPlan,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     crash_causes: Vec<(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)>,
+    probe_symbols: Vec<symbols::SymbolHandle>,
 }
 
 impl CheckedInitializers {
@@ -75,6 +76,7 @@ impl CheckedInitializers {
             admission,
             authority,
             crash_causes,
+            probe_symbols: probe_symbols.to_vec(),
         })
     }
 
@@ -139,6 +141,75 @@ pub(super) struct Invocation<'program> {
 }
 
 impl Invocation<'_> {
+    fn require_concrete_failure_discharge(
+        &self,
+        expression: ExpressionHandle,
+        machine: &Machine,
+        entry: &State,
+        snapshots: Vec<ExpressionNode>,
+    ) -> Result<(), String> {
+        // A published guarded ceiling has no private whole-body summary. Check
+        // its exact invocation instead of inspecting the body to narrow that
+        // ceiling, or treating successful interpretation as admission evidence.
+        // All original initializer probes must leave this private body check:
+        // their detached expressions use exact evaluation, not runtime ranges.
+        let mut probe = self.program.typed().clone();
+        let machines = probe
+            .machines()
+            .iter()
+            .filter(|candidate| !self.program.probe_symbols.contains(&candidate.symbol))
+            .cloned()
+            .collect::<Vec<_>>();
+        probe.roots.machines = arena::HandleSpan::empty();
+        for candidate in machines {
+            probe.push_machine(candidate);
+        }
+        let ExpressionNode::Call(mut call) = probe.expression_table.expression(expression).clone()
+        else {
+            return Err("constant invocation lost its selected call".into());
+        };
+        let arguments = snapshots
+            .into_iter()
+            .map(|snapshot| probe.expression_table.insert(snapshot))
+            .collect::<Vec<_>>();
+        call.arguments = probe.expression_table.insert_expression_handles(arguments);
+        let concrete = probe.expression_table.insert(ExpressionNode::Call(call));
+        probe.expression_table.set_source_span(
+            concrete,
+            self.program
+                .typed()
+                .expression_table
+                .source_span(expression),
+        );
+        let owner = append_probe(
+            &mut probe,
+            self.machine.symbol,
+            "@const-invocation".into(),
+            concrete,
+            entry.return_type,
+        );
+        let checked =
+            typed_trees_to_checked_trees::lower_typed_trees(probe).map_err(|diagnostics| {
+                format!(
+                    "constant invocation of `{}` failed checking: {diagnostics:?}",
+                    machine.name
+                )
+            })?;
+        let causes = typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
+            &checked.typed,
+            &checked.facts,
+            owner,
+        )
+        .ok_or("constant invocation has no complete checked failure summary")?;
+        if !causes.is_empty() {
+            return Err(format!(
+                "constant invocation of `{}` retains unhandled {causes:?} routes at its concrete arguments",
+                machine.name
+            ));
+        }
+        Ok(())
+    }
+
     pub(super) fn validate_custody(
         &self,
         original: ExpressionHandle,
@@ -262,22 +333,18 @@ impl ConstantCalls for Invocation<'_> {
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
         let typed = self.program.typed();
         let (machine, entry) = self.selected(expression)?;
-        let causes = self
+        // Reuse complete argument-independent evidence when it exists. Only a
+        // fallible or otherwise unsummarized call needs fresh checking snapshots.
+        let needs_concrete_discharge = !self
             .program
             .crash_causes
             .iter()
-            .find(|(symbol, _)| *symbol == machine.symbol)
-            .ok_or("constant invocation has no complete checked failure summary")?;
-        if !causes.1.is_empty() {
-            return Err(format!(
-                "constant invocation of `{}` retains unhandled {:?} routes; concrete invocation discharge is required",
-                machine.name, causes.1
-            ));
-        }
+            .any(|(symbol, causes)| *symbol == machine.symbol && causes.is_empty());
         let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
             return Err("constant execution lost its selected call".into());
         };
         let mut arguments = Vec::new();
+        let mut snapshots = Vec::new();
         let mut warnings = Vec::new();
         for (argument, parameter) in typed
             .expression_table
@@ -298,6 +365,9 @@ impl ConstantCalls for Invocation<'_> {
                 destination,
                 self,
             )?;
+            if needs_concrete_discharge {
+                snapshots.push(scalar_snapshot(&value, destination)?);
+            }
             arguments.push(match value.decode_encoding() {
                 Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
                     let bits = if destination.is_signed_integer() {
@@ -318,6 +388,9 @@ impl ConstantCalls for Invocation<'_> {
                     warnings.push(warning);
                 }
             }
+        }
+        if needs_concrete_discharge {
+            self.require_concrete_failure_discharge(expression, machine, entry, snapshots)?;
         }
         let result = self
             .program
@@ -348,4 +421,84 @@ impl ConstantCalls for Invocation<'_> {
         };
         Ok((value, warnings))
     }
+}
+
+fn scalar_snapshot(
+    value: &CanonicalConstValue,
+    carrier: PrimitiveType,
+) -> Result<ExpressionNode, String> {
+    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    let value = match value.decode_encoding() {
+        Some(DecodedCanonicalConstValue::Boolean(value)) if carrier == PrimitiveType::Bool => {
+            return Ok(ExpressionNode::Boolean(value));
+        }
+        Some(DecodedCanonicalConstValue::Integer { value, .. }) => value,
+        _ => return Err("constant argument lost its canonical scalar snapshot".into()),
+    };
+    let landed_type = match carrier {
+        PrimitiveType::I8 => LandedIntegerType::I8,
+        PrimitiveType::I16 => LandedIntegerType::I16,
+        PrimitiveType::I32 => LandedIntegerType::I32,
+        PrimitiveType::I64 => LandedIntegerType::I64,
+        PrimitiveType::U8 => LandedIntegerType::U8,
+        PrimitiveType::U16 => LandedIntegerType::U16,
+        PrimitiveType::U32 => LandedIntegerType::U32,
+        PrimitiveType::U64 => LandedIntegerType::U64,
+        _ => return Err("constant argument lost its builtin integer carrier".into()),
+    };
+    let magnitude = value.unsigned_abs().to_string();
+    Ok(ExpressionNode::Integer(
+        IntegerLiteral::from_parts(value < 0, IntegerRadix::Decimal, &magnitude)?.with_landing(
+            IntegerLanding {
+                landed_type,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    ))
+}
+
+/// Disposable expression roots share the same ordinary checking context for
+/// concrete admission and receiving replay; they never become source declarations.
+pub(super) fn append_probe(
+    program: &mut TypedTrees,
+    owner: symbols::SymbolHandle,
+    name: String,
+    expression: ExpressionHandle,
+    destination: typed_trees::types::TypeReferenceHandle,
+) -> symbols::SymbolHandle {
+    let symbol =
+        program
+            .symbols
+            .insert_generated_root_from(owner, symbols::SymbolKind::Machine, &name);
+    let children = program
+        .symbols
+        .insert_generated_children(symbol, [(symbols::SymbolKind::State, name.as_str())]);
+    let target = program.statement_table.insert_transition_target(
+        typed_trees::statement::TransitionTargetNode::Value(expression),
+    );
+    let mut state = State {
+        symbol: children.start(),
+        name: typed_trees::name::Identifier::generated(name.clone()),
+        return_type: destination,
+        ..Default::default()
+    };
+    let source_span = program.expression_table.source_span(expression);
+    program.statement_table.push_statement(
+        &mut state.statement_nodes,
+        typed_trees::statement::StatementNode::Transition(
+            typed_trees::statement::TableTransition {
+                target,
+                source_span,
+                ..Default::default()
+            },
+        ),
+    );
+    let mut machine = Machine {
+        symbol,
+        name: typed_trees::name::Identifier::generated(name),
+        ..Default::default()
+    };
+    program.push_machine_state(&mut machine, state);
+    program.push_machine(machine);
+    symbol
 }

@@ -96,6 +96,32 @@ fn machine_constant_record_retains_payloadless_case_siblings() {
 }
 
 #[test]
+fn concrete_machine_initializers_discharge_failure_routes_before_execution() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for argument in ["2", "1 + 1", "identity(1 + 1)"] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "machine divide(value: u64) -> u64
+                crashes Trap value == 0
+                {{ transition {{ value != 0 -> 10 / value }} crash Trap; }}
+                machine forward(value: u64) -> u64 {{ divide(value) }}
+                machine identity(value: u64) -> u64 {{ value }}
+                const SIZE: u64 = forward({argument});
+                machine read() -> u64 {{ SIZE }} {} {} {}",
+                super::BUFFER,
+                super::keep("keep", "SIZE"),
+                super::keep("oracle", "5"),
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        super::assert_same_machine_types(&checked, "keep", "oracle");
+        assert_source_free_result(checked, "read", 5);
+    }
+}
+
+#[test]
 fn invalid_unused_machine_constant_initializers_reject() {
     let tree = Sources::new();
     let root = tree.package("root");

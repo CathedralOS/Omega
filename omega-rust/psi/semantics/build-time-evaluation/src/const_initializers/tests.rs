@@ -50,6 +50,71 @@ fn integer_encoding(syntax: &SyntaxTrees, name: &str, value: i128) {
 }
 
 #[test]
+fn concrete_invocation_admission_preserves_demand_and_scalar_snapshots() {
+    let evaluated = evaluate(
+        "machine divide(value: u64) -> u64
+        crashes Trap value == 0
+        { transition { value != 0 -> 10 / value } crash Trap; }
+        machine forward(value: u64) -> u64 { divide(value) }
+        machine identity(value: u64) -> u64 { value }
+        machine gate(flag: bool) -> u64
+        crashes Abort flag
+        { transition { !flag -> 7 } crash Abort; }
+        machine forward_gate(flag: bool) -> u64 { gate(flag) }
+        machine full_width(value: u64) -> u64
+        crashes Trap value == 0
+        { transition { value != 0 -> value } crash Trap; }
+        machine signed(value: i64) -> u64
+        crashes Trap value < 0
+        { transition { value >= 0 -> 9 } crash Trap; }
+        const DIVIDED: u64 = forward(identity(1 + 1));
+        const SELECTED: u64 = match false { true -> divide(0), false -> forward_gate(false) };
+        const MAXIMUM: u64 = full_width(18446744073709551615);
+        const SIGNED: u64 = signed(0);",
+    )
+    .expect("concrete arguments discharge guarded calls before demanded execution");
+    integer_encoding(&evaluated, "DIVIDED", 5);
+    integer_encoding(&evaluated, "SELECTED", 7);
+    integer_encoding(&evaluated, "MAXIMUM", i128::from(u64::MAX));
+    integer_encoding(&evaluated, "SIGNED", 9);
+}
+
+#[test]
+fn concrete_invocation_rejects_undischarged_published_routes_before_interpretation() {
+    for source in [
+        "machine divide(value: u64) -> u64 crashes Trap value == 0
+        { transition { value != 0 -> 10 / value } crash Trap; }
+        const UNUSED: u64 = divide(0);",
+        "machine gate(flag: bool) -> u64 crashes Abort flag { 7 }
+        const UNUSED: u64 = gate(true);",
+        "machine gate(flag: bool) -> u64 crashes Trap flag { 7 }
+        machine forward(flag: bool) -> u64 { gate(flag) }
+        const UNUSED: u64 = forward(true);",
+        "machine gate() -> u64 crashes Trap { 7 }
+        const UNUSED: u64 = gate();",
+        "machine signed(value: i64) -> u64 crashes Trap value < 0
+        { transition { value >= 0 -> 9 } crash Trap; }
+        const UNUSED: u64 = signed(-1);",
+    ] {
+        let diagnostics = evaluate(source).expect_err("published route must discharge");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("retains unhandled")),
+            "must reject through admission, not an interpreter failure: {diagnostics:?}"
+        );
+    }
+    assert!(
+        evaluate(
+            "machine constrained(value: u64) -> u64 requires value > 0 { value }
+        const UNUSED: u64 = constrained(0);"
+        )
+        .is_err(),
+        "ordinary precondition floor remains required"
+    );
+}
+
+#[test]
 fn ordinary_machine_initializers_retain_calls_and_exact_scalar_composition() {
     let evaluated = evaluate(
         "machine size() -> u64 { 7 }
@@ -418,6 +483,41 @@ fn computed_array_leaves_admit_checked_machine_calls() {
         vec![ExpressionNode::Integer(
             numerics::literals::IntegerLiteral::from_value(1)
         )]
+    );
+}
+
+#[test]
+fn retained_invocation_replay_rechecks_concrete_crash_discharge() {
+    // Both actuals would return 7 if interpretation were used as admission.
+    // Only false discharges the published ceiling; keep the folded value fixed.
+    let (syntax, sources) = parse(
+        "machine gate(flag: bool) -> u64 crashes Trap flag { 7 }
+        const SIZE: u64 = gate(false);",
+    );
+    let evaluated = super::evaluate(syntax, Some(sources.clone()), &[], None)
+        .expect("concrete safe invocation");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&evaluated, sources)
+            .expect("retained guarded call");
+    let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("typed guarded call");
+    super::validate_retained_invocations(&typed, None).expect("unchanged discharge");
+    let original = typed.const_declarations()[0].authored_initializer;
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        typed.expression_table.expression(original)
+    else {
+        panic!("retained call");
+    };
+    let argument = typed.expression_table.expression_handles(call.arguments)[0];
+    *typed.expression_table.expression_mut(argument) =
+        typed_trees::expression::ExpressionNode::Boolean(true);
+    let diagnostics = super::validate_retained_invocations(&typed, None)
+        .expect_err("same result cannot preserve changed invocation admission");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("retains unhandled")),
+        "{diagnostics:?}"
     );
 }
 
