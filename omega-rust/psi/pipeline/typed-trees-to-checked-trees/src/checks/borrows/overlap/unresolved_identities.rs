@@ -106,6 +106,7 @@ fn assert_matrix(
                     left_access,
                     right,
                     right_access,
+                    &[],
                 );
                 assert_eq!(
                     captured.compatibility, expected,
@@ -118,10 +119,12 @@ fn assert_matrix(
                     right,
                     right_access,
                     &captured.selector_snapshot,
+                    &[],
+                    &[],
                 );
                 assert_eq!(
                     replayed,
-                    Some(expected),
+                    Ok(expected),
                     "replay: {left_access:?}/{right_access:?}",
                 );
             }
@@ -295,6 +298,7 @@ fn replay_rejects_extra_selector_rows_before_an_unknown_identity() {
                 &BorrowAccessKind::Read,
                 right,
                 &BorrowAccessKind::Read,
+                &[],
             );
             assert_eq!(captured.selector_snapshot.len(), 1);
             let mut extra = captured.selector_snapshot;
@@ -307,8 +311,10 @@ fn replay_rejects_extra_selector_rows_before_an_unknown_identity() {
                     right,
                     &BorrowAccessKind::Read,
                     &extra,
+                    &[],
+                    &[],
                 )
-                .is_none(),
+                .is_err(),
                 "an unused row cannot be hidden by shared-read compatibility",
             );
         }
@@ -329,6 +335,7 @@ fn replay_rejects_unconsumed_rows_after_a_known_disjoint_prefix() {
             &BorrowAccessKind::Read,
             &source_right,
             &BorrowAccessKind::Read,
+            &[],
         );
         assert_eq!(captured.selector_snapshot.len(), 1);
         let mut unused = captured.selector_snapshot;
@@ -346,8 +353,10 @@ fn replay_rejects_unconsumed_rows_after_a_known_disjoint_prefix() {
                     right,
                     &BorrowAccessKind::Read,
                     &unused,
+                    &[],
+                    &[],
                 )
-                .is_none(),
+                .is_err(),
                 "a known disjoint prefix must not ignore trailing selector rows",
             );
         }

@@ -1,14 +1,42 @@
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
 use checked_trees::{
-    BorrowCompatibilityPlaceSide, BorrowCompatibilitySelectorPosition,
-    BorrowCompatibilitySelectorSnapshot, BorrowCompatibilitySelectorValue,
+    BorrowCompatibilityPlaceSide, BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation,
+    BorrowCompatibilitySelectorPosition, BorrowCompatibilitySelectorSnapshot,
+    BorrowCompatibilitySelectorValue,
 };
 use symbols::SymbolHandle;
+
+use super::premises::{StatedOrderingPremise, premise_proves};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum NormalizedBound {
     Integer(i64),
     Symbol { symbol: SymbolHandle, offset: i64 },
+}
+
+/// Record one normalized bound in the retained selector-value vocabulary.
+/// Symbolic rows with a zero offset canonicalize to the plain `Symbol` form so
+/// replay compares one spelling of each bound.
+pub(super) fn selector_value(bound: NormalizedBound) -> BorrowCompatibilitySelectorValue {
+    match bound {
+        NormalizedBound::Integer(value) => BorrowCompatibilitySelectorValue::Integer(value),
+        NormalizedBound::Symbol { symbol, offset: 0 } => {
+            BorrowCompatibilitySelectorValue::Symbol(symbol)
+        }
+        NormalizedBound::Symbol { symbol, offset } => {
+            BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset }
+        }
+    }
+}
+
+/// Which recorded ledger an independent replay could not reproduce.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompatibilityReplayDrift {
+    /// A frozen selector row drifted from its re-derived value or position.
+    SelectorSnapshot,
+    /// A recorded premise token is missing, reordered, or no longer
+    /// re-derives from the formation scope's stated contracts.
+    Premise,
 }
 
 /// The normalized extent of one `Index` segment expression as evaluated inside
@@ -30,11 +58,21 @@ pub(super) struct SelectorLocation {
     pub segment_index: usize,
 }
 
+/// The closed replay ledger of one selector session: every normalized bound
+/// row the judgments recorded or consumed, plus every stated premise token in
+/// consult order.
+pub struct SelectorSessionClosure {
+    pub snapshot: Vec<BorrowCompatibilitySelectorSnapshot>,
+    pub premises: Vec<BorrowCompatibilityPremise>,
+}
+
 pub(super) struct SelectorSnapshotEvaluation<'a> {
     frozen: Option<&'a [BorrowCompatibilitySelectorSnapshot]>,
     snapshot: Vec<BorrowCompatibilitySelectorSnapshot>,
     next_frozen: usize,
-    invalid: bool,
+    /// The first drift observed while replaying either recorded ledger.
+    /// Capture sessions never set it.
+    drift: Option<CompatibilityReplayDrift>,
     /// Values already produced inside this session, keyed by exact selector
     /// position. Only range-bound positions are reused: every evaluation at a
     /// `RangeStart`/`RangeExclusiveEnd` coordinate normalizes the same
@@ -48,43 +86,117 @@ pub(super) struct SelectorSnapshotEvaluation<'a> {
         BorrowCompatibilitySelectorPosition,
         Option<NormalizedBound>,
     )>,
+    /// Ordering premises the formation scope's stated contracts make
+    /// available to this judgment. Consults are re-derived during replay, not
+    /// trusted from the certificate.
+    premises: &'a [StatedOrderingPremise],
+    /// Premise tokens this capture consumed, in consult order.
+    used_premises: Vec<BorrowCompatibilityPremise>,
+    /// The recorded premise ledger a replay must reproduce positionally.
+    frozen_premises: Option<&'a [BorrowCompatibilityPremise]>,
+    next_frozen_premise: usize,
 }
 
-impl SelectorSnapshotEvaluation<'_> {
-    pub(super) fn capture() -> Self {
+impl<'a> SelectorSnapshotEvaluation<'a> {
+    pub(super) fn capture(premises: &'a [StatedOrderingPremise]) -> Self {
         Self {
             frozen: None,
             snapshot: Vec::new(),
             next_frozen: 0,
-            invalid: false,
+            drift: None,
             recorded: Vec::new(),
+            premises,
+            used_premises: Vec::new(),
+            frozen_premises: None,
+            next_frozen_premise: 0,
         }
     }
 
     pub(super) fn replay(
-        snapshot: &[BorrowCompatibilitySelectorSnapshot],
-    ) -> SelectorSnapshotEvaluation<'_> {
+        snapshot: &'a [BorrowCompatibilitySelectorSnapshot],
+        premises: &'a [StatedOrderingPremise],
+        frozen_premises: &'a [BorrowCompatibilityPremise],
+    ) -> SelectorSnapshotEvaluation<'a> {
         SelectorSnapshotEvaluation {
             frozen: Some(snapshot),
             snapshot: Vec::new(),
             next_frozen: 0,
-            invalid: false,
+            drift: None,
             recorded: Vec::new(),
+            premises,
+            used_premises: Vec::new(),
+            frozen_premises: Some(frozen_premises),
+            next_frozen_premise: 0,
         }
     }
 
-    pub(super) fn finish(self) -> Option<Vec<BorrowCompatibilitySelectorSnapshot>> {
-        if self.invalid
-            || self
-                .frozen
-                .is_some_and(|frozen| self.next_frozen != frozen.len())
-        {
-            None
-        } else if let Some(frozen) = self.frozen {
-            Some(frozen.to_vec())
-        } else {
-            Some(self.snapshot)
+    /// Close the session. Replay succeeds only when every recorded selector
+    /// row and every recorded premise token was consumed exactly once.
+    pub(super) fn finish(self) -> Result<SelectorSessionClosure, CompatibilityReplayDrift> {
+        if let Some(drift) = self.drift {
+            return Err(drift);
         }
+        if self
+            .frozen
+            .is_some_and(|frozen| self.next_frozen != frozen.len())
+        {
+            return Err(CompatibilityReplayDrift::SelectorSnapshot);
+        }
+        if self
+            .frozen_premises
+            .is_some_and(|frozen| self.next_frozen_premise != frozen.len())
+        {
+            return Err(CompatibilityReplayDrift::Premise);
+        }
+        Ok(SelectorSessionClosure {
+            snapshot: self.frozen.map_or(self.snapshot, |frozen| frozen.to_vec()),
+            premises: self
+                .frozen_premises
+                .map_or(self.used_premises, |frozen| frozen.to_vec()),
+        })
+    }
+
+    /// Record the first replay drift observed; later failures preserve the
+    /// earliest diagnostic so it names the first unreproducible evidence.
+    fn mark_drift(&mut self, drift: CompatibilityReplayDrift) {
+        if self.drift.is_none() {
+            self.drift = Some(drift);
+        }
+    }
+
+    /// Consult the formation scope's stated ordering premises for one bound
+    /// relation the structural order could not prove. The first premise that
+    /// proves the query is recorded (capture) or matched positionally against
+    /// the recorded ledger (replay); a consult the recorded ledger does not
+    /// reproduce marks the session drifted and stays unproven.
+    fn prove_ordering(
+        &mut self,
+        left: NormalizedBound,
+        relation: BorrowCompatibilityPremiseRelation,
+        right: NormalizedBound,
+    ) -> bool {
+        let Some(premise) = self
+            .premises
+            .iter()
+            .find(|premise| premise_proves(premise, left, relation, right))
+        else {
+            return false;
+        };
+        let token = premise.token();
+        if let Some(frozen) = self.frozen_premises {
+            match frozen.get(self.next_frozen_premise) {
+                Some(recorded) if *recorded == token => {
+                    self.next_frozen_premise += 1;
+                }
+                _ => {
+                    self.mark_drift(CompatibilityReplayDrift::Premise);
+                    return false;
+                }
+            }
+        } else {
+            self.used_premises.push(token);
+        }
+        true
     }
 
     fn bound(
@@ -106,27 +218,19 @@ impl SelectorSnapshotEvaluation<'_> {
         if let Some(frozen) = self.frozen {
             let current = current();
             let Some(row) = frozen.get(self.next_frozen) else {
-                self.invalid = true;
+                self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
                 return None;
             };
             if row.side != location.side
                 || row.segment_index != location.segment_index
                 || row.position != position
             {
-                self.invalid = true;
+                self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
                 return None;
             }
-            let current_value = current.map(|value| match value {
-                NormalizedBound::Integer(value) => BorrowCompatibilitySelectorValue::Integer(value),
-                NormalizedBound::Symbol { symbol, offset: 0 } => {
-                    BorrowCompatibilitySelectorValue::Symbol(symbol)
-                }
-                NormalizedBound::Symbol { symbol, offset } => {
-                    BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset }
-                }
-            });
+            let current_value = current.map(selector_value);
             if row.value != current_value {
-                self.invalid = true;
+                self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
                 return None;
             }
             self.next_frozen += 1;
@@ -139,7 +243,7 @@ impl SelectorSnapshotEvaluation<'_> {
                     Some(NormalizedBound::Symbol { symbol, offset: 0 })
                 }
                 Some(BorrowCompatibilitySelectorValue::Symbol(_)) => {
-                    self.invalid = true;
+                    self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
                     None
                 }
                 Some(BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset })
@@ -148,11 +252,11 @@ impl SelectorSnapshotEvaluation<'_> {
                     Some(NormalizedBound::Symbol { symbol, offset })
                 }
                 Some(BorrowCompatibilitySelectorValue::SymbolOffset { .. }) => {
-                    self.invalid = true;
+                    self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
                     None
                 }
             };
-            if !self.invalid {
+            if self.drift.is_none() {
                 self.recorded.push((location, position, value));
             }
             return value;
@@ -163,15 +267,7 @@ impl SelectorSnapshotEvaluation<'_> {
             side: location.side,
             segment_index: location.segment_index,
             position,
-            value: value.map(|value| match value {
-                NormalizedBound::Integer(value) => BorrowCompatibilitySelectorValue::Integer(value),
-                NormalizedBound::Symbol { symbol, offset: 0 } => {
-                    BorrowCompatibilitySelectorValue::Symbol(symbol)
-                }
-                NormalizedBound::Symbol { symbol, offset } => {
-                    BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset }
-                }
-            }),
+            value: value.map(selector_value),
         });
         self.recorded.push((location, position, value));
         value
@@ -184,7 +280,7 @@ pub(super) fn index_expressions_may_overlap(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
-    let mut selectors = SelectorSnapshotEvaluation::capture();
+    let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
 
     index_expressions_may_overlap_with_selectors(
         program,
@@ -295,7 +391,7 @@ pub(super) fn index_expression_may_contain_fixed(
     expression: ExpressionHandle,
     index: usize,
 ) -> bool {
-    let mut selectors = SelectorSnapshotEvaluation::capture();
+    let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
     index_expression_may_contain_fixed_with_selectors(
         program,
         expression,
@@ -363,7 +459,7 @@ fn range_may_contain_integer(
     let (start, end) = range_integer_bounds(program, range, location, selectors);
     // An empty half-open window `[a, a)` contains nothing, so it is disjoint
     // from every index even when the index itself is unknown.
-    if range_is_provably_empty(start, end) {
+    if range_is_provably_empty(start, end, selectors) {
         return false;
     }
     if start.is_some_and(|start| matches!(start, NormalizedBound::Integer(start) if value < start))
@@ -389,8 +485,8 @@ fn ranges_may_overlap(
 
     // Either window being provably empty makes the pair disjoint regardless of
     // the other window's bounds.
-    if range_is_provably_empty(left_start, left_end)
-        || range_is_provably_empty(right_start, right_end)
+    if range_is_provably_empty(left_start, left_end, selectors)
+        || range_is_provably_empty(right_start, right_end, selectors)
     {
         return false;
     }
@@ -398,12 +494,12 @@ fn ranges_may_overlap(
     // Two half-open windows `[ls, le)` and `[rs, re)` are disjoint when one ends
     // at or before the other starts.
     if let (Some(left_end), Some(right_start)) = (left_end, right_start)
-        && bound_is_at_or_before(left_end, right_start)
+        && bound_is_at_or_before(left_end, right_start, selectors)
     {
         return false;
     }
     if let (Some(right_end), Some(left_start)) = (right_end, left_start)
-        && bound_is_at_or_before(right_end, left_start)
+        && bound_is_at_or_before(right_end, left_start, selectors)
     {
         return false;
     }
@@ -412,9 +508,14 @@ fn ranges_may_overlap(
 
 /// A half-open window `[start, end)` with `end <= start` is empty and therefore
 /// overlaps nothing. Shared-symbol offsets order as mathematical integers;
-/// distinct runtime symbols remain unordered.
-fn range_is_provably_empty(start: Option<NormalizedBound>, end: Option<NormalizedBound>) -> bool {
-    matches!((start, end), (Some(start), Some(end)) if bound_is_at_or_before(end, start))
+/// distinct runtime symbols remain unordered unless a stated premise orders
+/// them.
+fn range_is_provably_empty(
+    start: Option<NormalizedBound>,
+    end: Option<NormalizedBound>,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
+) -> bool {
+    matches!((start, end), (Some(start), Some(end)) if bound_is_at_or_before(end, start, selectors))
 }
 
 fn range_integer_bounds(
@@ -433,7 +534,21 @@ fn range_integer_bounds(
     )
 }
 
-pub(super) fn bound_is_at_or_before(left: NormalizedBound, right: NormalizedBound) -> bool {
+/// `left <= right` on normalized bounds. The structural order consults the
+/// formation scope's stated premises only after its own same-symbol/integer
+/// rule fails; a premise proves the relation but never widens it.
+pub(super) fn bound_is_at_or_before(
+    left: NormalizedBound,
+    right: NormalizedBound,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
+) -> bool {
+    if structural_bound_is_at_or_before(left, right) {
+        return true;
+    }
+    selectors.prove_ordering(left, BorrowCompatibilityPremiseRelation::LessOrEqual, right)
+}
+
+fn structural_bound_is_at_or_before(left: NormalizedBound, right: NormalizedBound) -> bool {
     match (left, right) {
         (NormalizedBound::Integer(left), NormalizedBound::Integer(right)) => left <= right,
         (
@@ -452,7 +567,22 @@ pub(super) fn bound_is_at_or_before(left: NormalizedBound, right: NormalizedBoun
 
 /// Strict `<` ordering for bounds; used where a window must be provably
 /// non-empty or a point must sit strictly below an exclusive end.
-pub(super) fn bound_is_strictly_before(left: NormalizedBound, right: NormalizedBound) -> bool {
+pub(super) fn bound_is_strictly_before(
+    left: NormalizedBound,
+    right: NormalizedBound,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
+) -> bool {
+    if structural_bound_is_strictly_before(left, right) {
+        return true;
+    }
+    selectors.prove_ordering(
+        left,
+        BorrowCompatibilityPremiseRelation::StrictlyBefore,
+        right,
+    )
+}
+
+fn structural_bound_is_strictly_before(left: NormalizedBound, right: NormalizedBound) -> bool {
     match (left, right) {
         (NormalizedBound::Integer(left), NormalizedBound::Integer(right)) => left < right,
         (
@@ -469,9 +599,21 @@ pub(super) fn bound_is_strictly_before(left: NormalizedBound, right: NormalizedB
     }
 }
 
-/// Exact bound equality: literal values or the same symbol at the same offset.
+/// Exact bound equality: literal values, the same symbol at the same offset,
+/// or a stated `==` premise that fixes both bounds to one offset line.
 /// Anything else stays unproven rather than assumed distinct.
-pub(super) fn bound_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
+pub(super) fn bound_equal(
+    left: NormalizedBound,
+    right: NormalizedBound,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
+) -> bool {
+    if structural_bound_equal(left, right) {
+        return true;
+    }
+    selectors.prove_ordering(left, BorrowCompatibilityPremiseRelation::Equal, right)
+}
+
+fn structural_bound_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
     match (left, right) {
         (NormalizedBound::Integer(left), NormalizedBound::Integer(right)) => left == right,
         (
@@ -547,7 +689,7 @@ fn exclusive_end_bound(
     )
 }
 
-fn normalized_bound(
+pub(super) fn normalized_bound(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
@@ -825,7 +967,7 @@ mod tests {
             side: BorrowCompatibilityPlaceSide::Active,
             segment_index: 5,
         };
-        let mut capture = SelectorSnapshotEvaluation::capture();
+        let mut capture = SelectorSnapshotEvaluation::capture(&[]);
         assert!(!index_expressions_may_overlap_with_selectors(
             &program,
             left,
@@ -834,7 +976,7 @@ mod tests {
             right_location,
             &mut capture,
         ));
-        let snapshot = capture.finish().expect("closed captured snapshot");
+        let snapshot = capture.finish().expect("closed captured snapshot").snapshot;
         assert_eq!(
             snapshot
                 .iter()
@@ -868,7 +1010,7 @@ mod tests {
             ]
         );
 
-        let mut replay = SelectorSnapshotEvaluation::replay(&snapshot);
+        let mut replay = SelectorSnapshotEvaluation::replay(&snapshot, &[], &[]);
         assert!(!index_expressions_may_overlap_with_selectors(
             &program,
             left,
@@ -877,11 +1019,14 @@ mod tests {
             right_location,
             &mut replay,
         ));
-        assert_eq!(replay.finish(), Some(snapshot.clone()));
+        assert_eq!(
+            replay.finish().map(|closure| closure.snapshot),
+            Ok(snapshot.clone())
+        );
 
         let mut reordered = snapshot;
         reordered.swap(0, 1);
-        let mut replay = SelectorSnapshotEvaluation::replay(&reordered);
+        let mut replay = SelectorSnapshotEvaluation::replay(&reordered, &[], &[]);
         let _ = index_expressions_may_overlap_with_selectors(
             &program,
             left,
@@ -891,7 +1036,7 @@ mod tests {
             &mut replay,
         );
         assert!(
-            replay.finish().is_none(),
+            replay.finish().is_err(),
             "selector rows cannot be transposed across ordered path positions",
         );
     }
@@ -929,7 +1074,7 @@ mod tests {
             side: BorrowCompatibilityPlaceSide::Active,
             segment_index: 0,
         };
-        let mut capture = SelectorSnapshotEvaluation::capture();
+        let mut capture = SelectorSnapshotEvaluation::capture(&[]);
         assert!(index_expressions_may_overlap_with_selectors(
             &program,
             left,
@@ -938,12 +1083,12 @@ mod tests {
             right_location,
             &mut capture,
         ));
-        let snapshot = capture.finish().expect("closed unknown snapshot");
+        let snapshot = capture.finish().expect("closed unknown snapshot").snapshot;
         assert_eq!(snapshot.len(), 4);
         assert_eq!(snapshot[1].value, None);
         assert_eq!(snapshot[2].value, None);
 
-        let mut replay = SelectorSnapshotEvaluation::replay(&snapshot);
+        let mut replay = SelectorSnapshotEvaluation::replay(&snapshot, &[], &[]);
         assert!(index_expressions_may_overlap_with_selectors(
             &program,
             left,
@@ -952,11 +1097,11 @@ mod tests {
             right_location,
             &mut replay,
         ));
-        assert!(replay.finish().is_some());
+        assert!(replay.finish().is_ok());
 
         let mut incomplete = snapshot;
         incomplete.remove(1);
-        let mut replay = SelectorSnapshotEvaluation::replay(&incomplete);
+        let mut replay = SelectorSnapshotEvaluation::replay(&incomplete, &[], &[]);
         let _ = index_expressions_may_overlap_with_selectors(
             &program,
             left,
@@ -966,7 +1111,7 @@ mod tests {
             &mut replay,
         );
         assert!(
-            replay.finish().is_none(),
+            replay.finish().is_err(),
             "omitting an unknown row must not look like an unobserved selector position",
         );
     }
@@ -1167,7 +1312,7 @@ mod tests {
         let left = range_bounds(&mut program, zero, mid, false);
         let right = range_bounds(&mut program, shifted, four, false);
         install_locals(&mut program, [(mid_symbol, "mid", mid_initial, false)]);
-        let mut selectors = SelectorSnapshotEvaluation::capture();
+        let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
         assert!(!index_expressions_may_overlap_with_selectors(
             &program,
             left,
@@ -1182,7 +1327,10 @@ mod tests {
             },
             &mut selectors,
         ));
-        let snapshot = selectors.finish().expect("captured selector snapshot");
+        let snapshot = selectors
+            .finish()
+            .expect("captured selector snapshot")
+            .snapshot;
         assert_eq!(
             snapshot.iter().map(|row| row.value).collect::<Vec<_>>(),
             vec![
@@ -1231,7 +1379,7 @@ mod tests {
             [(mid_symbol, "mid", mid_initial, false)],
             wrapping,
         );
-        let mut selectors = SelectorSnapshotEvaluation::capture();
+        let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
         assert!(index_expressions_may_overlap_with_selectors(
             &program,
             left,
@@ -1246,7 +1394,10 @@ mod tests {
             },
             &mut selectors,
         ));
-        let snapshot = selectors.finish().expect("captured selector snapshot");
+        let snapshot = selectors
+            .finish()
+            .expect("captured selector snapshot")
+            .snapshot;
         assert_eq!(
             snapshot[2].value, None,
             "wrapping offsets must remain unknown in selector evidence"

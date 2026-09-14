@@ -172,10 +172,19 @@ fn replay_checked_borrow_compatibility_certificate(
             "checked borrow compatibility certificate does not rejoin its exact state-owned loans",
         ));
     }
-    if certificate.derivation != checked_trees::BorrowCompatibilityDerivation::Structural {
-        return Err(Diagnostic::error(
-            "checked borrow compatibility certificate has a non-structural derivation",
-        ));
+    // The derivation class must agree with the recorded premise ledger: a
+    // premised conclusion must name at least one exact requires token, and a
+    // structural conclusion must have consulted none.
+    match certificate.derivation {
+        checked_trees::BorrowCompatibilityDerivation::Structural
+            if certificate.premises.is_empty() => {}
+        checked_trees::BorrowCompatibilityDerivation::Premised
+            if !certificate.premises.is_empty() => {}
+        _ => {
+            return Err(Diagnostic::error(
+                "checked borrow compatibility certificate derivation drifted from its recorded premise ledger",
+            ));
+        }
     }
 
     let Some((forming_access, active_access)) = facts
@@ -188,7 +197,21 @@ fn replay_checked_borrow_compatibility_certificate(
     };
     let forming_loan = facts.borrow.loans.get(certificate.forming_loan);
     let active_loan = facts.borrow.loans.get(certificate.active_loan);
-    let Some(replayed) = overlap::borrow_loan_compatibility_from_selector_snapshot(
+    // The premise set is re-derived from the formation scope's stated
+    // contracts, not trusted from the certificate. An unresolvable formation
+    // scope offers no premises, so a recorded premised token cannot replay.
+    let stated_premises = crate::semantic_calls::find_state_in_machine(
+        program,
+        certificate.formation.machine_symbol,
+        certificate.formation.state_symbol,
+    )
+    .and_then(|state| {
+        crate::lookup::machine_by_symbol(program, certificate.formation.machine_symbol)
+            .map(|machine| (machine, state))
+    })
+    .map(|(machine, state)| overlap::stated_ordering_premises(program, facts, machine, state))
+    .unwrap_or_default();
+    let replayed = match overlap::borrow_loan_compatibility_from_selector_snapshot(
         program,
         facts,
         forming_loan,
@@ -196,10 +219,20 @@ fn replay_checked_borrow_compatibility_certificate(
         active_loan,
         active_access,
         &certificate.selector_snapshot,
-    ) else {
-        return Err(Diagnostic::error(
-            "checked borrow compatibility certificate selector snapshot drifted from its captured-place shape",
-        ));
+        &stated_premises,
+        &certificate.premises,
+    ) {
+        Ok(replayed) => replayed,
+        Err(overlap::CompatibilityReplayDrift::Premise) => {
+            return Err(Diagnostic::error(
+                "checked borrow compatibility certificate premise tokens drifted from their stated requires evidence",
+            ));
+        }
+        Err(overlap::CompatibilityReplayDrift::SelectorSnapshot) => {
+            return Err(Diagnostic::error(
+                "checked borrow compatibility certificate selector snapshot drifted from its captured-place shape",
+            ));
+        }
     };
     let replayed_conclusion = checked_trees::BorrowCompatibilityConclusion {
         disjoint: replayed.disjoint,

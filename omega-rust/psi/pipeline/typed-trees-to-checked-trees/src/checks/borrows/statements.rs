@@ -10,9 +10,22 @@ use crate::semantic_calls::find_state_in_machine;
 
 use super::details::{active_loan_detail, canonical_place_label};
 use super::overlap::{
-    borrow_loan_compatibility_from_selector_snapshot,
+    CompatibilityReplayDrift, borrow_loan_compatibility_from_selector_snapshot,
     borrow_loan_compatibility_with_selector_snapshot, canonical_place_loan_compatibility,
+    stated_ordering_premises,
 };
+
+/// The replay evidence a retained certificate no longer reproduces.
+fn compatibility_replay_diagnostic(drift: CompatibilityReplayDrift) -> Diagnostic {
+    match drift {
+        CompatibilityReplayDrift::SelectorSnapshot => Diagnostic::error(
+            "checked borrow compatibility certificate selector snapshot drifted from its captured-place shape",
+        ),
+        CompatibilityReplayDrift::Premise => Diagnostic::error(
+            "checked borrow compatibility certificate premise tokens drifted from their stated requires evidence",
+        ),
+    }
+}
 
 pub(super) fn check_statement_borrows(
     program: &typed_trees::TypedTrees,
@@ -29,6 +42,9 @@ pub(super) fn check_statement_borrows(
     else {
         return;
     };
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+        return;
+    };
     let Some(borrow_state) = facts.borrow.states.iter().find_map(|(_, state)| {
         (state.machine_symbol == state_flow.machine_symbol
             && state.state_symbol == state_flow.state_symbol)
@@ -36,6 +52,11 @@ pub(super) fn check_statement_borrows(
     }) else {
         return;
     };
+    // Ordering premises are established by this state's own signature scope:
+    // machine `requires` at the entry state plus the state's `requires`.
+    // Premise subjects are immutable bound values, so the set is stable for
+    // every loan formation inside the state.
+    let stated_premises = stated_ordering_premises(program, facts, machine, state);
 
     for statement in facts
         .flow
@@ -89,46 +110,55 @@ pub(super) fn check_statement_borrows(
                                     == statement.statement_index
                                 && certificate.forming_loan == forming_loan_handle
                                 && certificate.active_loan == active_loan_handle
-                                && certificate.derivation
-                                    == BorrowCompatibilityDerivation::Structural
                                 && facts
                                     .borrow
                                     .compatibility_certificate_matches_resources(certificate)
                         });
-                let (compatibility, selector_snapshot) = if let Some((retained_index, retained)) =
-                    retained
-                {
-                    let Some((forming_access, active_access)) = facts
-                        .borrow
-                        .compatibility_certificate_resource_accesses(retained)
-                    else {
-                        continue;
+                let (compatibility, selector_snapshot, premises) =
+                    if let Some((retained_index, retained)) = retained {
+                        let Some((forming_access, active_access)) = facts
+                            .borrow
+                            .compatibility_certificate_resource_accesses(retained)
+                        else {
+                            continue;
+                        };
+                        let compatibility = match borrow_loan_compatibility_from_selector_snapshot(
+                            program,
+                            facts,
+                            loan,
+                            forming_access,
+                            active_loan,
+                            active_access,
+                            &retained.selector_snapshot,
+                            &stated_premises,
+                            &retained.premises,
+                        ) {
+                            Ok(compatibility) => compatibility,
+                            Err(drift) => {
+                                diagnostics.push(compatibility_replay_diagnostic(drift));
+                                continue;
+                            }
+                        };
+                        retained_compatibility_certificates_consumed[retained_index] = true;
+                        (
+                            compatibility,
+                            retained.selector_snapshot.clone(),
+                            retained.premises.clone(),
+                        )
+                    } else {
+                        let evidence = borrow_loan_compatibility_with_selector_snapshot(
+                            program,
+                            facts,
+                            loan,
+                            active_loan,
+                            &stated_premises,
+                        );
+                        (
+                            evidence.compatibility,
+                            evidence.selector_snapshot,
+                            evidence.premises,
+                        )
                     };
-                    let Some(compatibility) = borrow_loan_compatibility_from_selector_snapshot(
-                        program,
-                        facts,
-                        loan,
-                        forming_access,
-                        active_loan,
-                        active_access,
-                        &retained.selector_snapshot,
-                    ) else {
-                        diagnostics.push(Diagnostic::error(
-                            "checked borrow compatibility certificate selector snapshot drifted from its captured-place shape",
-                        ));
-                        continue;
-                    };
-                    retained_compatibility_certificates_consumed[retained_index] = true;
-                    (compatibility, retained.selector_snapshot.clone())
-                } else {
-                    let evidence = borrow_loan_compatibility_with_selector_snapshot(
-                        program,
-                        facts,
-                        loan,
-                        active_loan,
-                    );
-                    (evidence.compatibility, evidence.selector_snapshot)
-                };
                 if compatibility.non_interfering {
                     let certificate = CheckedBorrowCompatibilityCertificate {
                         formation: BorrowCompatibilityFormation {
@@ -141,12 +171,17 @@ pub(super) fn check_statement_borrows(
                         forming_place: compatibility.left.clone(),
                         active_place: compatibility.right.clone(),
                         selector_snapshot,
+                        derivation: if premises.is_empty() {
+                            BorrowCompatibilityDerivation::Structural
+                        } else {
+                            BorrowCompatibilityDerivation::Premised
+                        },
+                        premises,
                         conclusion: BorrowCompatibilityConclusion {
                             disjoint: compatibility.disjoint,
                             containment: compatibility.containment,
                             non_interfering: compatibility.non_interfering,
                         },
-                        derivation: BorrowCompatibilityDerivation::Structural,
                     };
                     debug_assert!(
                         facts
