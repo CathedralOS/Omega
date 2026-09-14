@@ -2752,6 +2752,77 @@ fn boundary_witness_dies_under_indexed_alias_collection_frame() {
 }
 
 #[test]
+fn incoming_guard_conjuncts_jointly_bound_operands_after_disjoint_write() {
+    let source = r#"
+        data Main {
+            scratch: i32;
+            position: i32 [0..=8];
+            direction: i32;
+            result: i32 [0..=9];
+        }
+
+        machine Main::main(&mut self) {
+            transition self.scratch == 0 && self.direction >= 0 && self.direction <= 1 {
+                true -> update()
+                false -> done()
+            }
+            state update(&mut self) {
+                self.scratch = 1;
+                self.result = self.position + self.direction;
+            }
+            state done(&mut self) {}
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("surviving lower and upper conjuncts must jointly bound the operand");
+}
+
+#[test]
+fn incoming_guard_conjuncts_do_not_revive_invalidated_or_unestablished_facts() {
+    for (guard, prior_write) in [
+        ("self.value < 16 && self.signed > -5", "self.signed = -5;"),
+        (
+            "self.value < 16 && self.signed > -5",
+            "self.reset_signed();",
+        ),
+        ("self.value < 16 || self.signed > -5", "self.value = 16;"),
+        ("!(self.value < 16 && self.signed > -5)", "self.value = 16;"),
+    ] {
+        let source = format!(
+            r#"
+            data Main {{
+                value: i32 [0..=16];
+                signed: i8 [-5..=5];
+            }}
+
+            machine Main::main(&mut self) {{
+                transition {guard} {{
+                    true -> update()
+                    false -> done()
+                }}
+                state update(&mut self) {{
+                    {prior_write}
+                    self.signed = self.signed - 1;
+                }}
+                state done(&mut self) {{}}
+            }}
+
+            machine Main::reset_signed(&mut self) {{ self.signed = -5; }}
+            "#
+        );
+        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
+            .expect_err("an invalidated or unestablished conjunct cannot justify the subtraction");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove assignment value `self.signed - 1`")),
+            "expected bounded assignment rejection for {guard} after {prior_write}, got {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn incoming_guard_survives_pure_value_call_before_bounded_assignment() {
     let source = r#"
         machine widen(value: i32) -> i64 {

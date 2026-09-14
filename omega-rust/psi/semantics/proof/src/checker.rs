@@ -968,17 +968,27 @@ fn guarded_integer_range_for_assignment_with_context(
         }
     }
 
-    // The incoming-edge guard held at STATE ENTRY; it still holds at this
-    // assignment only if nothing earlier in the state could have changed what
-    // it constrained (a prior write to a may-aliasing place, or any opaque
-    // call). Without this gate, `transition c < 100 { true -> bump() }` with
-    // `bump { c = 100; c = c + 1 }` would "prove" the second write.
-    if let Some(guard) = &obligation.state_guard
-        && assignment_guard_is_stable(proof_plan, obligation, guard, context)
-    {
-        range = apply_assignment_guard(proof_plan, range, obligation.value, guard);
-        range = guard_refined_binary_range(proof_plan, range, obligation.value, guard);
-
+    // Entry facts survive independently: a write to `self.x` invalidates the
+    // `x < limit` conjunct, not a disjoint `y > floor` conjunct. Only positive
+    // conjunctions split; an OR or negation does not establish its children.
+    // Each retained fact still passes the full guard/value dependency gate,
+    // so `c = 100; c = c + 1` cannot reuse an entry fact `c < 100`.
+    let mut conditions = Vec::new();
+    if let Some(TransitionGuardNode::When(condition)) = &obligation.state_guard {
+        collect_stable_assignment_conditions(
+            proof_plan,
+            obligation,
+            *condition,
+            context,
+            &mut conditions,
+        );
+    }
+    for condition in &conditions {
+        let guard = TransitionGuardNode::When(*condition);
+        range = apply_assignment_guard(proof_plan, range, obligation.value, &guard);
+        range = guard_refined_binary_range(proof_plan, range, obligation.value, &guard);
+    }
+    if !conditions.is_empty() {
         // OPERAND-wise refold of a top-level binary value: each operand's
         // range = its DECLARED range (resolved at build time), with the guard
         // filling in one the declaration leaves unbounded -- `self.p +
@@ -986,20 +996,21 @@ fn guarded_integer_range_for_assignment_with_context(
         // incoming `dir >= 0 && dir <= 1`. The whole-value fold dies at build
         // time on the unranged operand, and `guard_refined_binary_range`
         // above is place-vs-LITERAL only, so neither reaches this shape.
-        if let TransitionGuardNode::When(condition) = guard
-            && let Some(operands) = &obligation.binary_operands
+        // Refold once with all surviving facts: separate lower and upper
+        // bounds can jointly constrain an otherwise unbounded operand.
+        if let Some(operands) = &obligation.binary_operands
             && let (Some(left), Some(right)) = (
                 guard_narrowed_operand_range(
                     proof_plan,
                     obligation,
-                    *condition,
+                    &conditions,
                     operands.left,
                     operands.left_range.clone(),
                 ),
                 guard_narrowed_operand_range(
                     proof_plan,
                     obligation,
-                    *condition,
+                    &conditions,
                     operands.right,
                     operands.right_range.clone(),
                 ),
@@ -1031,25 +1042,28 @@ fn guarded_integer_range_for_assignment_with_context(
 /// then yields [0..=7]. Skipping the recursion keeps the build-time
 /// [-28..=35] fold, whose truncating-remainder [-7..=7] fails the target.
 ///
-/// The stability gate ran once on the whole guard above, so a fact that
+/// Every condition passed its dependency stability gate above, so a fact that
 /// reaches an inner place is as sound here as on the outer operand; the
 /// refold only intersects, and an operand the guard leaves at its declared
 /// range refolds exactly what the build-time fold already claimed.
 fn guard_narrowed_operand_range(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
-    condition: ExpressionHandle,
+    conditions: &[ExpressionHandle],
     handle: ExpressionHandle,
     declared: Option<IntegerRange>,
 ) -> Option<IntegerRange> {
-    let mut narrowed = apply_source_condition(
-        proof_plan,
-        declared.unwrap_or_else(neutral_range),
-        handle,
-        condition,
-        obligation.machine_symbol,
-        obligation.state_guard_source,
-    );
+    let mut narrowed = declared.unwrap_or_else(neutral_range);
+    for condition in conditions {
+        narrowed = apply_source_condition(
+            proof_plan,
+            narrowed,
+            handle,
+            *condition,
+            obligation.machine_symbol,
+            obligation.state_guard_source,
+        );
+    }
 
     // R4: an ensures-witnessed OPERAND place clamps here; an unsigned place's
     // type floor supplies the lower end.
@@ -1095,7 +1109,7 @@ fn guard_narrowed_operand_range(
         guard_narrowed_operand_range(
             proof_plan,
             obligation,
-            condition,
+            conditions,
             sub_operand,
             declared_integer_range(proof_plan.program, machine, state, sub_operand),
         )
@@ -1242,7 +1256,49 @@ fn operand_declared_primitive(
     None
 }
 
-/// Whether the incoming-edge guard's facts survive from state entry to THIS
+fn collect_stable_assignment_conditions(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedAssignmentObligation,
+    condition: ExpressionHandle,
+    context: &AssignmentRangeContext<'_>,
+    conditions: &mut Vec<ExpressionHandle>,
+) {
+    let unwrapped = unwrap_true_guard_condition(proof_plan, condition);
+    if unwrapped != condition {
+        collect_stable_assignment_conditions(
+            proof_plan, obligation, unwrapped, context, conditions,
+        );
+        return;
+    }
+    if let ExpressionNode::Binary(binary) =
+        proof_plan.program.expression_table.expression(condition)
+        && binary.operator == BinaryOperator::And
+    {
+        collect_stable_assignment_conditions(
+            proof_plan,
+            obligation,
+            binary.left,
+            context,
+            conditions,
+        );
+        collect_stable_assignment_conditions(
+            proof_plan,
+            obligation,
+            binary.right,
+            context,
+            conditions,
+        );
+    } else if assignment_guard_is_stable(
+        proof_plan,
+        obligation,
+        &TransitionGuardNode::When(condition),
+        context,
+    ) {
+        conditions.push(condition);
+    }
+}
+
+/// Whether one incoming-edge guard fact survives from state entry to THIS
 /// assignment: every earlier statement in the state must have a complete write
 /// frame provably DISJOINT from every place the guard condition or assignment
 /// value reads. Prefix member paths alias (`self.state` vs
