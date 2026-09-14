@@ -502,6 +502,17 @@ def render_local_prompt(template, manifest, session, repository, state):
 def command_local(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
     sessions, skipped = sessions_for(manifest, "local")
+    if arguments.sessions:
+        wanted = {name.strip() for name in arguments.sessions.split(",")
+                  if name.strip()}
+        known = {session["name"] for session in sessions}
+        unknown = sorted(wanted - known)
+        if unknown:
+            raise SwarmError(
+                f"Unknown local session(s) {', '.join(unknown)}; manifest "
+                f"local sessions: {', '.join(sorted(known)) or '(none)'}")
+        sessions = [session for session in sessions
+                    if session["name"] in wanted]
     gate_results = host_gate_results(repository, sessions,
                                      skip=arguments.skip_host_gates)
     route_data = "skipped" if arguments.skip_route_check else route_crates(repository)
@@ -939,6 +950,11 @@ def main(argv=None):
     local.add_argument("--create-worktrees", action="store_true",
                        help="create .codex/worktrees/<wave>-<name> and "
                             "swarm/<wave>-<name> branches before spawning")
+    local.add_argument("--sessions",
+                       help="comma-separated session names to render "
+                            "(default: all local sessions in the manifest); "
+                            "use it to relaunch a subset without editing the "
+                            "manifest")
     local.add_argument("--skip-host-gates", action="store_true")
     local.add_argument("--skip-route-check", action="store_true")
     local.add_argument("--skip-claims-check", action="store_true")

@@ -67,6 +67,10 @@ on ANY terminal outcome: landed, blocked, superseded, or abandoned.
 - Refetch `origin/main` before enqueueing. If the item's acceptance has
   already landed or the board text materially changed, stop and report
   `superseded` rather than landing a duplicate.
+- On Windows, never use `2>nul` or `>nul` to silence output: Git Bash
+  creates a literal file named `nul` in the worktree, which lands as an
+  untracked file and can block a publish from the main checkout. Drop the
+  redirect or send output to a real file you delete.
 
 ## Landing
 
@@ -74,7 +78,9 @@ Publish only through `python3 tools/landing.py` with
 `--owner "{owner_label}"` — never a direct push. Rebase onto current
 `origin/main` and validate immediately before claiming the head. On lease
 expiry, release the ticket and rejoin the queue; never bypass the
-reservation.
+reservation. `landing.py` requires full lowercase 40-character SHAs for
+`--base` and `--candidate`; an expired head leaves your commit intact —
+re-enqueue it after the queue clears.
 
 ## Report
 
