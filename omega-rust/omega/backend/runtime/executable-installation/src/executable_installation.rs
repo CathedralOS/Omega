@@ -1356,6 +1356,23 @@ impl InstalledCode {
             .is_some_and(|candidate| candidate.code_offset == expected_offset)
     }
 
+    /// Exact placement constraints retained by this installed occurrence.
+    /// The projection is descriptive evidence — normalized range, alignment,
+    /// phase, regime, and scope identities — and grants no placement or
+    /// execute authority.
+    pub const fn placement_constraints(&self) -> PlacementConstraints {
+        self.validated.frozen.placement.constraints
+    }
+
+    /// Test the exact realized placement geometry retained by this installed
+    /// occurrence. Callers supply the claimed base and length; the sealed
+    /// equality result binds downstream contracts (for example a startup
+    /// vector page) without exposing or deriving an executable address.
+    pub fn binds_placement_geometry(&self, base: u64, length: u64) -> bool {
+        let extent = &self.validated.frozen.placement.extent;
+        extent.base() == base && extent.length() == length
+    }
+
     pub fn architecture(&self) -> Architecture {
         self.validated.frozen.artifact.artifact.0.architecture
     }
