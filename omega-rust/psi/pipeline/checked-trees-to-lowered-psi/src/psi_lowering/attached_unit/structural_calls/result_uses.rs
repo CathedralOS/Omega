@@ -366,10 +366,35 @@ pub(crate) fn validate_usage(
                 .ok_or(LoweringError::Unsupported(
                     "selected result has stale source custody",
                 ))?;
-            if let Some(source_ordinal) = sources
-                .iter()
-                .position(|source| source.statement_ordinal == result.statement_index)
-            {
+            // Only statement-established sources name a result binding:
+            // parameter sources carry their authored position in
+            // `statement_ordinal`, which is not a statement index.
+            let result_local_symbol = checked
+                .statement_table
+                .statements(
+                    crate::psi_lowering::scalar_source_custody::authored_state(
+                        checked,
+                        caller.state,
+                    )?
+                    .1
+                    .statement_nodes,
+                )
+                .get(result.statement_index as usize)
+                .and_then(|statement| match statement {
+                    StatementNode::LocalData(local) => Some(local.symbol),
+                    _ => None,
+                });
+            if let Some(source_ordinal) = sources.iter().position(|source| {
+                matches!(
+                    source.provenance,
+                    language_semantics::PermissionProvenance::Established {
+                        source: language_semantics::PermissionEventSource::Statement {
+                            statement_index,
+                        },
+                        ..
+                    } if statement_index == result.statement_index as usize
+                ) && Some(source.symbol) == result_local_symbol
+            }) {
                 let source_handle = arena::Handle::from_parts(
                     receipt.sources.start().arena_index() + source_ordinal as u32,
                     receipt.sources.start().generation(),

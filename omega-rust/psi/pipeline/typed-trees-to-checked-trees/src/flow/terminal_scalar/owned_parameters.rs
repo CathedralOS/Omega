@@ -187,6 +187,22 @@ pub(super) fn validate(
             )
         })
         .unwrap_or(statements.len());
+    // A selected source parameter keeps no exit drop: its conditional custody
+    // and residual death ride the owned-selection receipt instead, so it joins
+    // neither the expected discard roster nor the event stream.
+    let selection_source_roots = ownership
+        .owned_selections
+        .iter()
+        .filter(|(_, receipt)| receipt.machine == machine && receipt.state == state.symbol)
+        .flat_map(|(_, receipt)| {
+            ownership
+                .selection_sources
+                .span_or_empty(receipt.sources)
+                .iter()
+                .map(|source| facts::PlaceRoot::Symbol(source.symbol))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
     let mut expected_discards = Vec::new();
     for parameter in parameters.iter().rev() {
         if parameter.access != CheckedStructuralAccess::Owned
@@ -198,6 +214,9 @@ pub(super) fn validate(
             .state_parameters(state)
             .get(parameter.position as usize)?;
         let root = facts::PlaceRoot::Symbol(source.symbol);
+        if selection_source_roots.contains(&root) {
+            continue;
+        }
         let transferred_in_prefix = expected_transfers.iter().any(|(source, transferred)| {
             *transferred == root
                 && matches!(source, PermissionEventSource::Call { statement_index, .. } if *statement_index < prefix_end)

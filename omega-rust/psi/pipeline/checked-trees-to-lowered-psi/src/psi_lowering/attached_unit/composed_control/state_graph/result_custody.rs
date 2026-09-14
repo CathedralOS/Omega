@@ -360,5 +360,27 @@ pub(super) fn selection_edge_discards(
             && transferred == 0;
         roots.push((place, dies));
     }
+    // Selected parameter sources ride the same roster after every result row:
+    // the receipt keeps them last in descending authored-position order, and
+    // the residual join parameters replace each row at its own slot.
+    let mut parameter_sources = Vec::new();
+    for cleanup in &evaluation.selection_cleanups {
+        for source in &cleanup.sources {
+            if let Some((position, _)) = evaluation
+                .structural_parameters
+                .iter()
+                .find(|(_, declaration)| declaration.place == *source)
+            {
+                parameter_sources.push((*position, *source));
+            }
+        }
+    }
+    parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
+    parameter_sources.dedup_by_key(|(_, place)| *place);
+    roots.extend(
+        parameter_sources
+            .into_iter()
+            .map(|(_, place)| (place, false)),
+    );
     evaluation.selection_return_discards(roots)
 }

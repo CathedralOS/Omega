@@ -1431,6 +1431,18 @@ fn retain_selected_sources(
         .selection_sources
         .span(receipt.sources)?
     {
+        // A state-entry source (an owned parameter) has no producing
+        // operation to unmark: its residual custody already rides the
+        // receipt's selected edges instead of an unconditional return drop.
+        if matches!(
+            source.provenance,
+            PermissionProvenance::Established {
+                source: PermissionEventSource::StateEntry,
+                ..
+            }
+        ) {
+            continue;
+        }
         let (binding, _) = sources
             .iter()
             .find(|(_, root)| *root == facts::PlaceRoot::Symbol(source.symbol))?;

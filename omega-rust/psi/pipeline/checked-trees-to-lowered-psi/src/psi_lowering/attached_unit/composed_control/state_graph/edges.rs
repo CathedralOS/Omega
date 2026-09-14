@@ -458,6 +458,27 @@ pub(super) fn return_discards(
         // The Unit graph's source plan retains the complete parameter exit
         // roster before call consumption below. Preserve this admission check;
         // deleting a source drop is not authority to silently omit cleanup.
+        // A selected parameter source keeps no exit drop of its own: its
+        // residual join parameter is disposed by the return splice instead.
+        let selected_sources = checked
+            .facts
+            .flow
+            .ownership
+            .owned_selections
+            .iter()
+            .filter(|(_, receipt)| receipt.machine == machine && receipt.state == state.state)
+            .flat_map(|(_, receipt)| {
+                checked
+                    .facts
+                    .flow
+                    .ownership
+                    .selection_sources
+                    .span_or_empty(receipt.sources)
+                    .iter()
+                    .map(|source| source.symbol)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
         let expected = state
             .structural_parameters
             .iter()
@@ -466,6 +487,9 @@ pub(super) fn return_discards(
             .filter(|(_, parameter)| {
                 parameter.access == checked_trees::CheckedStructuralAccess::Owned
                     && parameter.multiplicity == Multiplicity::Affine
+                    && !parameters
+                        .get(parameter.position as usize)
+                        .is_some_and(|source| selected_sources.contains(&source.symbol))
             })
             .map(|(index, _)| index)
             .collect::<Vec<_>>();

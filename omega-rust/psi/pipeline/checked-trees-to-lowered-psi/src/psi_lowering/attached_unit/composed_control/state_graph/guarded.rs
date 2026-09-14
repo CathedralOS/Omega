@@ -348,6 +348,29 @@ fn emit_return(
             _ => {}
         }
     }
+    // Parameter selection sources join the reverse-establishment roster after
+    // every result row: the receipt sorts them last by descending authored
+    // position, and `selection_return_discards` substitutes each residual
+    // join parameter at its own slot.
+    let mut parameter_sources = Vec::new();
+    for cleanup in &evaluation.selection_cleanups {
+        for source in &cleanup.sources {
+            if let Some((position, _)) = evaluation
+                .structural_parameters
+                .iter()
+                .find(|(_, declaration)| declaration.place == *source)
+            {
+                parameter_sources.push((*position, *source));
+            }
+        }
+    }
+    parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
+    parameter_sources.dedup_by_key(|(_, place)| *place);
+    discards.extend(
+        parameter_sources
+            .into_iter()
+            .map(|(_, place)| (place, false)),
+    );
     discards.extend(
         edges::return_discards(checked, plan.machine, source_state, state)?
             .into_iter()

@@ -888,3 +888,173 @@ fn owned_match_projected_children_reject_mutated_edge_evidence() {
         );
     }
 }
+
+const PARAMETER_SOURCE: &str = include_str!(
+    "../../../../../../tests/omega/pass/expressions/owned_match_parameter_values/main.omg"
+);
+
+#[test]
+fn owned_match_parameter_source_returns_the_exact_selected_identity() {
+    let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "pick")
+        .expect("parameter selection lowers");
+    let semantic_bytes =
+        terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
+    let proof_bytes =
+        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+    let module = terminal_codec::decode_module(&semantic_bytes).expect("decode semantics");
+    let proof = terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof");
+    terminal_verifier::verify_module(&module, &proof, &super::AdmissionProfile::default())
+        .expect("independent parameter-source verification");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry");
+    assert_eq!(
+        entry.structural_parameters.len(),
+        2,
+        "pick carries both owned parameters"
+    );
+    let arguments = entry
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(
+            |(index, parameter)| terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 0x1e07 + index as u64,
+                structural_type: parameter.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            },
+        )
+        .collect::<Vec<_>>();
+    for (selected, expected) in [(true, 0_usize), (false, 1)] {
+        let execution =
+            terminal_interpreter::interpret_terminal_artifact_with_effect_handler_measured(
+                &semantic_bytes,
+                &proof_bytes,
+                &super::AdmissionProfile::default(),
+                &[TerminalScalarValue::Boolean(selected)],
+                &arguments,
+                &mut terminal_interpreter::AcceptTerminalEffects,
+            )
+            .expect("parameter-source execution");
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Structural(terminal_interpreter::TerminalStructuralResult {
+                value: arguments[expected].clone(),
+                claims: Vec::new(),
+            }),
+            "selected={selected}: the result keeps the selected parameter's exact identity"
+        );
+    }
+}
+
+#[test]
+fn owned_match_parameter_sources_reject_mutated_residual_cleanup() {
+    let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+        .expect("parameter selection lowers");
+    let semantic_bytes =
+        terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
+    let proof_bytes =
+        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+    let module = terminal_codec::decode_module(&semantic_bytes).expect("decode semantics");
+    let proof = terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof");
+    terminal_verifier::verify_module(&module, &proof, &super::AdmissionProfile::default())
+        .expect("independent parameter-source verification");
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry");
+    // Each arm edge still transports every live owner positionally: the
+    // selected parameter and the residual complement share one continuation.
+    let join_edges = machine
+        .blocks
+        .iter()
+        .filter(|block| {
+            matches!(
+                &block.terminator,
+                terminal_psi::Terminator::Jump {
+                    structural_arguments,
+                    ..
+                } if !structural_arguments.is_empty()
+            )
+        })
+        .count();
+    assert!(
+        join_edges >= 2,
+        "each selection edge binds the join frontier"
+    );
+    for mutation in 0..2 {
+        let mut changed = lowered.semantic_module.clone();
+        let machine = changed
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == changed.entry)
+            .unwrap();
+        match mutation {
+            // Dropping a residual discard leaks the unselected parameter. The
+            // residual dies at its actual death edge: the scalar return's
+            // cleanup actions for `choose`, or a selection edge for `pick`.
+            0 => {
+                let mut cleared = 0;
+                for block in &mut machine.blocks {
+                    match &mut block.terminator {
+                        terminal_psi::Terminator::Jump {
+                            trivial_affine_discards,
+                            ..
+                        }
+                        | terminal_psi::Terminator::ReturnStructural {
+                            trivial_affine_discards,
+                            ..
+                        }
+                        | terminal_psi::Terminator::ReturnUnit {
+                            trivial_affine_discards,
+                            ..
+                        } if !trivial_affine_discards.is_empty() => {
+                            trivial_affine_discards.clear();
+                            cleared += 1;
+                        }
+                        terminal_psi::Terminator::Return {
+                            cleanup_actions, ..
+                        } if !cleanup_actions.is_empty() => {
+                            cleanup_actions.clear();
+                            cleared += 1;
+                        }
+                        _ => {}
+                    }
+                }
+                assert!(cleared > 0, "a selection edge carries residual cleanup");
+            }
+            // Duplicating an edge argument moves the same owner into two
+            // join slots while its real residual slot goes unbound.
+            _ => {
+                let mut duplicated = 0;
+                for block in &mut machine.blocks {
+                    if let terminal_psi::Terminator::Jump {
+                        structural_arguments,
+                        ..
+                    } = &mut block.terminator
+                        && structural_arguments.len() > 1
+                    {
+                        structural_arguments[0].place = structural_arguments[1].place;
+                        duplicated += 1;
+                    }
+                }
+                assert!(duplicated > 0, "selection edges carry positional arguments");
+            }
+        }
+        assert!(
+            terminal_verifier::verify_module(
+                &changed,
+                &lowered.proof_bundle,
+                &super::AdmissionProfile::default()
+            )
+            .is_err(),
+            "parameter-source cleanup mutation {mutation}"
+        );
+    }
+}

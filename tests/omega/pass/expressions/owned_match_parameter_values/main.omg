@@ -1,0 +1,27 @@
+// PASS canary: owned match sources include state parameters. The match
+// selects one live owned parameter while an interleaved local stays live; the
+// unselected parameter's residual dies on the selected edge and the chosen
+// value owns the result destination.
+
+data Choice {
+    case Empty;
+    case Some(value: u32);
+}
+
+machine pick(selected: bool, left: Choice, right: Choice) -> Choice {
+    match selected {
+        true -> left,
+        false -> right
+    }
+}
+
+machine choose(selected: u64, left: Choice, right: Choice) -> bool {
+    let fallback: Choice = Choice::Empty;
+    let result: Choice = match selected {
+        0 -> left,
+        1 -> right,
+        _ -> fallback
+    };
+    result in Choice::Some
+}
+

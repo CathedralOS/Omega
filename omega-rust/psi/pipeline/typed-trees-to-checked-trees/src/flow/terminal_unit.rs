@@ -103,7 +103,8 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use language_semantics::{
     CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionEventSource, SemanticDomainId, ServiceReachSummary,
+    PermissionEventKind, PermissionEventSource, PermissionProvenance, SemanticDomainId,
+    ServiceReachSummary,
 };
 use symbols::{BuiltinFunction, SymbolHandle};
 use typed_trees::{

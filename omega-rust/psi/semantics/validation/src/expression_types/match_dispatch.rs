@@ -238,10 +238,17 @@ fn plain_local_owner_selection(
             program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
                 && crate::plain_owned_value_source(program, expression, reference) == Some(path.symbol)
                 && crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
-                && program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
+                && (program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
                     matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
                         if local.symbol == path.symbol && !local.is_mutable && local.initial_value.is_valid())
-                })
+                }) || program.state_parameters(state).iter().any(|parameter| {
+                    // An immutable owned parameter is a live whole source
+                    // established at state entry rather than by a statement.
+                    parameter.symbol == path.symbol
+                        && !parameter.is_self
+                        && !parameter.is_const
+                        && !parameter.is_mutable
+                }))
         }
         // An owned child selected by exact field/fixed-index path is the same
         // plain-local transfer at a projected boundary: the root carries the

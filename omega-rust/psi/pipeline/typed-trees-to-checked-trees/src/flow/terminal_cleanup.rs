@@ -357,6 +357,25 @@ fn checked_whole_affine_discard_parameters_excluding_results(
                 .then_some(event.root)
         })
         .collect::<Vec<_>>();
+    // A selected source parameter keeps no exit drop: its conditional custody
+    // and residual death ride the owned-selection receipt instead.
+    let selection_source_roots = facts
+        .flow
+        .ownership
+        .owned_selections
+        .iter()
+        .filter(|(_, receipt)| receipt.machine == machine && receipt.state == state.symbol)
+        .flat_map(|(_, receipt)| {
+            facts
+                .flow
+                .ownership
+                .selection_sources
+                .span_or_empty(receipt.sources)
+                .iter()
+                .map(|source| facts::PlaceRoot::Symbol(source.symbol))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
     let expected_discard_parameters = parameters
         .iter()
         .enumerate()
@@ -366,6 +385,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
                 || crate::checks::type_multiplicity(program, parameter.type_reference)
                     != Multiplicity::Affine
                 || entry_claim_roots.contains(&facts::PlaceRoot::Symbol(parameter.symbol))
+                || selection_source_roots.contains(&facts::PlaceRoot::Symbol(parameter.symbol))
             {
                 return None;
             }
