@@ -1,4 +1,4 @@
-use crate::{
+use crate::terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
 use proof_admission::AdmissionProfile;
@@ -9,6 +9,51 @@ use terminal_psi::*;
 use terminal_verifier::ProofBundle;
 
 mod owned_successor;
+
+#[test]
+fn verified_startup_moves_the_decoded_operation_allocation() {
+    let mut module = unit_module();
+    module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        id: OperationId::new(901).unwrap(),
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: ValueId::new(901).unwrap(),
+            scalar_type: ScalarType::Boolean,
+            qualifications: Default::default(),
+        }),
+        kind: OperationKind::BooleanConstant { value: true },
+    });
+    terminal_verifier::verify_module_for_interpretation(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    let machine = module.entry;
+    let block = module.machines[0].entry;
+    let operations = module.machines[0].blocks[0].operations.as_ptr();
+    let mut execution =
+        TerminalExecution::start_verified_module(module, &[], &[], &[], &[], None).unwrap();
+    assert_eq!(
+        execution.machines[&machine].blocks[&block]
+            .operations
+            .as_ptr(),
+        operations
+    );
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), 2);
+    assert_eq!(
+        execution.machines[&machine].blocks[&block]
+            .operations
+            .as_ptr(),
+        operations
+    );
+}
+
 fn unit_module() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
@@ -495,7 +540,7 @@ fn scalar_return_nominal_cleanup_preserves_record_locals_until_fuel_is_paid() {
         &proof,
         &AdmissionProfile::default(),
         &[unsigned(41)],
-        &[crate::TerminalStructuralValue {
+        &[crate::terminal_interpreter::TerminalStructuralValue {
             opaque_identity: 77,
             structural_type: token,
             qualifications: Vec::new(),

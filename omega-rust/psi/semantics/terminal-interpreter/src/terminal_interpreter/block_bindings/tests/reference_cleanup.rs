@@ -1,5 +1,5 @@
 use super::*;
-use crate::StructuralRuntimePlace;
+use crate::terminal_interpreter::StructuralRuntimePlace;
 use terminal_psi::{StructuralAffineDiscard, TerminalAffineCleanupAction};
 
 #[test]
@@ -66,14 +66,19 @@ fn edge_and_scalar_cleanup_release_reference_descriptor_after_fuel_commit() {
                 path: Vec::new(),
                 structural_type: reference_type,
             });
-        let target = execution.blocks.get_mut(&BlockId::new(2).unwrap()).unwrap();
+        let target = std::sync::Arc::get_mut(&mut execution.machines)
+            .unwrap()
+            .get_mut(&execution.current_machine)
+            .unwrap()
+            .blocks
+            .get_mut(&BlockId::new(2).unwrap())
+            .unwrap();
         target.parameters.clear();
         target.structural_parameters.clear();
-        let machine = execution
-            .machines
+        let machine = std::sync::Arc::get_mut(&mut execution.machines)
+            .unwrap()
             .get_mut(&execution.current_machine)
             .unwrap();
-        machine.blocks = execution.blocks.clone();
         if scalar_return {
             machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
                 id: ValueId::new(1).unwrap(),

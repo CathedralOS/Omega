@@ -158,7 +158,6 @@ impl TerminalExecution {
                 .call_stack
                 .pop()
                 .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-            self.blocks = caller.blocks;
             self.values = caller.values;
             self.retire_plain_locals();
             self.structural_values = caller.structural_values;

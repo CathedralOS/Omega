@@ -77,7 +77,10 @@ fn ordinary_unit_field_presentation_writes_original_backing_and_rejects_substitu
         unreachable!()
     };
     *destination = place(2);
-    execution
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
         .blocks
         .get_mut(&execution.current)
         .unwrap()
@@ -103,7 +106,10 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
     let mut execution = writer();
     let binding_block = BlockId::new(4).unwrap();
     let writing_block = BlockId::new(5).unwrap();
-    execution
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
         .blocks
         .get_mut(&execution.current)
         .unwrap()
@@ -115,56 +121,66 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
-    execution.blocks.insert(
-        binding_block,
-        Block {
-            id: binding_block,
-            parameters: Vec::new(),
-            structural_parameters: vec![parameter(4)],
-            operations: Vec::new(),
-            terminator: Terminator::Jump {
-                edge: EdgeId::new(5).unwrap(),
-                target: writing_block,
-                arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-                trivial_affine_discards: Vec::new(),
-                residual_affine_discards: Vec::new(),
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
+        .blocks
+        .insert(
+            binding_block,
+            Block {
+                id: binding_block,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(4)],
+                operations: Vec::new(),
+                terminator: Terminator::Jump {
+                    edge: EdgeId::new(5).unwrap(),
+                    target: writing_block,
+                    arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                    residual_affine_discards: Vec::new(),
+                },
             },
-        },
-    );
+        );
     let mut store = write();
     let OperationKind::ByteSequenceWrite { destination, .. } = &mut store.kind else {
         unreachable!()
     };
     *destination = place(4);
     execution.values.insert(scalar(3), unsigned(64, 8));
-    execution.blocks.insert(
-        writing_block,
-        Block {
-            id: writing_block,
-            parameters: Vec::new(),
-            structural_parameters: Vec::new(),
-            operations: vec![
-                Operation {
-                    static_reach_binding: None,
-                    id: OperationId::new(1).unwrap(),
-                    result: OperationResult::Scalar(ValueDeclaration {
-                        qualifications: Default::default(),
-                        id: scalar(3),
-                        scalar_type: ScalarType::Integer(
-                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                        ),
-                    }),
-                    kind: OperationKind::ByteSequenceLength { source: place(4) },
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
+        .blocks
+        .insert(
+            writing_block,
+            Block {
+                id: writing_block,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        static_reach_binding: None,
+                        id: OperationId::new(1).unwrap(),
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
+                            id: scalar(3),
+                            scalar_type: ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                            ),
+                        }),
+                        kind: OperationKind::ByteSequenceLength { source: place(4) },
+                    },
+                    store,
+                ],
+                terminator: Terminator::ReturnUnit {
+                    edge: EdgeId::new(6).unwrap(),
+                    trivial_affine_discards: Vec::new(),
                 },
-                store,
-            ],
-            terminator: Terminator::ReturnUnit {
-                edge: EdgeId::new(6).unwrap(),
-                trivial_affine_discards: Vec::new(),
             },
-        },
-    );
+        );
     let mut meter = TerminalFuelMeter::with_allowance(3);
     assert!(matches!(
         execution.resume(&mut meter).unwrap(),
@@ -196,20 +212,28 @@ fn mutable_view_state_transfer_preserves_exact_binding_and_charges_before_commit
         unreachable!()
     };
     *destination = place(4);
-    execution.blocks.insert(
-        destination_block,
-        Block {
-            id: destination_block,
-            parameters: Vec::new(),
-            structural_parameters: vec![parameter(4)],
-            operations: vec![store],
-            terminator: Terminator::ReturnUnit {
-                edge: EdgeId::new(5).unwrap(),
-                trivial_affine_discards: Vec::new(),
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
+        .blocks
+        .insert(
+            destination_block,
+            Block {
+                id: destination_block,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(4)],
+                operations: vec![store],
+                terminator: Terminator::ReturnUnit {
+                    edge: EdgeId::new(5).unwrap(),
+                    trivial_affine_discards: Vec::new(),
+                },
             },
-        },
-    );
-    execution
+        );
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
         .blocks
         .get_mut(&execution.current)
         .unwrap()
@@ -265,25 +289,33 @@ fn mutable_view_state_transfer_rejects_duplicate_loan_and_access_widening() {
     let target = BlockId::new(4).unwrap();
     let mut second = parameter(5);
     second.position = 1;
-    execution.blocks.insert(
-        target,
-        Block {
-            id: target,
-            parameters: Vec::new(),
-            structural_parameters: vec![parameter(4), second],
-            operations: Vec::new(),
-            terminator: Terminator::ReturnUnit {
-                edge: EdgeId::new(4).unwrap(),
-                trivial_affine_discards: Vec::new(),
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
+        .blocks
+        .insert(
+            target,
+            Block {
+                id: target,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(4), second],
+                operations: Vec::new(),
+                terminator: Terminator::ReturnUnit {
+                    edge: EdgeId::new(4).unwrap(),
+                    trivial_affine_discards: Vec::new(),
+                },
             },
-        },
-    );
+        );
     assert!(
         execution
             .prepare_block_bindings(target, &[], &[argument(3), argument(3)])
             .is_err()
     );
-    execution
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
         .blocks
         .get_mut(&target)
         .unwrap()
@@ -299,7 +331,10 @@ fn mutable_view_state_transfer_rejects_duplicate_loan_and_access_widening() {
         StructuralAccess::Owned,
         StructuralAccess::WriteOnlyBorrow,
     ] {
-        execution
+        std::sync::Arc::get_mut(&mut execution.machines)
+            .unwrap()
+            .get_mut(&execution.current_machine)
+            .unwrap()
             .blocks
             .get_mut(&target)
             .unwrap()
@@ -377,7 +412,10 @@ fn fixed_view_write_survives_suspension_nested_return_and_preserves_immutable_ta
     execution
         .byte_sequence_values
         .insert(place(90), ByteSequenceBinding::Immutable(immutable.clone()));
-    execution
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
         .blocks
         .get_mut(&execution.current)
         .unwrap()
@@ -495,8 +533,8 @@ fn fixed_view_write_rejects_bad_operands_binding_and_stale_extent_without_mutati
                     .opaque_identity += 1;
             }
             7 => {
-                execution
-                    .machines
+                std::sync::Arc::get_mut(&mut execution.machines)
+                    .unwrap()
                     .get_mut(&execution.current_machine)
                     .unwrap()
                     .structural_parameters[0]

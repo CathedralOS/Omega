@@ -13,7 +13,9 @@ use terminal_psi::{
 };
 
 use super::*;
-use crate::{ExecutableMachine, LiveClaim, TerminalExecutionStatus, TerminalScalarCaseValue};
+use crate::terminal_interpreter::{
+    ExecutableMachine, LiveClaim, TerminalExecutionStatus, TerminalScalarCaseValue,
+};
 
 fn place(ordinal: u64) -> PlaceId {
     PlaceId::new(ordinal).unwrap()
@@ -123,7 +125,7 @@ fn execution() -> (TerminalExecution, Operation) {
                 shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
             },
         )]),
-        machines: BTreeMap::from([(machine_id, machine)]),
+        machines: BTreeMap::from([(machine_id, machine)]).into(),
         dynamic_scalar_calls: BTreeMap::new(),
         dynamic_descriptor_templates: BTreeMap::new(),
         dynamic_selection_templates: BTreeMap::new(),
@@ -132,7 +134,6 @@ fn execution() -> (TerminalExecution, Operation) {
         boundary_machines: BTreeMap::new(),
         provider_candidates: Default::default(),
         provider_installation: BTreeMap::new(),
-        blocks,
         values: BTreeMap::from([
             (value(1), count(1)),
             (value(2), count(5)),
@@ -151,7 +152,7 @@ fn execution() -> (TerminalExecution, Operation) {
         reference_referents: BTreeMap::new(),
         structural_primitive_entry_places: BTreeMap::new(),
         local_structural_identities:
-            crate::primitive_storage::LocalStructuralIdentities::with_reserved_identities([
+            crate::terminal_interpreter::primitive_storage::LocalStructuralIdentities::with_reserved_identities([
                 1, 2, 101,
             ]),
         structural_scalar_fields: BTreeMap::new(),
@@ -161,7 +162,7 @@ fn execution() -> (TerminalExecution, Operation) {
         scalar_array_values: BTreeMap::new(),
         byte_sequence_values: BTreeMap::from([(
             place(1),
-            crate::ByteSequenceBinding::Immutable(crate::ByteSequenceView::new(vec![
+            crate::terminal_interpreter::ByteSequenceBinding::Immutable(crate::terminal_interpreter::ByteSequenceView::new(vec![
                 0, 128, 255, 7,
             ])),
         )]),

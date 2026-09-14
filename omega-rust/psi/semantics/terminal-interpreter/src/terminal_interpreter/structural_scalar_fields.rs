@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeDeclaration};
 
-use crate::{
+use crate::terminal_interpreter::{
     ExecutableMachine, StructuralRuntimePlace, StructuralScalarRuntimeField,
     TerminalInterpretError, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
     TerminalStructuralValue, direct_scalar_field_type, resolve_structural_path_type,

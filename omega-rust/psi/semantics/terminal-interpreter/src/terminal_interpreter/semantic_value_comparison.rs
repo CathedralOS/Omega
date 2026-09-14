@@ -3,7 +3,7 @@ use terminal_psi::{
     TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceValueComparison,
 };
 
-use crate::{TerminalScalarValue, TerminalStructuralValue};
+use crate::terminal_interpreter::{TerminalScalarValue, TerminalStructuralValue};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalTraceScalarValueSide {

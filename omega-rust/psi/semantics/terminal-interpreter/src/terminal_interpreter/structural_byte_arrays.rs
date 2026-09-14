@@ -215,7 +215,12 @@ impl TerminalExecution {
             .structural_parameters
             .iter()
             .chain(
-                self.blocks
+                self.machines
+                    .get(&self.current_machine)
+                    .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
+                        self.current_machine,
+                    ))?
+                    .blocks
                     .values()
                     .flat_map(|block| &block.structural_parameters),
             )

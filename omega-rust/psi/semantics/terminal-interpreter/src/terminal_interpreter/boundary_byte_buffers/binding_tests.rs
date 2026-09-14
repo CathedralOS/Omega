@@ -7,6 +7,74 @@ mod array_tests;
 #[cfg(test)]
 mod write_tests;
 
+#[test]
+fn repeated_calls_retain_one_code_graph_and_resume_each_paid_prefix_once() {
+    let mut execution = execution();
+    execution.structural_values.clear();
+    let caller_id = execution.current_machine;
+    let callee_id = MachineId::new(2).unwrap();
+    let machines = std::sync::Arc::get_mut(&mut execution.machines).unwrap();
+    machines
+        .get_mut(&callee_id)
+        .unwrap()
+        .structural_parameters
+        .clear();
+    let caller = machines.get_mut(&caller_id).unwrap();
+    caller.blocks.get_mut(&caller.entry).unwrap().operations = (1..=2)
+        .map(|ordinal| terminal_psi::Operation {
+            static_reach_binding: None,
+            id: OperationId::new(ordinal).unwrap(),
+            result: terminal_psi::OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: callee_id,
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        })
+        .collect();
+    // Keeping the code owner alive also prevents any uniquely-owned mutation
+    // escape hatch while execution changes its active machine and call stack.
+    let code = std::sync::Arc::clone(&execution.machines);
+    let operations = code[&caller_id].blocks[&code[&caller_id].entry]
+        .operations
+        .as_ptr();
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+    for completed_units in 0..5 {
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(_)
+        ));
+        assert_eq!(meter.usage().total_units(), completed_units);
+        assert!(std::sync::Arc::ptr_eq(&code, &execution.machines));
+        assert_eq!(
+            execution.machines[&caller_id].blocks[&code[&caller_id].entry]
+                .operations
+                .as_ptr(),
+            operations
+        );
+        assert_eq!(
+            execution.call_stack.len(),
+            usize::from(completed_units % 2 == 1)
+        );
+        // Repeating a resume without fuel does not repay or re-enter a call.
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(_)
+        ));
+        assert_eq!(meter.usage().total_units(), completed_units);
+        meter.replenish(1).unwrap();
+    }
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), 5);
+    assert!(execution.call_stack.is_empty());
+}
+
 fn place(ordinal: u64) -> PlaceId {
     PlaceId::new(ordinal).unwrap()
 }
@@ -120,8 +188,7 @@ fn execution() -> TerminalExecution {
                 },
             ),
         ]),
-        blocks: machines[&current_machine].blocks.clone(),
-        machines,
+        machines: machines.into(),
         dynamic_scalar_calls: BTreeMap::new(),
         dynamic_descriptor_templates: BTreeMap::new(),
         dynamic_selection_templates: BTreeMap::new(),
@@ -312,7 +379,10 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };
-    let callee = execution.machines.get_mut(&callee_id).unwrap();
+    let callee = std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&callee_id)
+        .unwrap();
     callee.structural_parameters.push(token_parameter.clone());
     callee.result = TerminalMachineResult::Structural(terminal_psi::StructuralResultDeclaration {
         reference_sources: Vec::new(),
@@ -329,7 +399,10 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
         trivial_affine_discards: Vec::new(),
     };
     let callee_parameters = callee.structural_parameters.clone();
-    execution
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
         .blocks
         .get_mut(&execution.current)
         .unwrap()
