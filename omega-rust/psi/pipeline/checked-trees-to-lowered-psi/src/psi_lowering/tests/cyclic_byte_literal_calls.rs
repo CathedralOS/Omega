@@ -282,6 +282,128 @@ machine Main::main(&mut self) reaches Trace {
     ));
 }
 
+/// The guarded exit pins `counter` to an exact stored bound (`self.counter =
+/// 9`), so the loop guard `counter < 3` is already contradicted on the
+/// retiring arrival. The lockstep invariant `counter < 3 -> 1 <= divisor`
+/// discharges there through the equality's weakened order legs — no order
+/// citation ever exists for the stored bound — while the live step arrivals
+/// still discharge the conclusion through the saved divisor equality.
+#[test]
+fn integer_guarded_exit_retains_equality_bound_invariant() {
+    let source = r#"
+boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
+data Main { counter: u32 in Wrapping; divisor: u32 in Wrapping; result: u32 in Wrapping; }
+machine Main::main(&mut self) reaches Trace {
+    self.counter = 0;
+    self.divisor = 5;
+    transition { _ -> head() }
+    state head(&mut self) {
+        transition self.counter < 3 { true -> step() _ -> done() }
+    }
+    state step(&mut self) {
+        self.result = 100 / self.divisor;
+        Trace::write("step");
+        self.counter = self.counter + 1;
+        transition self.counter < 3 { true -> head() _ -> retire() }
+    }
+    state retire(&mut self) {
+        self.counter = 9;
+        self.divisor = 0;
+        transition { _ -> head() }
+    }
+    state done(&mut self) { Trace::write("done"); }
+}
+"#;
+    let checked = checked_source(source);
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
+        .expect("the stored bound retires the guarded exit arrival");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert!(
+        module
+            .scalar_block_invariants
+            .iter()
+            .any(|invariant| matches!(
+                invariant.predicate,
+                semantic_vocabulary::Proposition::Implication { .. }
+            )),
+        "the divisor is not unconditionally nonzero at this header"
+    );
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let receiver = &entry.structural_parameters[0];
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        &[TerminalStructuralValue {
+            opaque_identity: 1,
+            structural_type: receiver.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }],
+    )
+    .expect("equality-bound guarded exit reloads and independently verifies");
+    let mut meter = TerminalFuelMeter::with_allowance(1000);
+    let mut trace = ByteTrace::default();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut meter, &mut trace)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(
+        trace.0,
+        [
+            b"step".to_vec(),
+            b"step".to_vec(),
+            b"step".to_vec(),
+            b"done".to_vec()
+        ]
+    );
+    let live = checked_source(&source.replace("self.counter = 9;", "self.counter = 2;"));
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&live, "Main::main")
+            .produce_artifact()
+            .is_err(),
+        "a retiring bound inside the guard keeps the zero divisor live"
+    );
+    let mut stale = module.clone();
+    let bound = stale
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::IntegerConstant {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(9)
+                }
+            )
+        })
+        .expect("the exit pins its stored bound");
+    bound.kind = terminal_psi::OperationKind::IntegerConstant {
+        value: semantic_vocabulary::IntegerValue::Unsigned(2),
+    };
+    terminal_verifier::validate_module(&stale)
+        .expect("changing the bound keeps structural validity");
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    assert!(
+        terminal_verifier::verify_module(
+            &stale,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "a bound inside the guard cannot reuse the retired arrival's proof"
+    );
+}
+
 #[test]
 fn guarded_field_divisor_remains_valid_until_loop_exit() {
     let source = r#"
