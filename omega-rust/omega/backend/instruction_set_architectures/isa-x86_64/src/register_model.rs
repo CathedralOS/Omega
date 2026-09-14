@@ -77,6 +77,10 @@ pub const X86_64_LOAD8_INDEXED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 703,
 };
+pub const X86_64_COPY_BYTES: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 736,
+};
 pub const X86_64_STORE: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 705,
@@ -380,7 +384,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 64] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 65] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -511,6 +515,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 64] = [
     X86_64_LOAD8,
     X86_64_LOAD16,
     X86_64_MATERIALIZE_BOOLEAN,
+    X86_64_COPY_BYTES,
 ];
 
 struct ModelBuilder {
@@ -1439,6 +1444,27 @@ pub fn x86_64_register_constraint_catalog(
     float_scalar_calls::append_constraints(&mut constraints, model);
     indirect_results::append_constraints(&mut constraints, model);
     packed_memory::append_constraints(&mut constraints, model);
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_COPY_BYTES,
+        operands: (0..5)
+            .map(|operand| RegisterOperandConstraint {
+                operand,
+                access: if operand < 3 {
+                    RegisterOperandAccess::Use
+                } else {
+                    RegisterOperandAccess::Def
+                },
+                class: GPR64,
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: operand >= 3,
+            })
+            .collect(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
     mixed_aggregate_calls::append_constraints(&mut constraints, model);
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {

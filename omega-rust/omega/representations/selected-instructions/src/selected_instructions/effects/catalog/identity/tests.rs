@@ -19,6 +19,7 @@ const fn instruction(variant: u32) -> RegisterConstraintKey {
 
 fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        copy_bytes: Some(instruction(40)),
         call_aggregate: vec![RegisterConstraintKey {
             family: RegisterConstraintFamily::Call,
             variant: 1000,
@@ -103,12 +104,16 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
     MachineEffectDeclaration {
         semantic,
         constraint,
-        memory: if semantic == MachineSemanticKind::HostedWriteByteI32 {
+        memory: if semantic == MachineSemanticKind::CopyBytes {
+            MachineMemoryEffect::CopyBytesV1
+        } else if semantic == MachineSemanticKind::HostedWriteByteI32 {
             MachineMemoryEffect::HostedWriteByteV1
         } else {
             MachineMemoryEffect::NoneV1
         },
-        trap: if semantic == MachineSemanticKind::HostedExitProcessI32 {
+        trap: if semantic == MachineSemanticKind::CopyBytes {
+            MachineTrapBehavior::MayArchitecturalFaultV1
+        } else if semantic == MachineSemanticKind::HostedExitProcessI32 {
             MachineTrapBehavior::HostedExitReturnedV1
         } else if semantic == MachineSemanticKind::HostedWriteByteI32 {
             MachineTrapBehavior::HostedWriteFailureV1
@@ -159,9 +164,23 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4),
+            size: MachineSizeKnowledge::ExactBytes(if semantic == MachineSemanticKind::CopyBytes {
+                36
+            } else {
+                4
+            }),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: if semantic == MachineSemanticKind::HostedExitProcessI32 {
+            encoded: if semantic == MachineSemanticKind::CopyBytes {
+                let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0, 1, 2], vec![3, 4]);
+                encoded.memory = MachineEncodedMemoryEffect::CopyBytesV1 {
+                    source_pointer_operand: 0,
+                    destination_pointer_operand: 1,
+                    count_operand: 2,
+                };
+                encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+                encoded.implicit_unit_clobbers = vec![register_model::RegisterUnitId(0)];
+                encoded
+            } else if semantic == MachineSemanticKind::HostedExitProcessI32 {
                 let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![]);
                 encoded.trap = MachineEncodedTrapBehavior::HostedExitReturnedV1;
                 encoded.control = MachineEncodedControlEffect::HostedExitOrTrapV1;
@@ -190,6 +209,30 @@ fn catalog() -> MachineEffectCatalog {
             .into_iter()
             .map(declaration)
             .collect(),
+    }
+}
+
+#[test]
+fn byte_copy_catalog_identity_binds_key_and_both_dynamic_pointers() {
+    let source = catalog();
+    let baseline = machine_effect_catalog_identity(&source);
+    for mutation in 0..3 {
+        let mut changed = source.clone();
+        if mutation == 0 {
+            changed.selected_keys.copy_bytes = None;
+        } else {
+            let declaration = changed
+                .declarations
+                .iter_mut()
+                .find(|declaration| declaration.semantic == MachineSemanticKind::CopyBytes)
+                .unwrap();
+            declaration.alternatives[0].encoded.memory = MachineEncodedMemoryEffect::CopyBytesV1 {
+                source_pointer_operand: if mutation == 1 { 1 } else { 0 },
+                destination_pointer_operand: if mutation == 2 { 0 } else { 1 },
+                count_operand: 2,
+            };
+        }
+        assert_ne!(baseline, machine_effect_catalog_identity(&changed));
     }
 }
 

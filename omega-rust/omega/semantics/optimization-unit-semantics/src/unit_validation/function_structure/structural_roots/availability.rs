@@ -168,6 +168,11 @@ pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
             dynamic_dispatch.initial.source.place,
             dynamic_dispatch.rebound.source.place,
         ],
+        O::StructuralByteSequenceFieldStore {
+            destination,
+            source,
+            ..
+        } => vec![*destination, *source],
         O::PrimitiveScalarRead { source, .. }
         | O::StructuralCaseMembership { source, .. }
         | O::ByteSequenceSubslice { source, .. }

@@ -674,6 +674,43 @@ pub(crate) fn byte_field_length(
     scalar_field_geometry(structural_type, path, field, scalar, declarations, true)
 }
 
+/// Metadata and inline backing share a field, but capacity bounds the destination
+/// only. A replacement's source-length obligation supplies its dynamic footprint.
+pub(crate) fn byte_field_storage(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u64)> {
+    let scalar = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .ok()?,
+    );
+    let (offset, _) = byte_field_length(structural_type, path, field, scalar, declarations)?;
+    let (carrier, _) = project(structural_type, path, declarations)?;
+    let StructuralTypeShape::Record { fields } = &declarations
+        .iter()
+        .find(|declaration| declaration.id == carrier)?
+        .shape
+    else {
+        return None;
+    };
+    let mut matching = fields.iter().filter(|candidate| candidate.id == field);
+    let selected = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    let StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+        capacity,
+    }) = selected.field_type
+    else {
+        return None;
+    };
+    (u64::from(offset).checked_add(8)?.checked_add(capacity)?
+        <= u64::from(shape(structural_type, declarations)?.byte_size))
+    .then_some((offset, capacity))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -620,6 +620,7 @@ pub(super) fn build_with_environment(
                     | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
+                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_)
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {

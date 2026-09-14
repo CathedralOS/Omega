@@ -13,6 +13,7 @@ use semantic_vocabulary::IntegerValue;
 
 use crate::aarch64_physical_register_model;
 
+mod copy_bytes;
 mod float_bits;
 pub(crate) mod hosted_exit_process;
 pub(crate) mod hosted_read_byte;
@@ -495,6 +496,9 @@ pub fn encode_aarch64_selected_form(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if kind == SelectedInstructionKind::CopyBytes {
+        return copy_bytes::encode(physical, alternative, operands);
+    }
     if float_bits::is_transfer(kind) {
         return float_bits::encode(physical, kind, alternative, operands);
     }
@@ -512,6 +516,9 @@ pub fn validate_aarch64_selected_form_encoding(
     operands: &[RegisterViewId],
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if kind == SelectedInstructionKind::CopyBytes {
+        return copy_bytes::validate(physical, alternative, operands, bytes);
+    }
     if float_bits::is_transfer(kind) {
         return float_bits::validate(physical, kind, alternative, operands, bytes);
     }
@@ -635,6 +642,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::Float64ToBits
         | SelectedInstructionKind::BitsToFloat32
         | SelectedInstructionKind::BitsToFloat64
+        | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }
@@ -906,6 +914,7 @@ fn encode_unchecked(
         | SelectedInstructionKind::Float64ToBits
         | SelectedInstructionKind::BitsToFloat32
         | SelectedInstructionKind::BitsToFloat64
+        | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }
@@ -1553,6 +1562,7 @@ fn validate_decoded(
         | SelectedInstructionKind::Float64ToBits
         | SelectedInstructionKind::BitsToFloat32
         | SelectedInstructionKind::BitsToFloat64
+        | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }
@@ -1721,6 +1731,7 @@ fn footprint(
         | SelectedInstructionKind::Float64ToBits
         | SelectedInstructionKind::BitsToFloat32
         | SelectedInstructionKind::BitsToFloat64
+        | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }

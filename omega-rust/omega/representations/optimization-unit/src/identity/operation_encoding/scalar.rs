@@ -6,6 +6,24 @@ use super::*;
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::StructuralByteSequenceFieldStore {
+            psi_operation,
+            destination,
+            path,
+            field,
+            source,
+            length,
+            obligation,
+        } => {
+            bytes.u8(77);
+            bytes.id(*psi_operation);
+            bytes.id(*destination);
+            bytes.slice(path, encode_structural_path_segment);
+            bytes.id(*field);
+            bytes.id(*source);
+            bytes.id(*length);
+            bytes.id(*obligation);
+        }
         O::ByteSequenceWrite {
             psi_operation,
             destination,

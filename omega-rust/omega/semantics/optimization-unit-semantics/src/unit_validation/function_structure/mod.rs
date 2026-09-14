@@ -8,6 +8,7 @@
 use super::*;
 
 mod byte_views;
+pub(crate) use byte_views::byte_field_store_capacity;
 mod control_flow;
 mod fact_index;
 mod mutable_views;

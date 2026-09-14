@@ -108,6 +108,11 @@ fn validate_surviving_byte_operations(
                 psi_operation,
                 obligation,
                 ..
+            }
+            | O::StructuralByteSequenceFieldStore {
+                psi_operation,
+                obligation,
+                ..
             } => (*psi_operation, Some(*obligation)),
             O::ByteSequenceLength { psi_operation, .. }
             | O::StructuralByteSequenceFieldLength { psi_operation, .. } => (*psi_operation, None),
@@ -126,6 +131,25 @@ fn validate_surviving_byte_operations(
             });
         let matches = original.is_some_and(|original| {
             let (result, kind) = match operation {
+                O::StructuralByteSequenceFieldStore {
+                    destination,
+                    path,
+                    field,
+                    source,
+                    length,
+                    obligation,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Unit,
+                    terminal_psi::OperationKind::StructuralByteSequenceFieldStore {
+                        destination: *destination,
+                        path: path.clone(),
+                        field: *field,
+                        source: *source,
+                        length: *length,
+                        obligation: *obligation,
+                    },
+                ),
                 O::ByteSequenceWrite {
                     destination,
                     index,

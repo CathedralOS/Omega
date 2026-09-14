@@ -23,6 +23,7 @@ pub(super) fn encode_ordinary_instruction(
 ) {
     encode_common_fields(bytes, instruction);
     bytes.push(match instruction.memory {
+        MachineMemoryEffect::CopyBytesV1 => 6,
         MachineMemoryEffect::NoneV1 => 0,
         MachineMemoryEffect::ReadPointerV1 => 1,
         MachineMemoryEffect::HostedReadByteV1 => 5,
@@ -92,6 +93,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::AddressOffset { .. } => 25,
         SelectedInstructionKind::CompareI64Zero => 0,
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
+        SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::CopyI64 => 2,
         SelectedInstructionKind::BitwiseAndI64 => 51,
         SelectedInstructionKind::BitwiseXorI64 => 52,
@@ -233,6 +235,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             encode_integer(bytes, immediate)
         }
         SelectedInstructionKind::CompareI64Zero
+        | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::BitwiseAndI64

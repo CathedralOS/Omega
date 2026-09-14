@@ -85,6 +85,16 @@ pub enum AbstractOperation {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// Replace exactly the source's live bytes and length under verified capacity bounds.
+    StructuralByteSequenceFieldStore {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        source: PlaceId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// Observe live length metadata of the exact bounded-owned byte field.
     StructuralByteSequenceFieldLength {
         psi_operation: OperationId,

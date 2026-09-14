@@ -7,8 +7,7 @@ use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
 use terminal_psi::OperationKind;
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, LoweringError, lower_artifact, lower_artifact_for_native_realization,
-    lower_artifact_for_optimization,
+    lower_artifact, lower_artifact_for_native_realization, lower_artifact_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -169,7 +168,7 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
 }
 
 #[test]
-fn verified_bounded_byte_field_replacement_rejects_before_native_projection() {
+fn verified_bounded_byte_field_replacement_retains_exact_native_projection() {
     for literal in ["XXX", "X", ""] {
         let source = format!(
             r#"
@@ -191,7 +190,7 @@ fn verified_bounded_byte_field_replacement_rejects_before_native_projection() {
         let proof = decode_proof_bundle(&proof_bytes).expect("decode canonical proof");
         let profile = AdmissionProfile::default();
         terminal_verifier::verify_module(&module, &proof, &profile)
-            .expect("canonical replacement is valid before Omega rejection");
+            .expect("canonical replacement has independently verified capacity bounds");
         let stores = module
             .machines
             .iter()
@@ -203,7 +202,28 @@ fn verified_bounded_byte_field_replacement_rejects_before_native_projection() {
                     OperationKind::StructuralByteSequenceFieldStore { .. }
                 )
             })
-            .map(|operation| operation.id)
+            .map(|operation| {
+                let OperationKind::StructuralByteSequenceFieldStore {
+                    destination,
+                    path,
+                    field,
+                    source,
+                    length,
+                    obligation,
+                } = &operation.kind
+                else {
+                    unreachable!()
+                };
+                abstract_operations::AbstractOperation::StructuralByteSequenceFieldStore {
+                    psi_operation: operation.id,
+                    destination: *destination,
+                    path: path.clone(),
+                    field: *field,
+                    source: *source,
+                    length: *length,
+                    obligation: *obligation,
+                }
+            })
             .collect::<Vec<_>>();
         let [store] = stores.as_slice() else {
             panic!("source must retain exactly one byte-field replacement")
@@ -240,12 +260,25 @@ fn verified_bounded_byte_field_replacement_rejects_before_native_projection() {
             .and_then(|admitted| admitted.try_into_native_input())
             .map(|_| ()),
         ] {
-            assert!(matches!(
-                result,
-                Err(ArtifactLoweringError::Lowering(
-                    LoweringError::UnsupportedStructuralByteSequenceFieldStore(operation)
-                )) if operation == *store
-            ));
+            assert!(
+                result.is_ok(),
+                "verified replacement must project: {result:?}"
+            );
         }
+        let plan = lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic_bytes,
+                proof_bytes: &proof_bytes,
+                obligation_ledger_bytes: None,
+            },
+            &profile,
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .unwrap();
+        assert!(
+            plan.functions
+                .iter()
+                .any(|function| function.operations.contains(store))
+        );
     }
 }

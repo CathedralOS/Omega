@@ -38,6 +38,7 @@ pub(super) fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlter
         MachineAlternativeFamily::ExactSubtractI64 => 5,
         MachineAlternativeFamily::ConditionalBranchNonZero => 6,
         MachineAlternativeFamily::ReturnScalar => 7,
+        MachineAlternativeFamily::CopyBytes => 59,
         MachineAlternativeFamily::CallAggregate => 35,
         MachineAlternativeFamily::ReturnAggregate => 36,
         MachineAlternativeFamily::ExactSubtractI64Immediate => 8,
@@ -189,6 +190,16 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
         MachineEncodedMemoryEffect::HostedWriteByteV1 { stack_pointer } => {
             bytes.push(6);
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::CopyBytesV1 {
+            source_pointer_operand,
+            destination_pointer_operand,
+            count_operand,
+        } => {
+            bytes.push(9);
+            bytes.extend_from_slice(&source_pointer_operand.to_le_bytes());
+            bytes.extend_from_slice(&destination_pointer_operand.to_le_bytes());
+            bytes.extend_from_slice(&count_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
         MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {

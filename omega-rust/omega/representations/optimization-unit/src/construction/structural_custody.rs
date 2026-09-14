@@ -64,6 +64,14 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         } => {
             places.insert(result.place);
         }
+        O::StructuralByteSequenceFieldStore {
+            destination,
+            source,
+            ..
+        } => {
+            places.insert(*destination);
+            places.insert(*source);
+        }
         O::PrimitiveScalarRead { source, .. }
         | O::StructuralCaseMembership { source, .. }
         | O::ByteSequenceRead { source, .. }

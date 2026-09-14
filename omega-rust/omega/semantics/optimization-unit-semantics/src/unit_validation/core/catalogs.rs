@@ -127,6 +127,47 @@ fn validate_structural_field_range_authority(
     use terminal_psi::{RecordFieldValue, StructuralTypeShape};
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         match &node.operation {
+            O::StructuralByteSequenceFieldStore {
+                psi_operation,
+                length,
+                obligation,
+                ..
+            } => {
+                use semantic_vocabulary::{
+                    IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm,
+                };
+                let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                let capacity =
+                    function_structure::byte_field_store_capacity(function, &node.operation, types)
+                        .ok_or(invalid.clone())?;
+                let integer =
+                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid.clone())?;
+                let proposition =
+                    terminal_codec::canonical_proposition_order_key(&Proposition::LessOrEqual(
+                        ScalarTerm::value(*length, ScalarType::Integer(integer)),
+                        ScalarTerm::Integer {
+                            scalar_type: integer,
+                            value: IntegerValue::Unsigned(u128::from(capacity)),
+                        },
+                    ))
+                    .map_err(|_| invalid.clone())?;
+                if unit
+                    .accepted_obligation_facts
+                    .iter()
+                    .filter(|fact| {
+                        fact.machine == function.machine
+                            && fact.operation == *psi_operation
+                            && fact.obligation == *obligation
+                            && fact.proposition == proposition
+                            && fact.psi == unit.psi
+                            && fact.has_canonical_identity()
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(invalid);
+                }
+            }
             O::StructuralScalarFieldStore {
                 psi_operation,
                 destination,

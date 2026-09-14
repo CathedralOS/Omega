@@ -24,6 +24,64 @@ use super::encoding::*;
 use super::*;
 
 #[test]
+fn byte_copy_effect_codec_binds_dynamic_span_and_scratch_effects() {
+    let mut source = plan();
+    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::CopyBytes;
+    instruction.memory = MachineMemoryEffect::CopyBytesV1;
+    instruction.trap = MachineTrapBehavior::MayArchitecturalFaultV1;
+    instruction.alternatives.truncate(1);
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::CopyBytes;
+    let encoded = &mut instruction.alternatives[0].encoded;
+    encoded.memory = MachineEncodedMemoryEffect::CopyBytesV1 {
+        source_pointer_operand: 0,
+        destination_pointer_operand: 1,
+        count_operand: 2,
+    };
+    encoded.external_operand_reads = vec![0, 1, 2];
+    encoded.external_operand_writes = vec![3, 4];
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()),
+        Ok(source.clone())
+    );
+    for mutation in 0..6 {
+        let mut changed = source.clone();
+        let instruction = &mut changed.functions[0].blocks[0].instructions[0];
+        match mutation {
+            0 => instruction.kind = SelectedInstructionKind::CopyI64,
+            1 => instruction.memory = MachineMemoryEffect::ReadPointerV1,
+            2 => instruction.alternatives[0].key.family = MachineAlternativeFamily::CopyI64,
+            3 => {
+                instruction.alternatives[0].encoded.memory =
+                    MachineEncodedMemoryEffect::CopyBytesV1 {
+                        source_pointer_operand: 1,
+                        destination_pointer_operand: 0,
+                        count_operand: 2,
+                    }
+            }
+            4 => {
+                instruction.alternatives[0].encoded.memory =
+                    MachineEncodedMemoryEffect::CopyBytesV1 {
+                        source_pointer_operand: 0,
+                        destination_pointer_operand: 1,
+                        count_operand: 3,
+                    }
+            }
+            _ => instruction.alternatives[0]
+                .encoded
+                .external_operand_writes
+                .clear(),
+        }
+        assert_ne!(
+            pre_allocation_machine_effect_identity(&changed),
+            source.identity
+        );
+        assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
+    }
+}
+
+#[test]
 fn wrapping_add_codec_is_proof_free_and_distinct_from_exact_add() {
     let mut source = plan();
     let instruction = &mut source.functions[0].blocks[0].instructions[0];

@@ -11,6 +11,135 @@ use terminal_psi::StructuralArgument;
 #[cfg(test)]
 mod tests;
 
+/// Account for replacement's exact graph occurrence. Mandatory source/selection
+/// replay owns capacity evidence, original backing, layout and copy correctness.
+pub(super) fn replacement_retained(
+    function: &AbstractFunction,
+    operation: &AbstractOperation,
+    target: &TargetFunction,
+) -> bool {
+    let AbstractOperation::StructuralByteSequenceFieldStore {
+        psi_operation,
+        destination,
+        path,
+        field,
+        source,
+        length,
+        obligation,
+    } = operation
+    else {
+        return false;
+    };
+    let Some((access, _)) = read_access(function, target, *destination, true) else {
+        return false;
+    };
+    if !matches!(
+        access,
+        terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+    ) || source == destination
+    {
+        return false;
+    }
+    let expected_destination = StructuralArgument {
+        place: *destination,
+        access,
+        path: path.clone(),
+    };
+    let mut replacements = target
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation {
+            TargetUnitOperation::StructuralByteSequenceFieldStore {
+                psi_operation: identity,
+                destination,
+                field,
+                source,
+                length,
+                obligation,
+            } if identity == psi_operation => {
+                Some((destination, field, source, length, obligation))
+            }
+            _ => None,
+        });
+    matches!(replacements.next(), Some((actual_destination, actual_field, actual_source, actual_length, actual_obligation))
+        if *actual_destination == expected_destination && actual_field == field
+            && actual_source == source && actual_obligation == obligation
+            && actual_length.source_value() == *length
+            && matches!(actual_length.scalar_type(), ScalarType::Integer(integer)
+                if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)))
+        && replacements.next().is_none()
+}
+
+/// The runtime copy has two exact span rows; metadata publication follows it.
+/// These rows account for the effect, not a substitute for instruction replay.
+pub(super) fn replacement_footprints_retained(
+    operation: &AbstractOperation,
+    accesses: &[selected_instructions::SelectedMemoryAccess],
+) -> bool {
+    use selected_instructions::{
+        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
+    };
+    let AbstractOperation::StructuralByteSequenceFieldStore {
+        psi_operation,
+        destination,
+        source,
+        length,
+        obligation,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let mut reads = accesses.iter().filter(|access| {
+        access.origin == Origin::Operation(*psi_operation)
+            && matches!(access.role, Role::ReadByteSpan { .. })
+    });
+    let mut writes = accesses.iter().filter(|access| {
+        access.origin == Origin::Operation(*psi_operation)
+            && matches!(access.role, Role::WriteByteSpan { .. })
+    });
+    let mut metadata = accesses.iter().filter(|access| {
+        access.origin == Origin::Operation(*psi_operation) && access.role == Role::WritePlace
+    });
+    let (Some(read), Some(write), Some(metadata_write)) =
+        (reads.next(), writes.next(), metadata.next())
+    else {
+        return false;
+    };
+    let Role::ReadByteSpan {
+        length: read_length,
+        obligation: read_obligation,
+        accepted_fact,
+    } = read.role
+    else {
+        return false;
+    };
+    read.place == *source
+        && read.byte_count == 0
+        && read.byte_offset == 0
+        && read_length == *length
+        && read_obligation == *obligation
+        && write.place == *destination
+        && write.byte_count == 0
+        && write.role
+            == Role::WriteByteSpan {
+                length: *length,
+                obligation: *obligation,
+                accepted_fact,
+            }
+        && read.instruction == write.instruction
+        && metadata_write.place == *destination
+        && metadata_write.byte_count == 8
+        && metadata_write.byte_offset.checked_add(8) == Some(write.byte_offset)
+        && metadata_write.instruction > write.instruction
+        && reads.next().is_none()
+        && writes.next().is_none()
+        && metadata.next().is_none()
+}
+
 pub(super) fn retained(
     function: &AbstractFunction,
     operation: &AbstractOperation,

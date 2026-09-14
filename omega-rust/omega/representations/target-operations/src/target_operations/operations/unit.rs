@@ -90,6 +90,16 @@ pub enum TargetUnitOperation {
         result_home: TargetUnitScalarHomeRequirement,
         expression: crate::TargetScalarExpression,
     },
+    /// Replace bounded inline bytes from an immutable live view. The exact
+    /// destination field and source-length proof survive physical projection.
+    StructuralByteSequenceFieldStore {
+        psi_operation: OperationId,
+        destination: StructuralArgument,
+        field: StructuralFieldId,
+        source: PlaceId,
+        length: TargetUnitScalarArgumentSource,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// Establish one checked descriptor without copying its immutable backing bytes.
     ByteSequenceSubslice {
         result: StructuralOperationResult,

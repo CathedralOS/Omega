@@ -1,4 +1,4 @@
-use super::retained;
+use super::{replacement_retained, retained};
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
 };
@@ -290,6 +290,122 @@ fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
         function.structural_parameters[0].access = StructuralAccess::Owned;
         target.graph.parameters[0].access = StructuralAccess::Owned;
         assert!(!retained(&function, &function.operations[0], &target));
+    }
+}
+
+#[test]
+fn byte_replacement_membership_retains_every_operand_and_writable_access() {
+    use semantic_vocabulary::ObligationId;
+    use target_operations::TargetUnitScalarArgumentSource;
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    for access in [
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        let (mut function, mut target) = field_fixture(scalar);
+        function.structural_parameters[0].access = access;
+        target.graph.parameters[0].access = access;
+        let psi_operation = OperationId::new(1).unwrap();
+        let source = PlaceId::new(2).unwrap();
+        let length = ValueId::new(1).unwrap();
+        let obligation = ObligationId::new(1).unwrap();
+        let destination = StructuralArgument {
+            place: function.structural_parameters[0].place,
+            access,
+            path: vec![StructuralPathSegment::Field("inner".into())],
+        };
+        let field = StructuralFieldId::new(1).unwrap();
+        function.operations[0] = AbstractOperation::StructuralByteSequenceFieldStore {
+            psi_operation,
+            destination: destination.place,
+            path: destination.path.clone(),
+            field,
+            source,
+            length,
+            obligation,
+        };
+        target.graph.blocks[0].operations[0] =
+            TargetUnitOperation::StructuralByteSequenceFieldStore {
+                psi_operation,
+                destination,
+                field,
+                source,
+                length: TargetUnitScalarArgumentSource::Parameter {
+                    parameter_index: 0,
+                    source_value: length,
+                    scalar_type: scalar,
+                },
+                obligation,
+            };
+        assert!(replacement_retained(
+            &function,
+            &function.operations[0],
+            &target
+        ));
+        assert!(super::super::requires_graph_storage_replay(
+            &function.operations
+        ));
+        for mutation in 0..10 {
+            let mut changed = target.clone();
+            let operation = &mut changed.graph.blocks[0].operations[0];
+            let TargetUnitOperation::StructuralByteSequenceFieldStore {
+                psi_operation,
+                destination,
+                field,
+                source,
+                length,
+                obligation,
+            } = operation
+            else {
+                unreachable!()
+            };
+            match mutation {
+                0 => *psi_operation = OperationId::new(2).unwrap(),
+                1 => destination.place = PlaceId::new(3).unwrap(),
+                2 => destination.path.clear(),
+                3 => destination.access = StructuralAccess::SharedBorrow,
+                4 => *field = StructuralFieldId::new(2).unwrap(),
+                5 => *source = PlaceId::new(3).unwrap(),
+                6 => *obligation = ObligationId::new(2).unwrap(),
+                7 => {
+                    *length = TargetUnitScalarArgumentSource::Parameter {
+                        parameter_index: 0,
+                        source_value: ValueId::new(2).unwrap(),
+                        scalar_type: scalar,
+                    }
+                }
+                8 => {
+                    *length = TargetUnitScalarArgumentSource::Parameter {
+                        parameter_index: 0,
+                        source_value: ValueId::new(1).unwrap(),
+                        scalar_type: ScalarType::Boolean,
+                    }
+                }
+                _ => {
+                    let duplicate = operation.clone();
+                    changed.graph.blocks[0].operations.push(duplicate);
+                }
+            }
+            assert!(
+                !replacement_retained(&function, &function.operations[0], &changed),
+                "mutation {mutation}"
+            );
+        }
+        // Equal producer/target operands do not turn a shared loan into write authority.
+        function.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        target.graph.parameters[0].access = StructuralAccess::SharedBorrow;
+        let TargetUnitOperation::StructuralByteSequenceFieldStore { destination, .. } =
+            &mut target.graph.blocks[0].operations[0]
+        else {
+            unreachable!()
+        };
+        destination.access = StructuralAccess::SharedBorrow;
+        assert!(!replacement_retained(
+            &function,
+            &function.operations[0],
+            &target
+        ));
     }
 }
 

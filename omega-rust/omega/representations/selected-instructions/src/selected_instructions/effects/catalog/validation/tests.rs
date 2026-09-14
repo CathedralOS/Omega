@@ -7,6 +7,100 @@ use register_model::{
 };
 
 #[test]
+fn byte_copy_catalog_requires_dynamic_operands_and_early_clobbers() {
+    let constraint = RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: RegisterConstraintKey {
+            family: RegisterConstraintFamily::Instruction,
+            variant: 42,
+        },
+        operands: (0..5)
+            .map(|operand| RegisterOperandConstraint {
+                operand,
+                access: if operand < 3 {
+                    RegisterOperandAccess::Use
+                } else {
+                    RegisterOperandAccess::Def
+                },
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: operand >= 3,
+            })
+            .collect(),
+        implicit_uses: vec![],
+        implicit_defs: vec![],
+        clobbers: vec![register_model::RegisterUnitId(0)],
+    };
+    let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0, 1, 2], vec![3, 4]);
+    encoded.memory = MachineEncodedMemoryEffect::CopyBytesV1 {
+        source_pointer_operand: 0,
+        destination_pointer_operand: 1,
+        count_operand: 2,
+    };
+    encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    encoded.implicit_unit_clobbers = constraint.clobbers.clone();
+    let source = MachineEffectDeclaration {
+        semantic: MachineSemanticKind::CopyBytes,
+        constraint: constraint.key,
+        memory: crate::MachineMemoryEffect::CopyBytesV1,
+        trap: crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        barrier: MachineBarrier::None,
+        call: crate::MachineCallEffect::NoneV1,
+        cleanup: crate::MachineCleanupEffect::NoneV1,
+        alternatives: vec![MachineAlternative {
+            key: MachineAlternativeKey {
+                family: MachineSemanticKind::CopyBytes.into(),
+                variant: 0,
+            },
+            applicability: MachineAlternativeApplicability::Always,
+            size: MachineSizeKnowledge::ExactBytes(28),
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded,
+        }],
+    };
+    validate_declaration(&constraint, &source).unwrap();
+    for mutation in 0..8 {
+        let mut changed = source.clone();
+        let encoded = &mut changed.alternatives[0].encoded;
+        match mutation {
+            0 => {
+                changed.memory = crate::MachineMemoryEffect::NoneV1;
+                encoded.memory = MachineEncodedMemoryEffect::NoneV1;
+            }
+            1 => {
+                encoded.memory = MachineEncodedMemoryEffect::CopyBytesV1 {
+                    source_pointer_operand: 1,
+                    destination_pointer_operand: 0,
+                    count_operand: 2,
+                }
+            }
+            2 => {
+                encoded.memory = MachineEncodedMemoryEffect::CopyBytesV1 {
+                    source_pointer_operand: 0,
+                    destination_pointer_operand: 1,
+                    count_operand: 3,
+                }
+            }
+            3 => encoded.implicit_unit_clobbers.clear(),
+            4 => encoded.external_operand_reads.truncate(2),
+            5 => encoded.external_operand_writes.truncate(1),
+            6 => encoded.trap = MachineEncodedTrapBehavior::NeverV1,
+            _ => encoded.external_operand_writes.push(0),
+        }
+        assert!(
+            validate_declaration(&constraint, &changed).is_err(),
+            "mutation {mutation}"
+        );
+    }
+    for operand in 0..5 {
+        let mut changed = constraint.clone();
+        changed.operands[operand].early_clobber = !changed.operands[operand].early_clobber;
+        assert!(validate_declaration(&changed, &source).is_err());
+    }
+}
+
+#[test]
 fn pointer_load_catalog_requires_the_semantic_exact_width() {
     let constraint = RegisterInstructionConstraint {
         id: RegisterConstraintId(0),

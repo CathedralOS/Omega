@@ -203,6 +203,7 @@ pub(super) fn validate(
                     matches!(
                         node.operation,
                         AbstractOperation::EstablishPrimitiveLocal { .. }
+                            | AbstractOperation::EstablishByteSequenceLiteral { .. }
                     )
                 })
                 .count()
@@ -210,6 +211,12 @@ pub(super) fn validate(
         return Err(invalid);
     }
     for place in &optimized.structural_places {
+        // Local immutable backing composes with borrowed inputs. Its exact
+        // declaration/producer join is independent of the surrounding roster;
+        // source-unit validation still owns dominance and availability.
+        if super::literals::declaration_producer(optimized, place.id).is_some() {
+            continue;
+        }
         // Provider attachments are specialization witnesses, not declared
         // storage or runtime views. Unit custody checks their exact field,
         // boundary, and service authority; here they must name the function's
@@ -332,7 +339,8 @@ pub(super) fn contains_view(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
 ) -> bool {
-    function.structural_parameters.iter().any(|parameter| parameter.place == place)
+    super::literals::declaration_producer(function, place).is_some()
+        || function.structural_parameters.iter().any(|parameter| parameter.place == place)
         || function.blocks.iter().any(|block| block.structural_parameters.iter().any(|parameter| parameter.place == place))
         || function.blocks.iter().flat_map(|block| &block.nodes).any(|node|
             matches!(&node.operation, AbstractOperation::ByteSequenceSubslice { result, .. } if result.place == place))

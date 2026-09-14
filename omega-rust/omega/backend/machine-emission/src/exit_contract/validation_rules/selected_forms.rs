@@ -209,6 +209,15 @@ pub(in crate::exit_contract) fn validate_non_return(
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
         (
+            SelectedInstructionKind::CopyBytes,
+            MachineEncodedMemoryEffect::CopyBytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+                count_operand: 2,
+            },
+            None,
+        ) => true,
+        (
             SelectedInstructionKind::LoadPacked { byte_offset, width },
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,
@@ -371,7 +380,7 @@ pub(in crate::exit_contract) fn validate_non_return(
             address.symbolic
                 == physical_instructions::PhysicalAddressOperation::Store64 { slot, byte_offset }
         }
-        (_, MachineEncodedMemoryEffect::NoneV1, _) => true,
+        (_, MachineEncodedMemoryEffect::NoneV1, _) => kind != SelectedInstructionKind::CopyBytes,
         _ => false,
     };
     if !memory_matches {

@@ -21,6 +21,11 @@ mod mixed_calls;
 pub use float_scalar_calls::*;
 pub use mixed_calls::*;
 
+pub const AARCH64_COPY_BYTES: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 752,
+};
+
 pub const AARCH64_LOAD8: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 730,
@@ -352,7 +357,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 81] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 82] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -539,6 +544,7 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 81] = [
     AARCH64_MATERIALIZE_BOOLEAN,
     AARCH64_LOAD_PACKED,
     AARCH64_STORE_PACKED,
+    AARCH64_COPY_BYTES,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1445,6 +1451,28 @@ pub fn aarch64_register_constraint_catalog(
             clobbers: Vec::new(),
         });
     }
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: AARCH64_COPY_BYTES,
+        operands: (0..5)
+            .map(|operand| {
+                let mut row = allocatable(
+                    operand,
+                    if operand < 3 {
+                        RegisterOperandAccess::Use
+                    } else {
+                        RegisterOperandAccess::Def
+                    },
+                    GPR64,
+                );
+                row.early_clobber = operand >= 3;
+                row
+            })
+            .collect(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("nzcv").units.clone(),
+    });
     for (key, load) in [(AARCH64_LOAD_PACKED, true), (AARCH64_STORE_PACKED, false)] {
         let mut result = allocatable(
             1,

@@ -12,6 +12,77 @@ use terminal_psi::{
 
 use crate::OptimizationUnitValidationError;
 
+/// Resolve replacement capacity from the exact writable destination declaration.
+/// Source-view validity and its dominating length are checked independently.
+pub(crate) fn byte_field_store_capacity(
+    function: &PsiOptimizationFunction,
+    operation: &AbstractOperation,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<u64> {
+    let AbstractOperation::StructuralByteSequenceFieldStore {
+        destination,
+        path,
+        field,
+        source,
+        ..
+    } = operation
+    else {
+        return None;
+    };
+    let parameter = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == *destination)?;
+    if destination == source
+        || !matches!(
+            parameter.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        )
+        || !matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+        || function
+            .entry_claim_declarations
+            .iter()
+            .any(|claim| claim.input == *destination)
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == *destination)
+        || !function.structural_places.iter().any(|place| {
+            place.id == *destination
+                && place.kind
+                    == StructuralPlaceKind::Parameter {
+                        position: parameter.position,
+                        is_self: parameter.is_self,
+                    }
+        })
+    {
+        return None;
+    }
+    let parent = super::super::structural_catalog::resolve_structural_path(
+        structural_types,
+        parameter.structural_type,
+        path,
+    )?;
+    let StructuralTypeShape::Record { fields } = &structural_types.get(&parent)?.shape else {
+        return None;
+    };
+    let selected = fields
+        .iter()
+        .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
+    match selected.field_type {
+        terminal_psi::StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+            capacity,
+        }) => Some(capacity),
+        _ => None,
+    }
+}
+
 pub(super) fn validate_byte_view_source(
     function: &PsiOptimizationFunction,
     block: BlockId,
@@ -27,7 +98,8 @@ pub(super) fn validate_byte_view_source(
             ..
         } => (*destination, Some(*length)),
         AbstractOperation::ByteSequenceLength { source, .. } => (*source, None),
-        AbstractOperation::ByteSequenceRead { source, length, .. }
+        AbstractOperation::StructuralByteSequenceFieldStore { source, length, .. }
+        | AbstractOperation::ByteSequenceRead { source, length, .. }
         | AbstractOperation::ByteSequenceSubslice { source, length, .. } => {
             (*source, Some(*length))
         }

@@ -102,6 +102,7 @@ pub(in crate::text_placement) fn prove_none(
                     return Err(TextPlacementError::UnsupportedRelocationShape);
                 }
                 MachineAlternativeFamily::CompareI64Zero
+                | MachineAlternativeFamily::CopyBytes
                 | MachineAlternativeFamily::HostedWriteByteI32
                 | MachineAlternativeFamily::HostedReadByte
                 | MachineAlternativeFamily::Load8Indexed

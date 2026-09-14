@@ -119,6 +119,36 @@ pub(super) fn validate_operation(
             )?;
         }
         (
+            TargetUnitOperation::StructuralByteSequenceFieldStore {
+                psi_operation,
+                destination,
+                field,
+                source,
+                length,
+                obligation,
+            },
+            AbstractOperation::StructuralByteSequenceFieldStore {
+                psi_operation: expected_operation,
+                field: expected_field,
+                source: expected_source,
+                length: expected_length,
+                obligation: expected_obligation,
+                ..
+            },
+        ) if psi_operation == expected_operation
+            && field == expected_field
+            && source == expected_source
+            && obligation == expected_obligation
+            && Some(destination.clone())
+                == super::super::structural_fields::replacement(
+                    optimized,
+                    abstracted,
+                    &plan.structural_types,
+                )
+            && sources
+                .iter()
+                .any(|(value, actual)| value == expected_length && actual == length) => {}
+        (
             TargetUnitOperation::ByteSequenceWrite {
                 psi_operation,
                 destination,

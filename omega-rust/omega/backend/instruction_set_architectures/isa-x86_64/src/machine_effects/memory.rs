@@ -25,6 +25,18 @@ pub(super) fn declaration(
         .expect("canonical stack pointer")
         .id;
     let (memory, trap, reads, writes, encoded_memory, size) = match semantic {
+        MachineSemanticKind::CopyBytes => (
+            MachineMemoryEffect::CopyBytesV1,
+            MachineTrapBehavior::MayArchitecturalFaultV1,
+            vec![0, 1, 2],
+            vec![3, 4],
+            MachineEncodedMemoryEffect::CopyBytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+                count_operand: 2,
+            },
+            MachineSizeKnowledge::ExactBytes(36),
+        ),
         MachineSemanticKind::LoadPacked3
         | MachineSemanticKind::LoadPacked5
         | MachineSemanticKind::LoadPacked6

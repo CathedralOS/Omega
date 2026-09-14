@@ -194,6 +194,7 @@ pub(crate) fn expected_uses(
             })
             .collect(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
+        O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {
             index,
             value,

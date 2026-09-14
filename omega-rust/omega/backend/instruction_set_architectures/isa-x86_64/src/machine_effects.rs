@@ -90,6 +90,7 @@ pub fn x86_64_machine_effect_catalog(
                             | MachineSemanticKind::Store
                             | MachineSemanticKind::AddressOffset
                             | MachineSemanticKind::Load8Indexed
+                            | MachineSemanticKind::CopyBytes
                             | MachineSemanticKind::Store64
                             | MachineSemanticKind::FrameAddress
                             | MachineSemanticKind::CallUnit
@@ -187,6 +188,7 @@ fn selected_keys(
         load16: Some(crate::X86_64_LOAD16),
         load32: Some(crate::X86_64_LOAD32),
         load8_indexed: Some(crate::X86_64_LOAD8_INDEXED),
+        copy_bytes: Some(crate::X86_64_COPY_BYTES),
         store: Some(crate::X86_64_STORE),
         address_offset: Some(crate::X86_64_ADDRESS_OFFSET),
         store64: Some(crate::X86_64_STORE64),
@@ -437,6 +439,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::Store
         | MachineSemanticKind::AddressOffset
         | MachineSemanticKind::Load8Indexed
+        | MachineSemanticKind::CopyBytes
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::HostedExitProcessI32
@@ -665,6 +668,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::Store
         | MachineSemanticKind::AddressOffset
         | MachineSemanticKind::Load8Indexed
+        | MachineSemanticKind::CopyBytes
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::HostedExitProcessI32

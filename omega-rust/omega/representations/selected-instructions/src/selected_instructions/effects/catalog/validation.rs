@@ -219,6 +219,19 @@ fn validate_encoded_effects(
     {
         return Err(());
     }
+    if declaration.semantic == MachineSemanticKind::CopyBytes
+        && (declaration.memory != crate::MachineMemoryEffect::CopyBytesV1
+            || !matches!(
+                encoded.memory,
+                MachineEncodedMemoryEffect::CopyBytesV1 { .. }
+            )
+            || declaration.call != crate::MachineCallEffect::NoneV1
+            || !constraint.implicit_uses.is_empty()
+            || !constraint.implicit_defs.is_empty()
+            || constraint.clobbers.is_empty())
+    {
+        return Err(());
+    }
     if declaration.semantic == MachineSemanticKind::HostedExitProcessI32
         && (declaration.memory != crate::MachineMemoryEffect::NoneV1
             || declaration.trap != crate::MachineTrapBehavior::HostedExitReturnedV1
@@ -386,6 +399,40 @@ fn validate_encoded_effects(
             && encoded.external_operand_writes.is_empty()
             && constraint.operands.len() == 1
             && constraint.operands[0].access == RegisterOperandAccess::Use
+            && encoded.implicit_unit_uses == constraint.implicit_uses
+            && encoded.implicit_unit_defs == constraint.implicit_defs
+            && encoded.implicit_unit_clobbers == constraint.clobbers => {}
+        (
+            MachineEncodedMemoryEffect::CopyBytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+                count_operand: 2,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::CopyBytes
+            && declaration.memory == crate::MachineMemoryEffect::CopyBytesV1
+            && declaration.trap == crate::MachineTrapBehavior::MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1, 2]
+            && encoded.external_operand_writes == [3, 4]
+            && constraint.operands.len() == 5
+            && constraint
+                .operands
+                .iter()
+                .enumerate()
+                .all(|(position, operand)| {
+                    operand.operand as usize == position
+                        && operand.access
+                            == if position < 3 {
+                                RegisterOperandAccess::Use
+                            } else {
+                                RegisterOperandAccess::Def
+                            }
+                        && operand.early_clobber == (position >= 3)
+                        && operand.fixed_view.is_none()
+                        && operand.tied_to.is_none()
+                })
             && encoded.implicit_unit_uses == constraint.implicit_uses
             && encoded.implicit_unit_defs == constraint.implicit_defs
             && encoded.implicit_unit_clobbers == constraint.clobbers => {}

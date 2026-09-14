@@ -117,10 +117,13 @@ pub(crate) fn accepts_borrowed_parameters(
         // Per-operation replay, not the result shape, decides whether this
         // access permits each field observation or mutation.
         let record = matches!(declaration.shape, StructuralTypeShape::Record { .. });
+        let byte_view = declaration.shape
+            == StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView);
         // Each borrowed parameter retains its own exact referent and placement;
         // neighboring inputs do not change the admissibility of that pointer.
         if result_shape.is_some()
             && !record
+            && !byte_view
             && declaration.shape != StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
             && !matches!(declaration.shape,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
@@ -145,7 +148,8 @@ pub(crate) fn accepts_borrowed_parameters(
             || !(matches!(
                 semantic.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            ) || semantic.access == StructuralAccess::SharedBorrow && (primitive || record))
+            ) || semantic.access == StructuralAccess::SharedBorrow
+                && (primitive || record || byte_view))
             || semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || (semantic.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && !matches!(
