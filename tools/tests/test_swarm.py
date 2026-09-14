@@ -116,6 +116,31 @@ class SwarmTests(unittest.TestCase):
         with self.assertRaises(self.module.SwarmError):
             self.validate(record)
 
+    def test_manifest_allows_path_overlap_across_layers(self):
+        record = manifest(sessions=[
+            {"name": "a", "board": "TASKS.md", "item": "ITEM-ONE",
+             "host": "linux", "owning_paths": ["src/one"], "layer": 0},
+            {"name": "b", "board": "TASKS.md", "item": "ITEM-TWO",
+             "host": "linux", "owning_paths": ["src/one"], "layer": 1}])
+        self.assertEqual(len(self.validate(record)), 2)
+        record["sessions"][1]["layer"] = 0
+        with self.assertRaises(self.module.SwarmError):
+            self.validate(record)
+        record["sessions"][1]["layer"] = -1
+        with self.assertRaises(self.module.SwarmError):
+            self.validate(record)
+
+    def test_filter_layer_selects_one_layer(self):
+        sessions = [{"name": "a"}, {"name": "b", "layer": 0},
+                    {"name": "c", "layer": 1}]
+        self.assertEqual(self.module.filter_layer(sessions, None), sessions)
+        self.assertEqual([s["name"] for s in
+                          self.module.filter_layer(sessions, 0)], ["a", "b"])
+        self.assertEqual([s["name"] for s in
+                          self.module.filter_layer(sessions, 1)], ["c"])
+        with self.assertRaises(self.module.SwarmError):
+            self.module.filter_layer(sessions, 2)
+
     def test_manifest_rejects_non_linux_host(self):
         record = manifest({"host": "windows"})
         with self.assertRaises(self.module.SwarmError):

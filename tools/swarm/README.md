@@ -138,6 +138,17 @@ the worktree/`git stash` rules, validate-before-claim landing order, and a
 per-host block generated from `platform` (Intel macOS gets the
 `--target linux_x86_64` workaround).
 
+### Layers
+
+Sessions may carry `"layer": N` (default 0) for dependency ordering. Launch
+layer N only after layer N-1 has fully landed or parked — each layer builds on
+`origin/main` containing the previous layer's published work, so dependency
+order replaces conflict avoidance. The owning-path overlap check applies
+within a layer only: a layer-1 session may own paths a layer-0 session
+touched, because the earlier work is merged by the time the later session
+starts. `--layer N` on `plan`, `launch`, and `local` selects one layer, and
+composes with `local --sessions` for partial relaunches.
+
 ### Coordinator runbook
 
 The agent-side lessons from macw1–macw3 are baked into

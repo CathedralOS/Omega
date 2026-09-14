@@ -158,12 +158,18 @@ def validate_manifest(manifest, repository):
                                  "list of non-empty strings.")
         if "probe_only" in session and not isinstance(session["probe_only"], bool):
             raise SwarmError(f"{session['name']}: probe_only must be a boolean.")
+        layer = session.get("layer", 0)
+        if not isinstance(layer, int) or isinstance(layer, bool) or layer < 0:
+            raise SwarmError(f"{session['name']}: layer must be a non-negative integer.")
         for path in session["owning_paths"]:
-            for existing_path, existing_name in claimed:
-                if claims.paths_overlap(path, existing_path):
+            for existing_path, existing_name, existing_layer in claimed:
+                if (existing_layer == layer
+                        and claims.paths_overlap(path, existing_path)):
                     raise SwarmError(f"Owning path {path} ({session['name']}) overlaps "
-                                     f"{existing_path} claimed by {existing_name}.")
-            claimed.append((path, session["name"]))
+                                     f"{existing_path} claimed by {existing_name} in "
+                                     f"layer {layer}; put the later session in a "
+                                     "higher layer.")
+            claimed.append((path, session["name"], layer))
         board_text_path = repository / session["board"]
         if not board_text_path.is_file():
             raise SwarmError(f"{session['name']}: board file {session['board']} not found.")
@@ -405,6 +411,17 @@ def sessions_for(manifest, command):
     return selected, skipped
 
 
+def filter_layer(sessions, layer):
+    """Keep sessions at one dependency layer; all of them when unset."""
+    if not isinstance(layer, int) or isinstance(layer, bool):
+        return sessions
+    selected = [session for session in sessions
+                if session.get("layer", 0) == layer]
+    if not selected:
+        raise SwarmError(f"No sessions at layer {layer}.")
+    return selected
+
+
 def render_prompt(template, manifest, session):
     owner_label = f"{manifest['owner_label_prefix']}-{session['name']}"
     slice_block, probe_block = session_blocks(session)
@@ -502,6 +519,7 @@ def render_local_prompt(template, manifest, session, repository, state):
 def command_local(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
     sessions, skipped = sessions_for(manifest, "local")
+    sessions = filter_layer(sessions, arguments.layer)
     if arguments.sessions:
         wanted = {name.strip() for name in arguments.sessions.split(",")
                   if name.strip()}
@@ -654,6 +672,7 @@ def write_receipts(directory, receipts):
 def command_plan(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
     sessions, skipped = sessions_for(manifest, "plan")
+    sessions = filter_layer(sessions, arguments.layer)
     gate_results = host_gate_results(repository, sessions,
                                      skip=arguments.skip_host_gates)
     skip_route_check = arguments.skip_route_check
@@ -701,6 +720,7 @@ def command_plan(arguments, repository):
 def command_launch(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
     sessions, skipped = sessions_for(manifest, "launch")
+    sessions = filter_layer(sessions, arguments.layer)
     if not arguments.dry_run:
         host_gate_results(repository, sessions,
                           skip=arguments.skip_host_gates)
@@ -933,11 +953,17 @@ def main(argv=None):
     subparsers = parser.add_subparsers(dest="command", required=True)
     plan = subparsers.add_parser("plan")
     plan.add_argument("--manifest", required=True)
+    plan.add_argument("--layer", type=int,
+                      help="only process sessions at this dependency layer "
+                           "(default: all layers)")
     plan.add_argument("--skip-host-gates", action="store_true")
     plan.add_argument("--skip-route-check", action="store_true")
     plan.add_argument("--skip-claims-check", action="store_true")
     launch = subparsers.add_parser("launch")
     launch.add_argument("--manifest", required=True)
+    launch.add_argument("--layer", type=int,
+                        help="only launch sessions at this dependency layer "
+                             "(default: all layers)")
     launch.add_argument("--dry-run", action="store_true")
     launch.add_argument("--skip-host-gates", action="store_true")
     launch.add_argument("--skip-route-check", action="store_true")
@@ -950,6 +976,10 @@ def main(argv=None):
     local.add_argument("--create-worktrees", action="store_true",
                        help="create .codex/worktrees/<wave>-<name> and "
                             "swarm/<wave>-<name> branches before spawning")
+    local.add_argument("--layer", type=int,
+                       help="only render sessions at this dependency layer "
+                            "(default: all layers); launch layer N only after "
+                            "layer N-1 has landed or parked")
     local.add_argument("--sessions",
                        help="comma-separated session names to render "
                             "(default: all local sessions in the manifest); "
