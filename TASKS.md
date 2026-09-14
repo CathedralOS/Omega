@@ -759,41 +759,44 @@ Owners include
   `native-realization/src/native_realization.rs`. Targetless checks select
   no entry; deployment cannot substitute a semantic machine for a physical adapter.
 
-  Close one executable hosted bridge, including the authored contract and its
-  source/package/application identities through the selected slot, rather than
-  landing another metadata-only calling-plan milestone. The macOS contract is
+  Complete the remaining hosted bridges and receiver lifecycle, not another
+  metadata-only calling-plan milestone. The macOS contract is
   `source/library/std/targets/macos_arm64/entry.omg`; its physical arrival and
   `ProgramStorageEntry` are distinct applications. Provider-module imports do
   not load that contract automatically. The `calling_policy_plans macos_entry`
-  test exercises signatures, not installed roots. Derive real backing/rights,
-  stack and receiver partitions from the admitted target arrival and installed
-  occurrence/epoch, then construct a ZII-valid receiver, pass its single
-  activation loan, and account for normal cleanup. A writable section, prepared
-  input, or C caller supplying a receiver pointer is not that bridge.
+  test exercises signatures, not installed roots.
 
-  Consume `CheckedProgramEntryTerminalReceipt::receiver_eligibility` for the
-  checked source/owned-data/Terminal-self join; a missing row cannot authorize
-  zero initialization or omitted cleanup. Empty attached entries currently erase
-  Terminal `self`, so their provisioning needs an explicit projection rather
-  than a fabricated place. Fused `Bound` establishment remains separate.
+  The macOS bridge already executes authored receiver processes with no
+  test-supplied pointer: scalar/array storage, disjoint record copies, captured
+  borrowed-call results, Fused Console, normal return and explicit process exit.
+  At `673d24c5e7`, macOS ARM64, `RUST_MIN_STACK=67108864 cargo nextest run -p
+  compiler --test canary_suite --no-fail-fast -E
+  'test(entry_and_abi::hosted_receiver::)'` exercises that route. Continue from
+  `native-realization/src/native_realization.rs` and
+  `image-emission/src/hosted_receiver.rs`, not from an assumed absent adapter.
 
-  For macOS, use loader-backed RW/NX zero-fill storage with explicit disjoint
-  receiver, private-stack and saved-continuation ranges. Switch stacks before
-  any generated spill or call, and restore the physical continuation without
-  touching its suspended stack. Prove loader correspondence and occurrence-local
-  partitioning under the exact target loading contract; actual occurrence custody
-  belongs to installation, not compilation of the ordinary native product.
-  Compose final application/bridge/provider demand and
-  any admitted signal/callback occupancy. Neither `LC_MAIN.stacksize` nor an
-  unexplained reserve proves remaining arrival-stack capacity. These target
-  implementation choices are engineering work under the settled entry contract,
-  not an owner blocker merely because the adapter is absent.
+  Remaining: realize retained receivers on both Linux targets and Windows;
+  support executable nominal cleanup and callback/signal occupancy through the
+  actual activation/completion contract; extend receiver storage beyond the
+  admitted plain-record/primitive-array shapes. Keep the current unsupported
+  cases rejecting. These are implementation dependencies under the settled
+  contract, not unanswered language decisions.
+
+  Preserve the existing macOS loader-backed RW/NX partitions, private-stack
+  switch and saved physical continuation. Compose final application, bridge and
+  provider demand with any newly admitted callback occupancy; `LC_MAIN.stacksize`
+  is not remaining-stack evidence. Checked receiver eligibility binds the exact
+  source owner and retained/erased projection; erasing an unused borrow cannot
+  erase initialization, nominal cleanup or Fused establishment obligations.
+  Actual occurrence custody remains with installation, not compilation of the
+  conditional native product; coordinate that join with
+  **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION**.
 
   Acceptance: execute an authored receiver entry as a published process with no
   test-supplied `self`. Reject redirected continuation/receiver identities,
   non-ZII state, insufficient/misaligned backing, overlapping partitions, stale
   occurrence/epoch and bypassed provisioning. Retain the native admission
-  rejection until this works. Extend to zero-payload provider fields and the
+  rejection for unsupported targets and lifecycles. Exercise the
   `traits/runtime_local_named_dyn_stored_exit` customer (exit 70 on both Linux
   targets), subject to its separate descriptor-call dependency. Preserve exact
   symbol/text, source contract, runtime storage and continuation replay.
@@ -870,9 +873,12 @@ Owners include
   arm64 by `mbx nextest run -p external-roots --lib` (130/130), including
   `epoch_cohort_cannot_seal_before_the_eligible_set_is_derived` and
   `program_local_root_schemas_derive_exact_installed_slots_without_minting`.
-  Remaining: supply the actual installed backing, receiver partition,
-  activation loan, and completion contract for the `cli_mvp` entry bridge
-  before the retained-self retry can be removed.
+  Remaining: connect that ledger to actual installed backing, receiver
+  partitions, activation loans and completion for the same occurrence/epoch.
+  The ordinary macOS `cli_mvp` receiver bridge already executes under its
+  explicit loader premises; do not recreate it or treat its conditional image
+  correspondence as an installation-ledger receipt. **ENTRY-CONTENT-ROOTS**
+  owns the remaining target and lifecycle realization.
 
 - **BOUNDARY-ISSUANCE.** After conservation closes, derive provider issuance
   geometry from exact invocation parameters, entry places, and results. Keep

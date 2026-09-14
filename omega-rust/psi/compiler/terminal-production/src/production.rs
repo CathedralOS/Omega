@@ -17,7 +17,10 @@ use semantic_vocabulary::MachineId;
 use terminal_codec::terminal_psi_identity;
 use terminal_psi::TerminalMachineResult;
 mod receiver_eligibility;
-pub use receiver_eligibility::CheckedProgramEntryReceiverEligibility;
+pub use receiver_eligibility::{
+    CheckedProgramEntryFusedServiceField, CheckedProgramEntryReceiverEligibility,
+    CheckedProgramEntryReceiverProjection,
+};
 /// Canonical Terminal output coupled to its non-caller-authored checked D29
 /// demand scope.
 #[derive(Debug, PartialEq, Eq)]

@@ -142,6 +142,84 @@ fn executable_entry_rejects_lost_source_receiver_projection() {
 const ERASED_RECEIVER: &str = "data Main {} machine Main::launch(&mut self) {}";
 
 #[test]
+fn erased_receiver_cannot_discard_nominal_cleanup() {
+    let (produced, signature) = entry_fixture(
+        "data Helper {}
+         machine Helper::finish() {}
+         data Main { value: i32; }
+         machine Main::drop(&mut self) { Helper::finish(); }
+         machine Main::launch(&mut self) {}",
+        target::TargetProfile::WindowsX64,
+    );
+    let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    assert!(
+        entry
+            .structural_parameters
+            .iter()
+            .all(|parameter| !parameter.is_self)
+    );
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let error = crate::realize_program_entry_native_artifact(
+        produced,
+        request(&signature, &profile, &optimizations, &providers),
+    )
+    .expect_err("erasing an unused borrow cannot erase the provisioned owner's cleanup");
+    assert!(
+        error
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("receiver"))
+    );
+}
+
+#[test]
+fn erased_receiver_eligibility_is_required_for_fresh_and_prepared_inputs() {
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    for source in [
+        "data Main { value: i32 [1..=9]; } machine Main::launch(&mut self) {}",
+        "data Child {} machine Child::drop(&mut self) {} data Main { child: Child; } machine Main::launch(&mut self) {}",
+    ] {
+        let (produced, signature) = entry_fixture(source, target::TargetProfile::WindowsX64);
+        let (artifact, receipt, scope, _, _) = produced.into_parts();
+        assert!(receipt.receiver_eligibility().is_none());
+        let prepared = crate::prepare_native_realization_input(&artifact, &profile, &optimizations)
+            .expect("callable preparation does not provision an entry receiver");
+        for prepared_input in [None, Some(&prepared)] {
+            let result = crate::realize_native_artifact(
+                terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+                    .unwrap(),
+                NativeRealizationRequest {
+                    checked_scope: Some(&scope),
+                    prepared_input,
+                    program_entry: NativeProgramEntrySettlement::new(&signature, None, &[])
+                        .with_checked_entry(&receipt),
+                    ..request(&signature, &profile, &optimizations, &providers)
+                },
+            );
+            let Err(error) = result else {
+                panic!(
+                    "an erased entry still requires source initialization and cleanup eligibility"
+                );
+            };
+            assert!(error.diagnostics().iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("checked ZII-valid value with no executable nominal cleanup")
+            }));
+        }
+    }
+}
+
+#[test]
 fn provisioned_receiver_erased_before_realization_still_realizes_an_executable() {
     let (produced, signature) = entry_fixture(ERASED_RECEIVER, target::TargetProfile::WindowsX64);
     let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
@@ -151,7 +229,7 @@ fn provisioned_receiver_erased_before_realization_still_realizes_an_executable()
         .find(|machine| machine.id == module.entry)
         .unwrap();
     // Checked production erases the unused `&mut self` place entirely; the
-    // attached type survives so the root bridge still knows what to provision.
+    // attached type survives so checked source eligibility still has its owner.
     assert!(
         entry
             .structural_parameters
@@ -166,7 +244,7 @@ fn provisioned_receiver_erased_before_realization_still_realizes_an_executable()
         produced,
         request(&signature, &profile, &optimizations, &providers),
     )
-    .expect("bridge provisioning preserves the erased source receiver mode");
+    .expect("checked erasure preserves the source receiver mode without storage");
     native
         .artifact()
         .as_direct()
@@ -199,9 +277,7 @@ fn erased_provisioned_receiver_must_retain_its_attached_type() {
         produced.artifact(),
         &request(&signature, &profile, &optimizations, &providers),
     )
-    .expect_err(
-        "an erased provisioned receiver cannot lose the attached type the bridge provisions",
-    );
+    .expect_err("an erased provisioned receiver cannot lose its checked attachment owner");
     assert!(
         diagnostics
             .iter()

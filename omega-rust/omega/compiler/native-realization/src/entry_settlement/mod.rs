@@ -66,26 +66,79 @@ pub fn validate_native_program_entry_settlement(
         return Err(NativeProgramEntrySettlementError::TerminalEntryMultiplicity(entry_count));
     }
     if let Some(eligibility) = checked_entry.receiver_eligibility() {
+        // Only exact source Service<...> in Bound fields require these rows.
+        // Runtime erasure alone also covers ordinary proof fields, and cannot
+        // classify a service. Retain completeness before self/ABI erasure can
+        // bypass the physical receiver binder; existing replay below still
+        // rejoins each row to Terminal fields and selected provider custody.
+        let establishments = program_entry.fused_service_establishments();
+        if establishments.len() != eligibility.fused_service_fields().len()
+            || eligibility.fused_service_fields().iter().any(|field| {
+                establishments
+                    .iter()
+                    .filter(|row| {
+                        row.field_identity() == field.field_identity()
+                            && row.carrier_type_identity() == field.carrier_type_identity()
+                    })
+                    .count()
+                    != 1
+            })
+        {
+            return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
+        }
         let entry = module
             .machines
             .iter()
             .find(|machine| machine.id == module.entry)
             .ok_or(NativeProgramEntrySettlementError::ReceiverEligibilityDrift)?;
+        let mut declarations = module
+            .structural_types
+            .iter()
+            .filter(|declaration| declaration.id == eligibility.terminal_receiver_type());
+        let declaration = declarations
+            .next()
+            .ok_or(NativeProgramEntrySettlementError::ReceiverEligibilityDrift)?;
+        if declarations.next().is_some()
+            || declaration.identity != eligibility.owned_receiver_type_identity()
+            || entry.attachment != Some(eligibility.terminal_receiver_type())
+            || program_entry.source.receiver().normalized_type_identity()
+                != Some(eligibility.source_receiver_type_identity())
+        {
+            return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
+        }
         let mut receivers = entry
             .structural_parameters
             .iter()
             .filter(|parameter| parameter.is_self);
-        let receiver = receivers
-            .next()
-            .ok_or(NativeProgramEntrySettlementError::ReceiverEligibilityDrift)?;
-        if receivers.next().is_some()
-            || program_entry.source.receiver().normalized_type_identity()
-                != Some(eligibility.source_receiver_type_identity())
-            || receiver.place != eligibility.terminal_self()
-            || receiver.structural_type != eligibility.terminal_receiver_type()
-            || entry.attachment != Some(receiver.structural_type)
-        {
-            return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
+        match eligibility.projection() {
+            terminal_production::CheckedProgramEntryReceiverProjection::Retained {
+                terminal_self,
+                source_position,
+            } => {
+                let receiver = receivers
+                    .next()
+                    .ok_or(NativeProgramEntrySettlementError::ReceiverEligibilityDrift)?;
+                if receivers.next().is_some()
+                    || receiver.place != terminal_self
+                    || receiver.position != source_position
+                    || receiver.access != terminal_psi::StructuralAccess::MutableBorrow
+                    || receiver.structural_type != eligibility.terminal_receiver_type()
+                {
+                    return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
+                }
+            }
+            terminal_production::CheckedProgramEntryReceiverProjection::Erased {
+                source_position,
+            } => {
+                if receivers.next().is_some()
+                    || entry
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.position == source_position)
+                {
+                    return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
+                }
+            }
         }
     }
     service_establishment::validate_terminal_rows(&module, program_entry)?;
