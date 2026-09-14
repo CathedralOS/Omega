@@ -12,16 +12,18 @@ use build_time_evaluation::{
     BuildTimeValue, compute_layout_plan, evaluate_and_materialize_typed_owned_layout_into,
     materialize_typed_owned_layout_into, validate_const_materializable_typed_owned_layout,
 };
+use calling_conventions::MachineRegister;
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use layout::{DataShape, build_layout_plan};
 use layout_plans::{
-    AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConsumptionInstant, EntryStubId,
-    IntegerInterpretation, LayoutPlacementReport, MaterializationAction, MaterializationContext,
-    RelocationTarget, ScalarFieldSchema, ScalarFieldValue, SymbolicFieldInnerLayout,
-    SymbolicFieldPathSegment, SymbolicFieldValue, decode_scalar_layout,
-    derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
-    materialize_aggregate_layout_into, materialize_scalar_layout_into,
+    AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConsumptionInstant, DataSymbolId,
+    EntryStubId, IntegerInterpretation, LayoutPlacementReport, MaterializationAction,
+    MaterializationContext, PostHandoffWriterPlan, RelocationTarget, ScalarFieldSchema,
+    ScalarFieldValue, SymbolicFieldInnerLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
+    decode_scalar_layout, derive_symbolic_materialization,
+    derive_symbolic_materialization_with_inner_layouts, materialize_aggregate_layout_into,
+    materialize_scalar_layout_into,
 };
 use package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
@@ -3224,6 +3226,41 @@ machine Main::main(&mut self) { }
     );
 }
 
+/// Both Linux ISAs realize the same derived post-handoff writer. The
+/// normalized fragment identity is target-independent — physical lowering may
+/// choose instruction bytes and a context register but cannot change which
+/// semantic slot the write addresses — while the emitted bytes and machine
+/// footprint belong to the selected architecture. Exact replay validation
+/// proves each lowered fragment still carries the checked write geometry.
+fn lower_writer_on_both_linux_isas(writer: &PostHandoffWriterPlan) {
+    let x86 = program_entry_plan::lower_post_handoff_writer_fragment(
+        NativeTarget::linux_x64(),
+        MachineRegister::X86Rdi,
+        writer,
+    )
+    .expect("the symbolic writer lowers to linux_x86_64 code");
+    let arm = program_entry_plan::lower_post_handoff_writer_fragment(
+        NativeTarget::linux_arm64(),
+        MachineRegister::Aarch64X(0),
+        writer,
+    )
+    .expect("the symbolic writer lowers to linux_arm64 code");
+    program_entry_plan::validate_lowered_post_handoff_writer(&x86)
+        .expect("the linux_x86_64 writer fragment replays exactly");
+    program_entry_plan::validate_lowered_post_handoff_writer(&arm)
+        .expect("the linux_arm64 writer fragment replays exactly");
+    assert_eq!(
+        x86.fragment().normalized_plan_report_fingerprint(),
+        arm.fragment().normalized_plan_report_fingerprint(),
+        "both Linux ISAs realize the same normalized writer fragment"
+    );
+    assert_ne!(
+        x86.fragment().bytes(),
+        arm.fragment().bytes(),
+        "each ISA emits its own target-dependent writer bytes"
+    );
+}
+
 #[test]
 fn indexed_symbolic_materialization_preserves_the_exact_element_path() {
     // One nested field/index case, end to end: `handlers[2]` is a field/index
@@ -3336,6 +3373,7 @@ machine Main::main(&mut self) { }
             .all(|byte| *byte == 0xa5),
         "index materialization writes only the addressed element"
     );
+    lower_writer_on_both_linux_isas(&writer);
 }
 
 #[test]
@@ -3463,4 +3501,176 @@ machine Main::main(&mut self) { }
             .all(|byte| *byte == 0xa5),
         "nested materialization writes only the addressed member"
     );
+    lower_writer_on_both_linux_isas(&writer);
+}
+
+#[test]
+fn nested_indexed_symbolic_materialization_realizes_on_both_linux_isas() {
+    // One nested field/index path, end to end: `slots[1].flags` selects the
+    // `flags` member of element 1 of the repeated `slots` record field, and
+    // `slots[0].entries[1]` carries a second index hop inside the same nested
+    // element. The flat outer plan places `slots` as one `At` extent per
+    // element; the `SymbolicFieldInnerLayout` carrier supplies the record's
+    // compiler-derived interior plan so each exact path stays symbolic until
+    // derivation composes the element offset with the interior offset. Both
+    // writes then realize through one post-handoff writer, which physical
+    // lowering emits for each Linux ISA without changing the semantic slots.
+    let main_path = write_program(
+        "nested-indexed-symbolic-field",
+        r#"
+use omega::language::core::layout;
+
+data DispatchLayout { }
+machine DispatchLayout::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    entries[2] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 32 },
+    };
+    Plan { entries: entries, entry_count: 3,
+           size_fixed: 56, size_is_dynamic: false, align: 8 }
+}
+
+data SlotLayout { }
+machine SlotLayout::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    entries[2] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 16 },
+    };
+    Plan { entries: entries, entry_count: 3,
+           size_fixed: 24, size_is_dynamic: false, align: 8 }
+}
+
+data DispatchSlot { entries: [u64; 2]; flags: u64; }
+data DispatchTable { header: u64; slots: [DispatchSlot; 2]; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("nested indexed dispatch table should check");
+    let report = compute_layout_plan(&checked.typed, "DispatchLayout::plan", "DispatchTable")
+        .expect("a repeated record field retains one element At per element");
+    assert_eq!(
+        report
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        vec![
+            ("header", LayoutPlacementReport::At { offset: 0 }),
+            ("slots", LayoutPlacementReport::At { offset: 8 }),
+            ("slots", LayoutPlacementReport::At { offset: 32 }),
+        ]
+    );
+    let inner_report = compute_layout_plan(&checked.typed, "SlotLayout::plan", "DispatchSlot")
+        .expect("the record's own policy supplies its interior geometry");
+    assert_eq!(
+        inner_report
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        vec![
+            ("entries", LayoutPlacementReport::At { offset: 0 }),
+            ("entries", LayoutPlacementReport::At { offset: 8 }),
+            ("flags", LayoutPlacementReport::At { offset: 16 }),
+        ]
+    );
+    let inner = SymbolicFieldInnerLayout::new("slots", inner_report);
+
+    let entry_target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x55aa).expect("normalized entry identity"),
+    );
+    let data_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x5a5a).expect("normalized data identity"),
+    );
+    let symbolic = [
+        SymbolicFieldValue::new_indexed("slots", 1, 64, entry_target)
+            .expect("indexed outer record element")
+            .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
+        SymbolicFieldValue::new_indexed("slots", 0, 64, data_target)
+            .expect("indexed outer record element")
+            .with_inner_segment(SymbolicFieldPathSegment::new_indexed("entries", 1)),
+    ];
+    let materialization = derive_symbolic_materialization_with_inner_layouts(
+        &report,
+        std::slice::from_ref(&inner),
+        &symbolic,
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect("the nested field/index paths compose outer and interior offsets");
+    let writes = materialization
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("unresolved nested index paths derive writers, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        writes,
+        [("slots[1].flags", 48), ("slots[0].entries[1]", 16)]
+    );
+
+    let writer = materialization
+        .derive_post_handoff_writer()
+        .expect("the nested index writes derive a writer");
+    let mut bytes = [0xa5_u8; 56];
+    writer
+        .execute(
+            &mut bytes,
+            layout_plans::PlacementSite {
+                base_address: 0,
+                phase: layout_plans::PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: None,
+            },
+            |resolved| {
+                if resolved == entry_target {
+                    Some(0x1122_3344_5566_7788)
+                } else {
+                    assert_eq!(resolved, data_target);
+                    Some(0x99aa_bbcc_ddee_ff00)
+                }
+            },
+        )
+        .expect("the nested index writer resolves each exact slot");
+    assert_eq!(&bytes[48..56], &0x1122_3344_5566_7788_u64.to_le_bytes());
+    assert_eq!(&bytes[16..24], &0x99aa_bbcc_ddee_ff00_u64.to_le_bytes());
+    assert!(
+        bytes[..16]
+            .iter()
+            .chain(&bytes[24..48])
+            .all(|byte| *byte == 0xa5),
+        "nested index materialization writes only the addressed member slots"
+    );
+    lower_writer_on_both_linux_isas(&writer);
 }
