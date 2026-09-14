@@ -162,7 +162,19 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   exact `DiscardRoot` schedule in reverse producer order, replaying
   deterministically on x86-64 and AArch64 selected machines with the same
   cfg-gated host-native execution on Linux x86-64, Linux AArch64, and macOS
-  AArch64. Remaining: atomic, placed-memory, and transition lanes.
+  AArch64. Landed: the seeded atomic establishment lane
+  (`tests/native-differential/tests/optimizer_corpus/atomic_establishment.rs`,
+  64 cases) atomically establishes a seeded case of an unrestricted sum per
+  conditional arm through `EstablishScalarCase`, answers each arm's Boolean
+  result with a `StructuralCaseMembership` query, and atomically establishes
+  an unobserved unrestricted fixed array through `EstablishScalarArray`,
+  replaying deterministically on x86-64 and AArch64 selected machines with
+  the same cfg-gated host-native execution on Linux x86-64, Linux AArch64,
+  and macOS AArch64. The lane composes the production selected-instruction
+  optimization, register allocation, callee-save, and fixed-frame stages so
+  the aggregate results' frame-local storage participates in encoding, and
+  the host oracle drives both arms through the placed fixed-frame text.
+  Remaining: placed-memory and transition lanes.
 
 - **CUSTODY-MUTATION-COVERAGE.** Complete authenticated one-field mutation
   tests for every remaining manifest, receipt, codec, and artifact-custody
