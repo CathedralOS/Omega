@@ -407,6 +407,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
                 blocks,
                 contracts,
                 terminates_guarantee,
+                where_facts,
             ),
             mut rest,
         ) = crate::parser::trait_definition::parse_signature_clauses(
@@ -445,6 +446,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             contracts,
             default_body: HandleSpan::empty(),
             terminates_guarantee,
+            where_facts,
         };
         let parameter =
             &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];

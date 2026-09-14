@@ -25,10 +25,16 @@ pub struct CheckedIntrinsicCallFact {
 /// Selected execution of an already-checked boundary requirement. These exact
 /// semantic symbols steer the source interpreter without rewriting source calls.
 /// Provider policy and target realization remain outside checked Psi.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedBoundaryAdapterDispatch {
     pub receiver: symbols::SymbolHandle,
     pub requirement: symbols::SymbolHandle,
     pub realization_state: symbols::SymbolHandle,
     pub forward_receiver: bool,
+    /// The finite-family value tuple this row realizes, keyed by the canonical
+    /// const identities a specialization carries for the same arguments (for
+    /// example `named(integer-const(16))`), in the requirement's const/value
+    /// binder declaration order. Empty on an exact nongeneric row: it matches
+    /// every call to its requirement without consulting static arguments.
+    pub family_tuple: Box<[String]>,
 }

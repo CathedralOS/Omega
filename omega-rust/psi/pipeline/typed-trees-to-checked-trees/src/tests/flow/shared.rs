@@ -280,6 +280,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             blocks_keyword_source_spans: Vec::new(),
             contracts: Default::default(),
             termination_guarantee: language_semantics::TerminationGuarantee::NoGuarantee,
+            where_facts: Default::default(),
         },
     );
     program.push_trait_definition(boundary_trait);

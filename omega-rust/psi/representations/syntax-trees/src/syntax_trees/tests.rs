@@ -913,6 +913,7 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
         contracts: HandleSpan::empty(),
         default_body: HandleSpan::empty(),
         terminates_guarantee: false,
+        where_facts: HandleSpan::empty(),
     });
 
     let mut copied_trees = SyntaxTrees::new(Default::default());

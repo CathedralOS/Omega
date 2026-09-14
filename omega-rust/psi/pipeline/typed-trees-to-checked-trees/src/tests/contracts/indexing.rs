@@ -258,6 +258,7 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         termination_guarantee: language_semantics::TerminationGuarantee::NoGuarantee,
+        where_facts: Default::default(),
     };
     program.push_state_signature_contract(
         &mut signature,
@@ -489,6 +490,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         termination_guarantee: language_semantics::TerminationGuarantee::NoGuarantee,
+        where_facts: Default::default(),
     };
     program.push_state_signature_contract(
         &mut signature,

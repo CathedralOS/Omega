@@ -58,6 +58,10 @@ pub struct StateSignatureStorage {
     /// conformance. Populated at the syntax->resolved lowering, copied --
     /// never re-derived -- downstream.
     pub terminates_guarantee: bool,
+    /// Signature-level `where` proof facts. A finite generic method family is
+    /// authored here as one explicit disjunction of complete value-binder
+    /// equalities; other fact shapes remain ordinary proof facts.
+    pub where_facts: HandleSpan<crate::domain::ProofFact>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
