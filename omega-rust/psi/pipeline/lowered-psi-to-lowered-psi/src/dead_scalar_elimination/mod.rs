@@ -4,7 +4,9 @@
 //! before/after relation and proof questions. Proof-bearing closures remain
 //! unchanged until proof-context transport is implemented, not silently re-proved.
 //! Unused scalar block parameters are removed together with their dead
-//! results, dropping the matching edge-argument positions.
+//! results, dropping the matching edge-argument positions. Ranking evidence
+//! names exact values and covered member parameter tables: those stay live
+//! while dead work outside the covered components still leaves.
 
 mod liveness;
 

@@ -163,3 +163,73 @@ fn elimination_prunes_removed_value_and_operation_debug_sites() {
         terminal_codec::terminal_psi_identity(&optimized.lowered().semantic_module).unwrap()
     );
 }
+
+#[test]
+fn ranked_machine_eliminates_outside_the_covered_component() {
+    // The `Natural` row covers member block b3's parameter table and named
+    // values. The merge's dead parameter drops with its edge positions, dead
+    // producers in the entry die, and the covered block's parameters — even
+    // the unused copy-shaped v32 — stay live.
+    let lowered = common::ranked_cycle_fixture();
+    let optimized =
+        run_psi_optimization(lowered.clone(), selections()).expect("elimination executes");
+    let machine = &optimized.lowered().semantic_module.machines[0];
+
+    let merge = &machine.blocks[1];
+    assert_eq!(
+        merge
+            .parameters
+            .iter()
+            .map(|parameter| parameter.id)
+            .collect::<Vec<_>>(),
+        vec![value(30)],
+        "the dead v31 drops outside the covered component"
+    );
+    let Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &machine.blocks[0].terminator
+    else {
+        panic!("the entry keeps its conditional")
+    };
+    assert_eq!(when_true.arguments, &[value(1)]);
+    assert_eq!(when_false.arguments, &[value(1)]);
+    assert_eq!(
+        machine.blocks[0]
+            .operations
+            .iter()
+            .map(|operation| operation.id)
+            .collect::<Vec<_>>(),
+        vec![common::operation_id(21)],
+        "v20 and v22 die; v21 stays live through the covered component"
+    );
+
+    let member = &machine.blocks[2];
+    assert_eq!(
+        member
+            .parameters
+            .iter()
+            .map(|parameter| parameter.id)
+            .collect::<Vec<_>>(),
+        vec![value(10), value(11), value(32)],
+        "the covered parameter table stays exact even for the unused v32"
+    );
+    assert_eq!(
+        member
+            .operations
+            .iter()
+            .map(|operation| operation.id)
+            .collect::<Vec<_>>(),
+        vec![common::operation_id(40), common::operation_id(41)],
+        "the duplicate constant inside the member is dead like any other"
+    );
+    let Terminator::Conditional { when_true, .. } = &member.terminator else {
+        panic!("the member keeps its conditional")
+    };
+    assert_eq!(when_true.arguments, &[value(41), value(11), value(21)]);
+    assert_eq!(
+        machine.ranked_scc, lowered.semantic_module.machines[0].ranked_scc,
+        "the ranking row is untouched"
+    );
+}

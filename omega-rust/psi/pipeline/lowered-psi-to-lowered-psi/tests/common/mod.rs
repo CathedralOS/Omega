@@ -17,12 +17,17 @@ use semantic_vocabulary::{
 use terminal_psi::{
     Block, DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
     DebugSourceSpan, DebugSubject, MachineContract, Operation, OperationKind, OperationResult,
-    ProofBundle, SuccessorEdge, TerminalDebugMap, TerminalMachine, TerminalMachineResult,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    ProofBundle, SuccessorEdge, TerminalBlockNaturalRank, TerminalDebugMap, TerminalMachine,
+    TerminalMachineResult, TerminalNaturalCycle, TerminalNaturalRankComparison,
+    TerminalNaturalRankEdge, TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
 };
 
 pub fn i32_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+}
+
+pub fn u32_type() -> ScalarType {
+    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
 }
 
 pub fn declaration(ordinal: u64, scalar_type: ScalarType) -> ValueDeclaration {
@@ -39,6 +44,45 @@ pub fn boolean(ordinal: u64) -> ValueDeclaration {
 
 pub fn i32(ordinal: u64) -> ValueDeclaration {
     declaration(ordinal, i32_type())
+}
+
+pub fn u32(ordinal: u64) -> ValueDeclaration {
+    declaration(ordinal, u32_type())
+}
+
+pub fn unsigned_constant(ordinal: u64, result: ValueDeclaration, value: u128) -> Operation {
+    operation(
+        ordinal,
+        result,
+        OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(value),
+        },
+    )
+}
+
+/// A `Natural` ranking row over the single-block cycle `member`: `rank` is
+/// the member's unsigned rank parameter and `successor` arrives at its
+/// parameter position through the covered self-edge `edge`.
+pub fn natural_self_loop(
+    member: BlockId,
+    rank: ValueId,
+    edge: EdgeId,
+    successor: ValueId,
+) -> TerminalRankedScc {
+    TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+        rank_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+        ranks: vec![TerminalBlockNaturalRank {
+            block: member,
+            value: rank,
+        }],
+        edges: vec![TerminalNaturalRankEdge {
+            edge,
+            source: member,
+            target: member,
+            successor_rank: successor,
+            comparison: TerminalNaturalRankComparison::Strict,
+        }],
+    }])
 }
 
 pub fn operation(ordinal: u64, result: ValueDeclaration, kind: OperationKind) -> Operation {
@@ -720,4 +764,114 @@ fn qualified_i32(ordinal: u64, set: u64) -> ValueDeclaration {
         id: ValueId::new(ordinal).unwrap(),
         scalar_type: i32_type(),
     }
+}
+
+/// Ranked-cycle fixture: a `Natural`-covered self-loop behind an acyclic
+/// merge, exercising what each rule may still rewrite on a ranked machine.
+///
+/// ```text
+/// b1 (entry): v20 = v1 + v1; v21 = v1 + v1; v22 = v1 + v1;
+///             cond v2 ──e1:t──▶ b2 [v1, v22]
+///                    └──e2:f──▶ b2 [v1, v22]
+/// b2 (v30, v31): ──e5:[v30, v2, v21]──▶ b3
+/// b3 (v10, v11, v32) [covered member]: v40 = 1u32; v42 = 1u32;
+///             v41 = v10 - v40;
+///             cond v11 ──e6:[v41, v11, v21]──▶ b3 (covered backedge)
+///                    └──e7───────────────────▶ b4
+/// b4: return
+/// ```
+///
+/// The row names member block `b3`, rank `v10`, covered edge `e6`, and
+/// successor `v41`. `v31` is dead on every edge; `v32` is a copy-shaped
+/// member parameter; `v22` is an ordinary duplicate; `v21` is a duplicate
+/// whose identity member contents still use.
+pub fn ranked_cycle_fixture() -> LoweredPsi {
+    let (b1, merge, member, exit) = (block_id(1), block_id(2), block_id(3), block_id(4));
+    let (v1, v2) = (value(1), value(2));
+    let (v10, v11) = (value(10), value(11));
+    let (v21, v22) = (value(21), value(22));
+    let v30 = value(30);
+    let (v40, v41) = (value(40), value(41));
+    let mut lowered = lowered(vec![machine(
+        1,
+        vec![u32(1), boolean(2)],
+        TerminalMachineResult::Unit,
+        b1,
+        vec![
+            block(
+                1,
+                Vec::new(),
+                vec![
+                    operation(
+                        20,
+                        u32(20),
+                        OperationKind::WrappingIntegerAdd {
+                            left: v1,
+                            right: v1,
+                        },
+                    ),
+                    operation(
+                        21,
+                        u32(21),
+                        OperationKind::WrappingIntegerAdd {
+                            left: v1,
+                            right: v1,
+                        },
+                    ),
+                    operation(
+                        22,
+                        u32(22),
+                        OperationKind::WrappingIntegerAdd {
+                            left: v1,
+                            right: v1,
+                        },
+                    ),
+                ],
+                conditional(
+                    v2,
+                    successor(1, merge, vec![v1, v22]),
+                    successor(2, merge, vec![v1, v22]),
+                ),
+            ),
+            block(
+                2,
+                vec![u32(30), u32(31)],
+                Vec::new(),
+                jump(5, member, vec![v30, v2, v21]),
+            ),
+            block(
+                3,
+                vec![u32(10), boolean(11), u32(32)],
+                vec![
+                    unsigned_constant(40, u32(40), 1),
+                    unsigned_constant(42, u32(42), 1),
+                    operation(
+                        41,
+                        u32(41),
+                        OperationKind::WrappingIntegerSubtract {
+                            left: v10,
+                            right: v40,
+                        },
+                    ),
+                ],
+                conditional(
+                    v11,
+                    successor(6, member, vec![v41, v11, v21]),
+                    successor(7, exit, vec![]),
+                ),
+            ),
+            block(
+                4,
+                Vec::new(),
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: edge(8),
+                    trivial_affine_discards: Vec::new(),
+                },
+            ),
+        ],
+    )]);
+    lowered.semantic_module.machines[0].ranked_scc =
+        Some(natural_self_loop(member, v10, edge(6), v41));
+    lowered
 }

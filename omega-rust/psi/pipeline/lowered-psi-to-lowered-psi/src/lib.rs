@@ -11,6 +11,7 @@ mod copy_propagation;
 mod dead_scalar_elimination;
 mod global_value_numbering;
 mod model;
+mod ranked;
 mod retained;
 mod sparse_conditional_constant_propagation;
 mod validation;

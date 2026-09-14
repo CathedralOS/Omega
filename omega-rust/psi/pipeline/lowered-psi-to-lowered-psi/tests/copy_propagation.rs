@@ -226,3 +226,64 @@ fn structurally_invalid_inputs_fail_before_rewrite() {
         Err(PsiOptimizationStageError::InvalidDebugMap(_))
     ));
 }
+
+#[test]
+fn ranked_machine_collapses_outside_copies_while_covered_coordinates_stay() {
+    // The validated `Natural` row covers member block b3 alone: its parameter
+    // table, covered backedge arguments, and named values stay exact. The
+    // merge's copy parameters are outside the covered component and collapse
+    // under the ordinary rule.
+    let lowered = common::ranked_cycle_fixture();
+    let optimized =
+        run_psi_optimization(lowered.clone(), selections()).expect("copy propagation executes");
+    let machine = &optimized.lowered().semantic_module.machines[0];
+
+    let merge = &machine.blocks[1];
+    assert!(
+        merge.parameters.is_empty(),
+        "both merge parameters were copies and collapse"
+    );
+    let Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &machine.blocks[0].terminator
+    else {
+        panic!("the entry keeps its conditional")
+    };
+    assert_eq!(when_true.arguments, &[]);
+    assert_eq!(when_false.arguments, &[]);
+    let Terminator::Jump { arguments, .. } = &merge.terminator else {
+        panic!("the merge keeps its jump")
+    };
+    assert_eq!(
+        arguments,
+        &[value(1), value(2), value(21)],
+        "the member edge substitutes the resolved sources"
+    );
+
+    let member = &machine.blocks[2];
+    assert_eq!(
+        member
+            .parameters
+            .iter()
+            .map(|parameter| parameter.id)
+            .collect::<Vec<_>>(),
+        vec![value(10), value(11), value(32)],
+        "the covered parameter table stays exact — copy-shaped v32 keeps its position"
+    );
+    let Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &member.terminator
+    else {
+        panic!("the member keeps its conditional")
+    };
+    assert_eq!(when_true.arguments, &[value(41), value(11), value(21)]);
+    assert_eq!(when_false.arguments, &[]);
+    assert_eq!(
+        machine.ranked_scc, lowered.semantic_module.machines[0].ranked_scc,
+        "the ranking row is untouched"
+    );
+}

@@ -15,10 +15,12 @@ pub(super) fn propagate(
     source_calls: &[lowered_psi::LoweredSourceCallOccurrence],
     retained_values: &mut BTreeSet<ValueId>,
 ) {
-    // Ranking evidence names exact parameters and edge-argument positions.
-    if machine.ranked_scc.is_some() {
-        return;
-    }
+    // Ranking evidence names exact parameters and edge-argument positions
+    // over the covered cyclic components: member parameter tables feed
+    // substitution positions, and covered values keep their identities.
+    // Blocks and parameters outside the covered components still collapse.
+    let coverage = crate::ranked::ranked_coverage(machine);
+    retained_values.extend(coverage.values.iter().copied());
     // Propositions carried by contracts, crash sites, and call continuations
     // keep the exact identities they mention: they are proof terms, not uses.
     for proposition in &machine.contract.requires {
@@ -95,6 +97,7 @@ pub(super) fn propagate(
     // edges and is not a structural-case payload target, whose bindings are
     // positional rather than listed arguments.
     let mut raw: BTreeMap<ValueId, Vec<ValueId>> = BTreeMap::new();
+    let mut covered_parameters: BTreeSet<ValueId> = BTreeSet::new();
     let mut declarations: BTreeMap<ValueId, ValueDeclaration> = BTreeMap::new();
     for parameter in &machine.parameters {
         declarations.insert(parameter.id, *parameter);
@@ -120,13 +123,22 @@ pub(super) fn propagate(
                     parameter.id,
                     edges.iter().map(|arguments| arguments[position]).collect(),
                 );
+                // Covered parameters join the resolution lattice so outside
+                // copies resolve through them exactly as the independent
+                // verifier's inventory does; only their collapse is frozen.
+                if coverage.blocks.contains(&block.id) {
+                    covered_parameters.insert(parameter.id);
+                }
             }
         }
     }
     let mut memo: BTreeMap<ValueId, ValueId> = BTreeMap::new();
     let mut collapse: BTreeMap<ValueId, ValueId> = BTreeMap::new();
     for parameter in raw.keys() {
-        if retained_values.contains(parameter) {
+        if covered_parameters.contains(parameter)
+            || retained_values.contains(parameter)
+            || coverage.member_uses.contains(parameter)
+        {
             continue;
         }
         let source = resolve(*parameter, &raw, &mut memo);
@@ -439,23 +451,102 @@ mod tests {
     }
 
     #[test]
-    fn ranked_machine_is_left_unchanged() {
+    fn covered_component_coordinates_stay_while_outside_copies_collapse() {
+        // b1 enters the covered self-loop member b2 carrying parameters r
+        // and w; w binds v1 on every incoming edge — copy-shaped — but b2's
+        // table is covered and stays. The exit block's parameter x is an
+        // ordinary copy and collapses, dropping the member's exit-edge
+        // argument position.
+        let rank_type =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 32)
+                .unwrap();
+        let rank_declaration = |ordinal: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: ValueId::new(ordinal).unwrap(),
+            scalar_type: ScalarType::Integer(rank_type),
+        };
         let mut machine = machine(vec![
-            block(1, vec![], jump(1, 2, vec![1])),
+            block(1, vec![], jump(1, 2, vec![1, 1])),
             block(
                 2,
-                vec![declaration(2)],
+                vec![rank_declaration(10), declaration(11)],
+                Terminator::Conditional {
+                    condition: ValueId::new(1).unwrap(),
+                    when_true: terminal_psi::SuccessorEdge {
+                        edge: EdgeId::new(2).unwrap(),
+                        target: BlockId::new(2).unwrap(),
+                        arguments: vec![ValueId::new(12).unwrap(), ValueId::new(1).unwrap()],
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                    when_false: terminal_psi::SuccessorEdge {
+                        edge: EdgeId::new(3).unwrap(),
+                        target: BlockId::new(3).unwrap(),
+                        arguments: vec![ValueId::new(1).unwrap()],
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ),
+            block(
+                3,
+                vec![declaration(13)],
                 Terminator::Return {
-                    edge: EdgeId::new(2).unwrap(),
-                    value: ValueId::new(2).unwrap(),
+                    edge: EdgeId::new(4).unwrap(),
+                    value: ValueId::new(13).unwrap(),
                     cleanup_actions: Vec::new(),
                 },
             ),
         ]);
-        machine.ranked_scc = Some(TerminalRankedScc::Natural(Vec::new()));
-        let before = machine.clone();
+        machine.ranked_scc = Some(TerminalRankedScc::Natural(vec![
+            terminal_psi::TerminalNaturalCycle {
+                rank_type,
+                ranks: vec![terminal_psi::TerminalBlockNaturalRank {
+                    block: BlockId::new(2).unwrap(),
+                    value: ValueId::new(10).unwrap(),
+                }],
+                edges: vec![terminal_psi::TerminalNaturalRankEdge {
+                    edge: EdgeId::new(2).unwrap(),
+                    source: BlockId::new(2).unwrap(),
+                    target: BlockId::new(2).unwrap(),
+                    successor_rank: ValueId::new(12).unwrap(),
+                    comparison: terminal_psi::TerminalNaturalRankComparison::Strict,
+                }],
+            },
+        ]));
         propagate(&mut machine, &[], &mut BTreeSet::new());
-        assert_eq!(machine, before, "ranking evidence freezes the machine");
+        let member = &machine.blocks[1];
+        assert_eq!(
+            parameter_ids(member),
+            vec![ValueId::new(10).unwrap(), ValueId::new(11).unwrap()],
+            "the covered parameter table stays exact even for copy-shaped w"
+        );
+        let Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } = &member.terminator
+        else {
+            panic!("the member keeps its conditional")
+        };
+        assert_eq!(
+            when_true.arguments,
+            vec![ValueId::new(12).unwrap(), ValueId::new(1).unwrap()],
+            "the covered backedge keeps its exact arguments"
+        );
+        assert_eq!(
+            when_false.arguments,
+            vec![],
+            "the exit edge drops the collapsed parameter's position"
+        );
+        assert!(
+            machine.blocks[2].parameters.is_empty(),
+            "the uncovered exit parameter collapses to v1"
+        );
+        let Terminator::Return { value, .. } = &machine.blocks[2].terminator else {
+            panic!("b3 keeps its return")
+        };
+        assert_eq!(*value, ValueId::new(1).unwrap());
     }
 
     #[test]
