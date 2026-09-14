@@ -216,6 +216,78 @@ mod tests {
     }
 
     #[test]
+    fn a_certificate_carries_dependent_two_elimination() {
+        let mut arena = TermArena::new();
+        // Γ = A : Type 0, B : Type 0, a : A, b : B, t : Two proves
+        // `caseTwo(C, a, b, t) : C t` for `C := λ(s:Two). caseTwo(M, A, B, s)`
+        // with `M := λ(_:Two). Type 0`. The family lands at A on `zero`
+        // and at B on `one`, so each branch is checked at a
+        // definitionally different type — the certificate carries the
+        // inductive profile's eliminator as data, and the kernel
+        // re-decides it.
+        let type_zero = type_sort(&mut arena, 0);
+        let a_binding = variable(&mut arena, 1);
+        let b_binding = variable(&mut arena, 1);
+        let two_binding = arena.insert(Term::Two);
+        // `M := λ(_:Two). Type 0` is closed.
+        let motive_domain = arena.insert(Term::Two);
+        let motive_body = type_sort(&mut arena, 0);
+        let motive = lambda(&mut arena, motive_domain, motive_body);
+        // C's body under its own binder (depth 6): A is index 5, B is
+        // index 4, s is index 0.
+        let a_under = variable(&mut arena, 5);
+        let b_under = variable(&mut arena, 4);
+        let s_under = variable(&mut arena, 0);
+        let family_body = arena.insert(Term::CaseTwo {
+            motive,
+            zero_branch: a_under,
+            one_branch: b_under,
+            scrutinee: s_under,
+        });
+        let family_domain = arena.insert(Term::Two);
+        let family = lambda(&mut arena, family_domain, family_body);
+        // The elimination in the full context: a is index 2, b is index
+        // 1, t is index 0.
+        let a_term = variable(&mut arena, 2);
+        let b_term = variable(&mut arena, 1);
+        let scrutinee = variable(&mut arena, 0);
+        let term = arena.insert(Term::CaseTwo {
+            motive: family,
+            zero_branch: a_term,
+            one_branch: b_term,
+            scrutinee,
+        });
+        let expected = arena.insert(Term::Apply {
+            function: family,
+            argument: scrutinee,
+        });
+        let certificate = MathematicalCertificate {
+            context: vec![type_zero, type_zero, a_binding, b_binding, two_binding],
+            term,
+            expected,
+        };
+        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+
+        // The same elimination at `zero`'s landing `C zero ≡ A` is not
+        // the claimed judgment: `C t` stays stuck on the neutral
+        // scrutinee and never collapses to either branch's type.
+        let zero = arena.insert(Term::TwoZero);
+        let wrong_expected = arena.insert(Term::Apply {
+            function: family,
+            argument: zero,
+        });
+        let certificate = MathematicalCertificate {
+            context: vec![type_zero, type_zero, a_binding, b_binding, two_binding],
+            term,
+            expected: wrong_expected,
+        };
+        assert!(matches!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::TypeMismatch { .. })
+        ));
+    }
+
+    #[test]
     fn strict_sorts_flow_through_the_certificate() {
         let mut arena = TermArena::new();
         // Γ = P : Strict 0, x : P. In the full context x's type is

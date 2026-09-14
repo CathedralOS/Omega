@@ -1215,9 +1215,24 @@ Owners include
   is reached. Tests witness both eta directions, strict-domain and
   dependent-codomain Π combinations, eta through dependent type
   arguments, the no-pointwise-collapse control, and refusal of the
-  wrapper rule at a non-function shared type. Next: level variables and
-  universe-polymorphic declarations, before connecting to source or a
-  theorem certificate.
+  wrapper rule at a non-function shared type.
+
+  Landed: the `Two` primitive — `Two : Type 0` with `zero`/`one`,
+  dependent `caseTwo(C, d0, d1, t)` checking `C` as a `Π(_ : Two).
+  Type w` family with `w` read from the checked codomain, and
+  definitional computation to `d0`/`d1` on each constructor under the
+  step ceiling. Strict-codomain and non-universe motives reject (boxing
+  owns strict targets); there is no `Two` eta. Certificates carry the
+  eliminator through the canonical wire (term tags 10-13) and re-verify
+  after decode. Tests witness formation and introduction, branches
+  checked at definitionally different constructor landings (large
+  elimination), constructor computation and its step-ceiling refusal,
+  stuck eliminations on neutral scrutinees, componentwise conversion of
+  stuck eliminations, strict/non-universe/wrong-domain motive and
+  non-`Two` scrutinee rejection, and that pointwise agreement on both
+  constructors grants no function equality. Next: relevant identity and
+  W formation/induction, then level variables and universe-polymorphic
+  declarations, before connecting to source or a theorem certificate.
 
   Implement the pinned reference core and selected
   [W-based profile](wiki/spec/proofs/inductive_profile.md): relevant identity,
