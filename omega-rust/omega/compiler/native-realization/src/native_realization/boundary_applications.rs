@@ -4,7 +4,7 @@ use boundary_applications::{
 };
 use diagnostics::Diagnostic;
 
-use super::diagnostics::realization_error;
+use super::realization_diagnostics::realization_error;
 
 pub(super) fn retain_boundary_application_coverage(
     artifact: &terminal_codec::CanonicalTerminalArtifact,

@@ -1,5 +1,7 @@
-use crate::native_realization::model::{NativeRealizationInput, NativeRealizationRequest};
 use crate::native_realization::providers::AdmittedTerminalMechanism;
+use crate::native_realization::realization_request::{
+    NativeRealizationInput, NativeRealizationRequest,
+};
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };

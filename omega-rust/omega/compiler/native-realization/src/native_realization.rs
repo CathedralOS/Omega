@@ -4,18 +4,18 @@
 //! Entry and callback adapters call this same lifecycle; selected optimizations do
 //! not choose a different publication route.
 
+mod artifact_assembly;
 mod boundary_applications;
 mod callback_custody;
-mod diagnostics;
-mod input;
-mod model;
-mod object;
+mod input_preparation;
+mod object_emission;
 mod optimization_stage;
 mod optimized_fragment_projection;
-mod output;
 mod physical_stage;
 mod program_entry;
 pub(crate) mod providers;
+mod realization_diagnostics;
+mod realization_request;
 mod target_stage;
 mod terminal_authority_permission_policy;
 mod terminal_authority_policy;
@@ -25,13 +25,13 @@ pub use callback_custody::{
     CallbackCustodyNativeRealizationError, RealizedNativeArtifactWithCallbackCustody,
     realize_native_artifact_with_callback_custody,
 };
-pub use input::{PreparedNativeRealizationInput, prepare_native_realization_input};
-pub use model::{
+pub use input_preparation::{PreparedNativeRealizationInput, prepare_native_realization_input};
+pub use program_entry::realize_program_entry_native_artifact;
+pub use realization_request::{
     NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
     NativeProviderSettlement, NativeRealizationRequest, RequestedNativeArtifact,
     RequestedNativeArtifactError, SettledNativeArtifact,
 };
-pub use program_entry::realize_program_entry_native_artifact;
 pub use terminal_authority_permission_policy::{
     MissingTerminalAuthorityPermission, TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
@@ -49,15 +49,15 @@ pub use terminal_authority_policy::{
     terminal_authority_policy_with_rows,
 };
 
-use ::diagnostics::Diagnostic;
+use diagnostics::Diagnostic;
 
 use self::{
+    artifact_assembly::assemble_requested_native_artifact,
     boundary_applications::retain_boundary_application_coverage,
-    diagnostics::realization_error,
-    input::lower_realization_input,
-    object::emit_realization_object,
-    output::assemble_requested_native_artifact,
+    input_preparation::lower_realization_input,
+    object_emission::emit_realization_object,
     providers::{AdmittedNativeProviders, admit_native_providers},
+    realization_diagnostics::realization_error,
 };
 
 /// Realize one Terminal artifact using explicit image, custody, and reuse inputs.

@@ -1,6 +1,16 @@
 use crate::optimized_semantic_wrapper_object::error::*;
+use crate::optimized_semantic_wrapper_object::model::WRAPPER_SYMBOL_NAME;
 use crate::optimized_semantic_wrapper_object::model::*;
-use crate::optimized_semantic_wrapper_object::shared::*;
+use isa_x86_64::{
+    X86_64_SEMANTIC_UNIT_WRAPPER_CALL_OPCODE_OFFSET,
+    X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT,
+    X86_64_SEMANTIC_UNIT_WRAPPER_NEXT_INSTRUCTION_OFFSET,
+    X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_OFFSET,
+    X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_WIDTH,
+};
+use object_file::{SectionKind, canonical_private_machine_symbol_name, section_name};
+use std::collections::BTreeSet;
+use target::{NativeTarget, ObjectFormat};
 
 pub(crate) fn validate_object(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,

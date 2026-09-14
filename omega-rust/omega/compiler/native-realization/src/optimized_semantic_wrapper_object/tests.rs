@@ -1,4 +1,5 @@
 use super::*;
+use crate::optimized_semantic_wrapper_object::model::WRAPPER_SYMBOL_NAME;
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
@@ -7,18 +8,33 @@ use effects::provider_plan::{
 };
 use language_semantics::{CarryPolicy, DomainPredicateBody};
 use object_file::{
+    ObjectLocalSymbolId, RelocationFreeObjectPlan, RelocationFreeObjectSymbolRole, SectionKind,
+    canonical_private_machine_symbol_name, section_name,
+};
+use object_file::{
     RelocationFreeFunctionSymbol, RelocationFreeObjectRelocationRequirements,
     RelocationFreeObjectSymbolLinkage, RelocationFreeObjectSymbolPolicy,
     RelocationFreeObjectTextSection,
+};
+use optimization_core::{
+    OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
 };
 use program_entry_plan::{
     ProgramEntryPhysicalContractPlan, ProgramEntrySourceExtentValueLayout,
     ProgramEntrySourceReceiverSignature, ProgramStorageEntryRootRole,
     SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan,
 };
+use program_entry_plan::{
+    bind_optimized_program_storage_semantic_entry_contract,
+    plan_optimized_program_storage_semantic_wrapper,
+};
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::FuelScheduleIdentity;
+use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
+use target::NativeTarget;
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 mod manifest_mutation_matrix;
 

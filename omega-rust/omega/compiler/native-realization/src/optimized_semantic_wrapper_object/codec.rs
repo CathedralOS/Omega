@@ -1,7 +1,17 @@
 use crate::optimized_semantic_wrapper_object::error::*;
 use crate::optimized_semantic_wrapper_object::model::*;
+use crate::optimized_semantic_wrapper_object::model::{CODEC_VERSION, CONTAINER_MAGIC};
 use crate::optimized_semantic_wrapper_object::object::validate_object;
-use crate::optimized_semantic_wrapper_object::shared::*;
+use object_file::ObjectLocalSymbolId;
+use optimization_core::{
+    OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectIdentity, RelocationFreeObjectContainerIdentity,
+    RelocationFreeObjectPlanIdentity,
+};
+use semantic_vocabulary::MachineId;
+use target::{NativeTarget, ObjectFormat};
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 pub fn encode_optimized_program_storage_semantic_wrapper_object(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,

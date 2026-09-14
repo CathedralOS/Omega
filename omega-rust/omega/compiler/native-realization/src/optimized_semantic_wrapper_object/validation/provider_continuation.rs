@@ -2,8 +2,11 @@ use super::super::error::{
     InstalledProgramStorageContinuationEvidenceError,
     OptimizedProgramStorageSemanticWrapperObjectError,
 };
-use super::super::shared::*;
 use legalized_operations::{LegalizedScalarArgument, NativeCallOrigin};
+use object_file::StagedValidatedOptimizedObjectArtifact;
+use selected_instructions::SelectedInstructionPlan;
+use semantic_vocabulary::MachineId;
+use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
 /// Replay the checked-provider half of the ProgramStorage join whenever the
 /// canonical child owns an installation. Synthetic encoding fixtures retain

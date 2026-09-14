@@ -9,7 +9,9 @@ mod settlements;
 #[cfg(test)]
 pub(crate) use adapters::project_selected_provider_adapters_for_requirements;
 
-use crate::native_realization::model::{NativeRealizationInput, NativeRealizationRequest};
+use crate::native_realization::realization_request::{
+    NativeRealizationInput, NativeRealizationRequest,
+};
 use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use diagnostics::Diagnostic;
 use native_artifact::NativeProviderExecution;
@@ -66,7 +68,7 @@ pub(crate) fn admit_native_providers<'request>(
                 .unwrap_or_default(),
         )
         .map_err(|error| {
-            crate::native_realization::diagnostics::realization_error(
+            crate::native_realization::realization_diagnostics::realization_error(
                 "terminal-authority closure review",
                 error,
             )

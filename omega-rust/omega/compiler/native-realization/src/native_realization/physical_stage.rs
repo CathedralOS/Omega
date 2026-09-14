@@ -1,9 +1,9 @@
 //! Complete one physical stage sequence before machine emission.
 
-use crate::native_realization::diagnostics::{
+use crate::native_realization::realization_diagnostics::{
     realization_error, selected_physical_pipeline_failed,
 };
-use crate::native_realization::model::NativeRealizationRequest;
+use crate::native_realization::realization_request::NativeRealizationRequest;
 use crate::native_realization::target_stage::NativeTargetStageResult;
 use diagnostics::Diagnostic;
 

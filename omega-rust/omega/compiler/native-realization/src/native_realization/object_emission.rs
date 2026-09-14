@@ -1,12 +1,14 @@
 //! One abstract-to-object sequence, independent of optimization selection.
 
-use crate::native_realization::diagnostics::realization_error;
-use crate::native_realization::model::{NativeRealizationInput, NativeRealizationRequest};
 use crate::native_realization::optimization_stage::lower_realization_optimization_stage;
 use crate::native_realization::optimized_fragment_projection::{
     OptimizedFragmentPublicationRequest, emit_optimized_fragments,
 };
 use crate::native_realization::physical_stage::lower_realization_physical_stage;
+use crate::native_realization::realization_diagnostics::realization_error;
+use crate::native_realization::realization_request::{
+    NativeRealizationInput, NativeRealizationRequest,
+};
 use crate::native_realization::target_stage::lower_realization_target_stage;
 use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use boundary_applications::TerminalBoundaryApplicationCoverage;

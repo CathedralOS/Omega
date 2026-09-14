@@ -1,4 +1,8 @@
-use super::shared::*;
+use crate::{
+    NativeProgramEntrySettlementError, OptimizedProgramStorageSemanticWrapperEncodingError,
+};
+use isa_x86_64::X86_64SemanticUnitWrapperResolutionError;
+use object_file::OptimizedObjectArtifactError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedProgramStorageSemanticWrapperObjectError {

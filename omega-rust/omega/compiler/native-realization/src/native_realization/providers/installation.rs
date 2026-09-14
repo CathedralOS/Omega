@@ -1,5 +1,7 @@
-use crate::native_realization::diagnostics::realization_error;
-use crate::native_realization::model::{NativeRealizationInput, NativeRealizationRequest};
+use crate::native_realization::realization_diagnostics::realization_error;
+use crate::native_realization::realization_request::{
+    NativeRealizationInput, NativeRealizationRequest,
+};
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 

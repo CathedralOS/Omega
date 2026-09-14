@@ -2060,7 +2060,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let realization_path = realization_root.with_extension("rs");
     let realization = std::fs::read_to_string(&realization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
-    let machine_code_path = realization_root.join("object.rs");
+    let machine_code_path = realization_root.join("object_emission.rs");
     let machine_code = std::fs::read_to_string(&machine_code_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", machine_code_path.display()));
     let optimization_stage_path = realization_root.join("optimization_stage.rs");
@@ -2090,10 +2090,10 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 optimized_fragment_projection_path.display()
             )
         });
-    let input_path = realization_root.join("input.rs");
+    let input_path = realization_root.join("input_preparation.rs");
     let input = std::fs::read_to_string(&input_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", input_path.display()));
-    let model_path = realization_root.join("model.rs");
+    let model_path = realization_root.join("realization_request.rs");
     let model = std::fs::read_to_string(&model_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", model_path.display()));
     let production_realization = format!(
@@ -2359,8 +2359,9 @@ fn component_candidate_replay_keeps_compact_identity_report_only() {
         root.join("omega-rust/omega/representations/effects/src/selected_provider_plans.rs");
     let effects = std::fs::read_to_string(&effects_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", effects_path.display()));
-    let producer_path =
-        root.join("omega-rust/omega/compiler/native-realization/src/native_realization/output.rs");
+    let producer_path = root.join(
+        "omega-rust/omega/compiler/native-realization/src/native_realization/artifact_assembly.rs",
+    );
     let producer = std::fs::read_to_string(&producer_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", producer_path.display()));
 

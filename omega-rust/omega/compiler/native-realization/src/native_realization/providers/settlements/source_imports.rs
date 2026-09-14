@@ -2,8 +2,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::native_realization::model::{NativeBoundaryRealization, NativeProviderSettlement};
 use crate::native_realization::providers::AdmittedTerminalMechanism;
+use crate::native_realization::realization_request::{
+    NativeBoundaryRealization, NativeProviderSettlement,
+};
 use abstract_operations_to_target_operations::AdmittedNativeCallbackArgument;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};

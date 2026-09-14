@@ -1,3 +1,7 @@
+//! The realization request and settlement vocabulary: boundary, provider,
+//! builtin, and callback-thunk settlements, the request itself, and the
+//! requested or settled artifact results.
+
 use crate::entry_settlement::{
     NativeProgramEntrySettlement, ValidatedNativeProgramEntrySettlement,
 };
@@ -82,7 +86,7 @@ pub struct NativeRealizationRequest<'request> {
     pub checked_scope:
         Option<&'request lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
     /// Optional target-neutral reuse; exact artifact/profile/selection equality is rechecked.
-    pub prepared_input: Option<&'request super::input::PreparedNativeRealizationInput>,
+    pub prepared_input: Option<&'request super::input_preparation::PreparedNativeRealizationInput>,
     pub profile: &'request proof_admission::AdmissionProfile,
     /// Receiving target policy used to classify every demanded compiler
     /// intrinsic before native settlement.

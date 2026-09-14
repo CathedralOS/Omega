@@ -34,7 +34,10 @@ pub(super) fn emit_optimized_fragments(
     let mut object =
         image_emission::build_function_fragment_object_artifact(std::sync::Arc::clone(&source))
             .map_err(|error| {
-                super::diagnostics::realization_error("fragment object publication", error)
+                super::realization_diagnostics::realization_error(
+                    "fragment object publication",
+                    error,
+                )
             })?;
     // The publication receipt retains the complete immutable object, including
     // entry metadata. Bind before capture; later equality must still reject
@@ -44,14 +47,17 @@ pub(super) fn emit_optimized_fragments(
             .storage_entry()
             .and_then(|storage| storage.physical_contract())
             .ok_or_else(|| {
-                super::diagnostics::realization_error(
+                super::realization_diagnostics::realization_error(
                     "ProgramEntry receiver provisioning",
                     "missing exact hosted physical contract",
                 )
             })?;
         let demand =
             image_emission::derive_stack_demand(&object, object.entry()).map_err(|error| {
-                super::diagnostics::realization_error("ProgramEntry receiver stack demand", error)
+                super::realization_diagnostics::realization_error(
+                    "ProgramEntry receiver stack demand",
+                    error,
+                )
             })?;
         image_emission::bind_macos_hosted_receiver(
             &mut object,
@@ -74,7 +80,7 @@ pub(super) fn emit_optimized_fragments(
                 &object,
             )
             .map_err(|error| {
-                super::diagnostics::realization_error(
+                super::realization_diagnostics::realization_error(
                     "fragment physical-evidence projection",
                     error,
                 )
@@ -90,14 +96,22 @@ pub(super) fn stage_fragment_object(
     emission: machine_emission::StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<object_file::StagedOptimizedRelocationFreeObjectContainer, Vec<Diagnostic>> {
     let emitted = machine_emission::stage_optimized_function_fragment_emission(emission).map_err(
-        |error| super::diagnostics::realization_error("function-fragment emission", error),
+        |error| {
+            super::realization_diagnostics::realization_error("function-fragment emission", error)
+        },
     )?;
     let applied =
         machine_emission::stage_function_fragment_frame_application(emitted).map_err(|error| {
-            super::diagnostics::realization_error("function-fragment frame application", error)
+            super::realization_diagnostics::realization_error(
+                "function-fragment frame application",
+                error,
+            )
         })?;
-    let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
-        .map_err(|error| super::diagnostics::realization_error("framed text placement", error))?;
-    object_file::stage_optimized_relocation_free_object_container(text)
-        .map_err(|error| super::diagnostics::realization_error("fragment object placement", error))
+    let text =
+        machine_emission::stage_optimized_fixed_frame_text_section(applied).map_err(|error| {
+            super::realization_diagnostics::realization_error("framed text placement", error)
+        })?;
+    object_file::stage_optimized_relocation_free_object_container(text).map_err(|error| {
+        super::realization_diagnostics::realization_error("fragment object placement", error)
+    })
 }

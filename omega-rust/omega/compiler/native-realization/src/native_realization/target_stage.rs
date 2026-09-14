@@ -4,9 +4,9 @@ mod output;
 
 pub(crate) use output::NativeTargetStageResult;
 
-use crate::native_realization::diagnostics::realization_error;
-use crate::native_realization::model::NativeRealizationRequest;
 use crate::native_realization::optimization_stage::NativeOptimizationStageResult;
+use crate::native_realization::realization_diagnostics::realization_error;
+use crate::native_realization::realization_request::NativeRealizationRequest;
 use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;

@@ -1,3 +1,5 @@
+//! Diagnostic constructors shared by every realization stage.
+
 use diagnostics::Diagnostic;
 
 pub(crate) fn realization_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {

@@ -3,7 +3,16 @@
 use super::super::*;
 use super::fixture::manifest_fixture;
 use crate::optimized_semantic_wrapper_object::object::validate_manifest;
+use object_file::ObjectLocalSymbolId;
+use optimization_core::{
+    OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
+};
 use target::{Architecture, ObjectFormat};
+use terminal_psi::SemanticFingerprint;
 
 type ManifestMutation = fn(&mut OptimizedProgramStorageSemanticWrapperObjectManifest);
 
