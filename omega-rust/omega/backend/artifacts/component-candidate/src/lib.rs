@@ -10,6 +10,23 @@
 //! The stack row describes the internal body closure only: it grants no
 //! provision, lease, installed-root admission, or external-entry headroom.
 
+pub mod component_description;
+pub mod component_verification;
+
+pub use component_description::{
+    COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescription, ComponentDescriptionFacts,
+    ComponentEntry, ComponentEntryKind, CustodyConstraint, CustodyEvidence, CustodyKind,
+    DescribeError, DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface,
+    ImportSlot, InstallationObligation, ObligationKind, OutgoingAuthority, OutgoingAuthorityClass,
+    OutgoingEvidence, RetainedProvider, component_description_identity,
+    decode_component_description, describe_component, describe_component_facts,
+    description_subject, encode_component_description, port_mechanism_assumption,
+    requirement_contract_identity,
+};
+pub use component_verification::{
+    ComponentVerificationRejection, ComponentVerificationRequest, VerifiedComponent,
+    verify_component,
+};
 pub use native_artifact::{
     NativeArtifact, NativeArtifactParts, NativeProviderExecution,
     NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
