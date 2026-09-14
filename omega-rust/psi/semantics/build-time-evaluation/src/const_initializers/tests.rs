@@ -115,6 +115,63 @@ fn concrete_invocation_rejects_undischarged_published_routes_before_interpretati
 }
 
 #[test]
+fn concrete_invocation_discharges_arithmetic_guards_from_checked_evidence() {
+    // The forwarding body passes an arithmetic actual. The published guard
+    // retains that expression over entry values, and the checked scalar
+    // channel decides it once the outer concrete call supplies the binding;
+    // interpretation success alone cannot establish this safety.
+    let evaluated = evaluate(
+        "machine divide(value: u64) -> u64
+        crashes Trap value == 0
+        { transition { value != 0 -> 10 / value } crash Trap; }
+        machine forward(value: u64) -> u64 { divide(value - 1) }
+        machine product(value: u64) -> u64 { divide(value * 2) }
+        const DIVIDED: u64 = forward(3);
+        const PRODUCT: u64 = product(1);",
+    )
+    .expect("concrete arguments discharge arithmetic guard evidence");
+    integer_encoding(&evaluated, "DIVIDED", 5);
+    integer_encoding(&evaluated, "PRODUCT", 5);
+}
+
+#[test]
+fn concrete_invocation_rejects_arithmetic_guards_that_hold_or_trap() {
+    for source in [
+        // `1 - 1` lands on the guarded divisor: the Trap route is confirmed.
+        "machine divide(value: u64) -> u64
+        crashes Trap value == 0
+        { transition { value != 0 -> 10 / value } crash Trap; }
+        machine forward(value: u64) -> u64 { divide(value - 1) }
+        const UNUSED: u64 = forward(1);",
+        // The exact subtraction itself traps before the callee is reached;
+        // the caller's own recorded cause keeps the invocation refused.
+        "machine divide(value: u64) -> u64
+        crashes Trap value == 0
+        { transition { value != 0 -> 10 / value } crash Trap; }
+        machine forward(value: u64) -> u64 { divide(value - 1) }
+        const UNUSED: u64 = forward(0);",
+        // An operand with no entry-value custody keeps no provable origin.
+        // `hidden(0)` would interpret to a safe `divide(1)`, but a call
+        // result is not checked evidence and the guarded Trap must survive.
+        "machine divide(value: u64) -> u64
+        crashes Trap value == 0
+        { transition { value != 0 -> 10 / value } crash Trap; }
+        machine hidden(value: u64) -> u64 { 1 }
+        machine forward(value: u64) -> u64 { divide(hidden(value)) }
+        const UNUSED: u64 = forward(0);",
+    ] {
+        let diagnostics = evaluate(source)
+            .expect_err("arithmetic guard evidence must not be invented from interpretation");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("retains unhandled")),
+            "must reject through admission, not an interpreter failure: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn ordinary_machine_initializers_retain_calls_and_exact_scalar_composition() {
     let evaluated = evaluate(
         "machine size() -> u64 { 7 }
