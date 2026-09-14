@@ -3,7 +3,11 @@
 use diagnostics::Diagnostic;
 
 pub(super) struct OptimizedFragmentPublicationRequest<'request> {
-    pub(super) hosted_receiver: Option<crate::NativeProgramEntrySettlement<'request>>,
+    /// The validated admission custody the binder must satisfy exactly. This
+    /// is the replayed settlement, not the caller-supplied declaration: its
+    /// source signature, storage contract, and Fused establishment roster were
+    /// already joined against the canonical artifact before reaching emission.
+    pub(super) hosted_receiver: Option<&'request crate::ValidatedNativeProgramEntrySettlement>,
     pub(super) boundary_application_coverage:
         Option<&'request boundary_applications::TerminalBoundaryApplicationCoverage>,
 }

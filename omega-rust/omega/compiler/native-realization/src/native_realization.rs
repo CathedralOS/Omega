@@ -106,7 +106,7 @@ fn realize_image(
         Some(prepared) => prepared.reopen(&artifact, request)?,
         None => lower_realization_input(semantic_bytes, proof_bytes, request.profile)?,
     };
-    let provision_receiver = validate_executable_entry_receiver(
+    let receiver_settlement = validate_executable_entry_receiver(
         input.plan(),
         input.context().module(),
         &artifact,
@@ -131,9 +131,10 @@ fn realize_image(
         installation,
         &settlements,
         boundary_application_coverage.as_ref(),
-        provision_receiver.then_some(request.program_entry),
+        receiver_settlement.as_ref(),
         request,
     )?;
+    validate_emitted_receiver_binding(&emitted.object, receiver_settlement.as_ref())?;
     assemble_requested_native_artifact(
         artifact,
         emitted.object,
@@ -153,7 +154,7 @@ fn validate_executable_entry_receiver(
     terminal: &terminal_psi::TerminalModule,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
-) -> Result<bool, Vec<Diagnostic>> {
+) -> Result<Option<crate::ValidatedNativeProgramEntrySettlement>, Vec<Diagnostic>> {
     // Settlement retains the entry declaration, not an installed receiver.
     // Every route through realize_image emits an executable image; callable
     // lowering and explicit semantic wrappers retain their own boundaries.
@@ -189,7 +190,7 @@ fn validate_executable_entry_receiver(
                 "lowered entry does not preserve the source-selected receiver mode",
             ));
         }
-        return Ok(false);
+        return Ok(None);
     }
     if !has_receiver {
         // Erasure removes the borrow parameter, not the source owner's
@@ -241,7 +242,7 @@ fn validate_executable_entry_receiver(
         // Source ZII/no-code disposal and the exact erased projection have
         // been replayed. No physical receiver argument or storage is needed;
         // Fused establishment is still checked independently before this call.
-        return Ok(false);
+        return Ok(None);
     }
     if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
         return Err(realization_error(
@@ -249,10 +250,52 @@ fn validate_executable_entry_receiver(
             "hosted private-stack entry does not yet admit callback occupancy",
         ));
     }
-    // This only permits physical construction to begin. The object binder and
+    // This only permits physical construction to begin. The validated
+    // settlement is the demand the object binder must satisfy exactly, and the
     // final image replay must still prove the disjoint backing, exact entry
     // pointer, stack switch, and normal-return continuation before publication.
-    Ok(true)
+    Ok(Some(settled))
+}
+
+/// Admission is demand, not construction. The emitted object must carry a
+/// hosted receiver binding iff one was admitted, and that binding must be the
+/// validated settlement's exact source signature and physical contract — a
+/// missing binding is bypassed provisioning, and a substituted one binds a
+/// different continuation, receiver, or arrival contract than the checked
+/// source selected.
+fn validate_emitted_receiver_binding(
+    object: &image_emission::ObjectArtifact,
+    admitted: Option<&crate::ValidatedNativeProgramEntrySettlement>,
+) -> Result<(), Vec<Diagnostic>> {
+    let binding = object.hosted_receiver_binding();
+    let Some(settlement) = admitted else {
+        return if binding.is_none() {
+            Ok(())
+        } else {
+            Err(realization_error(
+                "ProgramEntry receiver provisioning",
+                "emitted object carries a hosted receiver binding that admission never granted",
+            ))
+        };
+    };
+    let Some(binding) = binding else {
+        return Err(realization_error(
+            "ProgramEntry receiver provisioning",
+            "admitted receiver provisioning did not reach the emitted object",
+        ));
+    };
+    let admitted_contract = settlement
+        .storage_entry()
+        .and_then(|storage| storage.physical_contract());
+    if binding.source() != settlement.source()
+        || admitted_contract != Some(binding.physical_contract())
+    {
+        return Err(realization_error(
+            "ProgramEntry receiver provisioning",
+            "emitted hosted receiver binding does not carry the admitted source signature and physical contract",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
