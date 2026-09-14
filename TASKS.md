@@ -1721,6 +1721,21 @@ Owners include
   backing, policy, installation, and teardown in Omega source. Existing numeric
   page-walk validation grants no mapping authority. Acceptance: QEMU installs
   and tears down Cathedral-owned mappings with explicit Extent and TLB custody.
+  Checked-semantics slice landed at 61d2b4664c:
+  `tests/omega/pass/memory/address_translation_canary` drives a
+  `TranslationAuthority` boundary contract through owned fixed placement
+  (`map` -> `Pending`, `activate` -> `Installed`, `unmap` -> reusable
+  `Granted` custody plus a linear `Shootdown` debt discharged only through
+  `Shootdown::discharge`), with fail canaries pinning source-custody
+  consumption, `Installed`-before-`unmap`, shootdown scope loss, and the
+  carrier's opaque construction (macOS arm64,
+  `OMEGA_PASS_CANARY_FILTER=address_translation_canary` /
+  `OMEGA_FAIL_CANARY_FILTER=translation_` under
+  `mbx nextest run -p compiler --test canary_suite`). Next surfaces:
+  borrowed-source custody, provider-visible obligation sets
+  (`TranslationInstallObligations`/`TranslationReleaseObligations` in
+  `psi/foundation/extents`), and a Cathedral package carrying real page-table
+  installation.
 
 - **EXCEPTION-ROOTS-AND-TIMER.** Materialize all fatal exception entries,
   dedicated critical stacks, IDT installation, and a minimal timer root whose
