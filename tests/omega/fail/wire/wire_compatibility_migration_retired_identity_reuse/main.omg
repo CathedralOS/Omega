@@ -1,0 +1,50 @@
+// Retired identities stay reserved across the whole selected route. The
+// bound lineage runs CounterV1 -> Counter -> CounterV3; `Counter` retires #2
+// and `CounterV3` redeclares it. `FormatMigration` adds no era discriminator
+// to the payload, so a reused number decodes stored old-era bytes under the
+// new meaning -- the CompleteMigration demand must reject rather than admit
+// the route.
+
+use omega_language_std::format_lineage;
+
+data ArchiveStore {
+}
+
+data CounterLineage {
+}
+
+data CounterV1 {
+    #1 counter: i32;
+    #2 legacy: i32;
+}
+
+data Counter {
+    #1 counter: i32;
+    retired #2;
+}
+
+data CounterV3 {
+    #1 counter: i32;
+    #2 nickname: i32;
+}
+
+machine Counter::from_v1(
+    old: CounterV1,
+    out: &mut Counter
+) satisfies FormatMigration<CounterLineage, CounterV1, Counter>::migrate {
+    out.counter = old.counter;
+}
+
+machine CounterV3::from_v2(
+    old: Counter,
+    out: &mut CounterV3
+) satisfies FormatMigration<CounterLineage, Counter, CounterV3>::migrate {
+    out.counter = old.counter;
+    out.nickname = 0;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

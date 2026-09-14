@@ -699,6 +699,45 @@ fn wire_compatibility_era_dispatch_is_policy_selected_not_declaration_order() {
     );
 }
 
+#[test]
+fn wire_compatibility_migration_rejects_retired_identity_reuse() {
+    // Retirement joins the selected route: `Counter` tombstones #2 between
+    // CounterV1 and CounterV3, and CounterV3 adds the never-published #3.
+    // A fresh identity keeps the CompleteMigration demand satisfied.
+    check_canary(&pass_canary(
+        fixture_roster::WIRE_COMPATIBILITY_MIGRATION_RETIRED_IDENTITY_FRESH,
+    ))
+    .expect(
+        "a route whose later era adds a fresh identity while an earlier era \
+         retired another stays satisfied",
+    );
+
+    // The same chain with CounterV3 redeclaring the retired #2 is not a sound
+    // historical migration: FormatMigration carries no era discriminator, so
+    // the reused number would decode old-era bytes under the new meaning.
+    let diagnostics = check_canary(&fail_canary(
+        fixture_roster::WIRE_COMPATIBILITY_MIGRATION_RETIRED_IDENTITY_REUSE,
+    ))
+    .expect_err("a route whose later era reuses a retired identity must be rejected");
+    let joined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        joined.contains(
+            "wire compatibility demand `ArchiveStore` is unsatisfied for local schema \
+             `CounterV3` and peer schema `CounterV1`: migration coverage"
+        ),
+        "retired-identity reuse should fail the demand's migration coverage:\n{joined}"
+    );
+    assert!(
+        joined.contains("redeclares stable identity #2 retired in era `Counter`"),
+        "the reuse diagnostic should name the redeclared identity and the \
+         era that retired it:\n{joined}"
+    );
+}
+
 // The canonical permission ledger must stay visible per event in the backend
 // report's Artifact Semantic Spine after surviving the full spine (checked
 // trees -> state graph -> control flow -> abstract -> target -> assigned ->

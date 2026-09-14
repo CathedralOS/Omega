@@ -305,9 +305,14 @@ fn compatibility_demand_report(
         &demand.peer_schema,
         &demand.local_schema,
     );
-    let migration_value =
-        local_schema.is_some() && peer_schema.is_some() && migration_route.is_some();
-    let migration_detail = match (local_schema, peer_schema, migration_route) {
+    let identity_reuse = migration_route
+        .as_ref()
+        .and_then(|route| retired_identity_reuse(typed, &route.eras));
+    let migration_value = local_schema.is_some()
+        && peer_schema.is_some()
+        && migration_route.is_some()
+        && identity_reuse.is_none();
+    let migration_detail = match (local_schema, peer_schema, &migration_route) {
         (None, _, _) | (_, None, _) => schema_selection_detail(&local, &peer, demand),
         (Some(_), Some(_), None) => {
             format!(
@@ -316,10 +321,12 @@ fn compatibility_demand_report(
             )
         }
         (Some(_), Some(_), Some(route)) => {
-            if route.is_empty() {
+            if let Some(reuse) = identity_reuse {
+                format!("the selected route is not a sound migration: {reuse}")
+            } else if route.machines.is_empty() {
                 "peer and local schemas are identical; no migration edge is needed".to_owned()
             } else {
-                format!("selected checked route: {}", route.join(" -> "))
+                format!("selected checked route: {}", route.machines.join(" -> "))
             }
         }
     };
@@ -521,6 +528,15 @@ fn resolve_declared_era(typed: &TypedTrees, requested: &str) -> Option<symbols::
     }
 }
 
+/// The selected migration route: the bound machine names in peer-to-local
+/// order for the report, plus the era declarations the route traverses,
+/// oldest first, so retirement obligations can be evaluated along the exact
+/// chain the policy selected.
+struct MigrationRoute {
+    machines: Vec<String>,
+    eras: Vec<symbols::SymbolHandle>,
+}
+
 /// The checked migration route between two explicitly selected eras. Edges
 /// are the machines bound to `FormatMigration<Lineage, Old, New>`; lineage,
 /// old, and new are compared by declaration symbol, never by leaf name, so a
@@ -531,12 +547,15 @@ fn migration_route(
     lineage: &str,
     peer: &str,
     local: &str,
-) -> Option<Vec<String>> {
+) -> Option<MigrationRoute> {
     let local_symbol = resolve_declared_era(typed, local)?;
     let peer_symbol = resolve_declared_era(typed, peer)?;
     let lineage_symbol = resolve_declared_era(typed, lineage)?;
     if peer_symbol == local_symbol {
-        return Some(Vec::new());
+        return Some(MigrationRoute {
+            machines: Vec::new(),
+            eras: vec![local_symbol],
+        });
     }
     let mut edges = Vec::new();
     for machine in typed.machines() {
@@ -564,21 +583,182 @@ fn migration_route(
         }
     }
 
-    let mut frontier = vec![(peer_symbol, Vec::<String>::new())];
+    let mut frontier = vec![(peer_symbol, Vec::<String>::new(), vec![peer_symbol])];
     let mut visited = vec![peer_symbol];
-    while let Some((current, route)) = frontier.pop() {
+    while let Some((current, machines, eras)) = frontier.pop() {
         for (old, new, machine) in &edges {
             if *old != current {
                 continue;
             }
-            let mut next_route = route.clone();
-            next_route.push(machine.clone());
+            let mut next_machines = machines.clone();
+            next_machines.push(machine.clone());
+            let mut next_eras = eras.clone();
+            next_eras.push(*new);
             if *new == local_symbol {
-                return Some(next_route);
+                return Some(MigrationRoute {
+                    machines: next_machines,
+                    eras: next_eras,
+                });
             }
             if !visited.contains(new) {
                 visited.push(*new);
-                frontier.push((*new, next_route));
+                frontier.push((*new, next_machines, next_eras));
+            }
+        }
+    }
+    None
+}
+
+/// One numbering scope inside a published era, matching the parser's
+/// declaration rules: record fields number independently of sum cases (mixed
+/// data keeps both spaces and cannot tombstone), and each numbered case owns
+/// a payload scope keyed by the case's stable identity.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum IdentityScope {
+    Fields,
+    Cases,
+    Payload(u64),
+}
+
+/// One era's live and retired stable identities inside one numbering scope.
+struct NumberScope {
+    key: IdentityScope,
+    live: Vec<u64>,
+    retired: Vec<u64>,
+}
+
+/// The numbered scopes one era publishes: a field scope, a case scope, and a
+/// payload scope per numbered case. Every era emits both member scopes even
+/// when one stays empty, so a shape change on the route still observes the
+/// dropped identities as retirements. `retired #N;` joins the field scope
+/// when the era declares no cases and the case scope when it declares no
+/// fields -- the parser's own attribution, which covers both scopes for a
+/// tombstone-only era. Returns `None` when the route's era is not an ordinary
+/// data declaration -- such an era declares no stable identities, so it can
+/// neither retire nor reuse one.
+fn era_number_scopes(
+    typed: &TypedTrees,
+    era: symbols::SymbolHandle,
+) -> Option<(String, Vec<NumberScope>)> {
+    let definition = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == era)?;
+    let members = typed.data_members(definition);
+    let has_fields = members
+        .iter()
+        .any(|member| matches!(member, typed_trees::data::DataMember::Field(_)));
+    let has_cases = members
+        .iter()
+        .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)));
+    let mut scopes = vec![
+        NumberScope {
+            key: IdentityScope::Fields,
+            live: Vec::new(),
+            retired: if has_cases {
+                Vec::new()
+            } else {
+                definition.retired_identities.clone()
+            },
+        },
+        NumberScope {
+            key: IdentityScope::Cases,
+            live: Vec::new(),
+            retired: if has_fields {
+                Vec::new()
+            } else {
+                definition.retired_identities.clone()
+            },
+        },
+    ];
+    for member in members {
+        match member {
+            typed_trees::data::DataMember::Field(field) => {
+                if let Some(identity) = field.identity {
+                    scopes[0].live.push(identity);
+                }
+            }
+            typed_trees::data::DataMember::Variant(variant) => {
+                if let Some(identity) = variant.identity {
+                    scopes[1].live.push(identity);
+                    scopes.push(NumberScope {
+                        key: IdentityScope::Payload(identity),
+                        live: typed
+                            .data_payload_fields(variant)
+                            .iter()
+                            .filter_map(|field| field.identity)
+                            .collect(),
+                        retired: variant.retired_payload_identities.clone(),
+                    });
+                }
+            }
+        }
+    }
+    Some((
+        qualified_schema_path(typed, era, definition.name.as_str()),
+        scopes,
+    ))
+}
+
+/// Retirement joins the selected route: an era retires a stable identity by
+/// tombstoning it (`retired #N;`) or by dropping it from the published shape
+/// the previous era on the route carried. Either way the identity is dead to
+/// the lineage from that era on -- `FormatMigration` adds no era
+/// discriminator to the payload, so a later era redeclaring the number would
+/// decode stored old-era bytes under the new meaning. Returns the first reuse
+/// found along the chain, or `None` when every era's identities are fresh.
+fn retired_identity_reuse(typed: &TypedTrees, eras: &[symbols::SymbolHandle]) -> Option<String> {
+    let mut retired: Vec<(IdentityScope, u64, String)> = Vec::new();
+    let mut previous_live: Vec<(IdentityScope, Vec<u64>)> = Vec::new();
+    for era in eras {
+        let Some((era_name, scopes)) = era_number_scopes(typed, *era) else {
+            continue;
+        };
+        for scope in &scopes {
+            for identity in &scope.live {
+                if let Some((_, _, retiring)) = retired
+                    .iter()
+                    .find(|(key, candidate, _)| *key == scope.key && candidate == identity)
+                {
+                    return Some(match scope.key {
+                        IdentityScope::Fields => format!(
+                            "era `{era_name}` redeclares stable identity #{identity} retired in era `{retiring}`"
+                        ),
+                        IdentityScope::Cases => format!(
+                            "era `{era_name}` redeclares stable case identity #{identity} retired in era `{retiring}`"
+                        ),
+                        IdentityScope::Payload(case) => format!(
+                            "era `{era_name}` redeclares stable payload identity #{identity} of case #{case} retired in era `{retiring}`"
+                        ),
+                    });
+                }
+            }
+        }
+        for scope in &scopes {
+            for identity in &scope.retired {
+                if !retired
+                    .iter()
+                    .any(|(key, candidate, _)| *key == scope.key && candidate == identity)
+                {
+                    retired.push((scope.key, *identity, era_name.clone()));
+                }
+            }
+            if let Some((_, dropped)) = previous_live.iter().find(|(key, _)| *key == scope.key) {
+                for identity in dropped {
+                    if !scope.live.contains(identity)
+                        && !retired
+                            .iter()
+                            .any(|(key, candidate, _)| *key == scope.key && candidate == identity)
+                    {
+                        retired.push((scope.key, *identity, era_name.clone()));
+                    }
+                }
+            }
+        }
+        for scope in scopes {
+            match previous_live.iter_mut().find(|(key, _)| *key == scope.key) {
+                Some((_, live)) => *live = scope.live,
+                None => previous_live.push((scope.key, scope.live)),
             }
         }
     }

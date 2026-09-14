@@ -1655,48 +1655,6 @@ Owners include
 
 ## Parallel language and compiler lanes
 
-- **CODEC-LINEAGE-CLOSURE.** Complete policy-selected historical compatibility
-  over immutable ordinary data under [codec durability and historical lineages](wiki/spec/layouts/codecs.md).
-  Owners: `validation/src/wire`, `build-time-evaluation/src/wire_plans.rs`,
-  `compiler/src/pipeline/reporting/wire.rs`, and the ordinary
-  `FormatMigration<Lineage, Old, New>` library requirement. Current compatibility
-  demands and checked migration machines exist; historical dispatch and
-  retirement obligations must join the exact selected policy, published shapes,
-  and migration route. Nested `version` declarations are not that join.
-  Generated record codecs currently cannot establish whole-record `where`,
-  declared-property, lifetime, or sum obligations; keep those codec applications
-  rejected while the ordinary declarations remain usable.
-
-  Landed: `tests/omega/pass/wire/wire_compatibility_migration_across_shapes`
-  and `fail/wire/wire_compatibility_migration_route_missing` witness that a
-  `CompleteMigration` demand across differing eras is satisfied only by the
-  bound `FormatMigration` machine (`canary_suite
-  reports_and_capabilities::wire_compatibility_complete_migration_demand_needs_bound_lineage_route`,
-  Linux). `pass/wire/wire_compatibility_migration_{out_of_order_eras,
-  same_named_eras}` and `fail/wire/wire_compatibility_migration_{
-  same_named_route_missing,ambiguous_era}` witness era dispatch selected by
-  the policy's authored era paths rather than leaf names or declaration
-  order: demand paths resolve against qualified declaration paths, the route
-  binds declaration symbols, and bare names colliding across modules reject
-  as ambiguous (`canary_suite
-  reports_and_capabilities::wire_compatibility_era_dispatch_is_policy_selected_not_declaration_order`,
-  macOS). The codec-call surface now binds receivers by declaration identity
-  too: `module::Schema::encode`/`decode` resolve through the qualified
-  declaration path (`typed_trees::TypedTrees::wire_call_receiver_schema`),
-  wire validation claims the call before the state-receiver gate
-  (`validation/src/calls.rs`), and a bare leaf colliding across sibling
-  module schemas rejects as ambiguous
-  (`pass/wire/wire_codec_qualified_schema_calls`,
-  `fail/wire/wire_codec_{ambiguous_schema_receiver,schema_identity_buffer_bound}`,
-  macOS `--check`). Open: retired-identity reuse rejection.
-
-  Acceptance: an old/new ordinary declaration pair and explicitly selected
-  checked migration satisfy the requesting channel/store policy; missing routes
-  and retired-identity reuse reject where that policy requires them. Check era
-  dispatch chosen by the policy without implicit declaration-order versioning.
-  Preserve the distinction between current-shape codec roundtrip and historical
-  migration, plus decoder rejection when full destination validity is unproved.
-
 - **CASE-CONSTRAINTS.** Implement [case-local `where` constraints](wiki/spec/language/data_and_literals.md#case-constraints)
   for typed requests/IR and case-specific payload invariants. Psi owns parsing,
   resolved case contracts, generic substitution, construction checking,

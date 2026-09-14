@@ -1,0 +1,49 @@
+// A retired identity stays reserved while a FRESH identity remains legal:
+// the bound route CounterV1 -> Counter -> CounterV3 retires #2 at `Counter`
+// and `CounterV3` adds the never-published #3 instead of redeclaring #2. The
+// CompleteMigration demand is satisfied because no era on the route revives
+// a number an earlier era retired.
+
+use omega_language_std::format_lineage;
+
+data ArchiveStore {
+}
+
+data CounterLineage {
+}
+
+data CounterV1 {
+    #1 counter: i32;
+    #2 legacy: i32;
+}
+
+data Counter {
+    #1 counter: i32;
+    retired #2;
+}
+
+data CounterV3 {
+    #1 counter: i32;
+    #3 nickname: i32;
+}
+
+machine Counter::from_v1(
+    old: CounterV1,
+    out: &mut Counter
+) satisfies FormatMigration<CounterLineage, CounterV1, Counter>::migrate {
+    out.counter = old.counter;
+}
+
+machine CounterV3::from_v2(
+    old: Counter,
+    out: &mut CounterV3
+) satisfies FormatMigration<CounterLineage, Counter, CounterV3>::migrate {
+    out.counter = old.counter;
+    out.nickname = 0;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
