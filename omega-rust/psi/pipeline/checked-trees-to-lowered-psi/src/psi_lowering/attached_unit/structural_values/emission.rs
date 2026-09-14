@@ -1186,26 +1186,44 @@ impl Emission<'_, '_, '_> {
         let (root, root_type_identity, root_source) = match node.kind {
             CheckedStructuralValueKind::Place(argument) => {
                 let root_source = argument.source.clone();
-                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                    symbol,
-                } = root_source
-                else {
-                    return unsupported("projected selection root is not a structural local");
-                };
                 if !argument.path.is_empty()
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
                 {
                     return unsupported("projected selection root requires whole owned custody");
                 }
-                let place = self
-                    .evaluation
-                    .structural_locals
-                    .iter()
-                    .find(|(source, _)| *source == symbol)
-                    .map(|(_, argument)| argument.place)
-                    .ok_or(LoweringError::Unsupported(
-                        "projected selection root place missing",
-                    ))?;
+                // The root is an established local place or a whole-owned
+                // parameter's signature place; both arrive under
+                // `StructuralLocal`/`Parameter` source plans that
+                // `parameter_source` and the local namespace resolve exactly.
+                let place = match &root_source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol,
+                    } => match self
+                        .evaluation
+                        .structural_locals
+                        .iter()
+                        .find(|(source, _)| *source == *symbol)
+                        .map(|(_, argument)| argument.place)
+                    {
+                        Some(place) => place,
+                        None => {
+                            self.parameter_source(&argument)?
+                                .ok_or(LoweringError::Unsupported(
+                                    "projected selection root place missing",
+                                ))?
+                        }
+                    },
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        ..
+                    } => self
+                        .parameter_source(&argument)?
+                        .ok_or(LoweringError::Unsupported(
+                            "projected selection root place missing",
+                        ))?,
+                    _ => {
+                        return unsupported("projected selection root is not a structural local");
+                    }
+                };
                 if !self.sources.iter().any(|source| source.place == place) {
                     return unsupported(
                         "projected selection root is absent from its receipt sources",
@@ -1326,9 +1344,30 @@ impl Emission<'_, '_, '_> {
                 .iter()
                 .any(|source| source.place == owner.value.place)
             {
-                unselected.next().ok_or(LoweringError::Unsupported(
+                let residual = unselected.next().ok_or(LoweringError::Unsupported(
                     "owned selection residual sources do not cover their slots",
-                ))?
+                ))?;
+                // A residual slot carries the surviving source at the slot's
+                // own type. The roster's ordered complement can only rebind a
+                // source of the same type: on an edge selecting a later
+                // alternative the survivor sequence shifts, so a differently
+                // typed root would land in its sibling's slot. Reject that
+                // custody join here rather than emit an edge the terminal
+                // verifier must refuse.
+                let residual_type = self
+                    .owners
+                    .iter()
+                    .find(|candidate| candidate.value.place == residual)
+                    .map(|candidate| candidate.value.structural_type)
+                    .ok_or(LoweringError::Unsupported(
+                        "owned selection residual source has no frontier type",
+                    ))?;
+                if residual_type != owner.value.structural_type {
+                    return unsupported(
+                        "owned selection residual sources need uniform custody types",
+                    );
+                }
+                residual
             } else {
                 owner.value.place
             };

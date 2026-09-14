@@ -25,3 +25,28 @@ machine choose(selected: u64, left: Choice, right: Choice) -> bool {
     result in Choice::Some
 }
 
+data Payload { left: u64; right: u64; }
+
+data Pair { first: Payload; second: Payload; }
+
+// A projected parameter is the same once-evaluated owned root as a local:
+// the moved child owns the result slot while the root's residual complement
+// dies on the selected edge.
+machine peek(selected: bool, pair: Pair) -> u64 {
+    let result: Payload = match selected {
+        true -> pair.first,
+        false -> pair.second
+    };
+    result.left ^ result.right
+}
+
+// Two same-typed parameter roots keep the survivor in its residual slot on
+// whichever edge the other is selected; the tail-expression destination
+// carries the moved child without a local result binding.
+machine select_field(selected: bool, a: Pair, b: Pair) -> Payload {
+    match selected {
+        true -> a.first,
+        false -> b.second
+    }
+}
+

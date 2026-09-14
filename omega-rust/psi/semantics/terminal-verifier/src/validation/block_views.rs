@@ -155,14 +155,21 @@ pub(super) fn validate_successor(
             // A projected owned argument moves one affine child out of a live
             // root into the target's plain affine parameter. Only Jump edges
             // carry the residual evidence that closes the root; the path must
-            // resolve exactly to the declared child type.
+            // resolve exactly to the declared child type. A machine parameter
+            // root is established at entry and dominates every block, so it
+            // needs no `available` row — exactly as the whole-owned branch
+            // below already treats signature places.
             if !(allow_projected
                 && expected.access == StructuralAccess::Owned
                 && expected.multiplicity == StructuralMultiplicity::Affine
                 && expected.qualifications.is_empty()
                 && expected.projected_qualifications.is_empty()
                 && argument.access == StructuralAccess::Owned
-                && available.contains(&argument.place)
+                && (available.contains(&argument.place)
+                    || machine
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.place == argument.place))
                 && super::partial_affine::partial_affine_root_type(machine, argument.place)
                     .is_some_and(|root_type| {
                         super::foundation::resolve_structural_path(

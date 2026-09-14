@@ -1060,3 +1060,216 @@ fn owned_match_parameter_sources_reject_mutated_residual_cleanup() {
         );
     }
 }
+
+#[test]
+fn projected_parameter_roots_move_the_selected_child_with_exact_identity() {
+    let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
+    checked_trees_to_lowered_psi::lower_machine(&checked, "peek")
+        .expect("same-root projected parameter selection lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "select_field")
+        .expect("projected parameter selection lowers");
+    let semantic_bytes =
+        terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
+    let proof_bytes =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof");
+    let module = terminal_codec::decode_module(&semantic_bytes).expect("decode semantics");
+    let proof = terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof");
+    terminal_verifier::verify_module(&module, &proof, &super::AdmissionProfile::default())
+        .expect("independent projected-parameter verification");
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry");
+    // Each arm edge moves one child out of its parameter root: the moved path
+    // rides the result argument while the root's untouched sibling is that
+    // same edge's residual discard.
+    let projected = machine
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator {
+            terminal_psi::Terminator::Jump {
+                structural_arguments,
+                residual_affine_discards,
+                ..
+            } if structural_arguments
+                .iter()
+                .any(|argument| !argument.path.is_empty()) =>
+            {
+                Some((
+                    structural_arguments.clone(),
+                    residual_affine_discards.clone(),
+                ))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        projected.len(),
+        2,
+        "each arm edge moves its projected child"
+    );
+    for (arguments, residuals) in &projected {
+        let moved = arguments
+            .iter()
+            .find(|argument| !argument.path.is_empty())
+            .expect("one projected argument per edge");
+        assert_eq!(moved.access, terminal_psi::StructuralAccess::Owned);
+        assert!(
+            machine
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == moved.place),
+            "the moved root is a signature parameter"
+        );
+        assert_eq!(
+            residuals.len(),
+            1,
+            "the residual complement dies on the selected edge"
+        );
+        assert_eq!(residuals[0].place, moved.place);
+        assert_eq!(residuals[0].path.len(), 1);
+    }
+    let payload_type = machine
+        .result
+        .structural()
+        .expect("structural result")
+        .structural_type;
+    let arguments = machine
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(
+            |(index, parameter)| terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 0x5eed + index as u64,
+                structural_type: parameter.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            },
+        )
+        .collect::<Vec<_>>();
+    for (selected, root, field) in [(true, 0_usize, "first"), (false, 1, "second")] {
+        let execution =
+            terminal_interpreter::interpret_terminal_artifact_with_effect_handler_measured(
+                &semantic_bytes,
+                &proof_bytes,
+                &super::AdmissionProfile::default(),
+                &[TerminalScalarValue::Boolean(selected)],
+                &arguments,
+                &mut terminal_interpreter::AcceptTerminalEffects,
+            )
+            .expect("projected parameter execution");
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Structural(terminal_interpreter::TerminalStructuralResult {
+                value: terminal_interpreter::TerminalStructuralValue {
+                    opaque_identity: arguments[root].opaque_identity,
+                    structural_type: payload_type,
+                    qualifications: Vec::new(),
+                    path: vec![terminal_psi::StructuralPathSegment::Field(field.into())],
+                },
+                claims: Vec::new(),
+            }),
+            "selected={selected}: the result keeps the moved child's exact identity"
+        );
+    }
+}
+
+#[test]
+fn projected_parameter_roots_reject_mutated_residual_cleanup() {
+    let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "select_field")
+        .expect("projected parameter selection lowers");
+    for mutation in 0..2 {
+        let mut changed = lowered.semantic_module.clone();
+        let machine = changed
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == changed.entry)
+            .unwrap();
+        let mut touched = 0;
+        for block in &mut machine.blocks {
+            if let terminal_psi::Terminator::Jump {
+                structural_arguments,
+                residual_affine_discards,
+                ..
+            } = &mut block.terminator
+                && structural_arguments
+                    .iter()
+                    .any(|argument| !argument.path.is_empty())
+            {
+                match mutation {
+                    // The residual complement must die on this exact edge.
+                    0 => residual_affine_discards.clear(),
+                    // A whole binding cannot carry the moved child's custody.
+                    _ => structural_arguments
+                        .iter_mut()
+                        .for_each(|argument| argument.path.clear()),
+                }
+                touched += 1;
+            }
+        }
+        assert_eq!(touched, 2, "both arm edges carry projected custody");
+        assert!(
+            terminal_verifier::verify_module(
+                &changed,
+                &lowered.proof_bundle,
+                &super::AdmissionProfile::default()
+            )
+            .is_err(),
+            "projected parameter cleanup mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn heterogeneous_residual_sources_reject_the_custody_join() {
+    // A differently-typed survivor cannot rebind through its sibling's
+    // residual slot: on the edge that selects it the survivor sequence
+    // shifts, and the moved root would land in the wrong slot. Both the
+    // local and parameter forms keep a clean lowering rejection rather than
+    // emitting an edge the terminal verifier must refuse.
+    let local = r#"
+        data Payload { left: u64; right: u64; }
+        data Pair { first: Payload; second: Payload; }
+        machine choose(selected: bool) -> u64 {
+            let pair: Pair = Pair {
+                first: Payload { left: 3, right: 4 },
+                second: Payload { left: 5, right: 6 }
+            };
+            let fallback: Payload = Payload { left: 7, right: 8 };
+            let result: Payload = match selected {
+                true -> pair.first,
+                false -> fallback
+            };
+            result.left ^ result.right
+        }
+    "#;
+    let parameter = r#"
+        data Payload { left: u64; right: u64; }
+        data Pair { first: Payload; second: Payload; }
+        machine choose(selected: bool, pair: Pair, fallback: Payload) -> u64 {
+            let result: Payload = match selected {
+                true -> pair.first,
+                false -> fallback
+            };
+            result.left ^ result.right
+        }
+    "#;
+    for source in [local, parameter] {
+        let checked =
+            check_source(source).unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
+        let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+            .expect_err("heterogeneous residual custody stays rejected");
+        assert!(
+            matches!(
+                error,
+                checked_trees_to_lowered_psi::LoweringError::Unsupported(
+                    "owned selection residual sources need uniform custody types"
+                )
+            ),
+            "{error:?}"
+        );
+    }
+}
