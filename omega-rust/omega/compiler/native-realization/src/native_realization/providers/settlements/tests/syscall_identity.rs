@@ -1,4 +1,4 @@
-//! Checked direct-syscall mechanism derivation during provider settlement.
+//! Import coverage joins and checked direct-syscall mechanism derivation.
 
 use super::*;
 use crate::native_realization::providers::settlements::validate_source_evaluated_import_coverage;
@@ -121,6 +121,229 @@ fn external(
         boundary_entry_plan: None,
         binding: calling_conventions::ExternalBindingKind::Syscall { number },
     }
+}
+
+#[test]
+fn coverage_rejects_missing_and_duplicate_external_rows_before_policy_lookup() {
+    let profile = target::TargetProfile::LinuxX64;
+    let plan = abstract_plan();
+    let selected = syscall_plan(profile, 1);
+    let policy = crate::native_realization::current_terminal_authority_policy();
+    let external = external(profile, 1);
+    for (rows, count) in [(Vec::new(), 0), (vec![external.clone(), external], 2)] {
+        let error = validate_source_evaluated_import_coverage(
+            &plan,
+            &selected,
+            &policy,
+            profile.native_target(),
+            &rows,
+            &[],
+            &[],
+        )
+        .expect_err("external multiplicity is independently checked");
+        assert_eq!(
+            error[0].message,
+            format!(
+                "demanded syscall `{REQUIREMENT}` resolves to {count} retained external binding rows"
+            )
+        );
+    }
+}
+
+#[test]
+fn coverage_counts_uncalled_boundary_aliases_and_preserves_error_precedence() {
+    let profile = target::TargetProfile::LinuxX64;
+    let mut plan = abstract_plan();
+    let mut alias = plan.boundary_machines[0].clone();
+    alias.id = semantic_vocabulary::BoundaryMachineId::new(851).unwrap();
+    plan.boundary_machines.push(alias);
+    let selected = syscall_plan(profile, 1);
+    let policy = crate::native_realization::current_terminal_authority_policy();
+    for (number, expected) in [
+        (2, "substituted its normalized syscall number"),
+        (1, "resolves to 2 Terminal boundaries"),
+    ] {
+        let error = validate_source_evaluated_import_coverage(
+            &plan,
+            &selected,
+            &policy,
+            profile.native_target(),
+            &[external(profile, number)],
+            &[],
+            &[],
+        )
+        .expect_err("uncalled declarations still participate in exact boundary identity");
+        assert_eq!(
+            error[0].message,
+            format!("demanded syscall `{REQUIREMENT}` {expected}")
+        );
+    }
+}
+
+fn callback_occurrence_row(
+    operation: semantic_vocabulary::OperationId,
+) -> abstract_operations_to_target_operations::AdmittedNativeCallbackArgument {
+    let shape = calling_conventions::ValueShape::integer(8, 8);
+    let registrar = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        calling_conventions::CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
+        &calling_conventions::CallSignature {
+            parameters: vec![shape],
+            result: None,
+        },
+    )
+    .unwrap()
+    .plan()
+    .clone();
+    abstract_operations_to_target_operations::AdmittedNativeCallbackArgument {
+        terminal_operation: operation,
+        placement_index: 0,
+        callback_function: function_identity::MachineFunctionIdentity::callback_thunk(
+            function_identity::StateKey {
+                machine: symbols::SymbolHandle::from_parts(1, 1),
+                state: symbols::SymbolHandle::from_parts(2, 1),
+                segment_index: 0,
+            },
+            0,
+        )
+        .unwrap(),
+        application: calling_conventions::NativeParameterApplication {
+            parameter: calling_conventions::NativeParameterId::new(1).unwrap(),
+            native_ordinal: 0,
+            shape,
+            placement: registrar.call.parameters[0].clone(),
+        },
+        registrar_boundary_entry_plan: registrar,
+        registrar_context: calling_conventions::CallbackMaterializationContext::default(),
+        registrar_application_commitment: [1; 32],
+    }
+}
+
+#[test]
+fn coverage_callback_join_counts_duplicate_operations_and_keeps_callback_order() {
+    let mut plan = abstract_plan();
+    let operation = semantic_vocabulary::OperationId::new(850).unwrap();
+    let missing = semantic_vocabulary::OperationId::new(849).unwrap();
+    let selected = effects::SelectedProviderPlanFacts::default();
+    let policy = crate::native_realization::current_terminal_authority_policy();
+    let callback = callback_occurrence_row(operation);
+    validate_source_evaluated_import_coverage(
+        &plan,
+        &selected,
+        &policy,
+        target::NativeTarget::linux_x64(),
+        &[],
+        &[],
+        std::slice::from_ref(&callback),
+    )
+    .expect("one occurrence joins; this does not claim callback publication admission");
+    let duplicate = plan.functions[0].operations[0].clone();
+    plan.functions[0].operations.push(duplicate);
+    let absent = callback_occurrence_row(missing);
+    for (callbacks, rejected, count) in [
+        (vec![callback.clone(), absent.clone()], operation, 2),
+        (vec![absent, callback], missing, 0),
+    ] {
+        let error = validate_source_evaluated_import_coverage(
+            &plan,
+            &selected,
+            &policy,
+            target::NativeTarget::linux_x64(),
+            &[],
+            &[],
+            &callbacks,
+        )
+        .expect_err("callback rows retain input-order diagnostics despite sorted lookup keys");
+        assert_eq!(
+            error[0].message,
+            format!(
+                "native callback operation {} resolves to {count} abstract boundary calls during source-import coverage",
+                rejected.get(),
+            )
+        );
+    }
+}
+
+#[test]
+fn import_coverage_preserves_callback_multiplicity_and_registrar_plan_rejection() {
+    let profile = target::TargetProfile::LinuxX64;
+    let plan = abstract_plan();
+    let selected = effects::SelectedProviderPlanFacts::from_selected_plans(vec![import_plan(
+        b"leaf", profile,
+    )])
+    .unwrap();
+    let policy = crate::native_realization::current_terminal_authority_policy();
+    let callback = callback_occurrence_row(semantic_vocabulary::OperationId::new(850).unwrap());
+    let ProviderBinding::Import { evaluated } = &selected.plans()[0].rows[0].binding else {
+        panic!("fixture retains a normalized import")
+    };
+    let mut external = external(profile, 1);
+    external.binding = calling_conventions::ExternalBindingKind::Import {
+        locator: evaluated.locator().clone(),
+    };
+    external.boundary_entry_plan = Some(callback.registrar_boundary_entry_plan.clone());
+    let mut mismatched = callback.clone();
+    mismatched
+        .registrar_boundary_entry_plan
+        .call
+        .parameters
+        .clear();
+    for callbacks in [vec![callback.clone(), callback], vec![mismatched]] {
+        let error = validate_source_evaluated_import_coverage(
+            &plan,
+            &selected,
+            &policy,
+            profile.native_target(),
+            std::slice::from_ref(&external),
+            &[],
+            &callbacks,
+        )
+        .expect_err("one matching registrar plan remains mandatory after occurrence joins");
+        assert_eq!(
+            error[0].message,
+            format!(
+                "demanded normalized import `{REQUIREMENT}` has an invalid admitted implementation contract: retained implementation contract rejoins {} exact native callbacks with no unique matching registrar plan",
+                callbacks.len(),
+            )
+        );
+    }
+}
+
+#[test]
+fn uncalled_selected_import_needs_no_settlement_but_cannot_hide_an_orphan_callback() {
+    let profile = target::TargetProfile::LinuxX64;
+    let mut plan = abstract_plan();
+    plan.functions[0].operations.remove(0);
+    let selected = effects::SelectedProviderPlanFacts::from_selected_plans(vec![import_plan(
+        b"leaf", profile,
+    )])
+    .unwrap();
+    let policy = crate::native_realization::current_terminal_authority_policy();
+    let admitted = validate_source_evaluated_import_coverage(
+        &plan,
+        &selected,
+        &policy,
+        profile.native_target(),
+        &[],
+        &[],
+        &[],
+    )
+    .expect("unreachable selection retains identity without execution inputs");
+    assert!(admitted.is_empty());
+    let callback = callback_occurrence_row(semantic_vocabulary::OperationId::new(850).unwrap());
+    let error = validate_source_evaluated_import_coverage(
+        &plan,
+        &selected,
+        &policy,
+        profile.native_target(),
+        &[],
+        &[],
+        &[callback],
+    )
+    .expect_err("empty demand cannot hide an orphan callback occurrence");
+    assert_eq!(
+        error[0].message,
+        "native callback operation 850 resolves to 0 abstract boundary calls during source-import coverage"
+    );
 }
 
 #[test]

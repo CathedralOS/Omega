@@ -1,10 +1,24 @@
 //! Source-selected import and syscall demand to exact mechanism admission.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::native_realization::model::{NativeBoundaryRealization, NativeProviderSettlement};
 use crate::native_realization::providers::AdmittedTerminalMechanism;
+use abstract_operations_to_target_operations::AdmittedNativeCallbackArgument;
 use diagnostics::Diagnostic;
+use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use semantic_vocabulary::BoundaryMachineId;
+
+struct ImportCoverageRows<'input> {
+    boundary: BoundaryMachineId,
+    boundary_count: usize,
+    selected_count: usize,
+    selected_external: Option<(&'input ProviderPlan, &'input ProviderPlanRow)>,
+    external: Option<&'input calling_conventions::ExternalBindingRow>,
+    external_count: usize,
+    callback: Option<&'input AdmittedNativeCallbackArgument>,
+    callback_count: usize,
+}
 
 pub(super) fn validate_source_evaluated_import_coverage(
     plan: &abstract_operations::AbstractOperationPlan,
@@ -15,124 +29,32 @@ pub(super) fn validate_source_evaluated_import_coverage(
     settlements: &[NativeProviderSettlement<'_>],
     native_callbacks: &[abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
 ) -> Result<Vec<AdmittedTerminalMechanism>, Vec<Diagnostic>> {
-    let boundary_identities = plan
-        .boundary_machines
-        .iter()
-        .map(|boundary| (boundary.id, boundary.identity.as_str()))
-        .collect::<std::collections::BTreeMap<_, _>>();
-    let mut demanded = BTreeSet::new();
-    for operation in plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.operations)
-    {
-        let abstract_operations::AbstractOperation::BoundaryCall { boundary, .. } = operation
-        else {
-            continue;
-        };
-        let Some(requirement) = boundary_identities.get(boundary) else {
-            return Err(vec![Diagnostic::error(format!(
-                "external-binding demand cites absent boundary {boundary:?}"
-            ))]);
-        };
-        demanded.insert(*requirement);
-    }
-
-    let mut callbacks_by_requirement = std::collections::BTreeMap::<
-        &str,
-        Vec<&abstract_operations_to_target_operations::AdmittedNativeCallbackArgument>,
-    >::new();
-    for callback in native_callbacks {
-        let matching = plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.operations)
-            .filter_map(|operation| {
-                let abstract_operations::AbstractOperation::BoundaryCall {
-                    psi_operation,
-                    boundary,
-                    ..
-                } = operation
-                else {
-                    return None;
-                };
-                (*psi_operation == callback.terminal_operation).then_some(boundary)
-            })
-            .collect::<Vec<_>>();
-        let [boundary] = matching.as_slice() else {
-            return Err(vec![Diagnostic::error(format!(
-                "native callback operation {} resolves to {} abstract boundary calls during source-import coverage",
-                callback.terminal_operation.get(),
-                matching.len(),
-            ))]);
-        };
-        let requirement = boundary_identities.get(boundary).copied().ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "native callback operation {} cites absent boundary {:?}",
-                callback.terminal_operation.get(),
-                boundary,
-            ))]
-        })?;
-        callbacks_by_requirement
-            .entry(requirement)
-            .or_default()
-            .push(callback);
-    }
-
+    let demanded = join_import_coverage_rows(
+        plan,
+        selected_plans,
+        external_binding_rows,
+        native_callbacks,
+    )?;
     let mut required_imports = BTreeSet::new();
     let mut admitted_mechanisms = Vec::new();
-    for requirement in demanded {
-        let selected_rows = selected_plans
-            .plans()
-            .iter()
-            .flat_map(|provider_plan| {
-                provider_plan
-                    .rows
-                    .iter()
-                    .filter(move |row| row.requirement_identity == requirement)
-                    .map(move |row| (provider_plan, row))
-            })
-            .collect::<Vec<_>>();
-        if selected_rows.len() > 1 && selected_rows.iter().any(|(_, row)| {
-            matches!(
-                row.binding,
-                effects::provider_plan::ProviderBinding::Import { .. }
-                    | effects::provider_plan::ProviderBinding::Syscall { .. }
-                    | effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { .. }
-            )
-        }) {
+    for (requirement, rows) in demanded {
+        let Some((provider_plan, row)) = rows.selected_external else {
+            continue;
+        };
+        if rows.selected_count > 1 {
             return Err(vec![Diagnostic::error(format!(
                 "demanded external binding `{requirement}` resolves to {} selected provider rows",
-                selected_rows.len(),
+                rows.selected_count,
             ))]);
         }
-        if selected_rows.iter().any(|(_, row)| {
-            matches!(
-                row.binding,
-                effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { .. }
-            )
-        }) {
-            return Err(vec![Diagnostic::error(format!(
-                "demanded import `{requirement}` retains a legacy string-backed binding with no normalized terminal-mechanism identity"
-            ))]);
-        }
-        let syscall_matches = selected_rows
-            .iter()
-            .filter(|(_, row)| {
-                matches!(
-                    row.binding,
-                    effects::provider_plan::ProviderBinding::Syscall { .. }
-                )
-            })
-            .copied()
-            .collect::<Vec<_>>();
-        match syscall_matches.as_slice() {
-            [] => {}
-            [(provider_plan, row)] => {
-                let effects::provider_plan::ProviderBinding::Syscall { number } = row.binding
-                else {
-                    unreachable!("filtered syscall row")
-                };
+        match &row.binding {
+            ProviderBinding::StringBackedImportBootstrap { .. } => {
+                return Err(vec![Diagnostic::error(format!(
+                    "demanded import `{requirement}` retains a legacy string-backed binding with no normalized terminal-mechanism identity"
+                ))]);
+            }
+            ProviderBinding::Syscall { number } => {
+                let number = *number;
                 let target_profile =
                     target::TargetProfile::from_canonical_target_name(&provider_plan.target)
                         .map_err(|diagnostic| vec![diagnostic])?;
@@ -142,14 +64,10 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         provider_plan.target,
                     ))]);
                 }
-                let external_rows = external_binding_rows
-                    .iter()
-                    .filter(|external| external.requirement_identity == requirement)
-                    .collect::<Vec<_>>();
-                let [external] = external_rows.as_slice() else {
+                let Some(external) = rows.external.filter(|_| rows.external_count == 1) else {
                     return Err(vec![Diagnostic::error(format!(
                         "demanded syscall `{requirement}` resolves to {} retained external binding rows",
-                        external_rows.len(),
+                        rows.external_count,
                     ))]);
                 };
                 let calling_conventions::ExternalBindingKind::Syscall {
@@ -173,22 +91,17 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         "demanded syscall `{requirement}` substituted its normalized syscall number"
                     ))]);
                 }
-                let matching_boundaries = boundary_identities
-                    .iter()
-                    .filter(|(_, identity)| **identity == requirement)
-                    .map(|(boundary, _)| *boundary)
-                    .collect::<Vec<_>>();
-                let [boundary] = matching_boundaries.as_slice() else {
+                if rows.boundary_count != 1 {
                     return Err(vec![Diagnostic::error(format!(
                         "demanded syscall `{requirement}` resolves to {} Terminal boundaries",
-                        matching_boundaries.len(),
+                        rows.boundary_count,
                     ))]);
-                };
+                }
                 let mechanism = crate::native_realization::terminal_authority_policy::conservative_syscall_terminal_mechanism(
                     target_profile,
                     number,
                     plan,
-                    *boundary,
+                    rows.boundary,
                 )
                 .map_err(|error| {
                     vec![Diagnostic::error(format!(
@@ -203,48 +116,21 @@ pub(super) fn validate_source_evaluated_import_coverage(
                     ))]
                 })?;
                 admitted_mechanisms.push(AdmittedTerminalMechanism {
-                    boundary: *boundary,
+                    boundary: rows.boundary,
                     mechanism,
                 });
             }
-            matches => {
-                return Err(vec![Diagnostic::error(format!(
-                    "demanded syscall `{requirement}` resolves to {} selected syscall rows",
-                    matches.len(),
-                ))]);
-            }
-        }
-        let import_matches = selected_rows
-            .iter()
-            .filter(|(_, row)| {
-                matches!(
-                    row.binding,
-                    effects::provider_plan::ProviderBinding::Import { .. }
-                )
-            })
-            .copied()
-            .collect::<Vec<_>>();
-        match import_matches.as_slice() {
-            [] => {}
-            [(_provider_plan, row)] => {
-                let effects::provider_plan::ProviderBinding::Import { evaluated } = &row.binding
-                else {
-                    unreachable!("filtered import row")
-                };
+            ProviderBinding::Import { evaluated } => {
                 if evaluated.locator().target().native_target() != target {
                     return Err(vec![Diagnostic::error(format!(
                         "demanded normalized import `{requirement}` targets `{}` rather than the receiving native target",
                         evaluated.locator().target().target_name(),
                     ))]);
                 }
-                let external_rows = external_binding_rows
-                    .iter()
-                    .filter(|external| external.requirement_identity == requirement)
-                    .collect::<Vec<_>>();
-                let [external] = external_rows.as_slice() else {
+                let Some(external) = rows.external.filter(|_| rows.external_count == 1) else {
                     return Err(vec![Diagnostic::error(format!(
                         "demanded normalized import `{requirement}` resolves to {} retained external implementation contracts",
-                        external_rows.len(),
+                        rows.external_count,
                     ))]);
                 };
                 let (
@@ -263,16 +149,12 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         "demanded normalized import `{requirement}` substituted its retained external locator"
                     ))]);
                 }
-                let matching_callbacks = callbacks_by_requirement
-                    .get(requirement)
-                    .map(Vec::as_slice)
-                    .unwrap_or_default();
-                let mechanism = match matching_callbacks {
-                    [] => crate::native_realization::normalized_foreign_terminal_mechanism(
+                let mechanism = match (rows.callback_count, rows.callback) {
+                    (0, _) => crate::native_realization::normalized_foreign_terminal_mechanism(
                         evaluated.locator(),
                         boundary_entry_plan,
                     ),
-                    [callback]
+                    (1, Some(callback))
                         if callback.registrar_boundary_entry_plan == *boundary_entry_plan =>
                     {
                         crate::native_realization::normalized_foreign_terminal_mechanism_with_callback_materializations(
@@ -281,9 +163,9 @@ pub(super) fn validate_source_evaluated_import_coverage(
                             &callback.registrar_context,
                         )
                     }
-                    callbacks => Err(format!(
+                    (count, _) => Err(format!(
                         "retained implementation contract rejoins {} exact native callbacks with no unique matching registrar plan",
-                        callbacks.len(),
+                        count,
                     )),
                 }
                 .map_err(|error| {
@@ -298,29 +180,19 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         unclassified.mechanism(),
                     ))]
                 })?;
-                let matching_boundaries = boundary_identities
-                    .iter()
-                    .filter(|(_, identity)| **identity == requirement)
-                    .map(|(boundary, _)| *boundary)
-                    .collect::<Vec<_>>();
-                let [boundary] = matching_boundaries.as_slice() else {
+                if rows.boundary_count != 1 {
                     return Err(vec![Diagnostic::error(format!(
                         "demanded normalized import `{requirement}` resolves to {} Terminal boundaries",
-                        matching_boundaries.len()
+                        rows.boundary_count
                     ))]);
-                };
+                }
                 admitted_mechanisms.push(AdmittedTerminalMechanism {
-                    boundary: *boundary,
+                    boundary: rows.boundary,
                     mechanism,
                 });
                 required_imports.insert(requirement);
             }
-            matches => {
-                return Err(vec![Diagnostic::error(format!(
-                    "demanded source-evaluated import `{requirement}` resolves to {} selected import rows",
-                    matches.len()
-                ))]);
-            }
+            _ => {}
         }
     }
 
@@ -358,4 +230,126 @@ pub(super) fn validate_source_evaluated_import_coverage(
     }
     admitted_mechanisms.sort_by_key(|row| row.boundary);
     Ok(admitted_mechanisms)
+}
+
+/// Join only demanded requirements; counts retain malformed duplicate evidence
+/// without collecting temporary match vectors or changing diagnostic order.
+fn join_import_coverage_rows<'input>(
+    plan: &'input abstract_operations::AbstractOperationPlan,
+    selected_plans: &'input effects::SelectedProviderPlanFacts,
+    external_binding_rows: &'input [calling_conventions::ExternalBindingRow],
+    native_callbacks: &'input [AdmittedNativeCallbackArgument],
+) -> Result<BTreeMap<&'input str, ImportCoverageRows<'input>>, Vec<Diagnostic>> {
+    let boundary_identities = plan
+        .boundary_machines
+        .iter()
+        .map(|boundary| (boundary.id, boundary.identity.as_str()))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut demanded = BTreeMap::new();
+    // Only callbacks requested by this invocation need an occurrence join.
+    let mut callback_boundaries = native_callbacks
+        .iter()
+        .map(|callback| (callback.terminal_operation, None))
+        .collect::<BTreeMap<_, _>>();
+    for operation in plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+    {
+        let abstract_operations::AbstractOperation::BoundaryCall {
+            boundary,
+            psi_operation,
+            ..
+        } = operation
+        else {
+            continue;
+        };
+        let Some(requirement) = boundary_identities.get(boundary) else {
+            return Err(vec![Diagnostic::error(format!(
+                "external-binding demand cites absent boundary {boundary:?}"
+            ))]);
+        };
+        demanded
+            .entry(*requirement)
+            .or_insert_with(|| ImportCoverageRows {
+                boundary: *boundary,
+                boundary_count: 0,
+                selected_count: 0,
+                selected_external: None,
+                external: None,
+                external_count: 0,
+                callback: None,
+                callback_count: 0,
+            });
+        if let Some(matching) = callback_boundaries.get_mut(psi_operation) {
+            let (count, _) = matching.get_or_insert((0usize, *boundary));
+            *count += 1;
+        }
+    }
+
+    if demanded.is_empty() && native_callbacks.is_empty() {
+        return Ok(demanded);
+    }
+
+    let mut has_external_demand = false;
+    for provider_plan in selected_plans.plans() {
+        for row in &provider_plan.rows {
+            if let Some(rows) = demanded.get_mut(row.requirement_identity.as_str()) {
+                rows.selected_count += 1;
+                if matches!(
+                    row.binding,
+                    ProviderBinding::Import { .. }
+                        | ProviderBinding::Syscall { .. }
+                        | ProviderBinding::StringBackedImportBootstrap { .. }
+                ) {
+                    rows.selected_external = Some((provider_plan, row));
+                    has_external_demand = true;
+                }
+            }
+        }
+    }
+    if has_external_demand {
+        // Preserve the original last-declaration-wins boundary-ID association and
+        // count every distinct ID, including declarations without a call.
+        for (boundary, requirement) in &boundary_identities {
+            if let Some(rows) = demanded.get_mut(requirement) {
+                rows.boundary = *boundary;
+                rows.boundary_count += 1;
+            }
+        }
+        for external in external_binding_rows {
+            if let Some(rows) = demanded.get_mut(external.requirement_identity.as_str()) {
+                rows.external = Some(external);
+                rows.external_count += 1;
+            }
+        }
+    }
+
+    for callback in native_callbacks {
+        let matching = callback_boundaries
+            .get(&callback.terminal_operation)
+            .copied()
+            .flatten();
+        let count = matching.map_or(0, |(count, _)| count);
+        let Some((1, boundary)) = matching else {
+            return Err(vec![Diagnostic::error(format!(
+                "native callback operation {} resolves to {} abstract boundary calls during source-import coverage",
+                callback.terminal_operation.get(),
+                count,
+            ))]);
+        };
+        let requirement = boundary_identities.get(&boundary).copied().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "native callback operation {} cites absent boundary {:?}",
+                callback.terminal_operation.get(),
+                boundary,
+            ))]
+        })?;
+        if let Some(rows) = demanded.get_mut(requirement) {
+            rows.callback = Some(callback);
+            rows.callback_count += 1;
+        }
+    }
+
+    Ok(demanded)
 }
