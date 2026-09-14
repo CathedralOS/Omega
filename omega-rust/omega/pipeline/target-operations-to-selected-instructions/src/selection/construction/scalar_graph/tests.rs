@@ -39,7 +39,15 @@ use semantic_vocabulary::{
 
 fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunction {
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    let shape = ValueShape::integer(8, 8);
+    fixture_with_integer(target, count, integer)
+}
+
+fn fixture_with_integer(
+    target: target::NativeTarget,
+    count: usize,
+    integer: IntegerType,
+) -> LegalizedScalarFunction {
+    let shape = ValueShape::integer(integer.bits() / 8, integer.bits() / 8);
     let block = BlockId::new(1).unwrap();
     let effect = EffectLink {
         input: 0,
@@ -49,7 +57,10 @@ fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunctio
     for raw in 1..=4 {
         let operation = OperationId::new(raw).unwrap();
         let kind = if raw <= 2 {
-            LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(u128::from(raw)))
+            LegalizedScalarInstructionKind::Constant(match integer.sign() {
+                IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(raw)),
+                IntegerSign::Signed => IntegerValue::Signed(-i128::from(raw)),
+            })
         } else {
             let arity = if raw == 3 { count } else { 1 };
             let call_plan = evaluate_call_plan(
@@ -389,14 +400,26 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
         };
-        for with_calls in [false, true] {
-            let mut source = fixture(target, 2);
+        for (sign, bits, with_calls) in [
+            (IntegerSign::Unsigned, 64),
+            (IntegerSign::Unsigned, 16),
+            (IntegerSign::Signed, 8),
+            (IntegerSign::Signed, 16),
+            (IntegerSign::Signed, 32),
+            (IntegerSign::Signed, 64),
+        ]
+        .into_iter()
+        .flat_map(|(sign, bits)| [false, true].map(|with_calls| (sign, bits, with_calls)))
+        {
+            let integer = IntegerType::new(sign, bits).unwrap();
+            let scalar_type = ScalarType::Integer(integer);
+            let mut source = fixture_with_integer(target, 2, integer);
             source.attachment = None;
             source.call_plan = evaluate_call_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
                     parameters: Vec::new(),
-                    result: Some(ValueShape::integer(8, 8)),
+                    result: Some(ValueShape::integer(bits / 8, bits / 8)),
                 },
             )
             .unwrap();
@@ -412,9 +435,7 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
                         operation,
                         result: Some(LegalizedValueDefinition {
                             value: ValueId::new(raw).unwrap(),
-                            scalar_type: ScalarType::Integer(
-                                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                            ),
+                            scalar_type,
                             definition_site: ValueDefinitionSite::Node {
                                 block: source.entry_block,
                                 node: raw as u32 - 1,
@@ -449,9 +470,7 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
             // Returning an earlier value must not erase the later exact operation.
             returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
                 value: ValueId::new(first).unwrap(),
-                scalar_type: semantic_vocabulary::ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                ),
+                scalar_type,
             };
             let selected = build(
                 0,
@@ -524,7 +543,7 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
                 }
                 assert!(
                     validate(&changed).is_err(),
-                    "calls {with_calls}, corruption {corruption}"
+                    "{sign:?}{bits}, calls {with_calls}, corruption {corruption}"
                 );
             }
         }
