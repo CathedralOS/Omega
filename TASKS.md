@@ -850,6 +850,27 @@ Owners include
   installed AP entry, and separately accounted per-CPU stack/state. An emitted
   trampoline alone does not satisfy the entry and custody contract.
 
+  Resume evidence: `7ca30f8411` landed the secondary-processor startup ledger
+  in `omega-rust/omega/backend/runtime/external-roots/src/secondary_processor.rs`
+  over the new `InstalledCode::placement_constraints` and
+  `binds_placement_geometry` projections. `bind_secondary_processor_trampoline`
+  replays retained installation evidence — admitted startup entry,
+  regime/architecture consistency, exact realized extent, startup-vector
+  granularity, and the low-memory bound on both extent and declared range —
+  before deriving the vector, and the borrow keeps the installed code
+  unretirable. `admit_secondary_processor` mints the arrival-to-installed
+  regime transition only when the boundary begins in the installed regime on
+  the account's own dedicated stack class; shared stack classes and
+  overlapping state backing reject. The issued carrier binds installed-code
+  identity, context, and artifact; completion accepts only the receipt naming
+  that exact carrier, refusals return pending custody for retry, and a started
+  processor's account stays held for a later quiescence edge. Witnessed on
+  macOS arm64 by `mbx nextest run -p external-roots --lib` (152/152, including
+  22 secondary-processor tests over real installed-code custody). Remaining: a
+  provider edge issuing the vector to the target boot protocol, a quiescence
+  edge retiring started accounts, and an authored Omega surface invoking the
+  entry.
+
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Carry one real
   content-bearing program through checked source, Terminal Psi, provider
   selection, and native realization. Introductions and exits must bind exact
