@@ -1077,17 +1077,23 @@ Owners include
   the loop lowers, reload-verifies, and interprets to its `done` trace.
 
   The remaining probe stop is the guarded-exit lockstep form: `digit_div`'s
-  `self.sq / self.place` reads `place` written by a previous iteration, so
-  its `1 <= place` obligation needs `p < 3 -> IntegerField(place) >= 1`.
-  A plain `place >= 1` at `itoa_loop` is not inductive — the last
-  iteration stores `place = 0` before the guard exits — and establishing
-  the implication form needs an integer-bound contradiction primitive the
-  kernel does not yet express (incompatible bounds cannot produce
-  `Falsehood`, and closed comparisons do not denote to it);
-  `ImplicationElimination` already exists in the kernel for the arrival
-  proofs once such a primitive lands. `cyclic_field_divisor_awaits_storage_observation_invariants`
-  retains the `OperationProofUnavailable` control. Indexed byte-field
-  writes also still need composed-Unit closure coverage.
+  `self.sq / self.place` reads `place` written by a previous iteration.
+  Neither plain `place >= 1` nor `p < 3 -> IntegerField(place) >= 1` alone
+  is inductive: the latter admits `p = 0, place = 1`, whose update reaches
+  `p = 1, place = 0`. The producer needs a stronger counter/divisor
+  relationship, independently checked at updates and every arrival.
+  `cyclic_field_divisor_awaits_storage_observation_invariants` retains the
+  `OperationProofUnavailable` control; next acceptance is its unchanged
+  source publishing, reload-verifying and interpreting successfully.
+  Existing order transitivity, exact equality bridges and closed literal
+  predicate denotation already discharge incompatible integer guards;
+  no new contradiction rule is needed. Resume at `integer_selection/logical`
+  and the field-bound invariant producer. At `7b435fd972`, macOS arm64,
+  `RUST_MIN_STACK=67108864 cargo nextest run -p checked-trees-to-lowered-psi --lib --no-fail-fast -E 'test(nonzero_divisor_certificate) | test(cyclic_byte_literal_calls)'`
+  passes: `incompatible_integer_guards_keep_the_dead_operation_checked`
+  retains division in the published artifact, reload-verifies and interprets
+  the unreachable case, and rejects its reachable zero-divisor twin.
+  Indexed byte-field writes still need composed-Unit closure coverage.
 
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
   operators, nested structural paths, calls, cycles, execution and package review.
