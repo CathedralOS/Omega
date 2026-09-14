@@ -2039,6 +2039,23 @@ Owners include
   bounded proof separate from general owned-handle design; no owner-policy
   blocker remains.
 
+  Progress: the checked-interpreter leg adds the bounded occurrence record
+  `FilesystemSourceNativeHandleQueryChainReplayRecord` and the
+  `NativeHandleQueryChain` source-input event in
+  `psi/semantics/checked-interpreter/src/filesystem_replay` (module
+  `native_query_chains.rs`, tests `native_query_chain_tests.rs`). One
+  constrained `open_path_handle` under access-zero/full-share/OPEN_EXISTING/
+  BACKUP_SEMANTICS-without-DELETE_ON_CLOSE, exact `Resolved` handle
+  preservation through admitted `final_path_name_by_handle` and
+  `get_last_error` observations, one nonzero `close_handle` retiring the
+  identity; acquisition failure, aliased/duplicated outputs, substituted or
+  cross-domain inputs, early retirement, missing/ambiguous/late release, and
+  lane tampering all reject. Next legs: teach the claimed
+  `build-evaluation` eligibility prefix (`replay_eligibility.rs`) and shape
+  decoder (`replay_record.rs`) the tag-28 chain, then bind the occurrence
+  evidence into a terminal-authority mechanism key so the constrained close
+  earns one evidence-bound empty row in `native-realization`'s reviewer.
+
   Native acceptance also needs the checked transitive machine plan missing
   from `filesystem/windows_canonicalize_exit`: Terminal production currently
   refuses its attached Unit closure in
