@@ -7,7 +7,7 @@ use proof_admission::{
     RecursiveEdgeObligation,
 };
 use semantic_vocabulary::{
-    BlockId, CycleComponentId, ObligationId, Proposition, PsiSemanticId, RankingRelationId,
+    BlockId, CycleComponentId, EdgeId, ObligationId, Proposition, PsiSemanticId, RankingRelationId,
     ScalarTerm, ScalarType,
 };
 use sha2::{Digest, Sha256};
@@ -56,77 +56,94 @@ pub fn reconstruct_control_cycle_obligations(
     reconstruct_validated_control_cycle_obligations(module)
 }
 
+/// The canonical natural-cycle rows a machine's retained ranking claims.
+pub fn control_cycle_components(
+    machine: &TerminalMachine,
+) -> Result<Vec<TerminalNaturalCycle>, ModuleError> {
+    match &machine.ranked_scc {
+        None => Ok(Vec::new()),
+        Some(TerminalRankedScc::Natural(components)) => Ok(components.clone()),
+    }
+}
+
 pub(crate) fn reconstruct_validated_control_cycle_obligations(
     module: &TerminalModule,
 ) -> Result<Vec<ReconstructedControlCycleObligation>, ModuleError> {
     let mut questions = Vec::new();
     for machine in &module.machines {
-        let Some(TerminalRankedScc::Natural(components)) = &machine.ranked_scc else {
+        let components = control_cycle_components(machine)?;
+        if components.is_empty() {
             continue;
-        };
+        }
         let edge_axioms =
             crate::verification::reconstruct_validated_control_edge_axioms(module, machine)?;
-        for component in components {
-            let commitment = question_commitment(machine, component);
-            let relation = natural_relation(component);
-            let well_foundedness = natural_well_foundedness(component);
-            let ranks = component
-                .ranks
-                .iter()
-                .map(|rank| (rank.block, rank.value))
-                .collect::<BTreeMap<_, _>>();
-            let mut edges = Vec::new();
-            for edge in &component.edges {
-                let mut identity = Sha256::new();
-                identity.update(b"psi.control-cycle.edge-obligation.v1\0");
-                identity.update(commitment);
-                identity.update(edge.edge.get().to_le_bytes());
-                let before = ScalarTerm::value(
-                    ranks[&edge.source],
-                    ScalarType::Integer(component.rank_type),
-                );
-                let after = ScalarTerm::value(
-                    edge.successor_rank,
-                    ScalarType::Integer(component.rank_type),
-                );
-                let proposition = match edge.comparison {
-                    TerminalNaturalRankComparison::Preserving => {
-                        Proposition::LessOrEqual(after, before)
-                    }
-                    TerminalNaturalRankComparison::Strict => Proposition::LessThan(after, before),
-                };
-                edges.push(RecursiveEdgeObligation {
-                    caller: edge.source,
-                    callee: edge.target,
-                    decrease: CertificateObligation {
-                        obligation: Obligation {
-                            id: semantic_id(&identity.finalize().into()),
-                            proposition,
-                            class: ObligationClass::Derivable,
-                        },
-                        assumptions: machine.contract.requires.clone(),
-                        semantic_axioms: edge_axioms
-                            .get(&edge.edge)
-                            .cloned()
-                            .ok_or(ModuleError::InvalidRankedScc(machine.id))?,
-                    },
-                });
-            }
-            edges.sort_by_key(|edge| edge.decrease.obligation.id);
-            questions.push(ReconstructedControlCycleObligation {
-                machine: machine.id,
-                component: control_cycle_identity(machine, component),
-                obligation: RecursiveComponentObligation {
-                    members: component.ranks.iter().map(|rank| rank.block).collect(),
-                    ranking_relation: Some(relation),
-                    well_foundedness,
-                    edges,
-                },
-            });
+        for component in &components {
+            questions.push(natural_cycle_question(machine, component, &edge_axioms)?);
         }
     }
     questions.sort_by_key(|question| question.component);
     Ok(questions)
+}
+
+fn natural_cycle_question(
+    machine: &TerminalMachine,
+    component: &TerminalNaturalCycle,
+    edge_axioms: &BTreeMap<EdgeId, Vec<Proposition>>,
+) -> Result<ReconstructedControlCycleObligation, ModuleError> {
+    let commitment = question_commitment(machine, component);
+    let relation = natural_relation(component);
+    let well_foundedness = natural_well_foundedness(component);
+    let ranks = component
+        .ranks
+        .iter()
+        .map(|rank| (rank.block, rank.value))
+        .collect::<BTreeMap<_, _>>();
+    let mut edges = Vec::new();
+    for edge in &component.edges {
+        let mut identity = Sha256::new();
+        identity.update(b"psi.control-cycle.edge-obligation.v1\0");
+        identity.update(commitment);
+        identity.update(edge.edge.get().to_le_bytes());
+        let before = ScalarTerm::value(
+            ranks[&edge.source],
+            ScalarType::Integer(component.rank_type),
+        );
+        let after = ScalarTerm::value(
+            edge.successor_rank,
+            ScalarType::Integer(component.rank_type),
+        );
+        let proposition = match edge.comparison {
+            TerminalNaturalRankComparison::Preserving => Proposition::LessOrEqual(after, before),
+            TerminalNaturalRankComparison::Strict => Proposition::LessThan(after, before),
+        };
+        edges.push(RecursiveEdgeObligation {
+            caller: edge.source,
+            callee: edge.target,
+            decrease: CertificateObligation {
+                obligation: Obligation {
+                    id: semantic_id(&identity.finalize().into()),
+                    proposition,
+                    class: ObligationClass::Derivable,
+                },
+                assumptions: machine.contract.requires.clone(),
+                semantic_axioms: edge_axioms
+                    .get(&edge.edge)
+                    .cloned()
+                    .ok_or(ModuleError::InvalidRankedScc(machine.id))?,
+            },
+        });
+    }
+    edges.sort_by_key(|edge| edge.decrease.obligation.id);
+    Ok(ReconstructedControlCycleObligation {
+        machine: machine.id,
+        component: control_cycle_identity(machine, component),
+        obligation: RecursiveComponentObligation {
+            members: component.ranks.iter().map(|rank| rank.block).collect(),
+            ranking_relation: Some(relation),
+            well_foundedness,
+            edges,
+        },
+    })
 }
 
 /// Topology identity has no producer-supplied component key. Rank bindings

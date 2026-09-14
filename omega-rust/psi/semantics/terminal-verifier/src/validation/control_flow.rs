@@ -12,7 +12,6 @@ pub(super) fn validate_control_flow(
     boundary_machines: &[BoundaryMachineDeclaration],
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     value_types: &BTreeMap<ValueId, ScalarType>,
-    representation_backedges: &BTreeSet<EdgeId>,
 ) -> Result<crate::control_graph::DominatorTree, ModuleError> {
     // Ordinary scalar operators, storage and boundary presentation currently
     // consume bare carriers. Reuse their complete operand checks with a bare
@@ -70,7 +69,6 @@ pub(super) fn validate_control_flow(
     }
 
     let mut successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
-    let mut representation_successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
     let mut predecessors = blocks
         .keys()
         .map(|block| (*block, Vec::<BlockId>::new()))
@@ -101,13 +99,7 @@ pub(super) fn validate_control_flow(
                 return Err(ModuleError::UnknownTargetBlock(*target));
             }
         }
-        let retained_targets = targets
-            .iter()
-            .filter_map(|(edge, target)| {
-                (!representation_backedges.contains(edge)).then_some(*target)
-            })
-            .collect::<Vec<_>>();
-        for target in &retained_targets {
+        for (_, target) in &targets {
             predecessors
                 .get_mut(target)
                 .expect("known target has a predecessor row")
@@ -115,9 +107,8 @@ pub(super) fn validate_control_flow(
         }
         successors.insert(
             block.id,
-            targets.into_iter().map(|(_, target)| target).collect(),
+            targets.iter().map(|(_, target)| *target).collect(),
         );
-        representation_successors.insert(block.id, retained_targets);
     }
 
     let mut reachable = BTreeSet::new();
@@ -153,10 +144,7 @@ pub(super) fn validate_control_flow(
     let mut order = Vec::with_capacity(blocks.len());
     while let Some(block) = ready.pop_first() {
         order.push(block);
-        for target in representation_successors
-            .get(&block)
-            .expect("every block has representation successors")
-        {
+        for target in successors.get(&block).expect("every block has successors") {
             let count = indegree
                 .get_mut(target)
                 .expect("known target has an indegree");
@@ -168,7 +156,7 @@ pub(super) fn validate_control_flow(
     }
     let cyclic = order.len() != blocks.len();
     if cyclic {
-        if !representation_backedges.is_empty() || !unranked_cycles::eligible(module, machine) {
+        if !unranked_cycles::eligible(module, machine) {
             let block = indegree
                 .iter()
                 .find_map(|(block, count)| (*count != 0).then_some(*block))
@@ -183,7 +171,7 @@ pub(super) fn validate_control_flow(
     // Array payload slots currently establish once per activation. Keep loop
     // re-establishment unsupported while allowing an outside definition to
     // dominate ordinary uses within a loop.
-    if !scalar_array_definitions.is_empty() && (cyclic || !representation_backedges.is_empty()) {
+    if !scalar_array_definitions.is_empty() && cyclic {
         for component in crate::control_graph::cyclic_components(machine) {
             if let Some(block) = scalar_array_definitions
                 .values()

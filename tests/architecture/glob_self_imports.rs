@@ -62,7 +62,7 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/build/trust-ledger", 1),
     ("omega-rust/omega/build/trust-model", 3),
     ("omega-rust/omega/compiler/compilation-report", 2),
-    ("omega-rust/omega/compiler/compiler", 13),
+    ("omega-rust/omega/compiler/compiler", 7),
     ("omega-rust/omega/compiler/native-realization", 21),
     ("omega-rust/omega/packages/manager", 58),
     ("omega-rust/omega/packages/review/evidence", 90),
@@ -161,7 +161,7 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/psi/semantics/terminal-fixed-fuel", 1),
     ("omega-rust/psi/semantics/terminal-interpreter", 20),
     ("omega-rust/psi/semantics/terminal-semantics", 8),
-    ("omega-rust/psi/semantics/terminal-verifier", 57),
+    ("omega-rust/psi/semantics/terminal-verifier", 56),
     ("omega-rust/psi/semantics/validation", 110),
 ];
 

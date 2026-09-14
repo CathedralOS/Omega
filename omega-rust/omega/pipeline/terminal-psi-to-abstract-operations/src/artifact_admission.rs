@@ -84,7 +84,6 @@ pub fn lower_artifact_for_optimization(
 }
 
 /// Admit ordinary native authority before retaining optimizer eligibility.
-/// Legacy countdown input rejects rather than falling back to another authority.
 pub fn lower_artifact_for_native_realization(
     sections: ArtifactSections<'_>,
     profile: &proof_admission::AdmissionProfile,

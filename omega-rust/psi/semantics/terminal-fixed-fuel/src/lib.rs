@@ -7,10 +7,7 @@
 //! assumptions and partitions the complete reachable graph at every reachable
 //! explicit edge. A verified `Natural`-ranked machine also admits a whole-entry
 //! ceiling: the components partition the cyclic topology, every cycle crosses a
-//! strict rank descent, and the condensed graph is acyclic. A separate
-//! fixed-fuel carrier admits the first exact ranked unsigned countdown and
-//! derives its whole-entry ceiling without widening the acyclic segment or
-//! native-lowering authorities.
+//! strict rank descent, and the condensed graph is acyclic.
 
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, Proposition};
 use terminal_codec::{CodecError, TerminalPsiIdentity};
@@ -19,15 +16,9 @@ use terminal_fuel::FuelScheduleIdentity;
 mod fuel_certification;
 pub use fuel_certification::{
     derive_fixed_entry_fuel, derive_fixed_safe_point_segments, derive_fixed_segment_fuel,
-    derive_ranked_countdown_entry_fuel, derive_ranked_countdown_safe_point_segments,
-    derive_validated_fixed_safe_point_segments,
-    derive_validated_ranked_countdown_safe_point_segments,
-    retain_validated_fixed_safe_point_segments,
-    retain_validated_ranked_countdown_safe_point_segments, validate_fixed_entry_fuel,
-    validate_fixed_safe_point_segments, validate_fixed_segment_fuel,
-    validate_ranked_countdown_entry_fuel, validate_ranked_countdown_safe_point_segments,
+    derive_validated_fixed_safe_point_segments, retain_validated_fixed_safe_point_segments,
+    validate_fixed_entry_fuel, validate_fixed_safe_point_segments, validate_fixed_segment_fuel,
     validate_retained_fixed_safe_point_segments,
-    validate_retained_ranked_countdown_safe_point_segments,
 };
 
 /// Exact restricted theorem: every path from one machine entry reaches a
@@ -57,24 +48,6 @@ pub struct FixedSegmentFuelCertificate {
     ceiling_units: u64,
 }
 
-/// One block-local safe-point row for the exact verified `u32` ranked
-/// countdown.
-///
-/// This type is intentionally incompatible with [`FixedSegmentFuelCertificate`]
-/// so an analysis-only ranked row cannot enter an existing acyclic installation
-/// binding API. Construction remains private and complete-catalog validation is
-/// required before a sealed ranked catalog can exist.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RankedCountdownSafePointFuelCertificate {
-    terminal_psi: TerminalPsiIdentity,
-    schedule: FuelScheduleIdentity,
-    machine: MachineId,
-    start_block: BlockId,
-    end_edge: EdgeId,
-    relevant_preconditions: Vec<Proposition>,
-    ceiling_units: u64,
-}
-
 /// Complete canonical safe-point partition for one verified terminal machine.
 ///
 /// This carrier is deliberately non-clonable and has no public-field
@@ -87,41 +60,6 @@ pub struct ValidatedFixedSafePointFuelSegments {
     schedule: FuelScheduleIdentity,
     machine: MachineId,
     certificates: Vec<FixedSegmentFuelCertificate>,
-}
-
-/// Complete canonical safe-point partition for the exact verified `u32`
-/// ranked countdown.
-///
-/// This carrier is deliberately distinct from the acyclic segment catalog and
-/// from the whole-entry ranked certificate. It is non-clonable and has no
-/// public-field constructor. Its rows describe one traversal from the start of
-/// each ranked block through one exact terminating edge; they grant no
-/// execution, native-lowering, installation, composition, or bulk-charge
-/// authority.
-#[derive(Debug, PartialEq, Eq)]
-pub struct ValidatedRankedCountdownSafePointFuelSegments {
-    terminal_psi: TerminalPsiIdentity,
-    schedule: FuelScheduleIdentity,
-    machine: MachineId,
-    certificates: Vec<RankedCountdownSafePointFuelCertificate>,
-}
-
-impl ValidatedRankedCountdownSafePointFuelSegments {
-    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
-        self.terminal_psi
-    }
-
-    pub const fn schedule(&self) -> FuelScheduleIdentity {
-        self.schedule
-    }
-
-    pub const fn machine(&self) -> MachineId {
-        self.machine
-    }
-
-    pub fn certificates(&self) -> &[RankedCountdownSafePointFuelCertificate] {
-        &self.certificates
-    }
 }
 
 impl ValidatedFixedSafePointFuelSegments {
@@ -143,36 +81,6 @@ impl ValidatedFixedSafePointFuelSegments {
 }
 
 impl FixedSegmentFuelCertificate {
-    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
-        self.terminal_psi
-    }
-
-    pub const fn schedule(&self) -> FuelScheduleIdentity {
-        self.schedule
-    }
-
-    pub const fn machine(&self) -> MachineId {
-        self.machine
-    }
-
-    pub const fn start_block(&self) -> BlockId {
-        self.start_block
-    }
-
-    pub const fn end_edge(&self) -> EdgeId {
-        self.end_edge
-    }
-
-    pub fn relevant_preconditions(&self) -> &[Proposition] {
-        &self.relevant_preconditions
-    }
-
-    pub const fn ceiling_units(&self) -> u64 {
-        self.ceiling_units
-    }
-}
-
-impl RankedCountdownSafePointFuelCertificate {
     pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
         self.terminal_psi
     }
@@ -241,7 +149,6 @@ pub enum FixedFuelError {
         callee: MachineId,
     },
     NoTerminalPath(MachineId),
-    NotRankedCountdown(MachineId),
     /// The retained `Natural` component is malformed — a hard failure like any
     /// other broken semantic invariant, not an analysis limitation.
     InvalidRankedScc(MachineId),

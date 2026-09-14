@@ -1,116 +1,176 @@
-//! Optimizer module role: reconstruction leaf. Terminal countdown evidence projection.
+//! Optimizer module role: reconstruction leaf. Terminal natural-cycle countdown projection.
 
 use super::*;
 
-pub(super) fn derive(
+/// Project the exact unsigned-countdown idiom out of one verifier-admitted
+/// `Natural` component. A component whose verified ranking is not that shape
+/// yields no certificate: it retains its verified source and frozen body
+/// without acquiring countdown analysis evidence.
+pub(super) fn project(
     module: &::terminal_psi::TerminalModule,
-    snapshot: &OptimizerCycleComponentSnapshot,
-) -> Result<Vec<OptimizerUnsignedCountdownRankingCertificate>, OptimizationUnitValidationError> {
-    let mut certificates = Vec::new();
-    for component in &snapshot.components {
-        let machine = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == component.id.machine)
-            .ok_or_else(|| mismatch(component))?;
-        certificates.push(derive_one(machine, component)?);
-    }
-    certificates.sort_by(|left, right| left.component.cmp(&right.component));
-    Ok(certificates)
+    component: &OptimizerCycleComponent,
+) -> Result<Option<OptimizerUnsignedCountdownRankingCertificate>, OptimizationUnitValidationError> {
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == component.id.machine)
+        .ok_or_else(|| mismatch(component))?;
+    Ok(project_one(machine, component))
 }
 
-fn derive_one(
+fn project_one(
     machine: &::terminal_psi::TerminalMachine,
     component: &OptimizerCycleComponent,
-) -> Result<OptimizerUnsignedCountdownRankingCertificate, OptimizationUnitValidationError> {
-    let ranked = machine
-        .ranked_scc
-        .as_ref()
-        .and_then(|ranked| ranked.as_unsigned_countdown())
-        .ok_or_else(|| mismatch(component))?;
-    let [covered] = ranked.covered_cyclic_edges.as_slice() else {
-        return Err(mismatch(component));
+) -> Option<OptimizerUnsignedCountdownRankingCertificate> {
+    let ::terminal_psi::TerminalRankedScc::Natural(naturals) = machine.ranked_scc.as_ref()?;
+    let internal_edges = component
+        .id
+        .internal_edges
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let natural = naturals.iter().find(|natural| {
+        natural
+            .ranks
+            .iter()
+            .map(|rank| rank.block)
+            .collect::<Vec<_>>()
+            == component.members
+            && natural
+                .edges
+                .iter()
+                .map(|edge| CycleComponentEdge {
+                    edge: edge.edge,
+                    source: edge.source,
+                    target: edge.target,
+                })
+                .collect::<BTreeSet<_>>()
+                == internal_edges
+    })?;
+    let ranks = natural
+        .ranks
+        .iter()
+        .map(|rank| (rank.block, rank.value))
+        .collect::<BTreeMap<_, _>>();
+
+    // The countdown idiom crosses exactly one strict edge: the counted
+    // backedge returning to the header.
+    let strict = natural
+        .edges
+        .iter()
+        .filter(|edge| edge.comparison == ::terminal_psi::TerminalNaturalRankComparison::Strict)
+        .collect::<Vec<_>>();
+    let [backedge] = strict.as_slice() else {
+        return None;
     };
-    let ::terminal_psi::TerminalRankedGuard::UnsignedParameterPositive {
-        block: guard_block,
-        edge: guard_edge,
+    let header_id = backedge.target;
+    let decrement_id = backedge.source;
+    let rank_parameter = *ranks.get(&header_id)?;
+    let source_parameter = *ranks.get(&decrement_id)?;
+
+    // The header's conditional arm inside the component is the positive guard:
+    // `0 < rank_parameter` admits the decrement block.
+    let header = block(machine, header_id)?;
+    let ::terminal_psi::Terminator::Conditional {
         condition,
-        parameter,
-    } = covered.guard;
-    let ::terminal_psi::TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-        argument_index,
-        argument,
-        source_parameter,
-        target_parameter,
-    } = covered.successor_argument;
-    let header = block(machine, ranked.header).ok_or_else(|| mismatch(component))?;
-    let comparison = scalar_operation(header, condition).ok_or_else(|| mismatch(component))?;
+        when_true,
+        when_false,
+    } = &header.terminator
+    else {
+        return None;
+    };
+    let guard = [when_true, when_false].into_iter().find(|successor| {
+        internal_edges.iter().any(|internal| {
+            internal.edge == successor.edge
+                && internal.source == header_id
+                && internal.target == successor.target
+        })
+    })?;
+    let comparison = scalar_operation(header, *condition)?;
     let ::terminal_psi::OperationKind::IntegerLessThan { left: zero, right } = comparison.kind
     else {
-        return Err(mismatch(component));
+        return None;
     };
-    if right != ranked.rank_parameter {
-        return Err(mismatch(component));
+    if right != rank_parameter {
+        return None;
     }
-    let zero_operation = scalar_operation(header, zero).ok_or_else(|| mismatch(component))?;
+    let zero_operation = scalar_operation(header, zero)?;
     if zero_operation.kind
         != (::terminal_psi::OperationKind::IntegerConstant {
             value: IntegerValue::Unsigned(0),
         })
     {
-        return Err(mismatch(component));
+        return None;
     }
-    let decrement = block(machine, covered.source).ok_or_else(|| mismatch(component))?;
-    let subtract = scalar_operation(decrement, argument).ok_or_else(|| mismatch(component))?;
+
+    // The strict successor binds the header's rank parameter through the
+    // decrement block's exact `rank - 1` subtraction.
+    let argument_index = header
+        .parameters
+        .iter()
+        .position(|parameter| parameter.id == rank_parameter)?;
+    let decrement = block(machine, decrement_id)?;
+    let ::terminal_psi::Terminator::Jump {
+        edge: jump_edge,
+        target,
+        arguments,
+        ..
+    } = &decrement.terminator
+    else {
+        return None;
+    };
+    if *jump_edge != backedge.edge
+        || *target != header_id
+        || arguments.get(argument_index).copied() != Some(backedge.successor_rank)
+    {
+        return None;
+    }
+    let subtract = scalar_operation(decrement, backedge.successor_rank)?;
     let ::terminal_psi::OperationKind::ExactIntegerSubtract {
         left,
         right: one,
         obligation,
     } = subtract.kind
     else {
-        return Err(mismatch(component));
+        return None;
     };
     if left != source_parameter {
-        return Err(mismatch(component));
+        return None;
     }
-    let one_operation = scalar_operation(decrement, one).ok_or_else(|| mismatch(component))?;
+    let one_operation = scalar_operation(decrement, one)?;
     if one_operation.kind
         != (::terminal_psi::OperationKind::IntegerConstant {
             value: IntegerValue::Unsigned(1),
         })
     {
-        return Err(mismatch(component));
+        return None;
     }
-    let backedge = CycleComponentEdge {
-        edge: covered.edge,
-        source: covered.source,
-        target: covered.target,
-    };
-    if !component.id.internal_edges.contains(&backedge) {
-        return Err(mismatch(component));
-    }
-    Ok(OptimizerUnsignedCountdownRankingCertificate {
+    Some(OptimizerUnsignedCountdownRankingCertificate {
         component: component.id.clone(),
-        header: ranked.header,
-        rank_parameter: ranked.rank_parameter,
-        rank_type: ranked.rank_type,
-        lower_bound: ranked.lower_bound,
-        upper_bound: ranked.upper_bound,
+        header: header_id,
+        rank_parameter,
+        rank_type: natural.rank_type,
+        lower_bound: natural.rank_type.minimum_value(),
+        upper_bound: natural.rank_type.maximum_value(),
         guard: OptimizerUnsignedPositiveGuard {
-            block: guard_block,
-            edge: guard_edge,
-            condition,
-            parameter,
+            block: header_id,
+            edge: guard.edge,
+            condition: *condition,
+            parameter: rank_parameter,
             zero,
             zero_operation: zero_operation.id,
             comparison_operation: comparison.id,
         },
         descent: OptimizerUnsignedMinusOneDescent {
-            backedge,
-            argument_index,
-            argument,
+            backedge: CycleComponentEdge {
+                edge: backedge.edge,
+                source: decrement_id,
+                target: header_id,
+            },
+            argument_index: u32::try_from(argument_index).ok()?,
+            argument: backedge.successor_rank,
             source_parameter,
-            target_parameter,
+            target_parameter: rank_parameter,
             one,
             one_operation: one_operation.id,
             subtract_operation: subtract.id,

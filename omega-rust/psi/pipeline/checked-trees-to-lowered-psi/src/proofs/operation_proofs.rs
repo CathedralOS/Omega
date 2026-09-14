@@ -34,28 +34,10 @@ fn finalize_operation_proofs_inner(
     #[cfg(test)] prepared_machine: &(impl Fn(MachineId) + Sync),
 ) -> Result<(), LoweringError> {
     crate::proofs::scalar_block_invariants::retain_provable(lowered)?;
-    let has_ranked_countdown = lowered.semantic_module.machines.iter().any(|machine| {
-        machine
-            .ranked_scc
-            .as_ref()
-            .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
-    });
-    let execution_validated = (!has_ranked_countdown)
-        .then(|| terminal_verifier::validate_module(&lowered.semantic_module))
-        .transpose()
+    let validated = terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
-    let interpretation_validated = has_ranked_countdown
-        .then(|| terminal_verifier::validate_module_for_interpretation(&lowered.semantic_module))
-        .transpose()
+    let obligations = terminal_verifier::reconstruct_execution_terminal_obligations(validated)
         .map_err(LoweringError::InvalidTerminalModule)?;
-    let obligations = if let Some(validated) = interpretation_validated {
-        terminal_verifier::reconstruct_interpretable_terminal_obligations(validated)
-    } else {
-        terminal_verifier::reconstruct_execution_terminal_obligations(
-            execution_validated.expect("one validation carrier is present"),
-        )
-    }
-    .map_err(LoweringError::InvalidTerminalModule)?;
     let existing = lowered
         .proof_bundle
         .evidence
@@ -96,13 +78,7 @@ fn finalize_operation_proofs_inner(
             let preparation = preparation.get_or_init(|| {
                 #[cfg(test)]
                 prepared_machine(machine.id);
-                let context = if let Some(validated) = interpretation_validated {
-                    validated.value_context(machine)
-                } else {
-                    execution_validated
-                        .expect("one validation carrier is present")
-                        .value_context(machine)
-                }?;
+                let context = validated.value_context(machine)?;
                 let machine_parameter_values = machine
                     .parameters
                     .iter()

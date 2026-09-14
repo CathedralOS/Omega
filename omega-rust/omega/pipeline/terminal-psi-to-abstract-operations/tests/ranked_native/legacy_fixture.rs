@@ -1,13 +1,14 @@
-//! Explicit retired wire vocabulary; current source lowering emits Natural ranks.
+//! The countdown idiom carried by the ordinary Natural ranking record; current
+//! source lowering emits this same shape through `control_cycle_proofs`.
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, ScalarType, ValueId,
 };
 use terminal_psi::{
     Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalRankedGuard, TerminalRankedScc,
-    TerminalRankedSccEdge, TerminalRankedSuccessorArgument, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    TerminalBlockNaturalRank, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
+    TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
 };
 fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
     constructor(raw).expect("nonzero fixture identity")
@@ -71,33 +72,35 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                 scalar_type: scalar,
             }],
             structural_parameters: Vec::new(),
-            ranked_scc: Some(TerminalRankedScc::UnsignedCountdown(
-                terminal_psi::TerminalUnsignedCountdownScc {
-                    header,
-                    rank_parameter: rank,
-                    rank_type: integer,
-                    lower_bound: IntegerValue::Unsigned(0),
-                    upper_bound: integer.maximum_value(),
-                    covered_cyclic_edges: vec![TerminalRankedSccEdge {
+            ranked_scc: Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type: integer,
+                ranks: vec![
+                    TerminalBlockNaturalRank {
+                        block: header,
+                        value: rank,
+                    },
+                    TerminalBlockNaturalRank {
+                        block: decrement,
+                        value: rank,
+                    },
+                ],
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: guard_edge,
+                        source: header,
+                        target: decrement,
+                        successor_rank: rank,
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
                         edge: backedge,
                         source: decrement,
                         target: header,
-                        guard: TerminalRankedGuard::UnsignedParameterPositive {
-                            block: header,
-                            edge: guard_edge,
-                            condition,
-                            parameter: rank,
-                        },
-                        successor_argument:
-                            TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-                                argument_index: 0,
-                                argument: next,
-                                source_parameter: rank,
-                                target_parameter: rank,
-                            },
-                    }],
-                },
-            )),
+                        successor_rank: next,
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                ],
+            }])),
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             entry_claims: Vec::new(),

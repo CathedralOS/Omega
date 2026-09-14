@@ -6,10 +6,10 @@
 [evidence.rs](evidence.rs) verifies the selected module before trying
 the existing fixed-work deriver. Inspection grants no execution or native authority.
 
-Natural-ranked and unranked modules use ordinary verification. Only an actual
-legacy unsigned-countdown carrier selects its separate verification entrance;
-a verification failure never retries with a different profile. Natural-cycle
-rows identify the verified components.
+Natural-ranked and unranked modules use ordinary verification; the legacy
+unsigned-countdown carrier and its separate verification entrance are retired,
+and a verification failure never retries with a different profile.
+Natural-cycle rows identify the verified components.
 
 A supported fixed-work certificate is replayed before its numeric ceiling is
 printed. Unsupported analysis or an unrepresentable ceiling prints

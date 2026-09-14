@@ -24,19 +24,23 @@ pub(super) fn rederive_exact_certificates(
     unit: &PsiOptimizationUnit,
     components: &OptimizerCycleComponentSnapshot,
 ) -> Result<OptimizerRankingCertificateSnapshot, OptimizationUnitValidationError> {
-    // Only legacy unsigned countdowns supply these analysis certificates.
-    // Natural and unranked components retain their verified source and frozen
-    // body without acquiring a countdown certificate or fixed-work bound.
+    // Only natural components matching the unsigned-countdown idiom supply
+    // these analysis certificates. Other verified components retain their
+    // source and frozen body without acquiring a countdown certificate or
+    // fixed-work bound.
+    let mut recognized = Vec::new();
+    let mut terminal = Vec::new();
+    for component in &components.components {
+        if let Some(certificate) = self::terminal::project(module, component)? {
+            recognized.push(component.clone());
+            terminal.push(certificate);
+        }
+    }
+    terminal.sort_by(|left, right| left.component.cmp(&right.component));
     let countdown = OptimizerCycleComponentSnapshot {
         terminal_psi: components.terminal_psi,
-        components: components
-            .components
-            .iter()
-            .filter(|component| is_unsigned_countdown(module, component.id.machine))
-            .cloned()
-            .collect(),
+        components: recognized,
     };
-    let terminal = self::terminal::derive(module, &countdown)?;
     let current = current::derive(unit, &countdown)?;
     if terminal != current {
         let machine = components
@@ -50,18 +54,5 @@ pub(super) fn rederive_exact_certificates(
     Ok(OptimizerRankingCertificateSnapshot {
         terminal_psi: components.terminal_psi,
         certificates: current,
-    })
-}
-
-pub(super) fn is_unsigned_countdown(
-    module: &::terminal_psi::TerminalModule,
-    machine: MachineId,
-) -> bool {
-    module.machines.iter().any(|candidate| {
-        candidate.id == machine
-            && candidate
-                .ranked_scc
-                .as_ref()
-                .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
     })
 }

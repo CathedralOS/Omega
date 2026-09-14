@@ -362,25 +362,3 @@ pub(super) fn is_mutable_parameter(machine: &TerminalMachine, place: PlaceId) ->
         .or_else(|| parameter(machine, place))
         .is_some_and(|parameter| parameter.access == StructuralAccess::MutableBorrow)
 }
-
-/// Ranked countdown authorities still exclude descriptor successor bindings.
-pub(super) fn has_bindings(machine: &TerminalMachine) -> bool {
-    machine.blocks.iter().any(|block| {
-        !block.structural_parameters.is_empty()
-            || match &block.terminator {
-                Terminator::Jump {
-                    structural_arguments,
-                    ..
-                } => !structural_arguments.is_empty(),
-                Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    !when_true.structural_arguments.is_empty()
-                        || !when_false.structural_arguments.is_empty()
-                }
-                _ => false,
-            }
-    })
-}

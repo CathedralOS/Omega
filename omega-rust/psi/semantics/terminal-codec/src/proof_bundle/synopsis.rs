@@ -2,12 +2,8 @@
 
 use super::{ProofCodecError, proof_bundle_fingerprint};
 use proof_admission::AcceptedFactRoute;
-use terminal_psi::{
-    TerminalModule, TerminalRankedGuard, TerminalRankedScc, TerminalRankedSuccessorArgument,
-};
-use terminal_verifier::{
-    AcceptedControlCycle, VerifiedNativeRankedTerminalModule, VerifiedTerminalModule,
-};
+use terminal_psi::TerminalModule;
+use terminal_verifier::{AcceptedControlCycle, VerifiedTerminalModule};
 
 /// Render the review view from the exact bundle and trust closures retained by
 /// a successful terminal-Psi verification. This deliberately accepts a
@@ -22,26 +18,6 @@ pub fn render_verified_proof_synopsis(
         verified.accepted_recursive_components(),
         verified.accepted_control_cycles(),
         verified.module(),
-        false,
-    )
-}
-
-/// Render the proof review view for the exact native-ranked countdown slice.
-///
-/// The extra component rows are available only after the specialized verifier
-/// has accepted the retained ranked graph. They describe that closed Terminal
-/// representation and its verifier-owned unsigned-countdown rule; they are not
-/// a general recursive-component certificate.
-pub fn render_verified_native_ranked_countdown_synopsis(
-    verified: &VerifiedNativeRankedTerminalModule<'_>,
-) -> Result<String, ProofCodecError> {
-    render_verified_proof_synopsis_body(
-        verified.proof_bundle(),
-        verified.accepted_facts(),
-        verified.accepted_recursive_components(),
-        verified.accepted_control_cycles(),
-        verified.module(),
-        true,
     )
 }
 
@@ -51,7 +27,6 @@ fn render_verified_proof_synopsis_body(
     recursive_components: &[proof_admission::RecursiveComponentAcceptance],
     control_cycles: &[AcceptedControlCycle],
     module: &TerminalModule,
-    render_ranked_countdowns: bool,
 ) -> Result<String, ProofCodecError> {
     use std::fmt::Write;
 
@@ -144,9 +119,6 @@ fn render_verified_proof_synopsis_body(
     }
     render_verified_recursive_components(&mut output, module, recursive_components);
     render_verified_control_cycles(&mut output, module, control_cycles);
-    if render_ranked_countdowns {
-        render_verified_ranked_countdowns(&mut output, module);
-    }
     let trust_graph = crate::current_terminal_trust_graph().map_err(ProofCodecError::TrustGraph)?;
     output.push_str(
         &crate::render_terminal_trust_graph(&trust_graph)
@@ -223,9 +195,8 @@ fn render_verified_control_cycles(
             .iter()
             .find(|machine| machine.id == accepted.machine)
             .expect("verified control component retains its exact machine");
-        let Some(TerminalRankedScc::Natural(components)) = &machine.ranked_scc else {
-            unreachable!("verified control component retains natural ranking rows");
-        };
+        let components = terminal_verifier::control_cycle_components(machine)
+            .expect("verified control component retains canonical ranking rows");
         let component = components
             .iter()
             .find(|component| {
@@ -268,70 +239,6 @@ fn render_verified_control_cycles(
                 fact.obligation, fact.proposition, fact.route,
             )
             .expect("writing a synopsis to a String cannot fail");
-        }
-    }
-}
-
-fn render_verified_ranked_countdowns(output: &mut String, module: &TerminalModule) {
-    use std::fmt::Write;
-
-    for machine in &module.machines {
-        let Some(component) = machine
-            .ranked_scc
-            .as_ref()
-            .and_then(|ranking| ranking.as_unsigned_countdown())
-        else {
-            continue;
-        };
-        writeln!(
-            output,
-            "ranked-countdown machine {} header {} rank {} type {:?}-{:?}-{} lower {:?} upper {:?}",
-            machine.id,
-            component.header,
-            component.rank_parameter,
-            component.rank_type.carrier(),
-            component.rank_type.sign(),
-            component.rank_type.bits(),
-            component.lower_bound,
-            component.upper_bound,
-        )
-        .expect("writing a synopsis to a String cannot fail");
-        writeln!(
-            output,
-            "  ranking-rule closed-unsigned-countdown verifier-reconstructed"
-        )
-        .expect("writing a synopsis to a String cannot fail");
-        for edge in &component.covered_cyclic_edges {
-            writeln!(
-                output,
-                "  covered-edge {} source {} target {}",
-                edge.edge, edge.source, edge.target,
-            )
-            .expect("writing a synopsis to a String cannot fail");
-            match edge.guard {
-                TerminalRankedGuard::UnsignedParameterPositive {
-                    block,
-                    edge,
-                    condition,
-                    parameter,
-                } => writeln!(
-                    output,
-                    "    guard unsigned-positive block {block} edge {edge} condition {condition} parameter {parameter}",
-                )
-                .expect("writing a synopsis to a String cannot fail"),
-            }
-            match edge.successor_argument {
-                TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-                    argument_index,
-                    argument,
-                    source_parameter,
-                    target_parameter,
-                } => writeln!(
-                    output,
-                    "    successor unsigned-minus-one argument-index {argument_index} argument {argument} source-parameter {source_parameter} target-parameter {target_parameter}",
-                )
-                .expect("writing a synopsis to a String cannot fail"),
-            }
         }
     }
 }

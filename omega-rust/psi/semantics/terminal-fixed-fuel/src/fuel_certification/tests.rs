@@ -1,11 +1,5 @@
-use super::ranked_countdown::{
-    validate_ranked_catalog_header, validate_ranked_certificate_sequence,
-};
 use super::*;
-use crate::{
-    FuelScheduleIdentity, Proposition, RankedCountdownSafePointFuelCertificate,
-    ValidatedRankedCountdownSafePointFuelSegments,
-};
+use crate::{FuelScheduleIdentity, Proposition};
 use terminal_codec::TerminalPsiIdentity;
 use terminal_psi::{
     OperationKind, TerminalMachine, TerminalModule, TerminalNaturalCycle, TerminalRankedScc,
@@ -20,39 +14,8 @@ fn identity(byte: u8) -> TerminalPsiIdentity {
 }
 
 #[test]
-fn ranked_catalog_header_rejects_semantic_identity_and_schedule_drift() {
-    let expected = identity(1);
-    let mut catalog = ValidatedRankedCountdownSafePointFuelSegments {
-        terminal_psi: expected,
-        schedule: TerminalFuelSchedule::CURRENT.identity(),
-        machine: MachineId::new(1).expect("nonzero machine"),
-        certificates: Vec::new(),
-    };
-    validate_ranked_catalog_header(expected, &catalog).expect("exact header matches");
-
-    catalog.terminal_psi = identity(2);
-    assert_eq!(
-        validate_ranked_catalog_header(expected, &catalog),
-        Err(FixedFuelError::CertificateMismatch)
-    );
-    catalog.terminal_psi = expected;
-    catalog.schedule = FuelScheduleIdentity::new(
-        TerminalFuelSchedule::CURRENT
-            .identity()
-            .marker()
-            .checked_add(1)
-            .expect("test schedule marker fits"),
-    )
-    .expect("test schedule marker is nonzero");
-    assert_eq!(
-        validate_ranked_catalog_header(expected, &catalog),
-        Err(FixedFuelError::CertificateMismatch)
-    );
-}
-
-#[test]
-fn ranked_row_comparison_binds_every_identity_endpoint_and_ceiling() {
-    let expected = RankedCountdownSafePointFuelCertificate {
+fn segment_row_comparison_binds_every_identity_endpoint_and_ceiling() {
+    let expected = FixedSegmentFuelCertificate {
         terminal_psi: identity(1),
         schedule: TerminalFuelSchedule::CURRENT.identity(),
         machine: MachineId::new(1).expect("nonzero machine"),
@@ -61,7 +24,7 @@ fn ranked_row_comparison_binds_every_identity_endpoint_and_ceiling() {
         relevant_preconditions: Vec::new(),
         ceiling_units: 4,
     };
-    validate_ranked_certificate_sequence(
+    validate_certificate_sequence(
         std::slice::from_ref(&expected),
         std::slice::from_ref(&expected),
     )
@@ -92,7 +55,7 @@ fn ranked_row_comparison_binds_every_identity_endpoint_and_ceiling() {
 
     for mutation in mutations {
         assert_eq!(
-            validate_ranked_certificate_sequence(
+            validate_certificate_sequence(
                 std::slice::from_ref(&expected),
                 std::slice::from_ref(&mutation),
             ),

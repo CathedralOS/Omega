@@ -1386,7 +1386,6 @@ pub enum ModuleError {
         block: BlockId,
     },
     InvalidRankedScc(MachineId),
-    NonExecutableRankedScc(MachineId),
     ControlCycle(BlockId),
     UnreachableBlock(BlockId),
     MalformedProposition(PropositionError),

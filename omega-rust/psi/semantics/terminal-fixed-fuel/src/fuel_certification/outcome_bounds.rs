@@ -114,22 +114,6 @@ fn checked_optional_add(value: Option<u64>, added: u64) -> Result<Option<u64>, F
         .transpose()
 }
 
-pub(super) fn block_units(
-    block: &terminal_psi::Block,
-    schedule: TerminalFuelSchedule,
-) -> Result<u64, FixedFuelError> {
-    block
-        .operations
-        .iter()
-        .try_fold(0_u64, |units, operation| {
-            units
-                .checked_add(schedule.operation_units(&operation.kind))
-                .ok_or(FixedFuelError::BoundOverflow)
-        })?
-        .checked_add(schedule.terminator_units(&block.terminator))
-        .ok_or(FixedFuelError::BoundOverflow)
-}
-
 pub(super) fn maximum_machine_outcomes(
     machine: MachineId,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
@@ -196,7 +180,7 @@ pub(super) fn maximum_machine_outcomes(
 /// condensation of components and ordinary blocks is acyclic, so a
 /// longest-path bound over it covers every admitted execution's operation,
 /// call, edge, and cleanup costs. The rank bound is the carrier's type
-/// maximum, the same all-input bound the ranked-countdown certificate uses.
+/// maximum, covering every input the admitted ranking can take.
 fn natural_machine_outcomes(
     machine: &TerminalMachine,
     components: &[TerminalNaturalCycle],

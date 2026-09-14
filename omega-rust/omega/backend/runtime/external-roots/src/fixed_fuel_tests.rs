@@ -17,27 +17,26 @@ use layout_plans::{
     ArtifactInstallationScopeId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
 use proof_admission::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, IntegerAffineWitness, ProofNode,
-    ProofRule, ProofSystemMarker,
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, IntegerAffineWitness, PrimitiveJudgment,
+    ProofNode, ProofRule, ProofSystemMarker, RecursiveComponentCertificate,
+    RecursiveEdgeCertificate,
 };
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
     MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
 };
 use terminal_codec::terminal_psi_identity;
-use terminal_fixed_fuel::{
-    derive_fixed_segment_fuel, derive_validated_fixed_safe_point_segments,
-    derive_validated_ranked_countdown_safe_point_segments,
-};
+use terminal_fixed_fuel::{derive_fixed_segment_fuel, derive_validated_fixed_safe_point_segments};
 use terminal_psi::{
-    Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalRankedGuard, TerminalRankedScc,
-    TerminalRankedSccEdge, TerminalRankedSuccessorArgument, TerminalUnsignedCountdownScc,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    Block, ControlCycleEvidence, MachineContract, Operation, OperationKind, OperationResult,
+    SuccessorEdge, TerminalBlockNaturalRank, TerminalMachine, TerminalMachineResult,
+    TerminalModule, TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
+    TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::{
-    ObligationEvidence, ProofBundle, reconstruct_interpretable_operation_obligations,
-    validate_module_for_interpretation, verify_module, verify_module_for_fixed_fuel,
+    ObligationEvidence, ProofBundle, reconstruct_control_cycle_obligations,
+    reconstruct_interpretable_operation_obligations, validate_module_for_interpretation,
+    verify_module,
 };
 
 #[derive(Debug)]
@@ -348,33 +347,35 @@ fn ranked_terminal_fixture() -> TerminalModule {
                 id: initial,
                 scalar_type: scalar,
             }],
-            ranked_scc: Some(TerminalRankedScc::UnsignedCountdown(
-                TerminalUnsignedCountdownScc {
-                    header,
-                    rank_parameter: rank,
-                    rank_type: integer,
-                    lower_bound: IntegerValue::Unsigned(0),
-                    upper_bound: integer.maximum_value(),
-                    covered_cyclic_edges: vec![TerminalRankedSccEdge {
+            ranked_scc: Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type: integer,
+                ranks: vec![
+                    TerminalBlockNaturalRank {
+                        block: header,
+                        value: rank,
+                    },
+                    TerminalBlockNaturalRank {
+                        block: decrement,
+                        value: rank,
+                    },
+                ],
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: guard_edge,
+                        source: header,
+                        target: decrement,
+                        successor_rank: rank,
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
                         edge: backedge,
                         source: decrement,
                         target: header,
-                        guard: TerminalRankedGuard::UnsignedParameterPositive {
-                            block: header,
-                            edge: guard_edge,
-                            condition,
-                            parameter: rank,
-                        },
-                        successor_argument:
-                            TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-                                argument_index: 0,
-                                argument: next,
-                                source_parameter: rank,
-                                target_parameter: rank,
-                            },
-                    }],
-                },
-            )),
+                        successor_rank: next,
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                ],
+            }])),
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -582,8 +583,122 @@ fn ranked_terminal_proof(module: &TerminalModule) -> ProofBundle {
             }),
         }],
         recursive_components: Vec::new(),
-        control_cycles: Vec::new(),
+        control_cycles: vec![ranked_cycle_evidence(module)],
         evidence_producers: Vec::new(),
+    }
+}
+
+/// Certificate for the verifier-reconstructed natural-order question the
+/// retained countdown claims: forward edges preserve the header's rank and the
+/// covered backedge carries the strict `rank - 1 < rank` descent.
+fn ranked_cycle_evidence(module: &TerminalModule) -> ControlCycleEvidence {
+    let questions = reconstruct_control_cycle_obligations(module)
+        .expect("ranked countdown cycle question reconstructs");
+    let [question] = questions.as_slice() else {
+        panic!("ranked countdown reconstructs exactly one cycle question")
+    };
+    let obligation = &question.obligation;
+    let scalar_type = module.machines[0].parameters[0].scalar_type;
+    let ScalarType::Integer(integer_type) = scalar_type else {
+        unreachable!("ranked countdown parameter is an integer")
+    };
+    let one = ScalarTerm::value(core_id(0x7415, ValueId::new), scalar_type);
+    let zero_literal = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(0))
+        .expect("ranked countdown literal zero");
+    let one_literal = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1))
+        .expect("ranked countdown literal one");
+    let axiom = |axioms: &[Proposition], conclusion: Proposition| -> ProofNode {
+        let index = axioms
+            .iter()
+            .position(|axiom| *axiom == conclusion)
+            .expect("countdown cycle premise is reconstructed as a semantic axiom");
+        ProofNode {
+            conclusion,
+            rule: ProofRule::SemanticAxiom { index },
+        }
+    };
+    let mut envelope = 0x7472_u64;
+    let mut wrap = |proof: ProofNode| {
+        envelope += 1;
+        EvidenceRoute::CertificateDerived(CertificateEnvelope {
+            identity: core_id(envelope, EvidenceIdentity::new),
+            proof_system_marker: ProofSystemMarker::CURRENT,
+            proof,
+        })
+    };
+    let well_foundedness = wrap(ProofNode {
+        conclusion: obligation.well_foundedness.obligation.proposition.clone(),
+        rule: ProofRule::SemanticAxiom { index: 0 },
+    });
+    let edges = obligation
+        .edges
+        .iter()
+        .map(|edge| {
+            let decrease = &edge.decrease;
+            let proof = match &decrease.obligation.proposition {
+                Proposition::LessOrEqual(left, right) if left == right => ProofNode {
+                    conclusion: decrease.obligation.proposition.clone(),
+                    rule: ProofRule::IntegerOrderWeakening {
+                        relation: Box::new(ProofNode {
+                            conclusion: Proposition::Equal(left.clone(), right.clone()),
+                            rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+                        }),
+                    },
+                },
+                Proposition::LessThan(after, before) => ProofNode {
+                    conclusion: decrease.obligation.proposition.clone(),
+                    rule: ProofRule::IntegerSubtractOrder {
+                        difference: Box::new(axiom(
+                            &decrease.semantic_axioms,
+                            Proposition::Equal(
+                                after.clone(),
+                                ScalarTerm::exact_integer_subtract(
+                                    integer_type,
+                                    before.clone(),
+                                    one.clone(),
+                                )
+                                .expect("ranked countdown subtraction term"),
+                            ),
+                        )),
+                        positive: Box::new(ProofNode {
+                            conclusion: Proposition::LessThan(zero_literal.clone(), one.clone()),
+                            rule: ProofRule::IntegerOrderSubstitution {
+                                relation: Box::new(ProofNode {
+                                    conclusion: Proposition::LessThan(
+                                        zero_literal.clone(),
+                                        one_literal.clone(),
+                                    ),
+                                    rule: ProofRule::Primitive(
+                                        PrimitiveJudgment::ClosedIntegerRelation,
+                                    ),
+                                }),
+                                equality: Box::new(axiom(
+                                    &decrease.semantic_axioms,
+                                    Proposition::Equal(one.clone(), one_literal.clone()),
+                                )),
+                                endpoint: 1,
+                            },
+                        }),
+                    },
+                },
+                other => panic!("unexpected countdown decrease question {other:?}"),
+            };
+            RecursiveEdgeCertificate {
+                obligation: decrease.obligation.id,
+                evidence: wrap(proof),
+            }
+        })
+        .collect();
+    ControlCycleEvidence {
+        component: question.component,
+        certificate: RecursiveComponentCertificate {
+            identity: core_id(0x7471, EvidenceIdentity::new),
+            ranking_relation: obligation
+                .ranking_relation
+                .expect("ranked countdown reconstructs its natural relation"),
+            well_foundedness,
+            edges,
+        },
     }
 }
 
@@ -742,13 +857,13 @@ fn installed_segment_catalog_binds_one_complete_partition_to_one_occurrence() {
 }
 
 #[test]
-fn installed_ranked_safe_point_catalog_remains_non_authorizing_occurrence_evidence() {
+fn installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence() {
     let module = ranked_terminal_fixture();
     let proof = ranked_terminal_proof(&module);
-    let verified = verify_module_for_fixed_fuel(&module, &proof, &AdmissionProfile::default())
-        .expect("ranked countdown verifies for fixed-fuel analysis");
-    let catalog = derive_validated_ranked_countdown_safe_point_segments(&verified, module.entry)
-        .expect("exact ranked safe-point roster");
+    let verified = verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("natural-cycle countdown verifies under ordinary authority");
+    let catalog = derive_validated_fixed_safe_point_segments(&verified, module.entry)
+        .expect("exact safe-point roster for the ranked component");
     assert_eq!(catalog.certificates().len(), 5);
 
     let terminal = TestObject {
@@ -758,13 +873,9 @@ fn installed_ranked_safe_point_catalog_remains_non_authorizing_occurrence_eviden
     };
     let selected_entry = entry(0x7470);
     let installed = installed_code(0x7480, 0x7490, selected_entry);
-    let binding = bind_installed_ranked_countdown_safe_point_fuel_catalog(
-        catalog,
-        &terminal,
-        &installed,
-        selected_entry,
-    )
-    .expect("ranked roster binds to one exact installed occurrence");
+    let binding =
+        bind_installed_segment_fuel_catalog(catalog, &terminal, &installed, selected_entry)
+            .expect("ranked roster binds to one exact installed occurrence");
 
     assert_eq!(binding.psi(), terminal.identity);
     assert_eq!(binding.machine(), module.entry);
@@ -780,43 +891,19 @@ fn installed_ranked_safe_point_catalog_remains_non_authorizing_occurrence_eviden
             .collect::<Vec<_>>(),
         vec![1, 3, 3, 3, 1],
     );
-    validate_installed_ranked_countdown_safe_point_fuel_catalog(
-        &binding,
-        &installed,
-        selected_entry,
-    )
-    .expect("exact installed ranked roster replays");
+    validate_installed_segment_fuel_catalog(&binding, &installed, selected_entry)
+        .expect("exact installed ranked roster replays");
 
     let wrong_occurrence = installed_code(0x7480, 0x7491, selected_entry);
     assert!(
-        validate_installed_ranked_countdown_safe_point_fuel_catalog(
-            &binding,
-            &wrong_occurrence,
-            selected_entry,
-        )
-        .is_err()
+        validate_installed_segment_fuel_catalog(&binding, &wrong_occurrence, selected_entry)
+            .is_err()
     );
     let wrong_artifact = installed_code(0x7482, 0x7492, selected_entry);
     assert!(
-        validate_installed_ranked_countdown_safe_point_fuel_catalog(
-            &binding,
-            &wrong_artifact,
-            selected_entry,
-        )
-        .is_err()
+        validate_installed_segment_fuel_catalog(&binding, &wrong_artifact, selected_entry).is_err()
     );
-    assert!(
-        validate_installed_ranked_countdown_safe_point_fuel_catalog(
-            &binding,
-            &installed,
-            entry(0x7471),
-        )
-        .is_err()
-    );
-    validate_installed_ranked_countdown_safe_point_fuel_catalog(
-        &binding,
-        &installed,
-        selected_entry,
-    )
-    .expect("failed replay leaves the ranked roster intact");
+    assert!(validate_installed_segment_fuel_catalog(&binding, &installed, entry(0x7471),).is_err());
+    validate_installed_segment_fuel_catalog(&binding, &installed, selected_entry)
+        .expect("failed replay leaves the ranked roster intact");
 }

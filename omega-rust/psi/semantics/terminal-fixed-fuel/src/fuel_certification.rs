@@ -13,15 +13,7 @@ use terminal_fuel::TerminalFuelSchedule;
 use terminal_verifier::VerifiedTerminalModule;
 
 mod outcome_bounds;
-mod ranked_countdown;
 mod segment_partition;
-pub use ranked_countdown::{
-    derive_ranked_countdown_entry_fuel, derive_ranked_countdown_safe_point_segments,
-    derive_validated_ranked_countdown_safe_point_segments,
-    retain_validated_ranked_countdown_safe_point_segments, validate_ranked_countdown_entry_fuel,
-    validate_ranked_countdown_safe_point_segments,
-    validate_retained_ranked_countdown_safe_point_segments,
-};
 #[cfg(test)]
 mod tests;
 

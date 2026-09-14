@@ -2,18 +2,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{BlockId, EdgeId};
+use semantic_vocabulary::BlockId;
 use terminal_psi::{Block, Terminator};
 
-/// Keep the established topological order for acyclic graphs and the ranked
-/// skeleton. Otherwise visit from entry, so every block has at least one
-/// incoming frontier before it is processed. The caller must check arrivals
-/// left after traversal against the previously established block entries.
-pub(super) fn block_order(
-    entry: BlockId,
-    blocks: &BTreeMap<BlockId, &Block>,
-    representation_backedges: &BTreeSet<EdgeId>,
-) -> Vec<BlockId> {
+/// Keep the established topological order for acyclic graphs. Otherwise visit
+/// from entry, so every block has at least one incoming frontier before it is
+/// processed. The caller must check arrivals left after traversal against the
+/// previously established block entries.
+pub(super) fn block_order(entry: BlockId, blocks: &BTreeMap<BlockId, &Block>) -> Vec<BlockId> {
     let mut successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
     let mut predecessors = blocks
         .keys()
@@ -42,9 +38,7 @@ pub(super) fn block_order(
         };
         let targets = targets
             .into_iter()
-            .filter_map(|(edge, target)| {
-                (!representation_backedges.contains(&edge)).then_some(target)
-            })
+            .map(|(_, target)| target)
             .collect::<Vec<_>>();
         for target in &targets {
             *predecessors
