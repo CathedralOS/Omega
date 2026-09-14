@@ -20,7 +20,9 @@ rerun that customer before assuming the old diagnosis still applies.
 Live assignments belong in the [timestamped, expiring work-claim registry](tools/claims.md),
 not historical board prose. Check `python tools/claims.py status` (`python3` on
 macOS) before taking over a path; a retained checkpoint is resume material, not
-an indefinite claim.
+an indefinite claim. Tag an added item's provenance on its first line:
+`(new-scope)` for newly discovered work, `(split-of:<parent-item>)` when it
+decomposes an existing item. Items added before 2026-09-14 are untagged.
 
 The [workflow](AGENTS.md#workflow) governs scoped checks, strategy pauses, and
 landing. A paused strategy is not a blocked language feature. Unsettled owner

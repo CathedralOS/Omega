@@ -447,7 +447,10 @@ release notes. Completed limitations are deleted, not retained as status.
 When creating or refining an item for delegation, include enough rationale,
 design links, dependencies, and scope to route it without rediscovering the
 problem. Add only context that affects the assignment; no mandatory field
-template or separate delegation board is needed.
+template or separate delegation board is needed. Tag an added item's provenance
+on its first line — `(new-scope)` for newly discovered work or
+`(split-of:<parent-item>)` when it decomposes an existing item — so board
+growth stays measurable; items added before 2026-09-14 are untagged.
 
 Owner decisions belong in `OWNER_QUESTIONS.md`, not on a board. Before starting
 work, fetch `main` and inspect recent commits in that lane to avoid overlapping
