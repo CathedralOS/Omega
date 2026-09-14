@@ -469,7 +469,7 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
+    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 
     use super::*;
@@ -952,8 +952,12 @@ mod tests {
         let user_tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
         parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens)
             .expect("parse fixture");
-        let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-            .expect("resolve projection fixture");
+        let resolved = resolve(ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        })
+        .expect("resolve projection fixture");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type projection fixture");
         typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check projection fixture")
     }
