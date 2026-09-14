@@ -108,8 +108,13 @@ pub(super) fn membership_layout(
         }
         result.structural_type
     };
-    let (identity, byte_offset) =
-        crate::structural_reference_input::project(identity, path, &signature.structural_types)?;
+    // Whole sums keep their existing payload-layout admission. Resolving a
+    // nonempty path additionally requires the supported enclosing storage shape.
+    let (identity, byte_offset) = if path.is_empty() {
+        (identity, 0)
+    } else {
+        crate::structural_reference_input::project(identity, path, &signature.structural_types)?
+    };
     let declaration = signature
         .structural_types
         .iter()
