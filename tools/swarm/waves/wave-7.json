@@ -1,0 +1,67 @@
+{
+  "wave": "w7",
+  "max_acu_limit": 10,
+  "devin_mode": null,
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "w7"],
+  "owner_label_prefix": "Jarod / swarm-w7",
+  "note": "Backfill wave: respawns the two wave-6 items that blocked on live claims. devin_mode is null so spawned sessions inherit the org default (SWE-2 Max). borrow-proof-convergence was respawned directly when the checks/ranges claim cleared; exact-selection-families fires from a one-shot schedule automation at 2026-09-15T08:30Z, after the BUILD-SNAPSHOT-OUTPUTS claim on compiler/src/pipeline expires (~08:17Z).",
+  "exclusions": [
+    "SUBJECT-QUALIFIED-ARTIFACT-PROOFS",
+    "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
+    "UEFI-OS-HANDOFF",
+    "RUNTIME-VALUE-GENERICS",
+    "PROOF-KERNEL-CORE",
+    "DELTA-COMPILER",
+    "PCC-CANONICAL-SEMANTIC-LEDGER",
+    "FLOAT-PROVIDERS",
+    "SQUALR-HEADLESS",
+    "MACOS-APPLICATION-PUBLICATION",
+    "GENERAL-CYCLIC-EXECUTION",
+    "GENERATED-DIFFERENTIALS",
+    "NORMALIZED-ABI-LOWERING",
+    "PROOF-CONTRACT-MIGRATION",
+    "PROOF-RELEVANCE-MIGRATION",
+    "PSIIR",
+    "BUILD-SNAPSHOT-OUTPUTS",
+    "MODULE-NAMESPACE-RESOLUTION",
+    "PROOF-CERTIFICATION-BRIDGE",
+    "CASE-CONSTRAINTS",
+    "PCC-PRODUCT-PUBLICATION",
+    "SPILL-REALIZATION",
+    "TERMINAL-SCC-CONSUMERS",
+    "TRANSLATION-VALIDATION",
+    "CUSTODY-MUTATION-COVERAGE",
+    "BOOTSTRAP-RUNTIME-SOURCE"
+  ],
+  "sessions": [
+    {
+      "name": "borrow-proof-convergence",
+      "board": "TASKS.md",
+      "item": "BORROW-PROOF-CONVERGENCE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/validation/src/places.rs",
+        "omega-rust/psi/semantics/validation/src/slice_ranking.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/borrows",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/ranges",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/borrow",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/ranges"
+      ],
+      "suggested_first_slice": "Extend range-premise read dependencies to one selected call, indexing operator, or atomic read with established complete footprint and operation stability. The wave-6 run located the next slice in checks/ranges/facts/dependencies/."
+    },
+    {
+      "name": "exact-selection-families",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "EXACT-SELECTION-FAMILIES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering",
+        "omega-rust/omega/representations/optimization-core/src/selection.rs",
+        "omega-rust/omega/compiler/compiler/src/pipeline/optimization/build_vocabulary"
+      ],
+      "suggested_first_slice": "Add one exact address-mode, compare/branch, extension, or constant-materialization selection family with independent validation. The wave-6 run located the family seam in rewrites/selected_lowering; an Optimization tag requires optimization-core/src/selection.rs and compiler/src/pipeline/optimization/build_vocabulary/fragments.rs."
+    }
+  ]
+}
