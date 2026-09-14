@@ -3,10 +3,13 @@ use super::model::{
     CanonicalPackageReconstructionQuestionLimits,
 };
 use crate::declarations::PackageKey;
-use crate::resolution::graph::CanonicalSourceClosureSubject;
-use package_evidence::ledger::encode_ordinary_package_obligation_ledger;
+use crate::resolution::graph::{CanonicalDependencySourceSelection, CanonicalSourceClosureSubject};
 use semantic_vocabulary::PackageKeyIdentity;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+
+#[cfg(test)]
+#[path = "tests.rs"]
+mod tests;
 
 pub(super) fn validate_association(
     source_closure: &CanonicalSourceClosureSubject,
@@ -47,7 +50,7 @@ pub(super) fn validate_association(
             "package reconstruction obligation target does not match the source closure target",
         ));
     }
-    let mut total_ledger_bytes = 0usize;
+    let outgoing = outgoing_product_requests(source_closure)?;
     for (source, entry) in source_closure.packages().iter().zip(entries) {
         if entry.package != *source.key() {
             return Err(CanonicalPackageReconstructionQuestionError::new(
@@ -64,42 +67,20 @@ pub(super) fn validate_association(
                 "package reconstruction question mixes deployment targets",
             ));
         }
-        validate_ledger_source_closure(source_closure, entry)?;
-        let encoded =
-            encode_ordinary_package_obligation_ledger(&entry.obligations).map_err(|_| {
-                CanonicalPackageReconstructionQuestionError::new(
-                    "package reconstruction question contains an invalid obligation ledger",
-                )
-            })?;
-        if encoded.len() > limits.maximum_ledger_bytes {
-            return Err(CanonicalPackageReconstructionQuestionError::new(
-                "package reconstruction obligation ledger exceeds its byte ceiling",
-            ));
-        }
-        total_ledger_bytes = total_ledger_bytes
-            .checked_add(encoded.len())
-            .ok_or_else(|| {
-                CanonicalPackageReconstructionQuestionError::new(
-                    "package reconstruction ledger-byte accounting overflowed",
-                )
-            })?;
-        if total_ledger_bytes > limits.maximum_total_ledger_bytes {
-            return Err(CanonicalPackageReconstructionQuestionError::new(
-                "package reconstruction question exceeds its total ledger-byte ceiling",
-            ));
-        }
+        validate_ledger_source_closure(source_closure, &outgoing, entry)?;
     }
     Ok(())
 }
 
 fn validate_ledger_source_closure(
     source_closure: &CanonicalSourceClosureSubject,
+    outgoing: &[&[CanonicalDependencySourceSelection]],
     entry: &CanonicalPackageReconstructionEntry,
 ) -> Result<(), CanonicalPackageReconstructionQuestionError> {
-    let reachable = reachable_source_packages(source_closure, &entry.package);
+    let reachable = reachable_source_packages(source_closure, outgoing, &entry.package)?;
     let mut expected_packages = reachable
         .iter()
-        .map(PackageKey::identity)
+        .map(|&package_index| source_closure.packages()[package_index].key().identity())
         .collect::<Vec<_>>();
     expected_packages.sort_unstable();
     if entry.obligations.dependency_closure().packages() != expected_packages {
@@ -108,12 +89,9 @@ fn validate_ledger_source_closure(
         ));
     }
 
-    let mut expected_dependencies = source_closure
-        .dependency_requests()
+    let mut expected_dependencies = reachable
         .iter()
-        .filter(|dependency| {
-            dependency.purpose().is_product() && reachable.contains(dependency.requester())
-        })
+        .flat_map(|&package_index| outgoing[package_index])
         .map(|dependency| {
             (
                 dependency.requester().identity(),
@@ -143,25 +121,73 @@ fn validate_ledger_source_closure(
     Ok(())
 }
 
+// The validated subject orders requests by exact requester, purpose, and
+// declaration index. Borrow its product groups once for every ledger below.
+fn outgoing_product_requests(
+    source_closure: &CanonicalSourceClosureSubject,
+) -> Result<Vec<&[CanonicalDependencySourceSelection]>, CanonicalPackageReconstructionQuestionError>
+{
+    let mut outgoing = Vec::new();
+    outgoing
+        .try_reserve_exact(source_closure.packages().len())
+        .map_err(|_| {
+            CanonicalPackageReconstructionQuestionError::new(
+                "package reconstruction graph allocation failed",
+            )
+        })?;
+    let mut remaining = source_closure.dependency_requests();
+    for package in source_closure.packages() {
+        let request_count =
+            remaining.partition_point(|request| request.requester() == package.key());
+        let (requests, rest) = remaining.split_at(request_count);
+        let product_count = requests.partition_point(|request| request.purpose().is_product());
+        outgoing.push(&requests[..product_count]);
+        remaining = rest;
+    }
+    Ok(outgoing)
+}
+
 fn reachable_source_packages(
     source_closure: &CanonicalSourceClosureSubject,
+    outgoing: &[&[CanonicalDependencySourceSelection]],
     root: &PackageKey,
-) -> BTreeSet<PackageKey> {
-    let mut reachable = BTreeSet::new();
-    let mut pending = vec![root.clone()];
-    while let Some(package) = pending.pop() {
-        if !reachable.insert(package.clone()) {
-            continue;
+) -> Result<Vec<usize>, CanonicalPackageReconstructionQuestionError> {
+    let packages = source_closure.packages();
+    let package_position = |key: &PackageKey| {
+        packages
+            .binary_search_by(|package| package.key().cmp(key))
+            .map_err(|_| {
+                CanonicalPackageReconstructionQuestionError::new(
+                    "package reconstruction graph contains an unknown package",
+                )
+            })
+    };
+    let mut reachable = Vec::new();
+    let mut visited = Vec::new();
+    reachable.try_reserve_exact(packages.len()).map_err(|_| {
+        CanonicalPackageReconstructionQuestionError::new(
+            "package reconstruction graph allocation failed",
+        )
+    })?;
+    visited.try_reserve_exact(packages.len()).map_err(|_| {
+        CanonicalPackageReconstructionQuestionError::new(
+            "package reconstruction graph allocation failed",
+        )
+    })?;
+    visited.resize(packages.len(), false);
+    let root_position = package_position(root)?;
+    visited[root_position] = true;
+    reachable.push(root_position);
+    let mut next_package = 0;
+    while next_package < reachable.len() {
+        for dependency in outgoing[reachable[next_package]] {
+            let selected = package_position(dependency.selected().key())?;
+            if !visited[selected] {
+                visited[selected] = true;
+                reachable.push(selected);
+            }
         }
-        pending.extend(
-            source_closure
-                .dependency_requests()
-                .iter()
-                .filter(|dependency| {
-                    dependency.purpose().is_product() && dependency.requester() == &package
-                })
-                .map(|dependency| dependency.selected().key().clone()),
-        );
+        next_package += 1;
     }
-    reachable
+    Ok(reachable)
 }
