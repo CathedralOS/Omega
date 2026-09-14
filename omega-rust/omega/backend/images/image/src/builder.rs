@@ -3,7 +3,7 @@
 mod copies;
 mod sections;
 
-use crate::model::{FinalImage, FinalImageMemory};
+use crate::final_image::{FinalImage, FinalImageMemory};
 use crate::symbols::final_image_symbol_handle;
 use object_file::{ObjectPlan, RelocationPlan, SectionKind, SymbolKind};
 use target::NativeTarget;

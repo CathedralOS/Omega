@@ -1,4 +1,4 @@
-use crate::model::FinalImageSection;
+use crate::final_image::FinalImageSection;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalImageMemory {

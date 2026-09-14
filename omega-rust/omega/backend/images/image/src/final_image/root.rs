@@ -1,7 +1,7 @@
 use arena::Handle;
 use target::NativeTarget;
 
-use crate::model::{
+use crate::final_image::{
     FinalExecutableRegion, FinalImageMemory, FinalImageRelocationTable, FinalImageSymbolHandle,
     FinalImageSymbolTable,
 };
@@ -65,7 +65,7 @@ impl FinalImage {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{
+    use crate::final_image::{
         FinalImage, FinalImageMemory, FinalImageRelocationTable, FinalImageSymbolTable,
     };
     use arena::Handle;

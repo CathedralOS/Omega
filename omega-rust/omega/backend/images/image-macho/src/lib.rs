@@ -83,7 +83,7 @@ mod bytes;
 mod code_signature;
 pub use code_signature::code_signature_identifier;
 mod constants;
-mod entry;
+mod entry_symbol;
 mod imports;
 mod layout;
 mod load_commands;
@@ -95,7 +95,7 @@ mod rebases;
 mod tests;
 
 use code_signature::macho_ad_hoc_code_signature;
-use entry::macho_entry_text_offset;
+use entry_symbol::macho_entry_text_offset;
 use imports::{
     install_import_thunks, macho_bind_info, patch_import_thunks, validate_import_thunk_footprints,
 };

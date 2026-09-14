@@ -73,7 +73,7 @@ use image::{
 
 mod bytes;
 mod constants;
-mod entry;
+mod entry_symbol;
 mod headers;
 mod imports;
 mod layout;
@@ -84,7 +84,7 @@ mod sections;
 mod tests;
 
 use constants::TEXT_RVA;
-use entry::pe_entry_rva;
+use entry_symbol::pe_entry_rva;
 use headers::{PeHeaderInput, write_dos_header, write_pe_headers, write_section_header};
 use imports::{
     build_import_table, install_import_thunks, patch_import_thunks,

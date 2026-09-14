@@ -276,7 +276,7 @@ impl FinalFootprintCertificate {
                 "compiler text validation evidence has an invalid strong derivation digest",
             ));
         }
-        crate::model::validate_placed_executable_region_inventory_digest(&inventory)?;
+        crate::final_image::validate_placed_executable_region_inventory_digest(&inventory)?;
         if !inventory.unclassified_gaps.is_empty() {
             return Err(Diagnostic::error(
                 "region-complete final footprint certificate cannot retain executable gaps",
@@ -369,7 +369,7 @@ impl FinalFootprintCertificate {
             ));
         }
         self.coverage.validate_normalized()?;
-        crate::model::validate_placed_executable_region_inventory_digest(&self.inventory)?;
+        crate::final_image::validate_placed_executable_region_inventory_digest(&self.inventory)?;
         if !self.compiler_text_validation.has_valid_derivation_digest() {
             return Err(Diagnostic::error(
                 "compiler text validation evidence has an invalid strong derivation digest",
