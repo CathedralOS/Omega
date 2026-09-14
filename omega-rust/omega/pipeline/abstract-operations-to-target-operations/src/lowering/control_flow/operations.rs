@@ -223,6 +223,7 @@ pub(super) fn lower_operation(
         AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
         | AbstractOperation::PrimitiveScalarRead { .. }
+        | AbstractOperation::StructuralByteSequenceFieldLength { .. }
         | AbstractOperation::IntegerStructuralField { .. }
         | AbstractOperation::BooleanStructuralField { .. } => super::primitive_storage::lower(
             operation,

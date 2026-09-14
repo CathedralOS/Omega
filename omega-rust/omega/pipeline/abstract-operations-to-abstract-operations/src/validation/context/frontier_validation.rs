@@ -109,7 +109,8 @@ fn validate_surviving_byte_operations(
                 obligation,
                 ..
             } => (*psi_operation, Some(*obligation)),
-            O::ByteSequenceLength { psi_operation, .. } => (*psi_operation, None),
+            O::ByteSequenceLength { psi_operation, .. }
+            | O::StructuralByteSequenceFieldLength { psi_operation, .. } => (*psi_operation, None),
             _ => continue,
         };
         let original = module
@@ -178,6 +179,24 @@ fn validate_surviving_byte_operations(
                         index: *index,
                         length: *length,
                         obligation: *obligation,
+                    },
+                ),
+                O::StructuralByteSequenceFieldLength {
+                    result,
+                    source,
+                    path,
+                    field,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: result.value,
+                        scalar_type: result.scalar_type,
+                    }),
+                    terminal_psi::OperationKind::StructuralByteSequenceFieldLength {
+                        source: *source,
+                        path: path.clone(),
+                        field: *field,
                     },
                 ),
                 O::ByteSequenceLength { result, source, .. } => (

@@ -78,6 +78,85 @@ pub(super) fn lower(
             matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(expected) if expected == scalar_type))
     };
     let (identity, lowered) = match operation {
+        AbstractOperation::StructuralByteSequenceFieldLength {
+            psi_operation,
+            result,
+            source,
+            path,
+            field,
+        } => {
+            let parameter = function
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *source)
+                .ok_or_else(invalid)?;
+            if !matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            ) || parameter.multiplicity == StructuralMultiplicity::Linear
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || result.scalar_type
+                    != ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+                    )
+                || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+                || function
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == *source)
+            {
+                return Err(invalid());
+            }
+            let carrier = if path.is_empty() {
+                parameter.structural_type
+            } else {
+                crate::lowering::structural_layout::resolve_structural_projection_path(
+                    parameter.structural_type,
+                    path,
+                    types,
+                    &mut BTreeMap::new(),
+                    &mut BTreeSet::new(),
+                )?
+                .0
+            };
+            let StructuralTypeShape::Record { fields } =
+                &types.get(&carrier).ok_or_else(invalid)?.shape
+            else {
+                return Err(invalid());
+            };
+            let mut matching = fields.iter().filter(|candidate| candidate.id == *field);
+            let selected = matching.next().ok_or_else(invalid)?;
+            if matching.next().is_some()
+                || selected.relevance.is_erased()
+                || !matches!(
+                    selected.field_type,
+                    StructuralFieldType::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+            {
+                return Err(invalid());
+            }
+            // Metadata keeps the original parameter and static projection. It
+            // does not establish a borrowed view or grant byte-content access.
+            retain_result(*psi_operation, *result, live)?;
+            (
+                *psi_operation,
+                TargetUnitOperation::StructuralByteSequenceFieldLength {
+                    psi_operation: *psi_operation,
+                    result: *result,
+                    source: terminal_psi::StructuralArgument {
+                        place: *source,
+                        access: parameter.access,
+                        path: path.clone(),
+                    },
+                    field: *field,
+                },
+            )
+        }
         AbstractOperation::IntegerStructuralField { .. }
         | AbstractOperation::BooleanStructuralField { .. } => {
             let (psi_operation, result, place, path, field) = match operation {

@@ -178,6 +178,7 @@ pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
             ..
         }
         | O::ByteSequenceLength { source, .. }
+        | O::StructuralByteSequenceFieldLength { source, .. }
         | O::BooleanStructuralField { source, .. }
         | O::ReturnStructural { source, .. } => {
             vec![*source]

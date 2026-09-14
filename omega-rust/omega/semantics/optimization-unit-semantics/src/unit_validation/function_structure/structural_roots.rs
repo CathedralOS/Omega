@@ -49,6 +49,46 @@ pub(crate) fn validate_structural_root_operations(
                 structural_types,
             )?;
             match &node.operation {
+                O::StructuralByteSequenceFieldLength {
+                    source,
+                    path,
+                    field,
+                    ..
+                } => {
+                    let valid = function.structural_parameters.iter().find(|parameter| parameter.place == *source)
+                        .is_some_and(|parameter| {
+                            matches!(parameter.access,
+                                terminal_psi::StructuralAccess::SharedBorrow
+                                | terminal_psi::StructuralAccess::MutableBorrow
+                                | terminal_psi::StructuralAccess::WriteOnlyBorrow)
+                            && matches!(parameter.multiplicity,
+                                terminal_psi::StructuralMultiplicity::Unrestricted
+                                | terminal_psi::StructuralMultiplicity::Affine)
+                            && parameter.qualifications.is_empty()
+                            && parameter.projected_qualifications.is_empty()
+                            && terminal_psi::is_bounded_structural_scalar_store_path(path)
+                            && function.entry_claim_declarations.iter().all(|claim| claim.input != *source)
+                            && function.content_entry_claims.iter().all(|claim| claim.input.root != *source)
+                            && matches!(place_kinds.get(source),
+                                Some(StructuralPlaceKind::Parameter { position, is_self })
+                                if *position == parameter.position && *is_self == parameter.is_self)
+                            && super::super::structural_catalog::resolve_structural_path(
+                                structural_types, parameter.structural_type, path,
+                            ).and_then(|parent| structural_types.get(&parent))
+                            .is_some_and(|declaration| match &declaration.shape {
+                                terminal_psi::StructuralTypeShape::Record { fields } => fields.iter().any(|candidate|
+                                    candidate.id == *field && !candidate.relevance.is_erased()
+                                    && matches!(candidate.field_type, terminal_psi::StructuralFieldType::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }))),
+                                _ => false,
+                            })
+                        });
+                    if !valid {
+                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
+                            machine: Some(function.machine),
+                        });
+                    }
+                }
                 O::StructuralCaseMembership {
                     source,
                     path,

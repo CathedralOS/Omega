@@ -65,6 +65,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::ByteSequenceWrite { psi_operation, .. }
         | O::ByteSequenceSubslice { psi_operation, .. }
         | O::ByteSequenceLength { psi_operation, .. }
+        | O::StructuralByteSequenceFieldLength { psi_operation, .. }
         | O::IntegerStructuralField { psi_operation, .. }
         | O::BooleanNot { psi_operation, .. }
         | O::BooleanEqual { psi_operation, .. }

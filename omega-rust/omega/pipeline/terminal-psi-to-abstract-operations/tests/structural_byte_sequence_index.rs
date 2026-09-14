@@ -20,7 +20,7 @@ fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
 }
 
 #[test]
-fn verified_field_length_and_indexed_store_reject_at_every_native_entrance() {
+fn verified_indexed_field_store_rejects_after_length_lowering_at_every_native_entrance() {
     let source = r#"
         domain [u8; 3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8; 3] in Utf8; }
@@ -255,11 +255,7 @@ fn verified_field_length_and_indexed_store_reject_at_every_native_entrance() {
             &profile,
         )
         .expect("canonical byte operation is valid before native rejection");
-        let expected = if store_first {
-            LoweringError::UnsupportedStructuralByteSequenceFieldByteStore(id(105))
-        } else {
-            LoweringError::UnsupportedStructuralByteSequenceFieldLength(id(101))
-        };
+        let expected = LoweringError::UnsupportedStructuralByteSequenceFieldByteStore(id(105));
         for result in [
             lower_artifact(
                 terminal_psi_to_abstract_operations::ArtifactSections {

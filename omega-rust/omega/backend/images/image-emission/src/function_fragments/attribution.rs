@@ -40,6 +40,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::ExactIntegerSubtract { psi_operation, .. }
                 | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
                 | AbstractOperation::ByteSequenceLength { psi_operation, .. }
+                | AbstractOperation::StructuralByteSequenceFieldLength { psi_operation, .. }
                 | AbstractOperation::ByteSequenceRead { psi_operation, .. }
                 | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
                 | AbstractOperation::ByteSequenceSubslice { psi_operation, .. }

@@ -277,6 +277,9 @@ pub(super) fn build_with_environment(
                         structural::observe(source, &mut builder, operation)?
                     }
                     LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
+                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
+                        ..
+                    }
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
                         structural::read(source, &mut builder, operation)?
                     }

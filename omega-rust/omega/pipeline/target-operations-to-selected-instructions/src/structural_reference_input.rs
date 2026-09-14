@@ -572,7 +572,7 @@ pub(crate) fn store(
     }
     // Current-IR validation binds every bounded write to its accepted range
     // proposition. This helper checks physical geometry, not proof authority.
-    scalar_field_geometry(root, path, field, scalar, declarations)
+    scalar_field_geometry(root, path, field, scalar, declarations, false)
 }
 
 /// Reads and proven writes share carrier geometry. Neither this layout nor a
@@ -583,6 +583,7 @@ fn scalar_field_geometry(
     field: StructuralFieldId,
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
+    observes_byte_length: bool,
 ) -> Option<(u32, u8)> {
     let (carrier, carrier_offset) = project(root, path, declarations)?;
     let StructuralTypeShape::Record { fields } = &declarations
@@ -601,10 +602,20 @@ fn scalar_field_geometry(
         offset = align(offset, layout.alignment)?;
         if candidate.id == field {
             let matches_type = match candidate.field_type {
-                StructuralFieldType::Scalar(actual) => actual == scalar,
-                StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(format) == scalar,
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                ) => {
+                    observes_byte_length
+                        && matches!(scalar, ScalarType::Integer(integer)
+                        if Ok(integer) == semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned, 64))
+                }
+                StructuralFieldType::Scalar(actual) => !observes_byte_length && actual == scalar,
+                StructuralFieldType::IeeeFloat(format) => {
+                    !observes_byte_length && ScalarType::IeeeFloat(format) == scalar
+                }
                 StructuralFieldType::BoundedInteger(bounds) => {
-                    ScalarType::Integer(bounds.integer_type()) == scalar
+                    !observes_byte_length && ScalarType::Integer(bounds.integer_type()) == scalar
                 }
                 _ => false,
             };
@@ -642,7 +653,25 @@ pub(crate) fn field_read(
         return None;
     }
     plain_record_shape(structural_type, declarations)?;
-    scalar_field_geometry(structural_type, path, field, scalar, declarations)
+    scalar_field_geometry(structural_type, path, field, scalar, declarations, false)
+}
+
+/// Bounded inline byte storage starts with an aligned u64 live length, followed
+/// by capacity bytes. The enclosing record rounds the capacity+8 footprint for
+/// its next field; a borrowed view's pointer/length descriptor is a different
+/// carrier. This reconstructs metadata geometry only, never content authority.
+pub(crate) fn byte_field_length(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u8)> {
+    if !terminal_psi::is_bounded_structural_scalar_store_path(path) {
+        return None;
+    }
+    plain_record_shape(structural_type, declarations)?;
+    scalar_field_geometry(structural_type, path, field, scalar, declarations, true)
 }
 
 #[cfg(test)]
@@ -705,6 +734,39 @@ mod tests {
                 expected_access
             );
             assert_eq!(store(root, &[], byte_field, scalar, &declarations), None);
+            let length_type = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .unwrap(),
+            );
+            assert_eq!(
+                byte_field_length(root, &[], byte_field, length_type, &declarations),
+                expected.map(|_| (0, 8)),
+            );
+            assert_eq!(
+                byte_field_length(root, &[], byte_field, scalar, &declarations),
+                None
+            );
+            assert_eq!(
+                byte_field_length(root, &[], scalar_field, length_type, &declarations),
+                None
+            );
+            for unrelated_carrier in [
+                StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView),
+                StructuralFieldType::Scalar(length_type),
+            ] {
+                let mut changed = declarations.clone();
+                let StructuralTypeShape::Record { fields } = &mut changed[0].shape else {
+                    panic!("record");
+                };
+                fields[0].field_type = unrelated_carrier;
+                assert_eq!(
+                    byte_field_length(root, &[], byte_field, length_type, &changed),
+                    None
+                );
+            }
             assert_eq!(
                 field_read(root, &[], byte_field, scalar, &declarations),
                 None

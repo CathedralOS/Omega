@@ -166,6 +166,9 @@ pub(in crate::selection) fn validate_with_environment(
                         structural::observe(source, &mut replay, operation)?
                     }
                     LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
+                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
+                        ..
+                    }
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
                         structural::read(source, &mut replay, operation)?
                     }

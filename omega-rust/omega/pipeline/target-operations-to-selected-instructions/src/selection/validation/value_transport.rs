@@ -128,6 +128,7 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         | Instruction::HostedReadByte { .. }
         | Instruction::PrimitiveScalarRead { .. }
         | Instruction::StructuralScalarFieldRead { .. }
+        | Instruction::StructuralByteSequenceFieldLength { .. }
         | Instruction::StructuralCaseMembership { .. }
         | Instruction::EstablishByteSequenceLiteral { .. }
         | Instruction::ByteSequenceLength { .. }

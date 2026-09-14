@@ -180,6 +180,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
+        | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }

@@ -434,6 +434,7 @@ fn operation_observations(
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
+        | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
         O::CallUnit { .. }
         | O::CallUnitWithDynamicArguments { .. }

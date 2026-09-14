@@ -88,6 +88,7 @@ pub(super) fn folded_literal<'a>(
                 LegalizedScalarInstructionKind::Constant(_)
                 | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
+                | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. }
                 | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceLength { .. }

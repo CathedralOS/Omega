@@ -7,23 +7,36 @@ mod indirect_inputs;
 
 #[test]
 fn field_observations_replay_parameter_field_offset_and_result() {
-    field_observations(StructuralAccess::SharedBorrow, false);
+    field_observations(StructuralAccess::SharedBorrow, false, false);
 }
 
 #[test]
 fn owned_field_observations_replay_value_abi_home_and_exact_initialization() {
-    field_observations(StructuralAccess::Owned, false);
+    field_observations(StructuralAccess::Owned, false, false);
 }
 
 #[test]
 fn nested_field_observations_replay_declaration_local_ids_and_original_root() {
-    field_observations(StructuralAccess::SharedBorrow, true);
+    field_observations(StructuralAccess::SharedBorrow, true, false);
 }
 
-fn field_observations(access: StructuralAccess, nested: bool) {
+#[test]
+fn byte_field_metadata_replays_exact_subject_without_content_read_authority() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        for nested in [false, true] {
+            field_observations(access, nested, true);
+        }
+    }
+}
+
+fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool) {
     use semantic_vocabulary::{BoundedIntegerType, IntegerType, IntegerValue};
 
-    for field_type in [
+    let mut field_types = vec![
         StructuralFieldType::Scalar(integer(IntegerSign::Signed, 8)),
         StructuralFieldType::Scalar(integer(IntegerSign::Unsigned, 64)),
         StructuralFieldType::Scalar(ScalarType::Boolean),
@@ -43,8 +56,18 @@ fn field_observations(access: StructuralAccess, nested: bool) {
             )
             .unwrap(),
         ),
-    ] {
-        let scalar = field_type.scalar_type().unwrap();
+    ];
+    if byte_length {
+        field_types = vec![StructuralFieldType::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 3 },
+        )];
+    }
+    for field_type in field_types {
+        let scalar = if byte_length {
+            integer(IntegerSign::Unsigned, 64)
+        } else {
+            field_type.scalar_type().unwrap()
+        };
         for native in [
             NativeTarget::linux_x64(),
             NativeTarget::linux_arm64(),
@@ -100,7 +123,22 @@ fn field_observations(access: StructuralAccess, nested: bool) {
                 let psi_operation = OperationId::new(ordinal).unwrap();
                 let result = ValueId::new(ordinal).unwrap();
                 let field = StructuralFieldId::new(ordinal).unwrap();
-                if scalar == ScalarType::Boolean {
+                if byte_length {
+                    AbstractOperation::StructuralByteSequenceFieldLength {
+                        psi_operation,
+                        result: AbstractResult {
+                            value: result,
+                            scalar_type: scalar,
+                        },
+                        source: parameter.place,
+                        path: if nested {
+                            vec![terminal_psi::StructuralPathSegment::Field("nested".into())]
+                        } else {
+                            Vec::new()
+                        },
+                        field,
+                    }
+                } else if scalar == ScalarType::Boolean {
                     AbstractOperation::BooleanStructuralField {
                         psi_operation,
                         result,
@@ -149,6 +187,35 @@ fn field_observations(access: StructuralAccess, nested: bool) {
             optimization_unit_semantics::validate_psi_optimization_unit(&unit)
                 .unwrap_or_else(|error| panic!("{scalar:?} optimizer: {error:?}"));
             let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+            if byte_length {
+                // Equal root/field/result payloads cannot exchange metadata
+                // observation for a read of contents at either boundary.
+                let mut changed = target.clone();
+                let TargetUnitOperation::StructuralByteSequenceFieldLength {
+                    psi_operation,
+                    result,
+                    source: argument,
+                    field,
+                } = changed.functions[0].graph.blocks[0].operations[1].clone()
+                else {
+                    panic!("metadata read");
+                };
+                changed.functions[0].graph.blocks[0].operations[1] =
+                    TargetUnitOperation::StructuralScalarFieldRead {
+                        psi_operation,
+                        result,
+                        source: argument.clone(),
+                        field,
+                    };
+                assert!(legalize_target_operations(&changed, &source, &unit).is_err());
+                let mut changed = legalized.plan().clone();
+                changed.scalar_functions[0].blocks[0].instructions[1].kind =
+                    LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                        source: argument,
+                        field,
+                    };
+                assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());
+            }
             validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
                 .unwrap();
             let environment =
@@ -293,18 +360,30 @@ fn field_observations(access: StructuralAccess, nested: bool) {
             );
             for mutation in ["field", "access", "source", "result", "path"] {
                 let mut changed = target.clone();
-                let TargetUnitOperation::StructuralScalarFieldRead {
+                let (TargetUnitOperation::StructuralScalarFieldRead {
                     field,
                     source: argument,
                     result,
                     ..
-                } = &mut changed.functions[0].graph.blocks[0].operations[1]
+                }
+                | TargetUnitOperation::StructuralByteSequenceFieldLength {
+                    field,
+                    source: argument,
+                    result,
+                    ..
+                }) = &mut changed.functions[0].graph.blocks[0].operations[1]
                 else {
                     panic!("field observation");
                 };
                 match mutation {
                     "field" => *field = StructuralFieldId::new(1).unwrap(),
-                    "access" => argument.access = StructuralAccess::MutableBorrow,
+                    "access" => {
+                        argument.access = if access == StructuralAccess::MutableBorrow {
+                            StructuralAccess::SharedBorrow
+                        } else {
+                            StructuralAccess::MutableBorrow
+                        }
+                    }
                     "source" => argument.place = PlaceId::new(99).unwrap(),
                     "result" => result.value = ValueId::new(1).unwrap(),
                     "path" => {
@@ -336,8 +415,10 @@ fn field_observations(access: StructuralAccess, nested: bool) {
                 );
             }
             let mut changed = legalized.plan().clone();
-            let LegalizedScalarInstructionKind::StructuralScalarFieldRead { field, .. } =
-                &mut changed.scalar_functions[0].blocks[0].instructions[1].kind
+            let (LegalizedScalarInstructionKind::StructuralScalarFieldRead { field, .. }
+            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
+                field, ..
+            }) = &mut changed.scalar_functions[0].blocks[0].instructions[1].kind
             else {
                 panic!("field row");
             };

@@ -51,9 +51,30 @@ pub(super) fn lower(
         | OperationKind::PrimitiveScalarRead { .. } => {
             super::primitive_storage::lower(operation, machine, structural_types, value_types)
         }
-        OperationKind::StructuralByteSequenceFieldLength { .. } => Err(
-            LoweringError::UnsupportedStructuralByteSequenceFieldLength(operation.id),
-        ),
+        OperationKind::StructuralByteSequenceFieldLength {
+            source,
+            path,
+            field,
+        } => {
+            let result = operation
+                .result
+                .scalar()
+                .ok_or(LoweringError::InvalidByteSequenceLength(operation.id))?;
+            if !matches!(result.scalar_type, ScalarType::Integer(integer) if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
+            {
+                return Err(LoweringError::InvalidByteSequenceLength(operation.id));
+            }
+            Ok(AbstractOperation::StructuralByteSequenceFieldLength {
+                psi_operation: operation.id,
+                result: abstract_operations::AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                source: *source,
+                path: path.clone(),
+                field: *field,
+            })
+        }
         OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
             Err(LoweringError::UnsupportedStructuralByteSequenceFieldByteStore(operation.id))
         }
