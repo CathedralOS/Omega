@@ -1763,6 +1763,20 @@ Owners include
   dedicated critical stacks, IDT installation, and a minimal timer root whose
   hard handler only acknowledges, records, and wakes ordinary work. Acceptance:
   QEMU reports timer ticks over owned output and halts between ticks.
+  Landed at eb96f07190: `external-roots` `interrupt_table.rs` accounts one
+  descriptor table's complete declared member set — fatal exception entries on
+  their own dedicated critical stack classes plus acknowledged interrupts such
+  as the timer — over the installed-root ledger. Admission replays retained
+  installed-root records, requires interrupt-return exit, the exact declared
+  stack class, and the obligation's acknowledgement shape, and retains each
+  member's linear handle so entries cannot retire while the table holds them.
+  Publication is a separate edge requiring the complete declared set, an
+  established table value naming exactly those rows on this installed
+  realization, and a receipt for the exact issued carrier; refusal returns the
+  established value for retry and issued identities cannot be replayed.
+  Remaining acceptance: descriptor-table byte materialization and consumer
+  gate/selector/IST validation, the checked `lidt` provider edge, the timer
+  device source, and the QEMU tick/halt surface.
 
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Finish unresolved-requirement fences for
   component contracts and the final carrier-owned invocation route. Concrete
