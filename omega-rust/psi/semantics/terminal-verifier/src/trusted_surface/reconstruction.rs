@@ -272,10 +272,19 @@ static FACT_BOOLEAN_POLARITY: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a goal-free leaf producing a Boolean denotation under ordinary proof-obligation reconstruction",
-    conclusion: "the truth and falsity polarity implications of the result equation; private crash reconstruction omits them",
-    dependencies: &["fact:goal-free-scalar-result"],
+    conclusion: "the truth and falsity polarity implications of the result equation, each emitted only after its canonical certificate is accepted by the proof checker; private crash reconstruction omits them",
+    dependencies: &[
+        "fact:goal-free-scalar-result",
+        "rule:semantic-axiom",
+        "rule:assumption",
+        "rule:predicate-denotation",
+        "rule:equality-transitivity",
+        "rule:implication-introduction",
+    ],
     implementation: &[OP_FACTS_POLARITY],
-    soundness: TRUSTED,
+    soundness: SoundnessStatus::Proved {
+        evidence: "boolean_polarity::implications is a total certifying procedure: every emitted implication carries a fixed-shape derivation (implication introduction over equality transitivity of the result-equation axiom and the predicate-denotation conversion of the implication's own normalized premise) accepted by proof-admission's certificate checker before the fact may join the premise roster; checker rejection fails generation closed",
+    },
 };
 
 static FACT_SCALAR_CARRIER_BOUNDS: TrustedSurfaceEntry = TrustedSurfaceEntry {
