@@ -386,7 +386,12 @@ fn owned_record_result_handoff_preserves_backing_and_rejects_forged_producer() {
         let edge = owned_successor();
         assert!(
             execution
-                .prepare_block_bindings(edge.target, &edge.arguments, &edge.structural_arguments)
+                .prepare_block_bindings(
+                    edge.target,
+                    &edge.arguments,
+                    &edge.structural_arguments,
+                    true
+                )
                 .is_err()
         );
         assert_eq!(execution.structural_values, previous);
@@ -450,7 +455,7 @@ fn owned_backedge_swaps_live_destination_roots_simultaneously() {
         let target = BlockId::new(2).unwrap();
         let first = owned_successor();
         let bindings = execution
-            .prepare_block_bindings(target, &first.arguments, &first.structural_arguments)
+            .prepare_block_bindings(target, &first.arguments, &first.structural_arguments, true)
             .unwrap();
         bindings.validate_discards(&execution, &[], &[]).unwrap();
         bindings.commit(&mut execution);
@@ -462,7 +467,7 @@ fn owned_backedge_swaps_live_destination_roots_simultaneously() {
             access: StructuralAccess::Owned,
         });
         let bindings = execution
-            .prepare_block_bindings(target, &first.arguments, &arguments)
+            .prepare_block_bindings(target, &first.arguments, &arguments, true)
             .unwrap();
         bindings.validate_discards(&execution, &[], &[]).unwrap();
         bindings.commit(&mut execution);
@@ -523,6 +528,7 @@ fn unrestricted_copy_staging_failure_leaves_backing_and_identity_cursor_unchange
             edge.target,
             &edge.arguments,
             &edge.structural_arguments,
+            true,
         );
         if exhausted {
             assert!(matches!(
@@ -593,7 +599,12 @@ fn unrestricted_owned_successor_copies_nested_payload_before_later_source_write(
         .structural_scalar_fields
         .insert(field.clone(), unsigned(81));
     let bindings = execution
-        .prepare_block_bindings(edge.target, &edge.arguments, &edge.structural_arguments)
+        .prepare_block_bindings(
+            edge.target,
+            &edge.arguments,
+            &edge.structural_arguments,
+            true,
+        )
         .unwrap();
     bindings.validate_discards(&execution, &[], &[]).unwrap();
     bindings.commit(&mut execution);
@@ -632,7 +643,12 @@ fn unrestricted_successors_copy_each_occurrence_and_keep_the_original_available(
     let mut edge = owned_successor();
     edge.structural_arguments[1] = edge.structural_arguments[0].clone();
     let bindings = execution
-        .prepare_block_bindings(edge.target, &edge.arguments, &edge.structural_arguments)
+        .prepare_block_bindings(
+            edge.target,
+            &edge.arguments,
+            &edge.structural_arguments,
+            true,
+        )
         .unwrap();
     bindings.validate_discards(&execution, &[], &[]).unwrap();
     bindings.commit(&mut execution);
@@ -653,6 +669,7 @@ fn unrestricted_successors_copy_each_occurrence_and_keep_the_original_available(
             original_edge.target,
             &original_edge.arguments,
             &original_edge.structural_arguments,
+            true,
         )
         .unwrap();
     bindings.validate_discards(&execution, &[], &[]).unwrap();
@@ -815,7 +832,12 @@ fn malformed_owned_handoffs_leave_all_custody_uncommitted() {
         let claims = execution.live_claims.clone();
         let fields = execution.structural_scalar_fields.clone();
         let result = execution
-            .prepare_block_bindings(edge.target, &edge.arguments, &edge.structural_arguments)
+            .prepare_block_bindings(
+                edge.target,
+                &edge.arguments,
+                &edge.structural_arguments,
+                true,
+            )
             .and_then(|bindings| {
                 bindings.validate_discards(&execution, &edge.trivial_affine_discards, &[])
             });

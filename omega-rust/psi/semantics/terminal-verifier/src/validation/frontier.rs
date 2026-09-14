@@ -578,6 +578,17 @@ pub(super) fn validate_structural_frontier(
                 residual_affine_discards,
                 ..
             } => {
+                // Projected successor arguments open partial custody on their
+                // root before this edge's residual evidence closes it.
+                block_parameters::consume(
+                    module,
+                    machine,
+                    &mut frontier,
+                    *edge,
+                    blocks[target],
+                    structural_arguments,
+                    true,
+                )?;
                 apply_continuation_residual_discards(
                     module,
                     machine,
@@ -593,7 +604,7 @@ pub(super) fn validate_structural_frontier(
                     *edge,
                     trivial_affine_discards,
                 )?;
-                block_parameters::bind(&mut frontier, *edge, blocks[target], structural_arguments)?;
+                block_parameters::establish(&mut frontier, *edge, blocks[target])?;
                 snapshots.edge_exits.insert(*edge, frontier.snapshot());
                 if !representation_backedges.contains(edge) {
                     incoming.entry(*target).or_default().push(frontier);
@@ -605,6 +616,15 @@ pub(super) fn validate_structural_frontier(
                 ..
             } => {
                 let mut true_frontier = frontier.clone();
+                block_parameters::consume(
+                    module,
+                    machine,
+                    &mut true_frontier,
+                    when_true.edge,
+                    blocks[&when_true.target],
+                    &when_true.structural_arguments,
+                    false,
+                )?;
                 apply_edge_trivial_affine_discards(
                     module,
                     machine,
@@ -613,11 +633,10 @@ pub(super) fn validate_structural_frontier(
                     when_true.edge,
                     &when_true.trivial_affine_discards,
                 )?;
-                block_parameters::bind(
+                block_parameters::establish(
                     &mut true_frontier,
                     when_true.edge,
                     blocks[&when_true.target],
-                    &when_true.structural_arguments,
                 )?;
                 snapshots
                     .edge_exits
@@ -628,6 +647,15 @@ pub(super) fn validate_structural_frontier(
                         .or_default()
                         .push(true_frontier);
                 }
+                block_parameters::consume(
+                    module,
+                    machine,
+                    &mut frontier,
+                    when_false.edge,
+                    blocks[&when_false.target],
+                    &when_false.structural_arguments,
+                    false,
+                )?;
                 apply_edge_trivial_affine_discards(
                     module,
                     machine,
@@ -636,11 +664,10 @@ pub(super) fn validate_structural_frontier(
                     when_false.edge,
                     &when_false.trivial_affine_discards,
                 )?;
-                block_parameters::bind(
+                block_parameters::establish(
                     &mut frontier,
                     when_false.edge,
                     blocks[&when_false.target],
-                    &when_false.structural_arguments,
                 )?;
                 snapshots
                     .edge_exits

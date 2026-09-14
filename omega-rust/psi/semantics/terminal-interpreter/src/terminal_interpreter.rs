@@ -2996,13 +2996,40 @@ impl TerminalExecution {
                     residual_affine_discards,
                     ..
                 } => {
-                    if let Some(first) = residual_affine_discards.first() {
-                        let root = self.structural_values.get(&first.place).ok_or(
-                            TerminalInterpretError::VerifiedStructuralPlaceMissing(first.place),
+                    // Projected owned arguments open partial custody on one
+                    // shared root: each moves an exact affine child while the
+                    // residual list closes the untouched complement. Replay
+                    // the splits on a scratch frontier so the whole edge
+                    // validates before charging or mutating state.
+                    let mut projected_frontier = None;
+                    let mut projected_root = None;
+                    for argument in structural_arguments.iter().filter(|argument| {
+                        argument.access == StructuralAccess::Owned && !argument.path.is_empty()
+                    }) {
+                        if projected_root.is_some_and(|previous| previous != argument.place) {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                        projected_root = Some(argument.place);
+                        consume_affine_projection(
+                            &self.structural_types,
+                            &self.structural_values,
+                            projected_frontier
+                                .get_or_insert_with(|| self.live_affine_frontier.clone()),
+                            argument,
+                        )?;
+                    }
+                    let residual_root = projected_root.or_else(|| {
+                        residual_affine_discards
+                            .first()
+                            .map(|discard| discard.place)
+                    });
+                    if let Some(place) = residual_root {
+                        let root = self.structural_values.get(&place).ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(place),
                         )?;
                         let mut expected = BTreeSet::new();
                         for discard in residual_affine_discards {
-                            if discard.place != first.place
+                            if discard.place != place
                                 || discard.path.is_empty()
                                 || resolve_structural_path_type(
                                     &self.structural_types,
@@ -3014,14 +3041,14 @@ impl TerminalExecution {
                                 return Err(TerminalInterpretError::AffineFrontierMismatch);
                             }
                         }
-                        if !trivial_affine_discards.is_empty()
-                            || self
-                                .live_affine_frontier
-                                .iter()
-                                .filter(|entry| entry.place == first.place)
-                                .cloned()
-                                .collect::<BTreeSet<_>>()
-                                != expected
+                        if projected_frontier
+                            .as_ref()
+                            .unwrap_or(&self.live_affine_frontier)
+                            .iter()
+                            .filter(|entry| entry.place == place)
+                            .cloned()
+                            .collect::<BTreeSet<_>>()
+                            != expected
                         {
                             return Err(TerminalInterpretError::AffineFrontierMismatch);
                         }
@@ -3029,24 +3056,60 @@ impl TerminalExecution {
                     if let Err(error) = meter.charge_terminator(terminator) {
                         return meter_status(error);
                     }
-                    let bindings =
-                        self.prepare_block_bindings(*target, arguments, structural_arguments)?;
+                    let bindings = self.prepare_block_bindings(
+                        *target,
+                        arguments,
+                        structural_arguments,
+                        true,
+                    )?;
                     bindings.validate_discards(
                         self,
                         trivial_affine_discards,
                         residual_affine_discards,
                     )?;
+                    // The edge committed: each projected argument retires the
+                    // containing root entry and leaves the residual sibling
+                    // subtrees live; the residual list then closes exactly
+                    // that remainder.
+                    for argument in structural_arguments.iter().filter(|argument| {
+                        argument.access == StructuralAccess::Owned && !argument.path.is_empty()
+                    }) {
+                        consume_affine_projection(
+                            &self.structural_types,
+                            &self.structural_values,
+                            &mut self.live_affine_frontier,
+                            argument,
+                        )?;
+                    }
                     for discard in residual_affine_discards {
                         self.live_affine_frontier.remove(discard);
                     }
-                    if let Some(first) = residual_affine_discards.first() {
-                        // Every remaining semantic path was validated and disposed.
-                        // Only now may the dead result's opaque backing leave storage.
-                        reference::discard_structural_value(
-                            &mut self.structural_values,
-                            &mut self.reference_referents,
-                            first.place,
-                        );
+                    if let Some(place) = residual_root {
+                        // Every remaining semantic path was validated and
+                        // disposed. Only now may the dead root's opaque backing
+                        // leave storage. Referent descriptors under a moved
+                        // path belong to the destination's retained identity;
+                        // every other captured subtree dies with the root.
+                        let moved_paths: Vec<&[StructuralPathSegment]> = structural_arguments
+                            .iter()
+                            .filter(|argument| {
+                                argument.access == StructuralAccess::Owned
+                                    && !argument.path.is_empty()
+                            })
+                            .map(|argument| argument.path.as_slice())
+                            .collect();
+                        if let Some(value) = self.structural_values.remove(&place) {
+                            self.reference_referents.retain(|carrier, _| {
+                                if carrier.opaque_identity != value.opaque_identity
+                                    || !carrier.path.starts_with(&value.path)
+                                {
+                                    return true;
+                                }
+                                moved_paths.iter().any(|moved| {
+                                    carrier.path[value.path.len()..].starts_with(moved)
+                                })
+                            });
+                        }
                     }
                     for place in trivial_affine_discards {
                         if reference::discard_structural_value(
@@ -3088,6 +3151,7 @@ impl TerminalExecution {
                         successor.target,
                         &successor.arguments,
                         &successor.structural_arguments,
+                        false,
                     )?;
                     bindings.validate_discards(self, &successor.trivial_affine_discards, &[])?;
                     for place in &successor.trivial_affine_discards {

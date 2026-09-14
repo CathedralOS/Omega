@@ -22,6 +22,7 @@ pub(super) fn validate(
     };
     let mut root = None;
     let mut moved = BTreeSet::new();
+    let mut call_lane = false;
     for operation in &block.operations {
         let OperationKind::CallUnit {
             callee,
@@ -46,6 +47,7 @@ pub(super) fn validate(
             {
                 return Err(invalid());
             }
+            call_lane = true;
             root = Some((argument.place, root_type));
             let moved_type =
                 resolve_structural_path(module, root_type, &argument.path).ok_or_else(invalid)?;
@@ -72,6 +74,52 @@ pub(super) fn validate(
             }
         }
     }
+    // A Jump edge may also move a projected affine child: the selected child
+    // becomes an ordinary owned parameter of the continuation block while the
+    // residual complement dies on this edge. The successor parameter checks
+    // mirror the whole-source contract the frontier enforces positionally.
+    if let Terminator::Jump {
+        target,
+        structural_arguments,
+        ..
+    } = &block.terminator
+    {
+        let target_block = machine
+            .blocks
+            .iter()
+            .find(|candidate| candidate.id == *target)
+            .ok_or_else(invalid)?;
+        if structural_arguments.len() != target_block.structural_parameters.len() {
+            return Err(invalid());
+        }
+        for (argument, parameter) in structural_arguments
+            .iter()
+            .zip(&target_block.structural_parameters)
+        {
+            if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
+                continue;
+            }
+            let root_type =
+                partial_affine_root_type(machine, argument.place).ok_or_else(invalid)?;
+            if root.is_some_and(|previous| previous != (argument.place, root_type))
+                || !moved.insert(argument.path.clone())
+            {
+                return Err(invalid());
+            }
+            root = Some((argument.place, root_type));
+            let moved_type =
+                resolve_structural_path(module, root_type, &argument.path).ok_or_else(invalid)?;
+            if parameter.structural_type != moved_type
+                || parameter.multiplicity != StructuralMultiplicity::Affine
+                || parameter.is_self
+                || parameter.access != StructuralAccess::Owned
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return Err(invalid());
+            }
+        }
+    }
     let Some((place, root_type)) = root else {
         return if residual_affine_discards.is_empty() {
             Ok(())
@@ -79,10 +127,13 @@ pub(super) fn validate(
             Err(invalid())
         };
     };
-    // Mixed dying roots require one interleaved establishment-ordered schedule.
-    // A separate root list cannot convey that order; unrelated live roots stay live.
-    if !trivial_affine_discards.is_empty()
-        || machine.result != TerminalMachineResult::Unit
+    // Mixed dying roots require one interleaved establishment-ordered schedule
+    // on the CallUnit lane. The Jump-edge lane instead composes with the
+    // edge's own unselected-owner cleanup: a trivial discard there names a
+    // different live root and keeps its ordinary order, while the residual
+    // list closes exactly the projected root's complement.
+    if (call_lane
+        && (!trivial_affine_discards.is_empty() || machine.result != TerminalMachineResult::Unit))
         || (moved.iter().any(|path| {
             path.iter()
                 .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))

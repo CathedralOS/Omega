@@ -11,6 +11,9 @@ use typed_trees::expression::MatchPattern;
 
 // Classify the destination before inserting scalar operand roots. A scalar or
 // array Match must not leave partial structural plans when a later arm fails.
+// A match arm may also select an owned child projected by exact field or
+// fixed-index path; its structural node is a Projection over the root place,
+// which the owned-selection transfer evidence then checks path-for-path.
 pub(super) fn is_record_value(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -52,6 +55,13 @@ pub(super) fn is_record_value(
             ExpressionNode::Name(_)
                 if validation::plain_owned_value_source(program, expression, expected)
                     .is_some() => {}
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+                if projected_leaf_type(program, expression).is_some_and(|reference| {
+                    program.normalized_type_identity(reference)
+                        == program.normalized_type_identity(expected)
+                        && program.type_multiplicity(reference)
+                            == language_semantics::Multiplicity::Affine
+                }) => {}
             ExpressionNode::Match(dispatch) => {
                 let arms = program.expression_table.match_arms(dispatch.arms);
                 if arms.is_empty() {
@@ -63,6 +73,86 @@ pub(super) fn is_record_value(
         }
     }
     true
+}
+
+/// The declared type of a field/fixed-index projection leaf, resolved through
+/// the authored root's own declaration: a whole local's declared type, or a
+/// producing call's declared return type. Only exact field and literal-index
+/// segments keep a statically checkable identity.
+fn projected_leaf_type(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+    ) {
+        return None;
+    }
+    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    if place.segments.is_empty()
+        || !place.segments.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+            )
+        })
+    {
+        return None;
+    }
+    let root = match place.root {
+        facts::PlaceRoot::Symbol(symbol) => symbol_declared_type(program, symbol)?,
+        facts::PlaceRoot::Expression(expression) => {
+            match program.expression_table.expression(expression) {
+                ExpressionNode::Call(call) => {
+                    crate::flow::call_target_return_type(program, call.target_symbol)?
+                }
+                _ => return None,
+            }
+        }
+        _ => return None,
+    };
+    crate::flow::project_type_reference_from_segments(program, root, &place.segments)
+}
+
+fn symbol_declared_type(program: &TypedTrees, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            if let Some(parameter) = program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol == symbol)
+            {
+                return Some(parameter.type_reference);
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::LocalData(local) = statement
+                    && local.symbol == symbol
+                {
+                    return Some(local.type_reference);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// The terminal expression carrying a projection's storage: the whole local
+/// name for an owned place source, or the producing call for a structural
+/// product source.
+fn projection_root_expression(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let mut cursor = expression;
+    loop {
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Member(member) => cursor = member.receiver,
+            ExpressionNode::Indexed(indexed) => cursor = indexed.collection,
+            ExpressionNode::Name(_) | ExpressionNode::Call(_) => return Some(cursor),
+            _ => return None,
+        }
+    }
 }
 
 impl Builder<'_, '_> {
@@ -128,6 +218,10 @@ impl Builder<'_, '_> {
                     .expression_handles(call.arguments),
             );
             CheckedStructuralValueKind::Call { source_call }
+        } else if let Some(projection) =
+            self.projected_selection_place(expression, expected, values, pure)
+        {
+            projection
         } else if let Some(constructor) = self.case_construction(expression) {
             if self
                 .program
@@ -297,6 +391,76 @@ impl Builder<'_, '_> {
                 .append(CheckedStructuralValue { expression, kind }),
         )
     }
+    /// One selected projected child of an existing owner. The owned-selection
+    /// transfer is the authoritative admission: its recorded canonical path
+    /// must equal the authored place, and the projected type must be the
+    /// enclosing result type. The root source is built as a whole `Place` (or
+    /// `Call` product) node carrying the exact root identity.
+    fn projected_selection_place(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+        values: &mut CheckedStructuralValuePlans,
+        pure: &CheckedScalarExpressionPlans,
+    ) -> Option<CheckedStructuralValueKind> {
+        if !matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+        ) {
+            return None;
+        }
+        // Owned-selection receipts are recorded only after value plans are
+        // built, so this projection derives the same canonical place
+        // independently. The multiplicity checker's recorded transfer path is
+        // compared against this path downstream, not trusted here.
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )?;
+        if place.segments.is_empty()
+            || !place.segments.iter().all(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                )
+            })
+        {
+            return None;
+        }
+        let (projected, path) = crate::flow::projected_argument_path(
+            self.program,
+            self.state,
+            self.statement_index,
+            &place,
+        )?;
+        if self.program.normalized_type_identity(projected)
+            != self.program.normalized_type_identity(expected)
+        {
+            return None;
+        }
+        let root_expression = projection_root_expression(self.program, expression)?;
+        let root_reference = crate::flow::canonical_place_type_reference(
+            self.program,
+            self.state,
+            self.statement_index,
+            &crate::flow::CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            },
+        )?;
+        let source = self.structural_value(root_expression, root_reference, values, pure)?;
+        Some(CheckedStructuralValueKind::Projection {
+            source,
+            path,
+            type_identity: self
+                .program
+                .normalized_type_identity(projected)
+                .into_string(),
+        })
+    }
+
     fn owned_record_place(
         &self,
         expression: ExpressionHandle,

@@ -1,0 +1,26 @@
+// PASS canary: an owned match may move a projected affine child — a record
+// field of an existing local on one arm and a field of a call's structural
+// product on another — while each root's untouched residual siblings die on
+// the selected edge.
+
+data Payload { left: u64; right: u64; }
+data Pair { first: Payload; second: Payload; }
+
+machine supply(first: u64, second: u64) -> Pair {
+    Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    }
+}
+
+machine choose(selected: u64, first: u64, second: u64) -> u64 {
+    let pair: Pair = Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    };
+    let result: Payload = match selected {
+        0 -> pair.first,
+        _ -> supply(first ^ 255, second ^ 255).second
+    };
+    result.left ^ result.right
+}

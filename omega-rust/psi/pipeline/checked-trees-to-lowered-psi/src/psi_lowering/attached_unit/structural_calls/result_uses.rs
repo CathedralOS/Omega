@@ -366,17 +366,43 @@ pub(crate) fn validate_usage(
                 .ok_or(LoweringError::Unsupported(
                     "selected result has stale source custody",
                 ))?;
-            if sources
+            if let Some(source_ordinal) = sources
                 .iter()
-                .any(|source| source.statement_ordinal == result.statement_index)
+                .position(|source| source.statement_ordinal == result.statement_index)
             {
+                let source_handle = arena::Handle::from_parts(
+                    receipt.sources.start().arena_index() + source_ordinal as u32,
+                    receipt.sources.start().generation(),
+                );
+                // A whole-local move carries the source's own type into the
+                // result. A source moved only through projected children keeps
+                // its root type here; the projected leaf identity was replayed
+                // against the recorded transfer path by source custody above.
+                let whole = checked
+                    .facts
+                    .flow
+                    .ownership
+                    .selection_transfers
+                    .span(receipt.transfers)
+                    .is_some_and(|transfers| {
+                        transfers.iter().any(|transfer| {
+                            transfer.source == source_handle
+                                && checked
+                                    .facts
+                                    .flow
+                                    .ownership
+                                    .segments
+                                    .span_or_empty(transfer.path)
+                                    .is_empty()
+                        })
+                    });
                 if consumed
                     || disposed
                     || !projected_paths.is_empty()
                     || operation_index <= producer.operation_index
                     || selected.statement_index <= result.statement_index
                     || result.multiplicity != Multiplicity::Affine
-                    || selected.type_identity != result.type_identity
+                    || (whole && selected.type_identity != result.type_identity)
                 {
                     return unsupported("selected result reuses an unavailable structural source");
                 }

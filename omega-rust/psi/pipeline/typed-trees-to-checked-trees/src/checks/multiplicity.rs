@@ -2200,12 +2200,7 @@ pub(crate) fn validate_linear_permission_events(
         }
     }
 
-    if selected_replay.flow.ownership.owned_selections != facts.flow.ownership.owned_selections
-        || selected_replay.flow.ownership.selection_sources
-            != facts.flow.ownership.selection_sources
-        || selected_replay.flow.ownership.selection_transfers
-            != facts.flow.ownership.selection_transfers
-    {
+    if !owned_selections_match(&selected_replay.flow.ownership, &facts.flow.ownership) {
         diagnostics.push(Diagnostic::error(
             "owned selection receipts differ from source ownership replay",
         ));
@@ -2241,6 +2236,69 @@ pub(crate) fn validate_linear_permission_events(
     } else {
         Err(diagnostics)
     }
+}
+
+/// The replay populates a fresh ownership arena, so span offsets into
+/// `segments`, `selection_sources`, and `selection_transfers` are positional
+/// rather than semantic. Compare each recorded receipt field-for-field,
+/// resolving spans through the side that produced them.
+fn owned_selections_match(
+    replay: &checked_trees::FlowOwnershipFacts,
+    recorded: &checked_trees::FlowOwnershipFacts,
+) -> bool {
+    let replay_receipts = replay
+        .owned_selections
+        .iter()
+        .map(|(_, receipt)| receipt)
+        .collect::<Vec<_>>();
+    let recorded_receipts = recorded
+        .owned_selections
+        .iter()
+        .map(|(_, receipt)| receipt)
+        .collect::<Vec<_>>();
+    if replay_receipts.len() != recorded_receipts.len() {
+        return false;
+    }
+    for (replayed_receipt, recorded_receipt) in replay_receipts.into_iter().zip(recorded_receipts) {
+        if replayed_receipt.machine != recorded_receipt.machine
+            || replayed_receipt.state != recorded_receipt.state
+            || replayed_receipt.statement_ordinal != recorded_receipt.statement_ordinal
+            || replayed_receipt.expression != recorded_receipt.expression
+            || replayed_receipt.destination != recorded_receipt.destination
+            || replayed_receipt.type_reference != recorded_receipt.type_reference
+            || replayed_receipt.death != recorded_receipt.death
+            || replay
+                .selection_sources
+                .span_or_empty(replayed_receipt.sources)
+                != recorded
+                    .selection_sources
+                    .span_or_empty(recorded_receipt.sources)
+        {
+            return false;
+        }
+        let replayed_transfers = replay
+            .selection_transfers
+            .span_or_empty(replayed_receipt.transfers);
+        let recorded_transfers = recorded
+            .selection_transfers
+            .span_or_empty(recorded_receipt.transfers);
+        if replayed_transfers.len() != recorded_transfers.len() {
+            return false;
+        }
+        for (replayed_transfer, recorded_transfer) in
+            replayed_transfers.iter().zip(recorded_transfers)
+        {
+            if replayed_transfer.expression != recorded_transfer.expression
+                || replayed_transfer.source_arm != recorded_transfer.source_arm
+                || replayed_transfer.source != recorded_transfer.source
+                || replay.segments.span_or_empty(replayed_transfer.path)
+                    != recorded.segments.span_or_empty(recorded_transfer.path)
+            {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 fn append_unresolved_state_result_mapping_diagnostics(

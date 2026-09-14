@@ -54,7 +54,7 @@ pub(super) fn record_statement(
             matches!(
                 program.expression_table.expression(*expression),
                 ExpressionNode::Match(_)
-            ) && has_owned_leaf(program, machine, state, *expression)
+            ) && has_owned_leaf(program, machine, state, statement_index, *expression)
         })
         .collect::<Vec<_>>();
     if selected.is_empty() {
@@ -83,6 +83,7 @@ pub(super) fn record_statement(
         program,
         machine,
         state,
+        statement_index,
         expression,
         type_reference,
         Handle::invalid(),
@@ -92,10 +93,15 @@ pub(super) fn record_statement(
         return Err(unsupported());
     }
     let mut sources = Vec::new();
-    for (_, _, symbol) in &leaves {
+    for (_, _, root, _) in &leaves {
+        // A call's structural product roots its own once-evaluated custody;
+        // only whole-local roots carry a roster source.
+        let facts::PlaceRoot::Symbol(symbol) = *root else {
+            continue;
+        };
         if sources
             .iter()
-            .any(|source: &FlowOwnedSelectionSource| source.symbol == *symbol)
+            .any(|source: &FlowOwnedSelectionSource| source.symbol == symbol)
         {
             continue;
         }
@@ -103,7 +109,7 @@ pub(super) fn record_statement(
             .iter()
             .enumerate()
             .find_map(|(ordinal, statement)| match statement {
-                StatementNode::LocalData(source) if source.symbol == *symbol => {
+                StatementNode::LocalData(source) if source.symbol == symbol => {
                     Some((ordinal, source))
                 }
                 _ => None,
@@ -111,7 +117,7 @@ pub(super) fn record_statement(
             .ok_or_else(unsupported)?;
         let place = places
             .iter()
-            .find(|place| place.symbol == *symbol && place.path.is_empty())
+            .find(|place| place.symbol == symbol && place.path.is_empty())
             .ok_or_else(unsupported)?;
         if source_local.is_mutable
             || !source_local.initial_value.is_valid()
@@ -123,8 +129,19 @@ pub(super) fn record_statement(
                 program,
                 source_local.type_reference,
             )
-            || program.normalized_type_identity(source_local.type_reference)
-                != program.normalized_type_identity(type_reference)
+        {
+            return Err(Diagnostic::error(
+                "owned match source must be an available whole immutable plain-affine local of the exact result type",
+            ));
+        }
+        // A whole-leaf source is selected at its root boundary, so its local
+        // type is the result type. A source reached only through projected
+        // leaves instead owes the exact moved path recorded on each transfer;
+        // the projected leaf type was already checked against the result.
+        if leaves.iter().any(|(_, _, leaf_root, path)| {
+            *leaf_root == facts::PlaceRoot::Symbol(symbol) && path.is_empty()
+        }) && program.normalized_type_identity(source_local.type_reference)
+            != program.normalized_type_identity(type_reference)
         {
             return Err(Diagnostic::error(
                 "owned match source must be an available whole immutable plain-affine local of the exact result type",
@@ -136,7 +153,7 @@ pub(super) fn record_statement(
         if statements[..statement_index].iter().any(|statement| {
             statement_expressions(program, statement).iter().any(|expression| {
                 matches!(program.expression_table.expression(*expression), ExpressionNode::Borrow(borrow)
-                    if expression_names(program, borrow.target, *symbol))
+                    if expression_names(program, borrow.target, symbol))
             })
         }) {
             return Err(Diagnostic::error("owned match source with borrowed custody requires selected loan-closure evidence"));
@@ -154,7 +171,7 @@ pub(super) fn record_statement(
             ));
         }
         sources.push(FlowOwnedSelectionSource {
-            symbol: *symbol,
+            symbol,
             statement_ordinal: u32::try_from(source_ordinal).map_err(|_| unsupported())?,
             provenance,
             claim_identity: place
@@ -166,23 +183,39 @@ pub(super) fn record_statement(
     sources.sort_by_key(|source| std::cmp::Reverse(source.statement_ordinal));
     let sources = facts.flow.ownership.selection_sources.insert_many(sources);
     let mut transfers = Vec::new();
-    for (expression, source_arm, symbol) in leaves {
-        let ordinal = facts
-            .flow
-            .ownership
-            .selection_sources
-            .span_or_empty(sources)
-            .iter()
-            .position(|source| source.symbol == symbol)
-            .ok_or_else(unsupported)?;
-        let source = Handle::from_parts(
-            sources.start().arena_index() + ordinal as u32,
-            sources.start().generation(),
-        );
+    for (expression, source_arm, root, path) in leaves {
+        let source = match root {
+            facts::PlaceRoot::Symbol(symbol) => {
+                let ordinal = facts
+                    .flow
+                    .ownership
+                    .selection_sources
+                    .span_or_empty(sources)
+                    .iter()
+                    .position(|source| source.symbol == symbol)
+                    .ok_or_else(unsupported)?;
+                Handle::from_parts(
+                    sources.start().arena_index() + ordinal as u32,
+                    sources.start().generation(),
+                )
+            }
+            // A call-product root is identified by the transfer expression's
+            // authored place, not a roster source.
+            facts::PlaceRoot::Expression(root_expression)
+                if matches!(
+                    program.expression_table.expression(root_expression),
+                    ExpressionNode::Call(_)
+                ) =>
+            {
+                Handle::invalid()
+            }
+            _ => return Err(unsupported()),
+        };
         transfers.push(FlowOwnedSelectionTransfer {
             expression,
             source_arm,
             source,
+            path: facts.flow.ownership.segments.insert_many(path),
         });
     }
     let transfers = facts
@@ -242,12 +275,13 @@ fn has_owned_leaf(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    statement_index: usize,
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => reachable_arms(program, dispatch.arms)
             .iter()
-            .any(|(_, arm)| has_owned_leaf(program, machine, state, arm.value)),
+            .any(|(_, arm)| has_owned_leaf(program, machine, state, statement_index, arm.value)),
         ExpressionNode::Name(_) => {
             validation::expression_result_type_reference(program, machine, state, expression)
                 .is_some_and(|reference| {
@@ -256,27 +290,162 @@ fn has_owned_leaf(
                             .is_some()
                 })
         }
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            projected_leaf_source(program, machine, state, statement_index, expression).is_some()
+        }
         _ => false,
     }
+}
+
+/// The exact canonical projection for one `member`/`indexed` leaf, when the
+/// leaf selects a plain affine child of a live plain affine owner. A borrowed
+/// prefix would escape the root's custody, so any reference at or below the
+/// root rejects the projection instead of guessing referent ownership. The
+/// root may be a whole local or a call's structural product; the product is
+/// its own once-evaluated owner and carries no roster source.
+fn projected_leaf_source(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<(facts::PlaceRoot, Vec<facts::PlaceSegment>)> {
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+    ) {
+        return None;
+    }
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        expression,
+    )?;
+    if place.segments.is_empty()
+        || !place.segments.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+            )
+        })
+    {
+        return None;
+    }
+    match place.root {
+        facts::PlaceRoot::Symbol(symbol) => {
+            if program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.symbol == symbol && parameter.is_self)
+                || symbol == machine.symbol
+                || !matches!(
+                    program.symbols.get(symbol).kind,
+                    symbols::SymbolKind::Local | symbols::SymbolKind::Parameter
+                )
+            {
+                return None;
+            }
+        }
+        facts::PlaceRoot::Expression(root)
+            if matches!(
+                program.expression_table.expression(root),
+                ExpressionNode::Call(_)
+            ) => {}
+        _ => return None,
+    }
+    let plain_affine = |segments: &[facts::PlaceSegment]| {
+        crate::flow::canonical_place_type_reference(
+            program,
+            state.symbol,
+            statement_index,
+            &crate::flow::CanonicalPlace {
+                root: place.root,
+                segments: segments.to_vec(),
+            },
+        )
+        .is_some_and(|type_reference| {
+            matches!(
+                program.type_reference_table.type_reference(type_reference),
+                TypeReferenceNode::Named { .. }
+                    | TypeReferenceNode::Generic { .. }
+                    | TypeReferenceNode::FixedArray { .. }
+            ) && type_multiplicity(program, type_reference) == Multiplicity::Affine
+                && validation::has_plain_owned_contents(program, type_reference)
+        })
+    };
+    if !plain_affine(&place.segments) || !plain_affine(&[]) {
+        return None;
+    }
+    // Root and every proper prefix must be owned, never a reference: moving a
+    // projected child through a borrow would imply referent custody.
+    if (0..place.segments.len()).any(|length| {
+        crate::flow::canonical_place_type_reference(
+            program,
+            state.symbol,
+            statement_index,
+            &crate::flow::CanonicalPlace {
+                root: place.root,
+                segments: place.segments[..length].to_vec(),
+            },
+        )
+        .is_some_and(|reference| type_reference_is_reference(program, reference))
+    }) {
+        return None;
+    }
+    Some((place.root, place.segments))
 }
 
 fn collect_leaves(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    statement_index: usize,
     expression: ExpressionHandle,
     type_reference: TypeReferenceHandle,
     source_arm: Handle<TableMatchArm>,
-    leaves: &mut Vec<(ExpressionHandle, Handle<TableMatchArm>, SymbolHandle)>,
+    leaves: &mut Vec<(
+        ExpressionHandle,
+        Handle<TableMatchArm>,
+        facts::PlaceRoot,
+        Vec<facts::PlaceSegment>,
+    )>,
 ) -> Result<(), Diagnostic> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) if source_arm.is_valid() => {
             match validation::plain_owned_value_source(program, expression, type_reference) {
                 Some(symbol) => {
-                    leaves.push((expression, source_arm, symbol));
+                    leaves.push((
+                        expression,
+                        source_arm,
+                        facts::PlaceRoot::Symbol(symbol),
+                        Vec::new(),
+                    ));
                     Ok(())
                 }
                 None => fresh_leaf(program, machine, state, expression, type_reference),
+            }
+        }
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) if source_arm.is_valid() => {
+            match projected_leaf_source(program, machine, state, statement_index, expression) {
+                Some((root, path))
+                    if program.normalized_type_identity(
+                        crate::flow::canonical_place_type_reference(
+                            program,
+                            state.symbol,
+                            statement_index,
+                            &crate::flow::CanonicalPlace {
+                                root,
+                                segments: path.clone(),
+                            },
+                        )
+                        .ok_or_else(unsupported)?,
+                    ) == program.normalized_type_identity(type_reference) =>
+                {
+                    leaves.push((expression, source_arm, root, path));
+                    Ok(())
+                }
+                _ => Err(unsupported()),
             }
         }
         ExpressionNode::StructLiteral(_) if source_arm.is_valid() => {
@@ -318,6 +487,7 @@ fn collect_leaves(
                     program,
                     machine,
                     state,
+                    statement_index,
                     arm.value,
                     type_reference,
                     source_arm,

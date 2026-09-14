@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, ValueId};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeShape,
@@ -12,7 +12,7 @@ use super::byte_sequence_binding::ByteSequenceBinding;
 use super::{
     TerminalExecution, TerminalInterpretError, TerminalScalarCaseValue, TerminalScalarValue,
     TerminalStructuralValue, bind_affine_frontier, bind_arguments, bind_structural_arguments,
-    remove_affine_root,
+    remove_affine_root, resolve_structural_arguments,
 };
 
 #[cfg(test)]
@@ -24,6 +24,9 @@ pub(super) struct BlockBindings {
     scalar_cases: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     affine_sources: BTreeSet<PlaceId>,
+    /// Roots whose projected children moved on this edge. Their whole-root
+    /// frontier entries are split by the caller, not removed as transfers.
+    projected_sources: BTreeSet<PlaceId>,
     affine_destinations: BTreeSet<StructuralAffineDiscard>,
     record_payload: Vec<(super::StructuralScalarRuntimeField, TerminalScalarValue)>,
     identity_cursor: Option<u64>,
@@ -84,6 +87,7 @@ impl BlockBindings {
                 ))?;
             if !discarded.insert(*place)
                 || self.affine_sources.contains(place)
+                || self.projected_sources.contains(place)
                 || execution
                     .live_claims
                     .values()
@@ -119,6 +123,7 @@ impl BlockBindings {
                     .iter()
                     .any(|entry| entry.place == *place)
                     && !self.affine_sources.contains(place)
+                    && !self.projected_sources.contains(place)
                     && !discarded.contains(place)
             })
         {
@@ -129,11 +134,16 @@ impl BlockBindings {
 }
 
 impl TerminalExecution {
+    /// `allow_projected` selects the Jump-edge lane: an owned argument may
+    /// carry a projection path that moves one affine child out of a live
+    /// root. Other successor kinds cannot express the residual complement,
+    /// so they must keep rejecting path-bearing owned arguments.
     pub(super) fn prepare_block_bindings(
         &self,
         target: BlockId,
         arguments: &[ValueId],
         structural_arguments: &[StructuralArgument],
+        allow_projected: bool,
     ) -> Result<BlockBindings, TerminalInterpretError> {
         let block = self
             .machines
@@ -169,6 +179,7 @@ impl TerminalExecution {
         let mut scalar_cases = BTreeMap::new();
         let mut case_destinations = BTreeSet::new();
         let mut affine_sources = BTreeSet::new();
+        let mut projected_sources = BTreeSet::new();
         for (position, (parameter, argument)) in block
             .structural_parameters
             .iter()
@@ -180,7 +191,8 @@ impl TerminalExecution {
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || argument.access != parameter.access
-                || !argument.path.is_empty()
+                || (!argument.path.is_empty()
+                    && !(allow_projected && parameter.access == StructuralAccess::Owned))
                 || self.live_claims.values().any(|claim| {
                     claim.place == Some(argument.place) || claim.place == Some(parameter.place)
                 })
@@ -196,6 +208,7 @@ impl TerminalExecution {
                             || value.path.is_empty()) => {}
                 (None, Some(case))
                     if parameter.access == StructuralAccess::Owned
+                        && argument.path.is_empty()
                         && case.structural_type == parameter.structural_type => {}
                 (None, None) => {
                     return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
@@ -204,24 +217,16 @@ impl TerminalExecution {
                 }
                 _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
             }
+            // A projected owned argument binds the selected subtree, keeping
+            // the root's opaque identity and the exact moved path. The caller
+            // discharges the residual complement on the same edge.
+            let mut projected_value = None;
             match parameter.access {
                 StructuralAccess::Owned => {
-                    let source_matches =
-                        self.owned_block_source(argument.place)
-                            .is_some_and(|source| {
-                                source.structural_type == parameter.structural_type
-                                    && source.multiplicity == parameter.multiplicity
-                                    && source.access == StructuralAccess::Owned
-                                    && source.qualifications.is_empty()
-                                    && source.projected_qualifications.is_empty()
-                            })
-                            || self.owned_result_matches(argument.place, parameter, case.is_some());
-                    if !source_matches
-                        || !matches!(
-                            parameter.multiplicity,
-                            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-                        )
-                        || self.owned_block_source(parameter.place) != Some(parameter)
+                    if !matches!(
+                        parameter.multiplicity,
+                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                    ) || self.owned_block_source(parameter.place) != Some(parameter)
                         || !self
                             .machines
                             .get(&self.current_machine)
@@ -238,25 +243,95 @@ impl TerminalExecution {
                     {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
-                    let root = StructuralAffineDiscard {
-                        place: argument.place,
-                        path: Vec::new(),
-                        structural_type: parameter.structural_type,
-                    };
-                    let expected =
-                        (parameter.multiplicity == StructuralMultiplicity::Affine).then_some(&root);
-                    if self
-                        .live_affine_frontier
-                        .iter()
-                        .filter(|entry| entry.place == argument.place)
-                        .ne(expected)
-                    {
-                        return Err(TerminalInterpretError::AffineFrontierMismatch);
-                    }
-                    if parameter.multiplicity == StructuralMultiplicity::Affine
-                        && !affine_sources.insert(argument.place)
-                    {
-                        return Err(TerminalInterpretError::AffineFrontierMismatch);
+                    if argument.path.is_empty() {
+                        let source_matches =
+                            self.owned_block_source(argument.place)
+                                .is_some_and(|source| {
+                                    source.structural_type == parameter.structural_type
+                                        && source.multiplicity == parameter.multiplicity
+                                        && source.access == StructuralAccess::Owned
+                                        && source.qualifications.is_empty()
+                                        && source.projected_qualifications.is_empty()
+                                })
+                                || self.owned_result_matches(
+                                    argument.place,
+                                    parameter,
+                                    case.is_some(),
+                                );
+                        if !source_matches {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let root = StructuralAffineDiscard {
+                            place: argument.place,
+                            path: Vec::new(),
+                            structural_type: parameter.structural_type,
+                        };
+                        let expected = (parameter.multiplicity == StructuralMultiplicity::Affine)
+                            .then_some(&root);
+                        if self
+                            .live_affine_frontier
+                            .iter()
+                            .filter(|entry| entry.place == argument.place)
+                            .ne(expected)
+                            || projected_sources.contains(&argument.place)
+                        {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                        if parameter.multiplicity == StructuralMultiplicity::Affine
+                            && !affine_sources.insert(argument.place)
+                        {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                    } else {
+                        let root = value.expect("one structural carrier was validated");
+                        let view = resolve_structural_arguments(
+                            &self.structural_types,
+                            &self.structural_values,
+                            std::slice::from_ref(argument),
+                        )?
+                        .pop()
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        if view.structural_type != parameter.structural_type {
+                            return Err(TerminalInterpretError::StructuralArgumentType {
+                                place: parameter.place,
+                                expected: parameter.structural_type,
+                                actual: view.structural_type,
+                            });
+                        }
+                        let source_matches =
+                            self.owned_block_source(argument.place)
+                                .is_some_and(|source| {
+                                    source.structural_type == root.structural_type
+                                        && source.multiplicity == StructuralMultiplicity::Affine
+                                        && source.access == StructuralAccess::Owned
+                                        && source.qualifications.is_empty()
+                                        && source.projected_qualifications.is_empty()
+                                })
+                                || self.owned_result_source(
+                                    argument.place,
+                                    root.structural_type,
+                                    StructuralMultiplicity::Affine,
+                                    false,
+                                );
+                        if !source_matches
+                            || parameter.multiplicity != StructuralMultiplicity::Affine
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let Some(containing) = self.live_affine_frontier.iter().find(|entry| {
+                            entry.place == argument.place
+                                && argument.path.starts_with(entry.path.as_slice())
+                        }) else {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        };
+                        if affine_sources.contains(&argument.place)
+                            || (containing.path.is_empty()
+                                && containing.structural_type != root.structural_type)
+                        {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                        projected_sources.insert(argument.place);
+                        projected_value = Some(view);
                     }
                 }
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow => {
@@ -291,8 +366,9 @@ impl TerminalExecution {
                     descriptor_parameters.push(parameter.clone());
                     descriptor_arguments.push(argument.clone());
                 }
-                resolved_arguments
-                    .push(value.expect("one structural carrier was validated").clone());
+                resolved_arguments.push(projected_value.unwrap_or_else(|| {
+                    value.expect("one structural carrier was validated").clone()
+                }));
             }
         }
         // Existing descriptor-only edges reuse their original declaration and
@@ -329,6 +405,7 @@ impl TerminalExecution {
             scalar_cases,
             byte_sequences,
             affine_sources,
+            projected_sources,
             affine_destinations,
             record_payload,
             identity_cursor,
@@ -341,12 +418,29 @@ impl TerminalExecution {
         parameter: &StructuralParameterDeclaration,
         scalar_case: bool,
     ) -> bool {
+        self.owned_result_source(
+            place,
+            parameter.structural_type,
+            parameter.multiplicity,
+            scalar_case,
+        )
+    }
+
+    /// A projected argument's source is checked against the root's declared
+    /// type and affine ownership, not the parameter's leaf type.
+    fn owned_result_source(
+        &self,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        multiplicity: StructuralMultiplicity,
+        scalar_case: bool,
+    ) -> bool {
         let Some(machine) = self.machines.get(&self.current_machine) else {
             return false;
         };
         let Some(StructuralPlaceKind::OperationResult {
             producer,
-            structural_type,
+            structural_type: declared,
         }) = machine
             .structural_places
             .iter()
@@ -358,7 +452,7 @@ impl TerminalExecution {
         // The committed record descriptor retains its runtime referent. This
         // recognizes its exact producer, not a fresh payload or a copied loan.
         // Case payloads use their existing distinct runtime representation.
-        structural_type == parameter.structural_type
+        declared == structural_type
             && (scalar_case || self.plain_record_type(structural_type))
             && machine
                 .blocks
@@ -378,7 +472,7 @@ impl TerminalExecution {
                         && operation.result.structural().is_some_and(|result| {
                             result.place == place
                                 && result.structural_type == structural_type
-                                && result.multiplicity == parameter.multiplicity
+                                && result.multiplicity == multiplicity
                                 && result.qualifications.is_empty()
                                 && result.projected_qualifications.is_empty()
                                 && result.claims.is_empty()

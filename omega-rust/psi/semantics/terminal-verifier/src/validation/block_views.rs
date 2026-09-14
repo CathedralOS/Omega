@@ -131,6 +131,7 @@ pub(super) fn validate_successor(
     arguments: &[StructuralArgument],
     available: &BTreeSet<PlaceId>,
     dominating_blocks: &BTreeSet<BlockId>,
+    allow_projected: bool,
 ) -> Result<(), ModuleError> {
     if arguments.len() != target.structural_parameters.len() {
         return Err(ModuleError::StructuralJumpArityMismatch {
@@ -148,6 +149,34 @@ pub(super) fn validate_successor(
                 edge,
                 place: argument.place,
             });
+        }
+        if !argument.path.is_empty() {
+            // A projected owned argument moves one affine child out of a live
+            // root into the target's plain affine parameter. Only Jump edges
+            // carry the residual evidence that closes the root; the path must
+            // resolve exactly to the declared child type.
+            if !(allow_projected
+                && expected.access == StructuralAccess::Owned
+                && expected.multiplicity == StructuralMultiplicity::Affine
+                && expected.qualifications.is_empty()
+                && expected.projected_qualifications.is_empty()
+                && argument.access == StructuralAccess::Owned
+                && available.contains(&argument.place)
+                && super::partial_affine::partial_affine_root_type(machine, argument.place)
+                    .is_some_and(|root_type| {
+                        super::foundation::resolve_structural_path(
+                            module,
+                            root_type,
+                            &argument.path,
+                        ) == Some(expected.structural_type)
+                    }))
+            {
+                return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                    edge,
+                    place: argument.place,
+                });
+            }
+            continue;
         }
         let source = machine
             .structural_parameters
@@ -188,7 +217,7 @@ pub(super) fn validate_successor(
                 && super::byte_sequence_subslice::borrowed_result(machine, argument.place)
                     .is_some_and(|source| source.structural_type == expected.structural_type)
         };
-        if !argument.path.is_empty() || argument.access != expected.access || !exact_source {
+        if argument.access != expected.access || !exact_source {
             return Err(ModuleError::InvalidStructuralSuccessorArgument {
                 edge,
                 place: argument.place,

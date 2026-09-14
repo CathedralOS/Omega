@@ -160,12 +160,18 @@ pub(crate) fn validate(
             *discard_result_on_return,
         )?;
     }
-    let mut pending = vec![(*value, expression, reference, arena::Handle::invalid())];
+    let mut pending = vec![(
+        *value,
+        expression,
+        reference,
+        arena::Handle::invalid(),
+        None,
+    )];
     let mut consumed_calls = Vec::new();
     let mut visited = Vec::new();
     let mut operand_roles = Vec::new();
     let mut selected_leaves = Vec::new();
-    while let Some((handle, expression, reference, source_arm)) = pending.pop() {
+    while let Some((handle, expression, reference, source_arm, projected_leaf)) = pending.pop() {
         if !plans.nodes.is_valid(handle) || visited.contains(&handle) {
             return unsupported("structural construction has stale or reused value nodes");
         }
@@ -177,6 +183,11 @@ pub(crate) fn validate(
         match node.kind.clone() {
             CheckedStructuralValueKind::Place(argument) => {
                 if let Some(receipt) = selection {
+                    if projected_leaf.is_some() {
+                        return unsupported(
+                            "projected selection root place bypassed its leaf validation",
+                        );
+                    }
                     owned_selection::validate_leaf(
                         checked, receipt, expression, source_arm, &argument,
                     )?;
@@ -199,7 +210,7 @@ pub(crate) fn validate(
                 }
             }
             CheckedStructuralValueKind::Call { source_call } => {
-                if selection.is_some() {
+                if selection.is_some() && projected_leaf.is_none() {
                     return unsupported("selected ownership mixes fresh and existing obligations");
                 }
                 if !checked.facts.flow.control.calls.is_valid(source_call) {
@@ -371,6 +382,7 @@ pub(crate) fn validate(
                                 initializer.value,
                                 declaration.type_reference,
                                 source_arm,
+                                None,
                             ));
                         }
                     }
@@ -547,10 +559,56 @@ pub(crate) fn validate(
                             );
                         }
                     }
-                    pending.push((arm.value, authored_arm.value, reference, arm.source_arm));
+                    pending.push((
+                        arm.value,
+                        authored_arm.value,
+                        reference,
+                        arm.source_arm,
+                        None,
+                    ));
                 }
                 if !covered || retained_ordinal != retained.len() {
                     return unsupported("structural selection omitted required coverage");
+                }
+            }
+            CheckedStructuralValueKind::Projection {
+                source: source_handle,
+                path,
+                type_identity,
+            } => {
+                // A projected leaf moves one affine child of an existing root.
+                // The path, arm, and source evidence replay against the
+                // transfer receipt; the root node itself is a whole place or
+                // the producing call, validated under the root's own type.
+                let Some(receipt) = selection else {
+                    return unsupported("projected selection has no ownership receipt");
+                };
+                if !plans.nodes.is_valid(source_handle) || visited.contains(&source_handle) {
+                    return unsupported("projected selection has a stale or reused root node");
+                }
+                let source_node = plans.nodes.get(source_handle).clone();
+                let root = owned_selection::validate_projection(
+                    checked,
+                    owner,
+                    source,
+                    receipt,
+                    expression,
+                    source_arm,
+                    &source_node,
+                    &path,
+                    &type_identity,
+                )?;
+                selected_leaves.push(expression);
+                if matches!(source_node.kind, CheckedStructuralValueKind::Call { .. }) {
+                    pending.push((
+                        source_handle,
+                        root.expression,
+                        root.reference,
+                        source_arm,
+                        Some(expression),
+                    ));
+                } else {
+                    visited.push(source_handle);
                 }
             }
         }
