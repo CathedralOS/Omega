@@ -47,6 +47,7 @@ use crate::{
 };
 
 mod budget_and_invalidation;
+mod cycle_component_custody;
 mod execution;
 mod fixtures;
 mod replay;

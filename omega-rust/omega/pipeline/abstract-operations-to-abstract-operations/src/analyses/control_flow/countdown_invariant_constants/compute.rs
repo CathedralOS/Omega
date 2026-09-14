@@ -268,9 +268,9 @@ fn validate_roots(
     if counted.snapshot().revision != unit.identity {
         return Err(CountdownInvariantConstantAnalysisError::CountedLoopRevisionMismatch);
     }
-    if custody.components().len() != custody.ranking_certificates().certificates().len()
-        || custody.components().len() != counted.loops().len()
-    {
+    // The counted roster covers exactly the certified subset of the validated
+    // SCC roster; uncertified components carry no countdown custody.
+    if custody.ranking_certificates().certificates().len() != counted.loops().len() {
         return Err(CountdownInvariantConstantAnalysisError::ComponentRosterMismatch);
     }
     Ok(())

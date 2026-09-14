@@ -248,8 +248,11 @@ fn validate_roots(
     {
         return Err(CountdownInvariantConstantPlacementAnalysisError::AnalysisRevisionMismatch);
     }
-    if custody.components().len() != counted.loops().len()
-        || custody.components().len() != invariants.loops().len()
+    // The countdown chain covers the certified subset of the validated SCC
+    // roster: one counted loop and one invariant row per ranking certificate.
+    // Uncertified components carry no countdown custody.
+    if custody.ranking_certificates().certificates().len() != counted.loops().len()
+        || counted.loops().len() != invariants.loops().len()
         || counted
             .loops()
             .iter()

@@ -33,9 +33,14 @@ pub(super) fn reconstruct(
         .iter()
         .map(|certificate| (certificate.component.clone(), certificate))
         .collect::<BTreeMap<_, _>>();
+    // Certificates are keyed by the certified subset of the validated SCC
+    // roster. Uncertified components stay in custody without requiring a
+    // counted-loop summary.
     if components.len() != custody.components().len()
         || certificates.len() != custody.ranking_certificates().certificates().len()
-        || components.keys().ne(certificates.keys())
+        || certificates
+            .keys()
+            .any(|component| !components.contains_key(component))
     {
         return Err(CountedLoopAnalysisError::CertificateComponentRosterMismatch);
     }
