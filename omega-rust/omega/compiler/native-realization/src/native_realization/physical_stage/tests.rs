@@ -7,6 +7,7 @@ use crate::native_realization::optimized_fragment_projection::{
 use crate::native_realization::target_stage::lower_realization_target_stage;
 mod conditional;
 mod conditional_fixture;
+mod general_call_frame;
 mod ordered_calls;
 mod runtime_rematerialization_pressure;
 mod runtime_spill_pressure;
