@@ -19,19 +19,25 @@ pub(in crate::legalization) fn validate_unit_custody(
     }
     let mut admitted = Vec::new();
     if let Some(input) = verified_input {
+        // The retired unsigned-countdown carrier is not an ordinary cycle on
+        // this route. Reject it before component replay rather than probing
+        // the validated snapshot against its dedicated legacy slice.
+        if input.context().module().machines.iter().any(|machine| {
+            machine
+                .ranked_scc
+                .as_ref()
+                .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
+        }) {
+            return Err(invalid);
+        }
         let validated = abstract_operations_to_abstract_operations::validation::validate_transformed_psi_cycle_components(input, unit)
             .map_err(|_| invalid.clone())?;
         for component in validated.components() {
-            if input.context().module().machines.iter().any(|machine| {
-                machine.id == component.id.machine
-                    && matches!(
-                        machine.ranked_scc,
-                        None | Some(terminal_psi::TerminalRankedScc::Natural(_))
-                    )
-            }) && !admitted.contains(&component.id.machine)
-            {
-                // The checked component binds the exact verified source graph.
-                // An unranked source supplies safety custody, not a rank or work bound.
+            // The checked component binds the exact verified source graph:
+            // Natural ranking evidence and unranked safety custody both admit
+            // through the ordinary replay. An unranked source supplies no
+            // termination or fixed-work authority.
+            if !admitted.contains(&component.id.machine) {
                 admitted.push(component.id.machine);
             }
         }
