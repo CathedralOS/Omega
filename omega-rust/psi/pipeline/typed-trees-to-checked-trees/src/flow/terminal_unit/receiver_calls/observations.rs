@@ -103,7 +103,9 @@ pub(in crate::flow::terminal_unit) fn reads_receiver(
 
 fn scalar_reads(expression: &CheckedScalarExpression, receiver: u32) -> bool {
     match expression {
-        CheckedScalarExpression::StructuralParameterByteLength { parameter_position }
+        CheckedScalarExpression::StructuralParameterByteLength {
+            parameter_position, ..
+        }
         | CheckedScalarExpression::StructuralParameterField {
             parameter_position, ..
         } => *parameter_position == receiver,

@@ -889,7 +889,11 @@ fn collect_scalar_storage_reads(
                     .retain(|source_path| source_path != path);
             }
         }
-        CheckedScalarExpression::StructuralParameterByteLength { .. } => {}
+        CheckedScalarExpression::StructuralParameterByteLength { .. } => {
+            // A length has no scalar storage read, but its structural root and
+            // path still have to match this exact authored observation.
+            *needs_value_replay = true;
+        }
     }
 }
 

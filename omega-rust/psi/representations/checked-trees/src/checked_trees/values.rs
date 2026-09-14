@@ -306,10 +306,12 @@ pub enum CheckedScalarExpressionRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarExpression {
-    /// Exact u64 length of one whole immutable byte-view parameter in the
-    /// authored structural namespace, not a nominal field or scalar binding.
+    /// Exact u64 live byte length in the authored structural namespace.
+    /// Empty paths select a whole byte-view parameter; nonempty paths select
+    /// the exact bounded-owned byte field, never its capacity.
     StructuralParameterByteLength {
         parameter_position: u32,
+        path: Vec<CheckedStructuralPredicatePathSegment>,
     },
     /// Read the current value of exact local storage at this computation's
     /// program point. Storage never occupies an immutable binding position.

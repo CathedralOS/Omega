@@ -2779,7 +2779,7 @@ fn lower_scalar_expression(
         );
     }
     if let Some(length) =
-        structural_fields::whole_byte_view_length(program, authored_parameters, expression)
+        structural_fields::structural_byte_length(program, authored_parameters, expression)
     {
         return Some((length, ArithmeticDomain::Exact));
     }

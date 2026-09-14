@@ -126,6 +126,60 @@ pub(crate) fn resolve(
     unsupported("runtime field observation requires a nonempty field path")
 }
 
+pub(crate) fn resolve_byte_length(
+    fields: &[StructuralScalarFieldBinding],
+    position: u32,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+) -> Result<
+    (
+        PlaceId,
+        Vec<terminal_psi::StructuralPathSegment>,
+        StructuralFieldId,
+    ),
+    LoweringError,
+> {
+    let mut matching = fields
+        .iter()
+        .filter(|field| field.source_position == position);
+    let binding = matching.next().ok_or(LoweringError::Unsupported(
+        "byte field length has no readable binding",
+    ))?;
+    if matching.next().is_some() {
+        return unsupported("byte field length has ambiguous bindings");
+    }
+    let Some((checked_trees::CheckedStructuralPredicatePathSegment::Field(identity), carrier)) =
+        path.split_last()
+    else {
+        return unsupported("byte field length requires an exact field endpoint");
+    };
+    let carrier = carrier
+        .iter()
+        .map(|segment| match segment {
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
+            }
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+                Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
+            }
+            _ => unsupported("byte field length has an unsupported case path"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let (path, field) = crate::psi_lowering::structural_scalar_store::lower_structural_field_path(
+        binding.structural_type,
+        &carrier,
+        identity,
+        &binding.declarations,
+    )?;
+    // Raw fixed arrays have static capacity, not bounded-owned live metadata.
+    if !matches!(
+        field.field_type,
+        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+    ) {
+        return unsupported("byte field length requires a bounded-owned byte carrier");
+    }
+    Ok((binding.source, path, field.id))
+}
+
 pub(crate) fn resolve_primitive(
     fields: &[StructuralScalarFieldBinding],
     position: u32,

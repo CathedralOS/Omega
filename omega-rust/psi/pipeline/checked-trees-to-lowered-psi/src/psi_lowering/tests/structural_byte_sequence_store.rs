@@ -3,6 +3,171 @@
 use super::*;
 
 #[test]
+fn replaced_byte_field_length_reaches_canonical_interpretation() {
+    let checked = checked_source(
+        r#"
+        domain [u8; 3]::Utf8 requires valid_utf8(self);
+        boundary trait Output { machine size(value: u64) reaches Output; }
+        data Payload { out: [u8; 3] in Utf8; other: [u8; 3] in Utf8; }
+        data Record { payload: Payload; }
+        machine Record::shrink(&mut self) { self.payload.out = "X"; }
+        machine Record::measure(&mut self) reaches Output {
+            self.payload.other = "QQ";
+            self.payload.out = "XXX";
+            Output::size(self.payload.out.len);
+            self.shrink();
+            Output::size(self.payload.out.len);
+            self.payload.out = "";
+            Output::size(self.payload.out.len);
+        }
+        "#,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::measure")
+        .produce_artifact()
+        .expect("live field length publishes canonical Terminal after replacement");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let mut execution =
+        terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            &[terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 73,
+                structural_type: entry.structural_parameters[0].structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+        )
+        .unwrap();
+    #[derive(Default)]
+    struct LengthTrace(Vec<u128>);
+    impl terminal_interpreter::TerminalEffectHandler for LengthTrace {
+        fn handle_effect(
+            &mut self,
+            effect: &terminal_interpreter::TerminalEffect,
+        ) -> Result<(), terminal_interpreter::TerminalEffectRejection> {
+            let terminal_interpreter::TerminalEffect::BoundaryCall { arguments, .. } = effect
+            else {
+                panic!("only length boundaries are observable");
+            };
+            let [
+                terminal_interpreter::TerminalScalarValue::Integer {
+                    value: IntegerValue::Unsigned(length),
+                    ..
+                },
+            ] = arguments.as_slice()
+            else {
+                panic!("exact unsigned length argument");
+            };
+            self.0.push(*length);
+            Ok(())
+        }
+    }
+    let mut trace = LengthTrace::default();
+    let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(100);
+    let result = execution
+        .resume_with_effect_handler(&mut fuel, &mut trace)
+        .unwrap();
+    assert_eq!(
+        result,
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+    assert_eq!(trace.0, [3, 1, 0]);
+    let (path, sibling) = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            OperationKind::StructuralByteSequenceFieldStore { path, field, .. } => {
+                Some((path, *field))
+            }
+            _ => None,
+        })
+        .expect("first replacement initializes the sibling");
+    assert_eq!(
+        execution.structural_byte_sequence_field(73, path, sibling),
+        Some(b"QQ".as_slice())
+    );
+}
+
+#[test]
+fn byte_field_length_receiving_rejects_changed_root_and_field_paths() {
+    let checked = checked_source(
+        r#"
+        domain [u8; 3]::Utf8 requires valid_utf8(self);
+        boundary trait Output { machine size(value: u64) reaches Output; }
+        data Record { out: [u8; 3] in Utf8; other: [u8; 3] in Utf8; raw: [u8; 3]; }
+        machine measure(first: &Record, second: &Record) reaches Output {
+            Output::size(first.out.len);
+        }
+        "#,
+    );
+    lower_machine(&checked, "measure").expect("untampered field length lowers");
+    for mutation in 0..5 {
+        let mut changed = checked.clone();
+        let mutate = |value: &mut CheckedScalarExpression| {
+            let CheckedScalarExpression::StructuralParameterByteLength {
+                parameter_position,
+                path,
+            } = value
+            else {
+                return false;
+            };
+            match mutation {
+                0 => {
+                    *path.last_mut().unwrap() =
+                        checked_trees::CheckedStructuralPredicatePathSegment::Field("other".into())
+                }
+                1 => *parameter_position = 1,
+                2 => path.clear(),
+                3 => path.push(checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                    "out".into(),
+                )),
+                4 => {
+                    *path.last_mut().unwrap() =
+                        checked_trees::CheckedStructuralPredicatePathSegment::Field("raw".into())
+                }
+                _ => unreachable!(),
+            }
+            true
+        };
+        // Mutate both the scalar fact and its retained call operand so rejection
+        // cannot rely only on disagreement between redundant checked copies.
+        for plan in &mut changed.facts.values.scalar_expressions.expressions {
+            mutate(&mut plan.expression);
+        }
+        let mut changed_arguments = 0;
+        for plan in &mut changed.facts.flow.terminal_unit_effects.machines {
+            for operation in &mut plan.operations {
+                if let CheckedUnitEffectOperationPlan::BoundaryCall {
+                    scalar_arguments, ..
+                } = operation
+                {
+                    for argument in scalar_arguments {
+                        if let checked_trees::CheckedCallScalarArgument::Pure(value) = argument {
+                            changed_arguments += usize::from(mutate(value));
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(changed_arguments, 1, "exact boundary length operand");
+        assert!(
+            lower_machine(&changed, "measure").is_err(),
+            "length mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn bounded_byte_field_literal_replacement_publishes_terminal() {
     for literal in ["XXX", "X", ""] {
         let checked = checked_source(&format!(

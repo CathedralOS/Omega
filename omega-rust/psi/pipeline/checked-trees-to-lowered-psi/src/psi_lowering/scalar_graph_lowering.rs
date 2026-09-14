@@ -1088,7 +1088,24 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
     primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
-        CheckedScalarExpression::StructuralParameterByteLength { parameter_position } => {
+        CheckedScalarExpression::StructuralParameterByteLength {
+            parameter_position,
+            path,
+        } => {
+            if !path.is_empty() {
+                let (source, path, field) =
+                    crate::psi_lowering::scalar_bindings::structural_fields::resolve_byte_length(
+                        structural_fields,
+                        *parameter_position,
+                        path,
+                    )?;
+                return Ok(LoweredDirectExpression::ByteSequenceFieldLength {
+                    source,
+                    path,
+                    field,
+                    scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
+                });
+            }
             Ok(LoweredDirectExpression::ByteSequenceLength {
                 source: byte_observation_parameter(
                     *parameter_position,
@@ -1636,7 +1653,8 @@ pub(super) fn validate_direct_parameter_types(
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::IeeeFloatLiteral { .. }
-        | LoweredDirectExpression::ByteSequenceLength { .. } => Ok(()),
+        | LoweredDirectExpression::ByteSequenceLength { .. }
+        | LoweredDirectExpression::ByteSequenceFieldLength { .. } => Ok(()),
         LoweredDirectExpression::ByteSequenceRead { index, .. } => {
             validate_direct_parameter_types(index, parameter_types)
         }
@@ -1795,7 +1813,8 @@ fn evaluate_direct_expression(
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
-        | LoweredDirectExpression::ByteSequenceLength { .. } => None,
+        | LoweredDirectExpression::ByteSequenceLength { .. }
+        | LoweredDirectExpression::ByteSequenceFieldLength { .. } => None,
         LoweredDirectExpression::IntegerBinary {
             kind,
             scalar_type,

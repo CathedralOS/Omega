@@ -489,13 +489,18 @@ impl Context<'_> {
             Scalar::Boolean(boolean) => self.boolean(source, boolean, operands, depth + 1),
             // Exact read identities, paths and their namespaces are checked by
             // scalar_source_custody; these forms introduce no scalar operator.
-            Scalar::Parameter { .. }
-            | Scalar::Local { .. }
-            | Scalar::StorageRead { .. }
-            | Scalar::StructuralParameterByteLength { .. } => matches!(
-                node,
-                ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Borrow(_)
-            ),
+            Scalar::Parameter { .. } | Scalar::Local { .. } | Scalar::StorageRead { .. } => {
+                matches!(
+                    node,
+                    ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Borrow(_)
+                )
+            }
+            Scalar::StructuralParameterByteLength {
+                parameter_position,
+                path,
+            } => self
+                .byte_length(source, *parameter_position, path)
+                .unwrap_or(false),
             Scalar::StructuralParameterField { .. } => matches!(
                 node,
                 ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
@@ -503,6 +508,51 @@ impl Context<'_> {
             Scalar::StructuralParameterIndexedRead { index, .. } => matches!(node,
                 ExpressionNode::Indexed(indexed) if self.scalar(indexed.index, index, operands, depth + 1)),
         }
+    }
+
+    fn byte_length(
+        &self,
+        source: ExpressionHandle,
+        parameter_position: u32,
+        path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    ) -> Option<bool> {
+        let (machine, state) = super::authored_state(self.checked, self.state).ok()?;
+        let receiver = validation::collection_length_receiver(
+            &self.checked.typed,
+            machine,
+            Some(state),
+            source,
+        )?;
+        let authored =
+            crate::psi_lowering::call_source_custody::projected_receivers::store_destination(
+                self.checked,
+                machine.symbol,
+                self.state,
+                None,
+                receiver,
+            )
+            .ok()?;
+        let parameter = self
+            .checked
+            .state_parameters(state)
+            .get(parameter_position as usize)?;
+        Some(
+            parameter.symbol == authored.root
+                && path.len() == authored.path.len()
+                && path.iter().zip(&authored.path).all(|(retained, authored)| {
+                    match (retained, authored) {
+                        (
+                            checked_trees::CheckedStructuralPredicatePathSegment::Field(left),
+                            checked_trees::CheckedUnitStructuralPathSegment::Field(right),
+                        ) => left == right,
+                        (
+                            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(left),
+                            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(right),
+                        ) => left == right,
+                        _ => false,
+                    }
+                }),
+        )
     }
 
     fn boolean(
