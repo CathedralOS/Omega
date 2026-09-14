@@ -271,9 +271,13 @@ prerequisite to every lower-rung milestone.
   and the passing full-width case do not constitute a whole-producer bound or
   checked refinement certificate. Serialization's publication traversal pairs
   are now charged to distinct emitted bytes and bounded below the selected
-  pair arena (`8a49b3e011`); generic overlapping helper batches, earlier
-  checking/lowering, normalizer frames/rebuilt nodes, and generic
-  capture-batch merges remain part of that allocation argument.
+  pair arena (`8a49b3e011`), and the normalizer machine's frames and rebuilds
+  are charged per plan-node occurrence while each capture collection's merges
+  are bounded by `(2*d + 1) * (k + 1) + 2*E` (`ffd4560e82`). Earlier
+  checking/lowering — including the plan size `G` those normalizer bounds
+  consume — and whether every admitted shape keeps the capture `k*d` merge
+  product below the selected pair arena remain part of that allocation
+  argument.
   The [canonical compiler execution-storage audit](bootstrap/3_delta/implementation/boundary/execution_storage.md)
   bounds its call contexts, lexical rows, and temporary values separately;
   generated-application runtime exhaustion is not compiler-execution exhaustion.
