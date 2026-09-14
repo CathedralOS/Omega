@@ -3592,14 +3592,35 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
         // therefore die before those locals, and all locals before parameters.
         // Admitting interleaved legacy constructors requires one declaration-
         // ordered cleanup roster instead of concatenating these two groups.
-        let trivial_affine_discards = evaluation
-            .selection_return_discards(
-                structural_result_places
+        // Parameter selection sources have no result row: they follow the
+        // result rows in descending authored position so the splice replaces
+        // each row with its residual join parameter.
+        let mut selection_roster = structural_result_places
+            .iter()
+            .rev()
+            .map(|(place, discard)| (place.id, *discard))
+            .collect::<Vec<_>>();
+        let mut parameter_sources = Vec::new();
+        for cleanup in &evaluation.selection_cleanups {
+            for source in &cleanup.sources {
+                if let Some((position, _)) = evaluation
+                    .structural_parameters
                     .iter()
-                    .rev()
-                    .map(|(place, discard)| (place.id, *discard))
-                    .collect(),
-            )?
+                    .find(|(_, declaration)| declaration.place == *source)
+                {
+                    parameter_sources.push((*position, *source));
+                }
+            }
+        }
+        parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
+        parameter_sources.dedup_by_key(|(_, place)| *place);
+        selection_roster.extend(
+            parameter_sources
+                .into_iter()
+                .map(|(_, place)| (place, false)),
+        );
+        let trivial_affine_discards = evaluation
+            .selection_return_discards(selection_roster)?
             .into_iter()
             .map(Ok)
             .chain(local_discards)

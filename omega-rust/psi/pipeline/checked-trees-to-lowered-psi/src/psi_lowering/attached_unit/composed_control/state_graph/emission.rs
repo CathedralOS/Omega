@@ -905,6 +905,29 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn emit(
                             ));
                         }
                     }
+                    // Parameter selection sources keep the same roster shape
+                    // as the guarded edge: they follow the result rows in
+                    // descending authored position so the splice substitutes
+                    // each residual join parameter at its own slot.
+                    let mut parameter_sources = Vec::new();
+                    for cleanup in &evaluation.selection_cleanups {
+                        for source in &cleanup.sources {
+                            if let Some((position, _)) = evaluation
+                                .structural_parameters
+                                .iter()
+                                .find(|(_, declaration)| declaration.place == *source)
+                            {
+                                parameter_sources.push((*position, *source));
+                            }
+                        }
+                    }
+                    parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
+                    parameter_sources.dedup_by_key(|(_, place)| *place);
+                    local_discards.extend(
+                        parameter_sources
+                            .into_iter()
+                            .map(|(_, place)| (place, false)),
+                    );
                     local_discards.extend(discards.iter().map(|place| (*place, true)));
                     *discards = evaluation.selection_return_discards(local_discards)?;
                 }

@@ -105,29 +105,78 @@ pub(super) fn record_statement(
         {
             continue;
         }
-        let (source_ordinal, source_local) = statements[..statement_index]
+        // A source is either an established immutable local or an immutable
+        // owned parameter: parameters carry their authored position as the
+        // source ordinal and their state-entry establishment as provenance.
+        let parameter = program
+            .state_parameters(state)
             .iter()
             .enumerate()
-            .find_map(|(ordinal, statement)| match statement {
-                StatementNode::LocalData(source) if source.symbol == symbol => {
-                    Some((ordinal, source))
-                }
-                _ => None,
-            })
-            .ok_or_else(unsupported)?;
+            .find(|(_, parameter)| parameter.symbol == symbol);
+        let (source_ordinal, source_reference, provenance, origin_selection) = if let Some((
+            position,
+            parameter,
+        )) = parameter
+        {
+            if parameter.is_self || parameter.is_const || parameter.is_mutable {
+                return Err(Diagnostic::error(
+                    "owned match source must be an available whole immutable plain-affine local of the exact result type",
+                ));
+            }
+            (
+                position,
+                parameter.type_reference,
+                PermissionProvenance::Established {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                    source: PermissionEventSource::StateEntry,
+                },
+                Handle::invalid(),
+            )
+        } else {
+            let (source_ordinal, source_local) = statements[..statement_index]
+                .iter()
+                .enumerate()
+                .find_map(|(ordinal, statement)| match statement {
+                    StatementNode::LocalData(source) if source.symbol == symbol => {
+                        Some((ordinal, source))
+                    }
+                    _ => None,
+                })
+                .ok_or_else(unsupported)?;
+            if source_local.is_mutable || !source_local.initial_value.is_valid() {
+                return Err(Diagnostic::error(
+                    "owned match source must be an available whole immutable plain-affine local of the exact result type",
+                ));
+            }
+            let place = places
+                .iter()
+                .find(|place| place.symbol == symbol && place.path.is_empty())
+                .ok_or_else(unsupported)?;
+            let origin_selection = facts
+                .flow
+                .ownership
+                .owned_selection_at(state.symbol, source_ordinal as u32)
+                .map(|(handle, _)| handle)
+                .unwrap_or_default();
+            (
+                source_ordinal,
+                source_local.type_reference,
+                place.provenance.unwrap_or(PermissionProvenance::Unknown),
+                origin_selection,
+            )
+        };
         let place = places
             .iter()
             .find(|place| place.symbol == symbol && place.path.is_empty())
             .ok_or_else(unsupported)?;
-        if source_local.is_mutable
-            || !source_local.initial_value.is_valid()
-            || !place.live
+        if !place.live
             || !place.ever_established
             || place.multiplicity != Multiplicity::Affine
             || place.conditional
             || !validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
-                source_local.type_reference,
+                source_reference,
             )
         {
             return Err(Diagnostic::error(
@@ -140,7 +189,7 @@ pub(super) fn record_statement(
         // the projected leaf type was already checked against the result.
         if leaves.iter().any(|(_, _, leaf_root, path)| {
             *leaf_root == facts::PlaceRoot::Symbol(symbol) && path.is_empty()
-        }) && program.normalized_type_identity(source_local.type_reference)
+        }) && program.normalized_type_identity(source_reference)
             != program.normalized_type_identity(type_reference)
         {
             return Err(Diagnostic::error(
@@ -158,13 +207,6 @@ pub(super) fn record_statement(
         }) {
             return Err(Diagnostic::error("owned match source with borrowed custody requires selected loan-closure evidence"));
         }
-        let origin_selection = facts
-            .flow
-            .ownership
-            .owned_selection_at(state.symbol, source_ordinal as u32)
-            .map(|(handle, _)| handle)
-            .unwrap_or_default();
-        let provenance = place.provenance.unwrap_or(PermissionProvenance::Unknown);
         if !origin_selection.is_valid() && provenance == PermissionProvenance::Unknown {
             return Err(Diagnostic::error(
                 "owned match source has no exact incoming origin",
@@ -180,7 +222,16 @@ pub(super) fn record_statement(
             origin_selection,
         });
     }
-    sources.sort_by_key(|source| std::cmp::Reverse(source.statement_ordinal));
+    // Reverse establishment order: locals in descending statement order, then
+    // parameters in descending authored position, since parameters are
+    // established at state entry before every statement local.
+    sources.sort_by_key(|source| {
+        let is_local = program
+            .state_parameters(state)
+            .iter()
+            .all(|parameter| parameter.symbol != source.symbol);
+        std::cmp::Reverse((is_local, source.statement_ordinal))
+    });
     let sources = facts.flow.ownership.selection_sources.insert_many(sources);
     let mut transfers = Vec::new();
     for (expression, source_arm, root, path) in leaves {

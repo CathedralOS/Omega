@@ -50,6 +50,8 @@ pub(crate) fn emit(
             return unsupported("fresh structural value cannot create linear custody");
         }
     };
+    let authored_state =
+        crate::psi_lowering::scalar_source_custody::authored_state(checked, state)?.1;
     let sources = checked
         .facts
         .flow
@@ -68,14 +70,56 @@ pub(crate) fn emit(
                 .iter()
                 .rev()
                 .map(|source| {
-                    evaluation
+                    if let Some(argument) = evaluation
                         .structural_locals
                         .iter()
                         .find(|(symbol, _)| *symbol == source.symbol)
                         .map(|(_, argument)| argument.clone())
+                    {
+                        return Ok(argument);
+                    }
+                    // Parameter sources keep their physical ingress place: the
+                    // receipt row names the authored position and the
+                    // signature declaration supplies its whole-owned custody.
+                    let parameter = checked
+                        .state_parameters(authored_state)
+                        .iter()
+                        .enumerate()
+                        .find(|(_, parameter)| parameter.symbol == source.symbol)
                         .ok_or(LoweringError::Unsupported(
                             "owned selection source has no established physical local",
-                        ))
+                        ))?;
+                    if parameter.0 as u32 != source.statement_ordinal
+                        || parameter.1.is_self
+                        || parameter.1.is_const
+                        || parameter.1.is_mutable
+                    {
+                        return Err(LoweringError::Unsupported(
+                            "owned selection parameter source drifted from its authored origin",
+                        ));
+                    }
+                    let declaration = evaluation
+                        .structural_parameters
+                        .iter()
+                        .find(|(position, _)| *position == parameter.0 as u32)
+                        .map(|(_, declaration)| declaration)
+                        .ok_or(LoweringError::Unsupported(
+                            "owned selection parameter source has no signature place",
+                        ))?;
+                    if declaration.access != StructuralAccess::Owned
+                        || declaration.multiplicity != StructuralMultiplicity::Affine
+                        || !declaration.qualifications.is_empty()
+                        || !declaration.projected_qualifications.is_empty()
+                    {
+                        return Err(LoweringError::Unsupported(
+                            "owned selection parameter source lacks whole plain-affine custody",
+                        ));
+                    }
+                    Ok(StructuralArgument {
+                        place: declaration.place,
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    })
                 })
                 .collect::<Result<Vec<_>, _>>()
         })
@@ -302,7 +346,88 @@ fn prepare_owners(
             value: value.clone(),
         });
     }
-    owners.sort_by_key(|owner| owner.statement);
+    // Selected parameter sources join the frontier as owners: their ingress
+    // places are real signature places and their residual slots die on the
+    // receipt's actual death edge like any local source.
+    let source_parameters = checked.state_parameters(
+        crate::psi_lowering::scalar_source_custody::authored_state(checked, state)?.1,
+    );
+    if let Some((_, receipt)) = checked
+        .facts
+        .flow
+        .ownership
+        .owned_selection_at(state, statement)
+    {
+        for (position, parameter) in source_parameters.iter().enumerate() {
+            if !checked
+                .facts
+                .flow
+                .ownership
+                .selection_sources
+                .span_or_empty(receipt.sources)
+                .iter()
+                .any(|source| {
+                    source.symbol == parameter.symbol && source.statement_ordinal == position as u32
+                })
+            {
+                continue;
+            }
+            if parameter.is_self || parameter.is_const || parameter.is_mutable {
+                return unsupported("selection parameter source is not immutable owned ingress");
+            }
+            let declaration = evaluation
+                .structural_parameters
+                .iter()
+                .find(|(source_position, _)| *source_position as usize == position)
+                .map(|(_, declaration)| declaration)
+                .ok_or(LoweringError::Unsupported(
+                    "selection parameter source has no signature place",
+                ))?;
+            if declaration.access != StructuralAccess::Owned
+                || declaration.multiplicity != StructuralMultiplicity::Affine
+                || !declaration.qualifications.is_empty()
+                || !declaration.projected_qualifications.is_empty()
+                || checked.type_multiplicity(parameter.type_reference) != Multiplicity::Affine
+                || !validation::has_plain_owned_contents_with_numeric_constraints(
+                    &checked.typed,
+                    parameter.type_reference,
+                )
+            {
+                return unsupported(
+                    "selection parameter source requires whole plain-affine custody",
+                );
+            }
+            if owners
+                .iter()
+                .any(|owner| owner.value.place == declaration.place)
+            {
+                return unsupported("selection parameter source duplicated its frontier entry");
+            }
+            owners.push(argument_evaluation::StructuralValueOwner {
+                symbol: parameter.symbol,
+                statement: u32::try_from(position).map_err(|_| {
+                    LoweringError::Unsupported("selection parameter position exceeds u32")
+                })?,
+                value: terminal_psi::StructuralOperationResult {
+                    place: declaration.place,
+                    structural_type: declaration.structural_type,
+                    multiplicity: declaration.multiplicity,
+                    qualifications: declaration.qualifications.clone(),
+                    projected_qualifications: declaration.projected_qualifications.clone(),
+                    claims: Vec::new(),
+                },
+            });
+        }
+    }
+    // Deterministic roster order: locals keep their ascending statement order
+    // and parameter slots follow them in authored position order. The join
+    // binds these slots positionally against the receipt's source complement.
+    owners.sort_by_key(|owner| {
+        let is_parameter = source_parameters
+            .iter()
+            .any(|parameter| parameter.symbol == owner.symbol);
+        (is_parameter, owner.statement)
+    });
     for source in statements.iter().take(statement as usize) {
         if let checked_trees::statement::StatementNode::LocalData(local) = source
             && checked.type_multiplicity(local.type_reference) == Multiplicity::Affine
@@ -514,6 +639,9 @@ impl Emission<'_, '_, '_> {
                 {
                     // Source replay distinguishes a whole record child from a
                     // selected sum leaf, whose receipt and continuation remain mandatory.
+                    if let Some(place) = self.parameter_source(&argument)? {
+                        return Ok(place);
+                    }
                     return crate::psi_lowering::scalar_bindings::ScalarBindings::new(
                         self.values.len(),
                     )
@@ -522,26 +650,37 @@ impl Emission<'_, '_, '_> {
                     .owned_argument(&argument)
                     .map(|binding| binding.place);
                 }
-                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                    symbol,
-                } = argument.source
-                else {
-                    return unsupported("owned selection requires an established structural local");
-                };
                 if !argument.path.is_empty()
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
                 {
                     return unsupported("owned selection requires whole owned sources");
                 }
-                let selected = self
-                    .evaluation
-                    .structural_locals
-                    .iter()
-                    .find(|(source, _)| *source == symbol)
-                    .map(|(_, argument)| argument.place)
-                    .ok_or(LoweringError::Unsupported(
-                        "owned selection local place missing",
-                    ))?;
+                let selected = match &argument.source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol,
+                    } => self
+                        .evaluation
+                        .structural_locals
+                        .iter()
+                        .find(|(source, _)| *source == *symbol)
+                        .map(|(_, argument)| argument.place)
+                        .or(self.parameter_source(&argument)?)
+                        .ok_or(LoweringError::Unsupported(
+                            "owned selection local place missing",
+                        ))?,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        ..
+                    } => self
+                        .parameter_source(&argument)?
+                        .ok_or(LoweringError::Unsupported(
+                            "owned selection parameter place missing",
+                        ))?,
+                    _ => {
+                        return unsupported(
+                            "owned selection requires an established structural local or parameter",
+                        );
+                    }
+                };
                 if !self.sources.iter().any(|source| source.place == selected) {
                     return unsupported("owned selection place is absent from its receipt sources");
                 }
@@ -956,6 +1095,74 @@ impl Emission<'_, '_, '_> {
         self.evaluation.parameters = continuation.parameters;
         self.evaluation.block_structural_parameters = continuation.structural_parameters;
         Ok(place)
+    }
+
+    /// Resolve a checked source plan to a whole-owned state parameter's
+    /// ingress place. `StructuralLocal` names a parameter directly by symbol;
+    /// `Parameter` counts the authored parameter list filtered to non-const,
+    /// non-primitive entries, matching the checker's record-place producer.
+    /// Returns `None` when the plan names no parameter at all.
+    fn parameter_source(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    ) -> Result<Option<PlaceId>, LoweringError> {
+        let (_, authored) =
+            crate::psi_lowering::scalar_source_custody::authored_state(self.checked, self.state)?;
+        let parameters = self.checked.state_parameters(authored);
+        let (position, parameter) = match &argument.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                let Some(entry) = parameters
+                    .iter()
+                    .enumerate()
+                    .find(|(_, parameter)| parameter.symbol == *symbol)
+                else {
+                    return Ok(None);
+                };
+                entry
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } => {
+                let Some(entry) = parameters
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, parameter)| {
+                        !parameter.is_const
+                            && self
+                                .checked
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_none()
+                    })
+                    .nth(*parameter_index as usize)
+                else {
+                    return unsupported("owned selection parameter index is out of range");
+                };
+                entry
+            }
+            _ => return Ok(None),
+        };
+        if parameter.is_self || parameter.is_const || parameter.is_mutable {
+            return unsupported("owned selection parameter is not immutable owned ingress");
+        }
+        let declaration = self
+            .evaluation
+            .structural_parameters
+            .iter()
+            .find(|(source_position, _)| *source_position as usize == position)
+            .map(|(_, declaration)| declaration)
+            .ok_or(LoweringError::Unsupported(
+                "owned selection parameter has no signature place",
+            ))?;
+        if declaration.access != StructuralAccess::Owned
+            || declaration.multiplicity != StructuralMultiplicity::Affine
+            || declaration.structural_type
+                != lookup_type_id(self.type_ids, &argument.type_identity)?
+            || !declaration.qualifications.is_empty()
+            || !declaration.projected_qualifications.is_empty()
+        {
+            return unsupported("owned selection parameter lacks whole plain-affine custody");
+        }
+        Ok(Some(declaration.place))
     }
 
     /// The once-evaluated root carrying a projected move: an established local

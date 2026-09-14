@@ -69,13 +69,47 @@ pub(super) fn validate_receipt(
     {
         return unsupported("selected ownership omitted its source alternatives");
     }
-    let mut previous = statement;
+    let parameters = checked.state_parameters(authored);
+    let mut previous: Option<(bool, u32)> = None;
     for (ordinal, source) in sources.iter().enumerate() {
-        let Some(StatementNode::LocalData(local)) =
-            statements.get(source.statement_ordinal as usize)
-        else {
-            return unsupported("selected ownership source has no local declaration");
+        // A source row names either an established local (statement ordinal)
+        // or an owned parameter (authored position). Parameters precede every
+        // statement local in establishment order, so the receipt keeps them
+        // after all local rows in descending order.
+        let parameter = parameters
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| parameter.symbol == source.symbol);
+        let (source_reference, is_parameter) = if let Some((position, parameter)) = parameter {
+            if parameter.is_self
+                || parameter.is_const
+                || parameter.is_mutable
+                || position != source.statement_ordinal as usize
+            {
+                return unsupported(
+                    "selected ownership changed its exact source or declaration order",
+                );
+            }
+            (parameter.type_reference, true)
+        } else {
+            let Some(StatementNode::LocalData(local)) =
+                statements.get(source.statement_ordinal as usize)
+            else {
+                return unsupported("selected ownership source has no local declaration");
+            };
+            if source.symbol != local.symbol || local.is_mutable || !local.initial_value.is_valid()
+            {
+                return unsupported(
+                    "selected ownership changed its exact source or declaration order",
+                );
+            }
+            (local.type_reference, false)
         };
+        let key = (!is_parameter, source.statement_ordinal);
+        if previous.is_some_and(|previous| key >= previous) {
+            return unsupported("selected ownership changed its exact source or declaration order");
+        }
+        previous = Some(key);
         let source_handle =
             arena::Handle::from_parts(
                 receipt
@@ -102,16 +136,12 @@ pub(super) fn validate_receipt(
                 transfer.source != source_handle
                     || !ownership.segments.span_or_empty(transfer.path).is_empty()
             });
-        if source.statement_ordinal >= previous
-            || source.symbol != local.symbol
-            || local.is_mutable
-            || !local.initial_value.is_valid()
-            || (whole
-                && checked.normalized_type_identity(local.type_reference)
-                    != checked.normalized_type_identity(reference))
+        if (whole
+            && checked.normalized_type_identity(source_reference)
+                != checked.normalized_type_identity(reference))
             || (projected
-                && !(checked.type_multiplicity(local.type_reference) == Multiplicity::Affine
-                    && validation::has_plain_owned_contents(&checked.typed, local.type_reference)))
+                && !(checked.type_multiplicity(source_reference) == Multiplicity::Affine
+                    && validation::has_plain_owned_contents(&checked.typed, source_reference)))
             || source.claim_identity != PermissionClaimIdentity::Unknown
             || sources[..ordinal]
                 .iter()
@@ -119,7 +149,27 @@ pub(super) fn validate_receipt(
         {
             return unsupported("selected ownership changed its exact source or declaration order");
         }
-        previous = source.statement_ordinal;
+        if is_parameter {
+            // A parameter's ownership enters at state entry; it can never
+            // originate from a prior selection statement.
+            if source.origin_selection.is_valid()
+                || source.provenance
+                    != (PermissionProvenance::Established {
+                        machine_symbol: machine,
+                        state_symbol: state,
+                        source: PermissionEventSource::StateEntry,
+                    })
+            {
+                return unsupported("selected ownership minted or lost source provenance");
+            }
+            if !transfers
+                .iter()
+                .any(|transfer| transfer.source == source_handle)
+            {
+                return unsupported("selected ownership added an unauthored residual owner");
+            }
+            continue;
+        }
         if source.origin_selection.is_valid() {
             if !ownership.owned_selections.is_valid(source.origin_selection)
                 || ownership
@@ -151,20 +201,6 @@ pub(super) fn validate_receipt(
         {
             return unsupported("selected ownership minted or lost source provenance");
         }
-        let source_handle =
-            arena::Handle::from_parts(
-                receipt
-                    .sources
-                    .start()
-                    .arena_index()
-                    .checked_add(u32::try_from(ordinal).map_err(|_| {
-                        LoweringError::Unsupported("selected source ordinal overflow")
-                    })?)
-                    .ok_or(LoweringError::Unsupported(
-                        "selected source handle overflow",
-                    ))?,
-                receipt.sources.start().generation(),
-            );
         if !transfers
             .iter()
             .any(|transfer| transfer.source == source_handle)
@@ -277,10 +313,7 @@ pub(super) fn validate_leaf(
     }
     let source = ownership.selection_sources.get(transfer.source);
     if transfer.source_arm != source_arm
-        || place.source
-            != (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                symbol: source.symbol,
-            })
+        || !source_plan_matches(checked, receipt.state, source.symbol, &place.source)
         || !place.path.is_empty()
         || place.access != checked_trees::CheckedStructuralAccess::Owned
         || place.type_identity
@@ -291,6 +324,50 @@ pub(super) fn validate_leaf(
         return unsupported("selected place changed its transfer, type or access");
     }
     Ok(())
+}
+
+/// The checked source plan a selected leaf carries for its roster root. A
+/// local keeps its `StructuralLocal` symbol; a parameter arrives either as
+/// the case-source `StructuralLocal` form or as the record-place `Parameter`
+/// index, which counts the authored parameter list filtered to non-const,
+/// non-primitive entries.
+pub(super) fn source_plan_matches(
+    checked: &CheckedTrees,
+    state: SymbolHandle,
+    symbol: SymbolHandle,
+    plan: &CheckedUnitStructuralArgumentSourcePlan,
+) -> bool {
+    let (_, authored) =
+        match crate::psi_lowering::scalar_source_custody::authored_state(checked, state) {
+            Ok(authored) => authored,
+            Err(_) => return false,
+        };
+    let parameters = checked.state_parameters(authored);
+    if parameters
+        .iter()
+        .all(|parameter| parameter.symbol != symbol)
+    {
+        return *plan == (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
+    }
+    let filtered = parameters
+        .iter()
+        .filter(|parameter| {
+            !parameter.is_const
+                && checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .position(|parameter| parameter.symbol == symbol)
+        .and_then(|index| u32::try_from(index).ok());
+    match plan {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            symbol: plan_symbol,
+        } => *plan_symbol == symbol,
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+            Some(*parameter_index) == filtered
+        }
+        _ => false,
+    }
 }
 
 /// The rebuilt root of one projected selection leaf: its authored occurrence
@@ -498,8 +575,7 @@ pub(super) fn validate_projection(
             };
             if !ownership.selection_sources.is_valid(transfer.source)
                 || ownership.selection_sources.get(transfer.source).symbol != symbol
-                || argument.source
-                    != (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol })
+                || !source_plan_matches(checked, state.symbol, symbol, &argument.source)
                 || !argument.path.is_empty()
                 || argument.access != checked_trees::CheckedStructuralAccess::Owned
                 || argument.type_identity

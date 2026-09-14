@@ -382,9 +382,57 @@ fn fresh_match_subject_uses_its_exact_member_and_arithmetic_carrier() {
 }
 
 #[test]
-fn match_fresh_value_admission_keeps_owned_input_linear_reference_and_hook_rejections() {
+fn match_owned_parameter_sources_record_state_entry_origins() {
+    let checked = checked_source(
+        "data Tag { case First; case Second; }
+         machine choose(selector: bool, left: Tag, right: Tag) -> Tag {
+             match selector { true -> left, false -> right }
+         }",
+        false,
+    );
+    let ownership = &checked.facts.flow.ownership;
+    let (_, receipt) = ownership.owned_selections.iter().next().expect("receipt");
+    assert!(!receipt.destination.is_valid());
+    let sources = ownership.selection_sources.span_or_empty(receipt.sources);
+    assert_eq!(sources.len(), 2);
+    // Reverse authored position order: `right` (2) precedes `left` (1), and
+    // each carries its state-entry establishment as the direct origin.
+    assert_eq!(sources[0].statement_ordinal, 2);
+    assert_eq!(sources[1].statement_ordinal, 1);
+    assert!(sources.iter().all(|source| matches!(
+        source.provenance,
+        language_semantics::PermissionProvenance::Established {
+            source: language_semantics::PermissionEventSource::StateEntry,
+            ..
+        }
+    )));
+}
+
+#[test]
+fn match_owned_parameter_selection_rejects_reusing_the_moved_parameter() {
+    let source = "data Tag { case First; case Second; }
+        machine choose(selector: bool, left: Tag, right: Tag) -> bool {
+            let result: Tag = match selector { true -> left, false -> right };
+            left in Tag::First
+        }";
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let diagnostics =
+        crate::lower_typed_trees(typed).expect_err("a moved parameter cannot be observed again");
+    assert!(
+        format!("{diagnostics:?}").contains("may have been transferred"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn match_fresh_value_admission_keeps_linear_reference_and_hook_rejections() {
     for source in [
-        "data Tag { case First; case Second; } machine choose(selector: bool, left: Tag, right: Tag) -> Tag { match selector { true -> left, false -> right } }",
         "data Tag [linear] { case First; case Second; } machine choose(selector: bool) -> Tag { match selector { true -> Tag::First, false -> Tag::Second } }",
         "data Tag { case First; case Second; } machine Tag::drop(&mut self) {} machine choose(selector: bool) -> Tag { match selector { true -> Tag::First, false -> Tag::Second } }",
         "machine choose(selector: bool, left: &u64, right: &u64) -> &u64 { match selector { true -> left, false -> right } }",

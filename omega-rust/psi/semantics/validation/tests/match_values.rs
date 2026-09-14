@@ -152,10 +152,6 @@ fn match_custody_limits_are_explicit() {
             "branch custody join",
         ),
         (
-            "data Payload { value: i64; } machine run(flag: bool, value: Payload) -> Payload { match flag { true -> value, _ -> value } }",
-            "branch custody join",
-        ),
-        (
             "data Payload { value: i64; } machine consume(payload: Payload) -> bool { true } machine run(flag: bool, payload: Payload) -> bool { match flag { true -> consume(payload), _ -> false } }",
             "branch-local transfer",
         ),
@@ -166,6 +162,13 @@ fn match_custody_limits_are_explicit() {
             "{source}: {errors:?}"
         );
     }
+    // An immutable owned parameter is already an admitted selection source:
+    // the match transfers the chosen ingress value into the result.
+    let selected_parameter = "data Payload { value: i64; } machine run(flag: bool, value: Payload) -> Payload { match flag { true -> value, _ -> value } }";
+    assert!(
+        diagnostics(selected_parameter).is_empty(),
+        "{selected_parameter}"
+    );
 }
 
 #[test]
