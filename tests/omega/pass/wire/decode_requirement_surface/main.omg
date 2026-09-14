@@ -2,7 +2,7 @@
 // The preserving carrier keeps the validated known value separate from
 // uninterpreted relay bytes and codec-private ordering metadata.
 
-use omega::language::std::wire;
+use omega_language_std::wire;
 
 data Message {
     value: u32;
