@@ -347,6 +347,11 @@ impl InstallationRecord {
         &mut self.forwarded_dynamic_parameter_calls
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn semantic_code_attribution_mut_for_test(&mut self) -> &mut Vec<ObjectCodeAttribution> {
+        &mut self.semantic_code_attribution
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
