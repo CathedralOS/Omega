@@ -53,11 +53,17 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             psi_operation,
             result,
             source,
+            path,
         } => {
-            bytes.u8(67);
+            // Existing whole-root identities stay stable; projected subjects
+            // have a distinct tag and retain every declaration-local step.
+            bytes.u8(if path.is_empty() { 67 } else { 73 });
             bytes.id(*psi_operation);
             encode_abstract_result(bytes, *result);
             bytes.id(*source);
+            if !path.is_empty() {
+                encode_canonical_path(bytes, path);
+            }
         }
         O::ByteSequenceSubslice {
             psi_operation,
@@ -80,11 +86,15 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         O::WriteOnlyPrimitiveStore {
             psi_operation,
             destination,
+            path,
             value,
         } => {
-            bytes.u8(49);
+            bytes.u8(if path.is_empty() { 49 } else { 74 });
             bytes.id(*psi_operation);
             encode_structural_parameter(bytes, destination);
+            if !path.is_empty() {
+                encode_canonical_path(bytes, path);
+            }
             encode_abstract_result(bytes, *value);
         }
         O::StructuralScalarFieldStore {

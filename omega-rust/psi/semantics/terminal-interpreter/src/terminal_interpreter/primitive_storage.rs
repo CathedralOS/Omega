@@ -22,6 +22,10 @@ enum PrimitiveStorage {
         array: StructuralRuntimePlace,
         index: usize,
     },
+    OwnedArrayElement {
+        place: PlaceId,
+        index: usize,
+    },
 }
 
 pub(super) struct LocalStructuralIdentities {
@@ -130,6 +134,7 @@ impl TerminalExecution {
         &self,
         place: PlaceId,
         writing: bool,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     ) -> Result<(PrimitiveStorage, ScalarType), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
@@ -141,38 +146,161 @@ impl TerminalExecution {
                 machine
                     .structural_parameters
                     .iter()
+                    .chain(
+                        machine
+                            .blocks
+                            .values()
+                            .flat_map(|block| &block.structural_parameters),
+                    )
                     .find(|parameter| parameter.place == place)
                     .filter(|parameter| {
-                        (if writing {
-                            matches!(
-                                parameter.access,
-                                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                            )
-                        } else {
-                            matches!(
-                                parameter.access,
-                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                            )
-                        }) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                        ((!path.is_empty() && parameter.access == StructuralAccess::Owned)
+                            || if writing {
+                                matches!(
+                                    parameter.access,
+                                    StructuralAccess::MutableBorrow
+                                        | StructuralAccess::WriteOnlyBorrow
+                                )
+                            } else {
+                                matches!(
+                                    parameter.access,
+                                    StructuralAccess::SharedBorrow
+                                        | StructuralAccess::MutableBorrow
+                                )
+                            })
+                            && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                || (!path.is_empty()
+                                    && parameter.multiplicity == StructuralMultiplicity::Affine))
                             && parameter.qualifications.is_empty()
                             && parameter.projected_qualifications.is_empty()
                     })
                     .map(|parameter| parameter.structural_type)
             })
+            .or_else(|| {
+                if path.is_empty() {
+                    return None;
+                }
+                machine
+                    .blocks
+                    .values()
+                    .flat_map(|block| &block.operations)
+                    .filter_map(|operation| operation.result.structural())
+                    .find(|result| {
+                        result.place == place
+                            && result.claims.is_empty()
+                            && result.qualifications.is_empty()
+                            && result.projected_qualifications.is_empty()
+                    })
+                    .map(|result| result.structural_type)
+            })
             .ok_or_else(invalid)?;
-        let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type)) = self
-            .structural_types
-            .get(&structural_type)
-            .map(|entry| &entry.shape)
-        else {
-            return Err(invalid());
-        };
+        let scalar_type = terminal_semantics::primitive_place_type(
+            self.structural_types.values(),
+            structural_type,
+            path,
+        )
+        .ok_or_else(invalid)?;
+        if let Some(array) = self.scalar_array_values.get(&place) {
+            if array.structural_type != structural_type
+                || self.structural_values.contains_key(&place)
+            {
+                return Err(invalid());
+            }
+            let mut carrier = structural_type;
+            let mut leaf_offset = 0_u64;
+            for segment in path {
+                let semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index) =
+                    segment
+                else {
+                    return Err(invalid());
+                };
+                let terminal_psi::StructuralTypeShape::FixedArray { element, length } = self
+                    .structural_types
+                    .get(&carrier)
+                    .ok_or_else(invalid)?
+                    .shape
+                else {
+                    return Err(invalid());
+                };
+                if *index >= length {
+                    return Err(invalid());
+                }
+                let leaf_count = match self
+                    .structural_types
+                    .get(&element)
+                    .ok_or_else(invalid)?
+                    .shape
+                {
+                    terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
+                    _ => {
+                        terminal_semantics::scalar_array_leaf_shape(
+                            self.structural_types.values(),
+                            element,
+                        )
+                        .ok_or_else(invalid)?
+                        .1
+                    }
+                };
+                leaf_offset = leaf_offset
+                    .checked_add(index.checked_mul(leaf_count).ok_or_else(invalid)?)
+                    .ok_or_else(invalid)?;
+                carrier = element;
+            }
+            let index = usize::try_from(leaf_offset).map_err(|_| invalid())?;
+            if array
+                .elements
+                .get(index)
+                .is_none_or(|value| value.scalar_type() != scalar_type)
+            {
+                return Err(invalid());
+            }
+            return Ok((
+                PrimitiveStorage::OwnedArrayElement { place, index },
+                scalar_type,
+            ));
+        }
         let view = self.structural_values.get(&place).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(place),
         )?;
         if view.structural_type != structural_type {
             return Err(invalid());
         }
+        let mut projected = view.clone();
+        let mut carrier = structural_type;
+        for segment in path {
+            let declaration = self.structural_types.get(&carrier).ok_or_else(invalid)?;
+            match (segment, &declaration.shape) {
+                (
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(identity),
+                    terminal_psi::StructuralTypeShape::Record { fields },
+                ) => {
+                    let field = fields
+                        .iter()
+                        .find(|field| field.id == *identity && !field.relevance.is_erased())
+                        .ok_or_else(invalid)?;
+                    let terminal_psi::StructuralFieldType::Structural(child) = field.field_type
+                    else {
+                        return Err(invalid());
+                    };
+                    projected
+                        .path
+                        .push(StructuralPathSegment::Field(field.identity.clone()));
+                    carrier = child;
+                }
+                (
+                    semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index),
+                    terminal_psi::StructuralTypeShape::FixedArray { element, length },
+                ) if index < length => {
+                    projected
+                        .path
+                        .push(StructuralPathSegment::FixedIndex(*index));
+                    carrier = *element;
+                }
+                _ => return Err(invalid()),
+            }
+        }
+        projected.structural_type = carrier;
+        let view = &projected;
         // A callee's whole primitive parameter can be the caller's projected
         // array element. Resolve that original backing, shared with byte-view
         // loans, instead of installing a second scalar copy. The call's typed
@@ -188,7 +316,7 @@ impl TerminalExecution {
                 let byte_type =
                     IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?;
                 let index = usize::try_from(*index).map_err(|_| invalid())?;
-                if *scalar_type != ScalarType::Integer(byte_type)
+                if scalar_type != ScalarType::Integer(byte_type)
                     || bytes.get(index).is_none()
                     || self
                         .structural_primitive_storage
@@ -196,10 +324,7 @@ impl TerminalExecution {
                 {
                     return Err(invalid());
                 }
-                return Ok((
-                    PrimitiveStorage::ArrayElement { array, index },
-                    *scalar_type,
-                ));
+                return Ok((PrimitiveStorage::ArrayElement { array, index }, scalar_type));
             }
         }
         // Other overlaps cannot silently fall back to independent storage.
@@ -210,7 +335,7 @@ impl TerminalExecution {
         }
         Ok((
             PrimitiveStorage::Scalar(StructuralRuntimePlace::from(view)),
-            *scalar_type,
+            scalar_type,
         ))
     }
 
@@ -270,13 +395,19 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
         source: PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
         let result = operation
             .result
             .scalar()
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        let (storage, scalar_type) = self.primitive_access(source, false)?;
+        let (storage, scalar_type) = self.primitive_access(source, false, path)?;
         let scalar = match storage {
+            PrimitiveStorage::OwnedArrayElement { place, index } => self
+                .scalar_array_values
+                .get(&place)
+                .and_then(|array| array.elements.get(index))
+                .copied(),
             PrimitiveStorage::Scalar(storage) => {
                 self.structural_primitive_storage.get(&storage).copied()
             }
@@ -311,11 +442,12 @@ impl TerminalExecution {
         operation: &Operation,
         destination: PlaceId,
         value: ValueId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
         if operation.result != OperationResult::Unit {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let (storage, scalar_type) = self.primitive_access(destination, true)?;
+        let (storage, scalar_type) = self.primitive_access(destination, true, path)?;
         let scalar = self
             .values
             .get(&value)
@@ -325,6 +457,16 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         match storage {
+            PrimitiveStorage::OwnedArrayElement { place, index } => {
+                let stored = self
+                    .scalar_array_values
+                    .get_mut(&place)
+                    .and_then(|array| array.elements.get_mut(index))
+                    .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
+                        destination,
+                    ))?;
+                *stored = scalar;
+            }
             PrimitiveStorage::Scalar(storage) => {
                 let stored = self.structural_primitive_storage.get_mut(&storage).ok_or(
                     TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),

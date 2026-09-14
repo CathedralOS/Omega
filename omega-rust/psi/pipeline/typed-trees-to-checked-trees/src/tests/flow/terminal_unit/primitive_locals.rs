@@ -38,6 +38,7 @@ fn primitive_local_borrow_and_later_read_keep_the_authored_storage() {
             ..
         },
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            path: store_path,
             statement_index: 2,
             destination: CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             value:
@@ -56,6 +57,7 @@ fn primitive_local_borrow_and_later_read_keep_the_authored_storage() {
             plan.operations
         );
     };
+    assert!(store_path.is_empty());
     let machine = checked
         .typed
         .machines()
@@ -181,6 +183,7 @@ fn primitive_local_mutations_preserve_input_snapshot_and_returned_binding_namesp
             ..
         },
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            path: store_path,
             statement_index: 3,
             destination:
                 CheckedPrimitiveStoreDestination::Local {
@@ -224,6 +227,7 @@ fn primitive_local_mutations_preserve_input_snapshot_and_returned_binding_namesp
     else {
         panic!("separate namespaces: {:?}", plan.operations);
     };
+    assert!(store_path.is_empty());
     assert_eq!(
         (*symbol, *symbol, *symbol),
         (*snapshot_symbol, *written_symbol, *read_symbol)
@@ -419,6 +423,7 @@ fn primitive_local_store_sequence_without_calls_retains_parameter_store() {
             ..
         },
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            path: store_path,
             statement_index: 2,
             destination: CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             value:
@@ -432,6 +437,7 @@ fn primitive_local_store_sequence_without_calls_retains_parameter_store() {
     else {
         panic!("ordinary store sequence: {:?}", plan.operations);
     };
+    assert!(store_path.is_empty());
     assert_eq!((*symbol, *symbol), (*written, *read));
 }
 
@@ -604,6 +610,7 @@ fn computed_primitive_assignment_keeps_exact_rhs_and_destination() {
         }
     ));
     let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+        path: store_path,
         statement_index: 1,
         destination: CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
         value: checked_trees::CheckedCallScalarArgument::Computation(value),
@@ -611,6 +618,7 @@ fn computed_primitive_assignment_keeps_exact_rhs_and_destination() {
     else {
         panic!("exact computed store");
     };
+    assert!(store_path.is_empty());
     let (root_handle, _) = original
         .facts
         .values

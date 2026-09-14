@@ -168,11 +168,13 @@ pub(super) fn validate(
             },
         ) if destination == expected && value == expected_value => {}
         (
-            LegalizedScalarInstructionKind::PrimitiveScalarRead { source },
+            LegalizedScalarInstructionKind::PrimitiveScalarRead { source, path },
             AbstractOperation::PrimitiveScalarRead {
-                source: expected, ..
+                source: expected,
+                path: expected_path,
+                ..
             },
-        ) if source == expected => {}
+        ) if source == expected && path == expected_path => {}
         (
             LegalizedScalarInstructionKind::HostedReadByte {
                 boundary,
@@ -221,22 +223,27 @@ pub(super) fn validate(
         (
             LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
                 destination,
+                path,
                 value,
+                byte_offset,
                 byte_size,
             },
             AbstractOperation::WriteOnlyPrimitiveStore {
                 destination: expected,
+                path: expected_path,
                 value: expected_value,
                 ..
             },
         ) => {
             if destination != expected
+                || path != expected_path
                 || value != expected_value
                 || crate::structural_reference_input::primitive_store(
                     expected,
+                    expected_path,
                     expected_value.scalar_type,
                     &unit.structural_types,
-                ) != Some(*byte_size)
+                ) != Some((*byte_offset, *byte_size))
             {
                 return Err(invalid);
             }

@@ -125,3 +125,47 @@ pub(crate) fn resolve(
     }
     unsupported("runtime field observation requires a nonempty field path")
 }
+
+pub(crate) fn resolve_primitive(
+    fields: &[StructuralScalarFieldBinding],
+    position: u32,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    scalar_type: ScalarType,
+) -> Result<
+    (
+        PlaceId,
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    ),
+    LoweringError,
+> {
+    let mut matching = fields
+        .iter()
+        .filter(|field| field.source_position == position);
+    let binding = matching.next().ok_or(LoweringError::Unsupported(
+        "primitive observation has no readable binding",
+    ))?;
+    if matching.next().is_some() {
+        return unsupported("primitive observation has ambiguous bindings");
+    }
+    let path = path
+        .iter()
+        .map(|segment| match segment {
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
+            }
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+                Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
+            }
+            _ => unsupported("primitive observation has an unsupported case path"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let (path, declared_type) = crate::psi_lowering::primitive_store::lower_path(
+        binding.structural_type,
+        &path,
+        &binding.declarations,
+    )?;
+    if declared_type != scalar_type {
+        return unsupported("primitive observation changes its declared scalar type");
+    }
+    Ok((binding.source, path))
+}

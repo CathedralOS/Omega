@@ -63,7 +63,8 @@ fn lower_composed_services(
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
+            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. } => continue,
             _ => return unsupported("composed Unit control contains a non-call operation"),
         };
         collect_service_summary(&facts.rows, service_reach, &mut selected)?;

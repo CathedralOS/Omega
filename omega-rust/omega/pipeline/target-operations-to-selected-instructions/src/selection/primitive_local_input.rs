@@ -75,13 +75,14 @@ pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {
 pub(super) fn readable(
     source: &LegalizedScalarFunction,
     place: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     scalar: ScalarType,
 ) -> bool {
     if super::scalar_call_abi::scalar_shape(scalar).is_none() {
         return false;
     }
     if let Some((_, _, actual, _)) = local(source, place) {
-        return actual == scalar;
+        return path.is_empty() && actual == scalar;
     }
     source.structural.as_ref().is_some_and(|signature| {
         signature.entry_claims.is_empty()
@@ -91,13 +92,18 @@ pub(super) fn readable(
                         parameter.semantic.access,
                         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                     )
-                    && parameter.semantic.multiplicity == StructuralMultiplicity::Unrestricted
+                    && parameter.semantic.multiplicity != StructuralMultiplicity::Linear
+                    && (!path.is_empty()
+                        || parameter.semantic.multiplicity == StructuralMultiplicity::Unrestricted)
                     && parameter.semantic.qualifications.is_empty()
                     && parameter.semantic.projected_qualifications.is_empty()
-                    && signature.structural_types.iter().any(|declaration| {
-                        declaration.id == parameter.semantic.structural_type
-                            && declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar)
-                    })
+                    && crate::structural_reference_input::primitive_geometry(
+                        parameter.semantic.structural_type,
+                        path,
+                        scalar,
+                        &signature.structural_types,
+                    )
+                    .is_some()
             })
     })
 }
@@ -110,8 +116,28 @@ pub(super) fn read_geometry(
 ) -> Option<(PlaceId, u32)> {
     let scalar = row.result?.scalar_type;
     match &row.kind {
-        Instruction::PrimitiveScalarRead { source: place } => {
-            readable(source, *place, scalar).then_some((*place, 0))
+        Instruction::PrimitiveScalarRead {
+            source: place,
+            path,
+        } => {
+            if !readable(source, *place, path, scalar) {
+                return None;
+            }
+            if local(source, *place).is_some() {
+                return Some((*place, 0));
+            }
+            let signature = source.structural.as_ref()?;
+            let parameter = signature
+                .parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == *place)?;
+            let (offset, _) = crate::structural_reference_input::primitive_geometry(
+                parameter.semantic.structural_type,
+                path,
+                scalar,
+                &signature.structural_types,
+            )?;
+            Some((*place, offset))
         }
         Instruction::StructuralScalarFieldRead {
             source: argument,

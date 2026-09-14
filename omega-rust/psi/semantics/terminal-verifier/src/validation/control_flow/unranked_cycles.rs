@@ -124,16 +124,19 @@ fn cycle_operation_eligible(
         OperationKind::EstablishPrimitiveLocal { .. } => {
             primitive_storage::validate_establishment(module, machine, operation).is_ok()
         }
-        OperationKind::PrimitiveScalarRead { source } => {
+        OperationKind::PrimitiveScalarRead { source, path } => {
             operation.result.scalar().is_some_and(|result| {
-                primitive_storage::read_type(module, machine, operation.id, *source)
+                primitive_storage::read_type(module, machine, operation.id, *source, path)
                     == Ok(result.scalar_type)
             })
         }
-        OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
+        OperationKind::WriteOnlyPrimitiveStore {
+            destination, path, ..
+        } => {
             operation.result == OperationResult::Unit
-                && primitive_storage::local_result(machine, *destination).is_some()
-                && primitive_storage::store_type(module, machine, operation.id, *destination)
+                && (primitive_storage::local_result(machine, *destination).is_some()
+                    || !path.is_empty())
+                && primitive_storage::store_type(module, machine, operation.id, *destination, path)
                     .is_ok()
         }
         OperationKind::CallStructuralScalar {

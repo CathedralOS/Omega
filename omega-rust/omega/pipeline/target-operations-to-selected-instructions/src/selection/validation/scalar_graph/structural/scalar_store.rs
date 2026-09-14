@@ -30,20 +30,23 @@ pub(super) fn validate(
         }
         LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination,
+            path,
             value,
+            byte_offset,
             byte_size,
         } => {
             let signature = source.structural.as_ref().ok_or_else(|| replay.invalid())?;
             if !signature.entry_claims.is_empty()
                 || crate::structural_reference_input::primitive_store(
                     destination,
+                    path,
                     value.scalar_type,
                     &signature.structural_types,
-                ) != Some(*byte_size)
+                ) != Some((*byte_offset, *byte_size))
             {
                 return Err(replay.invalid());
             }
-            (destination, value, 0, *byte_size)
+            (destination, value, *byte_offset, *byte_size)
         }
         _ => return Err(replay.invalid()),
     };

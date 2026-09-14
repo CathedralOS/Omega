@@ -202,6 +202,21 @@ fn write_only_store_identity_binds_destination_value_and_scalar_type() {
     };
     value.scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 16).unwrap());
     assert_ne!(baseline.identity, changed_identity(type_drift));
+
+    let mut previous = baseline.identity;
+    for element in [0, 1, u64::MAX] {
+        let mut projected = baseline.clone();
+        let AbstractOperation::WriteOnlyPrimitiveStore { path, .. } =
+            &mut projected.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("store");
+        };
+        *path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(element)];
+        let identity = changed_identity(projected);
+        assert_ne!(baseline.identity, identity);
+        assert_ne!(previous, identity);
+        previous = identity;
+    }
 }
 
 #[test]

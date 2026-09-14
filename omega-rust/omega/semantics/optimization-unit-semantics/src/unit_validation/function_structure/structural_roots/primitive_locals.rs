@@ -69,19 +69,31 @@ pub(super) fn validate(
         O::PrimitiveLocalStore {
             destination, value, ..
         } => local(*destination).is_some_and(|result| local_matches(result, value.scalar_type)),
-        O::PrimitiveScalarRead { source, result, .. } => {
-            local(*source).is_some_and(|local| local_matches(local, result.scalar_type))
+        O::PrimitiveScalarRead {
+            source,
+            path,
+            result,
+            ..
+        } => {
+            (path.is_empty()
+                && local(*source).is_some_and(|local| local_matches(local, result.scalar_type)))
                 || function.structural_parameters.iter().any(|parameter| {
                     parameter.place == *source
                         && matches!(
                             parameter.access,
                             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                         )
-                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                        && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                            || (!path.is_empty()
+                                && parameter.multiplicity == StructuralMultiplicity::Affine))
                         && parameter.qualifications.is_empty()
                         && parameter.projected_qualifications.is_empty()
                         && claim_free(*source)
-                        && primitive(parameter.structural_type, result.scalar_type)
+                        && terminal_semantics::primitive_place_type(
+                            types.values().copied(),
+                            parameter.structural_type,
+                            path,
+                        ) == Some(result.scalar_type)
                 })
         }
         _ => true,

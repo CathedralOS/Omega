@@ -670,6 +670,58 @@ pub(super) fn emit_call_operations(
             )?;
             continue;
         }
+        if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index,
+            destination,
+            path,
+            value,
+        } = operation
+        {
+            let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
+                destination
+            else {
+                return unsupported(
+                    "composed primitive store has no retained parameter destination",
+                );
+            };
+            let parameter =
+                parameters
+                    .get(*parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "composed primitive store parameter is absent",
+                    ))?;
+            let destination = crate::psi_lowering::primitive_store::parameter_destination(
+                parameter,
+                path,
+                &catalogs.structural_types,
+            )?;
+            let mut calls = catalogs.scalar_calls.emission_context();
+            let kind = crate::psi_lowering::primitive_store::emit_assignment(
+                checked,
+                machine,
+                state.state,
+                *statement_index,
+                destination,
+                value,
+                evaluation,
+                values.len(),
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+                &mut calls,
+            )?;
+            catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            let id = operations.allocate();
+            operations.push(Operation {
+                static_reach_binding: None,
+                id,
+                result: OperationResult::Unit,
+                kind,
+            });
+            continue;
+        }
         if let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
             affine_discards, ..
         } = operation

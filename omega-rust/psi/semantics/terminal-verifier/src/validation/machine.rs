@@ -350,9 +350,14 @@ pub(super) fn validate_machine(
                 result.scalar_type,
             )?;
             match operation.kind.clone() {
-                OperationKind::PrimitiveScalarRead { source } => {
-                    if super::primitive_storage::read_type(module, machine, operation.id, source)?
-                        != result.scalar_type
+                OperationKind::PrimitiveScalarRead { source, path } => {
+                    if super::primitive_storage::read_type(
+                        module,
+                        machine,
+                        operation.id,
+                        source,
+                        &path,
+                    )? != result.scalar_type
                     {
                         return Err(ModuleError::InvalidPrimitiveScalarRead {
                             operation: operation.id,

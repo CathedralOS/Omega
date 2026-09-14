@@ -111,6 +111,7 @@ fn incoming_primitive_reads_require_readable_access() {
             panic!("store")
         };
         unit.functions[0].blocks[0].nodes[1].operation = O::PrimitiveScalarRead {
+            path: Vec::new(),
             psi_operation: id(57, OperationId::new),
             source,
             result: AbstractResult {

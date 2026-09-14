@@ -74,7 +74,12 @@ fn produce(source: &str, entry: &str) -> CanonicalTerminalArtifact {
         .iter()
         .flat_map(|block| &block.operations)
         .filter_map(|operation| match operation.kind {
-            OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
+            OperationKind::WriteOnlyPrimitiveStore {
+                destination,
+                value,
+                ref path,
+            } => {
+                assert!(path.is_empty());
                 Some((destination, value))
             }
             _ => None,

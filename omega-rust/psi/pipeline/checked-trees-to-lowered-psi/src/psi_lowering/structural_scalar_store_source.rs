@@ -176,6 +176,7 @@ pub(super) fn validate(
         if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index,
             destination,
+            path,
             value,
         } = operation
         {
@@ -191,6 +192,7 @@ pub(super) fn validate(
                     plan.state,
                     *statement_index,
                     *symbol,
+                    path,
                     value,
                 )?;
                 continue;
@@ -211,6 +213,7 @@ pub(super) fn validate(
                 plan.state,
                 *statement_index,
                 destination,
+                path,
                 value,
             )?;
         }

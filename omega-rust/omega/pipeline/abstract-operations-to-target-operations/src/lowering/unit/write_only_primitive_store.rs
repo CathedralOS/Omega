@@ -1,4 +1,4 @@
-//! Exact target lowering for one whole-root non-observing primitive store.
+//! Exact target lowering for non-observing primitive storage projections.
 
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
@@ -23,6 +23,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
     let AbstractOperation::WriteOnlyPrimitiveStore {
         psi_operation,
         destination,
+        path,
         value,
     } = operation
     else {
@@ -36,7 +37,8 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
         .structural_parameters
         .iter()
         .any(|parameter| parameter == destination)
-        || destination.multiplicity != StructuralMultiplicity::Unrestricted
+        || destination.multiplicity == StructuralMultiplicity::Linear
+        || (path.is_empty() && destination.multiplicity != StructuralMultiplicity::Unrestricted)
         || !matches!(
             destination.access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
@@ -50,10 +52,15 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
         .get(&destination.structural_type)
         .copied()
         .ok_or_else(invalid)?;
-    if destination_type.shape != StructuralTypeShape::PrimitiveScalar(value.scalar_type) {
+    if super::super::structural_layout::primitive_projection_type(
+        destination.structural_type,
+        path,
+        structural_types,
+    ) != Some(value.scalar_type)
+    {
         return Err(invalid());
     }
-    let (expected_shape, source) = if let Some(block_value) = block_value {
+    let (_, source) = if let Some(block_value) = block_value {
         if block_value.value != value.value || block_value.scalar_type != value.scalar_type {
             return Err(invalid());
         }
@@ -199,6 +206,13 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
             }
         }
     };
+    let root_shape = super::super::structural_layout::structural_shape(
+        destination.structural_type,
+        structural_types,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
+    let expected_shape = ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment);
     let target_parameter = parameters_by_place
         .get(&destination.place)
         .copied()
@@ -214,6 +228,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
     operations.push(TargetUnitOperation::WriteOnlyPrimitiveStore {
         psi_operation: *psi_operation,
         destination: destination.clone(),
+        path: path.clone(),
         destination_type: destination_type.clone(),
         destination_placement: target_parameter.placement.clone(),
         source,

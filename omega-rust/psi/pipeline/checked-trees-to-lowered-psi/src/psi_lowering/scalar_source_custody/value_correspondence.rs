@@ -492,10 +492,13 @@ impl Context<'_> {
             Scalar::Parameter { .. }
             | Scalar::Local { .. }
             | Scalar::StorageRead { .. }
-            | Scalar::StructuralParameterField { .. }
             | Scalar::StructuralParameterByteLength { .. } => matches!(
                 node,
                 ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Borrow(_)
+            ),
+            Scalar::StructuralParameterField { .. } => matches!(
+                node,
+                ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
             ),
             Scalar::StructuralParameterIndexedRead { index, .. } => matches!(node,
                 ExpressionNode::Indexed(indexed) if self.scalar(indexed.index, index, operands, depth + 1)),
@@ -573,12 +576,15 @@ impl Context<'_> {
                     && self.builtin(source) && self.boolean(binary.left, left, operands, depth + 1)
                     && self.boolean(binary.right, right, operands, depth + 1))
             }
-            Boolean::Parameter { .. }
-            | Boolean::Local { .. }
-            | Boolean::StorageRead { .. }
-            | Boolean::StructuralParameterField { .. } => matches!(
+            Boolean::Parameter { .. } | Boolean::Local { .. } | Boolean::StorageRead { .. } => {
+                matches!(
+                    node,
+                    ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Borrow(_)
+                )
+            }
+            Boolean::StructuralParameterField { .. } => matches!(
                 node,
-                ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Borrow(_)
+                ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
             ),
             // These belong to structural predicate plans, not the scalar
             // expression producer used by array operands.

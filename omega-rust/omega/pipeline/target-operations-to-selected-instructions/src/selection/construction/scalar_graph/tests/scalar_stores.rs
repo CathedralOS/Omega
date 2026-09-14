@@ -119,6 +119,8 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                 source.blocks[0].instructions[1].result = None;
                 source.blocks[0].instructions[1].kind = if primitive {
                     LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                        path: Vec::new(),
+                        byte_offset: 0,
                         destination,
                         value: abstract_operations::AbstractResult {
                             value: ValueId::new(1).unwrap(),
@@ -171,6 +173,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                             destination,
                             value,
                             byte_size,
+                            ..
                         } = &mut changed.blocks[0].instructions[1].kind
                         else {
                             panic!("primitive store");

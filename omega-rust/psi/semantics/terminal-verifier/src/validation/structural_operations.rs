@@ -194,8 +194,16 @@ pub(super) fn validate_unit_operation_static(
         OperationKind::EstablishScalarArray { .. } => {
             super::scalar_array::shape(module, machine, operation)?;
         }
-        OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
-            super::primitive_storage::store_type(module, machine, operation.id, *destination)?;
+        OperationKind::WriteOnlyPrimitiveStore {
+            destination, path, ..
+        } => {
+            super::primitive_storage::store_type(
+                module,
+                machine,
+                operation.id,
+                *destination,
+                path,
+            )?;
         }
         OperationKind::EstablishPrimitiveLocal { .. } => {
             super::primitive_storage::validate_establishment(module, machine, operation)?;

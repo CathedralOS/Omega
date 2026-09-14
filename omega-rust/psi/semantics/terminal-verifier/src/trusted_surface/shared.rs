@@ -207,7 +207,7 @@ rows! {
         "scope:primitive-value-snapshots",
         PremiseScope,
         "a copied primitive SSA value's reaching-store query over the machine within the bounded work limit",
-        "the exact store identities reaching the value, stopping at definitions; queries never evaluate source expressions or consult the requested contract",
+        "the exact root/path store identities reaching the value, stopping at definitions and preserving only statically disjoint sibling writes; queries never evaluate source expressions or consult the requested contract",
         &["scope:dominance-order"],
         &[tv!( "verification/reconstruction/primitive_snapshots.rs")]
     );
@@ -567,9 +567,9 @@ rows! {
         "formation:primitive-storage",
         SharedFormation,
         "the machine's primitive locals, stores, and reads",
-        "primitive storage operations validate their places and initialization before facts are reconstructed",
+        "primitive storage operations validate exact relevant-field/fixed-index paths, root access and initialization before facts are reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/primitive_storage.rs")]
+        &[tv!( "validation/primitive_storage.rs"), ts!( "primitive_place.rs")]
     );
     FORM_SCALAR_ARRAY => (
         "formation:scalar-array",

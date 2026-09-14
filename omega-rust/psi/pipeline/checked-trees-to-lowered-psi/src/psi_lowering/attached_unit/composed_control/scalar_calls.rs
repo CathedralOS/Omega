@@ -114,6 +114,13 @@ fn selected_roots(
                 }
                 continue;
             }
+            if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. } = operation
+            {
+                if let CheckedCallScalarArgument::Computation(handle) = value {
+                    pending.push(*handle);
+                }
+                continue;
+            }
             let arguments = match operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall {
                     scalar_arguments, ..

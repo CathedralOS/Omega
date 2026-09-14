@@ -2471,6 +2471,7 @@ fn write_only_primitive_store_fixture() -> TerminalModule {
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
                 destination: callee_place,
+                path: Vec::new(),
                 value: value_id(960),
             },
         },

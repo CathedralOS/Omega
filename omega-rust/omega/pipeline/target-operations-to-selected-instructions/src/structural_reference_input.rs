@@ -4,7 +4,9 @@
 use calling_conventions::{
     IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
-use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, ScalarType, StructuralFieldId, StructuralTypeId,
+};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
@@ -63,13 +65,16 @@ pub(crate) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     }
 }
 
-/// Reconstruct a whole primitive write without inventing a carrier record or field.
+/// Reconstruct a primitive write without inventing a carrier record or field.
 pub(crate) fn primitive_store(
     destination: &terminal_psi::StructuralParameterDeclaration,
+    path: &[CanonicalStructuralPathSegment],
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
-) -> Option<u8> {
-    if destination.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+) -> Option<(u32, u8)> {
+    if destination.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || (path.is_empty()
+            && destination.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
         || !matches!(
             destination.access,
             terminal_psi::StructuralAccess::MutableBorrow
@@ -81,15 +86,38 @@ pub(crate) fn primitive_store(
     {
         return None;
     }
+    primitive_geometry(destination.structural_type, path, scalar, declarations)
+}
+
+/// Reconstruct the selected primitive and its footprint within the original root.
+pub(crate) fn primitive_geometry(
+    root: StructuralTypeId,
+    path: &[CanonicalStructuralPathSegment],
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u8)> {
+    let (leaf, offset) = project_inner(
+        root,
+        path.iter().map(|segment| match segment {
+            CanonicalStructuralPathSegment::Field(field) => Projection::FieldId(*field),
+            CanonicalStructuralPathSegment::FixedIndex(position) => {
+                Projection::FixedIndex(*position)
+            }
+            _ => Projection::Unsupported,
+        }),
+        declarations,
+    )?;
     let mut matches = declarations
         .iter()
-        .filter(|declaration| declaration.id == destination.structural_type);
+        .filter(|declaration| declaration.id == leaf);
     let declaration = matches.next()?;
     if matches.next().is_some() || declaration.shape != StructuralTypeShape::PrimitiveScalar(scalar)
     {
         return None;
     }
-    u8::try_from(scalar_shape(scalar)?.byte_size).ok()
+    let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
+    (offset.checked_add(u32::from(bytes))? <= u32::from(shape(root, declarations)?.byte_size))
+        .then_some((offset, bytes))
 }
 
 pub(crate) fn shape(
@@ -142,11 +170,21 @@ pub(crate) fn parameter_shape(
             StructuralAccess::SharedBorrow
             | StructuralAccess::MutableBorrow
             | StructuralAccess::WriteOnlyBorrow,
-            StructuralMultiplicity::Unrestricted,
-        ) => Some(ValueShape::borrowed_reference(
-            referent.byte_size,
-            referent.alignment,
-        )),
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine,
+        ) if parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            || declarations.iter().any(|declaration| {
+                declaration.id == parameter.structural_type
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }
+                    )
+            }) =>
+        {
+            Some(ValueShape::borrowed_reference(
+                referent.byte_size,
+                referent.alignment,
+            ))
+        }
         _ => None,
     }
 }
@@ -429,6 +467,29 @@ pub(crate) fn project(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(StructuralTypeId, u32)> {
+    project_inner(
+        root,
+        path.iter().map(|segment| match segment {
+            StructuralPathSegment::Field(name) => Projection::FieldName(name),
+            StructuralPathSegment::FixedIndex(position) => Projection::FixedIndex(*position),
+            _ => Projection::Unsupported,
+        }),
+        declarations,
+    )
+}
+
+enum Projection<'a> {
+    FieldName(&'a str),
+    FieldId(StructuralFieldId),
+    FixedIndex(u64),
+    Unsupported,
+}
+
+fn project_inner<'a>(
+    root: StructuralTypeId,
+    path: impl Iterator<Item = Projection<'a>>,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(StructuralTypeId, u32)> {
     let mut carrier = root;
     let mut offset = 0_u32;
     shape(root, declarations)?;
@@ -438,16 +499,19 @@ pub(crate) fn project(
             .find(|declaration| declaration.id == carrier)?;
         match (segment, &declaration.shape) {
             (
-                StructuralPathSegment::FixedIndex(position),
+                Projection::FixedIndex(position),
                 StructuralTypeShape::FixedArray { element, length },
-            ) if position < length => {
+            ) if position < *length => {
                 let element_shape = shape(*element, declarations)?;
                 let stride = align(u32::from(element_shape.byte_size), element_shape.alignment)?;
                 offset = offset
-                    .checked_add(u32::try_from(u64::from(stride).checked_mul(*position)?).ok()?)?;
+                    .checked_add(u32::try_from(u64::from(stride).checked_mul(position)?).ok()?)?;
                 carrier = *element;
             }
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+            (
+                projection @ (Projection::FieldName(_) | Projection::FieldId(_)),
+                StructuralTypeShape::Record { fields },
+            ) => {
                 let mut field_offset = 0;
                 let mut found = None;
                 for field in fields.iter().filter(|field| {
@@ -456,7 +520,11 @@ pub(crate) fn project(
                 }) {
                     let layout = field_shape(&field.field_type, declarations, &mut Vec::new())?;
                     field_offset = align(field_offset, layout.alignment)?;
-                    if field.identity == *identity {
+                    if match projection {
+                        Projection::FieldName(name) => field.identity == name,
+                        Projection::FieldId(identity) => field.id == identity,
+                        _ => false,
+                    } {
                         let StructuralFieldType::Structural(nested) = field.field_type else {
                             return None;
                         };

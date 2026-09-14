@@ -519,6 +519,7 @@ pub(super) fn retain_call_targets<'a>(
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 // The paired call carries the callee dependency; cleanup only
                 // disposes its discarded result.
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {}

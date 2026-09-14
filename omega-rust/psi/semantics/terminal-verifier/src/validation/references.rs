@@ -961,7 +961,7 @@ pub(super) fn apply_operation(
         OperationKind::EstablishRecord { .. } => {
             return establish_record(module, machine, operation, live);
         }
-        OperationKind::PrimitiveScalarRead { source }
+        OperationKind::PrimitiveScalarRead { source, .. }
         | OperationKind::StructuralCaseMembership { source, .. } => {
             check_root_access(machine, live, *source)?
         }

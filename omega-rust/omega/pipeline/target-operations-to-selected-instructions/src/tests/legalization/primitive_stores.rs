@@ -26,6 +26,284 @@ mod locals;
 mod scalar_returns;
 
 #[test]
+fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        for scalar in [
+            integer(IntegerSign::Unsigned, 8),
+            integer(IntegerSign::Signed, 32),
+        ] {
+            for multiplicity in [
+                StructuralMultiplicity::Unrestricted,
+                StructuralMultiplicity::Affine,
+            ] {
+                let (mut source, _, _) = fixture(native, scalar, true);
+                let root = source.structural_types[0].id;
+                let leaf = StructuralTypeId::new(2).unwrap();
+                let inner = StructuralTypeId::new(3).unwrap();
+                let outer = StructuralTypeId::new(4).unwrap();
+                let field = StructuralFieldId::new(2).unwrap();
+                source.structural_types = vec![
+                    StructuralTypeDeclaration {
+                        id: root,
+                        identity: "Root".into(),
+                        shape: StructuralTypeShape::Record {
+                            fields: vec![
+                                StructuralFieldDeclaration {
+                                    id: StructuralFieldId::new(1).unwrap(),
+                                    identity: "padding".into(),
+                                    relevance: BindingRelevance::Relevant,
+                                    field_type: StructuralFieldType::Scalar(scalar),
+                                },
+                                StructuralFieldDeclaration {
+                                    id: field,
+                                    identity: "elements".into(),
+                                    relevance: BindingRelevance::Relevant,
+                                    field_type: StructuralFieldType::Structural(outer),
+                                },
+                            ],
+                        },
+                    },
+                    StructuralTypeDeclaration {
+                        id: leaf,
+                        identity: "Element".into(),
+                        shape: StructuralTypeShape::PrimitiveScalar(scalar),
+                    },
+                    StructuralTypeDeclaration {
+                        id: inner,
+                        identity: "Inner".into(),
+                        shape: StructuralTypeShape::FixedArray {
+                            element: leaf,
+                            length: 3,
+                        },
+                    },
+                    StructuralTypeDeclaration {
+                        id: outer,
+                        identity: "Outer".into(),
+                        shape: StructuralTypeShape::FixedArray {
+                            element: inner,
+                            length: 2,
+                        },
+                    },
+                ]
+                .into();
+                let path = vec![
+                    Segment::Field(field),
+                    Segment::FixedIndex(1),
+                    Segment::FixedIndex(2),
+                ];
+                let function = &mut source.functions[0];
+                function.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+                function.structural_parameters[0].multiplicity = multiplicity;
+                let parameter = function.structural_parameters[0].clone();
+                let mut store = function.operations[1].clone();
+                let AbstractOperation::WriteOnlyPrimitiveStore {
+                    destination,
+                    path: stored_path,
+                    ..
+                } = &mut store
+                else {
+                    panic!("store");
+                };
+                *destination = parameter.clone();
+                *stored_path = path.clone();
+                let read = AbstractResult {
+                    value: ValueId::new(7).unwrap(),
+                    scalar_type: scalar,
+                };
+                let result = AbstractResult {
+                    value: ValueId::new(8).unwrap(),
+                    scalar_type: scalar,
+                };
+                function.result = abstract_operations::AbstractFunctionResult::Scalar(result);
+                function.operations = vec![
+                    function.operations[0].clone(),
+                    store,
+                    AbstractOperation::PrimitiveScalarRead {
+                        psi_operation: OperationId::new(3).unwrap(),
+                        result: read,
+                        source: parameter.place,
+                        path: path.clone(),
+                    },
+                    AbstractOperation::Return {
+                        psi_edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
+                        result: result.value,
+                        value: read.value,
+                        scalar_type: scalar,
+                        cleanup_actions: Vec::new(),
+                    },
+                ];
+                let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                    &source, native,
+                )
+                .unwrap();
+                let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                    &source,
+                    FuelScheduleIdentity::new(1).unwrap(),
+                )
+                .unwrap();
+                let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+                validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
+                    .unwrap();
+                let width = crate::structural_reference_input::scalar_shape(scalar)
+                    .unwrap()
+                    .byte_size;
+                let expected_offset = u32::from(width) * 6;
+                let mut inspect = legalized.plan().clone();
+                assert!(
+                    matches!(legalized_store(&mut inspect).kind, LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { byte_offset, byte_size, .. } if byte_offset == expected_offset && u16::from(byte_size) == width)
+                );
+                assert_eq!(
+                    legalized.plan().scalar_functions[0].call_plan.parameters[0]
+                        .shape
+                        .byte_size,
+                    width * 7
+                );
+                let environment =
+                    register_environment::baseline_target_register_environment(native).unwrap();
+                let constraints = crate::selection_constraints(&legalized, &environment);
+                let selected = crate::select_instructions(
+                    &legalized,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+                .unwrap();
+                for mutation in 0..5 {
+                    let mut changed = target.clone();
+                    let TargetUnitOperation::WriteOnlyPrimitiveStore {
+                        destination,
+                        path,
+                        destination_type,
+                        destination_placement,
+                        ..
+                    } = target_store(&mut changed)
+                    else {
+                        panic!("target store");
+                    };
+                    match mutation {
+                        0 => path[2] = Segment::FixedIndex(1),
+                        1 => path[2] = Segment::FixedIndex(3),
+                        2 => destination.place = PlaceId::new(99).unwrap(),
+                        3 => destination_type.id = leaf,
+                        _ => destination_placement.shape.byte_size = width,
+                    }
+                    reject_target(&source, &changed, &unit, legalized.plan());
+                }
+                for mutation in 0..5 {
+                    let mut changed = legalized.plan().clone();
+                    let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                        destination,
+                        path,
+                        byte_offset,
+                        byte_size,
+                        ..
+                    } = &mut legalized_store(&mut changed).kind
+                    else {
+                        panic!("legal store");
+                    };
+                    match mutation {
+                        0 => *byte_offset = 0,
+                        1 => *byte_size = if width == 1 { 4 } else { 1 },
+                        2 => path[2] = Segment::FixedIndex(1),
+                        3 => destination.access = StructuralAccess::SharedBorrow,
+                        _ => destination.structural_type = leaf,
+                    }
+                    assert!(
+                        validate_legalized_operations(&target, &source, &unit, changed).is_err()
+                    );
+                }
+                for changed_path in [
+                    vec![],
+                    vec![
+                        Segment::Field(field),
+                        Segment::FixedIndex(1),
+                        Segment::FixedIndex(1),
+                    ],
+                ] {
+                    let mut changed = legalized.plan().clone();
+                    let LegalizedScalarInstructionKind::PrimitiveScalarRead { path, .. } =
+                        &mut changed.scalar_functions[0].blocks[0].instructions[2].kind
+                    else {
+                        panic!("read");
+                    };
+                    *path = changed_path;
+                    assert!(
+                        validate_legalized_operations(&target, &source, &unit, changed).is_err()
+                    );
+                }
+                let mut changed = selected.plan().clone();
+                let instruction = changed.functions[0].blocks[0]
+                    .instructions
+                    .iter_mut()
+                    .find(|row| {
+                        matches!(
+                            row.kind,
+                            selected_instructions::SelectedInstructionKind::Store { .. }
+                        )
+                    })
+                    .unwrap();
+                let selected_instructions::SelectedInstructionKind::Store { byte_offset, .. } =
+                    &mut instruction.kind
+                else {
+                    unreachable!()
+                };
+                *byte_offset = 0;
+                assert!(
+                    crate::validate_selected_instructions(
+                        &legalized,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        changed
+                    )
+                    .is_err()
+                );
+                for access in [
+                    StructuralAccess::SharedBorrow,
+                    StructuralAccess::WriteOnlyBorrow,
+                ] {
+                    let mut changed = source.clone();
+                    changed.functions[0].structural_parameters[0].access = access;
+                    let AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } =
+                        &mut changed.functions[0].operations[1]
+                    else {
+                        panic!("store");
+                    };
+                    destination.access = access;
+                    assert!(
+                        abstract_operations_to_target_operations::lower_to_target_operations(
+                            &changed, native
+                        )
+                        .is_err()
+                    );
+                }
+                let mut linear = source.clone();
+                linear.functions[0].structural_parameters[0].multiplicity =
+                    StructuralMultiplicity::Linear;
+                let AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } =
+                    &mut linear.functions[0].operations[1]
+                else {
+                    panic!("store");
+                };
+                destination.multiplicity = StructuralMultiplicity::Linear;
+                assert!(
+                    abstract_operations_to_target_operations::lower_to_target_operations(
+                        &linear, native
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn multiple_record_inputs_keep_exact_field_store_destination_through_replay() {
     let scalar = integer(IntegerSign::Signed, 32);
     for native in [
@@ -64,6 +342,7 @@ fn multiple_record_inputs_keep_exact_field_store_destination_through_replay() {
             psi_operation,
             destination,
             value,
+            ..
         } = store
         else {
             unreachable!()
@@ -195,6 +474,7 @@ fn fixture(
         ];
     }
     operations.push(AbstractOperation::WriteOnlyPrimitiveStore {
+        path: Vec::new(),
         psi_operation: OperationId::new(2).unwrap(),
         destination,
         value: AbstractResult {
@@ -445,6 +725,7 @@ fn independent_replay_rejects_width_value_destination_kind_and_fuel_substitution
                 destination,
                 value,
                 byte_size,
+                ..
             } = &mut row.kind
             else {
                 unreachable!()

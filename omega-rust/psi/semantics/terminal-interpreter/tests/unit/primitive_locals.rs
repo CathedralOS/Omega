@@ -73,6 +73,7 @@ fn local_module() -> TerminalModule {
             id: operation_id(4),
             result: OperationResult::Scalar(scalar(4)),
             kind: OperationKind::PrimitiveScalarRead {
+                path: Vec::new(),
                 source: place_id(91),
             },
         },
@@ -208,6 +209,7 @@ fn primitive_local_direct_store_and_repeated_reads_share_backing() {
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
+            path: Vec::new(),
             destination: place_id(91),
             value: value_id(1),
         },
@@ -307,6 +309,7 @@ fn primitive_local_wrong_types_and_write_only_read_reject() {
         id: operation_id(95),
         result: OperationResult::Scalar(scalar(95)),
         kind: OperationKind::PrimitiveScalarRead {
+            path: Vec::new(),
             source: place_id(92),
         },
     });
@@ -335,6 +338,7 @@ fn primitive_local_shared_call_is_not_affine_custody() {
         id: operation_id(92),
         result: OperationResult::Scalar(scalar(92)),
         kind: OperationKind::PrimitiveScalarRead {
+            path: Vec::new(),
             source: place_id(92),
         },
     }];
@@ -449,6 +453,7 @@ fn primitive_local_outer_storage_survives_nested_and_repeated_callee_activations
             id: operation_id(503),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
+                path: Vec::new(),
                 destination: place_id(501),
                 value: value_id(500),
             },
@@ -458,6 +463,7 @@ fn primitive_local_outer_storage_survives_nested_and_repeated_callee_activations
             id: operation_id(504),
             result: OperationResult::Scalar(scalar(504)),
             kind: OperationKind::PrimitiveScalarRead {
+                path: Vec::new(),
                 source: place_id(502),
             },
         },

@@ -101,9 +101,19 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 writer.u8(61);
                 writer.id(value);
             }
-            OperationKind::PrimitiveScalarRead { source } => {
-                writer.u8(62);
-                writer.id(source);
+            OperationKind::PrimitiveScalarRead { source, path } => {
+                if path.is_empty() {
+                    writer.u8(62);
+                    writer.id(source);
+                } else {
+                    writer.u8(73);
+                    super::structural_field_wire::encode_canonical_structural_field(
+                        writer,
+                        source,
+                        &path,
+                        "primitive source path",
+                    )?;
+                }
             }
             OperationKind::StructuralCaseMembership { source, path, case } => {
                 writer.u8(66);
@@ -155,9 +165,23 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 writer.u8(55);
                 writer.id(source);
             }
-            OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
-                writer.u8(43);
-                writer.id(destination);
+            OperationKind::WriteOnlyPrimitiveStore {
+                destination,
+                value,
+                path,
+            } => {
+                if path.is_empty() {
+                    writer.u8(43);
+                    writer.id(destination);
+                } else {
+                    writer.u8(74);
+                    super::structural_field_wire::encode_canonical_structural_field(
+                        writer,
+                        destination,
+                        &path,
+                        "primitive destination path",
+                    )?;
+                }
                 writer.id(value);
             }
             OperationKind::StructuralByteSequenceFieldStore {
@@ -1043,14 +1067,40 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                 source: reader.id("PlaceId")?,
             },
             62 => OperationKind::PrimitiveScalarRead {
+                path: Vec::new(),
                 source: reader.id("PlaceId")?,
             },
+            73 => {
+                let (source, path) =
+                    super::structural_field_wire::decode_canonical_structural_field(reader)?;
+                if path.is_empty() {
+                    return Err(CodecError::MalformedStructuralFoundation(
+                        "empty projected primitive path",
+                    ));
+                }
+                OperationKind::PrimitiveScalarRead { source, path }
+            }
+            74 => {
+                let (destination, path) =
+                    super::structural_field_wire::decode_canonical_structural_field(reader)?;
+                if path.is_empty() {
+                    return Err(CodecError::MalformedStructuralFoundation(
+                        "empty projected primitive path",
+                    ));
+                }
+                OperationKind::WriteOnlyPrimitiveStore {
+                    destination,
+                    path,
+                    value: reader.id("ValueId")?,
+                }
+            }
             66 => OperationKind::StructuralCaseMembership {
                 source: reader.id("PlaceId")?,
                 path: decode_structural_path(reader)?,
                 case: reader.id("StructuralCaseId")?,
             },
             43 => OperationKind::WriteOnlyPrimitiveStore {
+                path: Vec::new(),
                 destination: reader.id("PlaceId")?,
                 value: reader.id("ValueId")?,
             },
@@ -1778,6 +1828,7 @@ mod tests {
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::WriteOnlyPrimitiveStore {
+                    path: Vec::new(),
                     destination: id::<PlaceId>(3),
                     value: id(4),
                 },
@@ -1991,7 +2042,10 @@ mod tests {
                     id: id(47),
                     scalar_type: ScalarType::Boolean,
                 }),
-                kind: OperationKind::PrimitiveScalarRead { source: id(23) },
+                kind: OperationKind::PrimitiveScalarRead {
+                    path: Vec::new(),
+                    source: id(23),
+                },
             },
         ];
         // Empty block rosters precede the operation ID, absent static reach
@@ -2032,6 +2086,68 @@ mod tests {
             zero_operand[tag_offset + 1..tag_offset + 9].fill(0);
             assert!(decode_block(&mut Reader::new(&zero_operand)).is_err());
         }
+    }
+
+    #[test]
+    fn projected_primitive_wire_preserves_canonical_subject_and_rejects_truncation() {
+        let path = vec![
+            CanonicalStructuralPathSegment::Field(id(7)),
+            CanonicalStructuralPathSegment::FixedIndex(255),
+        ];
+        let block = Block {
+            id: id(1),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    static_reach_binding: None,
+                    id: id(1),
+                    result: OperationResult::Unit,
+                    kind: OperationKind::WriteOnlyPrimitiveStore {
+                        destination: id(2),
+                        path: path.clone(),
+                        value: id(3),
+                    },
+                },
+                Operation {
+                    static_reach_binding: None,
+                    id: id(2),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: id(4),
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    kind: OperationKind::PrimitiveScalarRead {
+                        source: id(2),
+                        path,
+                    },
+                },
+            ],
+            terminator: Terminator::ReturnUnit {
+                edge: id(3),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).unwrap();
+        let bytes = writer.finish();
+        assert_eq!(decode_block(&mut Reader::new(&bytes)).unwrap(), block);
+        for prefix in 0..bytes.len() {
+            assert!(decode_block(&mut Reader::new(&bytes[..prefix])).is_err());
+        }
+        let mut changed = block.clone();
+        let OperationKind::PrimitiveScalarRead { path, .. } = &mut changed.operations[1].kind
+        else {
+            panic!("read");
+        };
+        path[1] = CanonicalStructuralPathSegment::FixedIndex(254);
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &changed).unwrap();
+        assert_ne!(
+            writer.finish(),
+            bytes,
+            "a different leaf has a different semantic encoding"
+        );
     }
 
     #[test]

@@ -1293,6 +1293,7 @@ fn retains_one_direct_write_only_primitive_literal_store() {
         fill.operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                path: store_path,
                 statement_index: 0,
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                 value: checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal }),
@@ -1301,7 +1302,7 @@ fn retains_one_direct_write_only_primitive_literal_store() {
                 statement_index: 1,
                 ..
             },
-        ] if literal.value_i64() == Some(2)
+        ] if store_path.is_empty() && literal.value_i64() == Some(2)
             && literal.landing().is_some_and(|landing|
                 landing.landed_type == numerics::literals::LandedIntegerType::I32)
     ));
@@ -1689,6 +1690,7 @@ fn retains_one_direct_write_only_boolean_literal_store() {
         fill.operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                path: store_path,
                 statement_index: 0,
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                 value: checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(expression)),
@@ -1697,7 +1699,7 @@ fn retains_one_direct_write_only_boolean_literal_store() {
                 statement_index: 1,
                 ..
             },
-        ] if matches!(
+        ] if store_path.is_empty() && matches!(
             expression.as_ref(),
             checked_trees::CheckedBooleanExpression::Constant(true)
         )
@@ -1737,6 +1739,7 @@ fn retains_one_direct_write_only_ieee_float_literal_store() {
         fill.operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                path: store_path,
                 statement_index: 0,
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                     parameter_index: 0
@@ -1751,7 +1754,7 @@ fn retains_one_direct_write_only_ieee_float_literal_store() {
                 statement_index: 1,
                 ..
             },
-        ]
+        ] if store_path.is_empty()
     ));
 }
 
@@ -1780,6 +1783,7 @@ fn retains_a_later_direct_write_only_fixed_integer_parameter_store() {
         fill.operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                path: store_path,
                 statement_index: 0,
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                     parameter_index: 0
@@ -1795,7 +1799,7 @@ fn retains_a_later_direct_write_only_fixed_integer_parameter_store() {
                 statement_index: 1,
                 ..
             },
-        ]
+        ] if store_path.is_empty()
     ));
 }
 
@@ -1848,6 +1852,7 @@ fn scalar_store_planning_retains_computed_sources_and_multiple_stores_in_order()
         assert_eq!(stores.len(), if case_index == 2 { 2 } else { 1 });
         for (ordinal, operation) in stores.iter().enumerate() {
             let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                path: store_path,
                 statement_index,
                 destination:
                     checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
@@ -1856,6 +1861,7 @@ fn scalar_store_planning_retains_computed_sources_and_multiple_stores_in_order()
             else {
                 panic!("exact parameter store: {case}");
             };
+            assert!(store_path.is_empty());
             assert_eq!(*statement_index as usize, ordinal);
             let checked_trees::CheckedCallScalarArgument::Pure(value) = value else {
                 panic!("retained pure store operand");
@@ -1917,6 +1923,7 @@ fn scalar_store_planning_retains_short_circuit_replacement() {
         .expect("short-circuit replacement uses ordinary scalar evaluation");
     let [
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            path: store_path,
             statement_index: 0,
             destination:
                 checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
@@ -1929,6 +1936,7 @@ fn scalar_store_planning_retains_short_circuit_replacement() {
     else {
         panic!("{:#?}", plan.operations);
     };
+    assert!(store_path.is_empty());
     match value {
         checked_trees::CheckedCallScalarArgument::Pure(value) => assert_eq!(
             Some(value),

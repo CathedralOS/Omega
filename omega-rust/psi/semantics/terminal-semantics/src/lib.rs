@@ -23,6 +23,8 @@ mod structural_effect;
 pub use call_composition::*;
 pub use proof_bearing_scalar::*;
 pub use record_field::{RecordFieldCarrier, record_field_carrier};
+mod primitive_place;
+pub use primitive_place::primitive_place_type;
 pub use scalar_array::scalar_array_leaf_shape;
 pub use structural_effect::*;
 

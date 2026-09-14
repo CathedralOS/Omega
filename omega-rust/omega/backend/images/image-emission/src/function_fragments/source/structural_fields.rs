@@ -16,6 +16,45 @@ pub(super) fn retained(
     operation: &AbstractOperation,
     target: &TargetFunction,
 ) -> bool {
+    if let AbstractOperation::PrimitiveScalarRead {
+        psi_operation,
+        result,
+        source,
+        path,
+    } = operation
+    {
+        let Some((_, root)) = read_access(function, target, *source) else {
+            return false;
+        };
+        if path.is_empty()
+            || terminal_semantics::primitive_place_type(
+                target.graph.structural_types.iter(),
+                root,
+                path,
+            ) != Some(result.scalar_type)
+        {
+            return false;
+        }
+        // As with record-field reads, publication retains the exact graph
+        // subject. Mandatory source/selection replay independently checks the
+        // computed offset and load on the original root; do not duplicate its
+        // layout calculator or accept a matching byte offset as path identity.
+        let mut reads = target
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match operation {
+                TargetUnitOperation::PrimitiveScalarRead {
+                    psi_operation: identity,
+                    result,
+                    source,
+                    path,
+                } if identity == psi_operation => Some((result, source, path)),
+                _ => None,
+            });
+        return reads.next() == Some((result, source, path)) && reads.next().is_none();
+    }
     let (identity, result, place, path, field) = match operation {
         AbstractOperation::IntegerStructuralField {
             psi_operation,

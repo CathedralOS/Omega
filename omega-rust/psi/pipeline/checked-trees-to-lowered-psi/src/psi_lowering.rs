@@ -650,6 +650,7 @@ fn scalar_carriers(types: &[QualifiedScalarType]) -> Vec<ScalarType> {
 enum LoweredDirectExpression {
     PrimitiveRead {
         source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         scalar_type: ScalarType,
     },
     StructuralField {
@@ -764,6 +765,7 @@ enum LoweredBooleanReturnExpression {
     },
     PrimitiveRead {
         source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     },
     Constant {
         value: bool,

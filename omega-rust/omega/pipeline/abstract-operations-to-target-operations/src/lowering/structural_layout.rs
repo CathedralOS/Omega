@@ -1,5 +1,37 @@
 use super::shared::*;
 
+/// Resolve static primitive storage without replacing its root ABI declaration.
+pub(super) fn primitive_projection_type(
+    mut carrier: StructuralTypeId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<ScalarType> {
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    for segment in path {
+        carrier = match (segment, &declarations.get(&carrier)?.shape) {
+            (Segment::Field(identity), StructuralTypeShape::Record { fields }) => {
+                let field = fields.iter().find(|field| field.id == *identity)?;
+                if field.relevance.is_erased() {
+                    return None;
+                }
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    return None;
+                };
+                child
+            }
+            (
+                Segment::FixedIndex(position),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if position < length => *element,
+            _ => return None,
+        };
+    }
+    match declarations.get(&carrier)?.shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
+        _ => None,
+    }
+}
+
 mod scalar_fields;
 pub(super) use scalar_fields::{
     direct_boolean_field_offset, direct_integer_field_offset, direct_scalar_field_offset,

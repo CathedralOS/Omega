@@ -519,6 +519,30 @@ pub(super) fn lower_structural_parameter_field(
     if path.is_empty() {
         return None;
     }
+    if path.iter().any(|segment| {
+        matches!(
+            segment,
+            CheckedStructuralPredicatePathSegment::FixedIndex(_)
+        )
+    }) {
+        // The primitive-storage endpoint is an array's primitive declaration.
+        // Qualified leaves retain their existing indexed-byte/proof route;
+        // scalar record fields remain owned by field operations.
+        if !matches!(
+            path.last(),
+            Some(CheckedStructuralPredicatePathSegment::FixedIndex(_))
+        ) {
+            return None;
+        }
+        let TypeReferenceNode::Named { symbol, name } =
+            program.type_reference_table.type_reference(type_reference)
+        else {
+            return None;
+        };
+        if program.symbols.builtin_type_atom(*symbol)?.symbol_name() != name.as_str() {
+            return None;
+        }
+    }
     let primitive_type = program.primitive_type_reference(type_reference)?;
     if primitive_type == PrimitiveType::Bool {
         return Some((
@@ -565,7 +589,25 @@ pub(super) fn structural_parameter_place(
             facts::PlaceSegment::Field { symbol } => Some(*symbol),
             _ => None,
         });
-    while let ExpressionNode::Member(member) = program.expression_table.expression(authored) {
+    loop {
+        if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(authored) {
+            let (_, _, collection_type) =
+                structural_parameter_place(program, parameters, indexed.collection)?;
+            if !indexed_read_has_builtin_meaning(
+                program,
+                parameters,
+                authored,
+                collection_type,
+                indexed.index,
+            ) {
+                return None;
+            }
+            authored = indexed.collection;
+            continue;
+        }
+        let ExpressionNode::Member(member) = program.expression_table.expression(authored) else {
+            break;
+        };
         let selected = selected_fields.next()?;
         if member.member_symbol.is_valid() && selected != member.member_symbol {
             // Attached machines retain inherited field symbols; canonical
@@ -642,6 +684,9 @@ pub(super) fn structural_parameter_place(
                         .map(|identity| format!("#{identity}"))
                         .unwrap_or_else(|| case.name.as_str().to_owned()),
                 )
+            }
+            facts::PlaceSegment::FixedIndex { index } => {
+                CheckedStructuralPredicatePathSegment::FixedIndex(u64::try_from(*index).ok()?)
             }
             _ => return None,
         });

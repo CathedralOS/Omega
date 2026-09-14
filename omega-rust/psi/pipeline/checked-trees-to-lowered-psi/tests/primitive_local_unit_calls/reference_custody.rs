@@ -85,8 +85,8 @@ fn readable_reference_initializer_keeps_authored_and_dense_parameter_positions_s
     assert_eq!(parameters.len(), 3);
     assert_eq!(parameters[1].position, 1);
     assert!(caller.blocks.iter().flat_map(|block| &block.operations).any(|operation|
-        matches!(operation.kind, terminal_psi::OperationKind::PrimitiveScalarRead { source }
-            if source == parameters[1].place)));
+        matches!(operation.kind, terminal_psi::OperationKind::PrimitiveScalarRead { source, ref path }
+            if path.is_empty() && source == parameters[1].place)));
 }
 
 #[test]

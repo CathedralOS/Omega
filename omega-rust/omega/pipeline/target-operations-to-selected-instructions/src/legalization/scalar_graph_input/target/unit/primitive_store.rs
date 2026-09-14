@@ -20,6 +20,7 @@ pub(super) fn validate(
     let TargetUnitOperation::WriteOnlyPrimitiveStore {
         psi_operation,
         destination,
+        path,
         destination_type,
         destination_placement,
         source,
@@ -30,6 +31,7 @@ pub(super) fn validate(
     let AbstractOperation::WriteOnlyPrimitiveStore {
         psi_operation: expected_operation,
         destination: expected_destination,
+        path: expected_path,
         value,
     } = abstracted
     else {
@@ -46,10 +48,12 @@ pub(super) fn validate(
         .ok_or(invalid.clone())?;
     if psi_operation != expected_operation
         || destination != expected_destination
+        || path != expected_path
         || destination_type != declared_type
         || destination_placement != &parameter.placement
         || crate::structural_reference_input::primitive_store(
             expected_destination,
+            expected_path,
             value.scalar_type,
             &unit.structural_types,
         )

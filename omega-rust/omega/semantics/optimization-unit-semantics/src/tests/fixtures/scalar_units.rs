@@ -83,6 +83,7 @@ pub(super) fn write_only_store_plan(store_before_value: bool) -> AbstractOperati
         value: IntegerValue::Signed(2),
     };
     let store = AbstractOperation::WriteOnlyPrimitiveStore {
+        path: Vec::new(),
         psi_operation: id(57, OperationId::new),
         destination: destination.clone(),
         value: AbstractResult { value, scalar_type },

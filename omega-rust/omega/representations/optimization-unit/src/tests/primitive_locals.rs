@@ -34,6 +34,7 @@ fn primitive_storage_identity_binds_producer_place_type_and_value() {
             value,
         },
         O::PrimitiveScalarRead {
+            path: Vec::new(),
             psi_operation: id(306, OperationId::new),
             source: result.place,
             result: value,
@@ -44,7 +45,15 @@ fn primitive_storage_identity_binds_producer_place_type_and_value() {
         let unit =
             reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap())
                 .unwrap();
-        for field in 0..4 {
+        let field_count = if matches!(
+            unit.functions[0].blocks[0].nodes[0].operation,
+            O::PrimitiveScalarRead { .. }
+        ) {
+            5
+        } else {
+            4
+        };
+        for field in 0..field_count {
             let mut changed = unit.clone();
             match &mut changed.functions[0].blocks[0].nodes[0].operation {
                 O::EstablishPrimitiveLocal {
@@ -79,6 +88,7 @@ fn primitive_storage_identity_binds_producer_place_type_and_value() {
                     psi_operation,
                     source,
                     result,
+                    path,
                 } => match field {
                     0 => *psi_operation = id(307, OperationId::new),
                     1 => *source = id(308, PlaceId::new),
@@ -91,7 +101,11 @@ fn primitive_storage_identity_binds_producer_place_type_and_value() {
                             .unwrap(),
                         )
                     }
-                    _ => result.value = id(310, ValueId::new),
+                    3 => result.value = id(310, ValueId::new),
+                    _ => {
+                        *path =
+                            vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1)]
+                    }
                 },
                 _ => panic!("primitive operation"),
             }

@@ -165,10 +165,12 @@ fn assert_local_call(artifact: &terminal_codec::CanonicalTerminalArtifact) {
         structural_arguments[0].access,
         StructuralAccess::MutableBorrow
     );
-    assert!(matches!(read.kind, OperationKind::PrimitiveScalarRead { source } if source == local));
     assert!(
-        matches!(store.kind, OperationKind::WriteOnlyPrimitiveStore { destination, value }
-        if destination == caller.structural_parameters[0].place
+        matches!(read.kind, OperationKind::PrimitiveScalarRead { source, ref path } if source == local && path.is_empty())
+    );
+    assert!(
+        matches!(store.kind, OperationKind::WriteOnlyPrimitiveStore { destination, value, ref path }
+        if path.is_empty() && destination == caller.structural_parameters[0].place
             && Some(value) == read.result.scalar().map(|result| result.id))
     );
     let callee = module
@@ -177,8 +179,8 @@ fn assert_local_call(artifact: &terminal_codec::CanonicalTerminalArtifact) {
         .find(|machine| machine.id == *callee)
         .unwrap();
     assert!(callee.blocks.iter().flat_map(|block| &block.operations).any(|operation|
-        matches!(operation.kind, OperationKind::WriteOnlyPrimitiveStore { destination, value }
-            if destination == callee.structural_parameters[0].place && value == callee.parameters[0].id)));
+        matches!(operation.kind, OperationKind::WriteOnlyPrimitiveStore { destination, value, ref path }
+            if path.is_empty() && destination == callee.structural_parameters[0].place && value == callee.parameters[0].id)));
 }
 
 #[test]

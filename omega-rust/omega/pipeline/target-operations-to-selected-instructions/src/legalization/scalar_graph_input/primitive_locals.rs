@@ -103,9 +103,14 @@ pub(super) fn validate(
                     return Err(invalid);
                 }
             }
-            AbstractOperation::PrimitiveScalarRead { source, result, .. } => {
+            AbstractOperation::PrimitiveScalarRead {
+                source,
+                path,
+                result,
+                ..
+            } => {
                 let identity = if let Some((operation, local, _)) = producer(function, *source) {
-                    if !valid_result(function, operation, local) {
+                    if !path.is_empty() || !valid_result(function, operation, local) {
                         return Err(invalid);
                     }
                     local.structural_type
@@ -118,7 +123,9 @@ pub(super) fn validate(
                     if !matches!(
                         parameter.access,
                         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    ) || parameter.multiplicity == StructuralMultiplicity::Linear
+                        || (path.is_empty()
+                            && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
                         || !parameter.qualifications.is_empty()
                         || !parameter.projected_qualifications.is_empty()
                         || !function.entry_claims.is_empty()
@@ -127,7 +134,13 @@ pub(super) fn validate(
                     }
                     parameter.structural_type
                 };
-                if scalar(types, identity) != Some(result.scalar_type)
+                if crate::structural_reference_input::primitive_geometry(
+                    identity,
+                    path,
+                    result.scalar_type,
+                    types,
+                )
+                .is_none()
                     || scalar_shape(result.scalar_type).is_none()
                 {
                     return Err(invalid);

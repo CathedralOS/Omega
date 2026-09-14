@@ -97,9 +97,13 @@ impl TerminalExecution {
                 .structural_parameters
                 .get(argument.argument_index as usize)
                 .ok_or_else(invalid)?;
-            if parameter.access != StructuralAccess::MutableBorrow
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
+            if !matches!(
+                parameter.access,
+                StructuralAccess::Owned | StructuralAccess::MutableBorrow
+            ) || !matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            ) || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || self
                     .live_claims

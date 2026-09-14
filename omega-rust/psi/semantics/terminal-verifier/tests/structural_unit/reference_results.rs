@@ -121,6 +121,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
                     id: operation_id(19),
                     result: OperationResult::Unit,
                     kind: OperationKind::WriteOnlyPrimitiveStore {
+                        path: Vec::new(),
                         destination: place_id(10),
                         value: value_id(10),
                     },
@@ -149,6 +150,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
         id: operation_id(30),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
+            path: Vec::new(),
             destination: place_id(30),
             value: value_id(30),
         },
@@ -204,6 +206,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
                 qualifications: Default::default(),
             }),
             kind: OperationKind::PrimitiveScalarRead {
+                path: Vec::new(),
                 source: place_id(1),
             },
         },
@@ -255,6 +258,7 @@ fn reference_result_rejects_parent_read_write_and_call_before_release() {
             id: operation_id(5),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
+                path: Vec::new(),
                 destination: place_id(1),
                 value: value_id(1),
             },
@@ -504,6 +508,7 @@ fn reference_result_alias_writes_invalidate_reaching_store_but_permission_events
             id: operation_id(7),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
+                path: Vec::new(),
                 destination: place_id(1),
                 value: value_id(1),
             },
@@ -560,6 +565,7 @@ fn reference_result_mutable_carrier_lends_only_the_callees_declared_access() {
                     qualifications: Default::default(),
                 }),
                 kind: OperationKind::PrimitiveScalarRead {
+                    path: Vec::new(),
                     source: place_id(30),
                 },
             };

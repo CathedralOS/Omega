@@ -40,11 +40,14 @@ pub enum AbstractOperation {
         destination: PlaceId,
         value: AbstractResult,
     },
-    /// Make a fresh observation of an established local or readable primitive borrow.
+    /// Make a fresh observation of an established primitive local or a primitive
+    /// leaf under a readable borrow. The canonical path retains the exact
+    /// storage subject; an empty path observes the whole primitive root.
     PrimitiveScalarRead {
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     },
     /// Observe the exact active case without consuming the readable sum root.
     StructuralCaseMembership {
@@ -103,7 +106,9 @@ pub enum AbstractOperation {
         stored: AbstractStoredDynamicDescriptor,
     },
     /// One verifier-approved non-observing replacement through an exact
-    /// whole-root write-only structural parameter. The complete parameter row
+    /// primitive leaf under a mutable or write-only structural parameter. The
+    /// canonical path selects the leaf without changing root custody; an empty
+    /// path retains whole-primitive replacement. The complete parameter row
     /// keeps access, multiplicity, nominal type, and signature position from
     /// being reconstructed from physical ABI shape; `value` retains the exact
     /// preceding scalar definition and type. Target lowering must not realize
@@ -111,6 +116,7 @@ pub enum AbstractOperation {
     WriteOnlyPrimitiveStore {
         psi_operation: OperationId,
         destination: StructuralParameterDeclaration,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         value: AbstractResult,
     },
     /// One verifier-approved scalar replacement at an exact field beneath a

@@ -11,6 +11,20 @@ pub(super) fn validate_uses(
     definitions: &BTreeMap<PlaceId, BlockId>,
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
+    let direct = match operation.kind {
+        OperationKind::PrimitiveScalarRead { source, .. } => Some(source),
+        OperationKind::WriteOnlyPrimitiveStore { destination, .. } => Some(destination),
+        _ => None,
+    };
+    if let Some(place) = direct
+        && definitions.contains_key(&place)
+        && !available.contains(&place)
+    {
+        return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+            operation: operation.id,
+            place,
+        });
+    }
     let arguments = match &operation.kind {
         OperationKind::CallUnit {
             structural_arguments,

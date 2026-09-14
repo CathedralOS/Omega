@@ -23,12 +23,16 @@ pub(super) fn lower(
             port,
             value,
         },
-        OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
+        OperationKind::WriteOnlyPrimitiveStore {
+            destination,
+            path,
+            value,
+        } => {
             if let Some(local) = super::primitive_storage::local(machine, destination) {
                 let scalar_type =
                     super::primitive_storage::scalar_type(structural_types, local.structural_type)
                         .ok_or(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id))?;
-                if value_types.get(&value) != Some(&scalar_type) {
+                if !path.is_empty() || value_types.get(&value) != Some(&scalar_type) {
                     return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
                 }
                 return Ok(AbstractOperation::PrimitiveLocalStore {
@@ -52,19 +56,32 @@ pub(super) fn lower(
                 destination.access,
                 terminal_psi::StructuralAccess::MutableBorrow
                     | terminal_psi::StructuralAccess::WriteOnlyBorrow
-            )
-                && destination.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            ) && (destination.multiplicity
+                == terminal_psi::StructuralMultiplicity::Unrestricted
+                || (!path.is_empty()
+                    && destination.multiplicity == terminal_psi::StructuralMultiplicity::Affine))
                 && destination.qualifications.is_empty()
-                && structural_types.iter().any(|declaration| {
-                    declaration.id == destination.structural_type
-                        && matches!(declaration.shape, terminal_psi::StructuralTypeShape::PrimitiveScalar(expected) if expected == scalar_type)
-                });
+                && destination.projected_qualifications.is_empty()
+                && machine
+                    .entry_claims
+                    .iter()
+                    .all(|claim| claim.input != destination.place)
+                && machine
+                    .content_entry_claims
+                    .iter()
+                    .all(|claim| claim.input.root != destination.place)
+                && terminal_semantics::primitive_place_type(
+                    structural_types.iter(),
+                    destination.structural_type,
+                    &path,
+                ) == Some(scalar_type);
             if !valid_destination {
                 return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
             }
             AbstractOperation::WriteOnlyPrimitiveStore {
                 psi_operation: operation.id,
                 destination,
+                path,
                 value: AbstractResult { value, scalar_type },
             }
         }

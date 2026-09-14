@@ -83,8 +83,10 @@ fn local_fixture(target: target::NativeTarget, unit_call: bool) -> LegalizedScal
     if unit_call {
         source.blocks[0].instructions[2].result = None;
     }
-    source.blocks[0].instructions[3].kind =
-        LegalizedScalarInstructionKind::PrimitiveScalarRead { source: place };
+    source.blocks[0].instructions[3].kind = LegalizedScalarInstructionKind::PrimitiveScalarRead {
+        path: Vec::new(),
+        source: place,
+    };
     source
 }
 

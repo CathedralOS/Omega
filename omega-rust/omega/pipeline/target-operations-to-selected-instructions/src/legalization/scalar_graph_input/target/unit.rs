@@ -198,15 +198,18 @@ pub(super) fn validate_operation(
                 psi_operation,
                 result,
                 source,
+                path,
             },
             AbstractOperation::PrimitiveScalarRead {
                 psi_operation: expected_operation,
                 result: expected,
                 source: expected_source,
+                path: expected_path,
             },
         ) if psi_operation == expected_operation
             && result == expected
-            && source == expected_source =>
+            && source == expected_source
+            && path == expected_path =>
         {
             sources.push((
                 result.value,

@@ -163,8 +163,11 @@ pub(super) fn project(
                 tag_byte_offset,
             }
         }
-        AbstractOperation::PrimitiveScalarRead { source, .. } => {
-            LegalizedScalarInstructionKind::PrimitiveScalarRead { source: *source }
+        AbstractOperation::PrimitiveScalarRead { source, path, .. } => {
+            LegalizedScalarInstructionKind::PrimitiveScalarRead {
+                source: *source,
+                path: path.clone(),
+            }
         }
         AbstractOperation::BoundaryCall {
             boundary,
@@ -206,17 +209,23 @@ pub(super) fn project(
             }
         }
         AbstractOperation::WriteOnlyPrimitiveStore {
-            destination, value, ..
+            destination,
+            path,
+            value,
+            ..
         } => {
-            let byte_size = crate::structural_reference_input::primitive_store(
+            let (byte_offset, byte_size) = crate::structural_reference_input::primitive_store(
                 destination,
+                path,
                 value.scalar_type,
                 &unit.structural_types,
             )
             .ok_or(Error::SourceCustodyMismatch)?;
             LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
                 destination: destination.clone(),
+                path: path.clone(),
                 value: *value,
+                byte_offset,
                 byte_size,
             }
         }

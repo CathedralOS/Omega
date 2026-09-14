@@ -666,6 +666,7 @@ mod tests {
         let establishment = O::EstablishPrimitiveLocal { value: initializer };
         let read = O::PrimitiveScalarRead {
             source: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
         };
         let mut pending = Vec::new();
         assert!(inputs(&establishment, &mut pending));

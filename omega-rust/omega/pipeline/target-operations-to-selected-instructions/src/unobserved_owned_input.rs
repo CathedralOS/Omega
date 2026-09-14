@@ -100,6 +100,7 @@ pub(crate) fn accepts(function: &LegalizedScalarFunction) -> bool {
                 Instruction::PrimitiveLocalStore { destination, .. }
                 | Instruction::PrimitiveScalarRead {
                     source: destination,
+                    ..
                 } => {
                     crate::selection::primitive_local_input::local(function, *destination).is_some()
                 }

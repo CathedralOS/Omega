@@ -59,6 +59,7 @@ fn repeated_local_borrows_pass_the_original_pointer_in_exact_outgoing_stack_slot
                     &mut source,
                     6,
                     LegalizedScalarInstructionKind::PrimitiveScalarRead {
+                        path: Vec::new(),
                         source: PlaceId::new(1).unwrap(),
                     },
                     Some(6),
@@ -250,7 +251,10 @@ fn clobber_fixture(target: target::NativeTarget) -> LegalizedScalarFunction {
     append(
         &mut source,
         6,
-        LegalizedScalarInstructionKind::PrimitiveScalarRead { source: place },
+        LegalizedScalarInstructionKind::PrimitiveScalarRead {
+            path: Vec::new(),
+            source: place,
+        },
         Some(6),
     );
     append(
@@ -268,7 +272,10 @@ fn clobber_fixture(target: target::NativeTarget) -> LegalizedScalarFunction {
     append(
         &mut source,
         8,
-        LegalizedScalarInstructionKind::PrimitiveScalarRead { source: place },
+        LegalizedScalarInstructionKind::PrimitiveScalarRead {
+            path: Vec::new(),
+            source: place,
+        },
         Some(8),
     );
     let call_plan = evaluate_call_plan(

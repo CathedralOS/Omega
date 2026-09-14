@@ -400,6 +400,7 @@ fn primitive_places_remain_separate_from_immutable_and_current_ssa_storage() {
                 .unwrap(),
             LoweredDirectExpression::PrimitiveRead {
                 source,
+                path: Vec::new(),
                 scalar_type
             },
         );
@@ -519,6 +520,7 @@ fn primitive_reads_emit_fresh_typed_results_after_intervening_stores() {
             result: terminal_psi::OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
                 destination: source,
+                path: Vec::new(),
                 value: first,
             },
         });
@@ -528,7 +530,10 @@ fn primitive_reads_emit_fresh_typed_results_after_intervening_stores() {
         for (operation_position, value) in [(0, first), (2, second)] {
             assert_eq!(
                 operations[operation_position].kind,
-                OperationKind::PrimitiveScalarRead { source }
+                OperationKind::PrimitiveScalarRead {
+                    source,
+                    path: Vec::new()
+                }
             );
             assert_eq!(
                 operations[operation_position].result,
@@ -591,7 +596,7 @@ fn recursive_integer_and_boolean_readers_keep_operand_evaluation_order() {
     let sources = operations
         .iter()
         .filter_map(|operation| match operation.kind {
-            OperationKind::PrimitiveScalarRead { source } => Some(source),
+            OperationKind::PrimitiveScalarRead { source, .. } => Some(source),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -659,7 +664,13 @@ fn primitive_boolean_reads_stay_in_selected_short_circuit_blocks() {
             block
                 .operations
                 .iter()
-                .filter(|operation| operation.kind == OperationKind::PrimitiveScalarRead { source })
+                .filter(|operation| {
+                    operation.kind
+                        == OperationKind::PrimitiveScalarRead {
+                            source,
+                            path: Vec::new(),
+                        }
+                })
                 .count()
         };
         assert_eq!(
@@ -694,7 +705,10 @@ fn equal_boolean_read_syntax_emits_two_distinct_observations() {
     for operation in &operations[..2] {
         assert_eq!(
             operation.kind,
-            OperationKind::PrimitiveScalarRead { source }
+            OperationKind::PrimitiveScalarRead {
+                source,
+                path: Vec::new()
+            }
         );
         assert_eq!(
             operation.result.expect_scalar().scalar_type,

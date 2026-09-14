@@ -6,6 +6,8 @@ fn primitive_store_plan() -> LegalizedOperationPlan {
     let row = &mut plan.scalar_functions[0].blocks[0].instructions[0];
     row.result = None;
     row.kind = LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+        path: Vec::new(),
+        byte_offset: 0,
         destination: StructuralParameterDeclaration {
             place: id(501),
             position: 0,
@@ -30,11 +32,13 @@ fn primitive_store_identity_binds_destination_source_type_and_width() {
     let plan = primitive_store_plan();
     let identity = legalized_operation_plan_identity(&plan);
     assert_eq!(identity, legalized_operation_plan_identity(&plan.clone()));
-    for mutation in 0..11 {
+    for mutation in 0..13 {
         let mut changed = plan.clone();
         let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination,
+            path,
             value,
+            byte_offset,
             byte_size,
         } = &mut changed.scalar_functions[0].blocks[0].instructions[0].kind
         else {
@@ -59,7 +63,9 @@ fn primitive_store_identity_binds_destination_source_type_and_width() {
                     domain: id(998),
                 },
             ),
-            _ => *byte_size = 8,
+            10 => *byte_size = 8,
+            11 => path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1)),
+            _ => *byte_offset = 4,
         }
         assert_ne!(
             identity,
@@ -88,6 +94,7 @@ fn primitive_store_references_its_input_and_is_not_a_field_store() {
         destination,
         value,
         byte_size,
+        ..
     } = row.kind.clone()
     else {
         panic!("primitive store fixture")

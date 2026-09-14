@@ -532,6 +532,10 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     TERMINAL_STRUCTURAL_EFFECT_SOURCE,
                 ));
             }
+            if matches!(row.tag(), terminal_semantics::OperationSemanticTag::PrimitiveScalarRead
+                | terminal_semantics::OperationSemanticTag::WriteOnlyPrimitiveStore) {
+                exact_sources.push(("terminal-semantics/primitive_place.rs", include_bytes!("../../../terminal-semantics/src/primitive_place.rs")));
+            }
             if row.tag() == terminal_semantics::OperationSemanticTag::PrimitiveScalarRead {
                 // The row's read denotation alone does not establish which
                 // prior store remains available at this capture coordinate.

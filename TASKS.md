@@ -302,22 +302,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   operands, result and completion custody. Preserve the canonical Bound Console,
   both writes and original 256-byte input buffer when closing the remaining routes.
 
-  Fixed primitive-array receiver storage has checked eligibility and image
-  replay, but direct indexed operations need primitive projection vocabulary.
-  At `95458524da` on macOS ARM64, the hosted receiver variation branching on
-  `self.bytes[255] == 0`, storing 65 in a successor state and rereading it
-  rejects with zero Terminal attachment identities. Checked indexed expressions
-  exist, but `scalar_graph_lowering.rs` admits only whole byte-view parameters;
-  raw array elements have no scalar field ID. **STATE-LOCAL-VALUE-FRONTIER**
-  owns canonical paths on primitive reads/stores, with independent fixed-index
-  bounds, access and ownership checks through Terminal, interpreter and native
-  replay. Storage-version facts must distinguish elements or invalidate the
-  whole root conservatively. Coordinate with the current proof-reconstruction
-  owner before changing those shared consumers; do not relax record-field reads
-  or invent a field ID for an element. Acceptance includes native caller-visible
-  mutation, nested fixed-array paths, out-of-bounds and write-only-read rejection.
-  Keep this limitation distinct from the original sample's passing native route;
-  neither test-owned acceptance nor the storage canary closes the real CLI route.
+  **STATE-LOCAL-VALUE-FRONTIER** still owns runtime-indexed primitive storage,
+  policy-qualified array elements and native indexed owned/local roots. Reuse
+  canonical primitive paths and the ordinary statement sequencer; retain exact
+  bounds, root custody and element-sensitive storage observations. Do not invent
+  scalar field IDs for array elements. Preserve
+  `hosted_receiver_indexed_primitive_storage_survives_state_transition` while
+  extending those routes: it covers borrowed helper mutation, a saved earlier
+  read, an untouched sibling and a later-state read through real native entry.
+  Neither that test's explicit package policy nor the storage capability closes
+  the real CLI project's outstanding review or the other hosted runtime legs.
 
   **Scope pause:** do not resume helper-by-helper expansion for `print_squares`
   until a plan covers its complete source closure and native dependencies. Two

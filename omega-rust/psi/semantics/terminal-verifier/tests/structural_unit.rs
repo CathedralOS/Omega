@@ -4480,6 +4480,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
             destination,
+            path: Vec::new(),
             value: value_id(1),
         },
     };

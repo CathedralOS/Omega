@@ -450,6 +450,7 @@ fn mutable_reference_temporarily_lends_shared_read_and_write_only_store() {
         if access == StructuralAccess::SharedBorrow {
             let mut read = callee.blocks[0].operations.remove(0);
             read.kind = OperationKind::PrimitiveScalarRead {
+                path: Vec::new(),
                 source: place_id(92),
             };
             callee.blocks[0].operations = vec![read];
@@ -3751,6 +3752,7 @@ fn write_only_primitive_call_module() -> TerminalModule {
                     id: operation_id(93),
                     result: OperationResult::Unit,
                     kind: OperationKind::WriteOnlyPrimitiveStore {
+                        path: Vec::new(),
                         destination: callee_place,
                         value: value_id(92),
                     },

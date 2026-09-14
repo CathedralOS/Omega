@@ -189,8 +189,9 @@ pub(super) fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::PrimitiveScalarRead { source } = operation.kind {
-        let expected = super::primitive_storage::read_type(module, machine, operation.id, source)?;
+    if let OperationKind::PrimitiveScalarRead { source, ref path } = operation.kind {
+        let expected =
+            super::primitive_storage::read_type(module, machine, operation.id, source, path)?;
         if operation.result.scalar().map(|result| result.scalar_type) != Some(expected) {
             return Err(ModuleError::InvalidPrimitiveScalarRead {
                 operation: operation.id,
@@ -199,10 +200,15 @@ pub(super) fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::WriteOnlyPrimitiveStore { destination, value } = operation.kind {
+    if let OperationKind::WriteOnlyPrimitiveStore {
+        destination,
+        value,
+        ref path,
+    } = operation.kind
+    {
         require_defined(value, value_types, defined)?;
         let expected =
-            super::primitive_storage::store_type(module, machine, operation.id, destination)?;
+            super::primitive_storage::store_type(module, machine, operation.id, destination, path)?;
         let actual = value_types[&value];
         if actual != expected {
             return Err(ModuleError::WriteOnlyPrimitiveStoreValueTypeMismatch {

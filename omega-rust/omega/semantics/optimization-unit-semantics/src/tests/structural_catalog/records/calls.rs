@@ -75,6 +75,7 @@ fn record_call_unit(access: StructuralAccess, projected: bool) -> PsiOptimizatio
         });
     let mut store = maker.blocks[0].nodes[0].clone();
     store.operation = AbstractOperation::WriteOnlyPrimitiveStore {
+        path: Vec::new(),
         psi_operation: id(954, OperationId::new),
         destination: input,
         value: AbstractResult {

@@ -134,8 +134,8 @@ fn execute_with_access(
         panic!("ordered read/establish/snapshot/call/read/stores: {operations:?}");
     };
     assert!(
-        matches!(input_read.kind, OperationKind::PrimitiveScalarRead { source }
-        if source == caller.structural_parameters[1].place)
+        matches!(input_read.kind, OperationKind::PrimitiveScalarRead { source, ref path }
+        if path.is_empty() && source == caller.structural_parameters[1].place)
     );
     assert!(
         matches!(establish.kind, OperationKind::EstablishPrimitiveLocal { value }
@@ -150,7 +150,7 @@ fn execute_with_access(
     );
     for read in [snapshot, current_read] {
         assert!(
-            matches!(read.kind, OperationKind::PrimitiveScalarRead { source } if source == local)
+            matches!(read.kind, OperationKind::PrimitiveScalarRead { source, ref path } if path.is_empty() && source == local)
         );
     }
     assert_ne!(snapshot.result, current_read.result);
@@ -175,8 +175,8 @@ fn execute_with_access(
         (snapshot_store, &caller.structural_parameters[2], snapshot),
     ] {
         assert!(
-            matches!(store.kind, OperationKind::WriteOnlyPrimitiveStore { destination, value }
-            if destination == parameter.place && value == read.result.scalar().unwrap().id)
+            matches!(store.kind, OperationKind::WriteOnlyPrimitiveStore { destination, value, ref path }
+            if path.is_empty() && destination == parameter.place && value == read.result.scalar().unwrap().id)
         );
     }
 

@@ -272,8 +272,11 @@ pub(super) fn emit_boolean_expression(
         }
         LoweredBooleanReturnExpression::Parameter { position }
         | LoweredBooleanReturnExpression::Local { position } => parameters[*position].id,
-        LoweredBooleanReturnExpression::PrimitiveRead { source } => emit_scalar_leaf(
-            OperationKind::PrimitiveScalarRead { source: *source },
+        LoweredBooleanReturnExpression::PrimitiveRead { source, path } => emit_scalar_leaf(
+            OperationKind::PrimitiveScalarRead {
+                source: *source,
+                path: path.clone(),
+            },
             ScalarType::Boolean,
             next_value_identity,
             operations,
@@ -451,6 +454,7 @@ pub(super) fn emit_scalar_binding(
                 OperationResult::Unit,
                 OperationKind::WriteOnlyPrimitiveStore {
                     destination: place,
+                    path: Vec::new(),
                     value,
                 },
             ),
@@ -818,9 +822,13 @@ pub(super) fn emit_direct_expression(
     match expression {
         LoweredDirectExpression::PrimitiveRead {
             source,
+            path,
             scalar_type,
         } => emit_scalar_leaf(
-            OperationKind::PrimitiveScalarRead { source: *source },
+            OperationKind::PrimitiveScalarRead {
+                source: *source,
+                path: path.clone(),
+            },
             *scalar_type,
             next_value_identity,
             operations,

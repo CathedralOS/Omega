@@ -227,9 +227,10 @@ fn receiver_field_stores_keep_a_local_snapshot_and_a_fresh_read_across_a_borrowe
         .iter()
         .enumerate()
         .filter_map(|(ordinal, operation)| {
-            let OperationKind::PrimitiveScalarRead { source } = operation.kind else {
+            let OperationKind::PrimitiveScalarRead { source, ref path } = operation.kind else {
                 return None;
             };
+            assert!(path.is_empty());
             assert_eq!(source, local);
             Some((ordinal, operation.result.scalar().unwrap().id))
         })
