@@ -1,4 +1,5 @@
-//! Typed conversion for the Π/Σ fragment: β and pair-projection weak-head
+//! Typed conversion for the Π/Σ fragment and the `Two` primitive: β,
+//! pair-projection and constructor-scrutinee `caseTwo` weak-head
 //! normalization under a step ceiling, pair eta at a `Sigma` shared type,
 //! typed function eta at a `Pi` shared type, and definitional proof
 //! irrelevance gated on the *shared type's* sort — never on the shape of
@@ -106,6 +107,40 @@ pub fn weak_head_normalize(
                     }
                 }
             }
+            Term::CaseTwo {
+                motive,
+                zero_branch,
+                one_branch,
+                scrutinee,
+            } => {
+                // `caseTwo(C, d0, d1, zero) → d0` and `… one → d1`: a
+                // constructor scrutinee selects its branch; a neutral
+                // scrutinee keeps the elimination stuck. There is no
+                // eta law for `Two` — a stuck `caseTwo` is its own
+                // normal form.
+                let head = weak_head_normalize(arena, scrutinee, budget)?;
+                match arena.get(head) {
+                    Term::TwoZero => {
+                        budget.consume()?;
+                        current = zero_branch;
+                    }
+                    Term::TwoOne => {
+                        budget.consume()?;
+                        current = one_branch;
+                    }
+                    _ => {
+                        if head == scrutinee {
+                            return Ok(current);
+                        }
+                        return Ok(arena.insert(Term::CaseTwo {
+                            motive,
+                            zero_branch,
+                            one_branch,
+                            scrutinee: head,
+                        }));
+                    }
+                }
+            }
             _ => return Ok(current),
         }
     }
@@ -137,6 +172,9 @@ pub fn convertible(
 
     match (arena.get(left), arena.get(right)) {
         (Term::Sort(left_sort), Term::Sort(right_sort)) => Ok(left_sort == right_sort),
+        (Term::Two, Term::Two) | (Term::TwoZero, Term::TwoZero) | (Term::TwoOne, Term::TwoOne) => {
+            Ok(true)
+        }
         (
             Term::Pi {
                 domain: left_domain,
@@ -302,6 +340,70 @@ pub fn convertible(
                 }
                 _ => Ok(false),
             }
+        }
+        (
+            Term::CaseTwo {
+                motive: left_motive,
+                zero_branch: left_zero_branch,
+                one_branch: left_one_branch,
+                scrutinee: left_scrutinee,
+            },
+            Term::CaseTwo {
+                motive: right_motive,
+                zero_branch: right_zero_branch,
+                one_branch: right_one_branch,
+                scrutinee: right_scrutinee,
+            },
+        ) => {
+            // Two stuck eliminations compare componentwise: the motives
+            // at the left motive's inferred `Π(_ : Two). Type w`, the
+            // scrutinees at `Two`, and each branch at the left motive
+            // applied to its constructor. A constructor scrutinee never
+            // reaches here — weak-head normalization already selected
+            // its branch — so only stuck scrutinees meet this rule.
+            let motive_type = infer_type(arena, context, left_motive, budget)?;
+            if !convertible(
+                arena,
+                context,
+                left_motive,
+                right_motive,
+                motive_type,
+                budget,
+            )? {
+                return Ok(false);
+            }
+            let two = arena.insert(Term::Two);
+            if !convertible(arena, context, left_scrutinee, right_scrutinee, two, budget)? {
+                return Ok(false);
+            }
+            let zero = arena.insert(Term::TwoZero);
+            let zero_branch_type = arena.insert(Term::Apply {
+                function: left_motive,
+                argument: zero,
+            });
+            if !convertible(
+                arena,
+                context,
+                left_zero_branch,
+                right_zero_branch,
+                zero_branch_type,
+                budget,
+            )? {
+                return Ok(false);
+            }
+            let one = arena.insert(Term::TwoOne);
+            let one_branch_type = arena.insert(Term::Apply {
+                function: left_motive,
+                argument: one,
+            });
+            convertible(
+                arena,
+                context,
+                left_one_branch,
+                right_one_branch,
+                one_branch_type,
+                budget,
+            )
         }
         (Term::Pair { first, second }, _) => {
             // Pair eta: a literal pair converts to a non-pair only when the

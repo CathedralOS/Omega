@@ -88,7 +88,31 @@ pub fn shift(arena: &mut TermArena, term: TermHandle, cutoff: u32, amount: u32) 
             }
             arena.insert(Term::Snd { pair: shifted_pair })
         }
-        Term::Sort(_) | Term::Dummy => term,
+        Term::CaseTwo {
+            motive,
+            zero_branch,
+            one_branch,
+            scrutinee,
+        } => {
+            let shifted_motive = shift(arena, motive, cutoff, amount);
+            let shifted_zero_branch = shift(arena, zero_branch, cutoff, amount);
+            let shifted_one_branch = shift(arena, one_branch, cutoff, amount);
+            let shifted_scrutinee = shift(arena, scrutinee, cutoff, amount);
+            if shifted_motive == motive
+                && shifted_zero_branch == zero_branch
+                && shifted_one_branch == one_branch
+                && shifted_scrutinee == scrutinee
+            {
+                return term;
+            }
+            arena.insert(Term::CaseTwo {
+                motive: shifted_motive,
+                zero_branch: shifted_zero_branch,
+                one_branch: shifted_one_branch,
+                scrutinee: shifted_scrutinee,
+            })
+        }
+        Term::Sort(_) | Term::Two | Term::TwoZero | Term::TwoOne | Term::Dummy => term,
     }
 }
 
@@ -183,6 +207,30 @@ fn substitute_at(
             }
             arena.insert(Term::Snd { pair: new_pair })
         }
-        Term::Sort(_) | Term::Dummy => term,
+        Term::CaseTwo {
+            motive,
+            zero_branch,
+            one_branch,
+            scrutinee,
+        } => {
+            let new_motive = substitute_at(arena, motive, argument, depth);
+            let new_zero_branch = substitute_at(arena, zero_branch, argument, depth);
+            let new_one_branch = substitute_at(arena, one_branch, argument, depth);
+            let new_scrutinee = substitute_at(arena, scrutinee, argument, depth);
+            if new_motive == motive
+                && new_zero_branch == zero_branch
+                && new_one_branch == one_branch
+                && new_scrutinee == scrutinee
+            {
+                return term;
+            }
+            arena.insert(Term::CaseTwo {
+                motive: new_motive,
+                zero_branch: new_zero_branch,
+                one_branch: new_one_branch,
+                scrutinee: new_scrutinee,
+            })
+        }
+        Term::Sort(_) | Term::Two | Term::TwoZero | Term::TwoOne | Term::Dummy => term,
     }
 }

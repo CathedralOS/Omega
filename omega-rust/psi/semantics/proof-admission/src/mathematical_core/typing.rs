@@ -1,10 +1,11 @@
 //! Typing and checking judgments for the Π/Σ fragment with stratified
-//! relevant/strict universes: predicative formation, explicit closed levels,
-//! no cumulativity, no self-typing universe.
+//! relevant/strict universes — predicative formation, explicit closed
+//! levels, no cumulativity, no self-typing universe — plus the inductive
+//! profile's two-element type and its dependent eliminator.
 
 use super::conversion::{Budget, convertible, weak_head_normalize};
 use super::substitution::{shift, substitute};
-use super::term::{Sort, Term, TermArena, TermHandle};
+use super::term::{Level, Sort, Term, TermArena, TermHandle};
 
 /// Types of the bound variables, innermost last. Each stored type is
 /// well-scoped for its own prefix; `lookup` shifts it into the full context.
@@ -68,6 +69,18 @@ pub enum CoreError {
     NotAPair {
         pair: TermHandle,
         actual_type: TermHandle,
+    },
+    /// A `caseTwo` motive must be a family into a relevant universe
+    /// `Π(_ : Two). Type w`. A strict codomain is not an admitted
+    /// elimination target: strict motives belong to the reference core's
+    /// boxing rules, not this eliminator.
+    StrictCaseMotiveCodomain {
+        codomain: TermHandle,
+    },
+    /// A `caseTwo` motive whose codomain is not a universe at all leaves
+    /// `C t` without a type to check branches or results against.
+    CaseMotiveCodomainNotAUniverse {
+        codomain: TermHandle,
     },
     ArgumentTypeMismatch {
         expected: TermHandle,
@@ -222,6 +235,73 @@ pub fn infer_type(
                     actual_type: head,
                 }),
             }
+        }
+        Term::Two => Ok(arena.insert(Term::Sort(Sort::Type(Level(0))))),
+        Term::TwoZero | Term::TwoOne => Ok(arena.insert(Term::Two)),
+        Term::CaseTwo {
+            motive,
+            zero_branch,
+            one_branch,
+            scrutinee,
+        } => {
+            // `caseTwo(C, d0, d1, t) : C t` for `C : Π(_ : Two). Type w`,
+            // `d0 : C zero`, `d1 : C one` and `t : Two`. The motive's
+            // codomain must normalize to a relevant universe: the
+            // profile's eliminators target `Type`, and a `Strict`
+            // codomain is a strict target owned by the reference core's
+            // boxing rules, not this eliminator. The level `w` is read
+            // off the checked codomain — elimination is not confined to
+            // the scrutinee's level.
+            let motive_type = infer_type(arena, context, motive, budget)?;
+            let motive_head = weak_head_normalize(arena, motive_type, budget)?;
+            let codomain = match arena.get(motive_head) {
+                Term::Pi { domain, codomain } => {
+                    let two = arena.insert(Term::Two);
+                    let domain_sort = infer_sort(arena, context, domain, budget)?;
+                    let shared_domain = arena.insert(Term::Sort(domain_sort));
+                    if !convertible(arena, context, domain, two, shared_domain, budget)? {
+                        return Err(CoreError::TypeMismatch {
+                            expected: two,
+                            actual: domain,
+                        });
+                    }
+                    codomain
+                }
+                _ => {
+                    return Err(CoreError::NotAFunction {
+                        function: motive,
+                        actual_type: motive_head,
+                    });
+                }
+            };
+            let codomain_head = weak_head_normalize(arena, codomain, budget)?;
+            match arena.get(codomain_head) {
+                Term::Sort(Sort::Type(_)) => {}
+                Term::Sort(Sort::Strict(_)) => {
+                    return Err(CoreError::StrictCaseMotiveCodomain { codomain });
+                }
+                _ => {
+                    return Err(CoreError::CaseMotiveCodomainNotAUniverse { codomain });
+                }
+            }
+            let two = arena.insert(Term::Two);
+            check_type(arena, context, scrutinee, two, budget)?;
+            let zero = arena.insert(Term::TwoZero);
+            let zero_type = arena.insert(Term::Apply {
+                function: motive,
+                argument: zero,
+            });
+            check_type(arena, context, zero_branch, zero_type, budget)?;
+            let one = arena.insert(Term::TwoOne);
+            let one_type = arena.insert(Term::Apply {
+                function: motive,
+                argument: one,
+            });
+            check_type(arena, context, one_branch, one_type, budget)?;
+            Ok(arena.insert(Term::Apply {
+                function: motive,
+                argument: scrutinee,
+            }))
         }
     }
 }

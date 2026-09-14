@@ -274,6 +274,55 @@ fn encode_term(
             node.u8(9);
             node.u32(pair);
         }
+        Term::Two => {
+            node.u8(10);
+        }
+        Term::TwoZero => {
+            node.u8(11);
+        }
+        Term::TwoOne => {
+            node.u8(12);
+        }
+        Term::CaseTwo {
+            motive,
+            zero_branch,
+            one_branch,
+            scrutinee,
+        } => {
+            let motive = encode_term(table, arena, motive, by_handle, by_bytes, count, depth + 1)?;
+            let zero_branch = encode_term(
+                table,
+                arena,
+                zero_branch,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            let one_branch = encode_term(
+                table,
+                arena,
+                one_branch,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            let scrutinee = encode_term(
+                table,
+                arena,
+                scrutinee,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            node.u8(13);
+            node.u32(motive);
+            node.u32(zero_branch);
+            node.u32(one_branch);
+            node.u32(scrutinee);
+        }
     }
     let bytes = node.finish();
     if let Some(&index) = by_bytes.get(&bytes) {
@@ -369,6 +418,27 @@ fn decode_term(
         9 => {
             let (pair, pair_depth) = child(reader)?;
             (Term::Snd { pair }, 1 + pair_depth)
+        }
+        10 => (Term::Two, 1),
+        11 => (Term::TwoZero, 1),
+        12 => (Term::TwoOne, 1),
+        13 => {
+            let (motive, motive_depth) = child(reader)?;
+            let (zero_branch, zero_depth) = child(reader)?;
+            let (one_branch, one_depth) = child(reader)?;
+            let (scrutinee, scrutinee_depth) = child(reader)?;
+            (
+                Term::CaseTwo {
+                    motive,
+                    zero_branch,
+                    one_branch,
+                    scrutinee,
+                },
+                1 + motive_depth
+                    .max(zero_depth)
+                    .max(one_depth)
+                    .max(scrutinee_depth),
+            )
         }
         tag => return Err(CodecError::InvalidTag("MathematicalTerm", tag)),
     })
@@ -546,6 +616,70 @@ mod tests {
                 "term child does not precede its parent",
             ))
         ));
+    }
+
+    #[test]
+    fn two_primitive_nodes_round_trip_and_verify() {
+        use proof_admission::{Budget, DEFAULT_CONVERSION_STEPS, verify_mathematical_certificate};
+
+        let mut arena = TermArena::new();
+        // Γ = A : Type 0, a : A, t : Two proves
+        // `(caseTwo(C, a, a, zero), caseTwo(C, a, a, one)) : Σ(_:A). A`
+        // for the constant family `C := λ(_:Two). A` — the wire must carry
+        // the `Two` type, both constructors, and the eliminator.
+        let type_zero = type_sort(&mut arena, 0);
+        let a_binding = variable(&mut arena, 0);
+        let two_binding = arena.insert(Term::Two);
+        let family_domain = arena.insert(Term::Two);
+        // Under C's binder (depth 4) A is index 3.
+        let a_under = variable(&mut arena, 3);
+        let family = lambda(&mut arena, family_domain, a_under);
+        let a_term = variable(&mut arena, 1);
+        let zero = arena.insert(Term::TwoZero);
+        let on_zero = arena.insert(Term::CaseTwo {
+            motive: family,
+            zero_branch: a_term,
+            one_branch: a_term,
+            scrutinee: zero,
+        });
+        let a_again = variable(&mut arena, 1);
+        let one = arena.insert(Term::TwoOne);
+        let on_one = arena.insert(Term::CaseTwo {
+            motive: family,
+            zero_branch: a_again,
+            one_branch: a_again,
+            scrutinee: one,
+        });
+        let term = arena.insert(Term::Pair {
+            first: on_zero,
+            second: on_one,
+        });
+        // Σ(_:A). A in depth 3: the domain is index 2, and under the
+        // binder A is index 3.
+        let sigma_domain = variable(&mut arena, 2);
+        let sigma_codomain = variable(&mut arena, 3);
+        let expected = arena.insert(Term::Sigma {
+            domain: sigma_domain,
+            codomain: sigma_codomain,
+        });
+        let certificate = MathematicalCertificate {
+            context: vec![type_zero, a_binding, two_binding],
+            term,
+            expected,
+        };
+        let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+        let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+        // Thirteen distinct nodes: Sort(Type 0), Variable(0), Two,
+        // Variable(3), C's lambda, Variable(1), TwoZero, the `zero`
+        // elimination, TwoOne, the `one` elimination, the pair,
+        // Variable(2), and the Σ.
+        assert_eq!(decoded.arena.len(), 13);
+        verify_mathematical_certificate(
+            &mut decoded.arena,
+            &decoded.certificate,
+            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+        )
+        .expect("the decoded judgment must re-check in the kernel");
     }
 
     #[test]

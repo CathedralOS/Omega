@@ -140,6 +140,88 @@ fn substituting_the_evidence_term_rejects() {
 }
 
 #[test]
+fn a_two_elimination_certificate_verifies_end_to_end() {
+    let mut arena = TermArena::new();
+    // Γ = A : Type 0, a : A, t : Two proves `caseTwo(C, a, a, t) : C t`
+    // for the constant family `C := λ(_:Two). A`; on a constructor
+    // scrutinee the same elimination checks at `A` by computation. The
+    // certificate carries the inductive profile's eliminator as data and
+    // the kernel re-decides it after decode.
+    let type_zero = type_sort(&mut arena, 0);
+    let a_binding = variable(&mut arena, 0);
+    let two_binding = arena.insert(Term::Two);
+    let family = {
+        let domain = arena.insert(Term::Two);
+        // Under C's binder (depth 4) A is index 3.
+        let a_under = variable(&mut arena, 3);
+        lambda(&mut arena, domain, a_under)
+    };
+    let a_term = variable(&mut arena, 1);
+    let scrutinee = variable(&mut arena, 0);
+    let term = arena.insert(Term::CaseTwo {
+        motive: family,
+        zero_branch: a_term,
+        one_branch: a_term,
+        scrutinee,
+    });
+    let expected = arena.insert(Term::Apply {
+        function: family,
+        argument: scrutinee,
+    });
+    let certificate = MathematicalCertificate {
+        context: vec![type_zero, a_binding, two_binding],
+        term,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    verify(&mut decoded).expect("dependent elimination over Two must check");
+
+    // The same elimination on `zero` claims `A` — the result type
+    // computes through the constructor branch after decode.
+    let mut arena = TermArena::new();
+    let type_zero = type_sort(&mut arena, 0);
+    let a_binding = variable(&mut arena, 0);
+    let two_binding = arena.insert(Term::Two);
+    let family = {
+        let domain = arena.insert(Term::Two);
+        let a_under = variable(&mut arena, 3);
+        lambda(&mut arena, domain, a_under)
+    };
+    let a_term = variable(&mut arena, 1);
+    let zero = arena.insert(Term::TwoZero);
+    let term = arena.insert(Term::CaseTwo {
+        motive: family,
+        zero_branch: a_term,
+        one_branch: a_term,
+        scrutinee: zero,
+    });
+    let a_type = variable(&mut arena, 2);
+    let certificate = MathematicalCertificate {
+        context: vec![type_zero, a_binding, two_binding],
+        term,
+        expected: a_type,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    verify(&mut decoded).expect("constructor computation decides the type");
+
+    // The same elimination claimed at `Two` is a different, false
+    // judgment.
+    let certificate = MathematicalCertificate {
+        context: vec![type_zero, a_binding, two_binding],
+        term,
+        expected: two_binding,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    assert!(matches!(
+        verify(&mut decoded),
+        Err(CoreError::TypeMismatch { .. })
+    ));
+}
+
+#[test]
 fn byte_level_forgery_cannot_alias_a_certificate() {
     let mut arena = TermArena::new();
     let (identity, expected) = polymorphic_identity(&mut arena);

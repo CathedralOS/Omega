@@ -43,6 +43,33 @@ fn snd(arena: &mut TermArena, pair: TermHandle) -> TermHandle {
     arena.insert(Term::Snd { pair })
 }
 
+fn two(arena: &mut TermArena) -> TermHandle {
+    arena.insert(Term::Two)
+}
+
+fn two_zero(arena: &mut TermArena) -> TermHandle {
+    arena.insert(Term::TwoZero)
+}
+
+fn two_one(arena: &mut TermArena) -> TermHandle {
+    arena.insert(Term::TwoOne)
+}
+
+fn case_two(
+    arena: &mut TermArena,
+    motive: TermHandle,
+    zero_branch: TermHandle,
+    one_branch: TermHandle,
+    scrutinee: TermHandle,
+) -> TermHandle {
+    arena.insert(Term::CaseTwo {
+        motive,
+        zero_branch,
+        one_branch,
+        scrutinee,
+    })
+}
+
 fn default_budget() -> Budget {
     Budget::new(DEFAULT_CONVERSION_STEPS)
 }
@@ -939,4 +966,310 @@ fn function_eta_never_deletes_an_untyped_wrapper() {
 
     // Nor does an eta-expanded comparison succeed in the other direction.
     assert!(!convertible(&mut arena, &context, f, wrapped, neutral_type, &mut budget,).unwrap());
+}
+
+#[test]
+fn two_forms_and_introduces() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let empty = Context::empty();
+
+    // Formation: `Two : Type 0`, a ground relevant type that does not
+    // inhabit its own universe.
+    let two_type = two(&mut arena);
+    let inferred = infer_type(&mut arena, &empty, two_type, &mut budget).unwrap();
+    let expected = type_sort(&mut arena, 0);
+    assert!(arena.structurally_equal(inferred, expected));
+
+    // Introduction: `zero : Two` and `one : Two`.
+    let zero = two_zero(&mut arena);
+    let one = two_one(&mut arena);
+    let zero_type = infer_type(&mut arena, &empty, zero, &mut budget).unwrap();
+    let one_type = infer_type(&mut arena, &empty, one, &mut budget).unwrap();
+    assert!(arena.structurally_equal(zero_type, two_type));
+    assert!(arena.structurally_equal(one_type, two_type));
+
+    // The constructors are definitionally distinct relevant data.
+    assert!(convertible(&mut arena, &empty, zero, zero, two_type, &mut budget).unwrap());
+    assert!(!convertible(&mut arena, &empty, zero, one, two_type, &mut budget).unwrap());
+}
+
+/// `M := λ(_ : Two). Type 0` — the motive the large-elimination family
+/// uses to return a universe per branch.
+fn universe_motive(arena: &mut TermArena) -> TermHandle {
+    let domain = two(arena);
+    let body = type_sort(arena, 0);
+    lambda(arena, domain, body)
+}
+
+/// `C := λ(t : Two). caseTwo(M, Π(_ : Two). Two, Two, t)` — a closed
+/// family `Π(_ : Two). Type 0` landing at a function type on `zero` and
+/// at `Two` on `one`, so the two branches of an outer elimination are
+/// checked at definitionally different types.
+fn branching_family(arena: &mut TermArena) -> TermHandle {
+    let motive = universe_motive(arena);
+    let domain = two(arena);
+    let codomain = two(arena);
+    let function_type = pi(arena, domain, codomain);
+    let one_landing = two(arena);
+    let bound = variable(arena, 0);
+    let body = case_two(arena, motive, function_type, one_landing, bound);
+    let domain = two(arena);
+    lambda(arena, domain, body)
+}
+
+#[test]
+fn dependent_two_elimination_checks_at_branch_specific_types() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context t : Two. The family C above gives `C zero ≡ Π(_:Two).Two`
+    // and `C one ≡ Two`; a `λ(_:Two).zero` checks only at the first and a
+    // bare `zero` only at the second.
+    let two_type = two(&mut arena);
+    let context = Context::empty().extend(two_type);
+    let family = branching_family(&mut arena);
+    let function_body = two_zero(&mut arena);
+    let function_domain = two(&mut arena);
+    let function_witness = lambda(&mut arena, function_domain, function_body);
+    let one_witness = two_zero(&mut arena);
+    let scrutinee = variable(&mut arena, 0);
+    let elimination = case_two(&mut arena, family, function_witness, one_witness, scrutinee);
+
+    // `caseTwo(C, λ(_:Two).zero, zero, t) : C t`.
+    let expected = apply(&mut arena, family, scrutinee);
+    check_type(&mut arena, &context, elimination, expected, &mut budget).unwrap();
+
+    // Swapped branches reject: each is checked at its own constructor's
+    // landing, not at a shared supertype.
+    let wrong_zero = two_zero(&mut arena);
+    let wrong_one_domain = two(&mut arena);
+    let wrong_one_body = two_zero(&mut arena);
+    let wrong_one = lambda(&mut arena, wrong_one_domain, wrong_one_body);
+    let swapped = case_two(&mut arena, family, wrong_zero, one_witness, scrutinee);
+    let error = infer_type(&mut arena, &context, swapped, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+    let swapped = case_two(&mut arena, family, function_witness, wrong_one, scrutinee);
+    let error = infer_type(&mut arena, &context, swapped, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+}
+
+#[test]
+fn case_two_computes_on_each_constructor_and_stays_stuck_on_neutrals() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context t : Two, u : Two. In depth 2, t is index 1 and u is index 0.
+    let two_type = two(&mut arena);
+    let context = Context::empty().extend(two_type).extend(two_type);
+    let family = branching_family(&mut arena);
+    let function_body = two_zero(&mut arena);
+    let function_domain = two(&mut arena);
+    let function_witness = lambda(&mut arena, function_domain, function_body);
+    let one_witness = two_zero(&mut arena);
+
+    // `caseTwo(C, d0, d1, zero) → d0` and `… one → d1`: each computation
+    // consumes one step and lands on the supplied branch.
+    let zero = two_zero(&mut arena);
+    let on_zero = case_two(&mut arena, family, function_witness, one_witness, zero);
+    let normalized = weak_head_normalize(&mut arena, on_zero, &mut budget).unwrap();
+    assert_eq!(normalized, function_witness);
+    let one = two_one(&mut arena);
+    let on_one = case_two(&mut arena, family, function_witness, one_witness, one);
+    let normalized = weak_head_normalize(&mut arena, on_one, &mut budget).unwrap();
+    assert_eq!(normalized, one_witness);
+
+    // The computed result's type follows the same reduction: the type of
+    // `caseTwo C d0 d1 zero` is `C zero`, which normalizes to
+    // `Π(_:Two).Two`, and `C one` normalizes to `Two`.
+    let result_type = infer_type(&mut arena, &context, on_zero, &mut budget).unwrap();
+    let normalized_type = weak_head_normalize(&mut arena, result_type, &mut budget).unwrap();
+    let function_domain = two(&mut arena);
+    let function_codomain = two(&mut arena);
+    let expected_type = pi(&mut arena, function_domain, function_codomain);
+    assert!(arena.structurally_equal(normalized_type, expected_type));
+    let result_type = infer_type(&mut arena, &context, on_one, &mut budget).unwrap();
+    let normalized_type = weak_head_normalize(&mut arena, result_type, &mut budget).unwrap();
+    let expected_type = two(&mut arena);
+    assert!(arena.structurally_equal(normalized_type, expected_type));
+
+    // A neutral scrutinee keeps the elimination stuck; normalization
+    // returns the same node rather than guessing a branch.
+    let t = variable(&mut arena, 1);
+    let stuck = case_two(&mut arena, family, function_witness, one_witness, t);
+    let normalized = weak_head_normalize(&mut arena, stuck, &mut budget).unwrap();
+    assert_eq!(normalized, stuck);
+
+    // Stuck eliminations convert componentwise: identical motive,
+    // branches and scrutinee convert; a different scrutinee does not.
+    // The constant family `λ(_:Two).Two` keeps both sides at `Two` so the
+    // shared type is honest.
+    let constant_domain = two(&mut arena);
+    let constant_body = two(&mut arena);
+    let constant = lambda(&mut arena, constant_domain, constant_body);
+    let t = variable(&mut arena, 1);
+    let u = variable(&mut arena, 0);
+    let left = case_two(&mut arena, constant, zero, one, t);
+    let left_again = case_two(&mut arena, constant, zero, one, t);
+    let right = case_two(&mut arena, constant, zero, one, u);
+    assert!(
+        convertible(
+            &mut arena,
+            &context,
+            left,
+            left_again,
+            two_type,
+            &mut budget
+        )
+        .unwrap()
+    );
+    assert!(!convertible(&mut arena, &context, left, right, two_type, &mut budget).unwrap());
+
+    // Constructor computation is a budgeted step: an exhausted budget
+    // refuses instead of reporting a judgment.
+    let mut empty_budget = Budget::new(0);
+    let error = weak_head_normalize(&mut arena, on_zero, &mut empty_budget).unwrap_err();
+    assert_eq!(error, CoreError::StepCeiling);
+}
+
+#[test]
+fn case_two_rejects_motive_and_scrutinee_violations() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context P : Strict 0, A : Type 0, a : A, t : Two. In depth 4, P is
+    // index 3, A is index 2, a is index 1 and t is index 0.
+    let strict_zero = strict_sort(&mut arena, 0);
+    let type_zero = type_sort(&mut arena, 0);
+    let a_type = variable(&mut arena, 1);
+    let two_type = two(&mut arena);
+    let context = Context::empty()
+        .extend(strict_zero)
+        .extend(type_zero)
+        .extend(a_type)
+        .extend(two_type);
+    let t = variable(&mut arena, 0);
+    let a = variable(&mut arena, 1);
+
+    // A strict motive `λ(_:Two). P` lands in `Strict 0`: the eliminator
+    // targets relevant `Type`, and boxing owns strict targets.
+    let strict_body = variable(&mut arena, 4);
+    let strict_motive_domain = two(&mut arena);
+    let strict_motive = lambda(&mut arena, strict_motive_domain, strict_body);
+    let elimination = case_two(&mut arena, strict_motive, a, a, t);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::StrictCaseMotiveCodomain { .. }));
+
+    // A motive into a non-universe `λ(_:Two). a` leaves `C t` without a
+    // type to check against.
+    let term_body = variable(&mut arena, 2);
+    let term_motive_domain = two(&mut arena);
+    let term_motive = lambda(&mut arena, term_motive_domain, term_body);
+    let elimination = case_two(&mut arena, term_motive, a, a, t);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(
+        error,
+        CoreError::CaseMotiveCodomainNotAUniverse { .. }
+    ));
+
+    // A motive over a different domain `λ(x:A). Type 0` is not a
+    // `Two`-family.
+    let wrong_domain = variable(&mut arena, 2);
+    let wrong_body = type_sort(&mut arena, 0);
+    let wrong_motive = lambda(&mut arena, wrong_domain, wrong_body);
+    let elimination = case_two(&mut arena, wrong_motive, a, a, t);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+
+    // A motive that is not a function at all cannot name a family.
+    let not_a_function = two_zero(&mut arena);
+    let elimination = case_two(&mut arena, not_a_function, a, a, t);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::NotAFunction { .. }));
+
+    // The scrutinee must be a `Two`: `a : A` is not.
+    let motive = universe_motive(&mut arena);
+    let branch_type = type_sort(&mut arena, 0);
+    let elimination = case_two(&mut arena, motive, branch_type, branch_type, a);
+    let error = infer_type(&mut arena, &context, elimination, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+}
+
+#[test]
+fn pointwise_two_agreement_grants_no_function_equality() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context D : Π(_:Two). Type 0, f : Π(t:Two). D t. In depth 2, D is
+    // index 1 and f is index 0; under f's own binder D is index 1.
+    let two_type = two(&mut arena);
+    let result_sort = type_sort(&mut arena, 0);
+    let family_type = pi(&mut arena, two_type, result_sort);
+    let applied_family = {
+        let family = variable(&mut arena, 1);
+        let bound = variable(&mut arena, 0);
+        apply(&mut arena, family, bound)
+    };
+    let function_domain = two(&mut arena);
+    let function_type = pi(&mut arena, function_domain, applied_family);
+    let context = Context::empty().extend(family_type).extend(function_type);
+
+    // The shared type `Π(t:Two). D t` in depth 2: under the binder D is
+    // index 2.
+    let shared_domain = two(&mut arena);
+    let shared_codomain = {
+        let family = variable(&mut arena, 2);
+        let bound = variable(&mut arena, 0);
+        apply(&mut arena, family, bound)
+    };
+    let shared_type = pi(&mut arena, shared_domain, shared_codomain);
+
+    // `x ↦ caseTwo(D, f zero, f one, x)` agrees with `f` on every
+    // constructor yet is not `f`: there is no `Two` eta law, and function
+    // eta only compares the wrapper's body to `f x`, where a stuck
+    // elimination never matches a plain application.
+    let wrapped = {
+        let family = variable(&mut arena, 2);
+        let zero = two_zero(&mut arena);
+        let f_at_zero = {
+            let f = variable(&mut arena, 1);
+            apply(&mut arena, f, zero)
+        };
+        let one = two_one(&mut arena);
+        let f_at_one = {
+            let f = variable(&mut arena, 1);
+            apply(&mut arena, f, one)
+        };
+        let bound = variable(&mut arena, 0);
+        let body = case_two(&mut arena, family, f_at_zero, f_at_one, bound);
+        let domain = two(&mut arena);
+        lambda(&mut arena, domain, body)
+    };
+    let f = variable(&mut arena, 0);
+    assert!(!convertible(&mut arena, &context, wrapped, f, shared_type, &mut budget).unwrap());
+    assert!(!convertible(&mut arena, &context, f, wrapped, shared_type, &mut budget).unwrap());
+
+    // The wrapper still typechecks: the elimination is well-formed at
+    // `Π(t:Two). D t`, it just does not collapse to `f`.
+    check_type(&mut arena, &context, wrapped, shared_type, &mut budget).unwrap();
+
+    // Control: ordinary function eta over the `Two` domain still holds.
+    let eta_wrapped = {
+        let f_under = variable(&mut arena, 1);
+        let bound = variable(&mut arena, 0);
+        let body = apply(&mut arena, f_under, bound);
+        let domain = two(&mut arena);
+        lambda(&mut arena, domain, body)
+    };
+    assert!(
+        convertible(
+            &mut arena,
+            &context,
+            eta_wrapped,
+            f,
+            shared_type,
+            &mut budget
+        )
+        .unwrap()
+    );
 }

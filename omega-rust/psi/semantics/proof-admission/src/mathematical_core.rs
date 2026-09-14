@@ -2,7 +2,11 @@
 //! PROOF-KERNEL-CORE board item requires, with its independent checker for the
 //! dependent-function and dependent-pair fragment of the predicative sMLTT
 //! reference core (Gilbert, Cockx, Sozeau and Tabareau, *Definitional
-//! Proof-Irrelevance without K*, sections 3.1-3.6). The checker never
+//! Proof-Irrelevance without K*, sections 3.1-3.6) plus the first primitive
+//! of the selected [W-based inductive
+//! profile](../../../../wiki/spec/proofs/inductive_profile.md): the
+//! two-element type `Two` with `zero`/`one` introduction and dependent
+//! `caseTwo` elimination computing on each constructor. The checker never
 //! searches: producers elaborate terms, this kernel re-decides formation,
 //! typing and permitted conversion, and producer success flags are never
 //! trusted as evidence.
@@ -37,8 +41,24 @@
 //! profile's typed function eta: at a `Pi` shared type a lambda and a
 //! non-lambda convert exactly when the non-lambda applied to the fresh
 //! variable converts to the lambda's body, so the wrapper rule is decided
-//! by the type and never deletes an untyped `x ↦ f x` shape. Level
-//! variables and universe-polymorphic declarations remain separate steps.
+//! by the type and never deletes an untyped `x ↦ f x` shape.
+//!
+//! `Two` is the profile's simplest primitive inductive: formation fixes it
+//! at `Type 0`, and `caseTwo(C, d0, d1, t)` checks `C` as a family
+//! `Π(_ : Two). Type w` with the motive level `w` read off the checked
+//! codomain rather than confined to the scrutinee's level. The eliminator
+//! targets relevant `Type` only — a motive whose codomain normalizes to a
+//! `Strict` sort rejects, since strict targets belong to the reference
+//! core's boxing rules. Each branch is checked at the motive applied to
+//! its own constructor, so a family returning different types per branch
+//! (large elimination) is supported; a scrutinee that weak-head
+//! normalizes to `zero` or `one` selects its branch as a budgeted
+//! computation step, while a neutral scrutinee keeps the elimination
+//! stuck and conversion compares stuck eliminations componentwise. The
+//! profile adds no `Two` eta law: pointwise agreement of `f` on both
+//! constructors never makes `x ↦ caseTwo(C, f zero, f one, x)` convert
+//! to `f`. Level variables and universe-polymorphic declarations remain
+//! separate steps.
 
 mod certificate;
 mod conversion;

@@ -1,5 +1,6 @@
 //! Term model for the common mathematical core: closed universe levels,
-//! relevant and strict sorts, and arena-held de Bruijn terms.
+//! relevant and strict sorts, arena-held de Bruijn terms, and the selected
+//! inductive profile's two-element type.
 
 use arena::Arena;
 
@@ -80,6 +81,21 @@ pub enum Term {
     },
     Snd {
         pair: TermHandle,
+    },
+    /// The profile's two-element type `Two : Type 0` with constructors
+    /// `zero` and `one`. `Two` is a type constant, not a sort, so it
+    /// inhabits `Type 0` rather than a universe above itself.
+    Two,
+    TwoZero,
+    TwoOne,
+    /// Dependent `Two` elimination `caseTwo(motive, zero_branch,
+    /// one_branch, scrutinee)`. No child lives under a binder; the motive
+    /// is an ordinary `Π(_ : Two). Type w` term.
+    CaseTwo {
+        motive: TermHandle,
+        zero_branch: TermHandle,
+        one_branch: TermHandle,
+        scrutinee: TermHandle,
     },
 }
 
@@ -177,6 +193,28 @@ impl TermArena {
             (Term::Fst { pair: left }, Term::Fst { pair: right })
             | (Term::Snd { pair: left }, Term::Snd { pair: right }) => {
                 self.structurally_equal(left, right)
+            }
+            (Term::Two, Term::Two)
+            | (Term::TwoZero, Term::TwoZero)
+            | (Term::TwoOne, Term::TwoOne) => true,
+            (
+                Term::CaseTwo {
+                    motive: left_motive,
+                    zero_branch: left_zero_branch,
+                    one_branch: left_one_branch,
+                    scrutinee: left_scrutinee,
+                },
+                Term::CaseTwo {
+                    motive: right_motive,
+                    zero_branch: right_zero_branch,
+                    one_branch: right_one_branch,
+                    scrutinee: right_scrutinee,
+                },
+            ) => {
+                self.structurally_equal(left_motive, right_motive)
+                    && self.structurally_equal(left_zero_branch, right_zero_branch)
+                    && self.structurally_equal(left_one_branch, right_one_branch)
+                    && self.structurally_equal(left_scrutinee, right_scrutinee)
             }
             _ => false,
         }
