@@ -3,9 +3,13 @@
 //! correspondence before source erasure and bind it to the exact Terminal
 //! attachment and retained or erased receiver projection.
 //! It is not a standalone proof from source-free Terminal bytes or root authority.
+//! Byte carriers erase their domain predicates, so empty-buffer eligibility must
+//! rejoin the actual source field and evaluate every understood value constraint.
 
-use checked_trees::data::DataMember;
-use checked_trees::types::TypeReferenceNode;
+use checked_trees::data::{DataDefinition, DataMember};
+use checked_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use checked_trees::{CheckedTerminalMachineSelection, CheckedTrees};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralFieldType, StructuralTypeShape, TerminalModule};
@@ -191,18 +195,13 @@ pub(super) fn derive(
     // Erased qualification establishment remains an independent installed
     // occurrence obligation; this correspondence supplies no Bound authority.
     if structural_type.identity != owned_receiver_type_identity
-        || fields.iter().any(|field| match field.field_type {
-            StructuralFieldType::Scalar(_)
-            | StructuralFieldType::BoundedInteger(_)
-            | StructuralFieldType::IeeeFloat(_)
-            | StructuralFieldType::Erased { .. } => false,
-            StructuralFieldType::Structural(structural_type) => !zero_valid_record_storage(
-                &module.structural_types,
-                structural_type,
-                &mut vec![terminal_receiver_type],
-            ),
-            _ => true,
-        })
+        || !zero_valid_record_storage(
+            checked,
+            &module.structural_types,
+            terminal_receiver_type,
+            Some(definition),
+            &mut Vec::new(),
+        )
     {
         return None;
     }
@@ -258,8 +257,10 @@ pub(super) fn derive(
 }
 
 fn zero_valid_record_storage(
+    checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
+    source: Option<&DataDefinition>,
     visiting: &mut Vec<StructuralTypeId>,
 ) -> bool {
     if visiting.contains(&structural_type) {
@@ -278,9 +279,10 @@ fn zero_valid_record_storage(
         return terminal_semantics::scalar_array_leaf_shape(declarations.iter(), structural_type)
             .is_some();
     };
+    let is_receiver = visiting.is_empty();
     visiting.push(structural_type);
     let valid = fields.iter().all(|field| {
-        !field.relevance.is_erased()
+        (is_receiver || !field.relevance.is_erased())
             && match field.field_type {
                 StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => true,
                 StructuralFieldType::BoundedInteger(integer) => {
@@ -288,14 +290,112 @@ fn zero_valid_record_storage(
                         || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0))
                 }
                 StructuralFieldType::Structural(child) => {
-                    zero_valid_record_storage(declarations, child, visiting)
+                    let reference = source_field_type(checked, source, field);
+                    let source = source_record(checked, reference).filter(|_| {
+                        declarations.iter().any(|declaration| {
+                            declaration.id == child
+                                && declaration.identity
+                                    == checked.normalized_type_identity(reference).into_string()
+                        })
+                    });
+                    zero_valid_record_storage(checked, declarations, child, source, visiting)
                 }
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                ) => zero_valid_byte_field(
+                    checked,
+                    source_field_type(checked, source, field),
+                    capacity,
+                ),
                 // Only the top-level receiver joins erased service establishment.
-                StructuralFieldType::Erased { .. } | StructuralFieldType::ByteSequence(_) => false,
+                StructuralFieldType::Erased { .. } => is_receiver,
+                StructuralFieldType::ByteSequence(_) => false,
             }
     });
     visiting.pop();
     valid
+}
+
+fn source_field_type(
+    checked: &CheckedTrees,
+    source: Option<&DataDefinition>,
+    field: &terminal_psi::StructuralFieldDeclaration,
+) -> TypeReferenceHandle {
+    let Some(source) = source else {
+        return TypeReferenceHandle::invalid();
+    };
+    checked
+        .data_members(source)
+        .iter()
+        .find_map(|member| {
+            let DataMember::Field(candidate) = member else {
+                return None;
+            };
+            let matches = match candidate.identity {
+                Some(identity) => field.identity == format!("#{identity}"),
+                None => field.identity == candidate.name.as_str(),
+            };
+            matches.then_some(candidate.type_reference)
+        })
+        .unwrap_or_default()
+}
+
+fn source_record(
+    checked: &CheckedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<&DataDefinition> {
+    let TypeReferenceNode::Named { symbol, .. } =
+        checked.type_reference_table.type_reference(reference)
+    else {
+        // Refined nominal paths need their own zero-membership evidence. Do
+        // not strip those constraints merely to reach a nested byte field.
+        return None;
+    };
+    checked.data_definitions().iter().find(|definition| {
+        definition.symbol == *symbol
+            && checked.data_type_parameters(definition).is_empty()
+            && checked
+                .proof_facts
+                .span_or_empty(definition.where_facts)
+                .is_empty()
+    })
+}
+
+fn zero_valid_byte_field(
+    checked: &CheckedTrees,
+    reference: TypeReferenceHandle,
+    capacity: u64,
+) -> bool {
+    // Stable contents classify every constraint and exclude authority-bearing,
+    // routed and unknown refinements. Stability alone is not membership: the
+    // same resolved predicate denotation used by source checking must accept
+    // the empty value for every domain, not merely one named Utf8.
+    if !validation::has_stable_observable_contents(&checked.typed, reference) {
+        return false;
+    }
+    let predicates =
+        checked_trees::byte_predicates::type_reference_domain_predicates(&checked.typed, reference);
+    if predicates.is_empty()
+        || !predicates
+            .iter()
+            .all(|(_, predicate)| predicate.is_some_and(|predicate| predicate.holds_for(&[])))
+    {
+        return false;
+    }
+    let mut carrier = reference;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        checked.type_reference_table.type_reference(carrier)
+    {
+        carrier = *base_type;
+    }
+    matches!(
+        checked.type_reference_table.type_reference(carrier),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } if u64::try_from(*length).ok() == Some(capacity)
+            && checked.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
+    )
 }
 
 #[cfg(test)]
@@ -316,6 +416,135 @@ mod tests {
 
     const SOURCE: &str =
         "data Main { value: i32; } machine Main::run(&mut self) { self.value = 7; }";
+
+    #[test]
+    fn byte_receiver_zero_eligibility_rejoins_direct_and_named_nested_fields() {
+        for (capacity, predicate) in [(3, "valid_utf8"), (9, "ascii_only"), (0, "no_nul")] {
+            let checked = check_source(&format!(
+                "domain [u8; {capacity}]::SafeBytes requires {predicate}(self);
+                 data Child {{ #7 bytes: [u8; {capacity}] in SafeBytes; }}
+                 data Main {{ value: i32; direct: [u8; {capacity}] in SafeBytes; child: Child; }}
+                 machine Main::run(&mut self) {{ self.value = 7; }}"
+            ));
+            let produced = TerminalProductionRequest::new(&checked, "Main::run")
+                .produce_program_entry([7; 32])
+                .unwrap();
+            assert!(
+                produced.receipt().receiver_eligibility().is_some(),
+                "{predicate}"
+            );
+            let module =
+                terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+            let selection =
+                checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run")
+                    .unwrap();
+            for corruption in 0..4 {
+                let mut changed = module.clone();
+                let declaration = changed
+                    .structural_types
+                    .iter_mut()
+                    .find(|declaration| declaration.identity == "named(name(Child))")
+                    .unwrap();
+                let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+                    panic!("child record");
+                };
+                match corruption {
+                    0 => fields[0].identity = "bytes".into(),
+                    1 => {
+                        fields[0].field_type = StructuralFieldType::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                                capacity: capacity + 1,
+                            },
+                        )
+                    }
+                    2 => {
+                        fields[0].field_type = StructuralFieldType::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView,
+                        )
+                    }
+                    _ => declaration.identity = "named(name(OtherChild))".into(),
+                }
+                assert!(
+                    derive(&checked, selection, &changed).is_none(),
+                    "{predicate}: {corruption}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn byte_receiver_cannot_gain_domain_membership_from_a_relabelled_raw_array() {
+        let checked = check_source(
+            "data Main { value: i32; bytes: [u8; 3]; }
+             machine Main::run(&mut self) { self.value = 7; }",
+        );
+        let produced = TerminalProductionRequest::new(&checked, "Main::run")
+            .produce_program_entry([7; 32])
+            .unwrap();
+        assert!(produced.receipt().receiver_eligibility().is_some());
+        let mut module =
+            terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        let declaration = module
+            .structural_types
+            .iter_mut()
+            .find(|declaration| declaration.identity == "named(name(Main))")
+            .unwrap();
+        let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+            panic!("receiver record");
+        };
+        fields
+            .iter_mut()
+            .find(|field| field.identity == "bytes")
+            .unwrap()
+            .field_type =
+            StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                capacity: 3,
+            });
+        let selection =
+            checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run").unwrap();
+        assert!(derive(&checked, selection, &module).is_none());
+    }
+
+    #[test]
+    fn byte_receiver_zero_eligibility_requires_every_resolved_domain_predicate() {
+        for (domains, constraint, eligible) in [
+            (
+                "domain [u8; 3]::First requires valid_utf8(self); domain [u8; 3]::Second requires no_nul(self);",
+                "First & Second",
+                true,
+            ),
+            (
+                "domain [u8; 3]::Utf8 requires non_empty(self);",
+                "Utf8",
+                false,
+            ),
+            (
+                "domain [u8; 3]::First requires valid_utf8(self); domain [u8; 3]::Second requires non_empty(self);",
+                "First & Second",
+                false,
+            ),
+            (
+                "domain [u8; 3]::Extra requires valid_utf8(self); non_empty(self);",
+                "Extra",
+                false,
+            ),
+        ] {
+            let checked = check_source(&format!(
+                "{domains}
+                 data Child {{ bytes: [u8; 3] in {constraint}; }}
+                 data Main {{ value: i32; child: Child; }}
+                 machine Main::run(&mut self) {{ self.value = 7; }}"
+            ));
+            let produced = TerminalProductionRequest::new(&checked, "Main::run")
+                .produce_program_entry([7; 32])
+                .unwrap();
+            assert_eq!(
+                produced.receipt().receiver_eligibility().is_some(),
+                eligible,
+                "{domains}"
+            );
+        }
+    }
 
     #[test]
     fn nested_receiver_storage_requires_complete_zero_valid_records() {

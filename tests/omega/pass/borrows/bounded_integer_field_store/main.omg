@@ -1,9 +1,16 @@
 use omega_language_std::console;
 use omega::language::core::service;
 
+domain [u8; 3]::Utf8 requires valid_utf8(self);
+domain [u8; 9]::Ascii requires ascii_only(self);
+domain [u8; 0]::NoNul requires no_nul(self);
+
 data Counter [copy] {
+    prefix: [u8; 3] in Utf8;
     value: i32 [0..=16];
+    middle: [u8; 9] in Ascii;
     signed: i8 [-5..=5];
+    suffix: [u8; 0] in NoNul;
 }
 
 machine Counter::replace(&mut self) {
@@ -25,6 +32,7 @@ machine Counter::step(&mut self) {
 
 data Main {
     console: Service<Console> in Bound;
+    text: [u8; 9] in Ascii;
     counter: Counter;
 }
 
