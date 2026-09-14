@@ -2098,6 +2098,1017 @@ fn installation_dynamic_parameter_call_rejects_every_one_field_substitution() {
 }
 
 #[test]
+fn installation_stored_dynamic_call_rejects_every_one_field_substitution() {
+    let artifact =
+        build_object_artifact(&stored_dynamic_call_plan()).expect("stored dynamic object artifact");
+    assert_eq!(artifact.dynamic_conformance_tables().len(), 1);
+    assert_eq!(artifact.dynamic_conformance_tables()[0].slots.len(), 2);
+    let image = emit_executable_image(&artifact, 3).expect("stored dynamic image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
+        .expect("stored dynamic installation");
+    validate_installation_record(&record, &image).expect("authentic binding");
+    assert_eq!(record.dynamic_conformance_tables().len(), 1);
+    assert_eq!(record.stored_dynamic_calls().len(), 1);
+    let authentic = record.stored_dynamic_calls()[0];
+    assert_eq!(authentic.machine, machine_id(3));
+    assert_eq!(authentic.establishment_operation, operation_id(4));
+    assert_eq!(authentic.operation, operation_id(5));
+    assert_eq!(authentic.descriptor_ordinal, 0);
+    assert_eq!(authentic.selection_ordinal, 0);
+    assert_eq!(authentic.source, PlaceId::new(1).expect("place"));
+    assert_eq!(authentic.descriptor_home_byte_offset, 0);
+    assert_eq!(authentic.selected_table_byte_offset, 0);
+    assert_eq!(authentic.realization, machine_id(2));
+    let authentic_fingerprint =
+        installation_fingerprint(&record).expect("authentic installation fingerprint");
+
+    let caller = record
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(3))
+        .expect("stored dynamic caller row");
+    let function_text_offset = caller.text_offset;
+    let function_text_end = function_text_offset + caller.byte_count;
+    assert_eq!(authentic.establishment_text_offset, function_text_offset);
+    assert_eq!(authentic.establishment_byte_count, 25);
+    assert_eq!(authentic.text_offset, function_text_offset + 25);
+    assert_eq!(authentic.byte_count, 32);
+
+    // These one-field substitutions remain representable: they encode and
+    // decode canonically, recompute to a different installation identity, and
+    // independent replay against the unchanged image rejects them.
+    type StillEncodedMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+    );
+    let still_encodes: Vec<StillEncodedMutation> = vec![
+        (
+            "table::application_report_fingerprint",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0]
+                    .application_report_fingerprint = u64::MAX;
+            }),
+        ),
+        (
+            "table::slots[1]::target",
+            Box::new(|record| {
+                record.dynamic_conformance_tables_mut_for_test()[0].slots[1].target =
+                    Some(machine_id(1));
+            }),
+        ),
+        (
+            "call::operation",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].operation = operation_id(98);
+            }),
+        ),
+        (
+            "call::establishment_operation",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].establishment_operation =
+                    operation_id(98);
+            }),
+        ),
+        (
+            "call::descriptor_ordinal",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].descriptor_ordinal = 1;
+            }),
+        ),
+        (
+            "call::selection_ordinal",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].selection_ordinal = 1;
+            }),
+        ),
+        (
+            "call::descriptor_home_byte_offset",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].descriptor_home_byte_offset = 8;
+            }),
+        ),
+        (
+            "call::establishment_byte_count",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].establishment_byte_count -= 1;
+            }),
+        ),
+        (
+            "call::text_offset",
+            Box::new(move |record| {
+                record.stored_dynamic_calls_mut_for_test()[0].text_offset =
+                    function_text_offset + 26;
+            }),
+        ),
+        (
+            "call::byte_count",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].byte_count -= 1;
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted record encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted record decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted record"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted record"
+        );
+    }
+
+    // Canonical record-shape joins reject every other one-field substitution
+    // at encoding, before any identity or replay could accept it.
+    let foreign_commitment =
+        terminal_psi::ClosedConformanceApplicationCommitment::from_digest([7; 32]);
+    type RejectedMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+        InstallationError,
+    );
+    let rejected: Vec<RejectedMutation> = vec![
+        (
+            "call::machine::unknown",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].machine = machine_id(98);
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(98)),
+        ),
+        (
+            "call::machine::other_function",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].machine = machine_id(1);
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(1)),
+        ),
+        (
+            "call::source::unknown_place",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].source =
+                    PlaceId::new(98).expect("place");
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::application_commitment",
+            Box::new(move |record| {
+                record.stored_dynamic_calls_mut_for_test()[0].application_commitment =
+                    foreign_commitment;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::selected_table_byte_offset::unresolved_row",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].selected_table_byte_offset = 8;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::selected_table_byte_offset::misaligned",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].selected_table_byte_offset = 7;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::selected_table_byte_offset::past_rows",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].selected_table_byte_offset = 16;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::realization::not_selected",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].realization = machine_id(1);
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::descriptor_home_byte_offset::misaligned",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].descriptor_home_byte_offset = 4;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::establishment_text_offset::before_function",
+            Box::new(move |record| {
+                record.stored_dynamic_calls_mut_for_test()[0].establishment_text_offset =
+                    function_text_offset - 1;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::establishment_text_offset::inside",
+            Box::new(move |record| {
+                record.stored_dynamic_calls_mut_for_test()[0].establishment_text_offset =
+                    function_text_offset + 1;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::establishment_byte_count::empty",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].establishment_byte_count = 0;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::establishment_byte_count::overlaps_call",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].establishment_byte_count += 1;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::text_offset::inside_establishment",
+            Box::new(move |record| {
+                record.stored_dynamic_calls_mut_for_test()[0].text_offset =
+                    function_text_offset + 24;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::text_offset::past_function",
+            Box::new(move |record| {
+                record.stored_dynamic_calls_mut_for_test()[0].text_offset = function_text_end;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::byte_count::empty",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].byte_count = 0;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+        (
+            "call::byte_count::past_function",
+            Box::new(|record| {
+                record.stored_dynamic_calls_mut_for_test()[0].byte_count += 100;
+            }),
+            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: canonical encoding rejects the substitution"
+        );
+    }
+
+    // Roster-level custody: dropping the only stored call leaves the emitted
+    // conformance table unreferenced, a duplicated call collides on the
+    // canonical establishment/dispatch ordering, and table roster mutations
+    // hit the data-layout and commitment canonicality joins.
+    let mut dropped_call = record.clone();
+    dropped_call.stored_dynamic_calls_mut_for_test().pop();
+    assert_eq!(
+        encode_installation_record(&dropped_call),
+        Err(InstallationError::InvalidDynamicConformanceTable)
+    );
+    let mut duplicated_call = record.clone();
+    let call = duplicated_call.stored_dynamic_calls()[0];
+    duplicated_call
+        .stored_dynamic_calls_mut_for_test()
+        .push(call);
+    assert_eq!(
+        encode_installation_record(&duplicated_call),
+        Err(InstallationError::InvalidStoredDynamicCall(machine_id(3)))
+    );
+    let mut dropped_table = record.clone();
+    dropped_table
+        .dynamic_conformance_tables_mut_for_test()
+        .pop();
+    assert_eq!(
+        encode_installation_record(&dropped_table),
+        Err(InstallationError::InvalidImageSectionLayout)
+    );
+    let mut duplicated_table = record.clone();
+    let table = duplicated_table.dynamic_conformance_tables()[0].clone();
+    duplicated_table
+        .dynamic_conformance_tables_mut_for_test()
+        .push(table);
+    assert_eq!(
+        encode_installation_record(&duplicated_table),
+        Err(InstallationError::InvalidDynamicConformanceTable)
+    );
+    let mut swapped_slots = record.clone();
+    swapped_slots.dynamic_conformance_tables_mut_for_test()[0]
+        .slots
+        .swap(0, 1);
+    assert_eq!(
+        encode_installation_record(&swapped_slots),
+        Err(InstallationError::InvalidDynamicConformanceTable)
+    );
+    let mut dropped_slot = record.clone();
+    dropped_slot.dynamic_conformance_tables_mut_for_test()[0]
+        .slots
+        .pop();
+    assert_eq!(
+        encode_installation_record(&dropped_slot),
+        Err(InstallationError::InvalidDynamicConformanceTable)
+    );
+    let mut duplicated_slot = record.clone();
+    let slot = duplicated_slot.dynamic_conformance_tables()[0].slots[0];
+    duplicated_slot.dynamic_conformance_tables_mut_for_test()[0]
+        .slots
+        .push(slot);
+    assert_eq!(
+        encode_installation_record(&duplicated_slot),
+        Err(InstallationError::InvalidDynamicConformanceTable)
+    );
+}
+
+#[test]
+fn installation_forwarded_dynamic_parameter_call_rejects_every_one_field_substitution() {
+    let artifact = build_object_artifact(&forwarded_dynamic_parameter_call_plan())
+        .expect("forwarded dynamic-parameter object artifact");
+    let image = emit_executable_image(&artifact, 3).expect("forwarded dynamic-parameter image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
+        .expect("forwarded dynamic-parameter installation");
+    validate_installation_record(&record, &image).expect("authentic binding");
+    assert_eq!(record.dynamic_parameter_calls().len(), 1);
+    assert_eq!(record.forwarded_dynamic_parameter_calls().len(), 1);
+    let authentic = record.forwarded_dynamic_parameter_calls()[0];
+    assert_eq!(authentic.machine, machine_id(2));
+    assert_eq!(authentic.operation, operation_id(2));
+    assert_eq!(authentic.callee, machine_id(1));
+    assert_eq!(
+        authentic.source_value,
+        Some(semantic_vocabulary::ValueId::new(91).expect("forwarded result"))
+    );
+    assert_eq!(
+        authentic.scalar_type,
+        Some(semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+                .expect("i32 scalar type")
+        ))
+    );
+    assert_eq!(authentic.source_parameter_ordinal, 0);
+    assert_eq!(authentic.target_parameter_ordinal, 0);
+    let authentic_fingerprint =
+        installation_fingerprint(&record).expect("authentic installation fingerprint");
+
+    let caller = record
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(2))
+        .expect("forwarded dynamic-parameter caller row");
+    let function_text_offset = caller.text_offset;
+    let function_text_end = function_text_offset + caller.byte_count;
+    assert_eq!(authentic.text_offset, function_text_offset);
+    assert_eq!(authentic.byte_count, 7);
+
+    // These one-field substitutions remain representable: they encode and
+    // decode canonically, recompute to a different installation identity, and
+    // independent replay against the unchanged image rejects them.
+    type StillEncodedMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+    );
+    let still_encodes: Vec<StillEncodedMutation> = vec![
+        (
+            "call::operation",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].operation =
+                    operation_id(98);
+            }),
+        ),
+        (
+            "call::source_value",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].source_value =
+                    semantic_vocabulary::ValueId::new(98);
+            }),
+        ),
+        (
+            "call::scalar_type",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].scalar_type =
+                    Some(semantic_vocabulary::ScalarType::Boolean);
+            }),
+        ),
+        (
+            "call::callee::self_function",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].callee = machine_id(2);
+            }),
+        ),
+        (
+            "call::text_offset",
+            Box::new(move |record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].text_offset =
+                    function_text_offset + 1;
+            }),
+        ),
+        (
+            "call::byte_count",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].byte_count += 1;
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted record encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted record decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted record"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted record"
+        );
+    }
+
+    // Canonical record-shape joins reject every other one-field substitution
+    // at encoding, before any identity or replay could accept it.
+    type RejectedMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+        InstallationError,
+    );
+    let rejected: Vec<RejectedMutation> = vec![
+        (
+            "call::machine::unknown",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].machine = machine_id(98);
+            }),
+            InstallationError::InvalidForwardedDynamicParameterCall(machine_id(98)),
+        ),
+        (
+            "call::machine::other_function",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].machine = machine_id(1);
+            }),
+            InstallationError::InvalidForwardedDynamicParameterCall(machine_id(1)),
+        ),
+        (
+            "call::callee::unknown",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].callee = machine_id(98);
+            }),
+            InstallationError::InvalidForwardedDynamicParameterCall(machine_id(2)),
+        ),
+        (
+            "call::source_parameter_ordinal",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0]
+                    .source_parameter_ordinal = 1;
+            }),
+            InstallationError::InvalidForwardedDynamicParameterCall(machine_id(2)),
+        ),
+        (
+            "call::target_parameter_ordinal",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0]
+                    .target_parameter_ordinal = 1;
+            }),
+            InstallationError::InvalidForwardedDynamicParameterCall(machine_id(2)),
+        ),
+        (
+            "call::source_value::cleared",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].source_value = None;
+            }),
+            InstallationError::InvalidForwardedDynamicParameterCall(machine_id(2)),
+        ),
+        (
+            "call::scalar_type::cleared",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].scalar_type = None;
+            }),
+            InstallationError::InvalidForwardedDynamicParameterCall(machine_id(2)),
+        ),
+        (
+            "call::scalar_type::float",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].scalar_type =
+                    Some(semantic_vocabulary::ScalarType::IeeeFloat(
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
+            }),
+            InstallationError::InvalidForwardedDynamicParameterCall(machine_id(2)),
+        ),
+        (
+            "call::text_offset::before_function",
+            Box::new(move |record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].text_offset =
+                    function_text_offset - 1;
+            }),
+            InstallationError::InvalidForwardedDynamicParameterCall(machine_id(2)),
+        ),
+        (
+            "call::text_offset::past_function",
+            Box::new(move |record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].text_offset =
+                    function_text_end;
+            }),
+            InstallationError::InvalidForwardedDynamicParameterCall(machine_id(2)),
+        ),
+        (
+            "call::byte_count::empty",
+            Box::new(|record| {
+                record.forwarded_dynamic_parameter_calls_mut_for_test()[0].byte_count = 0;
+            }),
+            InstallationError::InvalidForwardedDynamicParameterCall(machine_id(2)),
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: canonical encoding rejects the substitution"
+        );
+    }
+
+    // Roster-level custody: dropping the row still encodes, but its recomputed
+    // identity diverges and independent replay rejects it; duplicating the row
+    // collides on the canonical (machine, operation) call site.
+    let mut dropped_call = record.clone();
+    dropped_call
+        .forwarded_dynamic_parameter_calls_mut_for_test()
+        .pop();
+    let dropped_bytes = encode_installation_record(&dropped_call)
+        .expect("dropped forwarded dynamic-parameter call encodes");
+    let dropped = decode_installation_record(&dropped_bytes)
+        .expect("dropped forwarded dynamic-parameter call decodes");
+    assert_ne!(
+        installation_fingerprint(&dropped).expect("dropped fingerprint"),
+        authentic_fingerprint,
+        "dropped row recomputes a different installation identity"
+    );
+    assert_eq!(
+        validate_installation_record(&dropped, &image),
+        Err(InstallationError::ImageBindingMismatch),
+        "independent replay rejects the dropped row"
+    );
+    let mut duplicated_call = record.clone();
+    let call = duplicated_call.forwarded_dynamic_parameter_calls()[0];
+    duplicated_call
+        .forwarded_dynamic_parameter_calls_mut_for_test()
+        .push(call);
+    assert_eq!(
+        encode_installation_record(&duplicated_call),
+        Err(InstallationError::InvalidForwardedDynamicParameterCall(
+            machine_id(2)
+        ))
+    );
+}
+
+#[test]
+fn installation_forwarded_dynamic_descriptor_rejects_every_one_field_substitution() {
+    let artifact = build_object_artifact(&forwarded_dynamic_descriptor_call_plan())
+        .expect("forwarded dynamic-descriptor object artifact");
+    let image = emit_executable_image(&artifact, 3).expect("forwarded dynamic-descriptor image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
+        .expect("forwarded dynamic-descriptor installation");
+    validate_installation_record(&record, &image).expect("authentic binding");
+    assert_eq!(record.forwarded_dynamic_descriptor_adapters().len(), 1);
+    assert_eq!(record.forwarded_dynamic_descriptor_tables().len(), 1);
+    assert_eq!(record.forwarded_dynamic_descriptor_calls().len(), 1);
+    let authentic_adapter = record.forwarded_dynamic_descriptor_adapters()[0];
+    let authentic_table = &record.forwarded_dynamic_descriptor_tables()[0];
+    let authentic_call = &record.forwarded_dynamic_descriptor_calls()[0];
+    assert_eq!(authentic_adapter.row_index, 0);
+    assert_eq!(authentic_adapter.realization, machine_id(2));
+    assert_eq!(authentic_adapter.byte_count, 17);
+    assert_eq!(authentic_table.data_offset, 0);
+    assert_eq!(authentic_table.byte_count, 8);
+    assert_eq!(authentic_table.slots.len(), 1);
+    assert_eq!(authentic_table.slots[0].row_index, 0);
+    assert_eq!(authentic_table.slots[0].realization, machine_id(2));
+    assert_eq!(
+        authentic_table.slots[0].adapter_text_offset,
+        authentic_adapter.text_offset
+    );
+    assert_eq!(authentic_table.slots[0].data_offset, 0);
+    assert_eq!(authentic_call.machine, machine_id(3));
+    assert_eq!(authentic_call.operation, operation_id(4));
+    assert_eq!(authentic_call.callee, machine_id(1));
+    assert_eq!(
+        authentic_call.application_commitment,
+        authentic_table.application_commitment
+    );
+    assert_eq!(
+        authentic_call.source,
+        StructuralArgument {
+            place: PlaceId::new(1).expect("place"),
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        }
+    );
+    assert_eq!(authentic_call.semantic_result, None);
+    assert_eq!(authentic_call.result, None);
+    let authentic_fingerprint =
+        installation_fingerprint(&record).expect("authentic installation fingerprint");
+
+    let caller = record
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(3))
+        .expect("forwarded dynamic-descriptor caller row");
+    let function_text_offset = caller.text_offset;
+    let function_text_end = function_text_offset + caller.byte_count;
+    assert_eq!(authentic_call.text_offset, function_text_offset);
+    assert_eq!(authentic_call.byte_count, 24);
+    assert!(authentic_adapter.text_offset >= function_text_end);
+
+    // These one-field substitutions remain representable: they encode and
+    // decode canonically, recompute to a different installation identity, and
+    // independent replay against the unchanged image rejects them.
+    type StillEncodedMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+    );
+    let still_encodes: Vec<StillEncodedMutation> = vec![
+        (
+            "table::application_report_fingerprint",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_tables_mut_for_test()[0]
+                    .application_report_fingerprint = u64::MAX;
+            }),
+        ),
+        (
+            "call::operation",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].operation =
+                    operation_id(98);
+            }),
+        ),
+        (
+            "call::callee::other_function",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].callee = machine_id(2);
+            }),
+        ),
+        (
+            "call::source::place",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0]
+                    .source
+                    .place = PlaceId::new(98).expect("place");
+            }),
+        ),
+        (
+            "call::source::access",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0]
+                    .source
+                    .access = StructuralAccess::Owned;
+            }),
+        ),
+        (
+            "call::text_offset",
+            Box::new(move |record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].text_offset =
+                    function_text_offset + 1;
+            }),
+        ),
+        (
+            "call::byte_count",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].byte_count -= 1;
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted record encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted record decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted record"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted record"
+        );
+    }
+
+    // Canonical record-shape joins reject every other one-field substitution
+    // at encoding, before any identity or replay could accept it.
+    let foreign_commitment =
+        terminal_psi::ClosedConformanceApplicationCommitment::from_digest([7; 32]);
+    type RejectedMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+        InstallationError,
+    );
+    let rejected: Vec<RejectedMutation> = vec![
+        (
+            "adapter::application_commitment",
+            Box::new(move |record| {
+                record.forwarded_dynamic_descriptor_adapters_mut_for_test()[0]
+                    .application_commitment = foreign_commitment;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "adapter::row_index",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_adapters_mut_for_test()[0].row_index = 1;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "adapter::realization",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_adapters_mut_for_test()[0].realization =
+                    machine_id(1);
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "adapter::text_offset",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_adapters_mut_for_test()[0].text_offset += 1;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "adapter::byte_count::empty",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_adapters_mut_for_test()[0].byte_count = 0;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorAdapter,
+        ),
+        (
+            "adapter::byte_count::past_text_end",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_adapters_mut_for_test()[0].byte_count += 1;
+            }),
+            InstallationError::InvalidImageSectionLayout,
+        ),
+        (
+            "table::application_commitment",
+            Box::new(move |record| {
+                record.forwarded_dynamic_descriptor_tables_mut_for_test()[0]
+                    .application_commitment = foreign_commitment;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "table::data_offset",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_tables_mut_for_test()[0].data_offset = 8;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "table::byte_count",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_tables_mut_for_test()[0].byte_count = 16;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "table::slots[0]::row_index",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_tables_mut_for_test()[0].slots[0].row_index = 1;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "table::slots[0]::realization::unknown",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_tables_mut_for_test()[0].slots[0].realization =
+                    machine_id(98);
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "table::slots[0]::realization::not_adapter",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_tables_mut_for_test()[0].slots[0].realization =
+                    machine_id(1);
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "table::slots[0]::adapter_text_offset",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_tables_mut_for_test()[0].slots[0]
+                    .adapter_text_offset += 1;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "table::slots[0]::data_offset",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_tables_mut_for_test()[0].slots[0].data_offset =
+                    8;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorTable,
+        ),
+        (
+            "call::machine::unknown",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].machine =
+                    machine_id(98);
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorCall(machine_id(98)),
+        ),
+        (
+            "call::machine::other_function",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].machine = machine_id(1);
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorCall(machine_id(1)),
+        ),
+        (
+            "call::callee::unknown",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].callee = machine_id(98);
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorCall(machine_id(3)),
+        ),
+        (
+            "call::application_commitment",
+            Box::new(move |record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0]
+                    .application_commitment = foreign_commitment;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorCall(machine_id(3)),
+        ),
+        (
+            "call::semantic_result::without_result",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].semantic_result =
+                    Some(abstract_operations::AbstractResult {
+                        value: semantic_vocabulary::ValueId::new(98).expect("value"),
+                        scalar_type: semantic_vocabulary::ScalarType::Boolean,
+                    });
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorCall(machine_id(3)),
+        ),
+        (
+            "call::text_offset::before_function",
+            Box::new(move |record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].text_offset =
+                    function_text_offset - 1;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorCall(machine_id(3)),
+        ),
+        (
+            "call::text_offset::past_function",
+            Box::new(move |record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].text_offset =
+                    function_text_end;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorCall(machine_id(3)),
+        ),
+        (
+            "call::byte_count::empty",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].byte_count = 0;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorCall(machine_id(3)),
+        ),
+        (
+            "call::byte_count::past_function",
+            Box::new(|record| {
+                record.forwarded_dynamic_descriptor_calls_mut_for_test()[0].byte_count += 100;
+            }),
+            InstallationError::InvalidForwardedDynamicDescriptorCall(machine_id(3)),
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: canonical encoding rejects the substitution"
+        );
+    }
+
+    // Roster-level custody: dropping the only call leaves the forwarded table
+    // unreferenced, a duplicated call collides on the canonical (machine,
+    // operation) call site, and adapter/table/slot roster mutations each hit
+    // their canonicality joins.
+    let mut dropped_call = record.clone();
+    dropped_call
+        .forwarded_dynamic_descriptor_calls_mut_for_test()
+        .pop();
+    assert_eq!(
+        encode_installation_record(&dropped_call),
+        Err(InstallationError::InvalidForwardedDynamicDescriptorTable)
+    );
+    let mut duplicated_call = record.clone();
+    let call = duplicated_call.forwarded_dynamic_descriptor_calls()[0].clone();
+    duplicated_call
+        .forwarded_dynamic_descriptor_calls_mut_for_test()
+        .push(call);
+    assert_eq!(
+        encode_installation_record(&duplicated_call),
+        Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
+            machine_id(3)
+        ))
+    );
+    let mut dropped_adapter = record.clone();
+    dropped_adapter
+        .forwarded_dynamic_descriptor_adapters_mut_for_test()
+        .pop();
+    assert_eq!(
+        encode_installation_record(&dropped_adapter),
+        Err(InstallationError::InvalidForwardedDynamicDescriptorTable)
+    );
+    let mut duplicated_adapter = record.clone();
+    let adapter = duplicated_adapter.forwarded_dynamic_descriptor_adapters()[0];
+    duplicated_adapter
+        .forwarded_dynamic_descriptor_adapters_mut_for_test()
+        .push(adapter);
+    assert_eq!(
+        encode_installation_record(&duplicated_adapter),
+        Err(InstallationError::InvalidForwardedDynamicDescriptorAdapter)
+    );
+    let mut dropped_table = record.clone();
+    dropped_table
+        .forwarded_dynamic_descriptor_tables_mut_for_test()
+        .pop();
+    assert_eq!(
+        encode_installation_record(&dropped_table),
+        Err(InstallationError::InvalidImageSectionLayout)
+    );
+    let mut duplicated_table = record.clone();
+    let table = duplicated_table.forwarded_dynamic_descriptor_tables()[0].clone();
+    duplicated_table
+        .forwarded_dynamic_descriptor_tables_mut_for_test()
+        .push(table);
+    assert_eq!(
+        encode_installation_record(&duplicated_table),
+        Err(InstallationError::InvalidForwardedDynamicDescriptorTable)
+    );
+    let mut dropped_slot = record.clone();
+    dropped_slot.forwarded_dynamic_descriptor_tables_mut_for_test()[0]
+        .slots
+        .pop();
+    assert_eq!(
+        encode_installation_record(&dropped_slot),
+        Err(InstallationError::InvalidForwardedDynamicDescriptorTable)
+    );
+    let mut duplicated_slot = record.clone();
+    let slot = duplicated_slot.forwarded_dynamic_descriptor_tables()[0].slots[0];
+    duplicated_slot.forwarded_dynamic_descriptor_tables_mut_for_test()[0]
+        .slots
+        .push(slot);
+    assert_eq!(
+        encode_installation_record(&duplicated_slot),
+        Err(InstallationError::InvalidForwardedDynamicDescriptorTable)
+    );
+}
+
+#[test]
 fn object_boundary_rejects_noncanonical_or_incomplete_machine_code_plans() {
     let mut reordered = two_function_plan();
     reordered.functions.swap(0, 1);
@@ -6575,6 +7586,734 @@ fn dynamic_parameter_call_plan() -> MachineCodePlan {
         code_offset: 0,
         byte_count: 8,
     }];
+    plan
+}
+
+/// The edge-owned cleanup caller extended with one stored-descriptor
+/// establishment and one later dispatch through the same aggregate slot. The
+/// frame holds the descriptor pair at offset zero and the signed i32 result
+/// home at offset sixteen, so every retained field below is re-derived from
+/// these bytes during installation.
+fn stored_dynamic_call_plan() -> MachineCodePlan {
+    let mut plan = edge_owned_cleanup_plan();
+    let owner = machine_id(3);
+    let establishment_operation = operation_id(4);
+    let call_operation = operation_id(5);
+    let place = PlaceId::new(1).expect("dynamic source place");
+    let structural_type = StructuralTypeId::new(1).expect("structural type");
+    let i32_type = semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+            .expect("i32 scalar type"),
+    );
+    let result_shape = ValueShape::integer(4, 4);
+    let empty_shape = ValueShape::integer(0, 1);
+    let empty_placement = ValuePlacement {
+        shape: empty_shape,
+        locations: Vec::new(),
+    };
+    let descriptor_placement = ValuePlacement {
+        shape: ValueShape::integer(16, 8),
+        locations: vec![calling_conventions::ValueLocation::Indirect {
+            pointer: calling_conventions::IndirectPointerLocation::Register(
+                calling_conventions::MachineRegister::X86Rdi,
+            ),
+            copy_stack_byte_offset: None,
+            byte_size: 16,
+            alignment: 8,
+        }],
+    };
+    let result_placement = ValuePlacement {
+        shape: result_shape,
+        locations: vec![calling_conventions::ValueLocation::Register {
+            register: calling_conventions::MachineRegister::X86Rax,
+            value_byte_offset: 0,
+            byte_size: 4,
+        }],
+    };
+    let mut application = terminal_psi::ClosedConformanceApplication {
+        owner,
+        declaration_identity: "closed.decl".to_string(),
+        telescope: Vec::new(),
+        subject_identity: None,
+        trait_identity: "closed.trait".to_string(),
+        trait_lifetime_arguments: Vec::new(),
+        trait_arguments: Vec::new(),
+        realization_callables: vec![terminal_psi::ClosedConformanceRealizationCallable {
+            source_callable_identity: "closed.callable.a".to_string(),
+            machine: machine_id(2),
+            result: terminal_psi::ClosedConformanceCallableResult::I32,
+        }],
+        rows: vec![
+            terminal_psi::ClosedConformanceRow {
+                declaring_trait_identity: "closed.trait".to_string(),
+                public_requirement_identity: "closed.req.a".to_string(),
+                requirement_identity: "closed.req.a.impl".to_string(),
+                realization_identity: "closed.real.a".to_string(),
+                realization_callable_identity: Some("closed.callable.a".to_string()),
+            },
+            terminal_psi::ClosedConformanceRow {
+                declaring_trait_identity: "closed.trait".to_string(),
+                public_requirement_identity: "closed.req.b".to_string(),
+                requirement_identity: "closed.req.b.impl".to_string(),
+                realization_identity: "closed.real.b".to_string(),
+                realization_callable_identity: None,
+            },
+        ],
+        report_fingerprint: 0,
+        commitment: terminal_psi::ClosedConformanceApplicationCommitment::default(),
+    };
+    application.report_fingerprint =
+        terminal_psi::closed_conformance_application_report_fingerprint(&application);
+    application.commitment = terminal_psi::closed_conformance_application_commitment(&application);
+    let stored = abstract_operations::AbstractStoredDynamicDescriptor {
+        selection: terminal_psi::TerminalDynamicConformanceSelection {
+            owner,
+            ordinal: 0,
+            source: StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            },
+            conformance_application_report_fingerprint: application.report_fingerprint,
+            conformance_application_commitment: application.commitment,
+        },
+        descriptor: terminal_psi::TerminalStoredDynamicDescriptor {
+            owner,
+            ordinal: 0,
+            establishment_operation,
+            selection_ordinal: 0,
+            aggregate_type_identity: "closed.aggregate".to_string(),
+            field_identity: "closed.field".to_string(),
+        },
+        application,
+    };
+    let instance_source = target_operations::TargetStructuralArgument {
+        place,
+        access: StructuralAccess::SharedBorrow,
+        path: Vec::new(),
+        root_structural_type: structural_type,
+        structural_type,
+        shape: empty_shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        source: target_operations::TargetStructuralArgumentSource::Placement(
+            empty_placement.clone(),
+        ),
+        destination: descriptor_placement.clone(),
+    };
+    let result_home = machine_code::UnitScalarHomeRecord {
+        defining_operation: call_operation,
+        source_value: semantic_vocabulary::ValueId::new(80).expect("stored result value"),
+        scalar_type: i32_type,
+        shape: result_shape,
+        byte_offset: 16,
+    };
+    let stored_call = machine_code::StoredDynamicCallRecord {
+        establishment: machine_code::StoredDynamicDescriptorMaterializationRecord {
+            psi_operation: establishment_operation,
+            stored: stored.clone(),
+            descriptor_abi: machine_code::DynamicTraitDescriptorAbiRecord {
+                instance_byte_offset: 0,
+                table_byte_offset: 8,
+                word_byte_size: 8,
+                total_byte_size: 16,
+                byte_alignment: 8,
+            },
+            descriptor_home_byte_offset: 0,
+            instance: machine_code::DynamicInstanceMaterializationRecord {
+                selection_ordinal: 0,
+                source: instance_source,
+                source_home_byte_offset: 0,
+                source_home_indirect: false,
+                code_offset: 4,
+                byte_count: 9,
+            },
+            table_address: machine_code::DynamicTableAddressMaterialization {
+                code_offset: 13,
+                byte_count: 12,
+                encoding: machine_code::DynamicTableAddressEncoding::X86_64Relative32 {
+                    relocation_offset: 16,
+                },
+            },
+            operation_ordinal: 0,
+            code_offset: 0,
+            byte_count: 25,
+        },
+        psi_operation: call_operation,
+        dynamic_dispatch: abstract_operations::AbstractStoredDynamicDispatch {
+            stored,
+            dispatch: terminal_psi::TerminalStoredDynamicDispatch {
+                owner,
+                operation: call_operation,
+                descriptor_ordinal: 0,
+                declaring_trait_identity: "closed.trait".to_string(),
+                public_requirement_identity: "closed.req.a".to_string(),
+                requirement_identity: "closed.req.a.impl".to_string(),
+                realization_identity: "closed.real.a".to_string(),
+                realization_callable_identity: "closed.callable.a".to_string(),
+                realization: machine_id(2),
+            },
+        },
+        call_plan: calling_conventions::CallPlan {
+            policy: calling_conventions::CallingPolicy::SystemVAMD64,
+            parameters: vec![descriptor_placement.clone()],
+            result: Some(result_placement.clone()),
+            callback_materializations: Vec::new(),
+            ordinary_clobbers: calling_conventions::RegisterSet::new([]),
+            stack_alignment: 16,
+            shadow_bytes: 0,
+            entry_control: calling_conventions::EntryControl::CallReturn,
+        },
+        result: machine_code::InternalUnitScalarCallResultRecord {
+            home: result_home,
+            source: result_placement,
+            code_offset: 49,
+            byte_count: 8,
+        },
+        argument: machine_code::InternalUnitCallArgumentRecord {
+            place,
+            access: StructuralAccess::SharedBorrow,
+            path: Vec::new(),
+            root_structural_type: structural_type,
+            structural_type,
+            shape: empty_shape,
+            source_byte_offset: 0,
+            source_location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
+            call_stack_bytes: 24,
+            fixed_array_length: None,
+            element_stride: None,
+            source: machine_code::InternalUnitStructuralArgumentSourceRecord::Placement(
+                empty_placement,
+            ),
+            destination: descriptor_placement,
+            code_offset: 29,
+            byte_count: 5,
+            bytes: vec![0x48, 0x8b, 0x7c, 0x24, 0x18],
+        },
+        selected_table_byte_offset: 0,
+        indirect_call_offset: 42,
+        indirect_call_byte_count: 3,
+        unit_stack: UnitCallStackEvidence {
+            outbound: Some(StackAdjustmentPair {
+                byte_size: 24,
+                allocation_offset: 25,
+                allocation_byte_count: 4,
+                release_offset: 45,
+                release_byte_count: 4,
+            }),
+        },
+        operation_ordinal: 1,
+        code_offset: 25,
+        byte_count: 32,
+    };
+    let caller = &mut plan.functions[2];
+    caller.attachment = Some(structural_type);
+    caller.provenance.operations = vec![establishment_operation, call_operation];
+    caller.bytes = vec![
+        // sub rsp, 32 — frame holding the stored descriptor and result home.
+        0x48, 0x83, 0xec, 0x20, //
+        // lea r11, [rsp]; mov [rsp], r11 — descriptor instance word.
+        0x4c, 0x8d, 0x1c, 0x24, 0x4c, 0x89, 0x5c, 0x24, 0x00, //
+        // lea r10, [rip+rel32]; mov [rsp+8], r10 — descriptor table word.
+        0x4c, 0x8d, 0x15, 0x00, 0x00, 0x00, 0x00, 0x4c, 0x89, 0x54, 0x24, 0x08, //
+        // sub rsp, 24 — outbound call frame.
+        0x48, 0x83, 0xec, 0x18, //
+        // mov rdi, [rsp+24] — descriptor instance word argument.
+        0x48, 0x8b, 0x7c, 0x24, 0x18, //
+        // mov r11, [rsp+32]; mov r11, [r11]; call r11 — selected slot dispatch.
+        0x4c, 0x8b, 0x5c, 0x24, 0x20, 0x4d, 0x8b, 0x1b, 0x41, 0xff, 0xd3, //
+        // add rsp, 24 — outbound release.
+        0x48, 0x83, 0xc4, 0x18, //
+        // movsxd rax, eax; mov [rsp+16], rax — i32 result home store.
+        0x48, 0x63, 0xc0, 0x48, 0x89, 0x44, 0x24, 0x10, //
+        // Edge-owned cleanup tail: sub rsp, 8; call rel32; add rsp, 8.
+        0x48, 0x83, 0xec, 0x08, 0xe8, 0x00, 0x00, 0x00, 0x00, 0x48, 0x83, 0xc4, 0x08, //
+        // add rsp, 32; ret — frame release and return close the edge span.
+        0x48, 0x83, 0xc4, 0x20, 0xc3,
+    ];
+    caller.unit_stack = Some(UnitStackEvidence {
+        frame: Some(StackAdjustmentPair {
+            byte_size: 32,
+            allocation_offset: 0,
+            allocation_byte_count: 4,
+            release_offset: 70,
+            release_byte_count: 4,
+        }),
+        aarch64_return_link: None,
+        stack_alignment: 16,
+    });
+    caller.unit_scalar_homes = vec![result_home];
+    caller.stored_dynamic_calls = vec![stored_call];
+    caller.internal_calls[0].offset = 62;
+    caller.internal_calls[0].unit_stack = Some(UnitCallStackEvidence {
+        outbound: Some(StackAdjustmentPair {
+            byte_size: 8,
+            allocation_offset: 57,
+            allocation_byte_count: 4,
+            release_offset: 66,
+            release_byte_count: 4,
+        }),
+    });
+    caller.internal_unit_calls[0].code_offset = 57;
+    caller.internal_unit_calls[0].operation_ordinal = 2;
+    let cleanup = caller
+        .unit_affine_cleanup
+        .as_mut()
+        .expect("Unit cleanup fixture");
+    cleanup.code_offset = 57;
+    cleanup.byte_count = 18;
+    caller.semantic_code_attribution = vec![
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Operation(establishment_operation),
+            operation_ordinal: 0,
+            code_offset: 0,
+            byte_count: 25,
+        },
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Operation(call_operation),
+            operation_ordinal: 1,
+            code_offset: 25,
+            byte_count: 32,
+        },
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Edge(edge_id(3)),
+            operation_ordinal: 2,
+            code_offset: 57,
+            byte_count: 18,
+        },
+    ];
+    plan
+}
+
+/// One transparent descriptor-parameter helper (machine 2) forwarding its own
+/// parameter unchanged into machine 1's existential dispatch body. Both the
+/// helper's forwarded-parameter custody and the callee's dispatch custody are
+/// retained for installation.
+fn forwarded_dynamic_parameter_call_plan() -> MachineCodePlan {
+    let target = NativeTarget::linux_x64();
+    let mut plan = internal_call_plan(target);
+    let i32_type = semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+            .expect("i32 scalar type"),
+    );
+    let pointer = ValueShape::integer(8, 8);
+    let policy = calling_conventions::CallingPolicy::native_for_target(target);
+    let call_plan = calling_conventions::evaluate_call_plan(
+        policy,
+        &calling_conventions::CallSignature {
+            parameters: vec![pointer, pointer],
+            result: Some(ValueShape::integer(4, 4)),
+        },
+    )
+    .expect("forwarded descriptor ABI");
+    let dispatch_plan = calling_conventions::evaluate_call_plan(
+        policy,
+        &calling_conventions::CallSignature {
+            parameters: vec![pointer],
+            result: Some(ValueShape::integer(4, 4)),
+        },
+    )
+    .expect("parameter dispatch ABI");
+    let requirement = terminal_psi::TerminalDynamicRequirement {
+        slot: 0,
+        declaring_trait_identity: "dyn.trait".to_string(),
+        public_requirement_identity: "dyn.req".to_string(),
+        result: terminal_psi::ClosedConformanceCallableResult::I32,
+    };
+    // The callee owns one existential descriptor parameter and dispatches its
+    // requirement slot zero through the inbound table register.
+    let callee_parameter = terminal_psi::TerminalDynamicDescriptorParameter {
+        owner: machine_id(1),
+        ordinal: 0,
+        source_position: 0,
+        trait_identity: "dyn.trait".to_string(),
+        access: StructuralAccess::SharedBorrow,
+        requirements: vec![requirement.clone()],
+    };
+    let callee = &mut plan.functions[0];
+    callee.bytes = vec![
+        0x50, // push rax — outbound call frame keeps the call site 16-aligned
+        0xff, 0x96, 0, 0, 0, 0,    // call qword ptr [rsi] — descriptor table slot zero
+        0x58, // pop rax
+        0xc3, // ret
+    ];
+    callee.scalar_stack = Some(ScalarStackEvidence {
+        mutations: vec![
+            scalar_mutation(0, 1, ScalarStackMutationKind::X86Push),
+            scalar_mutation(7, 1, ScalarStackMutationKind::X86Pop),
+        ],
+        control_flow: ScalarControlFlowEvidence::Linear,
+        stack_alignment: 16,
+        cleanup_preservation: None,
+    });
+    callee.dynamic_parameter_calls = vec![machine_code::DynamicParameterCallRecord {
+        psi_edge: edge_id(1),
+        psi_operation: operation_id(1),
+        source_value: Some(semantic_vocabulary::ValueId::new(90).expect("dispatch result value")),
+        scalar_type: Some(i32_type),
+        parameter: callee_parameter.clone(),
+        requirement: requirement.clone(),
+        function_call_plan: call_plan.clone(),
+        dispatch_call_plan: dispatch_plan,
+        instance: calling_conventions::MachineRegister::X86Rdi,
+        table: calling_conventions::MachineRegister::X86Rsi,
+        table_slot_byte_offset: 0,
+        mechanism: machine_code::DynamicParameterCallMechanismRecord::X86MemoryIndirect {
+            table: calling_conventions::MachineRegister::X86Rsi,
+        },
+        indirect_call_offset: 1,
+        indirect_call_byte_count: 6,
+        call_stack: ScalarCallStackEvidence {
+            outbound: None,
+            aarch64_return_link: None,
+        },
+        operation_ordinal: 0,
+        code_offset: 0,
+        byte_count: 8,
+    }];
+    // The forwarder exposes the same descriptor parameter and passes it
+    // unchanged to the callee through one aligned direct call.
+    let forwarder_parameter = terminal_psi::TerminalDynamicDescriptorParameter {
+        owner: machine_id(2),
+        ordinal: 0,
+        source_position: 0,
+        trait_identity: "dyn.trait".to_string(),
+        access: StructuralAccess::SharedBorrow,
+        requirements: vec![requirement],
+    };
+    let call_stack = ScalarCallStackEvidence {
+        outbound: None,
+        aarch64_return_link: None,
+    };
+    let forwarder = &mut plan.functions[1];
+    forwarder.bytes = vec![
+        0x50, // push rax — outbound call frame keeps the call site 16-aligned
+        0xe8, 0, 0, 0, 0,    // call machine 1
+        0x58, // pop rax
+        0xc3, // ret
+    ];
+    forwarder.scalar_stack = Some(ScalarStackEvidence {
+        mutations: vec![
+            scalar_mutation(0, 1, ScalarStackMutationKind::X86Push),
+            scalar_mutation(6, 1, ScalarStackMutationKind::X86Pop),
+        ],
+        control_flow: ScalarControlFlowEvidence::Linear,
+        stack_alignment: 16,
+        cleanup_preservation: None,
+    });
+    forwarder.internal_calls = vec![InternalCallRelocation {
+        owner: CallSiteOwner::Operation(operation_id(2)),
+        target: machine_id(1),
+        unit_stack: None,
+        scalar_stack: Some(call_stack),
+        offset: 2,
+    }];
+    forwarder.forwarded_dynamic_parameter_calls =
+        vec![machine_code::ForwardedDynamicParameterCallRecord {
+            psi_edge: edge_id(2),
+            psi_operation: operation_id(2),
+            source_value: Some(semantic_vocabulary::ValueId::new(91).expect("forwarded result")),
+            scalar_type: Some(i32_type),
+            callee: machine_id(1),
+            argument: abstract_operations::AbstractDynamicDescriptorArgument {
+                argument: terminal_psi::TerminalDynamicDescriptorArgument {
+                    owner: machine_id(2),
+                    operation: operation_id(2),
+                    parameter_ordinal: 0,
+                    source: terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 },
+                },
+                target: callee_parameter,
+                source: abstract_operations::AbstractDynamicDescriptorSource::Parameter(
+                    forwarder_parameter.clone(),
+                ),
+            },
+            parameter: forwarder_parameter,
+            function_call_plan: call_plan.clone(),
+            callee_call_plan: call_plan,
+            instance: calling_conventions::MachineRegister::X86Rdi,
+            table: calling_conventions::MachineRegister::X86Rsi,
+            instance_destination: calling_conventions::MachineRegister::X86Rdi,
+            table_destination: calling_conventions::MachineRegister::X86Rsi,
+            direct_call_offset: 1,
+            direct_call_byte_count: 5,
+            call_stack: machine_code::ForwardedDynamicParameterCallStackEvidence::Scalar(
+                call_stack,
+            ),
+            operation_ordinal: 0,
+            code_offset: 0,
+            byte_count: 7,
+        }];
+    forwarder.semantic_code_attribution = vec![
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Operation(operation_id(2)),
+            operation_ordinal: 0,
+            code_offset: 0,
+            byte_count: 7,
+        },
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Edge(edge_id(2)),
+            operation_ordinal: 1,
+            code_offset: 7,
+            byte_count: 1,
+        },
+    ];
+    plan
+}
+
+/// The edge-owned cleanup caller extended with one forwarded existential
+/// descriptor argument whose single-row closed application emits one adapter
+/// plus one forwarded table. The call itself has a Unit requirement result.
+fn forwarded_dynamic_descriptor_call_plan() -> MachineCodePlan {
+    let mut plan = edge_owned_cleanup_plan();
+    let owner = machine_id(3);
+    let operation = operation_id(4);
+    let place = PlaceId::new(1).expect("forwarded source place");
+    let structural_type = StructuralTypeId::new(1).expect("structural type");
+    let pointer = ValueShape::integer(8, 8);
+    let policy = calling_conventions::CallingPolicy::native_for_target(NativeTarget::linux_x64());
+    let call_plan = calling_conventions::evaluate_call_plan(
+        policy,
+        &calling_conventions::CallSignature {
+            parameters: vec![pointer, pointer],
+            result: None,
+        },
+    )
+    .expect("forwarded descriptor ABI");
+    let adapter_call_plan = calling_conventions::evaluate_call_plan(
+        policy,
+        &calling_conventions::CallSignature {
+            parameters: vec![pointer],
+            result: None,
+        },
+    )
+    .expect("adapter ABI");
+    let requirement = terminal_psi::TerminalDynamicRequirement {
+        slot: 0,
+        declaring_trait_identity: "fwd.trait".to_string(),
+        public_requirement_identity: "fwd.req".to_string(),
+        result: terminal_psi::ClosedConformanceCallableResult::Unit,
+    };
+    let mut application = terminal_psi::ClosedConformanceApplication {
+        owner,
+        declaration_identity: "fwd.decl".to_string(),
+        telescope: Vec::new(),
+        subject_identity: None,
+        trait_identity: "fwd.trait".to_string(),
+        trait_lifetime_arguments: Vec::new(),
+        trait_arguments: Vec::new(),
+        realization_callables: vec![terminal_psi::ClosedConformanceRealizationCallable {
+            source_callable_identity: "fwd.callable.a".to_string(),
+            machine: machine_id(2),
+            result: terminal_psi::ClosedConformanceCallableResult::Unit,
+        }],
+        rows: vec![terminal_psi::ClosedConformanceRow {
+            declaring_trait_identity: "fwd.trait".to_string(),
+            public_requirement_identity: "fwd.req".to_string(),
+            requirement_identity: "fwd.req.impl".to_string(),
+            realization_identity: "fwd.real.a".to_string(),
+            realization_callable_identity: Some("fwd.callable.a".to_string()),
+        }],
+        report_fingerprint: 0,
+        commitment: terminal_psi::ClosedConformanceApplicationCommitment::default(),
+    };
+    application.report_fingerprint =
+        terminal_psi::closed_conformance_application_report_fingerprint(&application);
+    application.commitment = terminal_psi::closed_conformance_application_commitment(&application);
+    let adapter = machine_code::ForwardedDynamicDescriptorAdapterRecord {
+        identity: machine_code::ForwardedDynamicDescriptorAdapterIdentity {
+            application: application.commitment,
+            row_index: 0,
+            realization: machine_id(2),
+        },
+        requirement_identity: "fwd.req.impl".to_string(),
+        realization_identity: "fwd.real.a".to_string(),
+        realization_callable_identity: "fwd.callable.a".to_string(),
+        result: terminal_psi::ClosedConformanceCallableResult::Unit,
+        erased_call_plan: adapter_call_plan.clone(),
+        realization_call_plan: adapter_call_plan,
+        source_shape: pointer,
+        bytes: vec![
+            // mov rdi, [rdi] — load the shared-borrow instance word.
+            0x48, 0x8b, 0x3f, //
+            // sub rsp, 8; call rel32; add rsp, 8 — aligned adapter tail call.
+            0x48, 0x83, 0xec, 0x08, 0xe8, 0x00, 0x00, 0x00, 0x00, 0x48, 0x83, 0xc4, 0x08, //
+            0xc3,
+        ],
+        argument_code_offset: 0,
+        argument_byte_count: 3,
+        direct_call_offset: 7,
+        direct_call_byte_count: 5,
+        return_offset: 16,
+        return_byte_count: 1,
+    };
+    let argument = machine_code::ForwardedDynamicDescriptorArgumentRecord {
+        custody: abstract_operations::AbstractDynamicDescriptorArgument {
+            argument: terminal_psi::TerminalDynamicDescriptorArgument {
+                owner,
+                operation,
+                parameter_ordinal: 0,
+                source: terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
+            },
+            target: terminal_psi::TerminalDynamicDescriptorParameter {
+                owner: machine_id(1),
+                ordinal: 0,
+                source_position: 0,
+                trait_identity: "fwd.trait".to_string(),
+                access: StructuralAccess::SharedBorrow,
+                requirements: vec![requirement],
+            },
+            source: abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                selection: terminal_psi::TerminalDynamicConformanceSelection {
+                    owner,
+                    ordinal: 0,
+                    source: StructuralArgument {
+                        place,
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    conformance_application_report_fingerprint: application.report_fingerprint,
+                    conformance_application_commitment: application.commitment,
+                },
+                application,
+            },
+        },
+        instance: target_operations::TargetDynamicDescriptorInstanceArgument {
+            place,
+            access: StructuralAccess::SharedBorrow,
+            path: Vec::new(),
+            root_structural_type: structural_type,
+            structural_type,
+            shape: pointer,
+            source_byte_offset: 0,
+            source: ValuePlacement {
+                shape: pointer,
+                locations: vec![calling_conventions::ValueLocation::Stack {
+                    stack_byte_offset: 0,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    alignment: 8,
+                }],
+            },
+            destination: ValuePlacement {
+                shape: pointer,
+                locations: vec![calling_conventions::ValueLocation::Register {
+                    register: calling_conventions::MachineRegister::X86Rdi,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                }],
+            },
+        },
+        instance_destination: calling_conventions::MachineRegister::X86Rdi,
+        table_destination: calling_conventions::MachineRegister::X86Rsi,
+        source_home_byte_offset: 0,
+        source_home_indirect: false,
+        instance_code_offset: 7,
+        instance_byte_count: 4,
+        table_address: machine_code::DynamicTableAddressMaterialization {
+            code_offset: 0,
+            byte_count: 7,
+            encoding: machine_code::DynamicTableAddressEncoding::X86_64Relative32 {
+                relocation_offset: 3,
+            },
+        },
+        adapters: vec![adapter],
+    };
+    let caller = &mut plan.functions[2];
+    caller.attachment = Some(structural_type);
+    caller.provenance.operations = vec![operation];
+    caller.bytes = vec![
+        // lea rsi, [rip+rel32] — forwarded table address (relocation at +3).
+        0x48, 0x8d, 0x35, 0x00, 0x00, 0x00, 0x00, //
+        // lea rdi, [rsp] — instance pointer materialization.
+        0x48, 0x8d, 0x3c, 0x24, //
+        // sub rsp, 8; call rel32; add rsp, 8 — aligned direct call to the callee.
+        0x48, 0x83, 0xec, 0x08, 0xe8, 0x00, 0x00, 0x00, 0x00, 0x48, 0x83, 0xc4, 0x08, //
+        // Edge-owned cleanup tail: sub rsp, 8; call rel32; add rsp, 8.
+        0x48, 0x83, 0xec, 0x08, 0xe8, 0x00, 0x00, 0x00, 0x00, 0x48, 0x83, 0xc4, 0x08, //
+        0xc3,
+    ];
+    caller.internal_calls = vec![
+        InternalCallRelocation {
+            owner: CallSiteOwner::Operation(operation),
+            target: machine_id(1),
+            unit_stack: Some(UnitCallStackEvidence {
+                outbound: Some(StackAdjustmentPair {
+                    byte_size: 8,
+                    allocation_offset: 11,
+                    allocation_byte_count: 4,
+                    release_offset: 20,
+                    release_byte_count: 4,
+                }),
+            }),
+            scalar_stack: None,
+            offset: 16,
+        },
+        InternalCallRelocation {
+            owner: CallSiteOwner::CleanupAction {
+                edge: edge_id(3),
+                action_ordinal: 0,
+            },
+            target: machine_id(1),
+            unit_stack: Some(UnitCallStackEvidence {
+                outbound: Some(StackAdjustmentPair {
+                    byte_size: 8,
+                    allocation_offset: 24,
+                    allocation_byte_count: 4,
+                    release_offset: 33,
+                    release_byte_count: 4,
+                }),
+            }),
+            scalar_stack: None,
+            offset: 29,
+        },
+    ];
+    caller.internal_unit_calls[0].code_offset = 24;
+    caller.internal_unit_calls[0].operation_ordinal = 1;
+    let cleanup = caller
+        .unit_affine_cleanup
+        .as_mut()
+        .expect("Unit cleanup fixture");
+    cleanup.code_offset = 24;
+    cleanup.byte_count = 14;
+    caller.forwarded_dynamic_descriptor_calls =
+        vec![machine_code::ForwardedDynamicDescriptorCallRecord {
+            psi_operation: operation,
+            semantic_result: None,
+            result: None,
+            callee: machine_id(1),
+            call_plan,
+            dynamic_arguments: vec![argument],
+            claim_transfers: Vec::new(),
+            direct_call_offset: 15,
+            direct_call_byte_count: 5,
+            unit_stack: UnitCallStackEvidence {
+                outbound: Some(StackAdjustmentPair {
+                    byte_size: 8,
+                    allocation_offset: 11,
+                    allocation_byte_count: 4,
+                    release_offset: 20,
+                    release_byte_count: 4,
+                }),
+            },
+            operation_ordinal: 0,
+            code_offset: 0,
+            byte_count: 24,
+        }];
+    caller.semantic_code_attribution = vec![
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Operation(operation),
+            operation_ordinal: 0,
+            code_offset: 0,
+            byte_count: 24,
+        },
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Edge(edge_id(3)),
+            operation_ordinal: 1,
+            code_offset: 24,
+            byte_count: 14,
+        },
+    ];
     plan
 }
 
