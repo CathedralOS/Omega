@@ -6,12 +6,25 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum NormalizedBound {
+pub(super) enum NormalizedBound {
     Integer(i64),
     Symbol { symbol: SymbolHandle, offset: i64 },
 }
 
+/// The normalized extent of one `Index` segment expression as evaluated inside
+/// a selector session. A non-range expression is a single point bound; a range
+/// expression is a half-open `[start, end)` window. `None` bounds are
+/// conservatively unknown, never negative evidence.
 #[derive(Debug, Clone, Copy)]
+pub(super) enum EvaluatedIndexExtent {
+    Point(Option<NormalizedBound>),
+    Window {
+        start: Option<NormalizedBound>,
+        end: Option<NormalizedBound>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct SelectorLocation {
     pub side: BorrowCompatibilityPlaceSide,
     pub segment_index: usize,
@@ -22,6 +35,19 @@ pub(super) struct SelectorSnapshotEvaluation<'a> {
     snapshot: Vec<BorrowCompatibilitySelectorSnapshot>,
     next_frozen: usize,
     invalid: bool,
+    /// Values already produced inside this session, keyed by exact selector
+    /// position. Only range-bound positions are reused: every evaluation at a
+    /// `RangeStart`/`RangeExclusiveEnd` coordinate normalizes the same
+    /// segment's range expression, so one recorded row is the canonical
+    /// evidence for both the overlap and containment judgments. `Index`
+    /// positions have several honest producers (constant folding versus
+    /// normalized symbolic bounds) whose values may legitimately differ, so
+    /// they always record or consume their own row.
+    recorded: Vec<(
+        SelectorLocation,
+        BorrowCompatibilitySelectorPosition,
+        Option<NormalizedBound>,
+    )>,
 }
 
 impl SelectorSnapshotEvaluation<'_> {
@@ -31,6 +57,7 @@ impl SelectorSnapshotEvaluation<'_> {
             snapshot: Vec::new(),
             next_frozen: 0,
             invalid: false,
+            recorded: Vec::new(),
         }
     }
 
@@ -42,6 +69,7 @@ impl SelectorSnapshotEvaluation<'_> {
             snapshot: Vec::new(),
             next_frozen: 0,
             invalid: false,
+            recorded: Vec::new(),
         }
     }
 
@@ -65,6 +93,16 @@ impl SelectorSnapshotEvaluation<'_> {
         position: BorrowCompatibilitySelectorPosition,
         current: impl FnOnce() -> Option<NormalizedBound>,
     ) -> Option<NormalizedBound> {
+        if !matches!(position, BorrowCompatibilitySelectorPosition::Index)
+            && let Some((_, _, value)) =
+                self.recorded
+                    .iter()
+                    .find(|(recorded, recorded_position, _)| {
+                        *recorded == location && *recorded_position == position
+                    })
+        {
+            return *value;
+        }
         if let Some(frozen) = self.frozen {
             let current = current();
             let Some(row) = frozen.get(self.next_frozen) else {
@@ -92,7 +130,7 @@ impl SelectorSnapshotEvaluation<'_> {
                 return None;
             }
             self.next_frozen += 1;
-            return match row.value {
+            let value = match row.value {
                 None => None,
                 Some(BorrowCompatibilitySelectorValue::Integer(value)) => {
                     Some(NormalizedBound::Integer(value))
@@ -114,6 +152,10 @@ impl SelectorSnapshotEvaluation<'_> {
                     None
                 }
             };
+            if !self.invalid {
+                self.recorded.push((location, position, value));
+            }
+            return value;
         }
 
         let value = current();
@@ -131,6 +173,7 @@ impl SelectorSnapshotEvaluation<'_> {
                 }
             }),
         });
+        self.recorded.push((location, position, value));
         value
     }
 }
@@ -390,7 +433,7 @@ fn range_integer_bounds(
     )
 }
 
-fn bound_is_at_or_before(left: NormalizedBound, right: NormalizedBound) -> bool {
+pub(super) fn bound_is_at_or_before(left: NormalizedBound, right: NormalizedBound) -> bool {
     match (left, right) {
         (NormalizedBound::Integer(left), NormalizedBound::Integer(right)) => left <= right,
         (
@@ -404,6 +447,67 @@ fn bound_is_at_or_before(left: NormalizedBound, right: NormalizedBound) -> bool 
             },
         ) => left_symbol == right_symbol && left_offset <= right_offset,
         _ => false,
+    }
+}
+
+/// Strict `<` ordering for bounds; used where a window must be provably
+/// non-empty or a point must sit strictly below an exclusive end.
+pub(super) fn bound_is_strictly_before(left: NormalizedBound, right: NormalizedBound) -> bool {
+    match (left, right) {
+        (NormalizedBound::Integer(left), NormalizedBound::Integer(right)) => left < right,
+        (
+            NormalizedBound::Symbol {
+                symbol: left_symbol,
+                offset: left_offset,
+            },
+            NormalizedBound::Symbol {
+                symbol: right_symbol,
+                offset: right_offset,
+            },
+        ) => left_symbol == right_symbol && left_offset < right_offset,
+        _ => false,
+    }
+}
+
+/// Exact bound equality: literal values or the same symbol at the same offset.
+/// Anything else stays unproven rather than assumed distinct.
+pub(super) fn bound_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
+    match (left, right) {
+        (NormalizedBound::Integer(left), NormalizedBound::Integer(right)) => left == right,
+        (
+            NormalizedBound::Symbol {
+                symbol: left_symbol,
+                offset: left_offset,
+            },
+            NormalizedBound::Symbol {
+                symbol: right_symbol,
+                offset: right_offset,
+            },
+        ) => left_symbol == right_symbol && left_offset == right_offset,
+        _ => false,
+    }
+}
+
+/// Evaluates an `Index` segment's normalized extent through the selector
+/// session, recording or replaying its bounds at the segment's exact path
+/// location. The bound positions match the overlap selectors: `Index` for a
+/// point expression, `RangeStart`/`RangeExclusiveEnd` for a range window.
+pub(super) fn index_expression_extent_with_selectors(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    location: SelectorLocation,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
+) -> EvaluatedIndexExtent {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Range(range) => {
+            let (start, end) = range_integer_bounds(program, range, location, selectors);
+            EvaluatedIndexExtent::Window { start, end }
+        }
+        _ => EvaluatedIndexExtent::Point(selectors.bound(
+            location,
+            BorrowCompatibilitySelectorPosition::Index,
+            || normalized_bound(program, expression),
+        )),
     }
 }
 
