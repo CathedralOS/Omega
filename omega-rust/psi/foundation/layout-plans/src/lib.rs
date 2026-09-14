@@ -1035,6 +1035,24 @@ fn symbolic_index_display(element_index: Option<u64>) -> String {
     }
 }
 
+/// The diagnostic spelling of a symbolic field path: `field`, `field[index]`,
+/// `field.inner`, `field[index].inner`, or `field.inner[index]`. Materialized
+/// writes carry it so diagnostics and relocation labels name the exact slot a
+/// two-segment path addressed.
+fn symbolic_path_display(symbolic: &SymbolicFieldValue) -> String {
+    let mut display = format!(
+        "{}{}",
+        symbolic.field,
+        symbolic_index_display(symbolic.element_index)
+    );
+    if let Some(inner) = &symbolic.inner {
+        display.push('.');
+        display.push_str(&inner.field);
+        display.push_str(&symbolic_index_display(inner.element_index));
+    }
+    display
+}
+
 /// One ordinary scalar supplied to a validated dictated-layout materializer.
 /// Positional fields select compiler-validated plan entries by name; numbered
 /// fields use their stable member identity. Callers never provide a byte
@@ -1306,11 +1324,76 @@ impl RelocationTarget {
     }
 }
 
+/// One hop of a nested symbolic field path. `SymbolicFieldValue` spells the
+/// outer hop; this segment adds the inner `field` of `outer.field`, carrying
+/// its own optional stable member identity and element index. Its placement
+/// comes from a [`SymbolicFieldInnerLayout`] carrier supplied at derivation,
+/// so the exact inner offset stays symbolic until assignment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SymbolicFieldPathSegment {
+    pub field: String,
+    member_identity: Option<u64>,
+    element_index: Option<u64>,
+}
+
+impl SymbolicFieldPathSegment {
+    /// One inner hop named by field. `outer.field` selects every placement the
+    /// inner layout retains for `field`.
+    pub fn new(field: impl Into<String>) -> Self {
+        Self {
+            field: field.into(),
+            member_identity: None,
+            element_index: None,
+        }
+    }
+
+    /// `new` carrying the compiler-retained stable member identity. The field
+    /// spelling remains diagnostic presentation.
+    pub fn new_numbered(field: impl Into<String>, member_identity: u64) -> Self {
+        Self {
+            member_identity: Some(member_identity),
+            ..Self::new(field)
+        }
+    }
+
+    /// `new` addressed to the `element_index`-th element of a repeated inner
+    /// field. The bound is checked against the inner layout's element
+    /// placements when the plan is derived, not when the caller spells it.
+    pub fn new_indexed(field: impl Into<String>, element_index: u64) -> Self {
+        Self {
+            element_index: Some(element_index),
+            ..Self::new(field)
+        }
+    }
+
+    /// `new_indexed` carrying the compiler-retained stable member identity.
+    pub fn new_indexed_numbered(
+        field: impl Into<String>,
+        member_identity: u64,
+        element_index: u64,
+    ) -> Self {
+        Self {
+            member_identity: Some(member_identity),
+            element_index: Some(element_index),
+            ..Self::new(field)
+        }
+    }
+
+    /// The exact element index preserved on this segment, if any. `None` means
+    /// the segment covers every placement the inner layout retains.
+    pub const fn element_index(&self) -> Option<u64> {
+        self.element_index
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolicFieldValue {
     pub field: String,
     member_identity: Option<u64>,
     element_index: Option<u64>,
+    /// The optional inner hop of a bounded two-segment `outer.field` path.
+    /// `None` keeps this value on the flat `field[index]` surface.
+    inner: Option<SymbolicFieldPathSegment>,
     pub width_bits: u16,
     pub target: RelocationTarget,
 }
@@ -1330,6 +1413,7 @@ impl SymbolicFieldValue {
             field: field.into(),
             member_identity: None,
             element_index: None,
+            inner: None,
             width_bits,
             target,
         })
@@ -1382,6 +1466,64 @@ impl SymbolicFieldValue {
     /// any. `None` means the symbolic value covers every placement of the field.
     pub const fn element_index(&self) -> Option<u64> {
         self.element_index
+    }
+
+    /// Extends this symbolic value with a second path segment, spelling the
+    /// `field.inner` (or `field[index].inner`) hop into the record stored in
+    /// `field`. The segment's placement comes from a
+    /// [`SymbolicFieldInnerLayout`] carrier supplied to
+    /// [`derive_symbolic_materialization_with_inner_layouts`]; no concrete
+    /// address or inner offset is baked into the value itself.
+    pub fn with_inner_segment(mut self, inner: SymbolicFieldPathSegment) -> Self {
+        self.inner = Some(inner);
+        self
+    }
+
+    /// The inner hop of this two-segment field path, if any.
+    pub const fn inner(&self) -> Option<&SymbolicFieldPathSegment> {
+        self.inner.as_ref()
+    }
+}
+
+/// The compiler-derived interior layout of the record stored in one outer
+/// field, bound to that field's identity. A nested record's member offsets are
+/// compiler-derived interior geometry shared with typed-owned encoding, not
+/// policy-chosen placements, so the flat outer [`LayoutPlanReport`] deliberately
+/// does not carry them. This carrier retains the inner layout beside the outer
+/// plan without flattening inner rows into the outer schema;
+/// [`derive_symbolic_materialization_with_inner_layouts`] consults it only for
+/// symbolic values spelling an inner path segment through that outer field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SymbolicFieldInnerLayout {
+    /// Outer field name. Report/diagnostic presentation; the member identity
+    /// joins when the outer schema is numbered.
+    pub field: String,
+    member_identity: Option<u64>,
+    /// The nested record's complete compiler-derived interior layout.
+    pub inner_layout: LayoutPlanReport,
+}
+
+impl SymbolicFieldInnerLayout {
+    /// Binds `inner_layout` to the outer field named `field`.
+    pub fn new(field: impl Into<String>, inner_layout: LayoutPlanReport) -> Self {
+        Self {
+            field: field.into(),
+            member_identity: None,
+            inner_layout,
+        }
+    }
+
+    /// `new` carrying the outer field's compiler-retained stable member
+    /// identity, so a renamed outer schema still joins the carrier.
+    pub fn new_numbered(
+        field: impl Into<String>,
+        member_identity: u64,
+        inner_layout: LayoutPlanReport,
+    ) -> Self {
+        Self {
+            member_identity: Some(member_identity),
+            ..Self::new(field, inner_layout)
+        }
     }
 }
 
@@ -2884,8 +3026,38 @@ mod tests;
 
 /// Derives a phase-aware consumer plan. `resolve` is compiler/provider
 /// infrastructure; source code never receives its returned address.
+///
+/// A symbolic value spelling an inner hop (`outer.field`) additionally needs
+/// the interior layout carrier of the record stored in `outer`; derive those
+/// paths through [`derive_symbolic_materialization_with_inner_layouts`].
 pub fn derive_symbolic_materialization(
     layout: &LayoutPlanReport,
+    symbolic_fields: &[SymbolicFieldValue],
+    context: MaterializationContext,
+    resolve: impl FnMut(RelocationTarget) -> Option<u64>,
+) -> Result<SymbolicMaterializationPlan, MaterializationDiagnostic> {
+    derive_symbolic_materialization_with_inner_layouts(
+        layout,
+        &[],
+        symbolic_fields,
+        context,
+        resolve,
+    )
+}
+
+/// `derive_symbolic_materialization` extended with interior layout carriers.
+///
+/// `inner_layouts` carries the compiler-derived interior layout of a nested
+/// record beside the flat outer plan. A symbolic value spelling an inner hop
+/// (`outer.field`, `outer[index].field`, `outer.field[index]`) resolves its
+/// outer `At` placement first, then selects inside that element's retained
+/// inner layout, so the exact inner path stays symbolic until the write offset
+/// is assigned. Supplying an inner layout no symbolic path traverses is
+/// rejected: a carrier that outlives the semantic path it describes would let
+/// a stale interior join a renamed or reshaped schema.
+pub fn derive_symbolic_materialization_with_inner_layouts(
+    layout: &LayoutPlanReport,
+    inner_layouts: &[SymbolicFieldInnerLayout],
     symbolic_fields: &[SymbolicFieldValue],
     context: MaterializationContext,
     mut resolve: impl FnMut(RelocationTarget) -> Option<u64>,
@@ -2911,26 +3083,46 @@ pub fn derive_symbolic_materialization(
 
     // `field[index]` is a distinct semantic slot from `field[j]` and from the
     // whole-field `field`, so the exact index joins the name and identity when
-    // detecting a duplicate supply. Without it two elements of one array would
-    // collide even though they write disjoint element placements.
+    // detecting a duplicate supply. An inner hop does the same: `outer.field`
+    // is a distinct slot from `outer` and from `outer.field[index]`. Without
+    // those hops two elements of one array or two members of one record would
+    // collide even though they write disjoint placements.
     let mut supplied = std::collections::BTreeSet::new();
     let mut names = std::collections::BTreeSet::new();
     for symbolic in symbolic_fields {
-        if !names.insert((symbolic.field.as_str(), symbolic.element_index)) {
+        let path_display = symbolic_path_display(symbolic);
+        let inner_name_key = symbolic
+            .inner
+            .as_ref()
+            .map(|inner| (inner.field.as_str(), inner.element_index));
+        if !names.insert((
+            symbolic.field.as_str(),
+            symbolic.element_index,
+            inner_name_key,
+        )) {
             return Err(MaterializationDiagnostic(format!(
-                "symbolic field `{}`{} is supplied more than once",
-                symbolic.field,
-                symbolic_index_display(symbolic.element_index)
+                "symbolic field `{path_display}` is supplied more than once"
             )));
         }
         let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
-        if !supplied.insert((key, symbolic.element_index)) {
+        let inner_key = symbolic
+            .inner
+            .as_ref()
+            .map(|inner| materialization_field_key(&inner.field, inner.member_identity));
+        if !supplied.insert((
+            key,
+            symbolic.element_index,
+            inner_key,
+            symbolic.inner.as_ref().map(|inner| inner.element_index),
+        )) {
             return Err(MaterializationDiagnostic(format!(
-                "symbolic field `{}`{} repeats stable member identity #{}",
-                symbolic.field,
-                symbolic_index_display(symbolic.element_index),
+                "symbolic field `{path_display}` repeats stable member identity #{}",
                 symbolic
                     .member_identity
+                    .or_else(|| symbolic
+                        .inner
+                        .as_ref()
+                        .and_then(|inner| inner.member_identity))
                     .expect("only numbered symbolic values can collide after name validation")
             )));
         }
@@ -2970,6 +3162,70 @@ pub fn derive_symbolic_materialization(
         }
     }
 
+    // Bind each supplied inner carrier to its outer field key before any
+    // symbolic path resolves through it. A carrier is evidence the compiler
+    // produced for one named field; a duplicate or a carrier for a field the
+    // outer plan never placed would silently substitute one record's interior
+    // for another's.
+    let mut inner_carriers = std::collections::BTreeMap::<
+        MaterializationFieldKey,
+        (
+            &SymbolicFieldInnerLayout,
+            usize,
+            std::collections::BTreeMap<MaterializationFieldKey, Vec<&LayoutFieldEntryReport>>,
+        ),
+    >::new();
+    for carrier in inner_layouts {
+        let key = materialization_field_key(&carrier.field, carrier.member_identity);
+        if !planned.contains_key(&key) {
+            return Err(MaterializationDiagnostic(format!(
+                "inner layout for `{}` binds to a field the validated layout plan does not contain",
+                carrier.field
+            )));
+        }
+        let inner_byte_len = carrier
+            .inner_layout
+            .size
+            .ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "inner layout for `{}` requires a fixed-size interior layout plan",
+                    carrier.field
+                ))
+            })
+            .and_then(|size| {
+                usize::try_from(size).map_err(|_| {
+                    MaterializationDiagnostic(format!(
+                        "inner layout size {size} for `{}` cannot be represented on this compiler host",
+                        carrier.field
+                    ))
+                })
+            })?;
+        validate_materialization_field_identities(&carrier.inner_layout)?;
+        let mut planned_inner = std::collections::BTreeMap::<
+            MaterializationFieldKey,
+            Vec<&LayoutFieldEntryReport>,
+        >::new();
+        for entry in &carrier.inner_layout.entries {
+            planned_inner
+                .entry(materialization_field_key(
+                    &entry.field,
+                    entry.member_identity,
+                ))
+                .or_default()
+                .push(entry);
+        }
+        if inner_carriers
+            .insert(key, (carrier, inner_byte_len, planned_inner))
+            .is_some()
+        {
+            return Err(MaterializationDiagnostic(format!(
+                "inner layout for `{}` is supplied more than once",
+                carrier.field
+            )));
+        }
+    }
+
+    let mut traversed_inner = std::collections::BTreeSet::new();
     let prepared_writes = symbolic_fields
         .iter()
         .map(|symbolic| {
@@ -2977,16 +3233,101 @@ pub fn derive_symbolic_materialization(
             let entries = planned
                 .get(&key)
                 .expect("symbolic layout membership validated above");
-            select_materialization_entries(entries, symbolic)?
+            let selected =
+                select_materialization_entries(entries, symbolic.element_index, &symbolic.field)?;
+            let Some(inner) = &symbolic.inner else {
+                return selected
+                    .into_iter()
+                    .map(|entry| {
+                        let write = write_from_entry(entry, symbolic, &symbolic.field)?;
+                        validate_write(byte_len, &write)?;
+                        Ok((entry.placement, write))
+                    })
+                    .collect::<Result<Vec<_>, MaterializationDiagnostic>>();
+            };
+            let path_display = symbolic_path_display(symbolic);
+            // The inner hop needs one enclosing element. An unindexed `outer`
+            // on a repeated record covers several elements, so the inner path
+            // alone cannot name a destination; `outer[i].field` spells which
+            // element the inner member belongs to.
+            let [outer_entry] = selected.as_slice() else {
+                return Err(MaterializationDiagnostic(format!(
+                    "symbolic field `{path_display}` requires the outer field `{}` to resolve to exactly one element placement, found {}",
+                    symbolic.field,
+                    selected.len()
+                )));
+            };
+            let LayoutPlacementReport::At {
+                offset: outer_offset,
+            } = outer_entry.placement
+            else {
+                return Err(MaterializationDiagnostic(format!(
+                    "symbolic field `{path_display}` requires the outer field `{}` to use a whole `At` placement",
+                    symbolic.field
+                )));
+            };
+            let Some((carrier, inner_byte_len, planned_inner)) = inner_carriers.get(&key) else {
+                return Err(MaterializationDiagnostic(format!(
+                    "symbolic field `{path_display}` has no supplied inner layout for `{}`",
+                    symbolic.field
+                )));
+            };
+            traversed_inner.insert(key);
+            let inner_key = materialization_field_key(&inner.field, inner.member_identity);
+            let Some(inner_entries) = planned_inner.get(&inner_key) else {
+                let suffix = stable_identity_suffix(inner.member_identity);
+                return Err(MaterializationDiagnostic(format!(
+                    "symbolic field `{path_display}` has no entry in the inner layout plan{suffix}"
+                )));
+            };
+            let inner_names = inner_entries
+                .iter()
+                .map(|entry| entry.field.as_str())
+                .collect::<std::collections::BTreeSet<_>>();
+            if let Some(drifted) = carrier.inner_layout.entries.iter().find(|entry| {
+                inner_names.contains(entry.field.as_str())
+                    && materialization_field_key(&entry.field, entry.member_identity) != inner_key
+            }) {
+                return Err(MaterializationDiagnostic(format!(
+                    "inner layout field `{}` fragments do not retain one stable member identity",
+                    drifted.field
+                )));
+            }
+            select_materialization_entries(inner_entries, inner.element_index, &path_display)?
                 .into_iter()
                 .map(|entry| {
-                    let write = write_from_entry(entry, symbolic)?;
+                    let mut write = write_from_entry(entry, symbolic, &path_display)?;
+                    // The inner hop may not escape the interior record's own
+                    // extent: the outer check below bounds the composed write
+                    // by the whole plan, but only this bound keeps a malformed
+                    // carrier from reaching into neighboring outer fields.
+                    validate_write(*inner_byte_len, &write)?;
+                    write.container_byte_offset =
+                        outer_offset
+                            .checked_add(write.container_byte_offset)
+                            .ok_or_else(|| {
+                                MaterializationDiagnostic(format!(
+                                    "symbolic field `{path_display}` composes an out-of-range destination offset"
+                                ))
+                            })?;
                     validate_write(byte_len, &write)?;
                     Ok((entry.placement, write))
                 })
                 .collect::<Result<Vec<_>, MaterializationDiagnostic>>()
         })
         .collect::<Result<Vec<_>, MaterializationDiagnostic>>()?;
+
+    if let Some(carrier) = inner_layouts.iter().find(|carrier| {
+        !traversed_inner.contains(&materialization_field_key(
+            &carrier.field,
+            carrier.member_identity,
+        ))
+    }) {
+        return Err(MaterializationDiagnostic(format!(
+            "no symbolic field path traverses the supplied inner layout for `{}`",
+            carrier.field
+        )));
+    }
 
     let mut resolved_targets = std::collections::BTreeMap::new();
     let mut actions = Vec::new();
@@ -3024,7 +3365,7 @@ pub fn derive_symbolic_materialization(
                         if context.native_pointer_relocation_bits == Some(symbolic.width_bits) =>
                     {
                         MaterializationAction::NativePointerRelocation {
-                            field: symbolic.field.clone(),
+                            field: write.field.clone(),
                             target: symbolic.target,
                             destination_byte_offset: write.container_byte_offset,
                             width_bits: symbolic.width_bits,
@@ -3033,19 +3374,19 @@ pub fn derive_symbolic_materialization(
                     LayoutPlacementReport::At { .. } => {
                         return Err(MaterializationDiagnostic(format!(
                             "loader consumes symbolic field `{}` before Omega entry, but the target has no native {}-bit pointer relocation",
-                            symbolic.field, symbolic.width_bits
+                            write.field, symbolic.width_bits
                         )));
                     }
                     LayoutPlacementReport::IntegerAt { .. } => {
                         return Err(MaterializationDiagnostic(format!(
                             "loader consumes stored-integer field `{}` before Omega entry; symbolic materialization has no integer fit proof",
-                            symbolic.field
+                            write.field
                         )));
                     }
                     LayoutPlacementReport::Bits { .. } => {
                         return Err(MaterializationDiagnostic(format!(
                             "loader consumes fragmented symbolic field `{}` before Omega entry; unresolved fragments require a fixed address or a post-handoff writer",
-                            symbolic.field
+                            write.field
                         )));
                     }
                 },
@@ -3073,9 +3414,10 @@ pub fn derive_symbolic_materialization(
 /// which element is accessed.
 fn select_materialization_entries<'a>(
     entries: &'a [&'a LayoutFieldEntryReport],
-    symbolic: &SymbolicFieldValue,
+    element_index: Option<u64>,
+    field_display: &str,
 ) -> Result<Vec<&'a LayoutFieldEntryReport>, MaterializationDiagnostic> {
-    let Some(element_index) = symbolic.element_index else {
+    let Some(element_index) = element_index else {
         return Ok(entries.to_vec());
     };
     if entries
@@ -3083,8 +3425,7 @@ fn select_materialization_entries<'a>(
         .any(|entry| !matches!(entry.placement, LayoutPlacementReport::At { .. }))
     {
         return Err(MaterializationDiagnostic(format!(
-            "symbolic field `{}` element index {element_index} cannot address a fragmented or stored-integer placement",
-            symbolic.field
+            "symbolic field `{field_display}` element index {element_index} cannot address a fragmented or stored-integer placement"
         )));
     }
     let mut elements = entries.to_vec();
@@ -3094,14 +3435,12 @@ fn select_materialization_entries<'a>(
     });
     let index = usize::try_from(element_index).map_err(|_| {
         MaterializationDiagnostic(format!(
-            "symbolic field `{}` element index {element_index} cannot be represented on this host",
-            symbolic.field
+            "symbolic field `{field_display}` element index {element_index} cannot be represented on this host"
         ))
     })?;
     let Some(entry) = elements.get(index) else {
         return Err(MaterializationDiagnostic(format!(
-            "symbolic field `{}` element index {element_index} is outside its {} element placements",
-            symbolic.field,
+            "symbolic field `{field_display}` element index {element_index} is outside its {} element placements",
             elements.len()
         )));
     };
@@ -3111,6 +3450,7 @@ fn select_materialization_entries<'a>(
 fn write_from_entry(
     entry: &LayoutFieldEntryReport,
     symbolic: &SymbolicFieldValue,
+    field_display: &str,
 ) -> Result<MaterializationWrite, MaterializationDiagnostic> {
     let (container, container_width, destination_lsb, source_lsb, width) = match entry.placement {
         LayoutPlacementReport::At { offset } => (
@@ -3141,8 +3481,7 @@ fn write_from_entry(
     };
     if container_width == 0 || container_width > 64 || container_width % 8 != 0 || width == 0 {
         return Err(MaterializationDiagnostic(format!(
-            "symbolic field `{}` uses a materializer-incompatible placement",
-            symbolic.field
+            "symbolic field `{field_display}` uses a materializer-incompatible placement"
         )));
     }
     let source_end = source_lsb
@@ -3150,8 +3489,8 @@ fn write_from_entry(
         .ok_or_else(|| MaterializationDiagnostic("symbolic source bit range overflows".into()))?;
     if source_end > u64::from(symbolic.width_bits) {
         return Err(MaterializationDiagnostic(format!(
-            "symbolic field `{}` placement reads through bit {source_end}, past its {}-bit source",
-            symbolic.field, symbolic.width_bits
+            "symbolic field `{field_display}` placement reads through bit {source_end}, past its {}-bit source",
+            symbolic.width_bits
         )));
     }
     let destination_end = destination_lsb.checked_add(width).ok_or_else(|| {
@@ -3159,12 +3498,11 @@ fn write_from_entry(
     })?;
     if destination_end > container_width {
         return Err(MaterializationDiagnostic(format!(
-            "symbolic field `{}` placement writes through bit {destination_end}, past its {container_width}-bit container",
-            symbolic.field
+            "symbolic field `{field_display}` placement writes through bit {destination_end}, past its {container_width}-bit container"
         )));
     }
     Ok(MaterializationWrite {
-        field: symbolic.field.clone(),
+        field: field_display.to_owned(),
         target: symbolic.target,
         container_byte_offset: container,
         container_width_bits: u16::try_from(container_width)
@@ -3173,8 +3511,7 @@ fn write_from_entry(
         source_lsb: u16::try_from(source_lsb).expect("validated source bit index"),
         width: u16::try_from(width).map_err(|_| {
             MaterializationDiagnostic(format!(
-                "symbolic field `{}` fragment width {width} is too large",
-                symbolic.field
+                "symbolic field `{field_display}` fragment width {width} is too large"
             ))
         })?,
         stored_integer_fit: match entry.placement {
@@ -3186,8 +3523,7 @@ fn write_from_entry(
                 source_width_bits: symbolic.width_bits,
                 stored_width_bits: u16::try_from(stored_width).map_err(|_| {
                     MaterializationDiagnostic(format!(
-                        "symbolic field `{}` has an invalid stored-integer width",
-                        symbolic.field
+                        "symbolic field `{field_display}` has an invalid stored-integer width"
                     ))
                 })?,
                 interpretation,

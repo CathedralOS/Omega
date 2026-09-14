@@ -18,9 +18,10 @@ use layout::{DataShape, build_layout_plan};
 use layout_plans::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConsumptionInstant, EntryStubId,
     IntegerInterpretation, LayoutPlacementReport, MaterializationAction, MaterializationContext,
-    RelocationTarget, ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue,
-    decode_scalar_layout, derive_symbolic_materialization, materialize_aggregate_layout_into,
-    materialize_scalar_layout_into,
+    RelocationTarget, ScalarFieldSchema, ScalarFieldValue, SymbolicFieldInnerLayout,
+    SymbolicFieldPathSegment, SymbolicFieldValue, decode_scalar_layout,
+    derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
+    materialize_aggregate_layout_into, materialize_scalar_layout_into,
 };
 use package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
@@ -3334,5 +3335,132 @@ machine Main::main(&mut self) { }
             .chain(&bytes[24..])
             .all(|byte| *byte == 0xa5),
         "index materialization writes only the addressed element"
+    );
+}
+
+#[test]
+fn nested_symbolic_materialization_preserves_the_exact_member_path() {
+    // One nested record path, end to end: `slot.entry` is a field/field path
+    // into the record stored in `slot`. The flat outer plan places `slot` as
+    // one whole `At` extent; the record's member offsets are interior geometry
+    // the outer plan deliberately does not carry, so a
+    // `SymbolicFieldInnerLayout` carrier binds a second validated plan to the
+    // `slot` field. The symbolic value preserves the exact `slot.entry` path
+    // until derivation composes the outer offset with the member's inner
+    // offset; the write then realizes byte 8 of the 24-byte outer object.
+    let main_path = write_program(
+        "nested-symbolic-field",
+        r#"
+use omega::language::core::layout;
+
+data DispatchLayout { }
+machine DispatchLayout::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: entries, entry_count: 2,
+           size_fixed: 24, size_is_dynamic: false, align: 8 }
+}
+
+data SlotLayout { }
+machine SlotLayout::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: entries, entry_count: 2,
+           size_fixed: 16, size_is_dynamic: false, align: 8 }
+}
+
+data DispatchSlot { entry: u64; flags: u64; }
+data DispatchTable { header: u64; slot: DispatchSlot; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("nested dispatch table should check");
+    let report = compute_layout_plan(&checked.typed, "DispatchLayout::plan", "DispatchTable")
+        .expect("a nested record field placed as one At extent should validate");
+    assert_eq!(
+        report
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        vec![
+            ("header", LayoutPlacementReport::At { offset: 0 }),
+            ("slot", LayoutPlacementReport::At { offset: 8 }),
+        ]
+    );
+    let inner_report = compute_layout_plan(&checked.typed, "SlotLayout::plan", "DispatchSlot")
+        .expect("the record's own policy supplies its interior geometry");
+    let inner = SymbolicFieldInnerLayout::new("slot", inner_report);
+
+    let target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x55aa).expect("normalized entry identity"),
+    );
+    let symbolic = SymbolicFieldValue::new("slot", 64, target)
+        .expect("nested symbolic field path")
+        .with_inner_segment(SymbolicFieldPathSegment::new("entry"));
+    let materialization = derive_symbolic_materialization_with_inner_layouts(
+        &report,
+        std::slice::from_ref(&inner),
+        std::slice::from_ref(&symbolic),
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect("the nested member path composes outer and interior offsets");
+    assert_eq!(materialization.actions.len(), 1);
+    let MaterializationAction::RuntimeWriter(write) = &materialization.actions[0] else {
+        panic!("an unresolved nested symbolic derives a post-handoff writer");
+    };
+    assert_eq!(write.field, "slot.entry");
+    assert_eq!(write.container_byte_offset, 8);
+
+    let writer = materialization
+        .derive_post_handoff_writer()
+        .expect("the member write derives a writer");
+    let mut bytes = [0xa5_u8; 24];
+    writer
+        .execute(
+            &mut bytes,
+            layout_plans::PlacementSite {
+                base_address: 0,
+                phase: layout_plans::PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: None,
+            },
+            |resolved| {
+                assert_eq!(resolved, target);
+                Some(0x1122_3344_5566_7788)
+            },
+        )
+        .expect("the nested writer resolves the exact member");
+    assert_eq!(&bytes[8..16], &0x1122_3344_5566_7788_u64.to_le_bytes());
+    assert!(
+        bytes[..8]
+            .iter()
+            .chain(&bytes[16..])
+            .all(|byte| *byte == 0xa5),
+        "nested materialization writes only the addressed member"
     );
 }
