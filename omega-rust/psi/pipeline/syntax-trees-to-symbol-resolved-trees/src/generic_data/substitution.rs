@@ -9,6 +9,7 @@ use super::*;
 /// shared unchanged.
 pub(in crate::generic_data) fn substitute_member(
     syntax: &mut SyntaxTrees,
+    snapshot: &SyntaxTrees,
     member: DataMember,
     substitution: &HashMap<String, TypeReferenceHandle>,
     const_values: &HashMap<String, i128>,
@@ -42,14 +43,44 @@ pub(in crate::generic_data) fn substitute_member(
                     .expect("generic sum payload field count overflow");
             }
             variant.payload = HandleSpan::from_parts(first, count);
-            // Case constraints on generic data are fenced at lowering; an
-            // instance never carries variant facts until synthesis can
-            // substitute them honestly.
-            variant.where_facts = HandleSpan::empty();
+            // CASE-CONSTRAINTS generic case-data synthesis: the case's `where`
+            // facts ride the instance with it. The syntax->resolved lowering
+            // fence already refused any fact that names a parameter without a
+            // fact-position substitution, so a deep copy out of the
+            // pre-substitution snapshot is faithful -- field names, literals,
+            // and top-level bindings spell identically on the instance, and a
+            // `const` binder mention is rewritten to its literal argument by
+            // the caller's rewrite over freshly copied expressions. Source
+            // spans ride along, so a construction-side refusal still names the
+            // authored clause.
+            variant.where_facts = copy_case_where_facts(syntax, snapshot, variant.where_facts);
             DataMember::Variant(variant)
         }
         DataMember::Retired(identity) => DataMember::Retired(identity),
     }
+}
+
+/// Deep-copy one case `where` fact span out of the template snapshot. The
+/// handles index the template's fact arena, which `snapshot` preserves exactly;
+/// each copy appends to the live tree, so the rebuilt span stays contiguous.
+fn copy_case_where_facts(
+    syntax: &mut SyntaxTrees,
+    snapshot: &SyntaxTrees,
+    facts: HandleSpan<ProofFact>,
+) -> HandleSpan<ProofFact> {
+    let mut copied = HandleSpan::empty();
+    for offset in 0..facts.count() {
+        let source = Handle::from_parts(
+            facts
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("case where-fact source handle overflow"),
+            facts.start().generation(),
+        );
+        copied.push_contiguous(syntax.copy_proof_fact_from(snapshot, source));
+    }
+    copied
 }
 
 pub(in crate::generic_data) fn substitute_data_field(

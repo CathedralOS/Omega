@@ -1,0 +1,21 @@
+// CASE-CONSTRAINTS generic case-data synthesis: a case `where` fact over the
+// case's own payload names no generic parameter, so the fact rides each
+// synthesized instance -- `Window<i32>::Range` proves `lo <= hi` at
+// construction and contributes it inside the match arm, where `hi - lo` is
+// exact unsigned arithmetic.
+data Window<T> {
+    marker: T;
+    case Empty;
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+data Main { window: Window<i32>; }
+machine Main::main(&mut self) {
+    self.window = Window::Range { marker: 0, lo: 3, hi: 9 };
+    transition self.window {
+        Window::Empty -> done()
+        Window::Range { lo, hi } -> span(hi - lo)
+        _ -> done()
+    }
+    state span(&mut self, width: u64) {}
+    state done(&mut self) {}
+}

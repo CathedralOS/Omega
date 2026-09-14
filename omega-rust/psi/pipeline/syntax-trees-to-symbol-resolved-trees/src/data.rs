@@ -2,6 +2,7 @@ use crate::lowerer::Lowerer;
 use crate::type_reference::{lower_child_type_references, lower_type_reference_handle};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use std::collections::HashSet;
 use symbol_resolved_trees::data::{
     DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties, DataVariant,
     QuotientDefinition, TypeParameter, TypeParameterKind,
@@ -100,11 +101,12 @@ fn lower_data_definition_with_argument_origins(
 ) -> Result<DataDefinition, Diagnostic> {
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
+    let case_fact_gate = GenericCaseFactGate::new(syntax_trees, data_definition.type_parameters);
     let members = lower_data_members(
         lowerer,
         syntax_trees,
         data_definition.members,
-        type_parameters.is_empty(),
+        &case_fact_gate,
     )?;
     let retired_identities = syntax_trees
         .items
@@ -446,7 +448,7 @@ fn lower_data_members(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     members: HandleSpan<syntax::item::DataMember>,
-    monomorphic: bool,
+    case_fact_gate: &GenericCaseFactGate,
 ) -> Result<HandleSpan<DataMember>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
@@ -454,7 +456,7 @@ fn lower_data_members(
         if matches!(member, syntax::item::DataMember::Retired(_)) {
             continue;
         }
-        let member = lower_data_member(lowerer, syntax_trees, member, monomorphic)?;
+        let member = lower_data_member(lowerer, syntax_trees, member, case_fact_gate)?;
         lowerer
             .symbol_resolved_trees
             .tables
@@ -470,7 +472,7 @@ fn lower_data_member(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     member: &syntax::item::DataMember,
-    monomorphic: bool,
+    case_fact_gate: &GenericCaseFactGate,
 ) -> Result<DataMember, Diagnostic> {
     match member {
         syntax::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
@@ -505,13 +507,18 @@ fn lower_data_member(
                     .data_payload_fields
                     .append_to_span(&mut payload, lowered);
             }
-            // Generic instance synthesis (generic_data/synthesis.rs)
-            // re-lowers only the definition's `where_facts` per instance;
-            // variant facts would be silently dropped there, so refuse until
-            // instance synthesis carries them.
-            if !monomorphic && !variant.where_facts.is_empty() {
+            // CASE-CONSTRAINTS generic case-data synthesis: a generic case's
+            // `where` facts deep-copy onto each synthesized instance
+            // (generic_data/substitution.rs). The copy is faithful for facts
+            // over payload fields, literals, and top-level bindings, and a
+            // `const` binder mention is rewritten to its literal argument in
+            // expression position. A binder with no fact-position
+            // substitution (type, value, machine, proposition) or a `const`
+            // binder inside a membership value/domain path still refuses
+            // rather than drop the fact or dangle a name on the instance.
+            if generic_case_facts_unsupported(syntax_trees, variant.where_facts, case_fact_gate) {
                 return Err(Diagnostic::error(
-                    "case constraints on generic data are not supported yet",
+                    "case constraints on generic data may not mention generic parameters yet",
                 ));
             }
             let where_facts =
@@ -526,5 +533,274 @@ fn lower_data_member(
             }))
         }
         syntax::item::DataMember::Retired(_) => unreachable!("retired identities are metadata"),
+    }
+}
+
+/// Which template parameter names a case `where` fact may still not mention.
+/// Generic-instance synthesis deep-copies each case fact onto the instance
+/// (`generic_data/substitution.rs`); a `const` binder mention survives as its
+/// literal argument only in expression position, while a type, value, machine,
+/// or proposition binder has no fact-position substitution at all.
+#[derive(Default)]
+struct GenericCaseFactGate {
+    /// Binder names with no fact-position substitution. A mention anywhere in
+    /// a case fact refuses the case.
+    unsubstituted: HashSet<String>,
+    /// `const` binder names: rewritten to their literal argument inside
+    /// expression position only, so a mention in a membership value or domain
+    /// path, or in a nested type reference's name position, still refuses.
+    consts: HashSet<String>,
+}
+
+impl GenericCaseFactGate {
+    fn new(
+        syntax_trees: &SyntaxTrees,
+        parameters: HandleSpan<syntax::item::TypeParameter>,
+    ) -> Self {
+        let mut gate = Self::default();
+        for parameter in syntax_trees.items.type_parameters(parameters) {
+            let name = parameter.name.as_str().to_owned();
+            match parameter.kind {
+                syntax::item::TypeParameterKind::Const { .. } => {
+                    gate.consts.insert(name);
+                }
+                _ => {
+                    gate.unsubstituted.insert(name);
+                }
+            }
+        }
+        gate
+    }
+
+    /// A name position the literal rewrite cannot reach: every binder refuses.
+    fn mentions(&self, name: &str) -> bool {
+        self.unsubstituted.contains(name) || self.consts.contains(name)
+    }
+
+    /// An expression `Name` leaf: only binders without a substitution refuse;
+    /// `const` binders arrive on the instance as their literal argument.
+    fn expression_mentions(&self, name: &str, const_mentions_allowed: bool) -> bool {
+        self.unsubstituted.contains(name) || (!const_mentions_allowed && self.consts.contains(name))
+    }
+}
+
+/// Whether any of a case's `where` facts names a parameter the synthesis copy
+/// cannot carry honestly. Monomorphic definitions build an empty gate, so this
+/// always admits them.
+fn generic_case_facts_unsupported(
+    syntax_trees: &SyntaxTrees,
+    facts: HandleSpan<syntax::item::ProofFact>,
+    gate: &GenericCaseFactGate,
+) -> bool {
+    if gate.unsubstituted.is_empty() && gate.consts.is_empty() {
+        return false;
+    }
+    syntax_trees
+        .items
+        .proof_facts(facts)
+        .iter()
+        .any(|fact| match fact {
+            syntax::item::ProofFact::Expression(expression) => {
+                case_fact_expression_mentions(syntax_trees, *expression, gate, true)
+            }
+            // The membership value must stay a place/name the
+            // construction-side domain check can own, and the domain path is
+            // a fixed declaration spelling: no binder may appear in either.
+            syntax::item::ProofFact::Membership(membership) => {
+                case_fact_expression_mentions(syntax_trees, membership.value, gate, false)
+                    || syntax_trees
+                        .items
+                        .identifier_path_members(membership.domain)
+                        .iter()
+                        .any(|member| gate.mentions(member.as_str()))
+            }
+        })
+}
+
+fn case_fact_expression_mentions(
+    syntax_trees: &SyntaxTrees,
+    expression: syntax::expression::ExpressionHandle,
+    gate: &GenericCaseFactGate,
+    const_mentions_allowed: bool,
+) -> bool {
+    use syntax::expression::ExpressionNode;
+    match syntax_trees.expressions.expression(expression) {
+        ExpressionNode::Name(path) => syntax_trees
+            .expressions
+            .identifier_path_members(*path)
+            .iter()
+            .any(|member| gate.expression_mentions(member.as_str(), const_mentions_allowed)),
+        ExpressionNode::Binary(binary) => {
+            case_fact_expression_mentions(syntax_trees, binary.left, gate, const_mentions_allowed)
+                || case_fact_expression_mentions(
+                    syntax_trees,
+                    binary.right,
+                    gate,
+                    const_mentions_allowed,
+                )
+        }
+        ExpressionNode::Unary(unary) => {
+            case_fact_expression_mentions(syntax_trees, unary.operand, gate, const_mentions_allowed)
+        }
+        ExpressionNode::Member(member) => case_fact_expression_mentions(
+            syntax_trees,
+            member.receiver,
+            gate,
+            const_mentions_allowed,
+        ),
+        ExpressionNode::Borrow(borrow) => {
+            case_fact_expression_mentions(syntax_trees, borrow.target, gate, const_mentions_allowed)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            case_fact_expression_mentions(
+                syntax_trees,
+                indexed.collection,
+                gate,
+                const_mentions_allowed,
+            ) || case_fact_expression_mentions(
+                syntax_trees,
+                indexed.index,
+                gate,
+                const_mentions_allowed,
+            )
+        }
+        ExpressionNode::Range(range) => {
+            case_fact_expression_mentions(syntax_trees, range.start, gate, const_mentions_allowed)
+                || case_fact_expression_mentions(
+                    syntax_trees,
+                    range.end,
+                    gate,
+                    const_mentions_allowed,
+                )
+        }
+        ExpressionNode::ArrayLiteral(elements) => syntax_trees
+            .expressions
+            .expression_handles(*elements)
+            .iter()
+            .any(|element| {
+                case_fact_expression_mentions(syntax_trees, *element, gate, const_mentions_allowed)
+            }),
+        ExpressionNode::Membership(membership) => {
+            case_fact_expression_mentions(syntax_trees, membership.value, gate, false)
+                || syntax_trees
+                    .expressions
+                    .identifier_path_members(membership.domain)
+                    .iter()
+                    .any(|member| gate.mentions(member.as_str()))
+        }
+        ExpressionNode::Cast(cast) => {
+            case_fact_expression_mentions(syntax_trees, cast.value, gate, const_mentions_allowed)
+                || case_fact_type_mentions(syntax_trees, cast.target_type, gate)
+                || syntax_trees
+                    .expressions
+                    .identifier_path_members(cast.semantic_domain)
+                    .iter()
+                    .any(|member| gate.mentions(member.as_str()))
+                || syntax_trees
+                    .type_references
+                    .type_reference_handles(cast.semantic_domain_arguments)
+                    .iter()
+                    .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
+        }
+        ExpressionNode::ZeroValue(type_reference) => {
+            case_fact_type_mentions(syntax_trees, *type_reference, gate)
+        }
+        ExpressionNode::Integer(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::SelfValue => false,
+        // Proposition applications, matches, struct literals, and atomics have
+        // no generic-instance case-fact carriage yet: refuse rather than copy
+        // a shape the seeded replay does not compare.
+        ExpressionNode::Call(_)
+        | ExpressionNode::Match(_)
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::Atomic(_) => true,
+    }
+}
+
+/// A type reference nested inside a case fact (`x as T`, `zero<T>()`). Name
+/// positions are not rewritten by the `const` literal pass, so every binder
+/// mention refuses; embedded expression positions (range bounds, const
+/// arguments) do participate in the rewrite.
+fn case_fact_type_mentions(
+    syntax_trees: &SyntaxTrees,
+    reference: syntax::types::TypeReferenceHandle,
+    gate: &GenericCaseFactGate,
+) -> bool {
+    use syntax::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
+    match syntax_trees.type_references.type_reference(reference) {
+        TypeReferenceNode::Named(name) => gate.mentions(name.as_str()),
+        TypeReferenceNode::Reference { referee, .. } => {
+            case_fact_type_mentions(syntax_trees, *referee, gate)
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            case_fact_type_mentions(syntax_trees, *element_type, gate)
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            case_fact_type_mentions(syntax_trees, *element_type, gate)
+                || match length {
+                    FixedArrayLength::Literal(_) => false,
+                    FixedArrayLength::ConstParameter(name) | FixedArrayLength::ConstCall(name) => {
+                        gate.mentions(name.as_str())
+                    }
+                }
+        }
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } => {
+            gate.mentions(base_name.as_str())
+                || syntax_trees
+                    .type_references
+                    .type_reference_handles(*arguments)
+                    .iter()
+                    .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            case_fact_type_mentions(syntax_trees, *base_type, gate)
+                || syntax_trees
+                    .type_references
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| match constraint {
+                        TypeConstraintNode::Named(name) => gate.mentions(name.as_str()),
+                        TypeConstraintNode::Range {
+                            minimum, maximum, ..
+                        } => {
+                            case_fact_expression_mentions(syntax_trees, *minimum, gate, true)
+                                || case_fact_expression_mentions(syntax_trees, *maximum, gate, true)
+                        }
+                        TypeConstraintNode::ArithmeticDomain(_) => false,
+                        TypeConstraintNode::Domain(domain) => {
+                            gate.mentions(domain.name.as_str())
+                                || syntax_trees
+                                    .type_references
+                                    .type_reference_handles(domain.arguments)
+                                    .iter()
+                                    .any(|argument| {
+                                        case_fact_type_mentions(syntax_trees, *argument, gate)
+                                    })
+                        }
+                    })
+        }
+        TypeReferenceNode::ConstExpression(expression) => {
+            case_fact_expression_mentions(syntax_trees, *expression, gate, true)
+        }
+        TypeReferenceNode::DynamicTrait { name, conformance } => {
+            gate.mentions(name.as_str())
+                || conformance
+                    .as_ref()
+                    .is_some_and(|conformance| gate.mentions(conformance.as_str()))
+        }
+        TypeReferenceNode::SelfType | TypeReferenceNode::Unit => false,
     }
 }

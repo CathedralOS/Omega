@@ -386,7 +386,6 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                 }
                 fact_count += 1;
             }
-            replace_const_expression_names_from(syntax, fact_expression_watermark, &const_literals);
             let where_facts = HandleSpan::from_parts(first_fact, fact_count);
 
             // Retain the authored generic application as structural evidence.
@@ -410,14 +409,25 @@ pub(super) fn desugar_generic_data_instances_with_selection(
             let mut first: Handle<DataMember> = Handle::invalid();
             let mut count = 0u32;
             for member in members {
-                let substituted =
-                    substitute_member(syntax, member, &substitution, &const_values, warnings);
+                let substituted = substitute_member(
+                    syntax,
+                    &snapshot,
+                    member,
+                    &substitution,
+                    &const_values,
+                    warnings,
+                );
                 let handle = syntax.tables.items.append_data_member(substituted);
                 if count == 0 {
                     first = handle;
                 }
                 count += 1;
             }
+            // Run the const-binder literal rewrite only after member
+            // substitution: a carried case `where` fact is copied inside the
+            // loop above, so its `const` mentions land in the same rewritten
+            // window as the data-level fact copies.
+            replace_const_expression_names_from(syntax, fact_expression_watermark, &const_literals);
             let declaration = syntax.push_root_item(Item::Data(DataDefinition {
                 // The closed instance is compiler-generated, but its mandatory
                 // derivation origin is the exact authored generic declaration.
