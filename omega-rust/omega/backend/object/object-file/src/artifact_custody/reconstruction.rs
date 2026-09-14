@@ -15,7 +15,7 @@ pub(super) fn validate_terminal_join(
     }
     let module = terminal_codec::decode_module(terminal.semantic_bytes())
         .map_err(|_| OptimizedObjectArtifactError::InvalidTerminalArtifact)?;
-    let proof = terminal_codec::decode_proof_bundle(terminal.proof_bytes())
+    let proof = terminal_codec::decode_proof_bundle_for(&module, terminal.proof_bytes())
         .map_err(|_| OptimizedObjectArtifactError::InvalidTerminalArtifact)?;
     let input = source.verified_input();
     if module != *input.context().module() || terminal_manifest.semantic() != source.object().psi {

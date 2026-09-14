@@ -13,9 +13,9 @@ use crate::{
     ArtifactManifestError, CodecError, DebugMapError, ProofCodecError,
     PsiOptimizationExecutionRecord, PsiOptimizationExecutionRecordDecodeError,
     TerminalArtifactManifest, TerminalDebugMap, build_artifact_manifest, decode_debug_map,
-    decode_module, decode_proof_bundle, decode_psi_optimization_execution_record, encode_debug_map,
-    encode_module, encode_proof_bundle, encode_psi_optimization_execution_record,
-    validate_artifact_manifest,
+    decode_module, decode_proof_section_for, decode_psi_optimization_execution_record,
+    encode_debug_map, encode_module, encode_proof_section,
+    encode_psi_optimization_execution_record, validate_artifact_manifest,
 };
 
 const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
@@ -43,8 +43,10 @@ impl CanonicalTerminalArtifact {
     ) -> Result<Self, CanonicalTerminalArtifactError> {
         let semantic_bytes =
             encode_module(semantic_module).map_err(CanonicalTerminalArtifactError::Semantic)?;
-        let proof_bytes =
-            encode_proof_bundle(proof_bundle).map_err(CanonicalTerminalArtifactError::Proof)?;
+        // The proof section is sealed to this module's reconstructed identity
+        // by the codec; the producer cannot choose the verifier's subject.
+        let proof_bytes = encode_proof_section(semantic_module, proof_bundle)
+            .map_err(CanonicalTerminalArtifactError::Proof)?;
         let optimization_bytes = encode_psi_optimization_execution_record(optimization);
         let debug_bytes = debug_map
             .map(|debug_map| {
@@ -76,7 +78,7 @@ impl CanonicalTerminalArtifact {
     pub fn validate(&self) -> Result<(), CanonicalTerminalArtifactError> {
         let semantic_module = decode_module(&self.semantic_bytes)
             .map_err(CanonicalTerminalArtifactError::Semantic)?;
-        let proof_bundle = decode_proof_bundle(&self.proof_bytes)
+        let proof_bundle = decode_proof_section_for(&semantic_module, &self.proof_bytes)
             .map_err(CanonicalTerminalArtifactError::Proof)?;
         let optimization = decode_psi_optimization_execution_record(&self.optimization_bytes)
             .map_err(CanonicalTerminalArtifactError::Optimization)?;
@@ -168,8 +170,8 @@ impl CanonicalTerminalArtifact {
 
         let semantic_module =
             decode_module(semantic_bytes).map_err(CanonicalTerminalArtifactError::Semantic)?;
-        let proof_bundle =
-            decode_proof_bundle(proof_bytes).map_err(CanonicalTerminalArtifactError::Proof)?;
+        let proof_bundle = decode_proof_section_for(&semantic_module, proof_bytes)
+            .map_err(CanonicalTerminalArtifactError::Proof)?;
         let optimization = decode_psi_optimization_execution_record(optimization_bytes)
             .map_err(CanonicalTerminalArtifactError::Optimization)?;
         let debug_map = debug_bytes

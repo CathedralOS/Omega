@@ -20,7 +20,10 @@ use sha2::{Digest, Sha256};
 pub use synopsis::{
     render_verified_native_ranked_countdown_synopsis, render_verified_proof_synopsis,
 };
-use terminal_psi::ControlCycleEvidence;
+use terminal_psi::{
+    ControlCycleEvidence, SemanticFingerprint, TerminalModule, TerminalPsiIdentity,
+    VocabularyMarker,
+};
 use terminal_verifier::{
     EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
     ObligationEvidence, ProofBundle, RecursiveComponentEvidence,
@@ -31,6 +34,12 @@ use wire::{Reader, Writer};
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
 pub(crate) const FORMAT_MARKER: u16 = 33;
+/// Subject-sealed canonical proof section: the artifact-bound form of a proof
+/// bundle. The section header names the exact semantic subject the bundle was
+/// admitted for so a sealed proof cannot be replayed for another subject even
+/// when compact obligation coordinates coincide.
+const SECTION_MAGIC: &[u8; 8] = b"PSIPSC\0\0";
+const SECTION_FORMAT_MARKER: u16 = 1;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -71,7 +80,101 @@ pub fn encode_proof_bundle(bundle: &ProofBundle) -> Result<Vec<u8>, ProofCodecEr
     encode_raw(bundle, FORMAT_MARKER)
 }
 
+/// Seal one proof bundle into its canonical artifact proof section, binding
+/// the section to the module's exact reconstructed semantic identity. The
+/// subject is computed from the module here; a producer cannot choose the
+/// verifier's root subject.
+pub fn encode_proof_section(
+    module: &TerminalModule,
+    bundle: &ProofBundle,
+) -> Result<Vec<u8>, ProofCodecError> {
+    let subject = crate::terminal_psi_identity(module).map_err(ProofCodecError::SubjectIdentity)?;
+    let bundle_bytes = encode_proof_bundle(bundle)?;
+    let mut bytes = Vec::with_capacity(SECTION_MAGIC.len() + 2 + 2 + 32 + bundle_bytes.len());
+    bytes.extend_from_slice(SECTION_MAGIC);
+    bytes.extend_from_slice(&SECTION_FORMAT_MARKER.to_le_bytes());
+    bytes.extend_from_slice(&subject.vocabulary_marker.get().to_le_bytes());
+    bytes.extend_from_slice(subject.program_fingerprint.as_bytes());
+    bytes.extend_from_slice(&bundle_bytes);
+    Ok(bytes)
+}
+
+/// Decode a sealed proof section into its claimed semantic subject and proof
+/// bundle. The claim is not trusted by this decoder: a boundary pairing the
+/// section with a module must require the claim to equal the identity
+/// reconstructed from that module (see [`decode_proof_section_for`]).
+pub fn decode_proof_section(
+    bytes: &[u8],
+) -> Result<(TerminalPsiIdentity, ProofBundle), ProofCodecError> {
+    let mut reader = Reader::new(bytes);
+    if reader.take(SECTION_MAGIC.len())? != SECTION_MAGIC {
+        return Err(ProofCodecError::InvalidMagic);
+    }
+    let format_marker = reader.u16()?;
+    if format_marker != SECTION_FORMAT_MARKER {
+        return Err(ProofCodecError::UnsupportedFormatMarker(format_marker));
+    }
+    let raw_vocabulary = reader.u16()?;
+    let vocabulary_marker = VocabularyMarker::new(raw_vocabulary).ok_or(
+        ProofCodecError::UnsupportedProofSectionVocabulary(raw_vocabulary),
+    )?;
+    let program_fingerprint = SemanticFingerprint::from_bytes(reader.array::<32>()?);
+    let bundle_offset = bytes.len() - reader.remaining();
+    let bundle = decode_proof_bundle(&bytes[bundle_offset..])?;
+    Ok((
+        TerminalPsiIdentity {
+            vocabulary_marker,
+            program_fingerprint,
+        },
+        bundle,
+    ))
+}
+
+/// Decode a sealed proof section and require its claimed subject to equal the
+/// identity reconstructed from this exact module. Unsealed proof bundles are
+/// rejected here; see [`decode_proof_bundle_for`] for the transitional
+/// admission decode that still accepts them.
+pub fn decode_proof_section_for(
+    module: &TerminalModule,
+    bytes: &[u8],
+) -> Result<ProofBundle, ProofCodecError> {
+    let (claimed, bundle) = decode_proof_section(bytes)?;
+    let reconstructed =
+        crate::terminal_psi_identity(module).map_err(ProofCodecError::SubjectIdentity)?;
+    if claimed != reconstructed {
+        return Err(ProofCodecError::ProofSubjectMismatch {
+            claimed,
+            reconstructed,
+        });
+    }
+    Ok(bundle)
+}
+
+/// Admission decode for a proof section paired with this exact module. A
+/// sealed section must name the module's reconstructed identity, so a sealed
+/// proof cannot be replayed for another subject even when compact obligation
+/// coordinates coincide. An unsealed bundle is still decoded: requiring the
+/// sealed form at every raw-section boundary is the remaining
+/// SUBJECT-QUALIFIED-ARTIFACT-PROOFS step.
+pub fn decode_proof_bundle_for(
+    module: &TerminalModule,
+    bytes: &[u8],
+) -> Result<ProofBundle, ProofCodecError> {
+    if bytes.starts_with(SECTION_MAGIC) {
+        decode_proof_section_for(module, bytes)
+    } else {
+        decode_proof_bundle(bytes)
+    }
+}
+
 pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError> {
+    if bytes.starts_with(SECTION_MAGIC) {
+        // A sealed proof section decodes to its bundle here; the subject
+        // claim is intentionally not inspected. Boundaries that pair a proof
+        // section with a module must use decode_proof_bundle_for or
+        // decode_proof_section_for so the seal is enforced.
+        return decode_proof_section(bytes).map(|(_, bundle)| bundle);
+    }
     let mut reader = Reader::new(bytes);
     if reader.take(MAGIC.len())? != MAGIC {
         return Err(ProofCodecError::InvalidMagic);
@@ -2209,6 +2312,12 @@ pub enum ProofCodecError {
     InvalidUtf8(&'static str),
     MalformedProposition(PropositionError),
     TrustGraph(crate::TrustGraphError),
+    SubjectIdentity(crate::CodecError),
+    UnsupportedProofSectionVocabulary(u16),
+    ProofSubjectMismatch {
+        claimed: TerminalPsiIdentity,
+        reconstructed: TerminalPsiIdentity,
+    },
 }
 
 impl std::fmt::Display for ProofCodecError {
