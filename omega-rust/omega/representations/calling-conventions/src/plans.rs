@@ -253,11 +253,22 @@ impl CallingPolicy {
         }
     }
 
+    /// The native callable matrix declares each supported (architecture,
+    /// object-format) pair instead of defaulting per architecture: a pair
+    /// with no declared policy fails closed rather than silently inheriting
+    /// an ABI. Adding a supported target extends this matrix deliberately.
     pub const fn native_for_target(target: target::NativeTarget) -> Self {
         match (target.architecture, target.object_format) {
             (Architecture::X86_64, target::ObjectFormat::Coff) => Self::MicrosoftX64,
-            (Architecture::X86_64, _) => Self::SystemVAMD64,
-            (Architecture::Aarch64, _) => Self::Aapcs64,
+            (Architecture::X86_64, target::ObjectFormat::Elf) => Self::SystemVAMD64,
+            (Architecture::Aarch64, target::ObjectFormat::Elf) => Self::Aapcs64,
+            (Architecture::Aarch64, target::ObjectFormat::MachO) => Self::Aapcs64,
+            (Architecture::X86_64, target::ObjectFormat::MachO)
+            | (Architecture::Aarch64, target::ObjectFormat::Coff) => {
+                panic!(
+                    "no native calling policy is declared for this (architecture, object-format) pair"
+                )
+            }
         }
     }
 }
@@ -2386,6 +2397,58 @@ mod tests {
         CallSignature {
             parameters: vec![ValueShape::integer(8, 8); parameter_count],
             result: Some(ValueShape::integer(8, 8)),
+        }
+    }
+
+    #[test]
+    fn native_for_target_maps_each_declared_pair_to_its_policy() {
+        for (target, policy) in [
+            (
+                target::NativeTarget::windows_x64(),
+                CallingPolicy::MicrosoftX64,
+            ),
+            (
+                target::NativeTarget::uefi_x64(),
+                CallingPolicy::MicrosoftX64,
+            ),
+            (
+                target::NativeTarget::linux_x64(),
+                CallingPolicy::SystemVAMD64,
+            ),
+            (target::NativeTarget::linux_arm64(), CallingPolicy::Aapcs64),
+            (target::NativeTarget::macos_arm64(), CallingPolicy::Aapcs64),
+        ] {
+            assert_eq!(CallingPolicy::native_for_target(target), policy);
+        }
+    }
+
+    #[test]
+    fn native_for_target_resolves_a_policy_for_every_profile_target() {
+        for profile in target::TargetProfile::ALL {
+            let native = profile.native_target();
+            assert_eq!(
+                CallingPolicy::native_for_target(native).architecture(),
+                native.architecture
+            );
+        }
+    }
+
+    #[test]
+    fn native_for_target_fails_closed_for_undeclared_pairs() {
+        for (architecture, object_format) in [
+            (Architecture::X86_64, target::ObjectFormat::MachO),
+            (Architecture::Aarch64, target::ObjectFormat::Coff),
+        ] {
+            let undeclared = target::NativeTarget {
+                architecture,
+                object_format,
+                pointer_size: 8,
+                pointer_alignment: 8,
+            };
+            assert!(
+                std::panic::catch_unwind(|| CallingPolicy::native_for_target(undeclared)).is_err(),
+                "undeclared pair must fail closed"
+            );
         }
     }
 
