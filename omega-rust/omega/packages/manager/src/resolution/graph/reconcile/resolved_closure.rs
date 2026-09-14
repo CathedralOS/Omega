@@ -1,7 +1,8 @@
 //! Validated closure custody and exact source-selection views.
 
 use super::super::{ResolvedPackageClosure, ResolvedSourceIdentity};
-use super::model::{DependencyRequestPath, DependencyRequestPathStep};
+use super::DependencyRequestPaths;
+use super::model::DependencyRequestPath;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
 use crate::declarations::{AliasName, PackageKey};
@@ -9,7 +10,7 @@ use crate::resolution::graph::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
 use target::TargetProfile;
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 /// A fully traversed and graph-validated source closure plus exact custody for
@@ -206,64 +207,17 @@ impl ResolvedPackageSourceClosure {
     /// visits every package at most once.
     pub fn dependency_path(&self, target: &PackageKey) -> Option<DependencyRequestPath> {
         self.custody(target)?;
-        let root = self.graph.root();
-        if root == target {
+        if target == self.graph.root() {
             return Some(DependencyRequestPath {
-                root: root.clone(),
+                root: target.clone(),
                 steps: Vec::new(),
             });
         }
+        DependencyRequestPaths::new(self, Some(target))?.path(target)
+    }
 
-        let mut pending = VecDeque::from([root.clone()]);
-        let mut visited = BTreeSet::from([root.clone()]);
-        let mut predecessors = BTreeMap::<PackageKey, DependencyRequestPathStep>::new();
-        while let Some(requester) = pending.pop_front() {
-            let node = self
-                .graph
-                .package(&requester)
-                .expect("validated closure traversal contains only package nodes");
-            let custody = self
-                .custody(&requester)
-                .expect("validated graph package retains source custody");
-            debug_assert_eq!(
-                node.dependencies().len(),
-                custody.dependency_projections().authored_request_count()
-            );
-            for dependency in node.dependencies() {
-                if !visited.insert(dependency.target().clone()) {
-                    continue;
-                }
-                predecessors.insert(
-                    dependency.target().clone(),
-                    DependencyRequestPathStep {
-                        requester: requester.clone(),
-                        purpose: dependency.purpose(),
-                        dependency_index: dependency.dependency_index(),
-                        alias: dependency.alias().clone(),
-                        target: dependency.target().clone(),
-                    },
-                );
-                if dependency.target() == target {
-                    let mut steps = Vec::new();
-                    let mut current = target.clone();
-                    while &current != root {
-                        let step = predecessors
-                            .get(&current)
-                            .expect("discovered package has a predecessor")
-                            .clone();
-                        current = step.requester.clone();
-                        steps.push(step);
-                    }
-                    steps.reverse();
-                    return Some(DependencyRequestPath {
-                        root: root.clone(),
-                        steps,
-                    });
-                }
-                pending.push_back(dependency.target().clone());
-            }
-        }
-
-        None
+    /// Prepare once when explaining several packages in this closure.
+    pub(crate) fn dependency_paths(&self) -> Option<DependencyRequestPaths<'_>> {
+        DependencyRequestPaths::new(self, None)
     }
 }

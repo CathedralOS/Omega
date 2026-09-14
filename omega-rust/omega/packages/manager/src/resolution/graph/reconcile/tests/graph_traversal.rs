@@ -219,3 +219,104 @@ fn traverses_complete_transitive_closure_before_returning() {
     assert_eq!(closure.graph().packages().len(), 4);
     assert!(closure.custody(&leaf_key).is_some());
 }
+
+#[test]
+fn batch_explanation_paths_traverse_edges_once_and_preserve_breadth_first_choices() {
+    let shared = custody("shared", "shared", 2, "/snapshots/shared", vec![]);
+    let shortcut = custody("shortcut", "shortcut", 3, "/snapshots/shortcut", vec![]);
+    let mut packages = BTreeMap::from([
+        ("shared".to_owned(), shared.clone()),
+        ("shortcut".to_owned(), shortcut.clone()),
+    ]);
+    let mut requests = Vec::new();
+    // Deliberately oppose package-key order: authored order must decide ties.
+    for ordinal in (0..32).rev() {
+        let name = format!("branch-{ordinal:02}");
+        requests.push(request(&name));
+        packages.insert(
+            name.clone(),
+            custody(
+                &name,
+                &name,
+                4,
+                &format!("/snapshots/{name}"),
+                vec![request("shared"), request("shortcut")],
+            ),
+        );
+    }
+    requests.push(request("shortcut"));
+    let root = custody("root", "root", 1, "/snapshots/root", requests);
+    let closure = resolve_package_source_closure(git_root_request(&root), root, |_, request| {
+        packages
+            .get(request_location(request))
+            .cloned()
+            .ok_or("unknown source")
+    })
+    .expect("wide diamond closure");
+    let paths = closure
+        .dependency_paths()
+        .expect("validated graph has its root");
+    assert_eq!(paths.traversed_edges, 97);
+    let shallow = DependencyRequestPaths::new(&closure, Some(&key("branch-31", "branch-31")))
+        .expect("first authored edge");
+    assert_eq!(
+        shallow.traversed_edges, 1,
+        "one-off queries stop on discovery"
+    );
+    let shared_path = paths.path(shared.key()).unwrap();
+    assert_eq!(shared_path.steps().len(), 2);
+    assert_eq!(shared_path.steps()[0].alias().as_str(), "branch_31");
+    assert_eq!(paths.path(shortcut.key()).unwrap().steps().len(), 1);
+    assert!(
+        paths
+            .path(closure.graph().root())
+            .unwrap()
+            .steps()
+            .is_empty()
+    );
+    assert!(paths.path(&key("absent", "absent")).is_none());
+    for _ in 0..3 {
+        for package in closure.graph().packages().iter().rev() {
+            let expected = reference_breadth_first_path(&closure, package.source().key());
+            assert_eq!(paths.path(package.source().key()), expected);
+        }
+    }
+    assert_eq!(
+        paths.traversed_edges, 97,
+        "queries never walk outgoing edges again"
+    );
+}
+
+/// Simple per-query oracle: queue complete paths, unlike the production tree.
+fn reference_breadth_first_path(
+    closure: &ResolvedPackageSourceClosure,
+    target: &crate::declarations::PackageKey,
+) -> Option<DependencyRequestPath> {
+    use std::collections::VecDeque;
+    let root = closure.graph().root();
+    let mut pending = VecDeque::from([(root.clone(), Vec::new())]);
+    let mut seen = BTreeSet::from([root.clone()]);
+    while let Some((requester, steps)) = pending.pop_front() {
+        if &requester == target {
+            return Some(DependencyRequestPath {
+                root: root.clone(),
+                steps,
+            });
+        }
+        for dependency in closure.graph().package(&requester)?.dependencies() {
+            if !seen.insert(dependency.target().clone()) {
+                continue;
+            }
+            let mut next_steps = steps.clone();
+            next_steps.push(DependencyRequestPathStep {
+                requester: requester.clone(),
+                purpose: dependency.purpose(),
+                dependency_index: dependency.dependency_index(),
+                alias: dependency.alias().clone(),
+                target: dependency.target().clone(),
+            });
+            pending.push_back((dependency.target().clone(), next_steps));
+        }
+    }
+    None
+}
