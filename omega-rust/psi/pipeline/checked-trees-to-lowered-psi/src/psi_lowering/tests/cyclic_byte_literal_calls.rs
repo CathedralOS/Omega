@@ -194,8 +194,12 @@ machine Main::main(&mut self) reaches Trace {
     let invariants = &lowered.semantic_module.scalar_block_invariants;
     assert!(
         invariants.iter().any(|invariant| {
+            let predicate = match &invariant.predicate {
+                semantic_vocabulary::Proposition::Implication { conclusion, .. } => conclusion,
+                predicate => predicate,
+            };
             matches!(
-                &invariant.predicate,
+                predicate,
                 semantic_vocabulary::Proposition::LessOrEqual(
                     _,
                     semantic_vocabulary::ScalarTerm::IntegerField { .. },
@@ -276,6 +280,135 @@ machine Main::main(&mut self) reaches Trace {
         lower_machine(&checked, "Main::main"),
         Err(LoweringError::OperationProofUnavailable(_))
     ));
+}
+
+#[test]
+fn guarded_field_divisor_remains_valid_until_loop_exit() {
+    let source = r#"
+boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
+data Main { ready: bool; counter: u32 in Wrapping; divisor: u32; result: u32; }
+machine Main::main(&mut self) reaches Trace {
+    self.ready = true;
+    self.counter = 0;
+    self.divisor = 5;
+    transition { _ -> head() }
+    state head(&mut self) {
+        transition self.ready { true -> step() _ -> done() }
+    }
+    state step(&mut self) {
+        self.result = 100 / self.divisor;
+        Trace::write("step");
+        self.counter = self.counter + 1;
+        transition self.counter < 3 { true -> head() _ -> retire() }
+    }
+    state retire(&mut self) {
+        self.divisor = 0;
+        self.ready = false;
+        transition { _ -> head() }
+    }
+    state done(&mut self) { Trace::write("done"); }
+}
+"#;
+    let checked = checked_source(source);
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
+        .expect("a guarded field bound is inductive across the exit backedge");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert!(
+        module
+            .scalar_block_invariants
+            .iter()
+            .any(|invariant| matches!(
+                invariant.predicate,
+                semantic_vocabulary::Proposition::Implication { .. }
+            )),
+        "the divisor is not unconditionally nonzero at this header"
+    );
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let receiver = &entry.structural_parameters[0];
+    let ready_field = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            terminal_psi::OperationKind::BooleanStructuralField { field, .. } => Some(field),
+            _ => None,
+        })
+        .expect("the loop reads its ready field");
+    let mut execution =
+        TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            &[TerminalStructuralValue {
+                opaque_identity: 1,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            &[terminal_interpreter::TerminalStructuralBooleanFieldValue {
+                argument_index: 0,
+                path: Vec::new(),
+                field: ready_field,
+                value: false,
+            }],
+        )
+        .expect("guarded loop reloads with every arrival independently checked");
+    let mut meter = TerminalFuelMeter::with_allowance(1000);
+    let mut trace = ByteTrace::default();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut meter, &mut trace)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(
+        trace.0,
+        [
+            b"step".to_vec(),
+            b"step".to_vec(),
+            b"step".to_vec(),
+            b"done".to_vec()
+        ]
+    );
+    let invalid = checked_source(&source.replace("self.ready = false;", "self.ready = true;"));
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&invalid, "Main::main")
+            .produce_artifact()
+            .is_err(),
+        "a backedge with a live guard and zero divisor must reject"
+    );
+    let mut live_exit = module.clone();
+    let exit_guard = live_exit
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BooleanConstant { value: false }
+            )
+        })
+        .expect("the exit clears its guard");
+    exit_guard.kind = terminal_psi::OperationKind::BooleanConstant { value: true };
+    terminal_verifier::validate_module(&live_exit)
+        .expect("changing the guard keeps structural validity");
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    assert!(
+        terminal_verifier::verify_module(
+            &live_exit,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "old arrival evidence cannot justify the newly live exit"
+    );
 }
 
 #[test]
