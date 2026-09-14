@@ -1,12 +1,27 @@
 # Restricted fixed-fuel checking
 
 The [logical-work specification](../../../../wiki/spec/resources/logical_work.md)
-owns the theorem and evidence-role rules. Enter [lib.rs](src/lib.rs) for current
-certificate constructors and replay.
+owns the theorem and evidence-role rules. Enter
+[fuel_certification.rs](src/fuel_certification.rs) for certificate derivation,
+whole-roster replay, and sealing. Public evidence records remain in
+[lib.rs](src/lib.rs). Subordinate owners separate
+[segment partitioning](src/fuel_certification/segment_partition.rs),
+[outcome composition](src/fuel_certification/outcome_bounds.rs), and the distinct
+[ranked-countdown authority](src/fuel_certification/ranked_countdown.rs).
 
 Ordinary acyclic derivation computes outcome-sensitive maximum paths and the
 complete reachable segment partition. Keep whole-entry, segment, and
 analysis-only ranked catalogs distinct in constructors and installation binders.
+
+Each ordinary segment/catalog invocation prepares machine, dynamic-call, and
+selected-machine block lookups once. Exact module identity is computed at most
+once, when first required; an empty unsealed roster still needs none. The
+reachable partition and its rows share callee outcome summaries. Derive-and-seal
+still reconstructs and compares the complete roster a second time, borrowing
+only immutable preparation and starting with fresh outcome working state.
+External replay prepares everything anew; no cache crosses invocations or
+semantic subjects. Callee block lookups are still built on each fresh outcome
+derivation, and segment paths are still charged separately for each row.
 
 ## Exact countdown implementation
 

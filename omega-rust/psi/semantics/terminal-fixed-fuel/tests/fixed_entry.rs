@@ -1088,6 +1088,18 @@ fn certificate_derivation_requires_canonical_semantic_identity() {
             CodecError::NonCanonicalOrder("blocks by BlockId")
         ))
     );
+    assert_eq!(
+        derive_fixed_segment_fuel(&verified, machine_id(999), block_id(1), edge_id(1)),
+        Err(FixedFuelError::SemanticIdentity(
+            CodecError::NonCanonicalOrder("blocks by BlockId")
+        )),
+        "single-segment identity validation still precedes machine lookup"
+    );
+    assert_eq!(
+        derive_fixed_safe_point_segments(&verified, machine_id(999)),
+        Err(FixedFuelError::UnknownEntry(machine_id(999))),
+        "catalog selection still checks its machine before requesting identity"
+    );
 }
 
 #[test]
@@ -1402,6 +1414,28 @@ fn an_all_crash_callee_excludes_the_unreachable_caller_tail() {
         derive_fixed_safe_point_segments(&verified, machine_id(1))
             .expect("the caller has no reachable machine-local edge")
             .is_empty()
+    );
+    drop(verified);
+    module.machines.swap(0, 1);
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("machine ordering does not change verification");
+    assert!(
+        derive_fixed_safe_point_segments(&verified, machine_id(1))
+            .expect("an empty unsealed catalog does not request semantic identity")
+            .is_empty()
+    );
+    validate_fixed_safe_point_segments(&verified, machine_id(1), &[])
+        .expect("empty roster replay preserves the same identity behavior");
+    assert_eq!(
+        retain_validated_fixed_safe_point_segments(&verified, machine_id(1), Vec::new()),
+        Err(FixedFuelError::SemanticIdentity(
+            CodecError::NonCanonicalOrder("machines by MachineId")
+        )),
+        "sealing still binds identity even for an empty catalog"
     );
 }
 
