@@ -1,0 +1,10 @@
+// CASE-CONSTRAINTS generic case-data synthesis: a `const` binder inside a
+// case `where` fact is rewritten to its literal argument on each synthesized
+// instance -- `Window<8>::At` carries `index < 8`, so `index: 3` constructs.
+data Window<const N: u64> {
+    case At(index: u64) where index < N;
+}
+data Main { window: Window<8>; }
+machine Main::main(&mut self) {
+    self.window = Window::At { index: 3 };
+}

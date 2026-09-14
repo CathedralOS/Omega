@@ -1,5 +1,8 @@
 use super::super::exact_field_symbol;
-use symbol_resolved_trees::{SymbolResolvedTrees, types::TypeReference};
+use symbol_resolved_trees::{
+    SymbolResolvedTrees, domain::ProofFact, expression::ExpressionHandle,
+    expression::ExpressionNode, types::TypeReference,
+};
 use symbols::SymbolHandle;
 
 pub(super) fn member_matches(
@@ -91,6 +94,333 @@ fn variant_matches(
                     instance_field,
                 )
             })
+        && case_where_facts_match(
+            source,
+            substitutions,
+            validated_instances,
+            template.where_facts,
+            instance.where_facts,
+        )
+}
+
+/// Replay one case `where` fact span. The instance must carry exactly the
+/// template's facts in order; each fact replays structurally, with a `const`
+/// binder arriving as its literal argument and every other name spelling
+/// identically. A dropped or reordered fact fails the pair instead of riding
+/// the member shape check.
+fn case_where_facts_match(
+    source: &SymbolResolvedTrees,
+    substitutions: &[(SymbolHandle, &TypeReference)],
+    validated_instances: &[SymbolHandle],
+    template: arena::HandleSpan<ProofFact>,
+    instance: arena::HandleSpan<ProofFact>,
+) -> bool {
+    let template_facts = source.proof_facts(template);
+    let instance_facts = source.proof_facts(instance);
+    template_facts.len() == instance_facts.len()
+        && template_facts
+            .iter()
+            .zip(instance_facts)
+            .all(|(template, instance)| {
+                case_fact_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template,
+                    instance,
+                )
+            })
+}
+
+fn case_fact_matches(
+    source: &SymbolResolvedTrees,
+    substitutions: &[(SymbolHandle, &TypeReference)],
+    validated_instances: &[SymbolHandle],
+    template: &ProofFact,
+    instance: &ProofFact,
+) -> bool {
+    match (template, instance) {
+        (ProofFact::Expression(template), ProofFact::Expression(instance)) => {
+            fact_expression_matches(
+                source,
+                substitutions,
+                validated_instances,
+                *template,
+                *instance,
+            )
+        }
+        (ProofFact::Membership(template), ProofFact::Membership(instance)) => {
+            template.domain_symbol == instance.domain_symbol
+                && diagnostic_names_match(
+                    source.domain_path_members(template.domain),
+                    source.domain_path_members(instance.domain),
+                )
+                && fact_expression_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template.value,
+                    instance.value,
+                )
+        }
+        _ => false,
+    }
+}
+
+fn diagnostic_names_match(
+    template: &[symbol_resolved_trees::name::DiagnosticName],
+    instance: &[symbol_resolved_trees::name::DiagnosticName],
+) -> bool {
+    template.len() == instance.len()
+        && template
+            .iter()
+            .zip(instance)
+            .all(|(template, instance)| template.as_str() == instance.as_str())
+}
+
+/// Structural replay for a case-fact expression. Payload field and common
+/// names spell identically across the template/instance pair while their
+/// symbols legitimately differ, so name positions compare spellings; a
+/// template `const` binder is the one position where the instance carries a
+/// different node -- its literal argument.
+fn fact_expression_matches(
+    source: &SymbolResolvedTrees,
+    substitutions: &[(SymbolHandle, &TypeReference)],
+    validated_instances: &[SymbolHandle],
+    template: ExpressionHandle,
+    instance: ExpressionHandle,
+) -> bool {
+    let expressions = &source.tables.bodies.expressions;
+    match (
+        expressions.expression(template),
+        expressions.expression(instance),
+    ) {
+        (ExpressionNode::Integer(template), ExpressionNode::Integer(instance)) => {
+            template == instance
+        }
+        (ExpressionNode::Boolean(template), ExpressionNode::Boolean(instance)) => {
+            template == instance
+        }
+        (ExpressionNode::Float(template), ExpressionNode::Float(instance)) => {
+            template.text() == instance.text()
+        }
+        (ExpressionNode::String(template), ExpressionNode::String(instance)) => {
+            template == instance
+        }
+        (ExpressionNode::Name(template_path), instance_node) => {
+            if let Some((_, argument)) = substitutions
+                .iter()
+                .find(|(parameter, _)| *parameter == template_path.symbol)
+            {
+                // The only binder a carried case fact may still name is a
+                // `const` parameter, which synthesis rewrites to the literal
+                // argument. Any other substituted shape is a producer bug.
+                let TypeReference::Named { name, .. } = *argument else {
+                    return false;
+                };
+                return matches!(
+                    instance_node,
+                    ExpressionNode::Integer(literal)
+                        if literal.text() == name.as_str()
+                );
+            }
+            let ExpressionNode::Name(instance_path) = instance_node else {
+                return false;
+            };
+            template_path.is_self_value == instance_path.is_self_value
+                && diagnostic_names_match(
+                    expressions.name_path_members(template_path.members),
+                    expressions.name_path_members(instance_path.members),
+                )
+        }
+        (ExpressionNode::Binary(template), ExpressionNode::Binary(instance)) => {
+            template.operator == instance.operator
+                && fact_expression_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template.left,
+                    instance.left,
+                )
+                && fact_expression_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template.right,
+                    instance.right,
+                )
+        }
+        (ExpressionNode::Unary(template), ExpressionNode::Unary(instance)) => {
+            template.operator == instance.operator
+                && fact_expression_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template.operand,
+                    instance.operand,
+                )
+        }
+        (ExpressionNode::Member(template), ExpressionNode::Member(instance)) => {
+            template.member.as_str() == instance.member.as_str()
+                && match (&template.case_variant, &instance.case_variant) {
+                    (Some(template), Some(instance)) => template.as_str() == instance.as_str(),
+                    (None, None) => true,
+                    _ => false,
+                }
+                && fact_expression_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template.receiver,
+                    instance.receiver,
+                )
+        }
+        (ExpressionNode::Borrow(template), ExpressionNode::Borrow(instance)) => {
+            template.access == instance.access
+                && fact_expression_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template.target,
+                    instance.target,
+                )
+        }
+        (ExpressionNode::Indexed(template), ExpressionNode::Indexed(instance)) => {
+            fact_expression_matches(
+                source,
+                substitutions,
+                validated_instances,
+                template.collection,
+                instance.collection,
+            ) && fact_expression_matches(
+                source,
+                substitutions,
+                validated_instances,
+                template.index,
+                instance.index,
+            )
+        }
+        (ExpressionNode::Range(template), ExpressionNode::Range(instance)) => {
+            template.end_inclusive == instance.end_inclusive
+                && fact_expression_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template.start,
+                    instance.start,
+                )
+                && fact_expression_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template.end,
+                    instance.end,
+                )
+        }
+        (ExpressionNode::ArrayLiteral(template), ExpressionNode::ArrayLiteral(instance)) => {
+            let template_elements = expressions.expression_handles(*template);
+            let instance_elements = expressions.expression_handles(*instance);
+            template_elements.len() == instance_elements.len()
+                && template_elements
+                    .iter()
+                    .zip(instance_elements)
+                    .all(|(template, instance)| {
+                        fact_expression_matches(
+                            source,
+                            substitutions,
+                            validated_instances,
+                            *template,
+                            *instance,
+                        )
+                    })
+        }
+        (ExpressionNode::Membership(template), ExpressionNode::Membership(instance)) => {
+            template.domain_symbol == instance.domain_symbol
+                && diagnostic_names_match(
+                    expressions.name_path_members(template.domain),
+                    expressions.name_path_members(instance.domain),
+                )
+                && fact_expression_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template.value,
+                    instance.value,
+                )
+        }
+        (ExpressionNode::Cast(template), ExpressionNode::Cast(instance)) => {
+            template.domain == instance.domain
+                && template.form == instance.form
+                && diagnostic_names_match(
+                    expressions.name_path_members(template.semantic_domain),
+                    expressions.name_path_members(instance.semantic_domain),
+                )
+                && fact_expression_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template.value,
+                    instance.value,
+                )
+                && fact_type_reference_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template.target_type,
+                    instance.target_type,
+                )
+                && {
+                    let template_arguments =
+                        source.child_type_references(template.semantic_domain_arguments);
+                    let instance_arguments =
+                        source.child_type_references(instance.semantic_domain_arguments);
+                    template_arguments.len() == instance_arguments.len()
+                        && template_arguments.iter().zip(instance_arguments).all(
+                            |(template, instance)| {
+                                type_matches(
+                                    source,
+                                    substitutions,
+                                    validated_instances,
+                                    template,
+                                    instance,
+                                )
+                            },
+                        )
+                }
+        }
+        (ExpressionNode::ZeroValue(template), ExpressionNode::ZeroValue(instance)) => {
+            fact_type_reference_matches(
+                source,
+                substitutions,
+                validated_instances,
+                *template,
+                *instance,
+            )
+        }
+        // Proposition applications, matches, struct literals, and atomics are
+        // fenced at the syntax-to-resolved lowering for generic case facts; a
+        // pair that reaches here carrying one is a producer bug, not a shape
+        // to equate.
+        _ => false,
+    }
+}
+
+/// A type reference nested inside a carried case fact replays through the same
+/// substitution rules as a field type.
+fn fact_type_reference_matches(
+    source: &SymbolResolvedTrees,
+    substitutions: &[(SymbolHandle, &TypeReference)],
+    validated_instances: &[SymbolHandle],
+    template: arena::Handle<TypeReference>,
+    instance: arena::Handle<TypeReference>,
+) -> bool {
+    type_matches(
+        source,
+        substitutions,
+        validated_instances,
+        source.child_type_reference(template),
+        source.child_type_reference(instance),
+    )
 }
 
 fn exact_variant_symbol(

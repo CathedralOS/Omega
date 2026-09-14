@@ -1,8 +1,10 @@
-// CASE-CONSTRAINTS slice 1 fence: case constraints on GENERIC data refuse
-// -- generic instance synthesis re-lowers only the definition's `where`
-// facts per instance, so variant facts would be silently dropped.
+// CASE-CONSTRAINTS generic case-data fence: a case `where` fact that names a
+// TYPE parameter has no fact-position substitution on synthesized instances
+// yet -- `T` would dangle on `Value<i32>::Integer`, so the template refuses
+// rather than drop or mis-bind it. Facts over only the case's own payload
+// names and `const` binders already ride instances.
 data Value<T> {
-    case Integer(value: T) where value == value;
+    case Integer(value: T) where T == i32;
 }
 data Main { }
 machine Main::main(&mut self) {

@@ -4534,6 +4534,108 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
     ));
 }
 
+/// CASE-CONSTRAINTS generic case-data synthesis: a case `where` fact that
+/// names no unsubstituted parameter rides each synthesized instance. The
+/// seeded-local replay re-derives the pairing independently: an instance whose
+/// carried fact was rewritten or dropped must not validate.
+#[test]
+fn seeded_local_instance_replays_carried_case_where_facts() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        r#"
+            data Window<T> {
+                marker: T;
+                case Empty;
+                case Range(lo: u64, hi: u64) where lo <= hi;
+            }
+            data Generated { window: Window<i32>; }
+        "#,
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(
+        plain_data_extension_shape_is_supported(&resolved, frontier),
+        "a carried case where-fact replays structurally against the template",
+    );
+
+    let instance_index = (frontier..resolved.data_definitions.len())
+        .find(|index| resolved.data_definitions[*index].generic_instance.is_some())
+        .expect("one instance index");
+    let instance_members = resolved.data_definitions[instance_index].members;
+    let range = resolved
+        .data_members(instance_members)
+        .iter()
+        .find_map(|member| match member {
+            symbol_resolved_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == "Range" =>
+            {
+                Some(variant)
+            }
+            _ => None,
+        })
+        .expect("instance Range case");
+    let [symbol_resolved_trees::domain::ProofFact::Expression(fact_expression)] =
+        resolved.proof_facts(range.where_facts)
+    else {
+        panic!("the instance carries one expression case fact")
+    };
+    let symbol_resolved_trees::expression::ExpressionNode::Binary(binary) = resolved
+        .tables
+        .bodies
+        .expressions
+        .expression(*fact_expression)
+    else {
+        panic!("the carried fact is a binary bound")
+    };
+    assert_eq!(
+        binary.operator,
+        symbol_resolved_trees::expression::BinaryOperator::LessOrEqual
+    );
+
+    // A rewritten carried fact (`lo >= hi`) is not the template's fact: the
+    // replay rejects the pair rather than trusting the producer's copy.
+    let mut corrupted = resolved.clone();
+    let symbol_resolved_trees::expression::ExpressionNode::Binary(binary) = corrupted
+        .tables
+        .bodies
+        .expressions
+        .expression_mut(*fact_expression)
+    else {
+        unreachable!()
+    };
+    binary.operator = symbol_resolved_trees::expression::BinaryOperator::GreaterOrEqual;
+    assert!(
+        !plain_data_extension_shape_is_supported(&corrupted, frontier),
+        "a rewritten carried fact must fail the template/instance replay"
+    );
+
+    // A dropped carried fact is equally visible to the pairing. The instance's
+    // member order is `marker`, `Empty`, `Range`, so `Range` is the third row.
+    let mut dropped = resolved;
+    let variant_handle = arena::Handle::from_parts(
+        instance_members
+            .start()
+            .arena_index()
+            .checked_add(2)
+            .expect("member handle overflow"),
+        instance_members.start().generation(),
+    );
+    let symbol_resolved_trees::data::DataMember::Variant(variant) = dropped
+        .tables
+        .declarations
+        .data_members
+        .get_mut(variant_handle)
+    else {
+        unreachable!()
+    };
+    assert_eq!(variant.name.as_str(), "Range");
+    variant.where_facts = arena::HandleSpan::empty();
+    assert!(
+        !plain_data_extension_shape_is_supported(&dropped, frontier),
+        "a dropped carried fact must fail the template/instance replay"
+    );
+}
+
 #[test]
 fn seeded_nested_local_instance_gate_rejects_dependency_and_reachability_mutations() {
     let (base, extension) = seeded_normalized_plain_data_inputs(

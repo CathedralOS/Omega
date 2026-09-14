@@ -1,0 +1,11 @@
+// CASE-CONSTRAINTS generic case-data synthesis: the carried `lo <= hi` fact
+// still gates construction on `Window<i32>` -- reversed bounds reject exactly
+// as on monomorphic data.
+data Window<T> {
+    marker: T;
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+data Main { window: Window<i32>; }
+machine Main::main(&mut self) {
+    self.window = Window::Range { marker: 0, lo: 9, hi: 3 };
+}

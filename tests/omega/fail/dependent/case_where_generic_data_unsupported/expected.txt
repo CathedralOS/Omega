@@ -1,1 +1,1 @@
-case constraints on generic data are not supported yet
+case constraints on generic data may not mention generic parameters yet
