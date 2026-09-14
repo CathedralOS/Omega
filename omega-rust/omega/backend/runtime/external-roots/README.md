@@ -34,3 +34,14 @@ custody never becomes whole-entry authority by sharing a numeric bound.
 Entry/stack, logical-work, and machine-state support must be evaluated separately;
 the existence of one composer does not establish all entry origins or a general
 WCET model.
+
+[interrupt_table.rs](src/interrupt_table.rs) accounts one descriptor table's
+complete declared member set — fatal exception entries on their own dedicated
+critical stack classes plus acknowledged interrupts such as the timer — over
+the installed-root ledger. Admission replays the ledger's retained root records
+and retains each member's linear handle so entries cannot retire while the
+table holds them. Publication is a separate edge: the consumer-established
+table value must name exactly the admitted set, and the checked-instruction
+provider answers with a receipt for the exact issued carrier. Refusal returns
+the established value for retry; publication and receipt identities cannot be
+replayed.
