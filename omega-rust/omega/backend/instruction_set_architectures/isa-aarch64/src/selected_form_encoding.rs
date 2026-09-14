@@ -598,6 +598,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             (MachineAlternativeFamily::ExactDivideU64, 3)
         }
+        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+            (MachineAlternativeFamily::WrappingRemainderI64, 3)
+        }
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3)
         }
@@ -836,6 +839,25 @@ fn encode_unchecked(
                     | u32::from(registers[2]),
             );
         }
+        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+            if registers[2] == registers[0] || registers[2] == registers[1] {
+                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            words.push(
+                0x9ac0_0c00
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2]),
+            );
+            // MSUB uses the original dividend, including when SDIV wraps MIN / -1.
+            words.push(
+                0x9b00_8000
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 10)
+                    | (u32::from(registers[2]) << 5)
+                    | u32::from(registers[2]),
+            );
+        }
         SelectedInstructionKind::BitwiseXorI64 => {
             words.push(
                 0xca00_0000
@@ -979,6 +1001,17 @@ fn encode_movn_materialization_recipe(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedWord {
+    SignedDivide {
+        dividend: u8,
+        divisor: u8,
+        destination: u8,
+    },
+    MultiplySubtract {
+        left: u8,
+        right: u8,
+        minuend: u8,
+        destination: u8,
+    },
     UnsignedDivide {
         dividend: u8,
         divisor: u8,
@@ -1106,6 +1139,21 @@ fn decode_words(bytes: &[u8]) -> Result<Vec<DecodedWord>, Aarch64SelectedFormEnc
 }
 
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
+    if word & 0xffe0_fc00 == 0x9ac0_0c00 {
+        return Ok(DecodedWord::SignedDivide {
+            dividend: ((word >> 5) & 31) as u8,
+            divisor: ((word >> 16) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_8000 == 0x9b00_8000 {
+        return Ok(DecodedWord::MultiplySubtract {
+            left: ((word >> 5) & 31) as u8,
+            right: ((word >> 16) & 31) as u8,
+            minuend: ((word >> 10) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
     if word & 0xffe0_fc00 == 0x9ac0_0800 {
         return Ok(DecodedWord::UnsignedDivide {
             dividend: ((word >> 5) & 31) as u8,
@@ -1439,6 +1487,24 @@ fn validate_decoded(
                     destination: registers[2],
                 }]
         }
+        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+            registers[2] != registers[0]
+                && registers[2] != registers[1]
+                && decoded
+                    == [
+                        DecodedWord::SignedDivide {
+                            dividend: registers[0],
+                            divisor: registers[1],
+                            destination: registers[2],
+                        },
+                        DecodedWord::MultiplySubtract {
+                            left: registers[2],
+                            right: registers[1],
+                            minuend: registers[0],
+                            destination: registers[2],
+                        },
+                    ]
+        }
         SelectedInstructionKind::BitwiseXorI64 => {
             decoded
                 == [DecodedWord::BitwiseXor {
@@ -1618,7 +1684,8 @@ fn footprint(
         | SelectedInstructionKind::ZeroExtendU32 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![operands[0]], vec![], true),
-        SelectedInstructionKind::ExactDivideU64 { .. } => {
+        SelectedInstructionKind::ExactDivideU64 { .. }
+        | SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
         }
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
@@ -1729,7 +1796,8 @@ fn footprint(
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
                 SelectedInstructionKind::CompareI64
-                | SelectedInstructionKind::ExactDivideU64 { .. } => vec![0, 1],
+                | SelectedInstructionKind::ExactDivideU64 { .. }
+                | SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![0, 1],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseXorI64
@@ -1764,7 +1832,8 @@ fn footprint(
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64Zero => vec![],
                 SelectedInstructionKind::CompareI64Immediate { .. } => vec![],
-                SelectedInstructionKind::ExactDivideU64 { .. } => vec![2],
+                SelectedInstructionKind::ExactDivideU64 { .. }
+                | SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64 => vec![],
                 _ => unreachable!("control forms handled separately"),
             },
@@ -1794,6 +1863,7 @@ fn footprint(
 
 #[cfg(test)]
 mod tests {
+    use optimization_core::AcceptedObligationFactIdentity;
     use register_model::validate_physical_register_model;
     use selected_instructions::MachineAlternativeFamily;
     use semantic_vocabulary::{IntegerValue, MachineId, ObligationId};
@@ -1915,6 +1985,131 @@ mod tests {
             assert_eq!(encoded.bytes(), bytes);
             validate_aarch64_selected_form_encoding(&physical, kind, key, &operands, &bytes)
                 .unwrap();
+        }
+    }
+
+    #[test]
+    fn wrapping_remainder_binds_signed_divide_msub_and_preserved_inputs() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let kind = SelectedInstructionKind::WrappingRemainderI64 {
+            obligation: ObligationId::new(1).unwrap(),
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        };
+        let key = alternative(MachineAlternativeFamily::WrappingRemainderI64);
+        for names in [["x9", "x10", "x11"], ["x9", "x9", "x11"]] {
+            let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
+            let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
+            assert_eq!(encoded.bytes().len(), 8);
+            assert_eq!(encoded.footprint().register_reads, operands[..2]);
+            assert_eq!(encoded.footprint().register_writes, operands[2..]);
+            assert_eq!(
+                encoded.footprint().encoded,
+                MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2])
+            );
+            assert!(!encoded.footprint().writes_nzcv);
+            if names[1] == "x10" {
+                assert_eq!(
+                    encoded.bytes(),
+                    [0x9aca_0d2b_u32, 0x9b0a_a56b]
+                        .into_iter()
+                        .flat_map(u32::to_le_bytes)
+                        .collect::<Vec<_>>()
+                );
+            }
+            for byte_position in 0..encoded.bytes().len() {
+                let mut changed = encoded.bytes().to_vec();
+                changed[byte_position] ^= 1;
+                assert!(
+                    validate_aarch64_selected_form_encoding(
+                        &physical, kind, key, &operands, &changed,
+                    )
+                    .is_err(),
+                    "mutated byte {byte_position}"
+                );
+            }
+            for operand_position in 0..operands.len() {
+                let mut changed = operands;
+                changed[operand_position] = physical.model().view_named("x8").unwrap().id;
+                assert!(
+                    validate_aarch64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &changed,
+                        encoded.bytes(),
+                    )
+                    .is_err()
+                );
+            }
+        }
+        for names in [["x9", "x10", "x9"], ["x9", "x10", "x10"]] {
+            let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
+            assert!(encode_aarch64_selected_form(&physical, kind, key, &operands).is_err());
+            // Even bytes matching the requested destructive alias must reject.
+            let destination = if names[2] == "x9" { 9 } else { 10 };
+            let bytes = [
+                0x9aca_0d20 | destination,
+                0x9b0a_a400 | (destination << 5) | destination,
+            ]
+            .into_iter()
+            .flat_map(u32::to_le_bytes)
+            .collect::<Vec<_>>();
+            assert!(
+                validate_aarch64_selected_form_encoding(&physical, kind, key, &operands, &bytes)
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn wrapping_remainder_decoded_arithmetic_covers_minimum_and_dividend_sign() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let kind = SelectedInstructionKind::WrappingRemainderI64 {
+            obligation: ObligationId::new(1).unwrap(),
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        };
+        let key = alternative(MachineAlternativeFamily::WrappingRemainderI64);
+        let operands =
+            ["x9", "x10", "x11"].map(|name| physical.model().view_named(name).unwrap().id);
+        let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
+        for (dividend, divisor, expected) in [
+            (i64::MIN, -1, 0),
+            (i64::MIN, 1, 0),
+            (i64::MIN, 3, -2),
+            (7, 2, 1),
+            (-7, 2, -1),
+            (7, -2, 1),
+            (-7, -2, -1),
+            (0, -1, 0),
+        ] {
+            let mut registers = [0_i64; 31];
+            registers[9] = dividend;
+            registers[10] = divisor;
+            for instruction in decode_words(encoded.bytes()).unwrap() {
+                match instruction {
+                    DecodedWord::SignedDivide {
+                        dividend,
+                        divisor,
+                        destination,
+                    } => {
+                        registers[destination as usize] =
+                            registers[dividend as usize].wrapping_div(registers[divisor as usize]);
+                    }
+                    DecodedWord::MultiplySubtract {
+                        left,
+                        right,
+                        minuend,
+                        destination,
+                    } => {
+                        registers[destination as usize] = registers[minuend as usize].wrapping_sub(
+                            registers[left as usize].wrapping_mul(registers[right as usize]),
+                        );
+                    }
+                    _ => panic!("unexpected remainder instruction"),
+                }
+            }
+            assert_eq!(registers[11], expected, "{dividend} % {divisor}");
+            assert_eq!((registers[9], registers[10]), (dividend, divisor));
         }
     }
 

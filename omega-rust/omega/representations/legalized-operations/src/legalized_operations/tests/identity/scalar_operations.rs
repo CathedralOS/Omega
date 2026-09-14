@@ -119,6 +119,54 @@ fn ieee_comparison_identity_binds_relation_format_and_ordered_operands() {
 }
 
 #[test]
+fn wrapping_remainder_identity_binds_policy_width_operands_and_nonzero_fact() {
+    let mut plan = operation_plan();
+    let row = &mut plan.scalar_functions[0].blocks[0].instructions[2];
+    row.result.as_mut().unwrap().scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    row.kind = LegalizedScalarInstructionKind::WrappingRemainder {
+        left: id(200),
+        right: id(201),
+        obligation: id(300),
+        accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+    };
+    let identity = legalized_operation_plan_identity(&plan);
+    for mutation in 0..6 {
+        let mut changed = plan.clone();
+        let row = &mut changed.scalar_functions[0].blocks[0].instructions[2];
+        let LegalizedScalarInstructionKind::WrappingRemainder {
+            left,
+            right,
+            obligation,
+            accepted_fact,
+        } = &mut row.kind
+        else {
+            panic!("remainder");
+        };
+        match mutation {
+            0 => std::mem::swap(left, right),
+            1 => *left = id(999),
+            2 => *obligation = id(999),
+            3 => *accepted_fact = AcceptedObligationFactIdentity::from_bytes([4; 32]),
+            4 => {
+                row.result.as_mut().unwrap().scalar_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap())
+            }
+            _ => {
+                row.kind = LegalizedScalarInstructionKind::ExactBinary {
+                    operator: LegalizedExactIntegerOperator::Divide,
+                    left: *left,
+                    right: *right,
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                }
+            }
+        }
+        assert_identity_drift(identity, &changed);
+    }
+}
+
+#[test]
 fn scalar_operation_identity_binds_each_authored_row_envelope_and_order() {
     let plan = operation_plan();
     let identity = legalized_operation_plan_identity(&plan);

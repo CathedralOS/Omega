@@ -13,6 +13,8 @@ mod structural_case_tests;
 mod structural_cases;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod wrapping_remainder_tests;
 
 pub(super) fn validate(
     function: &TargetFunction,

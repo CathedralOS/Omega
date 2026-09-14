@@ -43,6 +43,7 @@ pub struct SelectedConstraintKeys {
     pub saturating_subtract_u64: RegisterConstraintKey,
     pub saturating_add_u64: RegisterConstraintKey,
     pub divide_u64: RegisterConstraintKey,
+    pub remainder_i64: RegisterConstraintKey,
     pub add_i64_immediate: RegisterConstraintKey,
     pub subtract_i64_immediate: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,

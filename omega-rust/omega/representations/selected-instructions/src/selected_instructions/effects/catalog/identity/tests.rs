@@ -62,6 +62,7 @@ fn keys() -> SelectedConstraintKeys {
         saturating_subtract_u64: instruction(4),
         saturating_add_u64: instruction(4),
         divide_u64: instruction(4),
+        remainder_i64: instruction(38),
         add_i64_immediate: instruction(3),
         subtract_i64_immediate: instruction(8),
         compare_i64_zero: instruction(5),
@@ -190,6 +191,36 @@ fn catalog() -> MachineEffectCatalog {
             .map(declaration)
             .collect(),
     }
+}
+
+#[test]
+fn remainder_catalog_identity_binds_its_key_and_distinct_semantic_family() {
+    assert_eq!(semantic_kind_tag(MachineSemanticKind::ExactDivideU64), 56);
+    assert_eq!(
+        semantic_kind_tag(MachineSemanticKind::WrappingRemainderI64),
+        57
+    );
+    assert_eq!(
+        alternative_family_tag(MachineAlternativeFamily::ExactDivideU64),
+        56
+    );
+    assert_eq!(
+        alternative_family_tag(MachineAlternativeFamily::WrappingRemainderI64),
+        57
+    );
+    let source = catalog();
+    let baseline = machine_effect_catalog_identity(&source);
+    let mut changed = source.clone();
+    changed.selected_keys.remainder_i64 = instruction(39);
+    assert_ne!(baseline, machine_effect_catalog_identity(&changed));
+    let mut changed = source;
+    let declaration = changed
+        .declarations
+        .iter_mut()
+        .find(|declaration| declaration.semantic == MachineSemanticKind::WrappingRemainderI64)
+        .unwrap();
+    declaration.semantic = MachineSemanticKind::ExactDivideU64;
+    assert_ne!(baseline, machine_effect_catalog_identity(&changed));
 }
 
 #[test]

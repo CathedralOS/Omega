@@ -33,6 +33,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::IntegerBitwiseXor { psi_operation, .. }
                 | AbstractOperation::ExactIntegerAdd { psi_operation, .. }
                 | AbstractOperation::ExactIntegerDivide { psi_operation, .. }
+                | AbstractOperation::WrappingIntegerRemainder { psi_operation, .. }
                 | AbstractOperation::SaturatingIntegerSubtract { psi_operation, .. }
                 | AbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
                 | AbstractOperation::ExactIntegerSubtract { psi_operation, .. }

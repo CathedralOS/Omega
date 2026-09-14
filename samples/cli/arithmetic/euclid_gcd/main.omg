@@ -10,8 +10,10 @@
 // back to `a % b` at its use, after `a` was reassigned. A `tmp` field is read from
 // its slot, so it is correct. The fold bug is filed separately; probe-verified STILL LIVE 2026-07-01.)
 // Expected exit: 12.
+// Expected output contains: result: the GCD, 12 for (48, 36) (the exit code)
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 // Wrapping DECLARED: the gcd remainder chain divides by a live runtime value
 // (`a % b`), and a runtime divisor feeds no range fact yet -- the values are
@@ -23,7 +25,7 @@ data Euclid [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console> in Bound;
     state: Euclid;
     pause: [u8; 256];
 }

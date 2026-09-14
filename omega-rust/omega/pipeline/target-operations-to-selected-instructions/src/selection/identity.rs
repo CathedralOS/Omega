@@ -117,6 +117,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::SaturatingSubtractU64 => 51,
         SelectedInstructionKind::SaturatingAddU64 => 52,
         SelectedInstructionKind::ExactDivideU64 { .. } => 54,
+        SelectedInstructionKind::WrappingRemainderI64 { .. } => 55,
         SelectedInstructionKind::LoadPacked { .. } => 46,
         SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::CallAggregate { .. } => 35,
@@ -217,6 +218,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             }
         },
         SelectedInstructionKind::ExactDivideU64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::WrappingRemainderI64 {
             obligation,
             accepted_fact,
         }
@@ -538,6 +543,12 @@ mod tests {
     #[test]
     fn arithmetic_and_compare_instruction_identity_discriminants_are_distinct() {
         let kinds = [
+            SelectedInstructionKind::WrappingRemainderI64 {
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [0x5a; 32],
+                ),
+            },
             SelectedInstructionKind::SaturatingSubtractU64,
             SelectedInstructionKind::SaturatingAddU64,
             SelectedInstructionKind::CompareI64Immediate {
@@ -570,6 +581,6 @@ mod tests {
             assert_eq!(&bytes[..identity.len()], &identity);
             bytes[identity.len()]
         });
-        assert_eq!(discriminants, [51, 52, 53, 54]);
+        assert_eq!(discriminants, [55, 51, 52, 53, 54]);
     }
 }

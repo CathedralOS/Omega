@@ -497,6 +497,53 @@ pub(in crate::selection) fn validate_with_environment(
                         )?;
                         output
                     }
+                    LegalizedScalarInstructionKind::WrappingRemainder {
+                        left,
+                        right,
+                        obligation,
+                        accepted_fact,
+                    } => {
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                    && integer.sign() == IntegerSign::Signed
+                                    && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                        {
+                            return Err(invalid());
+                        }
+                        // Reconstruct operand snapshots and proof custody from the
+                        // legalized operation, not the proposed instruction's claims.
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        let mut operands = vec![left_register, right_register, output];
+                        if environment.target().architecture == target::Architecture::X86_64 {
+                            operands.push(remainder_scratch(&mut replay)?);
+                        }
+                        replay.check_instruction(
+                            SelectedInstructionKind::WrappingRemainderI64 {
+                                obligation: *obligation,
+                                accepted_fact: *accepted_fact,
+                            },
+                            constraints.keys.remainder_i64,
+                            &operands,
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                obligations: vec![*obligation],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::ExactBinary {
                         operator,
                         left,
@@ -765,6 +812,44 @@ impl Replay<'_> {
         )?;
         Ok(output)
     }
+}
+
+// Remainder scratch is defined by this instruction, with no semantic source or
+// incoming value. Its identity must not alias a transported program value.
+fn remainder_scratch(
+    replay: &mut Replay<'_>,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let instruction = SelectedInstructionId(
+        replay
+            .instruction_cursor
+            .try_into()
+            .map_err(|_| replay.invalid())?,
+    );
+    let expected_type = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(IntegerSign::Signed, 64)
+            .map_err(|_| replay.invalid())?,
+    );
+    let register = replay
+        .selected
+        .virtual_registers
+        .get(replay.register_cursor)
+        .ok_or_else(|| replay.invalid())?;
+    if register.id.0 as usize != replay.register_cursor
+        || register.origin
+            != (VirtualRegisterOrigin::InstructionScratch {
+                instruction,
+                operand: 3,
+            })
+        || register.scalar_type != expected_type
+        || register.class != replay.class
+        || register.definition_site.is_some()
+        || register.entry_fixed_view.is_some()
+    {
+        return Err(replay.invalid());
+    }
+    let id = register.id;
+    replay.register_cursor += 1;
+    Ok(id)
 }
 
 // The x86 high half is an explicit zero-valued implementation register.

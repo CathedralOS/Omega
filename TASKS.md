@@ -239,17 +239,24 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   binders. Coordinate with the typed-machine specialization owner; constraining
   the whole container would hide the missing method-level contract.
 
-  Native resume for `recursive_sum`: at `d3ff511372` (2026-09-13, macOS ARM64),
+  Native resume for `recursive_sum`: at `a1deabd205` (2026-09-14 UTC, macOS ARM64),
   `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=recursive_sum cargo nextest
   run -p compiler --test samples_compile --no-fail-fast
   -E 'test(=samples_with_documented_exit_run_correctly)'` reaches
   `InvalidUnitMachinePlan` for `Main::main` (missing checked transitive plan).
   `recursive_slice_samples_reach_checked_trees` covers the unchanged
   `recursive_sum`, `dual_accumulator_recursion`, `subslice_sum`,
-  `slice_accum_probe`, and `framed_payload` sources. Continue through
-  **GENERAL-CYCLIC-EXECUTION** and ordinary checked call-plan production;
-  derived-argument place comparison no longer needs a receiver-ancestry fix.
-  The exit-70 native oracle remains open.
+  `slice_accum_probe`, and `framed_payload` sources. The first producer gap is
+  indexed primitive-array storage in
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/structural_scalar_store.rs`:
+  a primitive element has no record field ID. Extend ordinary primitive access
+  with canonical paths as described below, not synthetic fields or helper calls.
+  The unchanged i32-slice customer also needs typed scalar views (the existing
+  byte-view vocabulary is u8-specific) and borrowed-view scalar loop parameters
+  with SliceLength ranking under **GENERAL-CYCLIC-EXECUTION**. Coordinate primitive
+  operation constructor/effect tests with the live **GENERAL-LICM** owner before
+  changing shared representations. Derived-argument place comparison no longer
+  needs a receiver-ancestry fix. The exit-70 native oracle remains open.
 
   `framed_payload` also reaches the missing `Main::main` Terminal-plan error
   on macOS ARM64 with the same native command and

@@ -335,6 +335,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::IntegerBitwiseXor { .. }
                 | AbstractOperation::ExactIntegerAdd { .. }
                 | AbstractOperation::ExactIntegerDivide { .. }
+                // Mandatory source/selection replay also binds the remainder's
+                // operand snapshots and accepted nonzero-divisor evidence.
+                | AbstractOperation::WrappingIntegerRemainder { .. }
         | AbstractOperation::SaturatingIntegerSubtract { .. }
         | AbstractOperation::SaturatingIntegerAdd { .. }
                 | AbstractOperation::ExactIntegerSubtract { .. } => true,

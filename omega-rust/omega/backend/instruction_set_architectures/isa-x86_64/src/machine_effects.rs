@@ -223,6 +223,7 @@ fn selected_keys(
         saturating_subtract_u64: crate::register_model::X86_64_SATURATING_SUBTRACT_U64,
         saturating_add_u64: crate::register_model::X86_64_SATURATING_ADD_U64,
         divide_u64: crate::register_model::X86_64_DIVIDE_U64,
+        remainder_i64: crate::register_model::X86_64_REMAINDER_I64,
         add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: X86_64_COMPARE_I64_ZERO,
@@ -243,12 +244,14 @@ fn declaration(
     keys: &SelectedConstraintKeys,
 ) -> MachineEffectDeclaration {
     let alternatives = match semantic {
-        MachineSemanticKind::ExactDivideU64 => vec![alternative(
-            semantic,
-            0,
-            MachineAlternativeApplicability::Always,
-            size(semantic),
-        )],
+        MachineSemanticKind::ExactDivideU64 | MachineSemanticKind::WrappingRemainderI64 => {
+            vec![alternative(
+                semantic,
+                0,
+                MachineAlternativeApplicability::Always,
+                size(semantic),
+            )]
+        }
         MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseXorI64
         | MachineSemanticKind::SaturatingSubtractU64
@@ -400,6 +403,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::SignExtendI32
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::ExactDivideU64 => (vec![0, 1, 3], vec![2]),
+        MachineSemanticKind::WrappingRemainderI64 => (vec![0, 1], vec![2, 3]),
         MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseXorI64
         | MachineSemanticKind::SaturatingSubtractU64
@@ -476,6 +480,15 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                     clobbers.dedup();
                     clobbers
                 },
+                MachineEncodedMemoryEffect::NoneV1,
+                MachineEncodedStackEffect::UnchangedV1,
+                MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                MachineEncodedControlEffect::FallThroughV1,
+            ),
+            MachineSemanticKind::WrappingRemainderI64 => (
+                vec![],
+                vec![],
+                units("rflags"),
                 MachineEncodedMemoryEffect::NoneV1,
                 MachineEncodedStackEffect::UnchangedV1,
                 MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -601,6 +614,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::SaturatingSubtractU64 => MachineSizeKnowledge::ExactBytes(13),
         MachineSemanticKind::SaturatingAddU64 => MachineSizeKnowledge::ExactBytes(19),
         MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(3),
+        MachineSemanticKind::WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(17),
         MachineSemanticKind::BitwiseAndI64 | MachineSemanticKind::BitwiseXorI64 => {
             MachineSizeKnowledge::EncoderResolved {
                 minimum_bytes: 3,
@@ -678,6 +692,51 @@ mod tests {
             &physical,
         )
         .unwrap_or_else(|error: X86_64RegisterConstraintCatalogValidationError| panic!("{error}"))
+    }
+
+    #[test]
+    fn wrapping_remainder_catalog_defines_scratch_and_clobbers_flags() {
+        let constraints = constraints();
+        for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+            let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            let declaration = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == MachineSemanticKind::WrappingRemainderI64)
+                .unwrap();
+            assert_eq!(
+                declaration.constraint,
+                crate::register_model::X86_64_REMAINDER_I64
+            );
+            let alternative = &declaration.alternatives[0];
+            assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(17));
+            assert_eq!(alternative.encoded.external_operand_reads, [0, 1]);
+            assert_eq!(alternative.encoded.external_operand_writes, [2, 3]);
+            assert_eq!(
+                alternative.encoded.implicit_unit_clobbers,
+                x86_64_physical_register_model()
+                    .view_named("rflags")
+                    .unwrap()
+                    .units
+            );
+            for corruption in 0..3 {
+                let mut changed = catalog.clone();
+                let alternative = &mut changed
+                    .declarations
+                    .iter_mut()
+                    .find(|row| row.semantic == MachineSemanticKind::WrappingRemainderI64)
+                    .unwrap()
+                    .alternatives[0];
+                match corruption {
+                    0 => alternative.encoded.external_operand_writes.truncate(1),
+                    1 => alternative.encoded.implicit_unit_clobbers.clear(),
+                    _ => alternative.size = MachineSizeKnowledge::ExactBytes(3),
+                }
+                assert!(
+                    validate_x86_64_machine_effect_catalog(target, &constraints, changed).is_err()
+                );
+            }
+        }
     }
 
     #[test]

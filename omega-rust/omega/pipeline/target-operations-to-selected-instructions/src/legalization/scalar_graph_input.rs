@@ -108,6 +108,12 @@ pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     }
 }
 
+pub(super) fn supports_signed_wrapping_remainder(integer: IntegerType) -> bool {
+    integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+        && integer.sign() == IntegerSign::Signed
+        && matches!(integer.bits(), 8 | 16 | 32 | 64)
+}
+
 /// The admitted exact-cast slice excludes sub-64-bit signed-to-signed casts
 /// and 16-bit-source widening.
 pub(super) fn exact_cast_has_native_carriers(source: IntegerType, target: IntegerType) -> bool {
@@ -241,6 +247,11 @@ pub(super) fn match_input(
             ..
         }
         | AbstractOperation::ExactIntegerSubtract {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerRemainder {
             psi_operation,
             obligation,
             ..

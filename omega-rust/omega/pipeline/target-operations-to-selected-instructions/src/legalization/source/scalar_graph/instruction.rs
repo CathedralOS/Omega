@@ -489,6 +489,44 @@ pub(super) fn project(
                 right: *right,
             }
         }
+        AbstractOperation::WrappingIntegerRemainder {
+            psi_operation,
+            obligation,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => {
+            if !scalar_graph_input::supports_signed_wrapping_remainder(*scalar_type)
+                || [left, right].iter().any(|value| {
+                    scalar_graph_input::value_type(optimized, **value)
+                        != Some(ScalarType::Integer(*scalar_type))
+                })
+            {
+                return Err(Error::SourceCustodyMismatch);
+            }
+            // Wrapping defines MIN % -1 as zero, not a failed Exact quotient.
+            // It does not define division by zero: retain that accepted fact.
+            let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
+                fact.machine == optimized.machine
+                    && fact.operation == *psi_operation
+                    && fact.obligation == *obligation
+            });
+            let fact = facts.next().ok_or(Error::SourceCustodyMismatch)?;
+            if facts.next().is_some()
+                || !optimized.facts.iter().any(|fact| matches!(fact,
+                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                    if referenced == obligation && support == psi_operation))
+            {
+                return Err(Error::SourceCustodyMismatch);
+            }
+            LegalizedScalarInstructionKind::WrappingRemainder {
+                left: *left,
+                right: *right,
+                obligation: *obligation,
+                accepted_fact: fact.identity,
+            }
+        }
         AbstractOperation::ExactIntegerAdd {
             psi_operation,
             obligation,
