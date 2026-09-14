@@ -92,6 +92,10 @@ fn check_checked_facts_recording_with_crash_admission(
         diagnostics.append(&mut multiplicity_diagnostics);
     }
 
+    if let Err(mut crash_edge_diagnostics) = crashes::check_crash_exit_edge_isolation(program) {
+        diagnostics.append(&mut crash_edge_diagnostics);
+    }
+
     if let Err(mut operator_crash_diagnostics) =
         crashes::check_operator_invocation_custody(program, facts)
     {

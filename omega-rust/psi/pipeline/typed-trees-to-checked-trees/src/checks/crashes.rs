@@ -15,6 +15,70 @@ mod entry_guards;
 mod entry_requirements;
 mod source_fallthrough;
 
+/// A crash transition is recorded unconditionally at its site: contract exits,
+/// returned values, and state joins attach only to `Ordinary` exits, and the
+/// flow readers skip every edge on a non-ordinary transition. A `Crash` exit
+/// that still carries an ordinary successor target, a continuation, or a
+/// conditional `when` guard therefore holds dead structure whose obligations
+/// (an `ensures` on the returned value, a fallthrough join, a guarded arm)
+/// are silently absorbed rather than discharged. Parsed `crash` statements
+/// always arrive with a `Terminal` target, no continuation, and an `Always`
+/// guard; anything else is a malformed tree and must reject here instead of
+/// being skipped by every ordinary-edge reader downstream. Outcome proof
+/// selectors need no clause here: a nonempty selector list on a non-`When`
+/// arm already rejects in `bind_outcome_specific_arm_facts`, and a `When`
+/// guard on a crash exit rejects above regardless.
+pub(crate) fn check_crash_exit_edge_isolation(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    use typed_trees::statement::{
+        StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+    };
+
+    let mut diagnostics = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (statement_ordinal, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                let StatementNode::Transition(transition) = statement else {
+                    continue;
+                };
+                let TransitionExit::Crash(cause) = transition.exit else {
+                    continue;
+                };
+                let mut reject = |edge: &str| {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` state `{state_name}` statement {statement_ordinal} is an unconditional {cause:?} crash exit; it cannot keep {edge}",
+                        machine.name.as_str(),
+                        state_name = state.name.as_str(),
+                    )));
+                };
+                if transition.target.is_valid()
+                    && !matches!(
+                        program.statement_table.transition_target(transition.target),
+                        TransitionTargetNode::Terminal
+                    )
+                {
+                    reject("an ordinary successor edge");
+                }
+                if transition.continuation.is_valid() {
+                    reject("a continuation edge");
+                }
+                if matches!(transition.guard, TransitionGuardNode::When(_)) {
+                    reject("a conditional `when` guard");
+                }
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 /// Reconstruct the exact selected occurrence roster before relying on source
 /// crash summaries. Missing discharge rows must not look like crash-free uses;
 /// substitutions, operands, and selected requirement buckets remain checkable.

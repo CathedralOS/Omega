@@ -650,6 +650,110 @@ fn rebased_contexts_grow_linearly_and_stay_scoped_to_their_state() {
 }
 
 #[test]
+fn crash_exits_cannot_carry_ordinary_edge_obligations() {
+    use typed_trees::statement::{
+        StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetHandle,
+    };
+
+    fn transitions_mut<'a>(
+        program: &'a mut typed_trees::TypedTrees,
+        machine_name: &str,
+        state_ordinal: usize,
+    ) -> &'a mut [StatementNode] {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .expect("machine");
+        let span = program.machine_states(machine)[state_ordinal].statement_nodes;
+        program.statement_table.statements_mut(span)
+    }
+
+    fn expect_isolation_rejection(program: typed_trees::TypedTrees, edge: &str, context: &str) {
+        let diagnostics = lower_typed_trees(program)
+            .expect_err("a crash exit cannot keep ordinary edge obligations");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(edge)),
+            "{context}\n{diagnostics:#?}"
+        );
+    }
+
+    // Control: the same edge kept Ordinary owes `ensures` and rejects.
+    let ordinary =
+        parse_typed_trees("machine m() -> bool ensures false { transition { _ -> true } }");
+    lower_typed_trees(ordinary).expect_err("an ordinary value return cannot evade ensures");
+
+    // Re-labeling that value edge as a crash keeps the return target while
+    // contract exits and ensures attach only to `Ordinary` exits; covered by
+    // `crashes Trap`, the crash site would silently absorb the obligation.
+    for source in [
+        "machine m() -> bool crashes Trap ensures false { transition { _ -> true } }",
+        "machine m() -> bool crashes Trap ensures false { transition { _ -> done() } \
+         state done() -> bool { true } }",
+    ] {
+        let mut program = parse_typed_trees(source);
+        for statement in transitions_mut(&mut program, "m", 0) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            transition.exit = TransitionExit::Crash(typed_trees::signature::CrashCause::Trap);
+        }
+        expect_isolation_rejection(program, "an ordinary successor edge", source);
+    }
+
+    // A continuation on a crash transition is an ordinary fallthrough edge
+    // that no contract exit will ever name.
+    let mut program = parse_typed_trees(
+        "machine m() -> bool crashes Trap { transition { _ -> done() } \
+         state done() -> bool { crash Trap; } }",
+    );
+    let named_target = {
+        let mut found = TransitionTargetHandle::invalid();
+        for statement in program.statement_table.statements(
+            program.machine_states(program.machines().iter().next().expect("m"))[0].statement_nodes,
+        ) {
+            if let StatementNode::Transition(transition) = statement {
+                found = transition.target;
+            }
+        }
+        found
+    };
+    for statement in transitions_mut(&mut program, "m", 1) {
+        let StatementNode::Transition(transition) = statement else {
+            continue;
+        };
+        transition.continuation = named_target;
+    }
+    expect_isolation_rejection(
+        program,
+        "a continuation edge",
+        "crash transition with a forged continuation",
+    );
+
+    // A `when` guard on a crash transition would masquerade as a conditional
+    // arm while its site is recorded unconditionally. A literal subject keeps
+    // the forged guard inside the state's declared scope, isolating the edge
+    // check from ordinary name resolution.
+    let mut program = parse_typed_trees("machine m() -> bool crashes Trap { crash Trap; }");
+    let guard = program
+        .expression_table
+        .insert(typed_trees::expression::ExpressionNode::Boolean(true));
+    for statement in transitions_mut(&mut program, "m", 0) {
+        let StatementNode::Transition(transition) = statement else {
+            continue;
+        };
+        transition.guard = TransitionGuardNode::When(guard);
+    }
+    expect_isolation_rejection(
+        program,
+        "a conditional `when` guard",
+        "crash transition with a forged guard",
+    );
+}
+
+#[test]
 fn rebased_exit_requirements_do_not_become_sibling_entry_facts() {
     let source = r#"
         domain [u8; 4]::Utf8 requires valid_utf8(self);
