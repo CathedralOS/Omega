@@ -218,8 +218,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`,
   `dice_histogram`, `calendar`, `dungeon_render` (cannot prove byte writes
   preserve the `Utf8` field domain across state edges). Receiver/aggregate
-  loans — `generic_counters`,
-  `dungeon_render`, `wire_protocol` (non-copy transfer out of borrowed
+  loans — `dungeon_render`, `wire_protocol` (non-copy transfer out of borrowed
   storage). Index/subslice proofs — `mandelbrot`, `mandelbrot_zoom`,
   `wire_protocol`. `heat_grid` checks again: its `__hoist_N` temps were
   fed widened cyclic arrival facts (`y * 4 + x` analyzed as (0, 23)
@@ -231,13 +230,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `dungeon_crawler_cli` (case-literal construction and branch-local
   transfer joins unsupported). `math_proofs` — its owned Bag/multiset row.
 
-  `generic_counters` needs a copy-bound getter plus contextual attachment typing:
-  at `42a2cd85e1`, adding `T [copy]` to `Counter::current` still rejects its
-  borrowed field read because `flow/ownership/place_types.rs` retains the data
-  owner's unconstrained binder. Retain the exact owner-to-method application,
-  and preserve/check method requirements when generic-data synthesis clears clone
-  binders. Coordinate with the typed-machine specialization owner; constraining
-  the whole container would hide the missing method-level contract.
+  Native resume for `generic_counters`: at `b61f658601fd` (2026-09-14 UTC,
+  macOS ARM64), the copy-bound getter and whole sample pass checking;
+  `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=generic_counters cargo
+  nextest run -p compiler --test samples_compile --no-fail-fast
+  -E 'test(=samples_with_documented_exit_run_correctly)'` now reaches
+  `InvalidUnitMachinePlan` for `Main::main`: the attached Unit closure lacks
+  a checked transitive machine plan. Trace the missing callee through
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/` and its
+  `checked-trees-to-lowered-psi` consumer; native exit 16 remains the acceptance.
+  Preserve the exact generic attachment applications and selected method bounds;
+  do not constrain the whole container or simplify the two-counter program.
 
   Native resume for `recursive_sum`: at `a1deabd205` (2026-09-14 UTC, macOS ARM64),
   `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=recursive_sum cargo nextest
