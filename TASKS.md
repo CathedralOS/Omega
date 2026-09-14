@@ -1594,6 +1594,14 @@ Owners include
   `terminal_psi_source` (`FuelChargeSite` import) are unrelated red at this
   base, owned by the in-flight IRFUEL work.
 
+  Call-boundary validation is converged: expression-call and transition-target
+  arguments route through the same `validate_call_argument` projected-subloan
+  admission as statement calls, and value-position calls enforce the shared
+  reference-access contract — explicit `&write` attenuation for write-only
+  parameters, no widening of `&write` authority into readable access. Checked
+  terminal plans retain `WriteOnlyBorrow` with exact `Field`/`FixedIndex`
+  segments; see `typed-trees-to-checked-trees/tests/write_only_call_arguments.rs`.
+
   Remaining acceptance: escaping carriers, dynamic indexes (Psi cannot yet
   prove runtime bounds: "cannot prove index `i` is within length 4"), and
   computed IEEE stores (Psi does not select `a + b`: "no source-independent
