@@ -1,0 +1,34 @@
+use omega::language::core::extent;
+use omega::language::std::targets::uefi_x86_64;
+use omega::language::std::targets::uefi_x86_64::handoff;
+
+// An OS-loader profile binds the same ProgramEntry storage roots as a
+// returning UefiApplication, but its selected entry reaches the target-owned
+// nonreturning handoff surface: once the loaded OS image's entry is known the
+// loader hands it to `UefiOsHandoff::handoff`, the authored invocation route
+// for the bounded Boot-Services custody transfer. The call carries no result:
+// success transfers control to `entry`, and bounded stale-key exhaustion makes
+// the invocation's firmware return inside the edge. The generated adapter
+// realization is deferred, so this canary pins the checked invocation surface
+// rather than an emitted handoff sequence.
+data Loader {
+    handoff: UefiOsHandoff;
+    entry: addr;
+}
+
+machine Loader::run(
+    &mut self,
+    image: Extent in Granted,
+    initial_storage: Extent in Granted
+)
+    reaches UefiOsHandoff
+    invokes UefiOsHandoff;
+{
+    self.entry = image.base;
+    self.handoff.handoff(self.entry);
+    transition { _ -> retain(image as Extent, initial_storage as Extent) }
+
+    state retain(&mut self, image: Extent, initial_storage: Extent) {
+        transition { _ -> retain(image, initial_storage) }
+    }
+}

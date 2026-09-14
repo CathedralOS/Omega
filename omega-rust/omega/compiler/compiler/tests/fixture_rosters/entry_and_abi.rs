@@ -9,6 +9,7 @@ pub const BUILD_EVALUATED_ROOT_BINDINGS: &[&str] = &[
 ];
 pub const BUILD_EXPLICIT_PROGRAM_ENTRY_BINDING: &str = "build/explicit_program_entry_binding";
 pub const BUILD_UEFI_PROGRAM_ENTRY_STORAGE_ROOTS: &str = "build/uefi_program_entry_storage_roots";
+pub const BUILD_UEFI_OS_HANDOFF_INVOCATION: &str = "build/uefi_os_handoff_invocation";
 pub const ARITHMETIC_RUNTIME_CHAINED_FIELD_MUTATION_EXIT: &str =
     "arithmetic/runtime_chained_field_mutation_exit";
 pub const INLINE_ASM_ASM_FENCES_COMPILE: &str = "inline_asm/asm_fences_compile";

@@ -273,6 +273,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
         "windows_x86_64",
     ),
     ("build/uefi_program_entry_storage_roots", "uefi_x86_64"),
+    ("build/uefi_os_handoff_invocation", "uefi_x86_64"),
     ("inline_asm/asm_fences_compile", "linux_x86_64"),
     ("inline_asm/asm_interrupt_control_compile", "linux_x86_64"),
     ("inline_asm/asm_flags_compile", "linux_x86_64"),

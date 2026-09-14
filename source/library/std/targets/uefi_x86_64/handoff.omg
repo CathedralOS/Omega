@@ -1,0 +1,38 @@
+// Target-owned UEFI x86-64 OS-loader handoff contract.
+//
+// A bound OS loader reaches this surface to perform the nonreturning custody
+// transfer out of Boot Services into the loaded OS entry. This is the authored
+// invocation route for the runtime edge owned by `drive_uefi_os_handoff_cycle`:
+// the generated adapter acquires explicit map-buffer storage, retains the
+// allocation roster, Boot-Services identity, surviving-stack evidence, and
+// remaining attempt bound, then drives the bounded GetMemoryMap/ExitBootServices
+// retry ledger. A successful call never returns: Boot Services custody is
+// consumed and control transfers to `entry`. When every bounded attempt is
+// spent on a stale key the adapter performs the invocation's firmware return
+// with the target-authored exhaustion status, so this contract carries no
+// result on either branch.
+//
+// Like `UefiApplication`, this remains a planned, non-invoked surface until the
+// settled bootstrap adapter and generated shell are built: the boundary machine
+// below names the target's realization of the edge, and the generated custody
+// transfer is the deferred emission. The surface alone establishes no Boot
+// Services authority.
+
+// The invocable nonreturning custody-transfer surface. `entry` is the exact
+// loaded OS entry the adapter transfers control to after Boot Services are
+// consumed; the OS entry's own calling contract is a separate boundary.
+pub boundary trait UefiOsHandoff {
+    machine handoff(entry: addr)
+        reaches UefiOsHandoff;
+}
+
+// Nominal owner of the complete selected handoff provider closure. The
+// boundary realization attaches to this type so provider selection never
+// assembles the nonreturning edge from unrelated implementations.
+pub data UefiOsHandoffNativeProvider { }
+
+// The `boundary machine` supply is inferred from the exact realization symbol,
+// normalized signature, package custody, and selected target; the realization
+// is the runtime edge's generated custody transfer.
+uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::handoff(entry: addr)
+    satisfies UefiOsHandoff::handoff;
