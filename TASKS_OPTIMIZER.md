@@ -59,7 +59,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   operands all resolve to known literals into the matching integer or Boolean
   constant in place, keeping operation, result, and value identities while
   ranked machines, static reach bindings, and proof-bearing closures stay
-  frozen; control-flow cleanup and proof-check elision remain open.
+  frozen; control-flow cleanup folds a conditional whose condition is a
+  BooleanConstant result into the selected successor edge as an unconditional
+  jump, carrying the edge identity, scalar and structural bindings, and
+  edge-scoped cleanup rows verbatim, and removes blocks the untaken arm leaves
+  unreachable only when no evidence row, unsealed sidecar, static reach
+  binding, or structural place declaration still names them — a refusal leaves
+  the conditional as authored; proof-check elision remains open.
 
 ## Product pruning and rollout
 
