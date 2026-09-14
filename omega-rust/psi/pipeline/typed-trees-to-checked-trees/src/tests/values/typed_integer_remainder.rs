@@ -7,8 +7,10 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, String> {
         .tokenize()
         .map_err(|error| format!("{error:?}"))?;
     let syntax = parse_syntax_trees(&tokens).map_err(|error| format!("{error:?}"))?;
-    let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
-        .map_err(|error| format!("{error:?}"))?;
+    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
+    )
+    .map_err(|error| format!("{error:?}"))?;
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).map_err(|error| format!("{error:?}"))?;
     let typed = lower_symbol_resolved_trees(&resolved).map_err(|error| format!("{error:?}"))?;

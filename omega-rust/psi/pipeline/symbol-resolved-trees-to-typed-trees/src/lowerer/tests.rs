@@ -409,11 +409,13 @@ fn seeded_normalized_plain_data_inputs(
     let resolved_base = typing_base.resolved_base_for_extension();
     let sources = Arc::new(sources);
     let extension_syntax =
-        syntax_trees_to_symbol_resolved_trees::normalize_generic_data_with_retained_base(
-            extension_syntax,
-            sources.clone(),
-            Vec::new(),
-            Some(&resolved_base),
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
+            syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest {
+                syntax: extension_syntax,
+                sources: Some(sources.clone()),
+                top_level_bindings: Vec::new(),
+                retained_base: Some(&resolved_base),
+            },
         )
         .expect("normalize extension unit with its exact retained argument declarations");
     let seeded = resolve_extension(ExtensionRequest {

@@ -253,7 +253,10 @@ mod tests {
             "module first; const VALUE: u64 = 1;",
             "module second; const VALUE: u64 = 2;",
         ]);
-        crate::normalize_generic_data(syntax.clone()).expect("body substitution follows symbols");
+        crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax.clone()),
+        )
+        .expect("body substitution follows symbols");
         crate::resolve(crate::ResolutionRequest::new(&syntax))
             .expect("exact module constant identities");
     }
@@ -269,7 +272,10 @@ mod tests {
         ] {
             let source = format!("module settings; const VALUE: {carrier} = {value};");
             assert!(
-                crate::normalize_generic_data(parse(&[&source])).is_err(),
+                crate::preparation::generic_data::normalize_generic_data(
+                    crate::preparation::generic_data::GenericDataRequest::new(parse(&[&source]))
+                )
+                .is_err(),
                 "invalid unused declaration accepted: {source}"
             );
         }
@@ -288,8 +294,10 @@ mod tests {
             ] {
                 let source =
                     format!("module settings; {visibility}const SIZE: {carrier} = {value};");
-                let diagnostics = crate::normalize_generic_data(parse(&[&source]))
-                    .expect_err("an unused array declaration still owes component conformance");
+                let diagnostics = crate::preparation::generic_data::normalize_generic_data(
+                    crate::preparation::generic_data::GenericDataRequest::new(parse(&[&source])),
+                )
+                .expect_err("an unused array declaration still owes component conformance");
                 assert!(
                     diagnostics[0].message.contains("module array constant"),
                     "{diagnostics:?}"
@@ -302,8 +310,10 @@ mod tests {
             ] {
                 let source =
                     format!("module settings; {visibility}const SIZE: {carrier} = {value};");
-                crate::normalize_generic_data(parse(&[&source]))
-                    .expect("valid canonical array declaration");
+                crate::preparation::generic_data::normalize_generic_data(
+                    crate::preparation::generic_data::GenericDataRequest::new(parse(&[&source])),
+                )
+                .expect("valid canonical array declaration");
             }
         }
     }
@@ -338,7 +348,9 @@ mod tests {
                     domain,
                 })),
             );
-            let result = crate::normalize_generic_data(syntax);
+            let result = crate::preparation::generic_data::normalize_generic_data(
+                crate::preparation::generic_data::GenericDataRequest::new(syntax),
+            );
             if domain == ArithmeticDomain::Exact {
                 result.expect("matching exact component landing");
             } else {
@@ -358,8 +370,10 @@ mod tests {
             "module settings; const SIZE: [string; 0] = [];",
         ] {
             assert!(
-                crate::normalize_generic_data(parse(&[source]))
-                    .expect_err("array shape cannot bypass missing namespace or value owners")[0]
+                crate::preparation::generic_data::normalize_generic_data(
+                    crate::preparation::generic_data::GenericDataRequest::new(parse(&[source]))
+                )
+                .expect_err("array shape cannot bypass missing namespace or value owners")[0]
                     .message
                     .contains("runtime floating/text identity")
             );
@@ -372,7 +386,10 @@ mod tests {
             "module first; data Value { value: u64; } const VALUE: Value = Value { value: 1 };",
             "module first; data Value { value: u64; } const VALUE: [Value; 0] = [];",
         ] {
-            crate::normalize_generic_data(parse(&[source])).expect("selected nominal initializer");
+            crate::preparation::generic_data::normalize_generic_data(
+                crate::preparation::generic_data::GenericDataRequest::new(parse(&[source])),
+            )
+            .expect("selected nominal initializer");
         }
         for initializer in [
             "Value { value: 256 }",
@@ -382,8 +399,10 @@ mod tests {
             let source = format!(
                 "module first; data Value {{ value: u8; }} const VALUE: Value = {initializer};"
             );
-            crate::normalize_generic_data(parse(&[&source]))
-                .expect_err("unused nominal initializer must still check");
+            crate::preparation::generic_data::normalize_generic_data(
+                crate::preparation::generic_data::GenericDataRequest::new(parse(&[&source])),
+            )
+            .expect_err("unused nominal initializer must still check");
         }
     }
 
@@ -392,8 +411,10 @@ mod tests {
         let syntax = parse(&[
             "data Token {} data Other {} domain Token::Issued; domain Other::Issued; data Cell<T> { value: T; } data Holder { first: Cell<Token in Issued>; second: Cell<Other in Issued>; }",
         ]);
-        let normalized = crate::normalize_generic_data(syntax)
-            .expect("current declared domain arguments normalize");
+        let normalized = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        )
+        .expect("current declared domain arguments normalize");
         let instances = normalized
             .root_items()
             .filter_map(|item| {
@@ -418,8 +439,10 @@ mod tests {
             "module first; data Box<T> { value: T; }",
             "module second; data Box<T> { other: T; }",
         ]);
-        crate::normalize_generic_data(syntax)
-            .expect("distinct module record templates remain available");
+        crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        )
+        .expect("distinct module record templates remain available");
     }
 
     #[test]
@@ -428,8 +451,10 @@ mod tests {
             "data Box<T> { value: T; }",
             "module other; data Box {} machine Box::act(&self) {}",
         ]);
-        let syntax = crate::normalize_generic_data(syntax)
-            .expect("same carrier spelling has distinct owners");
+        let syntax = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        )
+        .expect("same carrier spelling has distinct owners");
         assert_eq!(
             syntax
                 .root_items()
@@ -446,8 +471,10 @@ mod tests {
             "module first; data Point {} data Container { value: Box<Point>; }",
             "module second; data Point {}",
         ]);
-        crate::normalize_generic_data(syntax)
-            .expect("the argument is selected in its declaring module");
+        crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        )
+        .expect("the argument is selected in its declaring module");
     }
 
     #[test]
@@ -456,8 +483,10 @@ mod tests {
             "data Box<T> { value: T; }",
             "module other; data Container { value: Box<u64>; }",
         ]);
-        crate::normalize_generic_data(syntax)
-            .expect("module presence does not disable unrelated templates");
+        crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        )
+        .expect("module presence does not disable unrelated templates");
     }
 
     #[test]
@@ -466,7 +495,7 @@ mod tests {
             "module first; trait Service { machine run(&mut self) { } } data Worker {} first_membership: Worker satisfies Service;",
             "module second; trait Service { machine stop(&mut self) { } } data Worker {}",
         ]);
-        crate::synthesize_trait_defaults(&mut syntax)
+        crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax)
             .expect("same-spelled module traits keep their own default templates");
         let mut machines = syntax
             .root_items()
@@ -496,7 +525,7 @@ mod tests {
             "module first; trait Service { machine run(&mut self) { } } data Worker {} membership: Worker satisfies Service {}",
             "module second; trait Service { machine stop(&mut self) { } }",
         ]);
-        crate::synthesize_trait_defaults(&mut syntax)
+        crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax)
             .expect("a module conformance selects the same-module trait");
         let conformance = syntax
             .root_items()
@@ -537,7 +566,7 @@ mod tests {
             "module second; pub trait Service { machine stop(&mut self) { } }",
             "use first::Service; use second::Service; data Worker {} membership: Worker satisfies Service;",
         ]);
-        crate::synthesize_trait_defaults(&mut syntax)
+        crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax)
             .expect("an ambiguous authored trait defers to resolution diagnostics");
         assert!(
             !syntax
@@ -554,7 +583,7 @@ mod tests {
             "module first; data Worker {} machine Worker::run(&mut self) { } first_membership: Worker satisfies Service;",
             "module second; data Worker {} second_membership: Worker satisfies Service;",
         ]);
-        crate::synthesize_trait_defaults(&mut syntax)
+        crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax)
             .expect("carrier identity is exact across same-spelled modules");
         let mut names = syntax
             .root_items()

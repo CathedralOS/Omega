@@ -337,7 +337,7 @@ fn array_leaves(
 
 fn literal_encoding(text: &str, name: &str) -> String {
     let (syntax, _) = parse(text);
-    syntax_trees_to_symbol_resolved_trees::canonicalize_declared_const_definition(
+    syntax_trees_to_symbol_resolved_trees::pre_resolution::canonicalize_declared_const_definition(
         &syntax,
         constant(&syntax, name),
     )

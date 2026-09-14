@@ -50,11 +50,13 @@ fn retained_extension_preserves_machine_children_and_appends_selected_inherited_
     )
     .unwrap();
     let sources = Arc::new(sources);
-    let extension = crate::normalize_generic_data_with_retained_base(
-        extension,
-        sources.clone(),
-        Vec::new(),
-        Some(&base),
+    let extension = crate::preparation::generic_data::normalize_generic_data(
+        crate::preparation::generic_data::GenericDataRequest {
+            syntax: extension,
+            sources: Some(sources.clone()),
+            top_level_bindings: Vec::new(),
+            retained_base: Some(&base),
+        },
     )
     .expect("normalize current extension template and its closed application");
     let program = resolve_extension(ExtensionRequest {

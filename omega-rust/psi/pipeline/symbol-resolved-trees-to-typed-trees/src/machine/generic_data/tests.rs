@@ -21,8 +21,10 @@ fn resolved_fixture() -> SymbolResolvedTrees {
         .source_id;
     let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
         .expect("parse generic method with exact source occurrence ownership");
-    let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
-        .expect("synthesize generic method");
+    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
+    )
+    .expect("synthesize generic method");
     syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
             syntax: &syntax,

@@ -54,11 +54,12 @@ fn imported_unnamespaced_sums_close_each_constructor_from_its_destination() {
     let bindings = vec![symbols::SourceScopedTopLevelBinding::module_import(
         source_id, library_id, "library", 0,
     )];
-    let syntax = normalize_generic_data_with_sources_and_top_level_bindings(
+    let syntax = normalize_generic_data(GenericDataRequest {
         syntax,
-        sources.clone(),
-        bindings.clone(),
-    )
+        sources: Some(sources.clone()),
+        top_level_bindings: bindings.clone(),
+        retained_base: None,
+    })
     .unwrap();
     let selection =
         constant_selection::ConstantSelection::new(&syntax, Some(sources), bindings).unwrap();
@@ -136,7 +137,7 @@ fn copied_nested_sum_context_uses_retained_application_not_generated_spelling() 
     let mut syntax = SyntaxTrees::new(SourceId::default());
     let tokens = Lexer::new("data Choice<T> { case Empty; case Full(value: T); } data Holder { value: Choice<Choice<u64>>; }").tokenize().unwrap();
     parse_syntax_trees_into_with_id(&mut syntax, SourceId(1), &tokens).unwrap();
-    let mut syntax = normalize_generic_data(syntax).unwrap();
+    let mut syntax = normalize_generic_data(GenericDataRequest::new(syntax)).unwrap();
     let instances = syntax
         .root_item_handles()
         .iter()
@@ -219,7 +220,7 @@ fn attached_machine_substitution_retains_previously_closed_sum_argument() {
     let mut syntax = SyntaxTrees::new(SourceId::default());
     let tokens = Lexer::new(source).tokenize().unwrap();
     parse_syntax_trees_into_with_id(&mut syntax, SourceId(1), &tokens).unwrap();
-    let syntax = normalize_generic_data(syntax).unwrap();
+    let syntax = normalize_generic_data(GenericDataRequest::new(syntax)).unwrap();
     let machine = syntax
         .root_items()
         .find_map(|item| match item {

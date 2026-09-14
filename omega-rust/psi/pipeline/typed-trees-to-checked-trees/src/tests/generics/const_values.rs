@@ -8,7 +8,9 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 fn typed_source(source: &str) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("const value tokens");
     let syntax = parse_syntax_trees(&tokens).expect("const value syntax");
-    let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)?;
+    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
+    )?;
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
     )?;

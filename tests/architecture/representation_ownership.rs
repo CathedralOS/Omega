@@ -265,23 +265,28 @@ fn generic_data_normalization_is_private_work_inside_name_resolution() {
     assert!(entrance.contains("mod preparation;"));
     let preparation = std::fs::read_to_string(owner.join("preparation/mod.rs")).unwrap();
     assert!(preparation.contains("mod generic_data;"));
-    assert!(entrance.contains("pub use preparation::generic_data::{"));
-    for operation in [
-        "normalize_generic_data",
-        "normalize_generic_data_with_sources_and_top_level_bindings",
-    ] {
+    assert!(entrance.contains("pub mod pre_resolution {"));
+    for operation in ["GenericDataRequest", "normalize_generic_data"] {
         assert!(entrance.contains(operation));
     }
     let normalization =
         std::fs::read_to_string(owner.join("preparation/generic_data/mod.rs")).unwrap();
-    assert!(normalization.contains("mut syntax: SyntaxTrees"));
+    assert!(normalization.contains("pub fn normalize_generic_data("));
+    assert!(normalization.contains("request: GenericDataRequest<'_>"));
+    assert!(normalization.contains("pub syntax: SyntaxTrees,"));
     assert!(normalization.contains("Result<SyntaxTrees, Vec<Diagnostic>>"));
     let scratch =
         std::fs::read_to_string(owner.join("preparation/generic_data/discovery.rs")).unwrap();
     for name in ["GenericData", "PendingRewrite", "Instantiation"] {
         assert!(scratch.contains(&format!("pub(super) struct {name}")));
+        // Whole-name check: the public request type `GenericDataRequest` is not
+        // the private `GenericData` scratch.
+        let mentioned = entrance.match_indices(name).any(|(start, _)| {
+            let after = entrance[start + name.len()..].chars().next();
+            !after.is_some_and(|character| character.is_alphanumeric() || character == '_')
+        });
         assert!(
-            !entrance.contains(name),
+            !mentioned,
             "working state is not a public program representation"
         );
     }

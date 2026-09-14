@@ -390,7 +390,12 @@ impl Collector<'_> {
 mod tests {
     use super::*;
 
-    fn prepare(text: &str) -> (syntax_trees::SyntaxTrees, crate::ConstInitializerSelection) {
+    fn prepare(
+        text: &str,
+    ) -> (
+        syntax_trees::SyntaxTrees,
+        crate::resolution::ConstInitializerSelection,
+    ) {
         let mut sources = source::SourceMap::default();
         let source = sources
             .add(
@@ -403,12 +408,13 @@ mod tests {
             .expect("tokens");
         let syntax =
             tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).expect("syntax");
-        let preparation = crate::prepare_const_initializer_selection(crate::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        })
-        .expect("source-aware preparation");
+        let preparation =
+            crate::resolution::prepare_const_initializer_selection(crate::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            })
+            .expect("source-aware preparation");
         (syntax, preparation)
     }
 

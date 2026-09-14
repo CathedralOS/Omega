@@ -17,7 +17,10 @@ fn source() -> resolved::SymbolResolvedTrees {
 fn resolve(text: &str) -> resolved::SymbolResolvedTrees {
     let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax).unwrap();
+    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
+    )
+    .unwrap();
     syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
     )

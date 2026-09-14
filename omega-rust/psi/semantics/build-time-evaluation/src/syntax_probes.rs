@@ -8,17 +8,21 @@ pub(crate) fn normalize_generic_data(
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
-    match sources {
-        Some(sources) => {
-            syntax_trees_to_symbol_resolved_trees::normalize_generic_data_with_retained_base(
-                syntax_trees,
-                sources,
-                source_scoped_top_level_bindings.to_vec(),
-                retained_base,
-            )
-        }
-        None => syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax_trees),
-    }
+    // Scoped bindings and a retained base travel with the source context;
+    // a source-free probe has neither.
+    let has_sources = sources.is_some();
+    syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest {
+            syntax: syntax_trees,
+            sources,
+            top_level_bindings: if has_sources {
+                source_scoped_top_level_bindings.to_vec()
+            } else {
+                Vec::new()
+            },
+            retained_base: if has_sources { retained_base } else { None },
+        },
+    )
 }
 
 pub(crate) fn resolve(

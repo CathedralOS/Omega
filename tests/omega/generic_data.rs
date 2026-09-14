@@ -1,10 +1,12 @@
-use syntax_trees_to_symbol_resolved_trees::normalize_generic_data;
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
+    GenericDataRequest, normalize_generic_data,
+};
 
 // Keep the existing in-place test fixtures while exercising the consuming API.
 fn desugar_generic_data_instances(
     syntax: &mut syntax_trees::SyntaxTrees,
 ) -> Result<(), Vec<Diagnostic>> {
-    *syntax = normalize_generic_data(std::mem::take(syntax))?;
+    *syntax = normalize_generic_data(GenericDataRequest::new(std::mem::take(syntax)))?;
     Ok(())
 }
 use checked_trees::CheckedTrees;

@@ -568,7 +568,7 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             let preparation =
-                crate::prepare_const_initializer_selection(crate::ResolutionRequest {
+                crate::resolution::prepare_const_initializer_selection(crate::ResolutionRequest {
                     syntax: &syntax,
                     sources: Some(sources.clone()),
                     top_level_bindings: Vec::new(),

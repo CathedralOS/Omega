@@ -68,7 +68,9 @@ pub fn evaluate_pre_resolution(
         source_scoped_top_level_bindings,
         selection_authority.clone(),
     )?;
-    syntax_trees_to_symbol_resolved_trees::synthesize_trait_defaults(&mut syntax_trees)?;
+    syntax_trees_to_symbol_resolved_trees::pre_resolution::synthesize_trait_defaults(
+        &mut syntax_trees,
+    )?;
     let mut syntax_trees = range_arguments::evaluate(
         syntax_trees,
         sources.clone(),

@@ -1231,8 +1231,10 @@ fn closed_generic_record_result_is_const_evaluable() {
 fn typed_normalized_generic_binding(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
-        .expect("synthesize closed generic instances");
+    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
+    )
+    .expect("synthesize closed generic instances");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }

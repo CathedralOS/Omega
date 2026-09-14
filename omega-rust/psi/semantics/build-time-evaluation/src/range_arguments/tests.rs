@@ -122,8 +122,10 @@ fn completed_typed_replay_rejects_forged_equal_range_observations() {
             },
         );
     }
-    let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
-        .expect("synthesis consumes forged observation");
+    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
+    )
+    .expect("synthesis consumes forged observation");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
     )
