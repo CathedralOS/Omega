@@ -141,7 +141,10 @@ pub(crate) fn compute_function(
 /// its copy edges to already-assigned homes, with the lowest still-viable
 /// view breaking ties. A partner constrained with this domain can never
 /// share its home, so its candidacy is not a vote.
-/// The plain first candidate remains when nothing coalesces.
+/// A constrained neighbor can never share this domain's home, so stealing its
+/// already-guaranteed coalesce costs this domain nothing to avoid. The view
+/// stealing the fewest such edges wins third; the plain first candidate breaks
+/// any remaining tie.
 fn preferred_view(
     function: usize,
     domain_index: usize,
@@ -184,7 +187,7 @@ fn preferred_view(
         domain_of,
         conflicts,
     );
-    let mut leading = None::<(usize, usize, RegisterViewId)>;
+    let mut leading = None::<(usize, usize, Reverse<usize>, RegisterViewId)>;
     for &view in pool {
         let mut guaranteed = 0usize;
         let mut votes = 0usize;
@@ -211,17 +214,66 @@ fn preferred_view(
                 }
             }
         }
-        if (guaranteed, votes) > (0, 0)
-            && leading.is_none_or(|(best_guaranteed, best_votes, _)| {
-                (guaranteed, votes) > (best_guaranteed, best_votes)
-            })
-        {
-            leading = Some((guaranteed, votes, view));
+        let stolen = stolen_coalesces(
+            function,
+            domain_index,
+            view,
+            domains,
+            viable,
+            unassigned,
+            homes,
+            affinities,
+            conflicts,
+        )?;
+        let rank = (guaranteed, votes, Reverse(stolen));
+        if leading.is_none_or(|(best_guaranteed, best_votes, best_stolen, _)| {
+            rank > (best_guaranteed, best_votes, best_stolen)
+        }) {
+            leading = Some((guaranteed, votes, Reverse(stolen), view));
         }
     }
     Ok(leading
-        .map(|(_, _, view)| view)
+        .map(|(_, _, _, view)| view)
         .or_else(|| pool.first().copied()))
+}
+
+fn stolen_coalesces(
+    function: usize,
+    domain_index: usize,
+    view: RegisterViewId,
+    domains: &[AllocationDomain<'_>],
+    viable: &[Vec<RegisterViewId>],
+    unassigned: &[usize],
+    homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
+    affinities: &[CopyAffinity],
+    conflicts: &PreparedConflicts<'_>,
+) -> Result<usize, RegisterHomeError> {
+    let mut stolen = 0;
+    for &neighbor in unassigned {
+        if neighbor == domain_index
+            || !conflicts.constrained(neighbor, domain_index)
+            || viable[neighbor].binary_search(&view).is_err()
+            || !conflicts.candidate_conflicts(
+                function,
+                neighbor,
+                view,
+                &[(domain_index, view)],
+                domains,
+            )?
+        {
+            continue;
+        }
+        for affinity in affinities {
+            let coalesces = (domains[neighbor].contains(affinity.source)
+                && homes.get(&affinity.destination) == Some(&view))
+                || (domains[neighbor].contains(affinity.destination)
+                    && homes.get(&affinity.source) == Some(&view));
+            if coalesces {
+                stolen += 1;
+            }
+        }
+    }
+    Ok(stolen)
 }
 
 /// One still-unassigned partner domain's coalescing outlook. `pending` counts
