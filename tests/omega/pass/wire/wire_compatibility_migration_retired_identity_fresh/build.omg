@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    builder.application("wire-compatibility-migration-retired-identity-fresh");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.require_wire_compatibility<
+        ArchiveStore,
+        CounterLineage,
+        CounterV3,
+        CounterV1,
+        CompleteMigration
+    >();
+}
