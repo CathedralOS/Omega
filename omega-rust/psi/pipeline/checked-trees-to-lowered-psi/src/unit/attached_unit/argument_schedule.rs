@@ -1,0 +1,281 @@
+//! Schedule scalar evaluation around nested structural producers without
+//! changing checked call coordinates or inventing source-local bindings. Array
+//! constructors belong to their enclosing call's exact formal position; their
+//! scalar leaves use the selective evaluator, not additional scheduled calls.
+
+use super::*;
+
+pub(super) enum Step {
+    Ordinary(usize),
+    Begin,
+    Argument { operation: usize, ordinal: usize },
+    Subslice { operation: usize, ordinal: usize },
+    Constructor(usize),
+    Call(usize),
+    End,
+}
+
+pub(super) fn build(
+    checked: &CheckedTrees,
+    plan: &CheckedUnitEffectMachinePlan,
+) -> Result<Vec<Step>, LoweringError> {
+    let operations = &plan.operations[..plan.operations.len() - 1];
+    let mut steps = Vec::new();
+    let mut index = 0;
+    while index < operations.len() {
+        if byte_subslices::contains(&operations[index])
+            && !matches!(&operations[index], CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
+                if coordinate.call_ordinal != 0)
+        {
+            steps.push(Step::Begin);
+            append(
+                checked,
+                plan,
+                index..index + 1,
+                index,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                &mut steps,
+            )?;
+            steps.push(Step::End);
+            index += 1;
+            continue;
+        }
+        let statement = match &operations[index] {
+            CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
+                if coordinate.call_ordinal != 0 =>
+            {
+                coordinate.statement_index
+            }
+            CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                result,
+                source: checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
+                ..
+            } => result.statement_index,
+            _ => {
+                steps.push(Step::Ordinary(index));
+                index += 1;
+                continue;
+            }
+        };
+        let start = index;
+        let root = (start..operations.len())
+            .find(|index| match &operations[*index] {
+                CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
+                | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
+                | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. } => {
+                    coordinate.statement_index == statement && coordinate.call_ordinal == 0
+                }
+                _ => false,
+            })
+            .ok_or(LoweringError::Unsupported(
+                "nested argument schedule has no enclosing call",
+            ))?;
+        steps.push(Step::Begin);
+        let mut emitted = Vec::new();
+        append(
+            checked,
+            plan,
+            start..root + 1,
+            root,
+            &mut Vec::new(),
+            &mut emitted,
+            &mut steps,
+        )?;
+        if !emitted.iter().copied().eq(start..root + 1) {
+            return unsupported("argument schedule disagrees with checked structural call order");
+        }
+        steps.push(Step::End);
+        index = root + 1;
+    }
+    Ok(steps)
+}
+
+fn append(
+    checked: &CheckedTrees,
+    plan: &CheckedUnitEffectMachinePlan,
+    group: std::ops::Range<usize>,
+    index: usize,
+    active: &mut Vec<usize>,
+    emitted: &mut Vec<usize>,
+    steps: &mut Vec<Step>,
+) -> Result<(), LoweringError> {
+    if active.contains(&index) || emitted.contains(&index) || !group.contains(&index) {
+        return unsupported("nested argument schedule repeats or escapes its producer group");
+    }
+    if matches!(
+        &plan.operations[index],
+        CheckedUnitEffectOperationPlan::EstablishScalarArray {
+            source: checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
+            ..
+        }
+    ) {
+        emitted.push(index);
+        steps.push(Step::Constructor(index));
+        return Ok(());
+    }
+    let (coordinate, scalar_arguments, structural_arguments) = match &plan.operations[index] {
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            scalar_arguments,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            scalar_arguments,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::ScalarCall {
+            coordinate,
+            scalar_arguments,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryCall {
+            coordinate,
+            scalar_arguments,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            coordinate,
+            scalar_arguments,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate,
+            scalar_arguments,
+            structural_arguments,
+            ..
+        } => (*coordinate, scalar_arguments, structural_arguments),
+        _ => return unsupported("nested argument schedule requires an ordinary or boundary call"),
+    };
+    let authored = crate::emission::call_source_custody::authored::locate_source(
+        checked, plan.state, coordinate,
+    )?;
+    let target = crate::emission::call_source_custody::authored::target_signature(
+        checked,
+        plan.machine,
+        authored.source_target,
+    )?;
+    let parameters = target.parameters;
+    if parameters.iter().any(|parameter| parameter.is_self)
+        || parameters.len() != authored.scalar_arguments.len() + authored.structural_arguments.len()
+        || scalar_arguments.len() != authored.scalar_arguments.len()
+        || structural_arguments.len() != authored.structural_arguments.len()
+    {
+        return unsupported("nested argument schedule has no exact positional signature");
+    }
+    active.push(index);
+    let mut scalar_ordinal = 0;
+    for (position, parameter) in parameters.iter().enumerate() {
+        if checked
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
+        {
+            steps.push(Step::Argument {
+                operation: index,
+                ordinal: scalar_ordinal,
+            });
+            scalar_ordinal += 1;
+            continue;
+        }
+        let expression = authored
+            .structural_arguments
+            .iter()
+            .find_map(|(formal, expression)| (*formal as usize == position).then_some(*expression))
+            .ok_or(LoweringError::Unsupported(
+                "nested structural argument has no authored position",
+            ))?;
+        let structural_ordinal = authored
+            .structural_arguments
+            .iter()
+            .position(|(formal, _)| *formal as usize == position)
+            .ok_or(LoweringError::Unsupported(
+                "subslice argument has no structural ordinal",
+            ))?;
+        let mut constructors = group.clone().filter(|producer| {
+            matches!(
+                &plan.operations[*producer],
+                CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                    source: checked_trees::CheckedArrayConstructionSource::CallArgument {
+                        call_ordinal,
+                        parameter_position,
+                    }, result, ..
+                } if result.statement_index == coordinate.statement_index
+                    && *call_ordinal == coordinate.call_ordinal
+                    && *parameter_position as usize == position
+            )
+        });
+        if let Some(constructor) = constructors.next() {
+            if constructors.next().is_some() {
+                return unsupported("array argument has duplicate retained constructors");
+            }
+            let CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } =
+                &plan.operations[constructor]
+            else {
+                return unsupported("array argument constructor changed during scheduling");
+            };
+            if !structural_arguments
+                .get(structural_ordinal)
+                .is_some_and(|argument| {
+                    argument.source_structural_result_binding_ordinal()
+                        == Some(result.binding_ordinal)
+                })
+            {
+                return unsupported("array argument schedule has a different result binding");
+            }
+            append(
+                checked,
+                plan,
+                group.clone(),
+                constructor,
+                active,
+                emitted,
+                steps,
+            )?;
+            continue;
+        }
+        if byte_subslices::arguments(&plan.operations[index]).get(structural_ordinal).is_some_and(|argument| {
+            matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. })
+        }) {
+            steps.push(Step::Subslice { operation: index, ordinal: structural_ordinal });
+            continue;
+        }
+        let Some(expression) = parameters::expression_producer(checked, expression) else {
+            continue;
+        };
+        let mut producers = group.clone().filter(|producer| matches!(
+            &plan.operations[*producer],
+            CheckedUnitEffectOperationPlan::StructuralCall { source_site, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { source_site, .. }
+                if *source_site == Some(checked_trees::NominalMachineUseSite::Expression(expression))
+        ));
+        let producer = producers.next().ok_or(LoweringError::Unsupported(
+            "nested structural argument has no retained producer",
+        ))?;
+        if producers.next().is_some() {
+            return unsupported("nested structural argument has duplicate retained producers");
+        }
+        append(
+            checked,
+            plan,
+            group.clone(),
+            producer,
+            active,
+            emitted,
+            steps,
+        )?;
+    }
+    active.pop();
+    emitted.push(index);
+    steps.push(Step::Call(index));
+    Ok(())
+}

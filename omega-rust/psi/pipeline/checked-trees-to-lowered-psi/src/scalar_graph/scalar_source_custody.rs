@@ -1,0 +1,572 @@
+//! Rejoin scalar plans to authored destinations and declaration namespaces.
+
+use super::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::{
+    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+};
+
+pub(crate) mod computation_calls;
+pub(crate) mod direct_calls;
+pub(crate) mod guarded_exits;
+mod parameters;
+pub(crate) mod primitive_references;
+mod storage_reads;
+pub(crate) mod successors;
+pub(crate) mod value_correspondence;
+pub(crate) use computation_calls::validate_computation_calls;
+pub(crate) use parameters::parameter_storage;
+pub(crate) use storage_reads::validate_entry_read_expression;
+pub(crate) use storage_reads::validate_expression as validate_storage_read_expression;
+pub(crate) use storage_reads::validate_normal_result_read_expression;
+
+pub(crate) fn supported_mutable_parameter(primitive: PrimitiveType) -> bool {
+    matches!(
+        primitive,
+        PrimitiveType::Bool
+            | PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+    )
+}
+
+pub(crate) struct SourceRoot {
+    pub machine: symbols::SymbolHandle,
+    pub expression: ExpressionHandle,
+    pub destination: symbols::SymbolHandle,
+    pub primitive_type: PrimitiveType,
+}
+
+pub(crate) fn authored_state(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+) -> Result<
+    (
+        &checked_trees::machine::Machine,
+        &checked_trees::state::State,
+    ),
+    LoweringError,
+> {
+    let program = &checked.typed;
+    let mut states = program.machines().iter().flat_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .filter_map(move |candidate| {
+                (state.is_valid() && candidate.symbol == state).then_some((machine, candidate))
+            })
+    });
+    let (machine, state) = states.next().ok_or(LoweringError::Unsupported(
+        "scalar source custody has no authored state",
+    ))?;
+    if states.next().is_some() {
+        return unsupported("scalar source custody has ambiguous state ownership");
+    }
+    Ok((machine, state))
+}
+
+pub(crate) fn locate(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    role: CheckedScalarExpressionRole,
+) -> Result<SourceRoot, LoweringError> {
+    let program = &checked.typed;
+    let (machine, state) = authored_state(checked, state)?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let authored = statements
+        .get(statement as usize)
+        .ok_or(LoweringError::Unsupported(
+            "scalar source custody has no authored statement",
+        ))?;
+    let preceding = &statements[..statement as usize];
+    let immutable_count = preceding
+        .iter()
+        .filter(|statement| {
+            matches!(statement, StatementNode::LocalData(local)
+            if !local.is_mutable && local.initial_value.is_valid()
+                && program.primitive_type_reference(local.type_reference).is_some())
+        })
+        .count();
+    let absent = symbols::SymbolHandle::invalid();
+    let selected = match (authored, role) {
+        (
+            _,
+            CheckedScalarExpressionRole::StructuralValueSubject { .. }
+            | CheckedScalarExpressionRole::StructuralValuePattern { .. }
+            | CheckedScalarExpressionRole::RecordField { .. }
+            | CheckedScalarExpressionRole::StructuralValueField { .. },
+        ) => {
+            let (expression, primitive) =
+                crate::unit::attached_unit::structural_values::source_custody::operand_source(
+                    checked,
+                    state.symbol,
+                    statement,
+                    role,
+                )?;
+            Some((expression, absent, primitive))
+        }
+        (
+            _,
+            CheckedScalarExpressionRole::ArrayElement {
+                source,
+                element_ordinal,
+            },
+        ) => crate::unit::attached_unit::scalar_arrays::construction_expression(
+            checked,
+            machine.symbol,
+            state.symbol,
+            statement,
+            source,
+        )
+        .and_then(|(expression, reference)| {
+            validation::scalar_array_elements(program, machine.symbol, expression, reference)
+        })
+        .and_then(|array| array.elements.get(element_ordinal as usize).copied())
+        .map(|(expression, primitive)| {
+            let destination = match (source, authored) {
+                (
+                    checked_trees::CheckedArrayConstructionSource::Statement,
+                    StatementNode::LocalData(local),
+                ) => local.symbol,
+                _ => absent,
+            };
+            (expression, destination, primitive)
+        }),
+        (
+            StatementNode::Transition(transition),
+            CheckedScalarExpressionRole::TransitionSubsliceStart { argument_ordinal }
+            | CheckedScalarExpressionRole::TransitionSubsliceEnd { argument_ordinal },
+        ) if transition.exit == TransitionExit::Ordinary && !transition.continuation.is_valid() => {
+            match program.statement_table.transition_target(transition.target) {
+                TransitionTargetNode::Named {
+                    path, arguments, ..
+                } => program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|target| {
+                        successors::normalize_machine_state_target(checked, machine, path.symbol)
+                            .ok()
+                            == Some(target.symbol)
+                    })
+                    .and_then(|target| {
+                        let parameters = program.state_parameters(target);
+                        let arguments = program.statement_table.expression_handles(*arguments);
+                        if arguments.len() != parameters.len()
+                            || parameters.get(argument_ordinal as usize)?.is_self
+                        {
+                            return None;
+                        }
+                        let ExpressionNode::Indexed(indexed) = program
+                            .expression_table
+                            .expression(*arguments.get(argument_ordinal as usize)?)
+                        else {
+                            return None;
+                        };
+                        let ExpressionNode::Range(range) =
+                            program.expression_table.expression(indexed.index)
+                        else {
+                            return None;
+                        };
+                        if range.end_inclusive {
+                            return None;
+                        }
+                        let endpoint = if matches!(
+                            role,
+                            CheckedScalarExpressionRole::TransitionSubsliceStart { .. }
+                        ) {
+                            range.start
+                        } else {
+                            range.end
+                        };
+                        endpoint
+                            .is_valid()
+                            .then_some((endpoint, absent, PrimitiveType::U64))
+                    }),
+                _ => None,
+            }
+        }
+        (
+            _,
+            CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
+                call_ordinal,
+                argument_ordinal,
+            }
+            | CheckedScalarExpressionRole::ByteSequenceSubsliceEnd {
+                call_ordinal,
+                argument_ordinal,
+            },
+        ) => {
+            let call = crate::emission::call_source_custody::authored::locate_source(
+                checked,
+                state.symbol,
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: statement,
+                    call_ordinal,
+                },
+            )?;
+            call.structural_arguments
+                .get(argument_ordinal as usize)
+                .and_then(|(_, expression)| {
+                    let ExpressionNode::Indexed(indexed) =
+                        program.expression_table.expression(*expression)
+                    else {
+                        return None;
+                    };
+                    let ExpressionNode::Range(range) =
+                        program.expression_table.expression(indexed.index)
+                    else {
+                        return None;
+                    };
+                    if range.end_inclusive {
+                        return None;
+                    }
+                    let endpoint = if matches!(
+                        role,
+                        CheckedScalarExpressionRole::ByteSequenceSubsliceStart { .. }
+                    ) {
+                        range.start
+                    } else {
+                        range.end
+                    };
+                    endpoint
+                        .is_valid()
+                        .then_some((endpoint, absent, PrimitiveType::U64))
+                })
+        }
+        (
+            _,
+            CheckedScalarExpressionRole::BoundaryCallArgument {
+                call_ordinal,
+                argument_ordinal,
+            }
+            | CheckedScalarExpressionRole::UnitCallArgument {
+                call_ordinal,
+                argument_ordinal,
+            },
+        ) => {
+            let call = crate::emission::call_source_custody::authored::locate_source(
+                checked,
+                state.symbol,
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: statement,
+                    call_ordinal,
+                },
+            )?;
+            if call.boundary
+                != matches!(
+                    role,
+                    CheckedScalarExpressionRole::BoundaryCallArgument { .. }
+                )
+            {
+                return unsupported("scalar source custody disagrees with its call argument role");
+            }
+            call.scalar_arguments
+                .get(argument_ordinal as usize)
+                .map(|(expression, primitive)| (*expression, absent, *primitive))
+        }
+        (
+            StatementNode::LocalData(local),
+            CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
+        ) if !local.is_mutable
+            && usize::try_from(binding_ordinal).ok() == Some(immutable_count) =>
+        {
+            program
+                .primitive_type_reference(local.type_reference)
+                .map(|primitive| (local.initial_value, local.symbol, primitive))
+        }
+        (StatementNode::LocalData(local), CheckedScalarExpressionRole::StorageInitializer)
+            if local.is_mutable =>
+        {
+            program
+                .primitive_type_reference(local.type_reference)
+                .map(|primitive| (local.initial_value, local.symbol, primitive))
+        }
+        (StatementNode::Assignment(assignment), CheckedScalarExpressionRole::AssignmentIndex) => {
+            match program.expression_table.expression(assignment.target) {
+                ExpressionNode::Indexed(indexed)
+                    if !matches!(
+                        program.expression_table.expression(indexed.index),
+                        ExpressionNode::Range(_)
+                    ) =>
+                {
+                    Some((indexed.index, absent, PrimitiveType::U64))
+                }
+                _ => None,
+            }
+        }
+        (StatementNode::Assignment(assignment), CheckedScalarExpressionRole::AssignmentValue) => {
+            match program.expression_table.expression(assignment.target) {
+                ExpressionNode::Name(path)
+                    if path.symbol.is_valid()
+                        && path.symbol == path.head_symbol
+                        && program
+                            .expression_table
+                            .name_path_members(path.members)
+                            .len()
+                            == 1 =>
+                {
+                    preceding
+                        .iter()
+                        .find_map(|statement| match statement {
+                            StatementNode::LocalData(local)
+                                if local.is_mutable && local.symbol == path.symbol =>
+                            {
+                                program
+                                    .primitive_type_reference(local.type_reference)
+                                    .map(|primitive| (assignment.value, local.symbol, primitive))
+                            }
+                            _ => None,
+                        })
+                        .or_else(|| {
+                            program
+                                .state_parameters(state)
+                                .iter()
+                                .find_map(|parameter| {
+                                    if !parameter.is_mutable
+                                        || parameter.is_self
+                                        || parameter.is_const
+                                        || parameter.symbol != path.symbol
+                                    {
+                                        return None;
+                                    }
+                                    let (reference, borrowed_store) = match program
+                                        .type_reference_table
+                                        .type_reference(parameter.type_reference)
+                                    {
+                                        checked_trees::types::TypeReferenceNode::Reference {
+                                            access:
+                                                language_semantics::ReferenceAccess::Mutable
+                                                | language_semantics::ReferenceAccess::WriteOnly,
+                                            referee,
+                                            ..
+                                        } => (*referee, true),
+                                        _ => (parameter.type_reference, false),
+                                    };
+                                    let primitive = program.primitive_type_reference(reference)?;
+                                    (borrowed_store || supported_mutable_parameter(primitive))
+                                        .then_some((assignment.value, parameter.symbol, primitive))
+                                })
+                        })
+                }
+                ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                    validation::declared_place_type_raw(
+                        program,
+                        machine,
+                        Some(state),
+                        assignment.target,
+                    )
+                    .and_then(|reference| program.primitive_type_reference(reference))
+                    .map(|primitive| (assignment.value, absent, primitive))
+                }
+                _ => None,
+            }
+        }
+        (statement, CheckedScalarExpressionRole::ReturnCaseField { field_ordinal }) => (|| {
+            let (expression, destination) = match statement {
+                StatementNode::Expression(expression) => (*expression, absent),
+                _ => return None,
+            };
+            let constructor = validation::scalar_case_constructor(program, expression)?;
+            let (_, expression, primitive) = constructor.fields.get(field_ordinal as usize)?;
+            Some((*expression, destination, *primitive))
+        })(),
+        (StatementNode::Expression(expression), CheckedScalarExpressionRole::Return) => program
+            .primitive_type_reference(state.return_type)
+            .map(|primitive| (*expression, absent, primitive)),
+        (StatementNode::Transition(transition), CheckedScalarExpressionRole::Guard) => {
+            match transition.guard {
+                TransitionGuardNode::When(expression) => {
+                    Some((expression, absent, PrimitiveType::Bool))
+                }
+                TransitionGuardNode::Always => None,
+            }
+        }
+        (
+            StatementNode::Transition(transition),
+            CheckedScalarExpressionRole::Return
+            | CheckedScalarExpressionRole::ContinuationReturn
+            | CheckedScalarExpressionRole::TransitionArgument { .. }
+            | CheckedScalarExpressionRole::TransitionContinuationArgument { .. },
+        ) if transition.exit == TransitionExit::Ordinary => {
+            let target = if matches!(
+                role,
+                CheckedScalarExpressionRole::ContinuationReturn
+                    | CheckedScalarExpressionRole::TransitionContinuationArgument { .. }
+            ) {
+                transition.continuation
+            } else {
+                transition.target
+            };
+            if !program.statement_table.transition_target_is_valid(target) {
+                return unsupported("scalar source custody has no live transition target");
+            }
+            match (program.statement_table.transition_target(target), role) {
+                (
+                    TransitionTargetNode::Value(expression),
+                    CheckedScalarExpressionRole::Return
+                    | CheckedScalarExpressionRole::ContinuationReturn,
+                ) => program
+                    .primitive_type_reference(state.return_type)
+                    .map(|primitive| (*expression, absent, primitive)),
+                (
+                    TransitionTargetNode::Named {
+                        path, arguments, ..
+                    },
+                    CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
+                    | CheckedScalarExpressionRole::TransitionContinuationArgument {
+                        argument_ordinal,
+                    },
+                ) => program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|target| {
+                        successors::normalize_machine_state_target(checked, machine, path.symbol)
+                            .ok()
+                            == Some(target.symbol)
+                    })
+                    .and_then(|target| {
+                        let parameters = program.state_parameters(target);
+                        let parameter = parameters.get(argument_ordinal as usize)?;
+                        if parameter.is_self {
+                            return None;
+                        }
+                        let explicit = parameters[..argument_ordinal as usize]
+                            .iter()
+                            .filter(|parameter| !parameter.is_self)
+                            .count();
+                        let expression = *program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .get(explicit)?;
+                        Some((
+                            expression,
+                            parameter.symbol,
+                            program.primitive_type_reference(parameter.type_reference)?,
+                        ))
+                    }),
+                _ => None,
+            }
+        }
+        (
+            StatementNode::LocalData(_),
+            CheckedScalarExpressionRole::CallArgument {
+                binding_ordinal,
+                argument_ordinal,
+            },
+        ) => {
+            let call = direct_calls::locate(checked, state.symbol, statement, binding_ordinal)?;
+            call.arguments
+                .get(argument_ordinal as usize)
+                .zip(call.parameters.get(argument_ordinal as usize))
+                .and_then(|(argument, parameter)| {
+                    Some((
+                        *argument,
+                        absent,
+                        program.primitive_type_reference(parameter.type_reference)?,
+                    ))
+                })
+        }
+        _ => None,
+    };
+    let (expression, destination, primitive_type) = selected.ok_or(LoweringError::Unsupported(
+        "scalar source custody disagrees with its authored destination role",
+    ))?;
+    if !program.expression_table.expression_is_valid(expression) {
+        return unsupported("scalar source custody has no live authored expression");
+    }
+    Ok(SourceRoot {
+        machine: machine.symbol,
+        expression,
+        destination,
+        primitive_type,
+    })
+}
+
+pub(crate) fn validate_pure(
+    checked: &CheckedTrees,
+    binding: &checked_trees::CheckedScalarExpressionBindings,
+    scalar_type: ScalarType,
+) -> Result<(), LoweringError> {
+    let source = locate(
+        checked,
+        binding.state,
+        binding.statement_ordinal,
+        binding.role,
+    )?;
+    if source.expression != binding.expression
+        || source.destination != binding.destination
+        || terminal_scalar_type(source.primitive_type)? != scalar_type
+    {
+        return unsupported(
+            "pure scalar plan disagrees with its authored expression or destination",
+        );
+    }
+    validate_namespace(checked, binding)?;
+    storage_reads::validate(checked, binding, &source)
+}
+
+pub(crate) fn validate_namespace(
+    checked: &CheckedTrees,
+    binding: &checked_trees::CheckedScalarExpressionBindings,
+) -> Result<(), LoweringError> {
+    let program = &checked.typed;
+    let (_, state) = authored_state(checked, binding.state)?;
+    let preceding = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(..binding.statement_ordinal as usize)
+        .ok_or(LoweringError::Unsupported(
+            "scalar source custody has no authored statement prefix",
+        ))?;
+    let expected = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        })
+        .map(|parameter| parameter.symbol)
+        .chain(preceding.iter().filter_map(|statement| {
+            match statement {
+                StatementNode::LocalData(local)
+                    if !local.is_mutable
+                        && local.initial_value.is_valid()
+                        && program
+                            .primitive_type_reference(local.type_reference)
+                            .is_some() =>
+                {
+                    Some(local.symbol)
+                }
+                _ => None,
+            }
+        }));
+    let retained = checked
+        .facts
+        .values
+        .scalar_expressions
+        .binding_symbols
+        .span(binding.symbols)
+        .ok_or(LoweringError::Unsupported(
+            "pure scalar plan has an invalid declaration namespace",
+        ))?;
+    if !expected.eq(retained.iter().copied()) {
+        return unsupported("pure scalar plan disagrees with its authored declaration namespace");
+    }
+    Ok(())
+}
+
+/// A successor selects the authored target even when it carries no values.
+pub(crate) fn validate_successor(
+    checked: &CheckedTrees,
+    source_state: symbols::SymbolHandle,
+    successor: &CheckedScalarSuccessor,
+) -> Result<(), LoweringError> {
+    successors::validate(checked, source_state, successor)
+}

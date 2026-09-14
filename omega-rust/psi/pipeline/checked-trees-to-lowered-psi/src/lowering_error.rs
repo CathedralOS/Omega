@@ -1,0 +1,95 @@
+//! Lowering failure vocabulary shared by every producer in this crate.
+//!
+//! Unsupported constructs fail closed with a static reason; structured
+//! variants retain the identity a caller needs to report or test the refusal.
+
+use language_semantics::PermissionClaimIdentity;
+use semantic_vocabulary::{
+    ContentProjectionIdentity, ObligationId, PlaceId, PropositionError, StructuralPlaceKind,
+};
+
+use crate::proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoweringError {
+    MachineNotFound(String),
+    AmbiguousMachineName(String),
+    DebugSourceFileCountOverflow,
+    DebugSourceLengthOverflow,
+    MissingDebugSourceFile(usize),
+    DebugSemanticCodec(terminal_codec::CodecError),
+    InvalidDebugMap(terminal_codec::DebugMapError),
+    InvalidTerminalModule(terminal_verifier::ModuleError),
+    InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
+    InvalidQuotientCorrespondence(Vec<String>),
+    OperationProofUnavailable(ObligationId),
+    InvalidUnitMachinePlan {
+        machine: String,
+        reason: &'static str,
+    },
+    Unsupported(&'static str),
+    InvalidPsiIntegerType,
+    UnlandedIntegerLiteral,
+    IntegerLandingMismatch,
+    IntegerLiteralOutsideSupportedMagnitude,
+    IntegerLiteralOutsidePsiType,
+    ContentConservationFingerprintMismatch {
+        expected: u64,
+        actual: u64,
+    },
+    ContentIdentityFactOwnerMismatch,
+    ContentPartitionFactOwnerMismatch,
+    ContentPartitionNotConservation,
+    ContentPartitionInputClaimNotLowered,
+    ContentPartitionInputClaimBindingMismatch,
+    ContentEntryClaimRequiresEntryPlace,
+    ContentEntryClaimHasNoProjection,
+    ContentEntryClaimMapsMultiplePlaces,
+    DuplicateContentEntryClaimInput,
+    OverlappingContentEntryClaimInput,
+    DuplicateContentPartitionSubstitution,
+    DuplicateContentPartitionComposition,
+    DuplicateContentPartitionProducerCoordinate,
+    ContentPartitionProducerOperationMissing,
+    ContentPartitionProducerTargetMismatch,
+    ContentPartitionResultRewriteUnsupported,
+    ContentPartitionDerivedSourceUnsupported,
+    ContentPartitionSubstitutionCoverageMismatch,
+    ContentPartitionReplayMismatch,
+    UnknownContentClaimIdentity,
+    ContentIdentityInputParameterMismatch,
+    ContentIdentityNotDirectEquality,
+    ContentIdentityProjectionMismatch,
+    ContentIdentityDirectionMismatch,
+    ContentIdentityRootMismatch,
+    ContentIdentityClaimMapsMultiplePlaces,
+    DuplicateContentIdentityProjection,
+    DuplicateContentIdentityInput,
+    DuplicateContentIdentityOutput,
+    OverlappingContentIdentityInput,
+    OverlappingContentIdentityOutput,
+    ContentProjectionAlgebraMismatch(ContentProjectionIdentity),
+    CrashFrontierClaimNotLowered(PermissionClaimIdentity),
+    InvalidContentDomainIdentity,
+    ZeroContentProjectionFingerprint,
+    ContentTermNestingTooDeep,
+    ConflictingContentPlaceRoot {
+        id: PlaceId,
+        first: StructuralPlaceKind,
+        second: StructuralPlaceKind,
+    },
+    InvalidContentProposition(PropositionError),
+    InvalidCrashPredicate(PropositionError),
+}
+
+impl std::fmt::Display for LoweringError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for LoweringError {}
+
+pub(crate) fn unsupported<T>(message: &'static str) -> Result<T, LoweringError> {
+    Err(LoweringError::Unsupported(message))
+}
