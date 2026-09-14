@@ -85,6 +85,17 @@ pub enum AbstractOperation {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// Replace one live field byte without changing its length or neighboring content.
+    StructuralByteSequenceFieldByteStore {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// Replace exactly the source's live bytes and length under verified capacity bounds.
     StructuralByteSequenceFieldStore {
         psi_operation: OperationId,

@@ -33,8 +33,6 @@ pub enum LoweringError {
     UnsupportedByteSequenceLiteral(semantic_vocabulary::OperationId),
     /// Bounded byte-field replacement did not retain its Unit effect.
     InvalidStructuralByteSequenceFieldStore(semantic_vocabulary::OperationId),
-    /// Indexed bounded byte-field writes have no native storage realization yet.
-    UnsupportedStructuralByteSequenceFieldByteStore(semantic_vocabulary::OperationId),
     /// The length observation did not retain its exact scalar u64 result.
     InvalidByteSequenceLength(semantic_vocabulary::OperationId),
     InvalidByteSequenceRead(semantic_vocabulary::OperationId),

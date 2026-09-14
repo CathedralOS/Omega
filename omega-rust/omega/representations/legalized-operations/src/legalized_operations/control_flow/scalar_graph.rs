@@ -82,7 +82,8 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
                     LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { length, .. } => *length == value,
-                    LegalizedScalarInstructionKind::ByteSequenceWrite { index, value: stored, length, .. } => [*index, *stored, *length].contains(&value),
+                    LegalizedScalarInstructionKind::ByteSequenceWrite { index, value: stored, length, .. }
+                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { index, value: stored, length, .. } => [*index, *stored, *length].contains(&value),
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::Constant(_)
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }
@@ -169,6 +170,16 @@ pub enum LegalizedScalarInstructionKind {
         destination: terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,
         source: semantic_vocabulary::PlaceId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    /// One inline field byte; current length and original root remain authoritative.
+    StructuralByteSequenceFieldByteStore {
+        destination: terminal_psi::StructuralArgument,
+        field: semantic_vocabulary::StructuralFieldId,
+        index: ValueId,
+        value: ValueId,
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,

@@ -161,6 +161,13 @@ pub(super) fn operation(
 ) -> Result<bool, SelectedInstructionError> {
     if matches!(
         node.kind,
+        LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { .. }
+    ) {
+        byte_field_store::replace_byte(source, replay, node)?;
+        return Ok(true);
+    }
+    if matches!(
+        node.kind,
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
     ) {
         byte_field_store::replace(source, replay, node)?;

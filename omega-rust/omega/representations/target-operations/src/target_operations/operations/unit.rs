@@ -100,6 +100,16 @@ pub enum TargetUnitOperation {
         length: TargetUnitScalarArgumentSource,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// Mutate one inline byte under the exact current field-length observation.
+    StructuralByteSequenceFieldByteStore {
+        psi_operation: OperationId,
+        destination: StructuralArgument,
+        field: StructuralFieldId,
+        index: TargetUnitScalarArgumentSource,
+        value: TargetUnitScalarArgumentSource,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// Establish one checked descriptor without copying its immutable backing bytes.
     ByteSequenceSubslice {
         result: StructuralOperationResult,

@@ -687,6 +687,9 @@ pub(in crate::selection) fn validate_with_environment(
                     | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
+                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
+                        ..
+                    }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_)
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }

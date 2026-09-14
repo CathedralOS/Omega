@@ -21,6 +21,7 @@ pub(crate) fn operation_scalar_types_match(
     };
     match operation {
         O::StructuralByteSequenceFieldStore { .. }
+        | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceLength { .. }

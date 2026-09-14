@@ -1,4 +1,4 @@
-//! Unsupported native byte operations reject without erasing verified effects.
+//! Native projection retains verified indexed byte-field effects in either block order.
 
 use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
@@ -11,8 +11,7 @@ use terminal_psi::{
     Block, Operation, OperationKind, OperationResult, SuccessorEdge, Terminator, ValueDeclaration,
 };
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, LoweringError, lower_artifact, lower_artifact_for_native_realization,
-    lower_artifact_for_optimization,
+    lower_artifact, lower_artifact_for_native_realization, lower_artifact_for_optimization,
 };
 
 fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
@@ -20,7 +19,7 @@ fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
 }
 
 #[test]
-fn verified_indexed_field_store_rejects_after_length_lowering_at_every_native_entrance() {
+fn verified_indexed_field_store_survives_every_native_entrance() {
     let source = r#"
         domain [u8; 3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8; 3] in Utf8; }
@@ -254,8 +253,7 @@ fn verified_indexed_field_store_rejects_after_length_lowering_at_every_native_en
             &decode_proof_bundle(&proof_bytes).unwrap(),
             &profile,
         )
-        .expect("canonical byte operation is valid before native rejection");
-        let expected = LoweringError::UnsupportedStructuralByteSequenceFieldByteStore(id(105));
+        .expect("canonical byte operation independently verifies before projection");
         for result in [
             lower_artifact(
                 terminal_psi_to_abstract_operations::ArtifactSections {
@@ -288,9 +286,7 @@ fn verified_indexed_field_store_rejects_after_length_lowering_at_every_native_en
             .and_then(|admitted| admitted.try_into_native_input())
             .map(|_| ()),
         ] {
-            assert!(
-                matches!(result, Err(ArtifactLoweringError::Lowering(error)) if error == expected)
-            );
+            result.expect("verified indexed field store survives native projection");
         }
     }
 }

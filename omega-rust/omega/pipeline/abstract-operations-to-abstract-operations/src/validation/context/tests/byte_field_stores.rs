@@ -2,6 +2,80 @@
 use super::*;
 
 #[test]
+fn indexed_byte_field_rejoins_original_field_even_when_current_bounds_match() {
+    let source = r#"
+        domain [u8;3]::Utf8 requires valid_utf8(self);
+        data Record { out: [u8;3] in Utf8; sibling: [u8;3] in Utf8; }
+        machine Record::replace(&mut self, position: u64 [0..=2], byte: u8 [0..=127]) {
+            self.out = "XXX";
+            self.sibling = "YYY";
+            self.out[position] = byte;
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let terminal =
+        checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").unwrap();
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_bundle(&terminal.proof_bundle).unwrap(),
+            obligation_ledger_bytes: None,
+        },
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .unwrap();
+    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        input,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .unwrap();
+    validate_verified_psi_optimization_unit(&verified).unwrap();
+    let (input, baseline) = verified.into_parts();
+    let mut changed = baseline.clone();
+    let function = changed
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == baseline.entry)
+        .unwrap();
+    let destination_type = function.structural_parameters[0].structural_type;
+    let terminal_psi::StructuralTypeShape::Record { fields } = &baseline
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == destination_type)
+        .unwrap()
+        .shape
+    else {
+        unreachable!();
+    };
+    let sibling = fields[1].id;
+    for node in function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+    {
+        match &mut node.operation {
+            AbstractOperation::StructuralByteSequenceFieldByteStore { field, .. }
+            | AbstractOperation::StructuralByteSequenceFieldLength { field, .. } => {
+                *field = sibling
+            }
+            _ => {}
+        }
+    }
+    refresh_identity(&mut changed);
+    assert_ne!(baseline.identity, changed.identity);
+    optimization_unit_semantics::validate_psi_optimization_unit(&changed).unwrap();
+    assert!(validate_transformed_psi_optimization_unit(&input, &changed).is_err());
+}
+
+#[test]
 fn byte_field_replacement_rejoins_capacity_and_verified_destination() {
     for literal in ["", "X", "XXX"] {
         let source = format!(

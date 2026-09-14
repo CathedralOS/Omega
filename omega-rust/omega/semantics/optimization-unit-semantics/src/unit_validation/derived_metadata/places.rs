@@ -189,6 +189,10 @@ pub(crate) fn validate_operation_places(
             destination: source,
             ..
         }
+        | O::StructuralByteSequenceFieldByteStore {
+            destination: source,
+            ..
+        }
         | O::ByteSequenceLength { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
         | O::BooleanStructuralField { source, .. }

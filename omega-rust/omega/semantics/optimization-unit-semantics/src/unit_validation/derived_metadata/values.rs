@@ -200,6 +200,12 @@ pub(crate) fn expected_uses(
             value,
             length,
             ..
+        }
+        | O::StructuralByteSequenceFieldByteStore {
+            index,
+            value,
+            length,
+            ..
         } => vec![*index, *value, *length],
         O::ByteSequenceSubslice {
             start, end, length, ..

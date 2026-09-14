@@ -13,6 +13,12 @@ pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDe
             value,
             length,
             ..
+        }
+        | O::StructuralByteSequenceFieldByteStore {
+            index,
+            value,
+            length,
+            ..
         } => {
             matches!(scalar(*value), Some(ScalarType::Integer(integer))
                 if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 8))

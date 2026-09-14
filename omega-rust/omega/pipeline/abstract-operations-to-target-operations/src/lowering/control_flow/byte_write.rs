@@ -27,10 +27,49 @@ pub(super) fn replace(
     else {
         return Err(invalid());
     };
+    let destination_argument =
+        writable_field(function, structural_types, *destination, path, *field)?;
+    if source == destination
+        || live.lengths.get(length) != Some(source)
+        || !(prepared
+            .parameters
+            .iter()
+            .any(|parameter| parameter.place == *source)
+            || live.views.contains_key(source)
+            || live.block_views.contains(source))
+    {
+        return Err(invalid());
+    }
+    let length_value = *live.integers.get(length).ok_or_else(invalid)?;
+    if length_value.scalar_type()
+        != IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?
+    {
+        return Err(invalid());
+    }
+    operations.push(TargetUnitOperation::StructuralByteSequenceFieldStore {
+        psi_operation: *psi_operation,
+        destination: destination_argument,
+        field: *field,
+        source: *source,
+        length: length_value.into_target_source(*length),
+        obligation: *obligation,
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}
+
+fn writable_field(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    destination: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Result<terminal_psi::StructuralArgument, LoweringError> {
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let parameter = function
         .structural_parameters
         .iter()
-        .find(|parameter| parameter.place == *destination)
+        .find(|parameter| parameter.place == destination)
         .ok_or_else(invalid)?;
     if !matches!(
         parameter.access,
@@ -42,15 +81,7 @@ pub(super) fn replace(
         || function
             .entry_claims
             .iter()
-            .any(|claim| claim.input == *destination)
-        || source == destination
-        || live.lengths.get(length) != Some(source)
-        || !(prepared
-            .parameters
-            .iter()
-            .any(|parameter| parameter.place == *source)
-            || live.views.contains_key(source)
-            || live.block_views.contains(source))
+            .any(|claim| claim.input == destination)
     {
         return Err(invalid());
     }
@@ -71,7 +102,7 @@ pub(super) fn replace(
     else {
         return Err(invalid());
     };
-    let mut matching = fields.iter().filter(|candidate| candidate.id == *field);
+    let mut matching = fields.iter().filter(|candidate| candidate.id == field);
     let selected = matching.next().ok_or_else(invalid)?;
     if matching.next().is_some()
         || selected.relevance.is_erased()
@@ -84,22 +115,65 @@ pub(super) fn replace(
     {
         return Err(invalid());
     }
-    let length_value = *live.integers.get(length).ok_or_else(invalid)?;
-    if length_value.scalar_type()
-        != IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?
-    {
+    Ok(terminal_psi::StructuralArgument {
+        place: destination,
+        access: parameter.access,
+        path: path.to_vec(),
+    })
+}
+
+pub(super) fn replace_byte(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    live: &LiveDefinitions,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let AbstractOperation::StructuralByteSequenceFieldByteStore {
+        psi_operation,
+        destination,
+        path,
+        field,
+        index,
+        value,
+        length,
+        obligation,
+    } = operation
+    else {
         return Err(invalid());
+    };
+    let destination_argument =
+        writable_field(function, structural_types, *destination, path, *field)?;
+    // Current-IR validation proves all-path freshness. Retain that same exact
+    // field observation and dominating scalar definitions in target custody.
+    if !function.operations.iter().any(|operation| matches!(operation,
+        AbstractOperation::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field, result, .. }
+        if source == destination && measured_path == path && measured_field == field && result.value == *length))
+    { return Err(invalid()); }
+    let index_value = *live.integers.get(index).ok_or_else(invalid)?;
+    let byte_value = *live.integers.get(value).ok_or_else(invalid)?;
+    let length_value = *live.integers.get(length).ok_or_else(invalid)?;
+    for (scalar_type, bits) in [
+        (index_value.scalar_type(), 64),
+        (byte_value.scalar_type(), 8),
+        (length_value.scalar_type(), 64),
+    ] {
+        if scalar_type.sign() != IntegerSign::Unsigned
+            || scalar_type.bits() != bits
+            || scalar_type.is_address()
+        {
+            return Err(invalid());
+        }
     }
-    operations.push(TargetUnitOperation::StructuralByteSequenceFieldStore {
+    operations.push(TargetUnitOperation::StructuralByteSequenceFieldByteStore {
         psi_operation: *psi_operation,
-        destination: terminal_psi::StructuralArgument {
-            place: *destination,
-            access: parameter.access,
-            path: path.clone(),
-        },
+        destination: destination_argument,
         field: *field,
-        source: *source,
-        length: length_value.into_target_source(*length),
+        index: index_value.into_target_source(*index),
+        value: byte_value.into_target_source(*value),
+        length: *length,
         obligation: *obligation,
     });
     provenance.operations.push(*psi_operation);

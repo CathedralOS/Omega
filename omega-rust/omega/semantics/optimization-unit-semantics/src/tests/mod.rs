@@ -25,6 +25,7 @@ pub(crate) use fixtures::*;
 pub(crate) use support::*;
 
 mod candidates;
+pub(crate) mod indexed_byte_fields;
 mod operation_contracts;
 mod services;
 mod sparse_conditional_constant_propagation;

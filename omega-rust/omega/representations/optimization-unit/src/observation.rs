@@ -419,6 +419,7 @@ fn operation_observations(
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::StructuralByteSequenceFieldStore { .. }
+        | O::StructuralByteSequenceFieldByteStore { .. }
         | O::StructuralScalarFieldStore { .. }
         // Atomic events observe or publish atomic memory and carry
         // proof-static ordering; a fence accesses no place but remains a
