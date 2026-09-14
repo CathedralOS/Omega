@@ -1349,6 +1349,110 @@ fn runtime_generic_multiple_specializations_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nominal_machine_parameter_satisfaction_exit_canary_runs() {
+    // CALLBACK-PARAMETER-REQUIREMENT native witness: `register<machine
+    // Selected>` admits only a selection carrying the authored
+    // `satisfies Handler::call` row, and each specialization must retain that
+    // exact selected entry so the rewritten `Selected(value)` call site
+    // reaches its own target entry recipe. `chosen` returns its argument and
+    // `constant` returns a distinct value; both are reachable only through
+    // the binder, so a dropped or swapped selection exits with a value other
+    // than 70.
+    let canary = pass_canary(fixture_roster::RUNTIME_NOMINAL_MACHINE_PARAMETER_SATISFACTION_EXIT);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("nominal machine-parameter satisfaction canary should reach checked trees");
+
+    let register_specializations = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| {
+            checked.machines().iter().any(|machine| {
+                machine.symbol == specialization.template && machine.name.as_str() == "register"
+            })
+        })
+        .count();
+    assert_eq!(
+        register_specializations, 2,
+        "each nominal selection should specialize `register` once"
+    );
+    let uses = &checked.facts.nominal_machine_uses.uses;
+    assert_eq!(uses.len(), 2, "one nominal use per selection site");
+    for selected_name in ["chosen", "constant"] {
+        let selected_machine = checked
+            .machines()
+            .iter()
+            .find(|machine| checked.symbols.display_path(machine.symbol, "::") == selected_name)
+            .unwrap_or_else(|| panic!("selected machine `{selected_name}` should be retained"));
+        let selected_entry = checked
+            .machine_states(selected_machine)
+            .first()
+            .expect("selected machine should retain its entry")
+            .symbol;
+        let nominal_use = uses
+            .iter()
+            .find(|nominal_use| nominal_use.selected_machine == selected_machine.symbol)
+            .unwrap_or_else(|| panic!("`{selected_name}` should record a nominal use"));
+        assert_eq!(
+            nominal_use.selected_entry, selected_entry,
+            "`{selected_name}` must bind its machine entry, not a sibling state"
+        );
+        assert!(
+            !nominal_use
+                .published_requirement_envelope
+                .contract_commitment
+                .is_zero()
+                && !nominal_use
+                    .selected_actual_envelope
+                    .contract_commitment
+                    .is_zero()
+                && nominal_use.refinement.selected_actual_report_fingerprint
+                    == nominal_use
+                        .selected_actual_envelope
+                        .contract_report_fingerprint
+                && nominal_use.refinement.selected_actual_commitment
+                    == nominal_use.selected_actual_envelope.contract_commitment,
+            "`{selected_name}` must carry its envelope refinement receipt"
+        );
+    }
+
+    let interpreted = interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.error, None,
+        "reference execution should succeed"
+    );
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "reference execution should dispatch each nominal selection to its exact entry"
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nominal-machine-parameter-satisfaction-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nominal machine-parameter satisfaction canary should compile natively");
+    let executable = compilation.checked_native_executable_path().expect(
+        "nominal machine-parameter satisfaction canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
+        .output()
+        .expect("nominal machine-parameter satisfaction canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "each specialization's rewritten Selected(value) call must reach its own \
+         selected entry recipe (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_enum_payload_exit_canary_runs() {
     // A monomorphized generic ENUM with a T-typed payload (`Maybe<i32 in Wrapping>`), constructed,
     // matched, and destructured natively -- the Option<T> shape. Its erased evidence payload
