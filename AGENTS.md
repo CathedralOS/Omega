@@ -708,6 +708,11 @@ whichever of these apply.
 Omit the body only when the subject already carries the full reasoning: a typo
 fix, a rename, a mechanical revert.
 
+Commit messages carry no tool attribution: no "Generated with ..." line, no
+`Co-Authored-By` trailer naming an agent or vendor, and no vendor links. The
+recorded author is the person or service identity the environment is
+configured to use; agent tooling does not append itself to history.
+
 ## Prose
 
 Mannered prose substitutes metaphor and flourish for direct statement. Instead
