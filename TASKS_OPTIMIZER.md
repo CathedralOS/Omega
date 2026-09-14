@@ -253,8 +253,24 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   (`machine-emission/.../assembly/fixed_frame.rs`). Add, subtract, and compare
   return-only builds replay to `ValidatedOptimizedProjection`, and a
   boundary-operator program replays one exact physical child.
-  Remaining: further families (address-mode folding, extension elimination,
-  constant materialization) one exact named family at a time.
+  Landed: the extension-elimination family —
+  `Optimization::SelectedIncomingLiteralExtensionElimination` (tag 23)
+  enables `EXTENSION_V1` and the six `EXTENSION_LITERAL_FOLDS` unary pair
+  rules (`MaterializeI64` + `ZeroExtendU8`/`U16`/`U32` or
+  `SignExtendI8`/`I16`/`I32` → `MaterializeI64` of the folded output bits).
+  The catalog payload now names a slice of pair rules per selection, and
+  `PairOperandShape` (binary right-literal vs unary sole-operand) is a third
+  declared rule dimension beside result disposition and the unit-effect
+  surface. The independent replay re-derives the grammar, folded bits, and
+  materialized `IntegerValue` from the consumer kind and the surviving
+  result register's scalar type; a `windows_x86_64` return-only build
+  replays to `ValidatedOptimizedProjection`
+  (`compiler/tests/optimizer_extension_elimination.rs`). The
+  `phase_selections/tests.rs` enable-list addition was deferred at recovery
+  time because that file sat under a live `ENTRY-CONTENT-ROOTS` claim; it
+  remains a follow-up for the next slice.
+  Remaining: further families (address-mode folding, constant
+  materialization) one exact named family at a time.
 
 - **SELECTED-ABI-VALIDATION.** Validate ABI operands, calls, clobbers, effects,
   traps, provenance, cleanup, and logical fuel across every selected rule.
