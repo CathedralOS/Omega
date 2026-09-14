@@ -19,6 +19,11 @@
 //!
 //! Depth is bounded on both directions: deeper terms are a producer resource
 //! refusal, not a false judgment and not a decoder stack hazard.
+//!
+//! The certificate also carries its level arity — the number of universe
+//! parameters the judgment is polymorphic over — and sorts carry level
+//! expressions (`constant | parameter | successor | maximum`), so a
+//! universe-polymorphic judgment survives the wire exactly.
 
 use std::collections::HashMap;
 
@@ -28,10 +33,15 @@ use super::CodecError;
 use super::wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSICORE\0";
-const FORMAT_MARKER: u16 = 1;
+/// Format 2 adds the judgment's level arity and level expressions inside
+/// sorts; format 1 held only closed constant levels and must not decode
+/// polymorphic syntax as a constant.
+const FORMAT_MARKER: u16 = 2;
 /// Matches the other codec term depth bounds; exceeding it refuses the
 /// certificate, never decides against the judgment it carries.
 const MAX_MATHEMATICAL_TERM_DEPTH: u32 = 256;
+/// Same bound for level expressions nested inside a sort.
+const MAX_MATHEMATICAL_LEVEL_DEPTH: u32 = 256;
 
 /// A decoded certificate: the materialized term table plus the root handles
 /// that name its judgment in that arena.
@@ -87,6 +97,7 @@ pub fn encode_mathematical_certificate(
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
     writer.u16(FORMAT_MARKER);
+    writer.u32(certificate.level_arity);
     writer.u32(count);
     writer.bytes(&nodes.finish());
     writer.len(
@@ -113,6 +124,7 @@ pub fn decode_mathematical_certificate(
     if format_marker != FORMAT_MARKER {
         return Err(CodecError::UnsupportedFormatMarker(format_marker));
     }
+    let level_arity = reader.u32()?;
     let node_count = usize::try_from(reader.count()?).map_err(|_| CodecError::UnexpectedEnd)?;
     if node_count > reader.remaining() {
         return Err(CodecError::UnexpectedEnd);
@@ -144,6 +156,7 @@ pub fn decode_mathematical_certificate(
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
     let certificate = MathematicalCertificate {
+        level_arity,
         context,
         term,
         expected,
@@ -195,7 +208,7 @@ fn encode_term(
         }
         Term::Sort(sort) => {
             node.u8(2);
-            encode_sort(&mut node, sort);
+            encode_sort(&mut node, sort)?;
         }
         Term::Pi { domain, codomain } => {
             let domain = encode_term(table, arena, domain, by_handle, by_bytes, count, depth + 1)?;
@@ -439,13 +452,45 @@ fn encode_term(
     Ok(index)
 }
 
-fn encode_sort(writer: &mut Writer, sort: Sort) {
-    let (tag, Level(level)) = match sort {
-        Sort::Type(level) => (1, level),
-        Sort::Strict(level) => (2, level),
+fn encode_sort(writer: &mut Writer, sort: Sort) -> Result<(), CodecError> {
+    let tag = match sort {
+        Sort::Type(_) => 1,
+        Sort::Strict(_) => 2,
     };
     writer.u8(tag);
-    writer.u32(level);
+    encode_level(writer, sort.level(), 0)
+}
+
+/// Write one level expression inline: `constant | parameter | successor |
+/// maximum`. Levels are small trees with no sharing table — equal levels
+/// inside equal sorts already share the sort's table entry — and `depth`
+/// bounds nesting exactly like the term bound.
+fn encode_level(writer: &mut Writer, level: Level, depth: u32) -> Result<(), CodecError> {
+    if depth >= MAX_MATHEMATICAL_LEVEL_DEPTH {
+        return Err(CodecError::MalformedMathematicalCertificate(
+            "level nesting too deep",
+        ));
+    }
+    match level {
+        Level::Constant(value) => {
+            writer.u8(1);
+            writer.u32(value);
+        }
+        Level::Parameter(index) => {
+            writer.u8(2);
+            writer.u32(index);
+        }
+        Level::Successor(inner) => {
+            writer.u8(3);
+            encode_level(writer, *inner, depth + 1)?;
+        }
+        Level::Maximum(left, right) => {
+            writer.u8(4);
+            encode_level(writer, *left, depth + 1)?;
+            encode_level(writer, *right, depth + 1)?;
+        }
+    }
+    Ok(())
 }
 
 /// Decode one table node at `handles.len()` position; every child index must
@@ -611,9 +656,31 @@ fn decode_term(
 
 fn decode_sort(reader: &mut Reader<'_>) -> Result<Sort, CodecError> {
     Ok(match reader.u8()? {
-        1 => Sort::Type(Level(reader.u32()?)),
-        2 => Sort::Strict(Level(reader.u32()?)),
+        1 => Sort::Type(decode_level(reader, 0)?),
+        2 => Sort::Strict(decode_level(reader, 0)?),
         tag => return Err(CodecError::InvalidTag("MathematicalSort", tag)),
+    })
+}
+
+/// Read one level expression. Decoding preserves the exact syntax — a
+/// `Maximum(v, u)` stays in that order — so re-encoding reproduces the
+/// input bytes and canonicality is byte equality. The kernel decides
+/// semantic level equality; the wire only has to carry it faithfully.
+fn decode_level(reader: &mut Reader<'_>, depth: u32) -> Result<Level, CodecError> {
+    if depth >= MAX_MATHEMATICAL_LEVEL_DEPTH {
+        return Err(CodecError::MalformedMathematicalCertificate(
+            "level nesting too deep",
+        ));
+    }
+    Ok(match reader.u8()? {
+        1 => Level::Constant(reader.u32()?),
+        2 => Level::Parameter(reader.u32()?),
+        3 => Level::Successor(Box::new(decode_level(reader, depth + 1)?)),
+        4 => Level::Maximum(
+            Box::new(decode_level(reader, depth + 1)?),
+            Box::new(decode_level(reader, depth + 1)?),
+        ),
+        tag => return Err(CodecError::InvalidTag("MathematicalLevel", tag)),
     })
 }
 
@@ -630,7 +697,7 @@ mod tests {
     use super::*;
 
     fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-        arena.insert(Term::Sort(Sort::Type(Level(level))))
+        arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
     }
 
     fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
@@ -657,6 +724,7 @@ mod tests {
         let codomain = pi(&mut arena, codomain_domain, codomain_body);
         let expected = pi(&mut arena, type_zero, codomain);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: Vec::new(),
             term: identity,
             expected,
@@ -696,6 +764,7 @@ mod tests {
         let body = lambda(&mut arena, bound, type_zero_again);
         let term = lambda(&mut arena, type_zero, body);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: Vec::new(),
             term,
             expected,
@@ -703,7 +772,7 @@ mod tests {
         let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
         // Distinct nodes: Sort(Type 0), Variable(0), inner λ, outer λ,
         // inner Π, outer Π — equal subterms appear once even across handles.
-        assert_eq!(u32::from_le_bytes(bytes[10..14].try_into().unwrap()), 6);
+        assert_eq!(u32::from_le_bytes(bytes[14..18].try_into().unwrap()), 6);
         decode_mathematical_certificate(&bytes).expect("decode");
     }
 
@@ -712,6 +781,7 @@ mod tests {
         let mut arena = TermArena::new();
         let type_zero = type_sort(&mut arena, 0);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: Vec::new(),
             term: TermHandle::default(),
             expected: type_zero,
@@ -754,6 +824,7 @@ mod tests {
         let mut bad_tag = vec![];
         bad_tag.extend_from_slice(MAGIC);
         bad_tag.extend_from_slice(&FORMAT_MARKER.to_le_bytes());
+        bad_tag.extend_from_slice(&0_u32.to_le_bytes());
         bad_tag.extend_from_slice(&1_u32.to_le_bytes());
         bad_tag.push(0);
         assert!(matches!(
@@ -768,6 +839,7 @@ mod tests {
         let mut bytes = vec![];
         bytes.extend_from_slice(MAGIC);
         bytes.extend_from_slice(&FORMAT_MARKER.to_le_bytes());
+        bytes.extend_from_slice(&0_u32.to_le_bytes());
         bytes.extend_from_slice(&1_u32.to_le_bytes());
         bytes.push(3);
         bytes.extend_from_slice(&0_u32.to_le_bytes());
@@ -828,6 +900,7 @@ mod tests {
             codomain: sigma_codomain,
         });
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: vec![type_zero, a_binding, two_binding],
             term,
             expected,
@@ -855,11 +928,11 @@ mod tests {
         // table, roots unchanged.
         let roots_len = 4 + 4 + 4; // empty context count + term + expected
         let split = bytes.len() - roots_len;
-        let node_count = u32::from_le_bytes(bytes[10..14].try_into().unwrap());
+        let node_count = u32::from_le_bytes(bytes[14..18].try_into().unwrap());
         let mut forged = Vec::new();
-        forged.extend_from_slice(&bytes[..10]);
+        forged.extend_from_slice(&bytes[..14]); // magic, marker, level arity
         forged.extend_from_slice(&(node_count + 1).to_le_bytes());
-        forged.extend_from_slice(&bytes[14..split]);
+        forged.extend_from_slice(&bytes[18..split]);
         forged.push(1);
         forged.extend_from_slice(&0_u32.to_le_bytes());
         forged.extend_from_slice(&bytes[split..]);
@@ -867,5 +940,137 @@ mod tests {
             Err(error) => assert_eq!(error, CodecError::NonCanonicalEncoding),
             Ok(_) => panic!("an unreachable table node must not decode"),
         }
+    }
+
+    /// `A : Type max(u+1, v), x : A ⊢ x : A` at level arity 2 — a context
+    /// whose binding sorts hold parameter, successor, and maximum level
+    /// syntax.
+    fn level_polymorphic_context() -> (TermArena, MathematicalCertificate) {
+        let mut arena = TermArena::new();
+        let u_plus_one = Level::Parameter(0).successor().unwrap();
+        let level = u_plus_one.maximum(Level::Parameter(1));
+        let binding_type = arena.insert(Term::Sort(Sort::Type(level)));
+        let bound = variable(&mut arena, 0);
+        let shifted = variable(&mut arena, 1);
+        let certificate = MathematicalCertificate {
+            level_arity: 2,
+            context: vec![binding_type, bound],
+            term: bound,
+            expected: shifted,
+        };
+        (arena, certificate)
+    }
+
+    #[test]
+    fn level_expressions_inside_sorts_round_trip_exactly() {
+        let (arena, certificate) = level_polymorphic_context();
+        let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+        let decoded = decode_mathematical_certificate(&bytes).expect("decode");
+        assert_eq!(decoded.certificate.level_arity, 2);
+        // The decoded binding carries the exact level syntax — decoding
+        // does not normalize `max(u+1, v)` or confuse a parameter for a
+        // constant.
+        assert_eq!(
+            decoded.arena.get(decoded.certificate.context[0]),
+            Term::Sort(Sort::Type(
+                Level::Parameter(0)
+                    .successor()
+                    .unwrap()
+                    .maximum(Level::Parameter(1))
+            ))
+        );
+        assert_eq!(
+            encode_mathematical_certificate(&decoded.arena, &decoded.certificate)
+                .expect("re-encode"),
+            bytes,
+        );
+    }
+
+    #[test]
+    fn a_level_polymorphic_certificate_re_verifies_after_the_wire() {
+        use proof_admission::{Budget, DEFAULT_CONVERSION_STEPS, verify_mathematical_certificate};
+
+        let (arena, certificate) = level_polymorphic_context();
+        let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+        let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+        verify_mathematical_certificate(
+            &mut decoded.arena,
+            &decoded.certificate,
+            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+        )
+        .expect("the polymorphic judgment must re-check in the kernel");
+    }
+
+    #[test]
+    fn format_one_and_unknown_markers_do_not_decode() {
+        let (arena, certificate) = polymorphic_identity();
+        let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+        for marker in [0_u16, 1, 3] {
+            let mut stale = bytes.clone();
+            stale[8..10].copy_from_slice(&marker.to_le_bytes());
+            assert!(matches!(
+                decode_mathematical_certificate(&stale),
+                Err(CodecError::UnsupportedFormatMarker(seen)) if seen == marker
+            ));
+        }
+    }
+
+    #[test]
+    fn malformed_levels_reject() {
+        // A sort node whose level carries an unknown tag is not a level.
+        let mut bytes = vec![];
+        bytes.extend_from_slice(MAGIC);
+        bytes.extend_from_slice(&FORMAT_MARKER.to_le_bytes());
+        bytes.extend_from_slice(&0_u32.to_le_bytes()); // level arity
+        bytes.extend_from_slice(&1_u32.to_le_bytes()); // one node
+        bytes.push(2); // Sort
+        bytes.push(1); // Type layer
+        bytes.push(0); // unknown level tag
+        assert!(matches!(
+            decode_mathematical_certificate(&bytes),
+            Err(CodecError::InvalidTag("MathematicalLevel", 0))
+        ));
+
+        // Depth is a producer resource bound, not a judgment: a successor
+        // chain past the level bound refuses on encode and on decode
+        // alike, before any term table entry is accepted.
+        let mut deep = Level::Constant(0);
+        for _ in 0..MAX_MATHEMATICAL_LEVEL_DEPTH {
+            deep = Level::Successor(Box::new(deep));
+        }
+        let mut arena = TermArena::new();
+        let deep_sort = arena.insert(Term::Sort(Sort::Type(deep)));
+        let certificate = MathematicalCertificate {
+            level_arity: 0,
+            context: Vec::new(),
+            term: deep_sort,
+            expected: deep_sort,
+        };
+        assert_eq!(
+            encode_mathematical_certificate(&arena, &certificate),
+            Err(CodecError::MalformedMathematicalCertificate(
+                "level nesting too deep",
+            ))
+        );
+
+        let mut bytes = vec![];
+        bytes.extend_from_slice(MAGIC);
+        bytes.extend_from_slice(&FORMAT_MARKER.to_le_bytes());
+        bytes.extend_from_slice(&0_u32.to_le_bytes());
+        bytes.extend_from_slice(&1_u32.to_le_bytes());
+        bytes.push(2);
+        bytes.push(1);
+        bytes.extend(std::iter::repeat_n(
+            3, // Successor
+            MAX_MATHEMATICAL_LEVEL_DEPTH as usize,
+        ));
+        bytes.push(1); // Constant
+        bytes.extend_from_slice(&0_u32.to_le_bytes());
+        assert!(matches!(
+            decode_mathematical_certificate(&bytes),
+            Err(CodecError::MalformedMathematicalCertificate(
+                "level nesting too deep",
+            ))
+        ));
     }
 }
