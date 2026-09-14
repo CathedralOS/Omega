@@ -26,6 +26,7 @@ use super::{
     generator::LaneInput,
     ieee_compare::CompareCase,
     placed_memory::PlacedMemoryCase,
+    transition::{MAX_CARRIED_ARGUMENTS, TransitionCase, TransitionFold},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,6 +38,12 @@ pub(super) enum CorpusExpected {
     BooleanPerArm {
         when_false: bool,
         when_true: bool,
+    },
+    /// Per-arm u64 results: the false arm answers `when_false`, the true arm
+    /// answers `when_true`.
+    UnsignedPerArm {
+        when_false: u64,
+        when_true: u64,
     },
 }
 
@@ -428,6 +435,442 @@ pub(super) fn placed_memory_artifact(
             false_stores: case.false_stores,
         },
     )
+}
+
+/// Dense strictly-increasing identity supply for one transition artifact.
+/// Every declaration kind draws from the same counter so ids stay unique and
+/// reproducible case to case.
+struct TransitionIds {
+    next: u64,
+}
+
+impl TransitionIds {
+    fn take(&mut self) -> u64 {
+        self.next += 1;
+        self.next
+    }
+
+    fn machine(&mut self) -> MachineId {
+        MachineId::new(self.take()).unwrap()
+    }
+
+    fn contract(&mut self) -> ContractId {
+        ContractId::new(self.take()).unwrap()
+    }
+
+    fn block(&mut self) -> BlockId {
+        BlockId::new(self.take()).unwrap()
+    }
+
+    fn edge(&mut self) -> EdgeId {
+        EdgeId::new(self.take()).unwrap()
+    }
+
+    fn value(&mut self) -> ValueId {
+        ValueId::new(self.take()).unwrap()
+    }
+
+    fn operation(&mut self) -> OperationId {
+        OperationId::new(self.take()).unwrap()
+    }
+}
+
+/// One edge-transition artifact: the entry conditional transports seeded
+/// literals into parameterized arm blocks, each arm folds its bound
+/// parameters and `Jump`s a carried result (plus an untouched forwarded
+/// parameter when the case carries two scalars) into a shared merge or
+/// private tail, and the last level either returns directly, dispatches on a
+/// computed `IntegerEqual` through argument-carrying leaf edges, or relays
+/// the value into a shared single-parameter final block. The module shape
+/// diverges from `build_artifact` (parameterized multi-block control flow
+/// rather than two leaf arms), so the artifact is built here rather than
+/// through the shared leaf model.
+pub(super) fn transition_artifact(
+    ordinal: usize,
+    case: &TransitionCase,
+    lane_base: u64,
+) -> CorpusArtifact {
+    let mut ids = TransitionIds {
+        next: lane_base + u64::try_from(ordinal).unwrap() * 512,
+    };
+    let machine = ids.machine();
+    let contract = ids.contract();
+    let condition = ids.value();
+    let machine_result = ids.value();
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let integer_scalar_type = ScalarType::Integer(integer_type);
+    let declaration = |id: ValueId| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type: integer_scalar_type,
+    };
+    let literal = |ids: &mut TransitionIds, value: u64| -> (Operation, ValueId) {
+        let result = ids.value();
+        (
+            Operation {
+                static_reach_binding: None,
+                id: ids.operation(),
+                result: OperationResult::Scalar(declaration(result)),
+                kind: OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(value.into()),
+                },
+            },
+            result,
+        )
+    };
+    let fold_operation = |ids: &mut TransitionIds,
+                          fold: TransitionFold,
+                          left: ValueId,
+                          right: ValueId|
+     -> (Operation, ValueId) {
+        let result = ids.value();
+        let kind = match fold {
+            TransitionFold::SaturatingAdd => OperationKind::SaturatingIntegerAdd { left, right },
+            TransitionFold::SaturatingSubtract => {
+                OperationKind::SaturatingIntegerSubtract { left, right }
+            }
+            TransitionFold::BitwiseXor => OperationKind::IntegerBitwiseXor { left, right },
+            TransitionFold::BitwiseAnd => OperationKind::IntegerBitwiseAnd { left, right },
+        };
+        (
+            Operation {
+                static_reach_binding: None,
+                id: ids.operation(),
+                result: OperationResult::Scalar(declaration(result)),
+                kind,
+            },
+            result,
+        )
+    };
+    let equality =
+        |ids: &mut TransitionIds, left: ValueId, right: ValueId| -> (Operation, ValueId) {
+            let result = ids.value();
+            (
+                Operation {
+                    static_reach_binding: None,
+                    id: ids.operation(),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: result,
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    kind: OperationKind::IntegerEqual { left, right },
+                },
+                result,
+            )
+        };
+    let successor =
+        |ids: &mut TransitionIds, target: BlockId, arguments: Vec<ValueId>| SuccessorEdge {
+            structural_arguments: Vec::new(),
+            edge: ids.edge(),
+            target,
+            arguments,
+            trivial_affine_discards: Vec::new(),
+        };
+    let jump =
+        |ids: &mut TransitionIds, target: BlockId, arguments: Vec<ValueId>| Terminator::Jump {
+            edge: ids.edge(),
+            target,
+            arguments,
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+    let scalar_return = |ids: &mut TransitionIds, value: ValueId| Terminator::Return {
+        edge: ids.edge(),
+        value,
+        cleanup_actions: Vec::new(),
+    };
+
+    // Block ids are allocated in listing order so the declared `blocks`
+    // sequence reads in strictly increasing identity order.
+    let entry = ids.block();
+    let arm_true = ids.block();
+    let arm_false = ids.block();
+    let merge = if case.converge {
+        Some(ids.block())
+    } else {
+        None
+    };
+    let tail_true = merge.unwrap_or_else(|| ids.block());
+    let tail_false = merge.unwrap_or_else(|| ids.block());
+    let leaf_pair = |ids: &mut TransitionIds| [ids.block(), ids.block()];
+    let merge_leaves = (case.converge && case.inner).then(|| leaf_pair(&mut ids));
+    let tail_true_leaves = (!case.converge && case.inner).then(|| leaf_pair(&mut ids));
+    let tail_false_leaves = (!case.converge && case.inner).then(|| leaf_pair(&mut ids));
+    let final_block = case.extend.then(|| ids.block());
+    let relay = |ids: &mut TransitionIds, value: ValueId| match final_block {
+        Some(final_block) => jump(ids, final_block, vec![value]),
+        None => scalar_return(ids, value),
+    };
+
+    // Entry: one literal per transported scalar, then the conditional whose
+    // successor edges bind the arm parameters — reversed on the false edge
+    // when the case permutes.
+    let mut entry_operations = Vec::new();
+    let seed_values = case.seeds[..case.edge_arguments as usize]
+        .iter()
+        .map(|seed| {
+            let (operation, value) = literal(&mut ids, *seed);
+            entry_operations.push(operation);
+            value
+        })
+        .collect::<Vec<_>>();
+    let mut false_arguments = seed_values.clone();
+    if case.permute_false && case.edge_arguments >= 2 {
+        false_arguments.reverse();
+    }
+
+    // Arm body: fold the bound parameters left to right, fold in the arm's
+    // literal, then transport the result — and the untouched first parameter
+    // when the case carries two scalars — along the Jump edge.
+    let arm = |ids: &mut TransitionIds,
+               block: BlockId,
+               fold: TransitionFold,
+               arm_literal: u64,
+               target: BlockId|
+     -> Block {
+        let parameters = (0..case.edge_arguments)
+            .map(|_| declaration(ids.value()))
+            .collect::<Vec<_>>();
+        let mut operations = Vec::new();
+        let mut accumulator = parameters[0].id;
+        for parameter in &parameters[1..] {
+            let (operation, folded) = fold_operation(ids, fold, accumulator, parameter.id);
+            operations.push(operation);
+            accumulator = folded;
+        }
+        let (literal_operation, arm_value) = literal(ids, arm_literal);
+        operations.push(literal_operation);
+        let (fold_operation_result, result) = fold_operation(ids, fold, accumulator, arm_value);
+        operations.push(fold_operation_result);
+        let mut carried = vec![result];
+        if case.carried == MAX_CARRIED_ARGUMENTS {
+            carried.push(parameters[0].id);
+        }
+        Block {
+            structural_parameters: Vec::new(),
+            id: block,
+            parameters,
+            operations,
+            terminator: jump(ids, target, carried),
+        }
+    };
+
+    // Second-level block (shared merge or private tail): either dispatch on a
+    // computed equality through argument-carrying leaf edges, or fold the
+    // carried bindings with the late literal and return or relay onward.
+    let level = |ids: &mut TransitionIds,
+                 block: BlockId,
+                 leaves: Option<[BlockId; 2]>|
+     -> (Block, Vec<Block>) {
+        let parameters = (0..case.carried)
+            .map(|_| declaration(ids.value()))
+            .collect::<Vec<_>>();
+        let mut operations = Vec::new();
+        let mut leaf_blocks = Vec::new();
+        let terminator = if case.inner {
+            let [when_equal, when_unequal] = leaves.expect("inner dispatch declares its leaves");
+            let other = if case.carried == MAX_CARRIED_ARGUMENTS {
+                parameters[1].id
+            } else {
+                let (operation, value) = literal(ids, case.late_literal);
+                operations.push(operation);
+                value
+            };
+            let (equality_operation, equality) = equality(ids, parameters[0].id, other);
+            operations.push(equality_operation);
+            for (index, leaf) in [when_equal, when_unequal].into_iter().enumerate() {
+                let leaf_parameter = declaration(ids.value());
+                let mut leaf_operations = Vec::new();
+                let (literal_operation, leaf_literal) = literal(ids, case.leaf_literals[index]);
+                leaf_operations.push(literal_operation);
+                let (leaf_fold, leaf_result) =
+                    fold_operation(ids, case.fold_late, leaf_parameter.id, leaf_literal);
+                leaf_operations.push(leaf_fold);
+                let leaf_terminator = relay(ids, leaf_result);
+                leaf_blocks.push(Block {
+                    structural_parameters: Vec::new(),
+                    id: leaf,
+                    parameters: vec![leaf_parameter],
+                    operations: leaf_operations,
+                    terminator: leaf_terminator,
+                });
+            }
+            // Each inner edge transports a different operand, so a swapped
+            // binding diverges rather than agreeing by accident.
+            Terminator::Conditional {
+                condition: equality,
+                when_true: successor(ids, when_equal, vec![parameters[0].id]),
+                when_false: successor(ids, when_unequal, vec![other]),
+            }
+        } else {
+            let combined = if case.carried == MAX_CARRIED_ARGUMENTS {
+                let (operation, folded) =
+                    fold_operation(ids, case.fold_late, parameters[0].id, parameters[1].id);
+                operations.push(operation);
+                folded
+            } else {
+                parameters[0].id
+            };
+            let (literal_operation, late) = literal(ids, case.late_literal);
+            operations.push(literal_operation);
+            let (result_operation, result) = fold_operation(ids, case.fold_late, combined, late);
+            operations.push(result_operation);
+            relay(ids, result)
+        };
+        (
+            Block {
+                structural_parameters: Vec::new(),
+                id: block,
+                parameters,
+                operations,
+                terminator,
+            },
+            leaf_blocks,
+        )
+    };
+
+    let mut blocks = Vec::new();
+    blocks.push(Block {
+        structural_parameters: Vec::new(),
+        id: entry,
+        parameters: Vec::new(),
+        operations: entry_operations,
+        terminator: Terminator::Conditional {
+            condition,
+            when_true: successor(&mut ids, arm_true, seed_values),
+            when_false: successor(&mut ids, arm_false, false_arguments),
+        },
+    });
+    let arm_true_target = merge.unwrap_or(tail_true);
+    let arm_false_target = merge.unwrap_or(tail_false);
+    // `arm_literals` follows the manifest's `[when_false, when_true]`
+    // convention so `TransitionCase::expected(arm)` can index it by `arm`.
+    blocks.push(arm(
+        &mut ids,
+        arm_true,
+        case.fold_true,
+        case.arm_literals[1],
+        arm_true_target,
+    ));
+    blocks.push(arm(
+        &mut ids,
+        arm_false,
+        case.fold_false,
+        case.arm_literals[0],
+        arm_false_target,
+    ));
+    if let Some(merge) = merge {
+        let (block, mut leaf_blocks) = level(&mut ids, merge, merge_leaves);
+        blocks.push(block);
+        blocks.append(&mut leaf_blocks);
+    } else {
+        let (block, mut leaf_blocks) = level(&mut ids, tail_true, tail_true_leaves);
+        blocks.push(block);
+        let (block, mut tail_false_leaves) = level(&mut ids, tail_false, tail_false_leaves);
+        blocks.push(block);
+        blocks.append(&mut leaf_blocks);
+        blocks.append(&mut tail_false_leaves);
+    }
+    if let Some(final_block) = final_block {
+        let parameter = declaration(ids.value());
+        blocks.push(Block {
+            structural_parameters: Vec::new(),
+            id: final_block,
+            parameters: vec![parameter],
+            operations: Vec::new(),
+            terminator: scalar_return(&mut ids, parameter.id),
+        });
+    }
+
+    let module = TerminalModule {
+        scalar_qualifications: Default::default(),
+        scalar_block_invariants: Vec::new(),
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
+                id: condition,
+                scalar_type: ScalarType::Boolean,
+            }],
+            ranked_scc: None,
+            result: TerminalMachineResult::Scalar(declaration(machine_result)),
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry,
+            blocks,
+            contract: MachineContract {
+                id: contract,
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }],
+    };
+    let proof = terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let expected = CorpusExpected::UnsignedPerArm {
+        when_false: case.expected(false),
+        when_true: case.expected(true),
+    };
+    for (condition, arm_expected) in [(false, case.expected(false)), (true, case.expected(true))] {
+        let execution = interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[TerminalScalarValue::Boolean(condition)],
+        )
+        .unwrap();
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
+                scalar_type: integer_type,
+                value: IntegerValue::Unsigned(arm_expected.into()),
+            }),
+            "transition corpus ordinal {ordinal} diverged in the reference interpreter"
+        );
+    }
+    CorpusArtifact {
+        semantic,
+        proof,
+        expected,
+        add_operations: Vec::new(),
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1117,8 +1560,8 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 value: IntegerValue::Unsigned(expected.into()),
             },
             CorpusExpected::Boolean(expected) => TerminalScalarValue::Boolean(expected),
-            CorpusExpected::BooleanPerArm { .. } => {
-                unreachable!("shared leaf artifacts never carry per-arm Boolean results")
+            CorpusExpected::BooleanPerArm { .. } | CorpusExpected::UnsignedPerArm { .. } => {
+                unreachable!("shared leaf artifacts never carry per-arm results")
             }
         };
         assert_eq!(

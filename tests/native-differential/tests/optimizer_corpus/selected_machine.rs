@@ -243,6 +243,24 @@ pub(super) fn exercise_placed_memory(
     );
 }
 
+pub(super) fn exercise_transition(
+    case: &super::transition::TransitionCase,
+    artifact: &CorpusArtifact,
+) {
+    let first_x86 = run_machine(case.ordinal, artifact, NativeTarget::linux_x64());
+    let second_x86 = run_machine(case.ordinal, artifact, NativeTarget::linux_x64());
+    assert_eq!(
+        first_x86, second_x86,
+        "transition x86 corpus case drifted: {case:?}"
+    );
+    let first_aarch64 = run_machine(case.ordinal, artifact, NativeTarget::linux_arm64());
+    let second_aarch64 = run_machine(case.ordinal, artifact, NativeTarget::linux_arm64());
+    assert_eq!(
+        first_aarch64, second_aarch64,
+        "transition AArch64 corpus case drifted: {case:?}"
+    );
+}
+
 #[cfg(any(
     all(target_os = "linux", target_arch = "x86_64"),
     all(target_os = "linux", target_arch = "aarch64"),
@@ -260,6 +278,26 @@ pub(super) fn exercise_host_native_placed_memory(
         "host-native placed-memory corpus case drifted: {case:?}"
     );
     super::native::assert_placed_memory_u64_result(artifact, expected_unsigned(artifact));
+}
+
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+))]
+pub(super) fn exercise_host_native_transition(
+    case: &super::transition::TransitionCase,
+    artifact: &CorpusArtifact,
+) {
+    let target = NativeTarget::host();
+    let first = run_machine(case.ordinal, artifact, target);
+    let second = run_machine(case.ordinal, artifact, target);
+    assert_eq!(
+        first, second,
+        "host-native transition corpus case drifted: {case:?}"
+    );
+    let (when_false, when_true) = expected_unsigned_arms(artifact);
+    super::native::assert_u64_result_arms(&first.layout, when_false, when_true);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -600,7 +638,9 @@ fn assert_sccp(
 fn expected_unsigned(artifact: &CorpusArtifact) -> u64 {
     match artifact.expected {
         CorpusExpected::Unsigned(expected) => expected,
-        CorpusExpected::Boolean(_) | CorpusExpected::BooleanPerArm { .. } => {
+        CorpusExpected::Boolean(_)
+        | CorpusExpected::BooleanPerArm { .. }
+        | CorpusExpected::UnsignedPerArm { .. } => {
             panic!("expected an unsigned corpus artifact")
         }
     }
@@ -609,7 +649,9 @@ fn expected_unsigned(artifact: &CorpusArtifact) -> u64 {
 fn expected_boolean(artifact: &CorpusArtifact) -> bool {
     match artifact.expected {
         CorpusExpected::Boolean(expected) => expected,
-        CorpusExpected::Unsigned(_) | CorpusExpected::BooleanPerArm { .. } => {
+        CorpusExpected::Unsigned(_)
+        | CorpusExpected::BooleanPerArm { .. }
+        | CorpusExpected::UnsignedPerArm { .. } => {
             panic!("expected a Boolean corpus artifact")
         }
     }
@@ -621,8 +663,24 @@ fn expected_boolean_arms(artifact: &CorpusArtifact) -> (bool, bool) {
             when_false,
             when_true,
         } => (when_false, when_true),
-        CorpusExpected::Unsigned(_) | CorpusExpected::Boolean(_) => {
+        CorpusExpected::Unsigned(_)
+        | CorpusExpected::Boolean(_)
+        | CorpusExpected::UnsignedPerArm { .. } => {
             panic!("expected a per-arm Boolean corpus artifact")
+        }
+    }
+}
+
+fn expected_unsigned_arms(artifact: &CorpusArtifact) -> (u64, u64) {
+    match artifact.expected {
+        CorpusExpected::UnsignedPerArm {
+            when_false,
+            when_true,
+        } => (when_false, when_true),
+        CorpusExpected::Unsigned(_)
+        | CorpusExpected::Boolean(_)
+        | CorpusExpected::BooleanPerArm { .. } => {
+            panic!("expected a per-arm unsigned corpus artifact")
         }
     }
 }

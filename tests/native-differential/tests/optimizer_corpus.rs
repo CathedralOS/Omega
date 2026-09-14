@@ -40,6 +40,17 @@
 //! `IntegerStructuralField`. Both arms return the same saturating u64 sum, so
 //! a dropped, reordered, or invented store, load, or field view must diverge
 //! from the reference interpreter before the native result can agree.
+//!
+//! The transition lane binds seeded literals into parameterized arm blocks
+//! through `Conditional` successor arguments, transports each arm's folded
+//! result — plus one untouched forwarded parameter when the case carries two
+//! scalars — through `Jump` edge arguments into a shared merge or private
+//! tail, and finishes through a direct return, a computed-equality inner
+//! dispatch whose leaf edges carry different operands, or a relayed `Jump`
+//! into a shared single-parameter final block. Arms may permute their edge
+//! argument order, so a dropped, swapped, or invented edge transfer must
+//! diverge from the reference interpreter before the native per-arm u64
+//! result can agree.
 
 mod optimizer_corpus {
     mod affine_cleanup;
@@ -57,6 +68,7 @@ mod optimizer_corpus {
     mod placed_memory;
     mod psi;
     mod selected_machine;
+    mod transition;
 
     use generator::{CASE_COUNT, cases};
 
@@ -320,6 +332,48 @@ mod optimizer_corpus {
                 all(target_os = "macos", target_arch = "aarch64"),
             ))]
             selected_machine::exercise_host_native_placed_memory(case, &artifact);
+        }
+    }
+
+    #[test]
+    fn deterministic_transition_corpus() {
+        let cases = transition::cases();
+        transition::validate_manifest(&cases);
+        let requested = std::env::var("OMEGA_OPTIMIZER_CORPUS_CASE")
+            .ok()
+            .map(|value| {
+                value
+                    .parse::<usize>()
+                    .expect("corpus case must be an integer")
+            });
+        if let Some(ordinal) = requested {
+            assert!(
+                ordinal < transition::CASE_COUNT,
+                "corpus case must be below {}",
+                transition::CASE_COUNT
+            );
+        }
+
+        for case in cases
+            .iter()
+            .filter(|case| requested.is_none_or(|ordinal| case.ordinal == ordinal))
+        {
+            if requested.is_some() {
+                eprintln!(
+                    "optimizer corpus replay: format={} seed={:#018x} case={case:?}",
+                    transition::FORMAT,
+                    transition::SEED,
+                );
+            }
+            let artifact = psi::transition_artifact(case.ordinal, case, 100_000);
+            selected_machine::exercise_transition(case, &artifact);
+
+            #[cfg(any(
+                all(target_os = "linux", target_arch = "x86_64"),
+                all(target_os = "linux", target_arch = "aarch64"),
+                all(target_os = "macos", target_arch = "aarch64"),
+            ))]
+            selected_machine::exercise_host_native_transition(case, &artifact);
         }
     }
 }

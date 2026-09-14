@@ -36,6 +36,23 @@ pub(super) fn assert_bool_result(
     );
 }
 
+/// The transition lane's arms may disagree: `omega_entry(0)` must equal
+/// `when_false` and `omega_entry(1)` must equal `when_true`. The lane stays
+/// scalar-only, so the slot-free row-byte layout still carries every edge
+/// transfer as ordinary selected code.
+pub(super) fn assert_u64_result_arms(
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    when_false: u64,
+    when_true: u64,
+) {
+    native_function::assert_c_driver(
+        layout,
+        &format!(
+            "#include <stdint.h>\nextern uint64_t omega_entry(uint8_t);\nint main(void) {{ return omega_entry(0) == {when_false}ULL && omega_entry(1) == {when_true}ULL ? 0 : 1; }}\n"
+        ),
+    );
+}
+
 /// The atomic lane's arms may disagree: `omega_entry(0)` must equal
 /// `when_false` and `omega_entry(1)` must equal `when_true`. Atomic
 /// establishment results own frame-local aggregate storage, so the executed
