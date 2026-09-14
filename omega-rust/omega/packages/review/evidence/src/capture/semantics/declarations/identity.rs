@@ -1,4 +1,4 @@
-use crate::capture::semantics::declarations::nominal_owner;
+use super::ownership::nominal_owner_from_symbols;
 use crate::record::PackageReviewNominalIdentity;
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
@@ -8,8 +8,20 @@ pub(crate) fn nominal_identity(
     compilation: &CheckedCompilation,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
-    let owner = nominal_owner(compilation, symbol)?;
-    let path = compilation.typed.symbols.display_path(symbol, "::");
+    nominal_identity_from_symbols(
+        &compilation.typed.symbols,
+        symbol,
+        compilation.exact_toolchain_sources(),
+    )
+}
+
+pub(crate) fn nominal_identity_from_symbols(
+    symbols: &symbols::SymbolTable,
+    symbol: SymbolHandle,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
+    let owner = nominal_owner_from_symbols(symbols, symbol, exact_toolchain_sources)?;
+    let path = symbols.display_path(symbol, "::");
     if path.is_empty() {
         return Err(vec![Diagnostic::error(
             "package review encountered a symbol without a stable declaration path",

@@ -1,6 +1,6 @@
 use super::rejected;
 use crate::capture::semantics::declarations::nominal_identity;
-use crate::capture::semantics::types::review_signature_type_identity_with_binders;
+use crate::capture::semantics::types::signature_type_identity;
 use crate::project_checked_conformance_policy;
 use crate::record::{
     PackagePolicyCallbackInlineField, PackagePolicyCallbackLayout,
@@ -10,6 +10,7 @@ use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use layout::TargetClosedPlanLaidDataLayoutIdentity;
 use provider_planning::calling_policy_plans::BoundaryCallbackLayoutEntry;
+use std::borrow::Cow;
 use typed_trees::name::Identifier;
 use typed_trees::typed_trees::PlanLaidLayout;
 use typed_trees::types::TypeReferenceNode;
@@ -105,11 +106,11 @@ fn application(
     let [schema] = schemas.as_slice() else {
         return Err(rejected("callback layout has no exact schema declaration"));
     };
-    let mut projected = compilation.clone();
+    let mut projected = Cow::Borrowed(&compilation.typed);
     let reference = match schema.generic_instance {
         Some(reference) => reference,
         None => projected
-            .typed
+            .to_mut()
             .type_reference_table
             .insert(TypeReferenceNode::Named {
                 symbol: schema.symbol,
@@ -118,11 +119,15 @@ fn application(
     };
     Ok(PackagePolicyCallbackLayoutApplication {
         policy: nominal_identity(compilation, plan.policy_symbol)?,
-        schema: review_signature_type_identity_with_binders(
+        schema: signature_type_identity(
             &projected,
+            compilation.exact_toolchain_sources(),
             reference,
             &[],
             lifetime_binders,
+            &[],
+            &[],
+            false,
         )?,
         byte_size: quantity(layout.physical.size)?,
         alignment: quantity(layout.physical.alignment)?,

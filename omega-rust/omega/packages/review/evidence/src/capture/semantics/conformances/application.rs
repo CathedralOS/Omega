@@ -4,17 +4,15 @@ use crate::capture::contracts::expressions::static_arguments::{
 };
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::lifetimes::substituted_lifetime_binder_ordinal;
-use crate::capture::semantics::types::{
-    review_signature_type_identity_with_binders,
-    review_signature_type_identity_with_binders_and_substitutions_and_lifetimes,
-};
+use crate::capture::semantics::types::signature_type_identity;
 use crate::record::PackageReviewContractStaticArgument;
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
+use std::borrow::Cow;
 use symbols::SymbolHandle;
 
 fn selected_conformance_application_type_reference(
-    compilation: &mut CheckedCompilation,
+    program: &mut typed_trees::TypedTrees,
     argument: &typed_trees::expression::StaticMachineArgument,
     parameter_kind: ContractCallStaticParameterKind,
     subject_kind: &str,
@@ -44,8 +42,7 @@ fn selected_conformance_application_type_reference(
         if parameter_kind != ContractCallStaticParameterKind::Const {
             return Err(rejected("a literal in a non-const telescope slot"));
         }
-        return Ok(compilation
-            .typed
+        return Ok(program
             .type_reference_table
             .insert(TypeReferenceNode::Named {
                 symbol: SymbolHandle::invalid(),
@@ -55,13 +52,13 @@ fn selected_conformance_application_type_reference(
     if let Some(application) = argument.application.as_ref() {
         if parameter_kind != ContractCallStaticParameterKind::Type
             || !argument.symbol.is_valid()
-            || compilation.typed.symbols.get(argument.symbol).kind != symbols::SymbolKind::Data
+            || program.symbols.get(argument.symbol).kind != symbols::SymbolKind::Data
         {
             return Err(rejected(
                 "a nested non-data application in its declaration telescope",
             ));
         }
-        let definition = compilation
+        let definition = program
             .data_definitions()
             .iter()
             .find(|definition| definition.symbol == argument.symbol)
@@ -72,7 +69,7 @@ fn selected_conformance_application_type_reference(
                 "a nested data application with the wrong lifetime arity",
             ));
         }
-        let parameters = compilation.data_type_parameters(&definition).to_vec();
+        let parameters = program.data_type_parameters(&definition).to_vec();
         if parameters.len() != application.arguments.len() {
             return Err(rejected(
                 "a nested data application with the wrong static arity",
@@ -81,7 +78,7 @@ fn selected_conformance_application_type_reference(
         let mut children = Vec::with_capacity(parameters.len());
         for (child, parameter) in application.arguments.iter().zip(&parameters) {
             children.push(selected_conformance_application_type_reference(
-                compilation,
+                program,
                 child,
                 contract_call_static_parameter_kind(parameter),
                 subject_kind,
@@ -89,12 +86,10 @@ fn selected_conformance_application_type_reference(
                 depth + 1,
             )?);
         }
-        let arguments = compilation
-            .typed
+        let arguments = program
             .type_reference_table
             .insert_type_reference_handles(children);
-        return Ok(compilation
-            .typed
+        return Ok(program
             .type_reference_table
             .insert(TypeReferenceNode::Generic {
                 base_symbol: definition.symbol,
@@ -107,10 +102,9 @@ fn selected_conformance_application_type_reference(
         return Err(rejected("an unresolved declaration argument"));
     }
     let name = argument.path.last().cloned().unwrap_or_else(|| {
-        typed_trees::name::Identifier::generated(compilation.typed.symbols.name(argument.symbol))
+        typed_trees::name::Identifier::generated(program.symbols.name(argument.symbol))
     });
-    Ok(compilation
-        .typed
+    Ok(program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
             symbol: argument.symbol,
@@ -204,6 +198,9 @@ pub(crate) fn project_selected_conformance_application(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    // Only synthesized type nodes belong to projection. Keep facts, selected
+    // applications, and source custody borrowed from the checked compilation.
+    let mut instantiated = Cow::Borrowed(&compilation.typed);
     let subject = match &declaration.subject {
         ConformanceSubject::Subjectless => {
             return Err(vec![Diagnostic::error(format!(
@@ -228,8 +225,7 @@ pub(crate) fn project_selected_conformance_application(
                 }
                 subject
             } else {
-                let mut projected = compilation.clone();
-                let carrier = projected
+                let carrier = compilation
                     .data_definitions()
                     .iter()
                     .find(|definition| definition.symbol == declaration.carrier_symbol)
@@ -245,31 +241,32 @@ pub(crate) fn project_selected_conformance_application(
                     ))]);
                 }
                 let carrier_name = carrier.name.clone();
-                let carrier = projected.typed.type_reference_table.insert(
+                let carrier = instantiated.to_mut().type_reference_table.insert(
                     typed_trees::types::TypeReferenceNode::Named {
                         symbol: declaration.carrier_symbol,
                         name: carrier_name,
                     },
                 );
-                PackageReviewContractStaticArgument::Type(
-                    review_signature_type_identity_with_binders(
-                        &projected,
-                        carrier,
-                        binders,
-                        lifetime_binders,
-                    )?,
-                )
+                PackageReviewContractStaticArgument::Type(signature_type_identity(
+                    &instantiated,
+                    compilation.exact_toolchain_sources(),
+                    carrier,
+                    binders,
+                    lifetime_binders,
+                    &[],
+                    &[],
+                    false,
+                )?)
             }
         }
     };
 
-    let mut instantiated = compilation.clone();
     let mut substitutions = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(supplied) {
         substitutions.push((
             parameter.symbol,
             selected_conformance_application_type_reference(
-                &mut instantiated,
+                instantiated.to_mut(),
                 argument,
                 contract_call_static_parameter_kind(parameter),
                 declaration_kind,
@@ -332,13 +329,15 @@ pub(crate) fn project_selected_conformance_application(
         .type_reference_handles(declaration.arguments)
         .iter()
         .map(|argument| {
-            review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
+            signature_type_identity(
                 &instantiated,
+                compilation.exact_toolchain_sources(),
                 *argument,
                 binders,
                 lifetime_binders,
                 &substitutions,
                 &lifetime_substitutions,
+                false,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;

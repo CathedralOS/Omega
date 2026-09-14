@@ -16,7 +16,7 @@ pub(super) fn rejected(reason: &str) -> Vec<Diagnostic> {
 }
 
 pub(super) fn argument_type_reference(
-    compilation: &mut CheckedCompilation,
+    program: &mut typed_trees::TypedTrees,
     argument: &StaticMachineArgument,
     kind: &TypeParameterKind,
     depth: usize,
@@ -32,8 +32,7 @@ pub(super) fn argument_type_reference(
         {
             return Err(rejected("a const literal outside its exact telescope slot"));
         }
-        return Ok(compilation
-            .typed
+        return Ok(program
             .type_reference_table
             .insert(TypeReferenceNode::Named {
                 symbol: SymbolHandle::invalid(),
@@ -47,13 +46,13 @@ pub(super) fn argument_type_reference(
         if !matches!(kind, TypeParameterKind::Type) {
             return Err(rejected("a nested application outside a type slot"));
         }
-        let definition = compilation
+        let definition = program
             .data_definitions()
             .iter()
             .find(|definition| definition.symbol == argument.symbol)
             .cloned()
             .ok_or_else(|| rejected("a generic application without an exact data declaration"))?;
-        let parameters = compilation.data_type_parameters(&definition).to_vec();
+        let parameters = program.data_type_parameters(&definition).to_vec();
         if parameters.len() != application.arguments.len()
             || definition.lifetime_parameters.len() != application.lifetime_arguments.len()
         {
@@ -62,18 +61,16 @@ pub(super) fn argument_type_reference(
         let mut arguments = Vec::with_capacity(parameters.len());
         for (parameter, child) in parameters.iter().zip(application.arguments.iter()) {
             arguments.push(argument_type_reference(
-                compilation,
+                program,
                 child,
                 &parameter.kind,
                 depth + 1,
             )?);
         }
-        let arguments = compilation
-            .typed
+        let arguments = program
             .type_reference_table
             .insert_type_reference_handles(arguments);
-        return Ok(compilation
-            .typed
+        return Ok(program
             .type_reference_table
             .insert(TypeReferenceNode::Generic {
                 base_symbol: definition.symbol,
@@ -82,12 +79,12 @@ pub(super) fn argument_type_reference(
                 arguments,
             }));
     }
-    let symbol_kind = compilation.symbols.get(argument.symbol).kind;
+    let symbol_kind = program.symbols.get(argument.symbol).kind;
     match kind {
         TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
             if symbol_kind == SymbolKind::Const =>
         {
-            let declaration = compilation
+            let declaration = program
                 .const_declarations()
                 .iter()
                 .find(|declaration| declaration.symbol == argument.symbol)
@@ -97,7 +94,7 @@ pub(super) fn argument_type_reference(
                 .as_ref()
                 .ok_or_else(|| rejected("a named const without a checked value"))?;
             validation::validate_exact_const_value_encoding(
-                &compilation.typed,
+                program,
                 declaration.declared_type,
                 encoding,
             )
@@ -107,14 +104,13 @@ pub(super) fn argument_type_reference(
                 ))
             })?;
             let value = CanonicalConstValue::new(
-                compilation
+                program
                     .normalized_type_identity(declaration.declared_type)
                     .into_string(),
                 encoding.clone(),
                 "",
             );
-            return Ok(compilation
-                .typed
+            return Ok(program
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
                     symbol: SymbolHandle::invalid(),
@@ -135,9 +131,8 @@ pub(super) fn argument_type_reference(
             ) => {}
         _ => return Err(rejected("an argument of the wrong static category")),
     };
-    let name = Identifier::generated(compilation.symbols.name(argument.symbol));
-    Ok(compilation
-        .typed
+    let name = Identifier::generated(program.symbols.name(argument.symbol));
+    Ok(program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
             symbol: argument.symbol,
