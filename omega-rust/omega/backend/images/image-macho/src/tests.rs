@@ -224,6 +224,77 @@ fn loader_mapping_rejects_segment_and_zero_fill_corruption() {
     }
 }
 
+/// The CodeDirectory identifier spelled inside the emitted file.
+/// `LC_CODE_SIGNATURE` fields are little-endian like every load command; the
+/// superblob it points at is the one big-endian structure in the file.
+fn code_signature_identifier(bytes: &[u8]) -> String {
+    let mut cursor = 32;
+    let mut signature = None;
+    for _ in 0..word(bytes, 16) {
+        let end = cursor + word(bytes, cursor + 4) as usize;
+        if word(bytes, cursor) == 0x1d {
+            assert!(
+                signature
+                    .replace((
+                        word(bytes, cursor + 8) as usize,
+                        word(bytes, cursor + 12) as usize,
+                    ))
+                    .is_none(),
+                "exactly one LC_CODE_SIGNATURE command"
+            );
+        }
+        cursor = end;
+    }
+    let (offset, size) = signature.expect("one LC_CODE_SIGNATURE command");
+    let blob = &bytes[offset..offset + size];
+    let field = |offset: usize| u32::from_be_bytes(blob[offset..offset + 4].try_into().unwrap());
+    assert_eq!(field(0), 0xfade_0cc0, "embedded signature superblob");
+    let directory = &blob[field(16) as usize..];
+    let field =
+        |offset: usize| u32::from_be_bytes(directory[offset..offset + 4].try_into().unwrap());
+    assert_eq!(field(0), 0xfade_0c02, "CodeDirectory");
+    let identifier = &directory[field(20) as usize..];
+    let end = identifier
+        .iter()
+        .position(|byte| *byte == 0)
+        .expect("NUL-terminated CodeDirectory identifier");
+    String::from_utf8(identifier[..end].to_vec()).expect("CodeDirectory identifier is ASCII")
+}
+
+#[test]
+fn authored_identifier_is_bound_into_the_code_directory() {
+    let fallback = super::emit_macho_aarch64_executable(storage_image(13, 24, 16))
+        .expect("emit leaf-fallback image");
+    assert_eq!(code_signature_identifier(&fallback.bytes), "omega-program");
+    assert_eq!(fallback.file_name, "omega-program");
+    let signed = super::emit_macho_aarch64_executable_signed(
+        storage_image(13, 24, 16),
+        "com.omega.window-app",
+    )
+    .expect("emit authored-identifier image");
+    assert_eq!(
+        code_signature_identifier(&signed.bytes),
+        "com.omega.window-app"
+    );
+    assert_ne!(
+        fallback.bytes, signed.bytes,
+        "the signing identity is part of the emitted bytes"
+    );
+    let repeated = super::emit_macho_aarch64_executable_signed(
+        storage_image(13, 24, 16),
+        "com.omega.window-app",
+    )
+    .expect("re-emit authored-identifier image");
+    assert_eq!(
+        signed.bytes, repeated.bytes,
+        "signed emission is deterministic for one bound identifier"
+    );
+    assert!(
+        super::emit_macho_aarch64_executable_signed(storage_image(13, 24, 16), "").is_err(),
+        "an empty signing identifier rejects before image emission"
+    );
+}
+
 #[test]
 fn loader_mapping_rejects_malformed_command_envelopes() {
     let original =

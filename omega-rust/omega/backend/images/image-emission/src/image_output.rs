@@ -97,9 +97,27 @@ pub fn can_emit_executable_image(target: NativeTarget) -> bool {
 /// architecture-specific immediate bits, unaccounted imports or thunks,
 /// overlapping/missing function spans, and unclassified executable bytes are
 /// hard failures.
+///
+/// This entry carries no bound signing identity: Mach-O output falls back to
+/// the validated executable leaf as its ad-hoc CodeDirectory label. The
+/// build-bound identity enters only through
+/// [`crate::ExecutableImageEmissionRequest::Direct`]
+/// (wiki/spec/build/macos_application.md).
 pub fn emit_executable_image(
     artifact: &ObjectArtifact,
     subsystem: u16,
+) -> Result<ExecutableImage, Diagnostic> {
+    emit_executable_image_signed(artifact, subsystem, None)
+}
+
+/// `code_signature_identifier` is the build-bound Mach-O signing identity
+/// carried by the image request. It is written verbatim into the emitted
+/// CodeDirectory and participates in `LC_CODE_SIGNATURE` extent planning, so
+/// it is fixed before any load command is emitted.
+pub(crate) fn emit_executable_image_signed(
+    artifact: &ObjectArtifact,
+    subsystem: u16,
+    code_signature_identifier: Option<&str>,
 ) -> Result<ExecutableImage, Diagnostic> {
     super::function_fragments::replay::validate(artifact)?;
     validate_x86_scalar_fma_provider(artifact)?;
@@ -137,9 +155,12 @@ pub fn emit_executable_image(
     let output = match (artifact.target.object_format, artifact.target.architecture) {
         (ObjectFormat::Elf, Architecture::Aarch64) => image_elf::emit_elf_aarch64_executable(image),
         (ObjectFormat::Elf, Architecture::X86_64) => image_elf::emit_elf_x86_64_executable(image),
-        (ObjectFormat::MachO, Architecture::Aarch64) => {
-            image_macho::emit_macho_aarch64_executable(image)
-        }
+        (ObjectFormat::MachO, Architecture::Aarch64) => match code_signature_identifier {
+            Some(identifier) => {
+                image_macho::emit_macho_aarch64_executable_signed(image, identifier)
+            }
+            None => image_macho::emit_macho_aarch64_executable(image),
+        },
         (ObjectFormat::Coff, Architecture::X86_64) => {
             image_pe::emit_pe_x86_64_executable(image, subsystem)
         }

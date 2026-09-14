@@ -2,6 +2,7 @@
 // from attaching a console box (PE Subsystem 2).
 machine build(builder: &mut Build) {
     builder.application("image-viewer");
+    builder.identifier = "com.omega.image-viewer";
     builder.depend(Source::Path {
         location: "../../../source/library/std"
     });

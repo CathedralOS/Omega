@@ -45,12 +45,16 @@ impl MachOImagePlan {
     }
 }
 
+/// `code_signature_identifier` is bound here, not at byte-writing time: its
+/// length sets the `LC_CODE_SIGNATURE` extent and `__LINKEDIT` size, so the
+/// signing identity is fixed before any load command is emitted.
 pub(crate) fn plan_macho_image(
     image: &FinalImage,
     import_count: usize,
     rebase_size: usize,
     bind_size: usize,
     dylibs: &[MachoDylib],
+    code_signature_identifier: &str,
 ) -> MachOImagePlan {
     let has_imports = import_count > 0;
     let has_dyld_info = rebase_size > 0 || has_imports;
@@ -107,7 +111,7 @@ pub(crate) fn plan_macho_image(
     let rebase_offset = align_to(unsigned_file_end, MACHO_ARM64_PAGE_SIZE);
     let bind_offset = rebase_offset + rebase_size;
     let code_signature_offset = align_to(bind_offset + bind_size, MACHO_ARM64_PAGE_SIZE);
-    let code_signature_size = code_signature_size(code_signature_offset);
+    let code_signature_size = code_signature_size(code_signature_offset, code_signature_identifier);
     let linkedit_vmaddr = if has_data_segment {
         data_address
             .checked_add(data_vm_size)
@@ -173,6 +177,7 @@ mod tests {
             0,
             12,
             &[crate::load_commands::MachoDylib::LIBSYSTEM],
+            "omega-program",
         );
 
         assert!(plan.has_dyld_info);
@@ -216,6 +221,7 @@ mod tests {
             5,
             0,
             &[crate::load_commands::MachoDylib::LIBSYSTEM],
+            "omega-program",
         );
 
         assert!(plan.has_dyld_info);

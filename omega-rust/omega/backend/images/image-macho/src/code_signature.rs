@@ -7,9 +7,12 @@ use super::bytes::{write_be_u32, write_be_u64};
 use super::constants::{CODE_SIGNATURE_PAGE_SIZE, CODE_SIGNATURE_PAGE_SIZE_POWER};
 use super::layout::align_to;
 
-pub(super) fn code_signature_size(code_limit: usize) -> usize {
+/// The blob length for the exact `identifier` bound into the CodeDirectory.
+/// The identifier length participates in offset arithmetic, so the caller must
+/// supply the same value that `macho_ad_hoc_code_signature` later writes; a
+/// late substitution would corrupt `LC_CODE_SIGNATURE`'s recorded extent.
+pub(super) fn code_signature_size(code_limit: usize, identifier: &str) -> usize {
     let page_count = code_slot_count(code_limit);
-    let identifier = code_signature_identifier();
     let code_directory_header_size = 88usize;
     let special_slot_count = 2usize;
     let hash_offset =
@@ -22,13 +25,16 @@ pub(super) fn code_signature_size(code_limit: usize) -> usize {
     align_to(super_blob_length, 16)
 }
 
+/// `identifier` is the already-validated signing identity (the authored
+/// application identifier, or the executable-leaf fallback). It is written
+/// verbatim after the 88-byte CodeDirectory header.
 pub(super) fn macho_ad_hoc_code_signature(
     code_bytes: &[u8],
     executable_segment_limit: usize,
+    identifier: &str,
 ) -> Vec<u8> {
     let code_limit = code_bytes.len();
     let page_count = code_slot_count(code_limit);
-    let identifier = code_signature_identifier();
     let code_directory_header_size = 88usize;
     let special_slot_count = 2usize;
     let identifier_offset = code_directory_header_size;
@@ -149,8 +155,4 @@ fn empty_entitlements_blob() -> &'static [u8; 8] {
 
 fn code_slot_count(code_limit: usize) -> usize {
     code_limit.div_ceil(CODE_SIGNATURE_PAGE_SIZE)
-}
-
-fn code_signature_identifier() -> &'static str {
-    "omega-program"
 }

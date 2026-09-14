@@ -26,6 +26,11 @@ use crate::final_image_validation::validate_terminal_dynamic_elf_image;
 pub enum ExecutableImageEmissionRequest {
     Direct {
         subsystem: u16,
+        /// The build-bound Mach-O CodeDirectory signing identity
+        /// (wiki/spec/build/macos_application.md). `None` selects the
+        /// validated executable leaf as the ad-hoc label; the ELF and PE
+        /// writers do not interpret this value.
+        code_signature_identifier: Option<String>,
     },
     DynamicElf {
         interpreter: NormalizedElfInterpreterPlan,
@@ -34,7 +39,35 @@ pub enum ExecutableImageEmissionRequest {
 
 impl ExecutableImageEmissionRequest {
     pub const fn direct(subsystem: u16) -> Self {
-        Self::Direct { subsystem }
+        Self::Direct {
+            subsystem,
+            code_signature_identifier: None,
+        }
+    }
+
+    /// Bind `code_signature_identifier` as the Mach-O CodeDirectory identity.
+    /// The caller supplies the build-validated authored application
+    /// identifier; emission writes it verbatim and rejects an empty string
+    /// rather than silently falling back to the leaf.
+    pub fn with_code_signature_identifier(self, code_signature_identifier: Option<String>) -> Self {
+        match self {
+            Self::Direct { subsystem, .. } => Self::Direct {
+                subsystem,
+                code_signature_identifier,
+            },
+            Self::DynamicElf { .. } => self,
+        }
+    }
+
+    /// The identity a direct request binds into Mach-O signing, if any.
+    pub fn code_signature_identifier(&self) -> Option<&str> {
+        match self {
+            Self::Direct {
+                code_signature_identifier,
+                ..
+            } => code_signature_identifier.as_deref(),
+            Self::DynamicElf { .. } => None,
+        }
     }
 
     pub const fn dynamic_elf(interpreter: NormalizedElfInterpreterPlan) -> Self {
@@ -158,7 +191,7 @@ pub fn emit_requested_executable_image(
                 })
                 .map_err(|error| Box::new(RequestedExecutableImageError::DynamicElf(error)))
         }
-        (true, ExecutableImageEmissionRequest::Direct { subsystem }) => Err(Box::new(
+        (true, ExecutableImageEmissionRequest::Direct { subsystem, .. }) => Err(Box::new(
             RequestedExecutableImageError::MissingDynamicElfInterpreter {
                 target: artifact.target(),
                 subsystem,
@@ -175,11 +208,19 @@ pub fn emit_requested_executable_image(
                 ),
             },
         )),
-        (false, ExecutableImageEmissionRequest::Direct { subsystem }) => {
-            crate::emit_executable_image(artifact, subsystem)
-                .map(RequestedExecutableImage::Direct)
-                .map_err(|diagnostic| Box::new(RequestedExecutableImageError::Direct(diagnostic)))
-        }
+        (
+            false,
+            ExecutableImageEmissionRequest::Direct {
+                subsystem,
+                code_signature_identifier,
+            },
+        ) => crate::image_output::emit_executable_image_signed(
+            artifact,
+            subsystem,
+            code_signature_identifier.as_deref(),
+        )
+        .map(RequestedExecutableImage::Direct)
+        .map_err(|diagnostic| Box::new(RequestedExecutableImageError::Direct(diagnostic))),
     }
 }
 

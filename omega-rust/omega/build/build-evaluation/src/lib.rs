@@ -79,7 +79,7 @@ use build_time_evaluation::{
     BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemMetadataLayout, BuildTimeValue,
     PreparedBuildMachineEntry, PreparedBuildMachineProgram,
 };
-pub use configuration::{BuildConfig, HostedApplicationIntent, PccRequests};
+pub use configuration::{ApplicationIdentifier, BuildConfig, HostedApplicationIntent, PccRequests};
 
 use configuration::extract_build_config;
 pub use declarations::{WireCompatibilityDemand, harvest_provider_selections, harvest_root_grants};
@@ -504,6 +504,11 @@ pub fn admit_build_program(
         ),
         ("freestanding".to_owned(), BuildTimeValue::Bool(false)),
     ]);
+    // The toolchain Build declares `identifier`; an authored Build opts in by
+    // declaring the same field. Empty bytes mean no authored identity.
+    if vocabulary::build_machine_declares_identifier_field(typed, machine) {
+        build_fields.push(("identifier".to_owned(), BuildTimeValue::Text(Vec::new())));
+    }
     if let Some(field) = optimization_admission.zero_build_field() {
         build_fields.push(field);
     }

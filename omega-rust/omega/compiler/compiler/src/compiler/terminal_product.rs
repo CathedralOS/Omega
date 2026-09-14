@@ -304,6 +304,8 @@ fn project_terminal_native_realization_proposal(
         target_profile,
         native_target,
         checked.subsystem(),
+        checked.application_intent(),
+        checked.application_identifier().cloned(),
         selections.project_post_terminal(),
         program_entry,
         checked.selected_provider_plans().clone(),

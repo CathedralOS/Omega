@@ -17,6 +17,7 @@ pub(super) struct CheckedExecution {
     pub(super) const_evaluation: const_evaluation::SelectedConstEvaluation,
     pub(super) subsystem: u16,
     pub(super) application_intent: Option<build_evaluation::HostedApplicationIntent>,
+    pub(super) application_identifier: Option<build_evaluation::ApplicationIdentifier>,
     pub(super) pcc_requests: build_evaluation::PccRequests,
     pub(super) selected_target_profile: Option<target::TargetProfile>,
     pub(super) selected_native_target: Option<target::NativeTarget>,
@@ -78,6 +79,7 @@ pub(super) fn check_selected_execution(
     let x86_scalar_fma_provider = build_config.x86_scalar_fma_provider;
     let subsystem = build_config.subsystem;
     let application_intent = build_config.application_intent;
+    let application_identifier = build_config.application_identifier.clone();
     let optimization =
         crate::pipeline::optimization::checked_handoff::CheckedOptimizationHandoff::retain(
             build_config.optimizations.clone(),
@@ -262,6 +264,7 @@ pub(super) fn check_selected_execution(
         const_evaluation,
         subsystem,
         application_intent,
+        application_identifier,
         pcc_requests: build_config.pcc,
         selected_target_profile,
         selected_native_target,
