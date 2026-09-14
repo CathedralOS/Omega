@@ -58,7 +58,13 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
    `--dry-run` prints the bodies without network.
 4. `status --wave <id>` — polls each session's status and ACU consumption.
 5. `report --wave <id>` — merges receipts and structured output into
-   `build/swarm/<wave>/report.md`, the input for a `retrospect` pass.
+   `build/swarm/<wave>/report.md`, the input for a `retrospect` pass. With
+   `--save` it also writes `tools/swarm/waves/<wave>.outcomes.json`: a tracked
+   per-session record of `result`, `acus_consumed`, and `item_closed`
+   (the assigned item's `**<item>.**` marker absent from its board at report
+   time), plus a result rollup. Run it after the wave's landings settle and
+   commit the outcomes file with the manifest so closure and ACU-per-closure
+   stay measurable across waves.
 
 ## Coordinator selection rules
 
@@ -96,6 +102,12 @@ Pick items that are:
 - `budget_exhausted` requires active implementation of a slice the child still
   believes is landable. Diagnose scope honestly, but crossing a crate or stage
   boundary is not by itself a reason to stop at `verification_only`.
+
+When an item returns in a later wave's manifest, the previous session's board
+resume evidence should have let it skip re-witnessing the failure. At wave
+review, check one returning item's session for that reuse and note the finding
+beside its outcomes entry; that is where the repeated-rediscovery cost of
+multi-session items would show up.
 
 ## Lead-only launch checklist
 

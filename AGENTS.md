@@ -616,7 +616,9 @@ assignments are registered on `refs/coordination/omega-claims/main` through
 [tools/claims](tools/claims.md): the launcher checks each manifest entry
 against it, and each session claims its item before editing. Sessions publish
 through the landing protocol with a `swarm-<wave>-<name>` owner
-label, and receipts stay in ignored `build/swarm/`, never on boards.
+label, and receipts stay in ignored `build/swarm/`, never on boards. The wave's
+summarized per-session outcomes land in
+`tools/swarm/waves/<wave>.outcomes.json` (`report --save`).
 
 ### Commit naming
 
