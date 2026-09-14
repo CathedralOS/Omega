@@ -13,6 +13,8 @@ use generic_arguments::{
 };
 pub use generic_arguments::{validate_closed_const_argument, validate_exact_const_value_encoding};
 pub use open_index_expressions::normalize_open_index_expressions;
+mod float_ranges;
+pub use float_ranges::{closed_float_range_endpoint, ieee_float_range_ordered};
 mod integer_ranges;
 pub use integer_ranges::{
     closed_integer_range_bound, closed_integer_range_maximum, closed_scalar_result_range,

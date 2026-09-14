@@ -393,3 +393,90 @@ pub(crate) fn lower_integer_parameter_range_requirements(
     }
     requirements
 }
+
+/// Floating range constraints are entry requirements the closed scalar
+/// predicate language cannot yet spell. Retain each authored window with
+/// its exact IEEE endpoints and authored boundary kind; the exclusive end
+/// stays authored, never an integer predecessor. `None` records an
+/// incomplete roster so consumers fail closed rather than guess.
+pub(crate) fn lower_float_parameter_range_requirements(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Option<Vec<checked_trees::ClosedFloatRangeRequirement>> {
+    let entry = program.machine_states(machine).first()?;
+    let parameters = program.state_parameters(entry);
+    let mut requirements = Vec::new();
+    let mut scalar_position = 0;
+    for parameter in parameters {
+        let primitive_type = program.primitive_type_reference(parameter.type_reference);
+        let position = scalar_position;
+        if primitive_type.is_some() {
+            scalar_position += 1;
+        }
+        let mut type_reference = parameter.type_reference;
+        loop {
+            match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => {
+                    for constraint in program.type_reference_table.constraints(*constraints) {
+                        let typed_trees::types::TypeConstraintNode::Range {
+                            minimum,
+                            maximum,
+                            end_inclusive,
+                        } = constraint
+                        else {
+                            continue;
+                        };
+                        let Some(primitive_type) = primitive_type else {
+                            continue;
+                        };
+                        if !matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64) {
+                            continue;
+                        }
+                        let requirement = || {
+                            // Existing source validation rejects range constraints
+                            // outside Exact: those domains do not enforce stores.
+                            if parameter.is_self
+                                || parameter.is_const
+                                || program
+                                    .arithmetic_domain_for_type_reference(parameter.type_reference)
+                                    != ArithmeticDomain::Exact
+                            {
+                                return None;
+                            }
+                            let minimum = validation::closed_float_range_endpoint(
+                                program,
+                                *minimum,
+                                primitive_type,
+                            )?;
+                            let maximum = validation::closed_float_range_endpoint(
+                                program,
+                                *maximum,
+                                primitive_type,
+                            )?;
+                            // IEEE order: a NaN endpoint or a reversed window
+                            // cannot be retained as a nonempty requirement.
+                            if !validation::ieee_float_range_ordered(minimum, maximum) {
+                                return None;
+                            }
+                            Some(checked_trees::ClosedFloatRangeRequirement {
+                                position,
+                                primitive_type,
+                                minimum,
+                                maximum,
+                                maximum_inclusive: *end_inclusive,
+                            })
+                        };
+                        requirements.push(requirement()?);
+                    }
+                    type_reference = *base_type;
+                }
+                _ => break,
+            }
+        }
+    }
+    Some(requirements)
+}
