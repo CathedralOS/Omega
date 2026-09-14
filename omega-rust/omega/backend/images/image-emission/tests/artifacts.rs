@@ -1910,6 +1910,194 @@ fn installation_dynamic_conformance_table_rejects_every_one_field_substitution()
 }
 
 #[test]
+fn installation_dynamic_parameter_call_rejects_every_one_field_substitution() {
+    let artifact = build_object_artifact(&dynamic_parameter_call_plan())
+        .expect("dynamic-parameter object artifact");
+    let image = emit_executable_image(&artifact, 3).expect("dynamic-parameter image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
+        .expect("dynamic-parameter installation");
+    validate_installation_record(&record, &image).expect("authentic binding");
+    assert_eq!(record.dynamic_parameter_calls().len(), 1);
+    let authentic = record.dynamic_parameter_calls()[0];
+    assert_eq!(authentic.machine, machine_id(2));
+    assert_eq!(authentic.operation, operation_id(2));
+    assert_eq!(authentic.source_value, None);
+    assert_eq!(authentic.requirement_slot, 0);
+    let authentic_fingerprint =
+        installation_fingerprint(&record).expect("authentic installation fingerprint");
+
+    let caller = record
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(2))
+        .expect("dynamic-parameter caller row");
+    let function_text_offset = caller.text_offset;
+    let function_text_end = function_text_offset + caller.byte_count;
+    assert_eq!(authentic.text_offset, function_text_offset);
+    assert_eq!(authentic.byte_count, 8);
+
+    // These one-field substitutions remain representable: they encode and
+    // decode canonically, recompute to a different installation identity, and
+    // independent replay against the unchanged image rejects them.
+    type StillEncodedMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+    );
+    let still_encodes: Vec<StillEncodedMutation> = vec![
+        (
+            "call::operation",
+            Box::new(|record| {
+                record.dynamic_parameter_calls_mut_for_test()[0].operation = operation_id(98);
+            }),
+        ),
+        (
+            "call::source_value",
+            Box::new(|record| {
+                record.dynamic_parameter_calls_mut_for_test()[0].source_value =
+                    semantic_vocabulary::ValueId::new(98);
+            }),
+        ),
+        (
+            "call::requirement_slot",
+            Box::new(|record| {
+                record.dynamic_parameter_calls_mut_for_test()[0].requirement_slot = 1;
+            }),
+        ),
+        (
+            "call::text_offset",
+            Box::new(move |record| {
+                record.dynamic_parameter_calls_mut_for_test()[0].text_offset =
+                    function_text_offset + 1;
+            }),
+        ),
+        (
+            "call::byte_count",
+            Box::new(|record| {
+                record.dynamic_parameter_calls_mut_for_test()[0].byte_count += 1;
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted record encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted record decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted record"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted record"
+        );
+    }
+
+    // Canonical record-shape joins reject every other one-field substitution
+    // at encoding, before any identity or replay could accept it.
+    type RejectedMutation = (
+        &'static str,
+        Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+        InstallationError,
+    );
+    let rejected: Vec<RejectedMutation> = vec![
+        (
+            "call::machine::unknown",
+            Box::new(|record| {
+                record.dynamic_parameter_calls_mut_for_test()[0].machine = machine_id(98);
+            }),
+            InstallationError::InvalidDynamicParameterCall(machine_id(98)),
+        ),
+        (
+            "call::machine::other_function",
+            Box::new(|record| {
+                record.dynamic_parameter_calls_mut_for_test()[0].machine = machine_id(1);
+            }),
+            InstallationError::InvalidDynamicParameterCall(machine_id(1)),
+        ),
+        (
+            "call::text_offset::before_function",
+            Box::new(move |record| {
+                record.dynamic_parameter_calls_mut_for_test()[0].text_offset =
+                    function_text_offset - 1;
+            }),
+            InstallationError::InvalidDynamicParameterCall(machine_id(2)),
+        ),
+        (
+            "call::text_offset::past_function",
+            Box::new(move |record| {
+                record.dynamic_parameter_calls_mut_for_test()[0].text_offset = function_text_end;
+            }),
+            InstallationError::InvalidDynamicParameterCall(machine_id(2)),
+        ),
+        (
+            "call::byte_count::empty",
+            Box::new(|record| {
+                record.dynamic_parameter_calls_mut_for_test()[0].byte_count = 0;
+            }),
+            InstallationError::InvalidDynamicParameterCall(machine_id(2)),
+        ),
+        (
+            "call::byte_count::past_function",
+            Box::new(|record| {
+                record.dynamic_parameter_calls_mut_for_test()[0].byte_count += 10;
+            }),
+            InstallationError::InvalidDynamicParameterCall(machine_id(2)),
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: canonical encoding rejects the substitution"
+        );
+    }
+
+    // Roster-level custody: dropping the row still encodes, but its recomputed
+    // identity diverges and independent replay rejects it; duplicating the row
+    // collides on the canonical (machine, operation) call site.
+    let mut dropped_call = record.clone();
+    dropped_call.dynamic_parameter_calls_mut_for_test().pop();
+    let dropped_bytes =
+        encode_installation_record(&dropped_call).expect("dropped dynamic-parameter call encodes");
+    let dropped =
+        decode_installation_record(&dropped_bytes).expect("dropped dynamic-parameter call decodes");
+    assert_ne!(
+        installation_fingerprint(&dropped).expect("dropped fingerprint"),
+        authentic_fingerprint,
+        "dropped row recomputes a different installation identity"
+    );
+    assert_eq!(
+        validate_installation_record(&dropped, &image),
+        Err(InstallationError::ImageBindingMismatch),
+        "independent replay rejects the dropped row"
+    );
+    let mut duplicated_call = record.clone();
+    let call = duplicated_call.dynamic_parameter_calls()[0];
+    duplicated_call
+        .dynamic_parameter_calls_mut_for_test()
+        .push(call);
+    assert_eq!(
+        encode_installation_record(&duplicated_call),
+        Err(InstallationError::InvalidDynamicParameterCall(machine_id(
+            2
+        )))
+    );
+}
+
+#[test]
 fn object_boundary_rejects_noncanonical_or_incomplete_machine_code_plans() {
     let mut reordered = two_function_plan();
     reordered.functions.swap(0, 1);
@@ -6303,6 +6491,90 @@ fn dynamic_conformance_table_plan() -> MachineCodePlan {
             byte_count: 18,
         },
     ];
+    plan
+}
+
+/// One scalar Terminal function whose body performs a single indirect dispatch
+/// through an existential descriptor parameter: the descriptor's table word
+/// arrives in `rsi`, so `call qword ptr [rsi]` selects requirement slot zero.
+/// The record carries the complete semantic, ABI, register, and byte custody
+/// that object replay must re-derive from the emitted bytes alone.
+fn dynamic_parameter_call_plan() -> MachineCodePlan {
+    let target = NativeTarget::linux_x64();
+    let mut plan = internal_call_plan(target);
+    let caller = &mut plan.functions[1];
+    caller.bytes = vec![
+        0x50, // push rax — outbound call frame keeps the call site 16-aligned
+        0xff, 0x96, 0, 0, 0, 0,    // call qword ptr [rsi] — descriptor table slot zero
+        0x58, // pop rax
+        0xc3, // ret
+    ];
+    caller.internal_calls = Vec::new();
+    caller.scalar_stack = Some(ScalarStackEvidence {
+        mutations: vec![
+            scalar_mutation(0, 1, ScalarStackMutationKind::X86Push),
+            scalar_mutation(7, 1, ScalarStackMutationKind::X86Pop),
+        ],
+        control_flow: ScalarControlFlowEvidence::Linear,
+        stack_alignment: 16,
+        cleanup_preservation: None,
+    });
+    let pointer = ValueShape::integer(8, 8);
+    let policy = calling_conventions::CallingPolicy::native_for_target(target);
+    let function_call_plan = calling_conventions::evaluate_call_plan(
+        policy,
+        &calling_conventions::CallSignature {
+            parameters: vec![pointer, pointer],
+            result: None,
+        },
+    )
+    .expect("descriptor-parameter entry ABI");
+    let dispatch_call_plan = calling_conventions::evaluate_call_plan(
+        policy,
+        &calling_conventions::CallSignature {
+            parameters: vec![pointer],
+            result: None,
+        },
+    )
+    .expect("erased adapter ABI");
+    let requirement = terminal_psi::TerminalDynamicRequirement {
+        slot: 0,
+        declaring_trait_identity: "dyn.trait".to_string(),
+        public_requirement_identity: "dyn.req".to_string(),
+        result: terminal_psi::ClosedConformanceCallableResult::Unit,
+    };
+    caller.dynamic_parameter_calls = vec![machine_code::DynamicParameterCallRecord {
+        psi_edge: edge_id(2),
+        psi_operation: operation_id(2),
+        source_value: None,
+        scalar_type: None,
+        parameter: terminal_psi::TerminalDynamicDescriptorParameter {
+            owner: machine_id(2),
+            ordinal: 0,
+            source_position: 0,
+            trait_identity: "dyn.trait".to_string(),
+            access: StructuralAccess::SharedBorrow,
+            requirements: vec![requirement.clone()],
+        },
+        requirement,
+        function_call_plan,
+        dispatch_call_plan,
+        instance: calling_conventions::MachineRegister::X86Rdi,
+        table: calling_conventions::MachineRegister::X86Rsi,
+        table_slot_byte_offset: 0,
+        mechanism: machine_code::DynamicParameterCallMechanismRecord::X86MemoryIndirect {
+            table: calling_conventions::MachineRegister::X86Rsi,
+        },
+        indirect_call_offset: 1,
+        indirect_call_byte_count: 6,
+        call_stack: ScalarCallStackEvidence {
+            outbound: None,
+            aarch64_return_link: None,
+        },
+        operation_ordinal: 0,
+        code_offset: 0,
+        byte_count: 8,
+    }];
     plan
 }
 

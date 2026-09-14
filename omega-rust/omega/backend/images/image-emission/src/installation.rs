@@ -289,6 +289,13 @@ impl InstallationRecord {
         &mut self.dynamic_calls
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn dynamic_parameter_calls_mut_for_test(
+        &mut self,
+    ) -> &mut Vec<InstalledDynamicParameterCall> {
+        &mut self.dynamic_parameter_calls
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
