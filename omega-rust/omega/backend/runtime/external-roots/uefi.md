@@ -8,8 +8,11 @@ authority and phase leases. `provider_projection.rs` and
 selected native operands and execution receipts. Equal public report IDs cannot
 mint another ledger's authority. The separate `os_handoff.rs` models the bounded
 map/exit cycle and returns complete linear custody on stale keys or exhaustion.
-That state model alone does not invoke native providers or qualify final-map
-physical memory.
+`os_handoff_cycle.rs` is the caller-side composition that drives that ledger
+across the `get_memory_map` and `exit_boot_services` provider edges in the only
+legal order — acquire the freshest map, bind its key into the exit attempt,
+execute and admit, then apply — returning complete live custody on every
+rejection. That state model alone does not qualify final-map physical memory.
 
 ## Target evidence and execution
 
